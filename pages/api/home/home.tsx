@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useQuery } from 'react-query';
 
 import { GetServerSideProps } from 'next';
@@ -36,7 +36,7 @@ import { Chatbar } from '@/components/Chatbar/Chatbar';
 import { Navbar } from '@/components/Mobile/Navbar';
 import Promptbar from '@/components/Promptbar';
 
-import HomeContext from './home.context';
+import HomeContext, {Processor} from './home.context';
 import { HomeInitialState, initialState } from './home.state';
 
 import { v4 as uuidv4 } from 'uuid';
@@ -60,6 +60,7 @@ const Home = ({
   const contextValue = useCreateReducer<HomeInitialState>({
     initialState,
   });
+
 
   const {
     state: {
@@ -178,7 +179,7 @@ const Home = ({
 
   // CONVERSATION OPERATIONS  --------------------------------------------
 
-  const handleNewConversation = () => {
+  const handleNewConversation = (params = {}) => {
     const lastConversation = conversations[conversations.length - 1];
 
     const newConversation: Conversation = {
@@ -194,12 +195,14 @@ const Home = ({
       prompt: DEFAULT_SYSTEM_PROMPT,
       temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
       folderId: null,
+      ...params
     };
 
     const updatedConversations = [...conversations, newConversation];
 
     dispatch({ field: 'selectedConversation', value: newConversation });
     dispatch({ field: 'conversations', value: updatedConversations });
+
 
     saveConversation(newConversation);
     saveConversations(updatedConversations);
@@ -347,6 +350,26 @@ const Home = ({
     serverSidePluginKeysSet,
   ]);
 
+  const [preProcessingCallbacks, setPreProcessingCallbacks] = useState([]);
+  const [postProcessingCallbacks, setPostProcessingCallbacks] = useState([]);
+
+  const addPreProcessingCallback = useCallback((callback:Processor) => {
+    console.log("Proc added");
+    setPreProcessingCallbacks(prev => [...prev, callback]);
+  }, []);
+
+  const removePreProcessingCallback = useCallback((callback:Processor) => {
+    setPreProcessingCallbacks(prev => prev.filter(c => c !== callback));
+  }, []);
+
+  const addPostProcessingCallback = useCallback((callback:Processor) => {
+    setPostProcessingCallbacks(prev => [...prev, callback]);
+  }, []);
+
+  const removePostProcessingCallback = useCallback((callback:Processor) => {
+    setPostProcessingCallbacks(prev => prev.filter(c => c !== callback));
+  }, []);
+
   return (
     <HomeContext.Provider
       value={{
@@ -357,6 +380,12 @@ const Home = ({
         handleUpdateFolder,
         handleSelectConversation,
         handleUpdateConversation,
+        preProcessingCallbacks,
+        postProcessingCallbacks,
+        addPreProcessingCallback,
+        removePreProcessingCallback,
+        addPostProcessingCallback,
+        removePostProcessingCallback,
       }}
     >
       <Head>
@@ -390,6 +419,7 @@ const Home = ({
           </div>
         </main>
       )}
+
     </HomeContext.Provider>
   );
 };

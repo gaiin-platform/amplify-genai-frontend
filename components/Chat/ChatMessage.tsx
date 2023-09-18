@@ -214,6 +214,9 @@ export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit }) =
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeMathjax]}
                 components={{
+                  a({href, title, ...props}) {
+                    return <a href={href}>Button</a>
+                  },
                   code({ node, inline, className, children, ...props }) {
                     if (children.length) {
                       if (children[0] == '▍') {

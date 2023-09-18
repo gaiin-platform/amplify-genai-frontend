@@ -8,10 +8,12 @@ import { FolderType } from '@/types/folder';
 
 import { HomeInitialState } from './home.state';
 
+export type Processor = (data:any) => {};
+
 export interface HomeContextProps {
   state: HomeInitialState;
   dispatch: Dispatch<ActionType<HomeInitialState>>;
-  handleNewConversation: () => void;
+  handleNewConversation: (params: {}) => void;
   handleCreateFolder: (name: string, type: FolderType) => void;
   handleDeleteFolder: (folderId: string) => void;
   handleUpdateFolder: (folderId: string, name: string) => void;
@@ -20,6 +22,14 @@ export interface HomeContextProps {
     conversation: Conversation,
     data: KeyValuePair,
   ) => void;
+
+  // New callback-related operations.
+  preProcessingCallbacks: Processor[];
+  postProcessingCallbacks: Processor[];
+  addPreProcessingCallback: (callback: Processor) => void;
+  removePreProcessingCallback: (callback: Processor) => void;
+  addPostProcessingCallback: (callback: Processor) => void;
+  removePostProcessingCallback: (callback: Processor) => void;
 }
 
 const HomeContext = createContext<HomeContextProps>(undefined!);

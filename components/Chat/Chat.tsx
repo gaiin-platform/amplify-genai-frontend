@@ -34,6 +34,8 @@ import { SystemPrompt } from './SystemPrompt';
 import { TemperatureSlider } from './Temperature';
 import { MemoizedChatMessage } from './MemoizedChatMessage';
 
+import { useChatService } from '@/hooks/useChatService';
+
 interface Props {
   stopConversationRef: MutableRefObject<boolean>;
 }
@@ -55,8 +57,11 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
       prompts,
     },
     handleUpdateConversation,
+    postProcessingCallbacks,
     dispatch: homeDispatch,
   } = useContext(HomeContext);
+
+  const { sendChatRequest } = useChatService();
 
   const [currentMessage, setCurrentMessage] = useState<Message>();
   const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
@@ -100,30 +105,32 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
           prompt: updatedConversation.prompt,
           temperature: updatedConversation.temperature,
         };
-        const endpoint = getEndpoint(plugin);
-        let body;
-        if (!plugin) {
-          body = JSON.stringify(chatBody);
-        } else {
-          body = JSON.stringify({
-            ...chatBody,
-            googleAPIKey: pluginKeys
-              .find((key) => key.pluginId === 'google-search')
-              ?.requiredKeys.find((key) => key.key === 'GOOGLE_API_KEY')?.value,
-            googleCSEId: pluginKeys
-              .find((key) => key.pluginId === 'google-search')
-              ?.requiredKeys.find((key) => key.key === 'GOOGLE_CSE_ID')?.value,
-          });
-        }
+        // const endpoint = getEndpoint(plugin);
+        // let body;
+        // if (!plugin) {
+        //   body = JSON.stringify(chatBody);
+        // } else {
+        //   body = JSON.stringify({
+        //     ...chatBody,
+        //     googleAPIKey: pluginKeys
+        //       .find((key) => key.pluginId === 'google-search')
+        //       ?.requiredKeys.find((key) => key.key === 'GOOGLE_API_KEY')?.value,
+        //     googleCSEId: pluginKeys
+        //       .find((key) => key.pluginId === 'google-search')
+        //       ?.requiredKeys.find((key) => key.key === 'GOOGLE_CSE_ID')?.value,
+        //   });
+        // }
+
         const controller = new AbortController();
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          signal: controller.signal,
-          body,
-        });
+        const response = await sendChatRequest(chatBody, plugin, controller.signal);
+        //     await fetch(endpoint, {
+        //   method: 'POST',
+        //   headers: {
+        //     'Content-Type': 'application/json',
+        //   },
+        //   signal: controller.signal,
+        //   body,
+        // });
         if (!response.ok) {
           homeDispatch({ field: 'loading', value: false });
           homeDispatch({ field: 'messageIsStreaming', value: false });
@@ -197,6 +204,10 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
               });
             }
           }
+
+          console.log("Dispatching post procs: "+postProcessingCallbacks.length);
+          postProcessingCallbacks.forEach(callback => callback({plugin: plugin, chatBody: chatBody, response: text}));
+
           saveConversation(updatedConversation);
           const updatedConversations: Conversation[] = conversations.map(
             (conversation) => {
