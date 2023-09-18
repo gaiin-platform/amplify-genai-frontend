@@ -1,4 +1,5 @@
 import { OpenAIModel } from './openai';
+import {Prompt} from "@/types/prompt";
 
 export interface Message {
   role: Role;
@@ -23,4 +24,5 @@ export interface Conversation {
   prompt: string;
   temperature: number;
   folderId: string | null;
+  promptTemplate: Prompt | null;
 }
