@@ -20,3 +20,15 @@ export const updatePrompt = (updatedPrompt: Prompt, allPrompts: Prompt[]) => {
 export const savePrompts = (prompts: Prompt[]) => {
   localStorage.setItem('prompts', JSON.stringify(prompts));
 };
+
+export const parsePromptVariables = (content: string) => {
+  const regex = /{{(.*?)}}/g;
+  const foundVariables = [];
+  let match;
+
+  while ((match = regex.exec(content)) !== null) {
+    foundVariables.push(match[1]);
+  }
+
+  return foundVariables;
+};

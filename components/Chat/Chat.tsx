@@ -35,6 +35,8 @@ import { TemperatureSlider } from './Temperature';
 import { MemoizedChatMessage } from './MemoizedChatMessage';
 
 import { useChatService } from '@/hooks/useChatService';
+import {VariableModal} from "@/components/Chat/VariableModal";
+import {parsePromptVariables} from "@/utils/app/prompts";
 
 interface Props {
   stopConversationRef: MutableRefObject<boolean>;
@@ -66,6 +68,8 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
   const [currentMessage, setCurrentMessage] = useState<Message>();
   const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
   const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [isPromptTemplateDialogVisible, setIsPromptTemplateDialogVisible] = useState<boolean>(false);
+  const [variables, setVariables] = useState<string[]>([]);
   const [showScrollDownButton, setShowScrollDownButton] =
     useState<boolean>(false);
 
@@ -265,6 +269,27 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
     ],
   );
 
+  const handleSubmit = (updatedVariables: string[]) => {
+    console.log(updatedVariables);
+
+    let template = selectedConversation?.promptTemplate.content;
+
+    const newContent = template.replace(/{{(.*?)}}/g, (match, variable) => {
+      console.log(variable);
+
+      const index = variables.indexOf(variable);
+      return updatedVariables[index];
+    });
+
+    let message:Message = {
+      role: 'user',
+      content: newContent
+    }
+
+    setCurrentMessage(message);
+    handleSend(message, 0, null);
+  };
+
   const scrollToBottom = useCallback(() => {
     if (autoScrollEnabled) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -333,6 +358,14 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
         selectedConversation.messages[selectedConversation.messages.length - 2],
       );
   }, [selectedConversation, throttledScrollDown]);
+
+  useEffect(() => {
+    if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
+      //alert("Prompt Template");
+      setVariables(parsePromptVariables(selectedConversation.promptTemplate.content))
+      setIsPromptTemplateDialogVisible(true);
+    }
+  }, [selectedConversation]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -444,6 +477,16 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
                           })
                         }
                       />
+
+                      {isPromptTemplateDialogVisible && (
+                          <VariableModal
+                              prompt={selectedConversation.promptTemplate.content}
+                              variables={parsePromptVariables(selectedConversation.promptTemplate.content)}
+                              onSubmit={handleSubmit}
+                              onClose={() => setIsPromptTemplateDialogVisible(false)}
+                          />
+                      )}
+
                     </div>
                   )}
                 </div>

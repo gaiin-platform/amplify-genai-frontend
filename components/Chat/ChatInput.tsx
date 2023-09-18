@@ -17,7 +17,7 @@ import {
 } from 'react';
 
 import { useTranslation } from 'next-i18next';
-
+import { parsePromptVariables } from "@/utils/app/prompts";
 import { Message } from '@/types/chat';
 import { Plugin } from '@/types/plugin';
 import { Prompt } from '@/types/prompt';
@@ -171,18 +171,6 @@ export const ChatInput = ({
     }
   };
 
-  const parseVariables = (content: string) => {
-    const regex = /{{(.*?)}}/g;
-    const foundVariables = [];
-    let match;
-
-    while ((match = regex.exec(content)) !== null) {
-      foundVariables.push(match[1]);
-    }
-
-    return foundVariables;
-  };
-
   const updatePromptListVisibility = useCallback((text: string) => {
     const match = text.match(/\/\w*$/);
 
@@ -196,7 +184,7 @@ export const ChatInput = ({
   }, []);
 
   const handlePromptSelect = (prompt: Prompt) => {
-    const parsedVariables = parseVariables(prompt.content);
+    const parsedVariables = parsePromptVariables(prompt.content);
     setVariables(parsedVariables);
 
     if (parsedVariables.length > 0) {
