@@ -195,6 +195,7 @@ const Home = ({
       prompt: DEFAULT_SYSTEM_PROMPT,
       temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
       folderId: null,
+      promptTemplate: null,
       ...params
     };
 
@@ -355,7 +356,7 @@ const Home = ({
 
   const addPreProcessingCallback = useCallback((callback:Processor) => {
     console.log("Proc added");
-    setPreProcessingCallbacks(prev => [...prev, callback]);
+    //setPreProcessingCallbacks(prev => [...prev, callback]);
   }, []);
 
   const removePreProcessingCallback = useCallback((callback:Processor) => {
@@ -363,7 +364,7 @@ const Home = ({
   }, []);
 
   const addPostProcessingCallback = useCallback((callback:Processor) => {
-    setPostProcessingCallbacks(prev => [...prev, callback]);
+    //setPostProcessingCallbacks(prev => [...prev, callback]);
   }, []);
 
   const removePostProcessingCallback = useCallback((callback:Processor) => {

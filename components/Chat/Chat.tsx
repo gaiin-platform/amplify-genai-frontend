@@ -272,22 +272,23 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
   const handleSubmit = (updatedVariables: string[]) => {
     console.log(updatedVariables);
 
-    let template = selectedConversation?.promptTemplate.content;
+    let template = selectedConversation?.promptTemplate?.content;
 
-    const newContent = template.replace(/{{(.*?)}}/g, (match, variable) => {
+    const newContent = template?.replace(/{{(.*?)}}/g, (match, variable) => {
       console.log(variable);
 
       const index = variables.indexOf(variable);
       return updatedVariables[index];
     });
 
-    let message:Message = {
+    let message = {
       role: 'user',
       content: newContent
     }
 
+    // @ts-ignore
     setCurrentMessage(message);
-    handleSend(message, 0, null);
+    handleSend(message as Message, 0, null);
   };
 
   const scrollToBottom = useCallback(() => {
@@ -391,6 +392,7 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
     };
   }, [messagesEndRef]);
 
+  // @ts-ignore
   return (
     <div className="relative flex-1 overflow-hidden bg-white dark:bg-[#343541]">
       {!(apiKey || serverSideApiKeyIsSet) ? (
@@ -478,10 +480,10 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
                         }
                       />
 
-                      {isPromptTemplateDialogVisible && (
+                      {isPromptTemplateDialogVisible && selectedConversation.promptTemplate && (
                           <VariableModal
-                              prompt={selectedConversation.promptTemplate.content}
-                              variables={parsePromptVariables(selectedConversation.promptTemplate.content)}
+                              prompt={(selectedConversation.promptTemplate)}
+                              variables={parsePromptVariables(selectedConversation?.promptTemplate.content)}
                               onSubmit={handleSubmit}
                               onClose={() => setIsPromptTemplateDialogVisible(false)}
                           />

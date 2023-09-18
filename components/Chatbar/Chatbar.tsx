@@ -231,7 +231,7 @@ export const Chatbar = () => {
           chatDispatch({ field: 'searchTerm', value: searchTerm })
         }
         toggleOpen={handleToggleChatbar}
-        handleCreateItem={handleNewConversation}
+        handleCreateItem={() => handleNewConversation({})}
         handleCreateFolder={() => handleCreateFolder(t('New folder'), 'chat')}
         handleDrop={handleDrop}
         footerComponent={<ChatbarSettings />}
