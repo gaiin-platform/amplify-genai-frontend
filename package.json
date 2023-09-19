@@ -9,8 +9,7 @@
     "lint": "next lint",
     "format": "prettier --write .",
     "test": "vitest",
-    "coverage": "vitest run --coverage",
-    "vercel-build": "yum install gcc-c++ cairo-devel pango-devel libjpeg-turbo-devel giflib-devel"
+    "coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@dqbd/tiktoken": "^1.0.2",
