@@ -38,6 +38,8 @@ import { useChatService } from '@/hooks/useChatService';
 import {VariableModal} from "@/components/Chat/VariableModal";
 import {parsePromptVariables} from "@/utils/app/prompts";
 
+import {executeOp} from "@/utils/sparc/sparc";
+
 interface Props {
   stopConversationRef: MutableRefObject<boolean>;
 }
@@ -344,13 +346,36 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
   };
   const throttledScrollDown = throttle(scrollDown, 250);
 
-  // useEffect(() => {
-  //   console.log('currentMessage', currentMessage);
-  //   if (currentMessage) {
-  //     handleSend(currentMessage);
-  //     homeDispatch({ field: 'currentMessage', value: undefined });
-  //   }
-  // }, [currentMessage]);
+  useEffect(() => {
+    executeOp({
+      "op": "sequential",
+      "output": "sequenceResult",
+      "ops": [
+        {
+          "op": "input",
+          "variables": {
+            "message1": "This is the first message",
+            "message2": "This is the second message"
+          },
+          "output": "inputStep"
+        },
+        {
+          "op": "parallel",
+          "output": "parallelResult",
+          "ops": [
+            {
+              "op": "consoleLog",
+              "message": "Second consoleLog: {{inputStep.message2}}"
+            },
+            {
+              "op": "consoleLog",
+              "message": "Third consoleLog: {{inputStep.message1}}"
+            }
+          ]
+        }
+      ]
+    }, {});
+  }, []);
 
   useEffect(() => {
     throttledScrollDown();
