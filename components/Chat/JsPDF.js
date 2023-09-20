@@ -17558,17 +17558,17 @@
         /******/ 			return cachedModule.exports;
         /******/ 		}
       /******/ 		// Create a new module (and put it into the cache)
-      /******/ 		var module = __webpack_module_cache__[moduleId] = {
+      /******/ 		var module2 = __webpack_module_cache__[moduleId] = {
         /******/ 			// no module.id needed
         /******/ 			// no module.loaded needed
         /******/ 			exports: {}
         /******/ 		};
       /******/
       /******/ 		// Execute the module function
-      /******/ 		__webpack_modules__[moduleId](module, module.exports, __w_pdfjs_require__);
+      /******/ 		__webpack_modules__[moduleId](module2, module2.exports, __w_pdfjs_require__);
       /******/
       /******/ 		// Return the exports of the module
-      /******/ 		return module.exports;
+      /******/ 		return module2.exports;
       /******/ 	}
     /******/
     /************************************************************************/
