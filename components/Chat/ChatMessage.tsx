@@ -18,24 +18,33 @@ import HomeContext from '@/pages/api/home/home.context';
 
 import { CodeBlock } from '../Markdown/CodeBlock';
 import { MemoizedReactMarkdown } from '../Markdown/MemoizedReactMarkdown';
+import ChatFollowups from './ChatFollowups';
 
 //import rehypeMathjax from 'rehype-mathjax';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import {sendMessage} from "next/dist/client/dev/error-overlay/websocket";
 
 export interface Props {
   message: Message;
   messageIndex: number;
-  onEdit?: (editedMessage: Message) => void
+  onEdit?: (editedMessage: Message) => void,
+  onSend: (message: Message[]) => void,
 }
 
-export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit }) => {
+export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit, onSend }) => {
   const { t } = useTranslation('chat');
 
   const {
     state: { selectedConversation, conversations, currentMessage, messageIsStreaming },
     dispatch: homeDispatch,
   } = useContext(HomeContext);
+
+  const followUpButtonsConfig = [
+    { title: 'Follow-up Questions', handler: () => onSend([{role:"user", content:"What are follow-up questions I should ask?"}])},
+    { title: 'Suggest Prompt Improvements',  handler: () => onSend([{role:"user", content:"Suggest five improvements to my original prompt."}])},
+    // more buttons here
+  ];
 
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [isTyping, setIsTyping] = useState<boolean>(false);
@@ -208,6 +217,7 @@ export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit }) =
               )}
             </div>
           ) : (
+              <div className="flex flex-col">
             <div className="flex flex-row">
               <MemoizedReactMarkdown
                 className="prose dark:prose-invert flex-1"
@@ -285,8 +295,13 @@ export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit }) =
                 )}
               </div>
             </div>
+                {(messageIsStreaming) ? null : (
+                    <ChatFollowups buttonsConfig={followUpButtonsConfig} />
+                )}
+              </div>
           )}
         </div>
+
       </div>
     </div>
   );
