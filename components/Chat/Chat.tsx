@@ -39,7 +39,7 @@ import {useChatService} from '@/hooks/useChatService';
 import {VariableModal} from "@/components/Chat/VariableModal";
 import {parsePromptVariables} from "@/utils/app/prompts";
 
-import {executeOp} from "@/utils/sparc/sparc";
+import {Context, executeOp, Op, OpRunner} from "@/utils/sparc/sparc";
 import {OpenAIModel} from "@/types/openai";
 import {Prompt} from "@/types/prompt";
 import Workflow from "@/components/Chat/Workflow";
@@ -85,6 +85,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
 
     const [messageQueue, setMessageQueue] = useState<Message[]>([]);
+
 
     // enqueueMessage function to add a new message to the queue
     const enqueueWorkflowMessages = (messages: Message[]) => {

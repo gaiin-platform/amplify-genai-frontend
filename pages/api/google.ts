@@ -3,7 +3,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { OPENAI_API_HOST } from '@/utils/app/const';
 import { cleanSourceText } from '@/utils/server/google';
 
-import { Message } from '@/types/chat';
+import { Message, newMessage } from '@/types/chat';
 import { GoogleBody, GoogleSource } from '@/types/google';
 
 import { Readability } from '@mozilla/readability';
@@ -110,7 +110,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse<any>) => {
     Response:
     `;
 
-    const answerMessage: Message = { role: 'user', content: answerPrompt };
+    const answerMessage: Message = newMessage({ role: 'user', content: answerPrompt });
 
     const answerRes = await fetch(`${OPENAI_API_HOST}/v1/chat/completions`, {
       headers: {

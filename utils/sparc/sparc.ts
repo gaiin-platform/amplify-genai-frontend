@@ -40,16 +40,16 @@ export const extractJsonObjects = (text:string) => {
     return jsonObjects;
 }
 
-interface Context {
+export interface Context {
     [key: string]: any;
 }
 
-interface Op {
+export interface Op {
     op: string;
     [otherProps: string]: any;
 }
 
-interface OpRunner {
+export interface OpRunner {
     (op: Op, context: Context): Promise<any>;
 }
 
