@@ -10,7 +10,13 @@ export function useChatService() {
         postProcessingCallbacks, } = useContext(HomeContext);
 
     const sendChatRequest = (chatBody, plugin, abortSignal) => {
-        console.log("Procs: " + preProcessingCallbacks.length);
+
+        chatBody = {
+            ...chatBody,
+            messages: chatBody.messages.map(m => {
+                return {role: m.role, content: m.content}
+            })
+        }
 
         preProcessingCallbacks.forEach(callback => callback({plugin: plugin, chatBody: chatBody}));
         let response = send(apiKey, chatBody, plugin, abortSignal);

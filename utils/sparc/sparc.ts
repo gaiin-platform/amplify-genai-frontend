@@ -53,7 +53,7 @@ interface OpRunner {
     (op: Op, context: Context): Promise<any>;
 }
 
-function fillTemplate(template: string, context: Context): string {
+export function fillTemplate(template: string, context: Context): string {
     return template.replace(/\{\{([^}]+)\}\}/g, function(_matchedString, key) {
         let value:any = context;
         key.split('.').forEach((k: string | number) => {
@@ -68,7 +68,7 @@ function fillTemplate(template: string, context: Context): string {
     });
 }
 
-const ops: { [opName: string]: OpRunner } = {
+export const ops: { [opName: string]: OpRunner } = {
 
     extractJson: async (op: Op, context: Context) => {
         // Given json mixed with text describing it, this

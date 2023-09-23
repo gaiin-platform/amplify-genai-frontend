@@ -18,7 +18,7 @@ import {
 
 import { useTranslation } from 'next-i18next';
 import { parsePromptVariables } from "@/utils/app/prompts";
-import { Message } from '@/types/chat';
+import { Message, newMessage } from '@/types/chat';
 import { Plugin } from '@/types/plugin';
 import { Prompt } from '@/types/prompt';
 import { AttachFile, Document } from "@/components/Chat/AttachFile";
@@ -123,7 +123,7 @@ export const ChatInput = ({
       newContent = handleAppendDocumentsToContent(content, documents);
     }
 
-    onSend({ role: 'user', content: newContent }, plugin);
+    onSend(newMessage({ role: 'user', content: newContent }), plugin);
     setContent('');
     setPlugin(null);
     setDocuments([]);

@@ -12,7 +12,9 @@ import { useTranslation } from 'next-i18next';
 
 import { updateConversation } from '@/utils/app/conversation';
 
-import { Message } from '@/types/chat';
+import {ChatBody, Message, newMessage} from '@/types/chat';
+
+import { useChatService } from "@/hooks/useChatService";
 
 import HomeContext from '@/pages/api/home/home.context';
 
@@ -23,16 +25,18 @@ import ChatFollowups from './ChatFollowups';
 //import rehypeMathjax from 'rehype-mathjax';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
-import {sendMessage} from "next/dist/client/dev/error-overlay/websocket";
+import Workflow from "@/components/Chat/Workflow";
 
 export interface Props {
   message: Message;
   messageIndex: number;
   onEdit?: (editedMessage: Message) => void,
   onSend: (message: Message[]) => void,
+  handleWorkflow: (workflow:Workflow) => void
 }
 
-export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit, onSend }) => {
+export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit, onSend,
+                                              handleWorkflow}) => {
   const { t } = useTranslation('chat');
 
   const {
@@ -40,9 +44,34 @@ export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit, onS
     dispatch: homeDispatch,
   } = useContext(HomeContext);
 
+  const { sendChatRequest } = useChatService();
+
   const followUpButtonsConfig = [
-    { title: 'Follow-up Questions', handler: () => onSend([{role:"user", content:"What are follow-up questions I should ask?"}])},
-    { title: 'Suggest Prompt Improvements',  handler: () => onSend([{role:"user", content:"Suggest five improvements to my original prompt."}])},
+    { title: 'Follow-up Prompts', handler: () => onSend([newMessage({role:"user", content:"Act as an expert prompt engineer. Suggest really five really innovative, creative, follow-up prompts that would generate concrete outputs or analyses that would help me do something related to this content. Be very very specific with the wording of your suggestions and all of them should include building a step by step plan as part of the prompt. All of them should include a persona."})])},
+    { title: 'Follow-up Questions', handler: () => onSend([newMessage({role:"user", content:"What are follow-up questions I should ask?"})])},
+    { title: 'Suggest Prompt Improvements',  handler: () => onSend([newMessage({role:"user", content:"Given my last prompt suggest an enhanced version of it.\n" +
+            "1. Start with clear, precise instructions placed at the beginning of the prompt.\n" +
+            "2. Include specific details about the desired context, outcome, length, format, and style.\n" +
+            "3. Provide examples of the desired output format, if possible.\n" +
+            "4. Use appropriate leading words or phrases to guide the desired output, especially if code generation is involved.\n" +
+            "5. Avoid any vague or imprecise language. \n" +
+            "6. Rather than only stating what not to do, provide guidance on what should be done instead.\n" +
+            "\n" +
+            "Remember to ensure the revised prompt remains true to the user's original intent. At the end, ask me if you should respond to this prompt."})])},
+    { title: "Goal Flow", handler: async () => {
+        handleWorkflow(new Workflow(
+          "Goal-directed Problem Solving",
+          [
+              newMessage({content:"Propose a detailed step-by-step plan to help me achieve my goals."}),
+              newMessage({content: "Critique and improve your step-by-step plan. How could it be more concrete and actionable? Give me a more actionable plan."}),
+              newMessage({content:"Execute your plan."})
+          ]
+        ));
+
+
+        // sendChatRequest({role:"user", content:"What is the 7th planet from the sun?"}, null, new AbortController());
+        // sendChatRequest({role:"user", content:"What is the 7th planet from the sun?"}, null, new AbortController());
+      }}
     // more buttons here
   ];
 
