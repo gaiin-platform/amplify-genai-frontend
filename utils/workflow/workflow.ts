@@ -8,7 +8,14 @@ interface AiTool {
     exec:()=>{}
 }
 
-export const executeJSWorkflow = async (apiKey:string, task: string, customTools:{[key:string]:AiTool}) => {
+interface Stopper {
+    shouldStop: ()=>boolean,
+    signal: AbortSignal
+}
+
+export const executeJSWorkflow = async (apiKey:string, task: string, customTools:{[key:string]:AiTool}, stopper:Stopper) => {
+
+    const abortResult = {success:false, code:null, exec:null, uncleanCode:null, result:null};
 
     const promptLLM = async (prompt: string) => {
         const chatBody = {
@@ -19,9 +26,33 @@ export const executeJSWorkflow = async (apiKey:string, task: string, customTools
             temperature: 1.0,
         };
 
+        if(stopper.shouldStop()){
+            return null;
+        }
+
         console.log("promptLLM", prompt);
-        let response = await sendChatRequest(apiKey, chatBody, null, null);
-        return await response.text();
+        // @ts-ignore
+        const response = await sendChatRequest(apiKey, chatBody, null, stopper.signal);
+        const reader = response.body?.getReader();
+        let charsReceived = '';
+
+        while(true){
+            if(stopper.shouldStop()){
+                return null;
+            }
+
+            // @ts-ignore
+            const {value, done} = await reader.read();
+
+            if(done){
+                break;
+            }
+
+            let chunk = new TextDecoder("utf-8").decode(value);
+            charsReceived += chunk;
+        }
+
+        return charsReceived;
     }
 
     const tools = {
@@ -37,24 +68,40 @@ export const executeJSWorkflow = async (apiKey:string, task: string, customTools
                 console.log("getUserInput", data);
                 return {};
         }},
+        extractJson: {description:"(responseFromLLM):[{...},{...}]//extracts any json objects in the promptLLM response",
+            exec:extractJsonObjects
+        },
         ...customTools,
     };
 
+
+    if(stopper.shouldStop()){
+        return abortResult;
+    }
     let prompt = generateWorkflowPrompt(task, tools);
 
     let success = false;
     let tries = 3;
 
-    while(!success && tries > 0) {
+    let finalFn = null;
+    let fnResult = "";
+    let cleanedFn = null;
+    let uncleanedCode = null;
+
+    while(!success && tries > 0 && !stopper.shouldStop()) {
 
         console.log("Prompting for the code for task: ", task);
 
-        let uncleanedCode = await promptLLM(prompt);
+        uncleanedCode = await promptLLM(prompt);
+
+        if(stopper.shouldStop()){
+            return abortResult;
+        }
         //console.log("Uncleaed code:", uncleanedCode)
 
-        let cleanedFn = findWorkflowPattern(uncleanedCode);
-        let finalFn = null;
-        let fnResult = "";
+        cleanedFn = findWorkflowPattern(uncleanedCode || "");
+        finalFn = null;
+        fnResult = "";
 
         console.log(cleanedFn);
         if (cleanedFn != null) {
@@ -67,19 +114,10 @@ export const executeJSWorkflow = async (apiKey:string, task: string, customTools
                     fnlibs[key] = tool.exec;
                 })
 
-                // const fnlibs = {
-                //     promptLLM: promptLLM,
-                //     log: (msgString: string) => console.log(msgString),
-                //     documentPages: (documentIdString: string) => {
-                //         console.log("document pages");
-                //         return ["page 1"]
-                //     },
-                //     getUserInput: (data: any) => {
-                //         console.log("getUserInput", data);
-                //         return {}
-                //     } // type is string, javascript regex pattern, integer, number, boolean, file, select:option1:option2
-                // };
 
+                if(stopper.shouldStop()){
+                    return abortResult;
+                }
                 let context = {workflow:(fnlibs:{}):any=>{}};
                 eval("context.workflow = " + cleanedFn);
 
@@ -88,14 +126,9 @@ export const executeJSWorkflow = async (apiKey:string, task: string, customTools
                 finalFn = context.workflow;
                 let result = await context.workflow(fnlibs);
 
-                console.log("REsult:", result);
+                console.log("Result:", result);
                 fnResult = result;
                 success = result != null;
-
-                // if(!success){
-                //     window.prompt("Please describe what is wrong with the output so I can try again.");
-                // }
-
 
             } catch (e) {
                 console.log(e);
@@ -104,9 +137,11 @@ export const executeJSWorkflow = async (apiKey:string, task: string, customTools
             tries = tries - 1;
         }
 
-        let result = {success:success, code:cleanedFn, exec:finalFn, uncleanCode:uncleanedCode, result:fnResult};
-        return result;
+        if(success){
+            return {success:success, code:cleanedFn, exec:finalFn, uncleanCode:uncleanedCode, result:fnResult};
+        }
     }
+    return {success:false, code:cleanedFn, exec:finalFn, uncleanCode:uncleanedCode, result:fnResult};
 };
 
 export const extractJsonObjects = (text: string) => {

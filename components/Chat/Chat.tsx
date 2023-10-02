@@ -208,7 +208,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 value: updatedConversation,
             });
 
-            setCurrentMessage(messages[-1]);
+            setCurrentMessage(updatedMessages[-1]);
         }
 
 
@@ -401,6 +401,44 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             ],
         );
 
+        const handleJsWorkflow = useCallback((message: Message) => {
+            const tools: {} = {
+                //"tellUser": {description:"(msg)//output a message to the user"}
+            }
+
+            let canceled = false;
+            const controller = new AbortController();
+            const stopper = {
+                shouldStop: () => {
+                    canceled = stopConversationRef.current === true;
+                    return stopConversationRef.current === true; },
+                signal: controller.signal
+            }
+
+            handleAddMessages([message, newMessage({role: "assistant", content: "Executing..."})]);
+
+            homeDispatch({field: 'loading', value: true});
+            homeDispatch({field: 'messageIsStreaming', value: true});
+
+            executeJSWorkflow(apiKey, message.content, tools, stopper).then((result) => {
+                let resultMsg = (canceled)?
+                    "You stopped execution of this task." :
+                    "Result\n---------------------\n" + result.result;
+
+                let codeMsg = (canceled) ? "" :
+                    "\n\nCode\n---------------------\n" +
+                    "```javascript \n" + result?.code + "```";
+
+                const msg = resultMsg + codeMsg;
+
+                handleAddMessages([newMessage({role: "assistant", content: msg})])
+            }).finally(()=>{
+                homeDispatch({field: 'loading', value: false});
+                homeDispatch({field: 'messageIsStreaming', value: false});
+            });
+
+        },[apiKey,stopConversationRef]);
+
         const handleSubmit = (updatedVariables: string[]) => {
 
             let template = selectedConversation?.promptTemplate?.content;
@@ -427,19 +465,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if(!doWorkflow) {
                 handleSend(message, 0, null);
             }else {
-
-                const tools:{} = {
-                    //"tellUser": {description:"(msg)//output a message to the user"}
-                }
-
-                handleAddMessages([message, newMessage({role:"assistant",content:"Executing..."})]);
-                executeJSWorkflow(apiKey, message.content, tools).then((result)=>{
-                    const msg = "Result\n---------------------\n"+
-                        result?.result +
-                    "\n\nCode\n---------------------\n" +
-                        "```javascript \n" + result?.code + "```";
-                    handleAddMessages([newMessage({role:"assistant",content:msg})])
-                })
+                handleJsWorkflow(message);
             }
 
         };
