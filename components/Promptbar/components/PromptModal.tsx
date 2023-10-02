@@ -3,6 +3,7 @@ import { FC, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 
 import { Prompt } from '@/types/prompt';
+import {boolean} from "property-information/lib/util/types";
 
 interface Props {
   prompt: Prompt;
@@ -16,12 +17,14 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
   const [description, setDescription] = useState(prompt.description);
   const [content, setContent] = useState(prompt.content);
 
+  const [selectedTemplate, setSelectedTemplate] = useState<string>(prompt.type || "prompt");
+
   const modalRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const handleEnter = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
-      onUpdatePrompt({ ...prompt, name, description, content: content.trim() });
+      onUpdatePrompt({ ...prompt, name, description, content: content.trim(), type: selectedTemplate });
       onClose();
     }
   };
@@ -105,6 +108,35 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
               rows={10}
             />
 
+            <div className="mt-2">
+              <div className="inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100 mr-8">
+                <input
+                    type="radio"
+                    name="template"
+                    className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
+                    value="prompt"
+                    checked={selectedTemplate === 'prompt'}
+                    onChange={() => setSelectedTemplate('prompt')}
+                />
+                <label className="ml-2">
+                  Prompt template
+                </label>
+              </div>
+              <div className="inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
+                <input
+                    type="radio"
+                    name="template"
+                    className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
+                    value="automation"
+                    checked={selectedTemplate === 'automation'}
+                    onChange={() => setSelectedTemplate('automation')}
+                />
+                <label className="ml-2">
+                  Automation template
+                </label>
+              </div>
+            </div>
+
             <button
               type="button"
               className="w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
@@ -114,6 +146,7 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
                   name,
                   description,
                   content: content.trim(),
+                  type: selectedTemplate
                 };
 
                 onUpdatePrompt(updatedPrompt);

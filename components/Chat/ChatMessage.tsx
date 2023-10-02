@@ -25,18 +25,20 @@ import ChatFollowups from './ChatFollowups';
 //import rehypeMathjax from 'rehype-mathjax';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
-import Workflow from "@/components/Chat/Workflow";
+import Workflow from "@/utils/workflow/workflow";
+import {Op, OpRunner} from "@/utils/workflow/workflow";
 
 export interface Props {
   message: Message;
   messageIndex: number;
   onEdit?: (editedMessage: Message) => void,
   onSend: (message: Message[]) => void,
-  handleWorkflow: (workflow:Workflow) => void
+  handleWorkflow: (messages:Message[]) => void,
+  handleRunWorkflow: (workflow:Workflow) => void,
 }
 
 export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit, onSend,
-                                              handleWorkflow}) => {
+                                              handleWorkflow, handleRunWorkflow}) => {
   const { t } = useTranslation('chat');
 
   const {
@@ -59,14 +61,70 @@ export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit, onS
             "\n" +
             "Remember to ensure the revised prompt remains true to the user's original intent. At the end, ask me if you should respond to this prompt."})])},
     { title: "Goal Flow", handler: async () => {
-        handleWorkflow(new Workflow(
-          "Goal-directed Problem Solving",
-          [
-              newMessage({content:"Propose a detailed step-by-step plan to help me achieve my goals."}),
-              newMessage({content: "Critique and improve your step-by-step plan. How could it be more concrete and actionable? Give me a more actionable plan."}),
-              newMessage({content:"Execute your plan."})
-          ]
-        ));
+        // handleWorkflow([
+        //       newMessage({content:"Propose a detailed step-by-step plan to help me achieve my goals."}),
+        //       newMessage({content: "Critique and improve your step-by-step plan. How could it be more concrete and actionable? Give me a more actionable plan."}),
+        //       newMessage({content:"Execute your plan."})
+        //   ]
+        // );
+        handleRunWorkflow(new Workflow("Test", [
+          // {
+          //   op: 'prompt',
+          //   output: 'animals',
+          //   message: {
+          //     content: 'List four types of animals and describe them as Json.',
+          //     /* Add other necessary properties for the message object */
+          //   }
+          // },
+          {
+            op: 'extractJson',
+            output: '_animalsJson',
+            input: "animals\n" +
+                "------------------\n" +
+                "Sure, here are four types of animals described in JSON format:\n" +
+                "\n" +
+                "```json\n" +
+                "[\n" +
+                "    {\n" +
+                "        \"animal\": \"Dog\",\n" +
+                "        \"description\": \"A domesticated carnivorous mammal that typically has a long snout, an acute sense of smell, and barks, howls, or whines.\",\n" +
+                "        \"classification\": \"Mammal\",\n" +
+                "        \"habitat\": \"Domestic\"\n" +
+                "    },\n" +
+                "    {\n" +
+                "        \"animal\": \"Eagle\",\n" +
+                "        \"description\": \"A large bird of prey with a massive hooked bill and long broad wings, known for its keen sight and powerful soaring flight.\",\n" +
+                "        \"classification\": \"Bird\",\n" +
+                "        \"habitat\": \"Forests, mountains, and coasts\"\n" +
+                "    },\n" +
+                "    {\n" +
+                "        \"animal\": \"Goldfish\",\n" +
+                "        \"description\": \"A small reddish-golden colored fish often kept in aquariums. It is native to East Asia.\",\n" +
+                "        \"classification\": \"Fish\",\n" +
+                "        \"habitat\": \"Freshwater\"\n" +
+                "    },\n" +
+                "    {\n" +
+                "        \"animal\": \"Python\",\n" +
+                "        \"description\": \"Any of various typically large constrictor snakes that live in a wide range of habitats in warm countries.\",\n" +
+                "        \"classification\": \"Reptile\",\n" +
+                "        \"habitat\": \"Jungle\"\n" +
+                "    }\n" +
+                "]\n" +
+                "```\n" +
+                "These JSON objects depict different types of animals with their descriptions, classification, and habitats."
+          },
+          {op:"map",
+            output:"_habitats",
+            input:"_animalsJson",itemVariable:"animal",function:[
+                {op:"format",input:"+ The habitat of {{animal.animal}} is {{animal.habitat}}"},
+            ]},
+          {op:"parallel", output:"_Parallel", ops:[
+              {op:"join", input:"_habitats", output:"Joined", separator:"-1\n"},
+              {op:"join", input:"_habitats", output:"Joined 2", separator:"-2\n"},
+              {op:"join", input:"_habitats", output:"Joined 3", separator:"-3\n"}
+            ]},
+          {op:"join", output:"P1", input:"_Parallel"}
+        ]));
 
 
         // sendChatRequest({role:"user", content:"What is the 7th planet from the sun?"}, null, new AbortController());

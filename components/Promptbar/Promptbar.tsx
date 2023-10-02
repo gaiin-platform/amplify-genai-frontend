@@ -52,6 +52,7 @@ const Promptbar = () => {
         content: '',
         model: OpenAIModels[defaultModelId],
         folderId: null,
+        type: "prompt"
       };
 
       const updatedPrompts = [...prompts, newPrompt];
@@ -70,6 +71,8 @@ const Promptbar = () => {
   };
 
   const handleUpdatePrompt = (prompt: Prompt) => {
+    console.log("Prompt updated:", prompt);
+
     const updatedPrompts = prompts.map((p) => {
       if (p.id === prompt.id) {
         return prompt;

@@ -39,7 +39,7 @@ export const PromptComponent = ({ prompt }: Props) => {
   } = useContext(PromptbarContext);
 
   const {
-    state: { prompts, defaultModelId, showPromptbar },
+    state: { prompts, defaultModelId, showPromptbar, apiKey },
     dispatch: homeDispatch,
     handleCreateFolder,
     handleNewConversation,
@@ -105,6 +105,7 @@ export const PromptComponent = ({ prompt }: Props) => {
   }
 
   const handleStartConversation = (prompt: Prompt) => {
+    console.log("Conversation Starter Prompt:", prompt);
     handleNewConversation(
         {
           name: prompt.name + " " +dateTimeString(),

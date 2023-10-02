@@ -5,15 +5,19 @@ import { v4 as uuidv4 } from 'uuid';
 export interface Message {
   role: Role;
   content: string;
-  id: string
+  id: string;
+  type: string | undefined;
+  data: any | undefined;
 }
 
 export const newMessage = (data: any) => {
   return {
     role: "user",
     content: "",
+    type: "chat",
+    data: {},
     ...data,
-    id: uuidv4()
+    id: uuidv4(),
   }
 }
 

@@ -11,13 +11,6 @@ export function useChatService() {
 
     const sendChatRequest = (chatBody, plugin, abortSignal) => {
 
-        chatBody = {
-            ...chatBody,
-            messages: chatBody.messages.map(m => {
-                return {role: m.role, content: m.content}
-            })
-        }
-
         preProcessingCallbacks.forEach(callback => callback({plugin: plugin, chatBody: chatBody}));
         let response = send(apiKey, chatBody, plugin, abortSignal);
         // It would be ideal to do this here, but then the streaming response
