@@ -402,42 +402,57 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         );
 
         const handleJsWorkflow = useCallback((message: Message) => {
-            const tools: {} = {
-                //"tellUser": {description:"(msg)//output a message to the user"}
+            if(selectedConversation) {
+                const tools: {} = {
+                    "tellUser": {
+                        description: "(msg:string)//output a message to the user",
+                        exec: (msg: string) => {
+                            handleAddMessages([
+                                newMessage({role: "assistant", content: msg})])
+                        }
+                    }
+                }
+
+                let canceled = false;
+                const controller = new AbortController();
+                const stopper = {
+                    shouldStop: () => {
+                        canceled = stopConversationRef.current === true;
+                        return stopConversationRef.current === true;
+                    },
+                    signal: controller.signal
+                }
+
+                handleAddMessages([message, newMessage({role: "assistant", content: "Executing..."})]);
+
+                homeDispatch({field: 'loading', value: true});
+                homeDispatch({field: 'messageIsStreaming', value: true});
+
+                executeJSWorkflow(apiKey, message.content, tools, stopper).then((result) => {
+                    let resultMsg = (canceled) ?
+                        "You stopped execution of this task." :
+                        "Result\n---------------------\n" + result.result;
+
+                    let codeMsg = (canceled) ? "" :
+                        "\n\nCode\n---------------------\n" +
+                        "```javascript \n" + result?.code + "```";
+
+                    const msg = resultMsg + codeMsg;
+
+                    handleAddMessages([newMessage({role: "assistant", content: msg})])
+                }).finally(() => {
+                    homeDispatch({field: 'loading', value: false});
+                    homeDispatch({field: 'messageIsStreaming', value: false});
+                });
             }
 
-            let canceled = false;
-            const controller = new AbortController();
-            const stopper = {
-                shouldStop: () => {
-                    canceled = stopConversationRef.current === true;
-                    return stopConversationRef.current === true; },
-                signal: controller.signal
-            }
-
-            handleAddMessages([message, newMessage({role: "assistant", content: "Executing..."})]);
-
-            homeDispatch({field: 'loading', value: true});
-            homeDispatch({field: 'messageIsStreaming', value: true});
-
-            executeJSWorkflow(apiKey, message.content, tools, stopper).then((result) => {
-                let resultMsg = (canceled)?
-                    "You stopped execution of this task." :
-                    "Result\n---------------------\n" + result.result;
-
-                let codeMsg = (canceled) ? "" :
-                    "\n\nCode\n---------------------\n" +
-                    "```javascript \n" + result?.code + "```";
-
-                const msg = resultMsg + codeMsg;
-
-                handleAddMessages([newMessage({role: "assistant", content: msg})])
-            }).finally(()=>{
-                homeDispatch({field: 'loading', value: false});
-                homeDispatch({field: 'messageIsStreaming', value: false});
-            });
-
-        },[apiKey,stopConversationRef]);
+        },[
+            apiKey,
+            conversations,
+            pluginKeys,
+            selectedConversation,
+            stopConversationRef,
+        ]);
 
         const handleSubmit = (updatedVariables: string[]) => {
 

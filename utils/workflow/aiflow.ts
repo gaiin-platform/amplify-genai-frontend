@@ -62,20 +62,29 @@ export const generateWorkflowPrompt = (task: string, tools:{[key: string]:{descr
                         const workflow = async (fnlibs) => {
                             let result = new Promise((resolve, reject) => {
                             try {
-                                console.log("EXECUTING...");
+                                fnlibs.tellUser("Executing the generated workflow...");
                                 let value = null; 
                                 // Any tasks based on summarizing, outlining, analyzing, suggesting,
                                 // brainstorming, etc. should be done by prompting the LLM. When you prompt
-                                // you must give
-                                // the LLM detailed step-by-step instructions on what to do and give it a 
+                                // you must give the LLM detailed step-by-step instructions on what to do and give it a 
                                 // persona (e.g., act as an XYZ expert).
-                                // FILL IN CODE TO:
+                                //
+                                // Tell the user what you are doing before any point in your code where you
+                                // prompt the LLM. 
+                                //
+                                //
+                                // FILL IN A STEP-BY-STEP PLAN IN COMMENTS FOR TASK:
                                 // ${task}
+                                //
+                                // FILL IN CODE TO IMPLEMENT THE PLAN HERE:
+                                //
+                                
                                 
                                // Store the output of the task in value so it can be returned
                                resolve(value);
                             }
                             catch(e){
+                                fnlibs.tellUser("I made a mistake, trying again...");
                                reject(e);
                             }
                           });

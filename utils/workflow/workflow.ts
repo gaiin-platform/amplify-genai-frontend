@@ -17,12 +17,12 @@ export const executeJSWorkflow = async (apiKey:string, task: string, customTools
 
     const abortResult = {success:false, code:null, exec:null, uncleanCode:null, result:null};
 
-    const promptLLM = async (prompt: string) => {
+    const promptLLM = async (persona:string, prompt: string) => {
         const chatBody = {
             model: OpenAIModels[OpenAIModelID.GPT_4],
             messages: [newMessage({content:prompt})],
             key: apiKey,
-            prompt: "Act as an expert Javascript developer.",
+            prompt: persona,
             temperature: 1.0,
         };
 
@@ -56,21 +56,28 @@ export const executeJSWorkflow = async (apiKey:string, task: string, customTools
     }
 
     const tools = {
-        promptLLM: { description:"(promptString):Promise<String>", exec:promptLLM },
-        log: { description:"(msgString):void", exec:(msgString: string) => console.log(msgString)},
-        documentPages: { description: "(documentIdString):Promise<String[]>", exec:(documentIdString: string) => {
-                console.log("document pages");
-                return ["page 1"]
-            }},
-        getUserInput: { description: "(fields:[{description:'':type:''},...]) // type is string, " +
-                "javascript regex pattern, integer, number, boolean, file, select:option1:option2",
-            exec:(data: any) => {
-                console.log("getUserInput", data);
-                return {};
+        getDocuments: {description:"():[[pagesAsStrings],[...]..]",exec:()=>{
+            return [
+                ["Name, Title, Age"],
+                ["Jules, Professor, 23"],
+                ["Bob, Professor, 41"]
+            ];
         }},
-        extractJson: {description:"(responseFromLLM):[{...},{...}]//extracts any json objects in the promptLLM response",
-            exec:extractJsonObjects
+        promptLLM: { description:"(personaString,promptString):Promise<String> //personaString should be a detailed persona, such as an expert in XYZ relevant to the task, promptString must include detailed instructions for the LLM and any data that the prompt operates on as a string", exec:promptLLM },
+        tellUser: {
+            description:"(msg:string)//output a message to the user",
+            exec:(msg: string)=>console.log(msg),
         },
+        log: { description:"(msgString):void", exec:(msgString: string) => console.log(msgString)},
+        // getUserInput: { description: "(fields:[{description:'':type:''},...]) // type is string, " +
+        //         "javascript regex pattern, integer, number, boolean, file, select:option1:option2",
+        //     exec:(data: any) => {
+        //         console.log("getUserInput", data);
+        //         return {};
+        // }},
+        // extractJson: {description:"(responseFromLLM):[{...},{...}]//extracts any json objects in the promptLLM response",
+        //     exec:extractJsonObjects
+        // },
         ...customTools,
     };
 
@@ -88,17 +95,39 @@ export const executeJSWorkflow = async (apiKey:string, task: string, customTools
     let cleanedFn = null;
     let uncleanedCode = null;
 
+    const javascriptPersona = `Act as an expert Javascript developer. You write extremely efficient programs 
+    that solve the problem with the minimum amount of code. You never comment your programs or explain them.
+    Whenever you write prompts for an LLM, you are an expert prompt engineer and write detailed prompts with
+    detailed step-by-step instructions, personas that are specific to the task, and include all of the relevant
+    information needed to perform the task. Your plans are extremely detailed and concrete with steps in your
+    plans being easily translatable to code.
+    
+    RULES:
+    --------------
+    1. You prompt the LLM to perform tasks that require reasoning about text, writing text, outlining text,
+       extracting or filtering information from text, etc. However, you don't use the LLM for basic string
+       manipulation, such as combining or joining outputs, unless they need to be potentially converted into
+       another textual format. 
+    2. If you are summarizing, outlining, filtering, extracting, etc. with text, make sure the prompt is designed
+       to be totally factual and not include details that aren't in the original information.
+    3. You can use any standard Javascript that you want, just don't access global state, the document, etc.
+    4. If the output of your work is a report or unstructured textual format, you can prompt the LLM and give
+       it a detailed prompt to make it formatted beautifully.
+    `;
+
     while(!success && tries > 0 && !stopper.shouldStop()) {
 
         console.log("Prompting for the code for task: ", task);
 
-        uncleanedCode = await promptLLM(prompt);
+        tools.tellUser.exec("Creating a workflow for the task...");
+        uncleanedCode = await promptLLM(javascriptPersona,prompt);
 
         if(stopper.shouldStop()){
             return abortResult;
         }
         //console.log("Uncleaed code:", uncleanedCode)
 
+        tools.tellUser.exec("Checking the workflow...");
         cleanedFn = findWorkflowPattern(uncleanedCode || "");
         finalFn = null;
         fnResult = "";
@@ -118,6 +147,8 @@ export const executeJSWorkflow = async (apiKey:string, task: string, customTools
                 if(stopper.shouldStop()){
                     return abortResult;
                 }
+
+                tools.tellUser.exec("Loading the workflow...");
                 let context = {workflow:(fnlibs:{}):any=>{}};
                 eval("context.workflow = " + cleanedFn);
 
@@ -132,6 +163,7 @@ export const executeJSWorkflow = async (apiKey:string, task: string, customTools
 
             } catch (e) {
                 console.log(e);
+                tools.tellUser.exec("I made a mistake, trying again...");
             }
 
             tries = tries - 1;
