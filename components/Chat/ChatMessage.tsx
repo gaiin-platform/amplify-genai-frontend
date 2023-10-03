@@ -61,6 +61,7 @@ export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit, onS
   const {
     state: { selectedConversation, conversations, currentMessage, messageIsStreaming },
     dispatch: homeDispatch,
+    handleAddMessages: handleAddMessages,
   } = useContext(HomeContext);
 
   const { sendChatRequest } = useChatService();

@@ -229,6 +229,42 @@ const Home = ({
     dispatch({ field: 'conversations', value: all });
   };
 
+  const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
+
+    if (selectedConversation) {
+
+      const updatedMessages = [
+        ...selectedConversation.messages,
+        ...messages
+      ];
+
+      let updatedConversation = {
+        ...selectedConversation,
+        messages: updatedMessages,
+      };
+
+      await dispatch({
+        field: 'selectedConversation',
+        value: updatedConversation
+      });
+
+      saveConversation(updatedConversation);
+      const updatedConversations = conversations.map(
+          (conversation) => {
+            if (conversation.id === selectedConversation.id) {
+              return updatedConversation;
+            }
+            return conversation;
+          },
+      );
+      if (updatedConversations.length === 0) {
+        updatedConversations.push(updatedConversation);
+      }
+     await dispatch({field: 'conversations', value: updatedConversations});
+    }
+
+  };
+
   // EFFECTS  --------------------------------------------
 
   useEffect(() => {
@@ -387,6 +423,7 @@ const Home = ({
         removePreProcessingCallback,
         addPostProcessingCallback,
         removePostProcessingCallback,
+        handleAddMessages
       }}
     >
       <Head>

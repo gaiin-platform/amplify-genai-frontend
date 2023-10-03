@@ -13,11 +13,13 @@ interface Stopper {
     signal: AbortSignal
 }
 
-export const executeJSWorkflow = async (apiKey:string, task: string, customTools:{[key:string]:AiTool}, stopper:Stopper) => {
+export const executeJSWorkflow = async (apiKey: string, task: string, customTools: { [p: string]: AiTool }, stopper: Stopper, incrementalPromptResultCallback: (responseText: string) => void) => {
 
     const abortResult = {success:false, code:null, exec:null, uncleanCode:null, result:null};
 
-    const promptLLM = async (persona:string, prompt: string) => {
+
+
+    const promptLLMFull = async (persona:string, prompt: string, messageCallback?:(msg:string)=>void) => {
         const chatBody = {
             model: OpenAIModels[OpenAIModelID.GPT_4],
             messages: [newMessage({content:prompt})],
@@ -50,10 +52,17 @@ export const executeJSWorkflow = async (apiKey:string, task: string, customTools
 
             let chunk = new TextDecoder("utf-8").decode(value);
             charsReceived += chunk;
+
+            if(messageCallback){
+                messageCallback(charsReceived);
+            }
         }
 
         return charsReceived;
     }
+
+    const promptLLMCode = (persona:string, prompt: string) => {return promptLLMFull(persona, prompt, incrementalPromptResultCallback);}
+    const promptLLM = (persona:string, prompt: string) => {return promptLLMFull(persona, prompt);}
 
     const tools = {
         getDocuments: {description:"():[[pagesAsStrings],[...]..]",exec:()=>{
@@ -119,15 +128,15 @@ export const executeJSWorkflow = async (apiKey:string, task: string, customTools
 
         console.log("Prompting for the code for task: ", task);
 
-        tools.tellUser.exec("Creating a workflow for the task...");
-        uncleanedCode = await promptLLM(javascriptPersona,prompt);
+        await tools.tellUser.exec("[thinking]");
+        uncleanedCode = await promptLLMCode(javascriptPersona,prompt);
 
         if(stopper.shouldStop()){
             return abortResult;
         }
         //console.log("Uncleaed code:", uncleanedCode)
 
-        tools.tellUser.exec("Checking the workflow...");
+        
         cleanedFn = findWorkflowPattern(uncleanedCode || "");
         finalFn = null;
         fnResult = "";
@@ -158,6 +167,7 @@ export const executeJSWorkflow = async (apiKey:string, task: string, customTools
                 let result = await context.workflow(fnlibs);
 
                 console.log("Result:", result);
+                console.log("Will try again:", result == null);
                 fnResult = result;
                 success = result != null;
 

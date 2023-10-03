@@ -77,6 +77,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             handleUpdateConversation,
             postProcessingCallbacks,
             dispatch: homeDispatch,
+            handleAddMessages: handleAddMessages
         } = useContext(HomeContext);
 
         const {sendChatRequest} = useChatService();
@@ -143,9 +144,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             const runResult = workflow.run(
                 {},
                 allOps,
-                (stage, op, data) => {
+                async (stage, op, data) => {
                     console.log("Executing/" + stage, op);
-                    handleAddMessages([newMessage({content: "Executing/" + stage + " op:" + op.op})])
+                    await asyncSafeHandleAddMessages([newMessage({content: "Executing/" + stage + " op:" + op.op})])
                 }
             );
 
@@ -160,7 +161,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     return newMessage({role: "assistant", content: `${k}\n------------------\n${result}`});
                 });
 
-            handleAddMessages(
+
+            await asyncSafeHandleAddMessages(
+                // @ts-ignore
                 [
                     newMessage({role: "user", content: `Workflow completed: ${workflow.name}`}),
                     ...resultMessages
@@ -191,29 +194,39 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             selectedConversation
         ]);
 
-        const handleAddMessages = (messages: Message[]) => {
-            let current = selectedConversation?.messages || [];
+        const updateCurrentMessage = useCallback((text: string) => {
 
-            const updatedMessages: Message[] = [
-                ...current,
-                ...messages
-            ];
-            let updatedConversation = {
-                ...selectedConversation,
-                messages: updatedMessages,
-            };
+            if (selectedConversation) {
+                let toUpdate = selectedConversationRef.current || selectedConversation;
 
-            homeDispatch({
-                field: 'selectedConversation',
-                value: updatedConversation,
-            });
+                const updatedMessages: Message[] = (toUpdate.messages.length == 0) ?
+                    [newMessage({role: "assistant", content: text})] :
+                    toUpdate.messages.map((message, index) => {
+                        if (index === toUpdate.messages.length - 1) {
+                            return {
+                                ...message,
+                                content: text,
+                            };
+                        }
+                        return message;
+                    });
 
-            setCurrentMessage(updatedMessages[-1]);
-        }
+
+                let updatedConversation = {
+                    ...toUpdate,
+                    messages: updatedMessages,
+                };
+
+                homeDispatch({
+                    field: 'selectedConversation',
+                    value: updatedConversation,
+                });
+            }
+        }, [selectedConversation]);
 
 
         const handleSend = useCallback(
-            async (message: Message, deleteCount = 0, plugin: Plugin | null = null) => {
+            async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null) => {
                 return new Promise(async (resolve, reject) => {
                     if (selectedConversation) {
                         let updatedConversation: Conversation;
@@ -248,7 +261,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                         const controller = new AbortController();
                         try {
-                            const response = await sendChatRequest(chatBody, plugin, controller.signal);
+                            const response = (existingResponse)? existingResponse : await sendChatRequest(chatBody, plugin, controller.signal);
 
                             if (!response.ok) {
                                 homeDispatch({field: 'loading', value: false});
@@ -401,15 +414,31 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             ],
         );
 
-        const handleJsWorkflow = useCallback((message: Message) => {
-            if(selectedConversation) {
+        const selectedConversationRef = useRef<Conversation>(null);
+
+        useEffect(() => {
+            // In your useEffect, you should keep your ref in sync with the state.
+            // @ts-ignore
+            selectedConversationRef.current = selectedConversation;
+        }, [selectedConversation]);
+
+        const asyncSafeHandleAddMessages = async (messages:Message[]) => {
+            await handleAddMessages(selectedConversationRef.current || selectedConversation,messages)
+        };
+
+
+        const handleJsWorkflow = useCallback(async (message: Message) => {
+            if (selectedConversation) {
+
+                const telluser = async (msg: string) => {
+                    await asyncSafeHandleAddMessages([
+                        newMessage({role: "assistant", content: msg})])
+                };
+
                 const tools: {} = {
                     "tellUser": {
-                        description: "(msg:string)//output a message to the user",
-                        exec: (msg: string) => {
-                            handleAddMessages([
-                                newMessage({role: "assistant", content: msg})])
-                        }
+                        description: "async (msg:string)=>Promise<void>//output a message to the user",
+                        exec: telluser
                     }
                 }
 
@@ -423,12 +452,18 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     signal: controller.signal
                 }
 
-                handleAddMessages([message, newMessage({role: "assistant", content: "Executing..."})]);
+                await telluser("Creating the workflow...");
 
-                homeDispatch({field: 'loading', value: true});
-                homeDispatch({field: 'messageIsStreaming', value: true});
+                await homeDispatch({field: 'loading', value: true});
+                await homeDispatch({field: 'messageIsStreaming', value: true});
 
-                executeJSWorkflow(apiKey, message.content, tools, stopper).then((result) => {
+                executeJSWorkflow(apiKey, message.content, tools, stopper, (responseText) => {
+                    if(responseText.trim().startsWith("const")){
+                        responseText = "```javascript\n"+responseText;
+                    }
+
+                    updateCurrentMessage(responseText);
+                }).then((result) => {
                     let resultMsg = (canceled) ?
                         "You stopped execution of this task." :
                         "Result\n---------------------\n" + result.result;
@@ -437,16 +472,16 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         "\n\nCode\n---------------------\n" +
                         "```javascript \n" + result?.code + "```";
 
-                    const msg = resultMsg + codeMsg;
+                    const msg = resultMsg; //+ codeMsg;
 
-                    handleAddMessages([newMessage({role: "assistant", content: msg})])
+                    telluser(msg);
                 }).finally(() => {
                     homeDispatch({field: 'loading', value: false});
                     homeDispatch({field: 'messageIsStreaming', value: false});
                 });
             }
 
-        },[
+        }, [
             apiKey,
             conversations,
             pluginKeys,
@@ -477,9 +512,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             // @ts-ignore
             setCurrentMessage(message);
 
-            if(!doWorkflow) {
+            if (!doWorkflow) {
                 handleSend(message, 0, null);
-            }else {
+            } else {
                 handleJsWorkflow(message);
             }
 
