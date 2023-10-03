@@ -50,7 +50,7 @@ const animate = keyframes`
 
 const LoadingIcon = styled(FiCommand)`
   color: lightgray;
-  font-size: 2rem;
+  font-size: 1rem;
   animation: ${animate} 2s infinite;
 `;
 

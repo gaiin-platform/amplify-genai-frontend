@@ -2,6 +2,7 @@ import { IconPlus } from '@tabler/icons-react';
 import { FC } from 'react';
 import { getDocument, PDFDocumentProxy, Util } from './JsPDF'
 import * as pdfjs from './JsPDF'
+import readXlsxFile from 'read-excel-file'
 
 import { useTranslation } from 'next-i18next';
 
@@ -72,6 +73,13 @@ const handleAsText = (processor:any, file: any):Promise<Document> => {
 const handlersByType = {
     "application/pdf":handlePdf,
     "application/json":(file:any)=>{return handleAsText(JSON.parse, file)},
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":(file:any)=>{
+        console.log("Read excel");
+      return readXlsxFile(file).then((value)=>{
+         console.log("Rows:"+value.length);
+         return {name:file.name, type:file.type, raw:value, data:value};
+      });
+    },
     "*":(file:any)=>{return handleAsText(null, file)}
 }
 

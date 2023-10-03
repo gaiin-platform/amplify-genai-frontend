@@ -3,6 +3,7 @@ import {sendChatRequest} from "@/services/chatService";
 import {findWorkflowPattern, generateWorkflowPrompt} from "@/utils/workflow/aiflow";
 import {OpenAIModels, OpenAIModelID} from "@/types/openai";
 
+
 interface AiTool {
     description:string,
     exec:()=>{}
@@ -65,36 +66,43 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     const promptLLM = (persona:string, prompt: string) => {return promptLLMFull(persona, prompt);}
 
     const tools = {
-        getDocuments: {description:"():[[pagesAsStrings],[...]..]",exec:()=>{
-            return [
-                ["Name, Title, Age"],
-                ["Jules, Professor, 23"],
-                ["Bob, Professor, 41"]
-            ];
-        }},
         promptLLM: { description:"(personaString,promptString):Promise<String> //personaString should be a detailed persona, such as an expert in XYZ relevant to the task, promptString must include detailed instructions for the LLM and any data that the prompt operates on as a string", exec:promptLLM },
         tellUser: {
             description:"(msg:string)//output a message to the user",
             exec:(msg: string)=>console.log(msg),
         },
-        log: { description:"(msgString):void", exec:(msgString: string) => console.log(msgString)},
-        // getUserInput: { description: "(fields:[{description:'':type:''},...]) // type is string, " +
-        //         "javascript regex pattern, integer, number, boolean, file, select:option1:option2",
-        //     exec:(data: any) => {
-        //         console.log("getUserInput", data);
-        //         return {};
-        // }},
-        // extractJson: {description:"(responseFromLLM):[{...},{...}]//extracts any json objects in the promptLLM response",
-        //     exec:extractJsonObjects
+        // readXlsxFile: {
+        //     description:"(document.raw)=>Promise<[[row1col1,row1col2,...],[row2col1,row2col2...]...]>",
+        //     exec: readXlsxFile
         // },
+        log: { description:"(msgString):void", exec:(msgString: string) => console.log(msgString)},
         ...customTools,
     };
 
 
+    // @ts-ignore
+    const extraInstructions = [
+      "Try to do as much work in code as possible without prompting the LLM. Only prompt the LLM for outlining, " +
+      "analyzing text, summarizing, writing, and other natural language processing tasks.",
+
+        "If there is a library that you wish you had been able to use, include a comment about that in" +
+        "the code in the form '// @library-wish <name-of-npm-module>. Note, only client-side libraries are allowed.",
+
+        // @ts-ignore
+        (tools.getDocuments && tools.getDocuments.exec().length > 0)?
+            "Before using a document, make sure and describe its structure and properties relevant to the task." +
+            "Then, think step-by-step how to use the document properties to accomplish the task." : "",
+        "When you produce a result, produce it as a json object has the following format:" +
+        "{type:'text,table,code',data:<your output>}. If you specify a table, you should make" +
+        " the output an array of objects where each object is a row and the properties of the object " +
+        "are the columns. For text, make sure your output is a string that can also have markdown. For" +
+        " code, your output should be a string."
+    ];
+
     if(stopper.shouldStop()){
         return abortResult;
     }
-    let prompt = generateWorkflowPrompt(task, tools);
+    let prompt = generateWorkflowPrompt(task, tools, extraInstructions);
 
     let success = false;
     let tries = 3;
@@ -122,6 +130,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     3. You can use any standard Javascript that you want, just don't access global state, the document, etc.
     4. If the output of your work is a report or unstructured textual format, you can prompt the LLM and give
        it a detailed prompt to make it formatted beautifully.
+    5. You can define helper functions, but they must be defined inside of the workflow function.
     `;
 
     while(!success && tries > 0 && !stopper.shouldStop()) {
@@ -136,7 +145,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         }
         //console.log("Uncleaed code:", uncleanedCode)
 
-        
+
         cleanedFn = findWorkflowPattern(uncleanedCode || "");
         finalFn = null;
         fnResult = "";

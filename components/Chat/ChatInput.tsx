@@ -4,6 +4,7 @@ import {
   IconBrandGoogle,
   IconPlayerStop,
   IconRepeat,
+  IconApiApp,
   IconSend,
 } from '@tabler/icons-react';
 import {
@@ -68,10 +69,15 @@ export const ChatInput = ({
   const [documents, setDocuments] = useState<Document[]>();
 
   const promptListRef = useRef<HTMLUListElement | null>(null);
+  const [isWorkflowOn, setWorkflowOn] = useState(false);
 
   const filteredPrompts = prompts.filter((prompt) =>
     prompt.name.toLowerCase().includes(promptInputValue.toLowerCase()),
   );
+
+  const handleWorkflowClick = () => {
+    setWorkflowOn(!isWorkflowOn);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
@@ -118,12 +124,19 @@ export const ChatInput = ({
       return;
     }
 
-    let newContent = content;
+    const type = (isWorkflowOn)? "automation" : "prompt";
+    let msg = newMessage({ role: 'user', content: content, type:type });
+
     if(documents && documents?.length > 0){
-      newContent = handleAppendDocumentsToContent(content, documents);
+      if(!isWorkflowOn) {
+        msg.content = handleAppendDocumentsToContent(content, documents);
+      }
+      else {
+        msg.data = {documents: documents};
+      }
     }
 
-    onSend(newMessage({ role: 'user', content: newContent }), plugin);
+    onSend(msg, plugin);
     setContent('');
     setPlugin(null);
     setDocuments([]);
@@ -271,6 +284,11 @@ export const ChatInput = ({
     };
   }, []);
 
+  let buttonClasses = "left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200";
+  if (isWorkflowOn) {
+    buttonClasses += " bg-green-400 text-white"; // provide your desired 'on' state style classes
+  }
+
   return (
     <div className="absolute bottom-0 left-0 w-full border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
       <div className="stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
@@ -306,6 +324,14 @@ export const ChatInput = ({
               onKeyDown={(e) => {}}
             >
               {plugin ? <IconBrandGoogle size={20} /> : <IconBolt size={20} />}
+            </button>
+
+            <button
+                className={buttonClasses}
+                onClick={handleWorkflowClick}
+                onKeyDown={(e) => {}}
+            >
+              <IconApiApp size={20} />
             </button>
 
             <AttachFile onAttach={addDocument} />

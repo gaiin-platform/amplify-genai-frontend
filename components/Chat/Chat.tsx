@@ -435,12 +435,86 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         newMessage({role: "assistant", content: msg})])
                 };
 
-                const tools: {} = {
+                let tools = {
                     "tellUser": {
                         description: "async (msg:string)=>Promise<void>//output a message to the user",
                         exec: telluser
                     }
                 }
+
+                await asyncSafeHandleAddMessages([message]);
+
+                if(message.data && message.data.documents){
+                    let docs = [...message.data.documents];
+
+                    // @ts-ignore
+                    function describeValue(value) {
+                        try {
+                            console.log("Describe", value);
+
+                            if(value == null){
+                                return "null";
+                            }
+
+                            if (typeof value === 'string') {
+                                return `string[length:${value.length}]`;
+                            }
+
+                            if (Array.isArray(value)) {
+                                if (value.length > 0) {
+                                    return `[${describeValue(value[0])}]`;
+                                } else {
+                                    return 'array[length:0]';
+                                }
+                            }
+
+                            if (value instanceof Object) {
+                                const kvDescriptions = [];
+                                for (let key in value) {
+                                    kvDescriptions.push(`${key}:${describeValue(value[key])}`);
+                                }
+
+                                if (kvDescriptions.length > 0) {
+                                    return `{${kvDescriptions.join(', ')}}`;
+                                } else {
+                                    return 'object[children:0]';
+                                }
+                            }
+
+                            // Check for presence of length property for non-string types
+                            if ('length' in value) {
+                                return `${typeof value}[length:${value.length}]`;
+                            } else {
+                                return typeof value;
+                            }
+                        }catch(e){
+                            return "Unknown";
+                        }
+                    }
+
+                    let documentsDescription = docs.map((doc)=>{
+                        let rawDesc = describeValue(doc.raw);
+                        let dataDesc = describeValue(doc.data);
+                        return `{name:"${doc.name}", type:"${doc.type}", raw:${rawDesc}, data:${dataDesc}}`;
+                    }).join(",")
+
+                    console.log("documentsDescription", documentsDescription);
+
+                    // @ts-ignore
+                    tools["getDocuments"] = {
+
+                        description:`():[${documentsDescription}] // Prompts can never exceed approximately 25,000 characters," +
+                            "so check them carefully if you include a document in them and if the document" +
+                            "is bigger, then break it up into chunks to feed to the prompt and combine" +
+                            "results.`,
+                        exec:()=>{
+                            return docs;
+                        }
+                    };
+
+                    await telluser(`Using documents: \n\n${documentsDescription}`)
+                }
+
 
                 let canceled = false;
                 const controller = new AbortController();
@@ -457,6 +531,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 await homeDispatch({field: 'loading', value: true});
                 await homeDispatch({field: 'messageIsStreaming', value: true});
 
+                // @ts-ignore
                 executeJSWorkflow(apiKey, message.content, tools, stopper, (responseText) => {
                     if(responseText.trim().startsWith("const")){
                         responseText = "```javascript\n"+responseText;
@@ -464,9 +539,28 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                     updateCurrentMessage(responseText);
                 }).then((result) => {
+
+                    const formatter = (result: { type: string; result: any; data: Record<string, any>[]; } | null) => {
+                      if(result == null){
+                          return "The workflow didn't produce any results.";
+                      }
+                      else if(result.type && result.type == "string"){
+                          return result.result;
+                      }
+                      else if(result.type && Array.isArray(result.data) && result.type == "table"){
+                          return generateMarkdownTable(result.data);
+                      }
+                      else {
+                          return JSON.stringify(result.result, null, 2);
+                      }
+                    };
+
+                    let resultStr = (typeof result.result === "string") ? result.result :
+                        formatter(result.result);
+
                     let resultMsg = (canceled) ?
                         "You stopped execution of this task." :
-                        "Result\n---------------------\n" + result.result;
+                        "Result\n---------------------\n" + resultStr;
 
                     let codeMsg = (canceled) ? "" :
                         "\n\nCode\n---------------------\n" +
@@ -488,6 +582,42 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             selectedConversation,
             stopConversationRef,
         ]);
+
+        function generateMarkdownTable(data: Array<Record<string, any>>): string {
+            if (!data || !Array.isArray(data) || data.length === 0)
+                return '';
+
+            // Get all unique keys
+            const keys = Array.from(
+                new Set(data.flatMap(obj => Object.keys(obj)))
+            );
+
+            let markdown = `| ${keys.join(' | ')} |\n| ${keys.map(() => '---').join(' | ')} |\n`;
+
+            data.forEach(obj => {
+                const row = keys.map(key => {
+                    if (obj.hasOwnProperty(key)) {
+                        // Replace line breaks with `<br>` if they exist.
+                        return String(obj[key]).replace(/\n/g, ' <br> ');
+                    } else {
+                        return '';
+                    }
+                }).join(' | ');
+
+                markdown += `| ${row} |\n`;
+            });
+
+            return markdown;
+        }
+
+        const routeMessage = (message:Message, index: number | undefined, plugin: Plugin | null | undefined) => {
+            if(message.type == "prompt"){
+                handleSend(message,index,plugin);
+            }
+            else if(message.type == "automation"){
+                handleJsWorkflow(message);
+            }
+        }
 
         const handleSubmit = (updatedVariables: string[]) => {
 
@@ -753,17 +883,19 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             messageIndex={index}
                                             onSend={(message) => {
                                                 setCurrentMessage(message[0]);
-                                                handleSend(message[0], 0, null);
+                                                //handleSend(message[0], 0, null);
+                                                routeMessage(message[0], 0, null);
                                             }}
                                             handleWorkflow={handleWorkflow}
                                             handleRunWorkflow={handleRunWorkflow}
                                             onEdit={(editedMessage) => {
                                                 setCurrentMessage(editedMessage);
                                                 // discard edited message and the ones that come after then resend
-                                                handleSend(
-                                                    editedMessage,
-                                                    selectedConversation?.messages.length - index,
-                                                );
+                                                // handleSend(
+                                                //     editedMessage,
+                                                //     selectedConversation?.messages.length - index,
+                                                // );
+                                                routeMessage(editedMessage,selectedConversation?.messages.length - index, null);
                                             }}
                                         />
                                     ))}
@@ -783,12 +915,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             textareaRef={textareaRef}
                             onSend={(message, plugin) => {
                                 setCurrentMessage(message);
-                                handleSend(message, 0, plugin);
+                                //handleSend(message, 0, plugin);
+                                routeMessage(message, 0, plugin);
                             }}
                             onScrollDownClick={handleScrollDown}
                             onRegenerate={() => {
                                 if (currentMessage) {
-                                    handleSend(currentMessage, 2, null);
+                                    //handleSend(currentMessage, 2, null);
+                                    routeMessage(currentMessage, 2, null);
                                 }
                             }}
                             showScrollDownButton={showScrollDownButton}

@@ -50,10 +50,12 @@ export const generateCodeImprovementPrompt = (code:string, improvement:string) =
     return "// The code "+improvement;
 }
 
-export const generateWorkflowPrompt = (task: string, tools:{[key: string]:{description: string}}) => {
+export const generateWorkflowPrompt = (task: string, tools:{[key: string]:{description: string}}, extraPromptInstructions?:string[]) => {
 
     const toolMsg = Object.entries(tools)
         .map(([key,tool]) => {return key +":"+tool.description;}).join(",\n");
+
+    const extraInstructions = (extraPromptInstructions)? "// PAY ATTENTION:\n" + extraPromptInstructions.join("\n//   ") : "";
 
     return `const fnlibs = {
                             ${toolMsg}
@@ -63,7 +65,7 @@ export const generateWorkflowPrompt = (task: string, tools:{[key: string]:{descr
                             let result = new Promise((resolve, reject) => {
                             try {
                                 fnlibs.tellUser("Executing the generated workflow...");
-                                let value = null; 
+                                let value = {type:"text|table|code", data:null}; 
                                 // Any tasks based on summarizing, outlining, analyzing, suggesting,
                                 // brainstorming, etc. should be done by prompting the LLM. When you prompt
                                 // you must give the LLM detailed step-by-step instructions on what to do and give it a 
@@ -72,6 +74,8 @@ export const generateWorkflowPrompt = (task: string, tools:{[key: string]:{descr
                                 // Tell the user what you are doing before any point in your code where you
                                 // prompt the LLM. 
                                 //
+                                // EXTRA INSTRUCTIONS:
+                                // ${extraInstructions}
                                 //
                                 // FILL IN A STEP-BY-STEP PLAN IN COMMENTS FOR TASK:
                                 // ${task}
@@ -80,6 +84,8 @@ export const generateWorkflowPrompt = (task: string, tools:{[key: string]:{descr
                                 //
                                 
                                 
+                               // DESCRIBE HOW TO MAKE THE VALUE BEAUTIFULLY FORMATTED
+                               // FOR THE USER 
                                // Store the output of the task in value so it can be returned
                                resolve(value);
                             }
