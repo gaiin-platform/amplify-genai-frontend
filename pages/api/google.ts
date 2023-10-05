@@ -8,7 +8,6 @@ import { GoogleBody, GoogleSource } from '@/types/google';
 
 import { Readability } from '@mozilla/readability';
 import endent from 'endent';
-import jsdom, { JSDOM } from 'jsdom';
 
 const handler = async (req: NextApiRequest, res: NextApiResponse<any>) => {
   try {
@@ -52,16 +51,16 @@ const handler = async (req: NextApiRequest, res: NextApiResponse<any>) => {
           // if (res) {
           const html = await res.text();
 
-          const virtualConsole = new jsdom.VirtualConsole();
-          virtualConsole.on('error', (error) => {
-            if (!error.message.includes('Could not parse CSS stylesheet')) {
-              console.error(error);
-            }
-          });
+          // const virtualConsole = new jsdom.VirtualConsole();
+          // virtualConsole.on('error', (error) => {
+          //   if (!error.message.includes('Could not parse CSS stylesheet')) {
+          //     console.error(error);
+          //   }
+          // });
 
-          const dom = new JSDOM(html, { virtualConsole });
-          const doc = dom.window.document;
-          const parsed = new Readability(doc).parse();
+          //const dom = new JSDOM(html, { virtualConsole });
+          const doc = null;//dom.window.document;
+          const parsed = {textContent:""};//new Readability(doc).parse();
 
           if (parsed) {
             let sourceText = cleanSourceText(parsed.textContent);

@@ -19,7 +19,7 @@
     "jsx": "preserve",
     "incremental": true,
     "types": [
-      "vitest/globals"
+      //"vitest/globals"
     ],
     "paths": {
       "@/*": [
