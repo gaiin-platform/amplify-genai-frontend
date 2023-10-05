@@ -4,6 +4,7 @@ import { FolderInterface } from '@/types/folder';
 import { OpenAIModel, OpenAIModelID } from '@/types/openai';
 import { PluginKey } from '@/types/plugin';
 import { Prompt } from '@/types/prompt';
+import {WorkflowDefinition} from "@/types/workflow";
 
 export interface HomeInitialState {
   apiKey: string;
@@ -15,6 +16,7 @@ export interface HomeInitialState {
   models: OpenAIModel[];
   folders: FolderInterface[];
   conversations: Conversation[];
+  workflows:WorkflowDefinition[];
   selectedConversation: Conversation | undefined;
   currentMessage: Message | undefined;
   prompts: Prompt[];
@@ -39,6 +41,10 @@ export const initialState: HomeInitialState = {
   models: [],
   folders: [],
   conversations: [],
+  //"af574458-8323-4386-b735-6cdbcff0a8e9"
+  workflows:[
+
+  ],
   selectedConversation: undefined,
   currentMessage: undefined,
   prompts: [],

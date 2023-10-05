@@ -5,9 +5,10 @@ import {GetServerSideProps} from 'next';
 import {useTranslation} from 'next-i18next';
 import {serverSideTranslations} from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
+import {Tab, TabSidebar} from "@/components/TabSidebar/TabSidebar";
 
 import {useCreateReducer} from '@/hooks/useCreateReducer';
-
+import {SettingsBar} from "@/components/Settings/SettingsBar";
 import useErrorService from '@/services/errorService';
 import useApiService from '@/services/useApiService';
 
@@ -35,13 +36,18 @@ import {Chat} from '@/components/Chat/Chat';
 import {Chatbar} from '@/components/Chatbar/Chatbar';
 import {Navbar} from '@/components/Mobile/Navbar';
 import Promptbar from '@/components/Promptbar';
-import {Icon3dCubeSphere} from "@tabler/icons-react";
+import {Icon3dCubeSphere, IconApiApp, IconMessage, IconSettings, IconBook2} from "@tabler/icons-react";
+import {IconUser, IconLogout} from "@tabler/icons-react";
 import HomeContext, {Processor} from './home.context';
 import {HomeInitialState, initialState} from './home.state';
 
 import {v4 as uuidv4} from 'uuid';
-import { useUser } from '@auth0/nextjs-auth0/client';
+import {useUser} from '@auth0/nextjs-auth0/client';
 import styled from "styled-components";
+import {Button} from "react-query/types/devtools/styledComponents";
+import WorkflowDefinitionBar from "@/components/Workflow/WorkflowDefinitionBar";
+import {WorkflowDefinition} from "@/types/workflow";
+import {saveWorkflowDefinitions} from "@/utils/app/workflows";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -65,7 +71,7 @@ const Home = ({
     const {getModels} = useApiService();
     const {getModelsError} = useErrorService();
     const [initialRender, setInitialRender] = useState<boolean>(true);
-    const { user, error:userError, isLoading } = useUser();
+    const {user, error: userError, isLoading} = useUser();
 
     const contextValue = useCreateReducer<HomeInitialState>({
         initialState,
@@ -77,6 +83,7 @@ const Home = ({
             apiKey,
             lightMode,
             folders,
+            workflows,
             conversations,
             selectedConversation,
             prompts,
@@ -125,6 +132,8 @@ const Home = ({
     // FOLDER OPERATIONS  --------------------------------------------
 
     const handleCreateFolder = (name: string, type: FolderType) => {
+        console.log("handleCreateFolder", name, type);
+
         const newFolder: FolderInterface = {
             id: uuidv4(),
             name,
@@ -169,6 +178,20 @@ const Home = ({
 
         dispatch({field: 'prompts', value: updatedPrompts});
         savePrompts(updatedPrompts);
+
+        const updatedWorkflows: WorkflowDefinition[] = workflows.map((p) => {
+            if (p.folderId === folderId) {
+                return {
+                    ...p,
+                    folderId: null,
+                };
+            }
+
+            return p;
+        });
+
+        dispatch({field: 'workflows', value: updatedWorkflows});
+        saveWorkflowDefinitions(updatedWorkflows);
     };
 
     const handleUpdateFolder = (folderId: string, name: string) => {
@@ -353,6 +376,11 @@ const Home = ({
             dispatch({field: 'prompts', value: JSON.parse(prompts)});
         }
 
+        const workflows = localStorage.getItem('workflows');
+        if (workflows) {
+            dispatch({field: 'workflows', value: JSON.parse(workflows)});
+        }
+
         const conversationHistory = localStorage.getItem('conversationHistory');
         if (conversationHistory) {
             const parsedConversationHistory: Conversation[] =
@@ -460,37 +488,66 @@ const Home = ({
                         </div>
 
                         <div className="flex h-full w-full pt-[48px] sm:pt-0">
-                            <Chatbar/>
+
+                            <TabSidebar
+                                side={"left"}
+                                footerComponent={
+                                    <div className="m-0 p-0 border-t border-white/20 pt-1 text-sm">
+                                        <button className="text-white" onClick={() => {
+                                            window.location.href = '/api/auth/logout'
+                                        }}>
+
+                                            <div className="flex items-center">
+                                                <IconLogout className="m-2"/>
+                                                <span>{isLoading ? 'Loading...' : user?.name ?? 'Unnamed user'}</span>
+                                            </div>
+
+                                        </button>
+                                    </div>
+                                }
+                            >
+                                <Tab icon={<IconMessage/>}><Chatbar/></Tab>
+                                <Tab icon={<IconSettings/>}><SettingsBar/></Tab>
+                            </TabSidebar>
 
                             <div className="flex flex-1">
                                 <Chat stopConversationRef={stopConversationRef}/>
                             </div>
 
-                            <Promptbar/>
-                            
+
+                            <TabSidebar
+                                side={"right"}
+                            >
+                                <Tab icon={<Icon3dCubeSphere/>}><Promptbar/></Tab>
+                                <Tab icon={<IconBook2/>}><WorkflowDefinitionBar/></Tab>
+                            </TabSidebar>
+
                         </div>
                     </main>
                 )}
 
             </HomeContext.Provider>
         );
-    } else if(isLoading){
+    } else if (isLoading) {
         return (
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
             >
-            <div className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
-            <h1 className="mb-4 text-2xl font-bold">
-                Loading...
-            </h1>
-            <progress className="w-64" />
-            </div></main>);
+                <div
+                    className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                    <h1 className="mb-4 text-2xl font-bold">
+                        Loading...
+                    </h1>
+                    <progress className="w-64"/>
+                </div>
+            </main>);
     } else {
         return (
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
             >
-                <div className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                <div
+                    className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
                     <h1 className="mb-4 text-2xl font-bold">
                         <LoadingIcon/>
                     </h1>

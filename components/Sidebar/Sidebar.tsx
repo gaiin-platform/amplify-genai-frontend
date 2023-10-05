@@ -54,8 +54,8 @@ const Sidebar = <T,>({
     e.target.style.background = 'none';
   };
 
-  return isOpen ? (
-    <div>
+  return (
+    <div className={`border-t border-white/20`}>
       <div
         className={`fixed top-0 ${side}-0 z-40 flex h-full w-[260px] flex-none flex-col space-y-2 bg-[#202123] p-2 text-[14px] transition-all sm:relative sm:top-0`}
       >
@@ -113,10 +113,8 @@ const Sidebar = <T,>({
         {footerComponent}
       </div>
 
-      <CloseSidebarButton onClick={toggleOpen} side={side} />
+
     </div>
-  ) : (
-    <OpenSidebarButton onClick={toggleOpen} side={side} />
   );
 };
 

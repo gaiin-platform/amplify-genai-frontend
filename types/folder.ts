@@ -4,4 +4,4 @@ export interface FolderInterface {
   type: FolderType;
 }
 
-export type FolderType = 'chat' | 'prompt';
+export type FolderType = 'chat' | 'prompt' | 'workflow';

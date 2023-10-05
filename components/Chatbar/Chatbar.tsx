@@ -17,7 +17,6 @@ import { PluginKey } from '@/types/plugin';
 import HomeContext from '@/pages/api/home/home.context';
 
 import { ChatFolders } from './components/ChatFolders';
-import { ChatbarSettings } from './components/ChatbarSettings';
 import { RAG } from './components/RAG';
 import { Conversations } from './components/Conversations';
 
@@ -49,93 +48,29 @@ export const Chatbar = () => {
 
   const handleApiKeyChange = useCallback(
     (apiKey: string) => {
-      homeDispatch({ field: 'apiKey', value: apiKey });
 
-      localStorage.setItem('apiKey', apiKey);
     },
     [homeDispatch],
   );
 
   const handlePluginKeyChange = (pluginKey: PluginKey) => {
-    if (pluginKeys.some((key) => key.pluginId === pluginKey.pluginId)) {
-      const updatedPluginKeys = pluginKeys.map((key) => {
-        if (key.pluginId === pluginKey.pluginId) {
-          return pluginKey;
-        }
 
-        return key;
-      });
-
-      homeDispatch({ field: 'pluginKeys', value: updatedPluginKeys });
-
-      localStorage.setItem('pluginKeys', JSON.stringify(updatedPluginKeys));
-    } else {
-      homeDispatch({ field: 'pluginKeys', value: [...pluginKeys, pluginKey] });
-
-      localStorage.setItem(
-        'pluginKeys',
-        JSON.stringify([...pluginKeys, pluginKey]),
-      );
-    }
   };
 
   const handleClearPluginKey = (pluginKey: PluginKey) => {
-    const updatedPluginKeys = pluginKeys.filter(
-      (key) => key.pluginId !== pluginKey.pluginId,
-    );
 
-    if (updatedPluginKeys.length === 0) {
-      homeDispatch({ field: 'pluginKeys', value: [] });
-      localStorage.removeItem('pluginKeys');
-      return;
-    }
-
-    homeDispatch({ field: 'pluginKeys', value: updatedPluginKeys });
-
-    localStorage.setItem('pluginKeys', JSON.stringify(updatedPluginKeys));
   };
 
   const handleExportData = () => {
-    exportData();
+
   };
 
   const handleImportConversations = (data: SupportedExportFormats) => {
-    const { history, folders, prompts }: LatestExportFormat = importData(data);
-    homeDispatch({ field: 'conversations', value: history });
-    homeDispatch({
-      field: 'selectedConversation',
-      value: history[history.length - 1],
-    });
-    homeDispatch({ field: 'folders', value: folders });
-    homeDispatch({ field: 'prompts', value: prompts });
 
-    window.location.reload();
   };
 
   const handleClearConversations = () => {
-    defaultModelId &&
-      homeDispatch({
-        field: 'selectedConversation',
-        value: {
-          id: uuidv4(),
-          name: t('New Conversation'),
-          messages: [],
-          model: OpenAIModels[defaultModelId],
-          prompt: DEFAULT_SYSTEM_PROMPT,
-          temperature: DEFAULT_TEMPERATURE,
-          folderId: null,
-        },
-      });
 
-    homeDispatch({ field: 'conversations', value: [] });
-
-    localStorage.removeItem('conversationHistory');
-    localStorage.removeItem('selectedConversation');
-
-    const updatedFolders = folders.filter((f) => f.type !== 'chat');
-
-    homeDispatch({ field: 'folders', value: updatedFolders });
-    saveFolders(updatedFolders);
   };
 
   const handleDeleteConversation = (conversation: Conversation) => {
@@ -237,8 +172,7 @@ export const Chatbar = () => {
         handleDrop={handleDrop}
         footerComponent={
           <>
-            <ChatbarSettings />
-            <RAG />
+
           </>
         }
       />
