@@ -84,6 +84,8 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     const extraInstructions = [
       "Try to do as much work in code as possible without prompting the LLM. Only prompt the LLM for outlining, " +
       "analyzing text, summarizing, writing, and other natural language processing tasks.",
+        "Calling promptLLM is expensive. Only do this if you really need its natural language processing capabilities." +
+        " You shouldn't call this function to do things you could easily do in regular Javascript.",
 
         "If there is a library that you wish you had been able to use, include a comment about that in" +
         "the code in the form '// @library-wish <name-of-npm-module>. Note, only client-side libraries are allowed.",
@@ -121,7 +123,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     
     RULES:
     --------------
-    1. You prompt the LLM to perform tasks that require reasoning about text, writing text, outlining text,
+    1. You CAN but are NOT REQUIRED to prompt the LLM to perform tasks that require reasoning about text, writing text, outlining text,
        extracting or filtering information from text, etc. However, you don't use the LLM for basic string
        manipulation, such as combining or joining outputs, unless they need to be potentially converted into
        another textual format. 
@@ -131,6 +133,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     4. If the output of your work is a report or unstructured textual format, you can prompt the LLM and give
        it a detailed prompt to make it formatted beautifully.
     5. You can define helper functions, but they must be defined inside of the workflow function.
+    6. DO AS MUCH IN CODE AS POSSIBLE AND ONLY PROMPT the LLM if ABSOLUTELY REQUIRED FOR TEXT PROCESSING AND REASONING
     `;
 
     while(!success && tries > 0 && !stopper.shouldStop()) {

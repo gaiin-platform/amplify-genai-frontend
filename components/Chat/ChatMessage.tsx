@@ -167,6 +167,10 @@ export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit, onS
     }
   }, [isEditing]);
 
+  const customLinkHandler = (link:string) => {
+    console.log("Clicked:", link);
+  };
+
   return (
     <div
       className={`group md:px-4 ${
@@ -258,8 +262,17 @@ export const ChatMessage: FC<Props> = memo(({ message, messageIndex, onEdit, onS
                 remarkPlugins={[remarkGfm, remarkMath]}
                 //rehypePlugins={[rehypeMathjax]}
                 components={{
-                  a({href, title, ...props}) {
-                    return <a href={href}>Button</a>
+                  a({href, title, children, ...props}) {
+                    return (
+                        (href && href.startsWith("#")) ?
+                          <button className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-green-600"
+                                  onClick={(e)=>{e.preventDefault(); customLinkHandler(href || "#");}}>
+                            {children}
+                          </button> :
+                        <a href={href} onClick={(e)=>{e.preventDefault(); customLinkHandler(href || "/");}}>
+                          {children}
+                        </a>
+                        );
                   },
                   code({ node, inline, className, children, ...props }) {
                     if (children.length) {

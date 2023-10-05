@@ -261,7 +261,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                         const controller = new AbortController();
                         try {
-                            const response = (existingResponse)? existingResponse : await sendChatRequest(chatBody, plugin, controller.signal);
+                            const response = (existingResponse) ? existingResponse : await sendChatRequest(chatBody, plugin, controller.signal);
 
                             if (!response.ok) {
                                 homeDispatch({field: 'loading', value: false});
@@ -422,8 +422,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             selectedConversationRef.current = selectedConversation;
         }, [selectedConversation]);
 
-        const asyncSafeHandleAddMessages = async (messages:Message[]) => {
-            await handleAddMessages(selectedConversationRef.current || selectedConversation,messages)
+        const asyncSafeHandleAddMessages = async (messages: Message[]) => {
+            await handleAddMessages(selectedConversationRef.current || selectedConversation, messages)
         };
 
 
@@ -444,7 +444,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 await asyncSafeHandleAddMessages([message]);
 
-                if(message.data && message.data.documents){
+                if (message.data && message.data.documents) {
                     let docs = [...message.data.documents];
 
                     // @ts-ignore
@@ -452,7 +452,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         try {
                             console.log("Describe", value);
 
-                            if(value == null){
+                            if (value == null) {
                                 return "null";
                             }
 
@@ -487,12 +487,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             } else {
                                 return typeof value;
                             }
-                        }catch(e){
+                        } catch (e) {
                             return "Unknown";
                         }
                     }
 
-                    let documentsDescription = docs.map((doc)=>{
+                    let documentsDescription = docs.map((doc) => {
                         let rawDesc = describeValue(doc.raw);
                         let dataDesc = describeValue(doc.data);
                         return `{name:"${doc.name}", type:"${doc.type}", raw:${rawDesc}, data:${dataDesc}}`;
@@ -503,11 +503,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     // @ts-ignore
                     tools["getDocuments"] = {
 
-                        description:`():[${documentsDescription}] // Prompts can never exceed approximately 25,000 characters," +
+                        description: `():[${documentsDescription}] // Prompts can never exceed approximately 25,000 characters," +
                             "so check them carefully if you include a document in them and if the document" +
                             "is bigger, then break it up into chunks to feed to the prompt and combine" +
                             "results.`,
-                        exec:()=>{
+                        exec: () => {
                             return docs;
                         }
                     };
@@ -533,26 +533,24 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 // @ts-ignore
                 executeJSWorkflow(apiKey, message.content, tools, stopper, (responseText) => {
-                    if(responseText.trim().startsWith("const")){
-                        responseText = "```javascript\n"+responseText;
+                    if (responseText.trim().startsWith("const")) {
+                        responseText = "```javascript\n" + responseText;
                     }
 
                     updateCurrentMessage(responseText);
                 }).then((result) => {
 
-                    const formatter = (result: { type: string; result: any; data: Record<string, any>[]; } | null) => {
-                      if(result == null){
-                          return "The workflow didn't produce any results.";
-                      }
-                      else if(result.type && result.type == "string"){
-                          return result.result;
-                      }
-                      else if(result.type && Array.isArray(result.data) && result.type == "table"){
-                          return generateMarkdownTable(result.data);
-                      }
-                      else {
-                          return JSON.stringify(result.result, null, 2);
-                      }
+                    const formatter = (result: { type: string; data: Record<string, any>[]; } | null) => {
+                        console.log("formatter",result);
+                        if (result == null) {
+                            return "The workflow didn't produce any results.";
+                        } else if (result.type && result.type == "text") {
+                            return result.data;
+                        } else if (result.type && Array.isArray(result.data) && result.type == "table") {
+                            return generateMarkdownTable(result.data);
+                        } else {
+                            return JSON.stringify(result.data, null, 2);
+                        }
                     };
 
                     let resultStr = (typeof result.result === "string") ? result.result :
@@ -568,7 +566,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                     const msg = resultMsg; //+ codeMsg;
 
-                    telluser(msg);
+                    asyncSafeHandleAddMessages(
+                        [
+                            newMessage({role:"assistant", content:msg}),
+                            newMessage({role:"assistant", content: "Would you like to: [Save Workflow](#workflow:save-workflow) or [Discard Workflow](#workflow:discard-workflow)"})
+                        ]
+                    )
+
                 }).finally(() => {
                     homeDispatch({field: 'loading', value: false});
                     homeDispatch({field: 'messageIsStreaming', value: false});
@@ -610,11 +614,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             return markdown;
         }
 
-        const routeMessage = (message:Message, index: number | undefined, plugin: Plugin | null | undefined) => {
-            if(message.type == "prompt"){
-                handleSend(message,index,plugin);
-            }
-            else if(message.type == "automation"){
+        const routeMessage = (message: Message, index: number | undefined, plugin: Plugin | null | undefined) => {
+            if (message.type == "prompt") {
+                handleSend(message, index, plugin);
+            } else if (message.type == "automation") {
                 handleJsWorkflow(message);
             }
         }
@@ -895,7 +898,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 //     editedMessage,
                                                 //     selectedConversation?.messages.length - index,
                                                 // );
-                                                routeMessage(editedMessage,selectedConversation?.messages.length - index, null);
+                                                routeMessage(editedMessage, selectedConversation?.messages.length - index, null);
                                             }}
                                         />
                                     ))}
