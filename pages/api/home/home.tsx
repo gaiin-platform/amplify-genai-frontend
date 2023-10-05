@@ -446,8 +446,8 @@ const Home = ({
         setPostProcessingCallbacks(prev => prev.filter(c => c !== callback));
     }, []);
 
-    // if(user){
-    if (true) {
+
+    if (user) {
         return (
             <HomeContext.Provider
                 value={{
