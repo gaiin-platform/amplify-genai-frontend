@@ -101,6 +101,8 @@ export const ChatInput = ({
     let newDocuments = documents || [];
     newDocuments.push(document);
     setDocuments(newDocuments);
+
+    console.log("Document attached.");
   }
 
   const handleAppendDocumentsToContent = (content:string, documents:Document[]) => {

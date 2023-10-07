@@ -38,7 +38,7 @@ import {MemoizedChatMessage} from './MemoizedChatMessage';
 import {useChatService} from '@/hooks/useChatService';
 import {VariableModal} from "@/components/Chat/VariableModal";
 import {parsePromptVariables} from "@/utils/app/prompts";
-
+import { v4 as uuidv4 } from 'uuid';
 
 import Workflow, {
     Context,
@@ -53,6 +53,7 @@ import Workflow, {
 } from "@/utils/workflow/workflow";
 import {OpenAIModel} from "@/types/openai";
 import {Prompt} from "@/types/prompt";
+import {InputType} from "@/types/workflow";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -75,6 +76,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 prompts,
             },
             handleUpdateConversation,
+            handleCustomLinkClick,
             postProcessingCallbacks,
             dispatch: homeDispatch,
             handleAddMessages: handleAddMessages
@@ -194,7 +196,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             selectedConversation
         ]);
 
-        const updateCurrentMessage = useCallback((text: string) => {
+        const updateCurrentMessage = useCallback((text: string, data={}) => {
 
             if (selectedConversation) {
                 let toUpdate = selectedConversationRef.current || selectedConversation;
@@ -205,6 +207,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         if (index === toUpdate.messages.length - 1) {
                             return {
                                 ...message,
+                                data: (data)? data : (message.data) ? message.data: {},
                                 content: text,
                             };
                         }
@@ -305,7 +308,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         isFirst = false;
                                         const updatedMessages: Message[] = [
                                             ...updatedConversation.messages,
-                                            newMessage({role: 'assistant', content: chunkValue}),
+                                            newMessage({
+                                                role: 'assistant',
+                                                content: chunkValue,
+                                            }),
                                         ];
                                         updatedConversation = {
                                             ...updatedConversation,
@@ -426,13 +432,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             await handleAddMessages(selectedConversationRef.current || selectedConversation, messages)
         };
 
+        const onLinkClick = (href: string) =>{
+            if(selectedConversation) {
+                handleCustomLinkClick(selectedConversationRef.current || selectedConversation, href);
+            }
+        }
+
 
         const handleJsWorkflow = useCallback(async (message: Message) => {
             if (selectedConversation) {
 
+                const workflowId = uuidv4();
+
                 const telluser = async (msg: string) => {
                     await asyncSafeHandleAddMessages([
-                        newMessage({role: "assistant", content: msg})])
+                        newMessage({role: "assistant", content: msg, data:{workflow:workflowId, type:"workflow:tell"}})])
                 };
 
                 let tools = {
@@ -442,10 +456,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     }
                 }
 
+                message.data = (message.data)?
+                    {...message.data, ...{workflow:workflowId, type:"workflow:prompt"}} :
+                    {workflow:workflowId, type:"workflow:prompt"};
+
                 await asyncSafeHandleAddMessages([message]);
 
+                console.log("message.data", message.data);
+
+                let inputTypes: InputType[] = [];
+
                 if (message.data && message.data.documents) {
+
                     let docs = [...message.data.documents];
+
+                    console.log("Message documents", docs);
 
                     // @ts-ignore
                     function describeValue(value) {
@@ -498,6 +523,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         return `{name:"${doc.name}", type:"${doc.type}", raw:${rawDesc}, data:${dataDesc}}`;
                     }).join(",")
 
+                    inputTypes = docs.map((doc) => {
+                        let ext = doc.name.split('.').pop();
+                        let input:InputType = {fileExtension:ext, fileMimeType:doc.type};
+                        return input;
+                    })
+
                     console.log("documentsDescription", documentsDescription);
 
                     // @ts-ignore
@@ -514,6 +545,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                     await telluser(`Using documents: \n\n${documentsDescription}`)
                 }
+
+                message.data.inputTypes = inputTypes;
 
 
                 let canceled = false;
@@ -537,7 +570,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         responseText = "```javascript\n" + responseText;
                     }
 
-                    updateCurrentMessage(responseText);
+                    updateCurrentMessage(responseText, {workflow:workflowId, type:"workflow:code"});
                 }).then((result) => {
 
                     const formatter = (result: { type: string; data: Record<string, any>[]; } | null) => {
@@ -568,8 +601,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                     asyncSafeHandleAddMessages(
                         [
-                            newMessage({role:"assistant", content:msg}),
-                            newMessage({role:"assistant", content: "Would you like to: [Save Workflow](#workflow:save-workflow) or [Discard Workflow](#workflow:discard-workflow)"})
+                            newMessage({role:"assistant", content:msg, data:{workflow:workflowId, type:"workflow:result"}}),
+                            newMessage({role:"assistant",
+                                data:{workflow:workflowId, type:"workflow:post-actions"},
+                                content: `Would you like to: [Save Workflow](#workflow:save-workflow/${workflowId}) or [Discard Workflow](#workflow:discard-workflow)`})
                         ]
                     )
 
@@ -889,6 +924,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 //handleSend(message[0], 0, null);
                                                 routeMessage(message[0], 0, null);
                                             }}
+                                            handleCustomLinkClick={onLinkClick}
                                             handleWorkflow={handleWorkflow}
                                             handleRunWorkflow={handleRunWorkflow}
                                             onEdit={(editedMessage) => {

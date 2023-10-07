@@ -26,7 +26,7 @@ import {saveFolders} from '@/utils/app/folders';
 import {savePrompts} from '@/utils/app/prompts';
 import {getSettings} from '@/utils/app/settings';
 
-import {Conversation} from '@/types/chat';
+import {Conversation, Message} from '@/types/chat';
 import {KeyValuePair} from '@/types/data';
 import {FolderInterface, FolderType} from '@/types/folder';
 import {OpenAIModelID, OpenAIModels, fallbackModelID} from '@/types/openai';
@@ -46,7 +46,7 @@ import {useUser} from '@auth0/nextjs-auth0/client';
 import styled from "styled-components";
 import {Button} from "react-query/types/devtools/styledComponents";
 import WorkflowDefinitionBar from "@/components/Workflow/WorkflowDefinitionBar";
-import {WorkflowDefinition} from "@/types/workflow";
+import {InputType, OutputType, WorkflowDefinition} from "@/types/workflow";
 import {saveWorkflowDefinitions} from "@/utils/app/workflows";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
@@ -244,6 +244,66 @@ const Home = ({
 
         dispatch({field: 'loading', value: false});
     };
+
+    const handleCustomLinkClick = (conversation: Conversation, href:string) => {
+
+        if(href.startsWith("#")) {
+
+            let [category, action_path] = href.slice(1).split(":");
+            let [action, path] = action_path.split("/");
+
+            console.log(`handleCustomLinkClick ${category}:${action}/${path}`);
+
+            if(category === "workflow" && action === "save-workflow") {
+
+                const workflowId = path;
+                console.log(`Saving workflow ${workflowId}...`);
+
+                const workflowFilter = (workflowId: string, msgType: string) => {
+                    return (m: Message) => {
+                        return m.data
+                            && m.data.workflow
+                            && m.data.type
+                            && m.data.workflow === workflowId
+                            && m.data.type === msgType;
+                    }
+                };
+
+                let code = conversation.messages.filter(workflowFilter(workflowId, "workflow:code")).pop();
+                let prompt = conversation.messages.filter(workflowFilter(workflowId, "workflow:prompt")).pop();
+                console.log("Workflow", {code:code, prompt:prompt});
+
+                if(prompt && code) {
+                    let workflowDefinition: WorkflowDefinition = {
+                        id: uuidv4(),
+                        formatVersion: "v1.0",
+                        version: "1",
+                        folderId: null,
+                        description: prompt.content,
+                        generatingPrompt: prompt.content,
+                        name: prompt.content,
+                        code: code.content,
+                        tags: [],
+                        inputs: prompt.data.inputTypes || [],
+                        outputs: [],
+                    }
+
+                    const updatedWorkflowDefinitions = [
+                        ...workflows,
+                        workflowDefinition
+                    ]
+
+                    dispatch({ field: 'workflows', value: updatedWorkflowDefinitions });
+
+                    saveWorkflowDefinitions(updatedWorkflowDefinitions);
+                }
+            }
+        }
+
+    //let msgs = conversation.messages.filter(workflowFilter())
+
+    //console.log("Workflow msgs:", msgs);
+    }
 
     const handleUpdateConversation = (
         conversation: Conversation,
@@ -458,6 +518,7 @@ const Home = ({
                     handleUpdateFolder,
                     handleSelectConversation,
                     handleUpdateConversation,
+                    handleCustomLinkClick,
                     preProcessingCallbacks,
                     postProcessingCallbacks,
                     addPreProcessingCallback,

@@ -3,8 +3,9 @@ import { FC } from 'react';
 import { getDocument, PDFDocumentProxy, Util } from './JsPDF'
 import * as pdfjs from './JsPDF'
 import readXlsxFile from 'read-excel-file'
-
+import mammoth from "mammoth";
 import { useTranslation } from 'next-i18next';
+import JSZip from "jszip";
 
 interface Props {
     onAttach: (data: Document) => void;
@@ -16,6 +17,63 @@ export interface Document {
     type:string;
     data:any|null;
 }
+
+const handleAsZip = (file: File): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            if (e.target?.result) {
+                try {
+                    const zip = new JSZip();
+                    // @ts-ignore
+                    const contents = await zip.loadAsync(e.target.result);
+                    const extractedFilesPromises: any[] = [];
+
+                    contents.forEach(async (relativePath, zipEntry) => {
+
+                        console.log("zipEntry", zipEntry);
+
+                        if (!zipEntry.dir) {
+                            extractedFilesPromises.push(
+                                zipEntry.async('blob').then((blobContent) => {
+                                    if (blobContent) {
+                                        const file = new File([blobContent], relativePath);
+                                        // @ts-ignore
+                                        const handler = handlersByType[file.type] || handlersByType['*'];
+
+                                        // @ts-ignore
+                                        console.log(`${file.name}:${file.type}:${handler != null}`)
+
+                                        return handler ? handler(file) : undefined;
+                                    }
+                                })
+                            );
+                        }
+                    });
+
+                    const extractedFiles = await Promise.all(extractedFilesPromises);
+
+                    console.log("extractedFiles", extractedFiles);
+
+                    resolve(extractedFiles);
+
+                } catch (e) {
+                    reject(new Error("Failed to extract zip file."));
+                }
+            } else {
+                reject(new Error("Failed to read the file."));
+            }
+        };
+
+        reader.onerror = (e) => {
+            reject(new Error("Failed to read the file."));
+        };
+
+        reader.readAsArrayBuffer(file);
+    });
+};
+
+
 
 const handlePdf = (file:any):Promise<Document> => {
     return new Promise((resolve, reject) => {
@@ -55,12 +113,36 @@ const handlePdf = (file:any):Promise<Document> => {
     }});
 }
 
+
+const handleAsDocx = (file:any) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const arrayBuffer = event.target?.result;
+            if(arrayBuffer) {
+                // @ts-ignore
+                mammoth.extractRawText({arrayBuffer: arrayBuffer})
+                    .then(function (result) {
+                        const data = {name:file.name, type:file.type, raw:result.value, data:result.value}
+                        resolve(data); // The raw text
+                    });
+            }
+        };
+
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+
 const handleAsText = (processor:any, file: any):Promise<Document> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
             let result = (e.target?.result as string);
             let data = (processor) ? processor(result) : result;
+
+            console.log(`${file.name}`,{name:file.name, type:file.type, raw:result, data:data});
+
             resolve({name:file.name, type:file.type, raw:result, data:data});
         };
         reader.onerror = (e) => {
@@ -70,8 +152,11 @@ const handleAsText = (processor:any, file: any):Promise<Document> => {
     });
 }
 
+
 const handlersByType = {
+    "application/zip": handleAsZip,
     "application/pdf":handlePdf,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document":handleAsDocx,
     "application/json":(file:any)=>{return handleAsText(JSON.parse, file)},
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":(file:any)=>{
         console.log("Read excel");
@@ -84,13 +169,25 @@ const handlersByType = {
 }
 
 const handleFile = async (file:any, onAttach:any) => {
+    console.log("Handling file...");
     try {
         let type:string = file.type;
+
+        console.log("Document type", type);
+
         // @ts-ignore
         let handler = handlersByType[type] || handlersByType['*'];
         let document = await handler(file);
 
-        onAttach(document);
+        if (Array.isArray(document)) {
+            document.forEach(
+                (doc)=>onAttach(doc)
+            )
+        } else {
+            onAttach(document);
+        }
+
+
         // Process the document...
         //alert("Processed: "+ document.type +" : dataType? " + (typeof document.data) + " hasRaw? "+ (document.raw != null));
 
@@ -112,7 +209,9 @@ export const AttachFile: FC<Props> = ({ onAttach }) => {
                 onChange={(e) => {
                     if (!e.target.files?.length) return;
                     const file = e.target.files[0];
-                    handleFile(file, onAttach)
+                    handleFile(file, onAttach);
+
+                    e.target.value = "";
                 }}
             />
 

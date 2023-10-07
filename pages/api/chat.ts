@@ -1,6 +1,6 @@
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
 import { OpenAIError, OpenAIStream } from '@/utils/server';
-
+import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0'
 import { ChatBody, Message } from '@/types/chat';
 
 // @ts-expect-error
@@ -8,10 +8,15 @@ import wasm from '../../node_modules/@dqbd/tiktoken/lite/tiktoken_bg.wasm?module
 
 import tiktokenModel from '@dqbd/tiktoken/encoders/cl100k_base.json';
 import { Tiktoken, init } from '@dqbd/tiktoken/lite/init';
+import {NextApiRequest, NextApiResponse} from "next";
 
 export const config = {
   runtime: 'edge',
 };
+
+// export async function withApiAuthRequired(a(req:NextApiRequest, res:NextApiResponse) {
+// //  res.send()
+// //}
 
 const handler = async (req: Request): Promise<Response> => {
   try {

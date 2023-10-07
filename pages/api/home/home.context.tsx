@@ -22,7 +22,7 @@ export interface HomeContextProps {
     conversation: Conversation,
     data: KeyValuePair,
   ) => void;
-
+  handleCustomLinkClick:(conversation: Conversation, href:string) => void,
   // New callback-related operations.
   preProcessingCallbacks: Processor[];
   postProcessingCallbacks: Processor[];

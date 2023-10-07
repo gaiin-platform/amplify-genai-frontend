@@ -24,6 +24,7 @@ const Tag: FC<{tag: string}> = ({ tag }) => (
 export const WorkflowDefinitionModal: FC<Props> = ({ workflowDefinition, onClose, onUpdateWorkflowDefinition }) => {
     const { t } = useTranslation('workflowDefinitionbar');
     const [name, setName] = useState(workflowDefinition.name);
+    const [prompt, setPrompt] = useState(workflowDefinition.generatingPrompt);
     const [description, setDescription] = useState(workflowDefinition.description);
     const [code, setCode] = useState(workflowDefinition.code);
     const [tags, setTags] = useState(workflowDefinition.tags);
@@ -55,7 +56,6 @@ export const WorkflowDefinitionModal: FC<Props> = ({ workflowDefinition, onClose
         onClose();
     }
 
-
     return (
         <div
             className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
@@ -70,7 +70,7 @@ export const WorkflowDefinitionModal: FC<Props> = ({ workflowDefinition, onClose
 
                     <div
                         ref={modalRef}
-                        className="dark:border-netural-400 inline-block max-h-[400px] transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 pt-5 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-h-[600px] sm:w-full sm:max-w-lg sm:p-6 sm:align-middle"
+                        className="overflow-hidden dark:border-netural-400 inline-block max-h-[400px] transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 pt-5 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-h-[600px] sm:w-full sm:max-w-lg sm:p-6 sm:align-middle"
                         role="dialog"
                     >
                         <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
@@ -89,11 +89,26 @@ export const WorkflowDefinitionModal: FC<Props> = ({ workflowDefinition, onClose
                             value={description} onChange={e => setDescription(e.target.value)} />
 
                         <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
+                            Generating Prompt
+                        </div>
+                        <input
+                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                            value={name} onChange={(e)=>{}} />
+
+                        <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
                             Tags
                         </div>
                         <input
                             className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                             value={tags.join(', ')} onChange={e => setTags(e.target.value.split(',').map(tag => tag.trim()))} />
+
+
+                        <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
+                            Inputs
+                        </div>
+                        <input
+                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                            value={inputs} onChange={e => setInputs(e.target.value)} />
 
 
                         <MemoizedReactMarkdown
@@ -154,7 +169,7 @@ export const WorkflowDefinitionModal: FC<Props> = ({ workflowDefinition, onClose
                                 {`${"```javascript\n"+code+"```"}`}
                         </MemoizedReactMarkdown>
 
-                    <div className="flex mt-6">
+                        <div className="bottom-0 left-0 w-full px-4 py-3 shadow-md flex justify-end items-center space-x-4">
                         <button
                             type="button"
                             className="w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
