@@ -1,10 +1,10 @@
 import React, {FC} from 'react';
 import { IconTrashX } from '@tabler/icons-react';
-import { Document } from "@/components/Chat/AttachFile";
+import { AttachedDocument } from "@/components/Chat/AttachFile";
 
 interface Props {
-    documents:Document[]|undefined;
-    setDocuments: (documents: Document[]) => void;
+    documents:AttachedDocument[]|undefined;
+    setDocuments: (documents: AttachedDocument[]) => void;
 }
 
 export const FileList: FC<Props> = ({ documents, setDocuments }) => {

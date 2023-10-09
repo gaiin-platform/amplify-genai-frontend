@@ -113,7 +113,7 @@ interface MermaidProps {
 const Mermaid: React.FC<MermaidProps> = ({chart}) => {
     const [svgDataUrl, setSvgDataUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [height, setHeight] = useState<number>(400);
+    const [height, setHeight] = useState<number>(500);
 
     const {
         state: {messageIsStreaming},
@@ -158,19 +158,21 @@ const Mermaid: React.FC<MermaidProps> = ({chart}) => {
     // @ts-ignore
     return error ?
         <div>{error}</div> :
-        <div style={{maxHeight:"400px"}}>
+        <div style={{maxHeight:"450px"}}>
             <div className="flex items-center space-x-4">
             <IconZoomIn/>
             <input
                 type="range"
-                min="100"
+                min="250"
                 max="4000"
                 value={height}
                 onChange={(e)=>{ // @ts-ignore
                     setHeight(e.target.value)}}
             />
             </div>
-            <img style={{height: `${height}px`}} src={svgDataUrl|| "data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"200\"><text x=\"50\" y=\"100\" font-size=\"18\" font-weight=\"bold\" fill=\"white\">Loading...</text></svg>"} alt="Loading"/>
+            <div style={{height: `${height + 20}px`, width: `${2 * height}px`, overflow:"auto"}}>
+                <img  style={{height: `${height}px`}} src={svgDataUrl|| "data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"80\"><text x=\"50\" y=\"30\" font-size=\"18\" font-family='sans-serif' font-weight=\"bold\" fill=\"white\">Loading...</text></svg>"} alt="Loading"/>
+             </div>
         </div>;
 };
 
@@ -227,6 +229,29 @@ export const ChatMessage: FC<Props> = memo(({
 
     const {sendChatRequest} = useChatService();
 
+    const userFollowupButtonsConfig = [
+        {
+            title: 'Suggest Prompt Improvements', handler: () => {
+                onSend([newMessage({
+                    role: "user", content: "Given the prompt: " +
+                        "---------------------------------\n" +
+                        "" + message.content +
+                        "\n---------------------------------\n" +
+                        "Suggest an enhanced version of it.\n" +
+                        "1. Start with clear, precise instructions placed at the beginning of the prompt.\n" +
+                        "2. Include specific details about the desired context, outcome, length, format, and style.\n" +
+                        "3. Provide examples of the desired output format, if possible.\n" +
+                        "4. Use appropriate leading words or phrases to guide the desired output, especially if code generation is involved.\n" +
+                        "5. Avoid any vague or imprecise language. \n" +
+                        "6. Rather than only stating what not to do, provide guidance on what should be done instead.\n" +
+                        "\n" +
+                        "Remember to ensure the revised prompt remains true to the user's original intent. At the end, ask me if you should respond to this prompt."
+                })])
+
+            }
+        },
+    ];
+
     const followUpButtonsConfig = [
         {
             title: 'Follow-up Prompts',
@@ -240,17 +265,8 @@ export const ChatMessage: FC<Props> = memo(({
             handler: () => onSend([newMessage({role: "user", content: "What are follow-up questions I should ask?"})])
         },
         {
-            title: 'Suggest Prompt Improvements', handler: () => onSend([newMessage({
-                role: "user", content: "Given my last prompt suggest an enhanced version of it.\n" +
-                    "1. Start with clear, precise instructions placed at the beginning of the prompt.\n" +
-                    "2. Include specific details about the desired context, outcome, length, format, and style.\n" +
-                    "3. Provide examples of the desired output format, if possible.\n" +
-                    "4. Use appropriate leading words or phrases to guide the desired output, especially if code generation is involved.\n" +
-                    "5. Avoid any vague or imprecise language. \n" +
-                    "6. Rather than only stating what not to do, provide guidance on what should be done instead.\n" +
-                    "\n" +
-                    "Remember to ensure the revised prompt remains true to the user's original intent. At the end, ask me if you should respond to this prompt."
-            })])
+            title: 'Fact List',
+            handler: () => onSend([newMessage({role: "user", content: "Create a bulleted list of facts related to this content that should be checked to determine its veracity."})])
         },
     ];
 
@@ -413,8 +429,17 @@ export const ChatMessage: FC<Props> = memo(({
                                     </div>
                                 </div>
                             ) : (
-                                <div className="prose whitespace-pre-wrap dark:prose-invert flex-1">
-                                    {message.content}
+                                <div className="flex flex-col">
+                                    <div className="flex flex-row">
+                                        <div className="prose whitespace-pre-wrap dark:prose-invert flex-1">
+                                            {message.content}
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-row">
+                                        {(isEditing || messageIsStreaming) ? null : (
+                                            <ChatFollowups buttonsConfig={userFollowupButtonsConfig}/>
+                                        )}
+                                    </div>
                                 </div>
                             )}
 

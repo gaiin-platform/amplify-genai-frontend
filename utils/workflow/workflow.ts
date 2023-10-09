@@ -1,60 +1,82 @@
-import {ChatBody, Message, newMessage} from "@/types/chat";
+import {ChatBody, CustomFunction, newMessage} from "@/types/chat";
 import {sendChatRequest} from "@/services/chatService";
-import {findWorkflowPattern, generateWorkflowPrompt} from "@/utils/workflow/aiflow";
-import {OpenAIModels, OpenAIModelID} from "@/types/openai";
+import {findWorkflowPattern, generateWorkflowPrompt, describeTools} from "@/utils/workflow/aiflow";
+import {OpenAIModelID, OpenAIModels} from "@/types/openai";
+import {WorkflowDefinition} from "@/types/workflow";
 
 
 interface AiTool {
-    description:string,
-    exec:()=>{}
+    description: string,
+    exec: () => {}
 }
 
 interface Stopper {
-    shouldStop: ()=>boolean,
+    shouldStop: () => boolean,
     signal: AbortSignal
+}
+
+export const makeReusable = async (workflow: WorkflowDefinition) => {
+
+
 }
 
 export const executeJSWorkflow = async (apiKey: string, task: string, customTools: { [p: string]: AiTool }, stopper: Stopper, incrementalPromptResultCallback: (responseText: string) => void) => {
 
-    const abortResult = {success:false, code:null, exec:null, uncleanCode:null, result:null};
+    const abortResult = {success: false, code: null, exec: null, uncleanCode: null, result: null};
 
+    const promptLLMFull = async (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?:string) => {
 
+        if(functions){
+            if(model === OpenAIModelID.GPT_3_5){
+                model = OpenAIModelID.GPT_3_5_FN;
+            }
+            else if(model === OpenAIModelID.GPT_4){
+                model = OpenAIModelID.GPT_4_FN;
+            }
+            else if(!model){
+                model = OpenAIModelID.GPT_3_5_FN;
+            }
+        }
 
-    const promptLLMFull = async (persona:string, prompt: string, messageCallback?:(msg:string)=>void) => {
         const chatBody = {
-            model: OpenAIModels[OpenAIModelID.GPT_4],
-            messages: [newMessage({content:prompt})],
+            model: OpenAIModels[model || OpenAIModelID.GPT_4],
+            messages: [newMessage({content: prompt})],
             key: apiKey,
             prompt: persona,
             temperature: 1.0,
+            ...(functions && {functions: functions}),
+            ...(function_call && {function_call: function_call}),
         };
 
-        if(stopper.shouldStop()){
+        if (stopper.shouldStop()) {
             return null;
         }
 
-        console.log("promptLLM", prompt);
+        console.log({prompt:prompt});
         // @ts-ignore
         const response = await sendChatRequest(apiKey, chatBody, null, stopper.signal);
+
         const reader = response.body?.getReader();
         let charsReceived = '';
 
-        while(true){
-            if(stopper.shouldStop()){
+        while (true) {
+
+            if (stopper.shouldStop()) {
                 return null;
             }
 
             // @ts-ignore
             const {value, done} = await reader.read();
 
-            if(done){
+            if (done) {
                 break;
             }
 
             let chunk = new TextDecoder("utf-8").decode(value);
+
             charsReceived += chunk;
 
-            if(messageCallback){
+            if (messageCallback) {
                 messageCallback(charsReceived);
             }
         }
@@ -62,28 +84,243 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         return charsReceived;
     }
 
-    const promptLLMCode = (persona:string, prompt: string) => {return promptLLMFull(persona, prompt, incrementalPromptResultCallback);}
-    const promptLLM = (persona:string, prompt: string) => {return promptLLMFull(persona, prompt);}
+    const promptLLMCode = (persona: string, prompt: string) => {
+        return promptLLMFull(persona, prompt, incrementalPromptResultCallback);
+    }
+    const promptLLM = (persona: string, prompt: string) => {
+        return promptLLMFull(persona, prompt);
+    }
 
     const tools = {
-        promptLLM: { description:"(personaString,promptString):Promise<String> //personaString should be a detailed persona, such as an expert in XYZ relevant to the task, promptString must include detailed instructions for the LLM and any data that the prompt operates on as a string", exec:promptLLM },
+        promptLLM: {
+            description: "(personaString,promptString):Promise<String> //personaString should be a detailed persona, such as an expert in XYZ relevant to the task, promptString must include detailed instructions for the LLM and any data that the prompt operates on as a string",
+            exec: promptLLM
+        },
         tellUser: {
-            description:"(msg:string)//output a message to the user",
-            exec:(msg: string)=>console.log(msg),
+            description: "(msg:string)//output a message to the user",
+            exec: (msg: string) => console.log(msg),
         },
         // readXlsxFile: {
         //     description:"(document.raw)=>Promise<[[row1col1,row1col2,...],[row2col1,row2col2...]...]>",
         //     exec: readXlsxFile
         // },
-        log: { description:"(msgString):void", exec:(msgString: string) => console.log(msgString)},
+        //log: { description:"(msgString):void", exec:(msgString: string) => console.log(msgString)},
         ...customTools,
     };
+
+    function extractCodeBlocks(str: string) {
+        const pattern = /```(\w*)\n([^`]*?)```/gms;
+        let match;
+        const blocks = [];
+
+        while ((match = pattern.exec(str)) !== null) {
+            blocks.push({
+                language: match[1],
+                code: match[2]
+            });
+        }
+
+        return blocks;
+    }
+
+    function extractLastPrefixedSections(text: string, sections: string[]) {
+
+        const currentTask = {};
+        let lastIdx = -1;
+
+        for (let section of sections) {
+            let idx = text.lastIndexOf(section);
+            if (idx > lastIdx) {
+                lastIdx = idx;
+                let content = text.slice(idx + section.length).trim();
+                let nextSection = sections[sections.indexOf(section) + 1];
+                let nextSectionStart = nextSection ? text.indexOf(nextSection, lastIdx) : -1;
+                content = nextSectionStart > -1
+                    ? text.slice(idx + section.length, nextSectionStart).trim()
+                    : content;
+
+                content = content.trim();
+                if(content.startsWith(":")){
+                    content = content.slice(0, -1).trim();
+                }
+
+                if (section.endsWith(':')) {
+                    // @ts-ignore
+                    currentTask[section.slice(0, -1).toLowerCase()] = content;
+                } else {
+                    // @ts-ignore
+                    currentTask[section.toLowerCase()] = content;
+                }
+            }
+        }
+
+        return currentTask;
+    }
+
+    const promptUntil = async (
+        persona: string,
+        prompt: string,
+        extract: (result: string) => any,
+        check: (arg0: any) => boolean,
+        tries: number,
+        feedbackInserter?: (result: any, prompt: string) => string,
+        errorInserter?: (e: any, cleaned:string|null, prompt: string) => string,
+        model?: OpenAIModelID,
+        functions?: CustomFunction[],
+        function_call?:string) => {
+
+        while (tries > 0) {
+            let cleaned = null;
+            try {
+                tries = tries - 1;
+                let context = {
+                    result: null
+                };
+                const raw = await promptLLMFull(persona, prompt, (m) => {
+                }, model || OpenAIModelID.GPT_3_5, functions, function_call);
+
+                console.log("Raw result:", raw);
+
+                cleaned = extract(raw || "");
+
+                console.log("cleaned", cleaned);
+
+                const finalResult = check(cleaned);
+                if (finalResult) {
+                    return finalResult;
+                } else if (feedbackInserter) {
+                    prompt = feedbackInserter(cleaned, prompt);
+                }
+            } catch (e) {
+                console.log(e);
+                if (errorInserter) {
+                    prompt = errorInserter(e, cleaned, prompt);
+                }
+            }
+        }
+    }
+
+    const promptForCode = async (
+        persona: string,
+        prompt: string,
+        check: (arg0: any) => boolean,
+        tries: number,
+        feedbackInserter?: (result: any, prompt: string) => string,
+        errorInserter?: (e: any, cleaned:string|null, prompt: string) => string,
+        model?: OpenAIModelID) => {
+
+        const cleaner = (rawCode:string) => {
+            return extractCodeBlocks(rawCode || "")[0].code;
+        }
+
+        const checker = (cleanedFn:string) => {
+            let context = {
+                result: null
+            };
+            eval("context.result = " + cleanedFn + ";")
+            return check(context.result);
+        }
+
+        return promptUntil(persona, prompt, cleaner, checker, tries, feedbackInserter, errorInserter, model);
+    }
+
+
+    const selectFunction = "correctAnswer";
+    const selectedOptionsProperty = "selectedOptionsForAnswer";
+    const selectFunctions:CustomFunction[] = [
+        {name:selectFunction,
+            description:"call this function to indicate the correct options for the question",
+            parameters:{
+                type:"object",
+                properties:{
+                    [selectedOptionsProperty]:{
+                        type:"array",
+                        description:"the correct answers to the question",
+                        items:{type:"object", properties:{
+                            "option":{type:"number"},
+                            "optionExplanation":{type:"string"},
+                                "optionRelevant":{type:"boolean"}
+                        }}},
+                },
+                "required": ["selectedOptionsForAnswer"]
+            }
+        },
+    ];
+
+    interface Option {
+        id:string,
+        description:any,
+    }
+
+
+    const promptLLMSelectFromOptions = async (persona:string, instructions:string, options:Option[], model?:OpenAIModelID) => {
+        options.push({id:"none of the above",description:"none of the tools are relevant for this " +
+                "task (can only be selected by itself)"});
+
+        const prompt = `
+        Select the correct options answer the question. "${instructions}":
+                
+        Please choose from the following options:
+        ------------------
+        ${options.map((option:Option, index:number)=>{return "\t\t" + index + ". "+option.id +
+            " : " + option.description.replaceAll("\n"," ")}).join("\n")}
+        ------------------
+        You may also answer with an empty selection. ONLY CHOOSE OPTIONS ON THE LIST.
+        `;
+
+        const systemPrompt = "You are ChatGPT, a large language model trained by OpenAI. " +
+            "Follow the user's instructions carefully. " +
+            "Respond using JSON. ";
+
+        console.log("Select Options Prompt:", prompt);
+
+
+        return promptUntil(systemPrompt + persona, prompt,
+            (rslt)=>{
+
+                let json = JSON.parse(rslt);
+                const selected = (obj: { arguments: { selectedOptionsForAnswer: { option: number, optionRelevant: boolean }[] } }) =>
+                    new Map(obj.arguments.selectedOptionsForAnswer.map(optionObj => [optionObj.option, optionObj.optionRelevant]));
+
+                // Check if the user selected "none of the above"
+                return selected(json).get(options.length - 1) === true ?
+                    [] :
+                    options.filter((option, index) => selected(json).get(index) === true);
+                },
+            (selectedOptions) => selectedOptions != null,
+            3,
+            // @ts-ignore
+            null,
+            null,
+            OpenAIModelID.GPT_3_5_FN,
+            selectFunctions,
+            selectFunction
+        );
+    }
+
+
+    const opts = await promptLLMSelectFromOptions(
+        "Act as an expert Javascript developer.",
+        `Which of the following tools are relevant for "${task}".`,
+        [{id:"promptLLM", description:"ask the large language to perform reasoning, writing, " +
+                "summarizing, outlining, brainstorming, or natural language processing tasks " +
+                "(no tasks that could be performed faster by code"},
+            {id:"encrypt",description:"encrypt a message"},
+            {id:"decrypt",description:"decrypt a message"},
+            {id:"log",description:"log a message"},
+        ]
+    );
+
+    console.log("Options:", opts);
+
+
+    //console.log("AI Tools:", aiSelectedTools);
 
 
     // @ts-ignore
     const extraInstructions = [
-      "Try to do as much work in code as possible without prompting the LLM. Only prompt the LLM for outlining, " +
-      "analyzing text, summarizing, writing, and other natural language processing tasks.",
+        "Try to do as much work in code as possible without prompting the LLM. Only prompt the LLM for outlining, " +
+        "analyzing text, summarizing, writing, and other natural language processing tasks.",
         "Calling promptLLM is expensive. Only do this if you really need its natural language processing capabilities." +
         " You shouldn't call this function to do things you could easily do in regular Javascript.",
 
@@ -91,7 +328,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         "the code in the form '// @library-wish <name-of-npm-module>. Note, only client-side libraries are allowed.",
 
         // @ts-ignore
-        (tools.getDocuments && tools.getDocuments.exec().length > 0)?
+        (tools.getDocuments && tools.getDocuments.exec().length > 0) ?
             "Before using a document, make sure and describe its structure and properties relevant to the task." +
             "Then, think step-by-step how to use the document properties to accomplish the task." : "",
         "When you produce a result, produce it as a json object has the following format:" +
@@ -101,7 +338,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         " code, your output should be a string."
     ];
 
-    if(stopper.shouldStop()){
+    if (stopper.shouldStop()) {
         return abortResult;
     }
     let prompt = generateWorkflowPrompt(task, tools, extraInstructions);
@@ -111,7 +348,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
 
     let finalFn = null;
     let fnResult = "";
-    let cleanedFn = null;
+    let cleanedFn: string | null = null;
     let uncleanedCode = null;
 
     const javascriptPersona = `Act as an expert Javascript developer. You write extremely efficient programs 
@@ -136,14 +373,14 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     6. DO AS MUCH IN CODE AS POSSIBLE AND ONLY PROMPT the LLM if ABSOLUTELY REQUIRED FOR TEXT PROCESSING AND REASONING
     `;
 
-    while(!success && tries > 0 && !stopper.shouldStop()) {
+    while (!success && tries > 0 && !stopper.shouldStop()) {
 
         console.log("Prompting for the code for task: ", task);
 
         await tools.tellUser.exec("[thinking]");
-        uncleanedCode = await promptLLMCode(javascriptPersona,prompt);
+        uncleanedCode = await promptLLMCode(javascriptPersona, prompt);
 
-        if(stopper.shouldStop()){
+        if (stopper.shouldStop()) {
             return abortResult;
         }
         //console.log("Uncleaed code:", uncleanedCode)
@@ -159,18 +396,21 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             try {
 
                 const fnlibs = {}
-                Object.entries(tools).forEach(([key,tool])=>{
+                Object.entries(tools).forEach(([key, tool]) => {
                     // @ts-ignore
                     fnlibs[key] = tool.exec;
                 })
 
 
-                if(stopper.shouldStop()){
+                if (stopper.shouldStop()) {
                     return abortResult;
                 }
 
                 tools.tellUser.exec("Loading the workflow...");
-                let context = {workflow:(fnlibs:{}):any=>{}};
+                let context = {
+                    workflow: (fnlibs: {}): any => {
+                    }
+                };
                 eval("context.workflow = " + cleanedFn);
 
                 console.log("workflow fn", context.workflow);
@@ -191,11 +431,11 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             tries = tries - 1;
         }
 
-        if(success){
-            return {success:success, code:cleanedFn, exec:finalFn, uncleanCode:uncleanedCode, result:fnResult};
+        if (success) {
+            return {success: success, code: cleanedFn, exec: finalFn, uncleanCode: uncleanedCode, result: fnResult};
         }
     }
-    return {success:false, code:cleanedFn, exec:finalFn, uncleanCode:uncleanedCode, result:fnResult};
+    return {success: false, code: cleanedFn, exec: finalFn, uncleanCode: uncleanedCode, result: fnResult};
 };
 
 export const extractJsonObjects = (text: string) => {
@@ -204,6 +444,7 @@ export const extractJsonObjects = (text: string) => {
     let buffer = "";
     let stack = [];
     let insideString = false;
+    let insideObject = false;
 
     for (let char of text) {
         if (char === '"' && (stack.length === 0 || stack[stack.length - 1] !== '\\')) {
@@ -220,7 +461,7 @@ export const extractJsonObjects = (text: string) => {
             buffer += char;
             if ((openingChar === '{' && char === '}') || (openingChar === '[' && char === ']') && stack.length === 0) {
                 try {
-                    console.log("Attempting to parse:",buffer);
+                    console.log("Attempting to parse:", buffer);
                     let jsonObj = JSON.parse(buffer);
                     jsonObjects.push(jsonObj);
                 } catch (error) {
@@ -231,7 +472,7 @@ export const extractJsonObjects = (text: string) => {
             } else {
                 continue;
             }
-        } else {
+        } else if(stack.length > 0){
             buffer += char;
         }
     }
@@ -243,7 +484,7 @@ export const extractJsonObjects = (text: string) => {
     return jsonObjects;
 }
 
-function parseJSONObjects(str:string) {
+function parseJSONObjects(str: string) {
     let stack = [];
     let result = [];
     let temp = "";
@@ -349,7 +590,7 @@ export function fillTemplate(template: string, context: Context): string {
             }
         });
 
-        if(value && typeof value !== 'string'){
+        if (value && typeof value !== 'string') {
             value = JSON.stringify(value);
         }
 
@@ -429,11 +670,11 @@ export const ops: { [opName: string]: OpRunner } = {
 
     join: async (op: Op, context: Context) => {
         const stringify = (s: any) => {
-          return (typeof s !== 'string')? JSON.stringify(s) : s;
+            return (typeof s !== 'string') ? JSON.stringify(s) : s;
         };
 
         const sep = op.separator ? op.separator : "";
-        let result = context[op.input].reduce((s: any, v: any) => stringify(s)+sep+stringify(v));
+        let result = context[op.input].reduce((s: any, v: any) => stringify(s) + sep + stringify(v));
         return result;
     },
 

@@ -23,12 +23,63 @@ export const newMessage = (data: any) => {
 
 export type Role = 'assistant' | 'user';
 
+export type CustomFunction = {
+  name: string;
+  description: string;
+  parameters: JsonSchema;
+}
+
+export interface JsonSchema {
+  $schema?: string;
+  $ref?: string;
+  title?: string;
+  description?: string;
+  default?: any;
+  examples?: any[];
+  multipleOf?: number;
+  maximum?: number;
+  exclusiveMaximum?: number;
+  minimum?: number;
+  exclusiveMinimum?: number;
+  maxLength?: number;
+  minLength?: number;
+  pattern?: string;
+  additionalItems?: boolean | JsonSchema;
+  items?: JsonSchema | JsonSchema[];
+  maxItems?: number;
+  minItems?: number;
+  uniqueItems?: boolean;
+  maxProperties?: number;
+  minProperties?: number;
+  required?: string[];
+  additionalProperties?: boolean | JsonSchema;
+  definitions?: { [key: string]: JsonSchema };
+  properties?: { [propertyName: string]: JsonSchema };
+  patternProperties?: { [key: string]: JsonSchema };
+  dependencies?: { [key: string]: JsonSchema | string[] };
+  enum?: any[];
+  type?: string | string[];
+  format?: string;
+  contentMediaType?: string;
+  contentEncoding?: string;
+  if?: JsonSchema;
+  then?: JsonSchema;
+  else?: JsonSchema;
+  allOf?: JsonSchema[];
+  anyOf?: JsonSchema[];
+  oneOf?: JsonSchema[];
+  not?: JsonSchema;
+}
+
+
 export interface ChatBody {
   model: OpenAIModel;
   messages: Message[];
   key: string;
   prompt: string;
   temperature: number;
+  functions?: CustomFunction[];
+  function_call?: string;
 }
 
 export interface Conversation {

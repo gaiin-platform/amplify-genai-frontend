@@ -22,7 +22,7 @@ import { parsePromptVariables } from "@/utils/app/prompts";
 import { Message, newMessage } from '@/types/chat';
 import { Plugin } from '@/types/plugin';
 import { Prompt } from '@/types/prompt';
-import { AttachFile, Document } from "@/components/Chat/AttachFile";
+import { AttachFile, AttachedDocument } from "@/components/Chat/AttachFile";
 import { FileList } from "@/components/Chat/FileList";
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -33,7 +33,7 @@ import { VariableModal } from './VariableModal';
 import {Import} from "@/components/Settings/Import";
 
 interface Props {
-  onSend: (message: Message, plugin: Plugin | null) => void;
+  onSend: (message: Message, plugin: Plugin | null, documents:AttachedDocument[]) => void;
   onRegenerate: () => void;
   onScrollDownClick: () => void;
   stopConversationRef: MutableRefObject<boolean>;
@@ -66,7 +66,7 @@ export const ChatInput = ({
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [showPluginSelect, setShowPluginSelect] = useState(false);
   const [plugin, setPlugin] = useState<Plugin | null>(null);
-  const [documents, setDocuments] = useState<Document[]>();
+  const [documents, setDocuments] = useState<AttachedDocument[]>();
 
   const promptListRef = useRef<HTMLUListElement | null>(null);
   const [isWorkflowOn, setWorkflowOn] = useState(false);
@@ -97,7 +97,7 @@ export const ChatInput = ({
     updatePromptListVisibility(value);
   };
 
-  const addDocument = (document:Document) => {
+  const addDocument = (document:AttachedDocument) => {
     let newDocuments = documents || [];
     newDocuments.push(document);
     setDocuments(newDocuments);
@@ -105,7 +105,7 @@ export const ChatInput = ({
     console.log("Document attached.");
   }
 
-  const handleAppendDocumentsToContent = (content:string, documents:Document[]) => {
+  const handleAppendDocumentsToContent = (content:string, documents:AttachedDocument[]) => {
     content =
         documents.map((d,i) => {
           return "---------------Document "+(i+1)+"--------------\n" + d.raw
@@ -133,12 +133,12 @@ export const ChatInput = ({
       if(!isWorkflowOn) {
         msg.content = handleAppendDocumentsToContent(content, documents);
       }
-      else {
-        msg.data = {documents: documents};
-      }
+      // else {
+      //   msg.data = {documents: documents};
+      // }
     }
 
-    onSend(msg, plugin);
+    onSend(msg, plugin, documents || []);
     setContent('');
     setPlugin(null);
     setDocuments([]);

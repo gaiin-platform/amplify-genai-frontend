@@ -1,6 +1,6 @@
 import { Message } from '@/types/chat';
 import { OpenAIModel } from '@/types/openai';
-
+import { CustomFunction } from '@/types/chat';
 import { AZURE_DEPLOYMENT_ID, OPENAI_API_HOST, OPENAI_API_TYPE, OPENAI_API_VERSION, OPENAI_ORGANIZATION } from '../app/const';
 
 import {
@@ -29,7 +29,14 @@ export const OpenAIStream = async (
   temperature : number,
   key: string,
   messages: Message[],
+  functions?: CustomFunction[],
+  function_call?: string
 ) => {
+
+  if(functions && !function_call){
+    function_call = "auto";
+  }
+
   let url = `${OPENAI_API_HOST}/v1/chat/completions`;
   if (OPENAI_API_TYPE === 'azure') {
     url = `${OPENAI_API_HOST}/openai/deployments/${AZURE_DEPLOYMENT_ID}/chat/completions?api-version=${OPENAI_API_VERSION}`;
@@ -60,6 +67,8 @@ export const OpenAIStream = async (
       max_tokens: 1000,
       temperature: temperature,
       stream: true,
+      ...(functions && {functions: functions}),
+      ...(function_call && {function_call: {name: function_call}}),
     }),
   });
 
@@ -84,6 +93,41 @@ export const OpenAIStream = async (
     }
   }
 
+  let nameDone = false;
+  let first = true;
+  const fnCallHandler = (controller:any, json:any) => {
+    const base = json.choices[0].delta.function_call
+    let text = "";
+
+    if(base && base.name){
+      if(first){
+        text = "{\"name\":\"";
+        first = false;
+      }
+      text += base.name;
+    }
+    if(base && base.arguments){
+      if(!nameDone){
+        text += "\", \"arguments\":";
+        nameDone = true;
+      }
+      text += (base.arguments) ? base.arguments : "";
+    }
+    if (json.choices[0].finish_reason != null) {
+        text += "}";
+
+        const queue = encoder.encode(text);
+        controller.enqueue(queue);
+        controller.close();
+        return;
+    }
+
+    const queue = encoder.encode(text);
+    controller.enqueue(queue);
+
+    first = false;
+  }
+
   const stream = new ReadableStream({
     async start(controller) {
       const onParse = (event: ParsedEvent | ReconnectInterval) => {
@@ -92,13 +136,20 @@ export const OpenAIStream = async (
 
           try {
             const json = JSON.parse(data);
-            if (json.choices[0].finish_reason != null) {
-              controller.close();
-              return;
+
+            if(functions){
+              fnCallHandler(controller, json);
             }
-            const text = json.choices[0].delta.content;
-            const queue = encoder.encode(text);
-            controller.enqueue(queue);
+            else {
+              if (json.choices[0].finish_reason != null) {
+                controller.close();
+                return;
+              }
+
+              const text = json.choices[0].delta.content;
+              const queue = encoder.encode(text);
+              controller.enqueue(queue);
+            }
           } catch (e) {
             controller.error(e);
           }

@@ -1,11 +1,12 @@
 import { FC, KeyboardEvent, useEffect, useRef, useState } from 'react';
 
 import { Prompt } from '@/types/prompt';
+import {AttachedDocument} from "@/components/Chat/AttachFile";
 
 interface Props {
   prompt: Prompt;
   variables: string[];
-  onSubmit: (updatedVariables: string[]) => void;
+  onSubmit: (updatedVariables: string[], documents:AttachedDocument[] | null) => void;
   onClose: () => void;
 }
 
@@ -43,7 +44,7 @@ export const VariableModal: FC<Props> = ({
       return;
     }
 
-    onSubmit(updatedVariables.map((variable) => variable.value));
+    onSubmit(updatedVariables.map((variable) => variable.value),[]);
     onClose();
   };
 

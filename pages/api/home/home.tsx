@@ -32,6 +32,7 @@ import {FolderInterface, FolderType} from '@/types/folder';
 import {OpenAIModelID, OpenAIModels, fallbackModelID} from '@/types/openai';
 import {Prompt} from '@/types/prompt';
 
+
 import {Chat} from '@/components/Chat/Chat';
 import {Chatbar} from '@/components/Chatbar/Chatbar';
 import {Navbar} from '@/components/Mobile/Navbar';
@@ -296,6 +297,10 @@ const Home = ({
                     dispatch({ field: 'workflows', value: updatedWorkflowDefinitions });
 
                     saveWorkflowDefinitions(updatedWorkflowDefinitions);
+                    alert("Workflow saved.");
+                }
+                else {
+                    console.log("Workflow not saved, missing code or prompt.");
                 }
             }
         }

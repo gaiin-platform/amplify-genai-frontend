@@ -50,10 +50,19 @@ export const generateCodeImprovementPrompt = (code:string, improvement:string) =
     return "// The code "+improvement;
 }
 
+export const describeTools = (tools: { [s: string]: unknown; } | ArrayLike<unknown>)=>{
+    return Object.entries(tools)
+        .map(([key,tool]) => { // @ts-ignore
+            return key +":"+tool.description;})
+        .join(", ")
+        .replaceAll("\n","\\n");
+}
+
 export const generateWorkflowPrompt = (task: string, tools:{[key: string]:{description: string}}, extraPromptInstructions?:string[]) => {
 
-    const toolMsg = Object.entries(tools)
-        .map(([key,tool]) => {return key +":"+tool.description;}).join(",\n");
+    const toolMsg = describeTools(tools);
+        //Object.entries(tools)
+        //.map(([key,tool]) => {return key +":"+tool.description;}).join(",\n");
 
     const extraInstructions = (extraPromptInstructions)? "// PAY ATTENTION:\n" + extraPromptInstructions.join("\n//   ") : "";
 

@@ -22,6 +22,7 @@ export const updateConversation = (
 };
 
 export const saveConversation = (conversation: Conversation) => {
+
   localStorage.setItem('selectedConversation', JSON.stringify(conversation));
 };
 

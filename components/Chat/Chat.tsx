@@ -54,6 +54,7 @@ import Workflow, {
 import {OpenAIModel} from "@/types/openai";
 import {Prompt} from "@/types/prompt";
 import {InputType} from "@/types/workflow";
+import {AttachedDocument} from "@/components/Chat/AttachFile";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -439,7 +440,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
 
-        const handleJsWorkflow = useCallback(async (message: Message) => {
+        const handleJsWorkflow = useCallback(async (message: Message, documents:AttachedDocument[] | null) => {
             if (selectedConversation) {
 
                 const workflowId = uuidv4();
@@ -466,16 +467,16 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 let inputTypes: InputType[] = [];
 
-                if (message.data && message.data.documents) {
+                if (documents) {
 
-                    let docs = [...message.data.documents];
+                    let docs = documents;
 
                     console.log("Message documents", docs);
 
                     // @ts-ignore
                     function describeValue(value) {
                         try {
-                            console.log("Describe", value);
+                            //console.log("Describe", value);
 
                             if (value == null) {
                                 return "null";
@@ -517,6 +518,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         }
                     }
 
+                    let documentsTypes = docs.map((doc) => {
+                        return {name:doc.name, type:doc.type};
+                    });
+
                     let documentsDescription = docs.map((doc) => {
                         let rawDesc = describeValue(doc.raw);
                         let dataDesc = describeValue(doc.data);
@@ -524,7 +529,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     }).join(",")
 
                     inputTypes = docs.map((doc) => {
-                        let ext = doc.name.split('.').pop();
+                        let ext = doc.name.split('.').pop() || "none";
                         let input:InputType = {fileExtension:ext, fileMimeType:doc.type};
                         return input;
                     })
@@ -534,16 +539,18 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     // @ts-ignore
                     tools["getDocuments"] = {
 
-                        description: `():[${documentsDescription}] // Prompts can never exceed approximately 25,000 characters," +
+                        description: "():[${documentsDescription}] // Prompts can never exceed approximately 25,000 characters," +
                             "so check them carefully if you include a document in them and if the document" +
                             "is bigger, then break it up into chunks to feed to the prompt and combine" +
-                            "results.`,
+                            "results. If you provide a part or whole document in a prompt to the LLM, you should separate it with"+
+                            "------------------ \n document data \n----------------. If the document.data is not a string, " +
+                            "JSON.stringify it first.",
                         exec: () => {
                             return docs;
                         }
                     };
 
-                    await telluser(`Using documents: \n\n${documentsDescription}`)
+                    await telluser(`Using documents: \n\n${formatter({type:'table', data:documentsTypes})}`)
                 }
 
                 message.data.inputTypes = inputTypes;
@@ -572,19 +579,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                     updateCurrentMessage(responseText, {workflow:workflowId, type:"workflow:code"});
                 }).then((result) => {
-
-                    const formatter = (result: { type: string; data: Record<string, any>[]; } | null) => {
-                        console.log("formatter",result);
-                        if (result == null) {
-                            return "The workflow didn't produce any results.";
-                        } else if (result.type && result.type == "text") {
-                            return result.data;
-                        } else if (result.type && Array.isArray(result.data) && result.type == "table") {
-                            return generateMarkdownTable(result.data);
-                        } else {
-                            return JSON.stringify(result.data, null, 2);
-                        }
-                    };
 
                     let resultStr = (typeof result.result === "string") ? result.result :
                         formatter(result.result);
@@ -649,15 +643,31 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             return markdown;
         }
 
-        const routeMessage = (message: Message, index: number | undefined, plugin: Plugin | null | undefined) => {
-            if (message.type == "prompt") {
+        const formatter = (result: { type: string; data: Record<string, any>[]; } | null) => {
+            console.log("formatter",result);
+            if (result == null) {
+                return "The workflow didn't produce any results.";
+            } else if (result.type && result.type == "text") {
+                return result.data;
+            } else if (result.type && Array.isArray(result.data) && result.type == "table") {
+                return generateMarkdownTable(result.data);
+            } else {
+                return JSON.stringify(result.data, null, 2);
+            }
+        };
+
+        const routeMessage = (message: Message, index: number | undefined, plugin: Plugin | null | undefined, documents:AttachedDocument[] | null) => {
+            if (message.type == "prompt" || message.type == "chat") {
                 handleSend(message, index, plugin);
             } else if (message.type == "automation") {
-                handleJsWorkflow(message);
+                handleJsWorkflow(message, documents);
+            }
+            else {
+                console.log("Unknown message type", message.type);
             }
         }
 
-        const handleSubmit = (updatedVariables: string[]) => {
+        const handleSubmit = (updatedVariables: string[], documents:AttachedDocument[] | null) => {
 
             let template = selectedConversation?.promptTemplate?.content;
 
@@ -683,7 +693,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (!doWorkflow) {
                 handleSend(message, 0, null);
             } else {
-                handleJsWorkflow(message);
+                handleJsWorkflow(message, documents);
             }
 
         };
@@ -922,7 +932,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             onSend={(message) => {
                                                 setCurrentMessage(message[0]);
                                                 //handleSend(message[0], 0, null);
-                                                routeMessage(message[0], 0, null);
+                                                routeMessage(message[0], 0, null, []);
                                             }}
                                             handleCustomLinkClick={onLinkClick}
                                             handleWorkflow={handleWorkflow}
@@ -934,7 +944,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 //     editedMessage,
                                                 //     selectedConversation?.messages.length - index,
                                                 // );
-                                                routeMessage(editedMessage, selectedConversation?.messages.length - index, null);
+                                                routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
                                             }}
                                         />
                                     ))}
@@ -952,16 +962,16 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         <ChatInput
                             stopConversationRef={stopConversationRef}
                             textareaRef={textareaRef}
-                            onSend={(message, plugin) => {
+                            onSend={(message, plugin, documents:AttachedDocument[] | null) => {
                                 setCurrentMessage(message);
                                 //handleSend(message, 0, plugin);
-                                routeMessage(message, 0, plugin);
+                                routeMessage(message, 0, plugin, documents);
                             }}
                             onScrollDownClick={handleScrollDown}
                             onRegenerate={() => {
                                 if (currentMessage) {
                                     //handleSend(currentMessage, 2, null);
-                                    routeMessage(currentMessage, 2, null);
+                                    routeMessage(currentMessage, 2, null, null);
                                 }
                             }}
                             showScrollDownButton={showScrollDownButton}

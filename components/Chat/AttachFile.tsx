@@ -8,10 +8,10 @@ import { useTranslation } from 'next-i18next';
 import JSZip from "jszip";
 
 interface Props {
-    onAttach: (data: Document) => void;
+    onAttach: (data: AttachedDocument) => void;
 }
 
-export interface Document {
+export interface AttachedDocument {
     name:string;
     raw:any|null;
     type:string;
@@ -75,7 +75,7 @@ const handleAsZip = (file: File): Promise<any[]> => {
 
 
 
-const handlePdf = (file:any):Promise<Document> => {
+const handlePdf = (file:any):Promise<AttachedDocument> => {
     return new Promise((resolve, reject) => {
     if (file.type === "application/pdf") {
         const reader = new FileReader();
@@ -134,7 +134,7 @@ const handleAsDocx = (file:any) => {
 }
 
 
-const handleAsText = (processor:any, file: any):Promise<Document> => {
+const handleAsText = (processor:any, file: any):Promise<AttachedDocument> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
