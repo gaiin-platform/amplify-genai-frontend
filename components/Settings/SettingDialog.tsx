@@ -24,6 +24,8 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
   const { dispatch: homeDispatch } = useContext(HomeContext);
   const modalRef = useRef<HTMLDivElement>(null);
 
+
+
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
       if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
