@@ -1,4 +1,4 @@
-import {ChatBody, CustomFunction, newMessage} from "@/types/chat";
+import {ChatBody, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {sendChatRequest} from "@/services/chatService";
 import {findWorkflowPattern, generateWorkflowPrompt, describeTools} from "@/utils/workflow/aiflow";
 import {OpenAIModelID, OpenAIModels} from "@/types/openai";
@@ -24,16 +24,14 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
 
     const abortResult = {success: false, code: null, exec: null, uncleanCode: null, result: null};
 
-    const promptLLMFull = async (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?:string) => {
+    const promptLLMFull = async (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
 
-        if(functions){
-            if(model === OpenAIModelID.GPT_3_5){
+        if (functions) {
+            if (model === OpenAIModelID.GPT_3_5) {
                 model = OpenAIModelID.GPT_3_5_FN;
-            }
-            else if(model === OpenAIModelID.GPT_4){
+            } else if (model === OpenAIModelID.GPT_4) {
                 model = OpenAIModelID.GPT_4_FN;
-            }
-            else if(!model){
+            } else if (!model) {
                 model = OpenAIModelID.GPT_3_5_FN;
             }
         }
@@ -52,7 +50,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             return null;
         }
 
-        console.log({prompt:prompt});
+        console.log({prompt: prompt});
         // @ts-ignore
         const response = await sendChatRequest(apiKey, chatBody, null, stopper.signal);
 
@@ -130,10 +128,10 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         check: (arg0: any) => boolean,
         tries: number,
         feedbackInserter?: (result: any, prompt: string) => string,
-        errorInserter?: (e: any, cleaned:string|null, prompt: string) => string,
+        errorInserter?: (e: any, cleaned: string | null, prompt: string) => string,
         model?: OpenAIModelID,
         functions?: CustomFunction[],
-        function_call?:string) => {
+        function_call?: string) => {
 
         while (tries > 0) {
             let cleaned = null;
@@ -172,14 +170,14 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         check: (arg0: any) => boolean,
         tries: number,
         feedbackInserter?: (result: any, prompt: string) => string,
-        errorInserter?: (e: any, cleaned:string|null, prompt: string) => string,
+        errorInserter?: (e: any, cleaned: string | null, prompt: string) => string,
         model?: OpenAIModelID) => {
 
-        const cleaner = (rawCode:string) => {
+        const cleaner = (rawCode: string) => {
             return extractCodeBlocks(rawCode || "")[0].code;
         }
 
-        const checker = (cleanedFn:string) => {
+        const checker = (cleanedFn: string) => {
             let context = {
                 result: null
             };
@@ -191,22 +189,78 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     }
 
 
+    const jsonFunction = "jsonResult";
+    const jsonProperty = "json";
+    const jsonFunctions: CustomFunction[] = [
+        {
+            name: jsonFunction,
+            description: "Call this function to output the requested json",
+            parameters: {
+                type: "object",
+                properties: {
+                    [jsonProperty]: {},
+                },
+                "required": [jsonProperty]
+            }
+        },
+    ];
+
+    const promptLLMForJson = async (persona: string,
+                                    instructions: string,
+                                    desiredSchema: JsonSchema,
+                                    check?: (arg0: any) => boolean,
+                                    feedbackInserter?: (result: any, prompt: string) => string,
+                                    errorInserter?: (e: any, cleaned: string | null, prompt: string) => string,
+                                    model?: OpenAIModelID) => {
+        const prompt = instructions;
+
+        const systemPrompt = "You are ChatGPT, a large language model trained by OpenAI. " +
+            "Follow the user's instructions carefully. " +
+            "Respond using JSON. ";
+
+        let functionsToCall = [...jsonFunctions];
+
+        // @ts-ignore
+        functionsToCall[0].parameters.properties[jsonProperty] = desiredSchema;
+
+        check = (check)? check : (json) => json != null;
+
+        return promptUntil(systemPrompt + persona, prompt,
+            (rslt) => {
+                return JSON.parse(rslt);
+            },
+            check,
+            3,
+            // @ts-ignore
+            feedbackInserter,
+            errorInserter,
+            model || OpenAIModelID.GPT_3_5_FN,
+            functionsToCall,
+            jsonFunction
+        );
+    }
+
+
     const selectFunction = "correctAnswer";
     const selectedOptionsProperty = "selectedOptionsForAnswer";
-    const selectFunctions:CustomFunction[] = [
-        {name:selectFunction,
-            description:"call this function to indicate the correct options for the question",
-            parameters:{
-                type:"object",
-                properties:{
-                    [selectedOptionsProperty]:{
-                        type:"array",
-                        description:"the correct answers to the question",
-                        items:{type:"object", properties:{
-                            "option":{type:"number"},
-                            "optionExplanation":{type:"string"},
-                                "optionRelevant":{type:"boolean"}
-                        }}},
+    const selectFunctions: CustomFunction[] = [
+        {
+            name: selectFunction,
+            description: "call this function to indicate the correct options for the question",
+            parameters: {
+                type: "object",
+                properties: {
+                    [selectedOptionsProperty]: {
+                        type: "array",
+                        description: "the correct answers to the question",
+                        items: {
+                            type: "object", properties: {
+                                "option": {type: "number"},
+                                "optionExplanation": {type: "string"},
+                                "optionRelevant": {type: "boolean"}
+                            }
+                        }
+                    },
                 },
                 "required": ["selectedOptionsForAnswer"]
             }
@@ -214,24 +268,29 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     ];
 
     interface Option {
-        id:string,
-        description:any,
+        id: string,
+        description: any,
     }
 
-
-    const promptLLMSelectFromOptions = async (persona:string, instructions:string, options:Option[], model?:OpenAIModelID) => {
-        options.push({id:"none of the above",description:"none of the tools are relevant for this " +
-                "task (can only be selected by itself)"});
+    const promptLLMSelectFromOptions = async (persona: string, instructions: string, options: Option[], model?: OpenAIModelID) => {
+        options.push({
+            id: "none of the above", description: "none of the tools are relevant for this " +
+                "task (can only be selected by itself)"
+        });
 
         const prompt = `
-        Select the correct options answer the question. "${instructions}":
+            Select the correct options answer the question. "${instructions}":
                 
-        Please choose from the following options:
-        ------------------
-        ${options.map((option:Option, index:number)=>{return "\t\t" + index + ". "+option.id +
-            " : " + option.description.replaceAll("\n"," ")}).join("\n")}
-        ------------------
-        You may also answer with an empty selection. ONLY CHOOSE OPTIONS ON THE LIST.
+        Please choose
+            from the following options:
+        ------------------ ${options.map((option: Option, index: number) => {
+                return "\t\t" + index + ". " + option.id +
+                        " : " + option.description.replaceAll("\n", " ")
+            }).join("\n")}
+                 ------------------
+                You may also answer
+            with an empty selection.ONLY CHOOSE OPTIONS
+            ON THE LIST.
         `;
 
         const systemPrompt = "You are ChatGPT, a large language model trained by OpenAI. " +
@@ -242,7 +301,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
 
 
         return promptUntil(systemPrompt + persona, prompt,
-            (rslt)=>{
+            (rslt) => {
 
                 let json = JSON.parse(rslt);
                 const selected = (obj: { arguments: { selectedOptionsForAnswer: { option: number, optionRelevant: boolean }[] } }) =>
@@ -252,7 +311,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
                 return selected(json).get(options.length - 1) === true ?
                     [] :
                     options.filter((option, index) => selected(json).get(index) === true);
-                },
+            },
             (selectedOptions) => selectedOptions != null,
             3,
             // @ts-ignore
@@ -265,19 +324,76 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     }
 
 
-    const opts = await promptLLMSelectFromOptions(
-        "Act as an expert Javascript developer.",
-        `Which of the following tools are relevant for "${task}".`,
-        [{id:"promptLLM", description:"ask the large language to perform reasoning, writing, " +
-                "summarizing, outlining, brainstorming, or natural language processing tasks " +
-                "(no tasks that could be performed faster by code"},
-            {id:"encrypt",description:"encrypt a message"},
-            {id:"decrypt",description:"decrypt a message"},
-            {id:"log",description:"log a message"},
-        ]
-    );
+    // const jsonFn = await promptLLMForJson(
+    //     "Act as an expert Javascript developer.",
+    //     "Write simple, concise code with no imports for the task:\n" +
+    //     "-----------------------------------------\n" +
+    //     task +
+    //     "-----------------------------------------\n" +
+    //     "The function interface should be:  const workflow = async (fnLibs) => { } " +
+    //     "Do not output any other code to call the function. Just output the function." +
+    //     "You should return a result from the function in the format {type:'text,table',data:<your output>}.",
+    //     {
+    //         "type": "object",
+    //         "properties": {
+    //             "functionInterface": {
+    //                 "type": "string",
+    //                 "description": "Javascript function interface specification"
+    //             },
+    //             "functionBody": {
+    //                 "type": "string",
+    //                 "description": "body of the javascript function MUST include the function interface and be written" +
+    //                     " so that the function can be called by invoking workflow(fnLibs)"
+    //             }
+    //         },
+    //         "required": ["functionInterface", "functionBody"]
+    //     },
+    //     (json) => {
+    //
+    //         try {
+    //             console.log("Checking generated fn...")
+    //
+    //             let context = {
+    //                 workflow: (fnlibs: {}): any => {
+    //                 },
+    //                 result:{}
+    //             };
+    //
+    //             let fnLibs = {};
+    //
+    //             const codeToEval = "" + json.arguments.json.functionBody + "\n\n context.result = workflow;";
+    //             console.log("Will eval:", codeToEval);
+    //
+    //             context.result(fnLibs).then((result: any) => {
+    //                 console.log("JSON Prompt Code Eval:",result);
+    //             });
+    //
+    //
+    //         }catch (e) {
+    //             console.log(e);
+    //         }
+    //
+    //         return json;
+    //     }
+    // );
+    //
+    // console.log("JSON Function:", jsonFn);
 
-    console.log("Options:", opts);
+    // const opts = await promptLLMSelectFromOptions(
+    //     "Act as an expert Javascript developer.",
+    //     `Which of the following tools are relevant for "${task}".`,
+    //     [{
+    //         id: "promptLLM", description: "ask the large language to perform reasoning, writing, " +
+    //             "summarizing, outlining, brainstorming, or natural language processing tasks " +
+    //             "(no tasks that could be performed faster by code"
+    //     },
+    //         {id: "encrypt", description: "encrypt a message"},
+    //         {id: "decrypt", description: "decrypt a message"},
+    //         {id: "log", description: "log a message"},
+    //     ]
+    // );
+    //
+    // console.log("Options:", opts);
 
 
     //console.log("AI Tools:", aiSelectedTools);
@@ -352,8 +468,21 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         }
         //console.log("Uncleaed code:", uncleanedCode)
 
+        const findFn = (code: string) => {
+            try {
+                return findWorkflowPattern(code);
+            }catch (e){}
+            return null;
+        }
 
         cleanedFn = findWorkflowPattern(uncleanedCode || "");
+
+        // Some fallbacks to handle truncation of the output at the very end...the alternative
+        // is a slow roudtrip to the LLM again to get the full output
+        cleanedFn = (!cleanedFn)? findWorkflowPattern(uncleanedCode + "}") : cleanedFn;
+        cleanedFn = (!cleanedFn)? findWorkflowPattern(uncleanedCode + "}}") : cleanedFn;
+        cleanedFn = (!cleanedFn)? findWorkflowPattern(uncleanedCode + "}}}") : cleanedFn;
+
         finalFn = null;
         fnResult = "";
 
@@ -439,7 +568,7 @@ export const extractJsonObjects = (text: string) => {
             } else {
                 continue;
             }
-        } else if(stack.length > 0){
+        } else if (stack.length > 0) {
             buffer += char;
         }
     }

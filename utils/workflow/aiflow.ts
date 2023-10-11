@@ -42,7 +42,21 @@ export const findWorkflowPattern = (inputString: string) => {
         prevChar = currChar;
     }
 
-    console.log("Error: No proper ending for the 'workflow' function found.");
+    // Attempt to fix any missing closing brackets
+    if (bracketsStack > 0) {
+        console.log(`The code wasn't terminated properly, attempting to fix... [inString:${inString}, bracketsStack:${bracketsStack}, prevChar:${prevChar}]`);
+
+        let workflowFunctionCode = "async (fnlibs) => " + inputString.slice(workflowPattern.lastIndex - 1, -1);
+
+        // Generate as many "}" as left on bracketsStack
+        for (let i = 0; i < bracketsStack; i++) {
+            workflowFunctionCode += "}";
+        }
+
+        return workflowFunctionCode.trim();
+    }
+
+    console.log(`Error: No proper ending for the 'workflow' function found. [inString:${inString}, bracketsStack:${bracketsStack}, prevChar:${prevChar}]`);
     return null;
 };
 

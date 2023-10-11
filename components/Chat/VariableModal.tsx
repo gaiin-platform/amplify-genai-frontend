@@ -54,12 +54,23 @@ export const VariableModal: FC<Props> = ({
     { key: string; value: any }[]
   >(
     variables
-      .map((variable) => ({ key: variable, value: '' }))
+      .map((variable) => {
+        let value:any = '';
+
+        if(isBoolean(variable)){
+          value = false;
+        }
+        else if(isOptions(variable)){
+          // set the value to the first option
+          value = variable.split(':')[1].split('[')[1].split(']')[0].split(',')[0];
+        }
+        return { key: variable, value: value }})
       .filter(
         (item, index, array) =>
           array.findIndex((t) => t.key === item.key) === index,
       ),
   );
+
 
   const modalRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLTextAreaElement>(null);

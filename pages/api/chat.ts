@@ -50,7 +50,7 @@ const handler = async (req: Request): Promise<Response> => {
     var maxTokens = model.tokenLimit;
     if (typeof maxTokens === "undefined") {
       console.log("Token Limit is undefined, setting to 8192");
-      maxTokens = 8192
+      maxTokens = 4000
     }
 
     for (let i = messages.length - 1; i >= 0; i--) {
