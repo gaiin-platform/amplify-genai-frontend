@@ -6,9 +6,11 @@ import readXlsxFile from 'read-excel-file'
 import mammoth from "mammoth";
 import { useTranslation } from 'next-i18next';
 import JSZip from "jszip";
+import { v4 as uuidv4 } from 'uuid';
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;
+    id:string;
 }
 
 export interface AttachedDocument {
@@ -196,12 +198,13 @@ const handleFile = async (file:any, onAttach:any) => {
     }
 }
 
-export const AttachFile: FC<Props> = ({ onAttach }) => {
+export const AttachFile: FC<Props> = ({id, onAttach }) => {
     const { t } = useTranslation('sidebar');
+
     return (
         <>
             <input
-                id="attach-file"
+                id={id}
                 className="sr-only"
                 tabIndex={-1}
                 type="file"
@@ -219,7 +222,7 @@ export const AttachFile: FC<Props> = ({ onAttach }) => {
                 className="left-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
                 onClick={() => {
                     const importFile = document.querySelector(
-                        '#attach-file',
+                        '#'+id,
                     ) as HTMLInputElement;
                     if (importFile) {
                         importFile.click();

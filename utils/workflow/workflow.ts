@@ -123,40 +123,6 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         return blocks;
     }
 
-    function extractLastPrefixedSections(text: string, sections: string[]) {
-
-        const currentTask = {};
-        let lastIdx = -1;
-
-        for (let section of sections) {
-            let idx = text.lastIndexOf(section);
-            if (idx > lastIdx) {
-                lastIdx = idx;
-                let content = text.slice(idx + section.length).trim();
-                let nextSection = sections[sections.indexOf(section) + 1];
-                let nextSectionStart = nextSection ? text.indexOf(nextSection, lastIdx) : -1;
-                content = nextSectionStart > -1
-                    ? text.slice(idx + section.length, nextSectionStart).trim()
-                    : content;
-
-                content = content.trim();
-                if(content.startsWith(":")){
-                    content = content.slice(0, -1).trim();
-                }
-
-                if (section.endsWith(':')) {
-                    // @ts-ignore
-                    currentTask[section.slice(0, -1).toLowerCase()] = content;
-                } else {
-                    // @ts-ignore
-                    currentTask[section.toLowerCase()] = content;
-                }
-            }
-        }
-
-        return currentTask;
-    }
-
     const promptUntil = async (
         persona: string,
         prompt: string,
@@ -317,6 +283,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     //console.log("AI Tools:", aiSelectedTools);
 
 
+    //Write simple, concise code that does not rely on any library functions.  The code must start with ```{{language}} and end with ```.  Write a {{language}} function {{Signature}} {{Input}} that returns {{Output}}
     // @ts-ignore
     const extraInstructions = [
         "Try to do as much work in code as possible without prompting the LLM. Only prompt the LLM for outlining, " +

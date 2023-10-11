@@ -1,13 +1,47 @@
 import { FC, KeyboardEvent, useEffect, useRef, useState } from 'react';
 
 import { Prompt } from '@/types/prompt';
-import {AttachedDocument} from "@/components/Chat/AttachFile";
+import {AttachedDocument, AttachFile} from "@/components/Chat/AttachFile";
+
 
 interface Props {
   prompt: Prompt;
   variables: string[];
   onSubmit: (updatedVariables: string[], documents:AttachedDocument[] | null) => void;
   onClose: () => void;
+}
+
+const isText = (variable: string) => {
+  // return if the variable is not any of the other is* functions
+  return !isFile(variable) && !isBoolean(variable) && !isOptions(variable);
+}
+
+const isFile = (variable: string) => {
+  // return if the variable is suffixed with :file
+    return variable.endsWith(':file');
+}
+
+const isBoolean = (variable: string) => {
+  // return if the variable is suffixed with :file
+  return variable.endsWith(':boolean');
+}
+
+const isOptions = (variable: string) => {
+  // return if the variable contains :options[option1,option2,...]
+  return variable.includes(':options[');
+}
+
+// Parse the name of a variable to remove the suffixes
+export const parseVariableName = (variable: string) => {
+  if (isFile(variable)) {
+    return variable.split(':')[0];
+  } else if (isBoolean(variable)) {
+    return variable.split(':')[0];
+  } else if (isOptions(variable)) {
+    return variable.split(':')[0];
+  } else {
+    return variable;
+  }
 }
 
 export const VariableModal: FC<Props> = ({
@@ -17,7 +51,7 @@ export const VariableModal: FC<Props> = ({
   onClose,
 }) => {
   const [updatedVariables, setUpdatedVariables] = useState<
-    { key: string; value: string }[]
+    { key: string; value: any }[]
   >(
     variables
       .map((variable) => ({ key: variable, value: '' }))
@@ -30,7 +64,7 @@ export const VariableModal: FC<Props> = ({
   const modalRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleChange = (index: number, value: string) => {
+  const handleChange = (index: number, value: any) => {
     setUpdatedVariables((prev) => {
       const updated = [...prev];
       updated[index].value = value;
@@ -43,15 +77,30 @@ export const VariableModal: FC<Props> = ({
       alert('Please fill out all variables');
       return;
     }
+    // Separate the documents into their own array
+    const documents = updatedVariables
+        .filter((variable) => isFile(variable.key))
+        .map((variable) => {
+          return {...variable.value, name: parseVariableName(variable.key)};
+        });
 
-    onSubmit(updatedVariables.map((variable) => variable.value),[]);
+    const justVariables = updatedVariables
+        .map((variable) => (isFile(variable.key))? "" : variable.value);
+
+    console.log("justVariables", justVariables);
+    console.log("justDocuments", documents);
+
+    onSubmit(justVariables,documents);
     onClose();
   };
 
+
+
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    console.log("Keydown");
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit();
+      //handleSubmit();
     } else if (e.key === 'Escape') {
       onClose();
     }
@@ -77,6 +126,7 @@ export const VariableModal: FC<Props> = ({
     }
   }, []);
 
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
@@ -97,19 +147,61 @@ export const VariableModal: FC<Props> = ({
 
         {updatedVariables.map((variable, index) => (
           <div className="mb-4" key={index}>
+            {!isBoolean(variable.key) &&
             <div className="mb-2 text-sm font-bold text-neutral-200">
-              {variable.key}
-            </div>
+              {parseVariableName(variable.key)}
+            </div>}
 
-            <textarea
-              ref={index === 0 ? nameInputRef : undefined}
-              className="mt-1 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-              style={{ resize: 'none' }}
-              placeholder={`Enter a value for ${variable.key}...`}
-              value={variable.value}
-              onChange={(e) => handleChange(index, e.target.value)}
-              rows={3}
-            />
+            {isText(variable.key) && (
+              <textarea
+                ref={index === 0 ? nameInputRef : undefined}
+                className="mt-1 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                style={{ resize: 'none' }}
+                placeholder={`Enter a value for ${variable.key}...`}
+                value={variable.value}
+                onChange={(e) => handleChange(index, e.target.value)}
+                rows={3}
+              />
+            )}
+
+            {isFile(variable.key) && ( //use AttachFile component
+                <div>
+                <AttachFile id = {"__idVarFile"+index} onAttach={(doc)=>{
+                  handleChange(index, doc);
+                }} />
+                {variable.value &&
+                    // @ts-ignore
+                   <span>{variable.value.name}</span>
+                }
+                </div>
+            )}
+
+            {isBoolean(variable.key) && (
+                <div className="flex items-center">
+                    <input
+                        type="checkbox"
+                        className="rounded border-gray-300 text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
+                        checked={variable.value === 'true'}
+                        onChange={(e) => handleChange(index, e.target.checked ? 'true' : 'false')}
+                    />
+                    <span className="ml-2 text-sm text-neutral-200">{parseVariableName(variable.key)}</span>
+                </div>
+                )}
+            {isOptions(variable.key) && (
+                <div className="flex items-center">
+                    <select
+                        className="rounded border-gray-300 text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
+                        value={variable.value}
+                        onChange={(e) => handleChange(index, e.target.value)}
+                    >
+                        {variable.key.split(':')[1].split('[')[1].split(']')[0].split(',').map((option) => (
+                            <option key={option} value={option}>
+                                {option}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            )}
           </div>
         ))}
 

@@ -336,7 +336,7 @@ export const ChatInput = ({
               <IconApiApp size={20} />
             </button>
 
-            <AttachFile onAttach={addDocument} />
+            <AttachFile id="__attachFile" onAttach={addDocument} />
 
             {showPluginSelect && (
               <div className="absolute left-0 bottom-14 rounded bg-white dark:bg-[#343541]">

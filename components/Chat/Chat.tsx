@@ -36,7 +36,7 @@ import {TemperatureSlider} from './Temperature';
 import {MemoizedChatMessage} from './MemoizedChatMessage';
 
 import {useChatService} from '@/hooks/useChatService';
-import {VariableModal} from "@/components/Chat/VariableModal";
+import {VariableModal, parseVariableName} from "@/components/Chat/VariableModal";
 import {parsePromptVariables} from "@/utils/app/prompts";
 import { v4 as uuidv4 } from 'uuid';
 
@@ -680,6 +680,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             const newContent = template?.replace(/{{(.*?)}}/g, (match, variable) => {
                 const index = variables.indexOf(variable);
+
+
+                if(!doWorkflow && documents && documents.length > 0){
+                    let document = documents.filter((doc) => {
+                        console.log("doc.name", doc.name, variable);
+                        if(doc.name == parseVariableName(variable)){
+                            return "" + doc.raw;
+                        }
+                    })[0];
+
+                    if(document){
+                        return "" + document.raw;
+                    }
+                }
+
                 return updatedVariables[index];
             });
 

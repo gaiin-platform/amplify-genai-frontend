@@ -31,6 +31,7 @@ import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import Workflow from "@/utils/workflow/workflow";
 import mermaid from "mermaid";
+import { Vega } from 'react-vega';
 
 const mermaidConfig = {
     startOnLoad: true,
@@ -97,6 +98,12 @@ mermaid.initialize(mermaidConfig);
 
 interface MermaidProps {
     chart: string;
+    currentMessage: boolean;
+}
+
+interface VegaProps {
+    chart: string;
+    currentMessage: boolean;
 }
 
 // export default class Mermaid extends React.Component {
@@ -110,10 +117,83 @@ interface MermaidProps {
 //   }
 // }
 
-const Mermaid: React.FC<MermaidProps> = ({chart}) => {
+const VegaVis: React.FC<VegaProps> = ({chart, currentMessage}) => {
     const [svgDataUrl, setSvgDataUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [height, setHeight] = useState<number>(500);
+
+
+    const {
+        state: {messageIsStreaming},
+    } = useContext(HomeContext);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+
+            if (!messageIsStreaming) {
+                try {
+
+
+                } catch (err) {
+                    console.log(err);
+                    //showLoading();
+                }
+            }
+        }
+    }, [chart]);
+
+    const spec = {
+        "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+        "data": {
+            "values": [
+                {"Category": "A", "Amount": 28},
+                {"Category": "B", "Amount": 55},
+                {"Category": "C", "Amount": 43},
+                {"Category": "D", "Amount": 91},
+                {"Category": "E", "Amount": 81},
+                {"Category": "F", "Amount": 53},
+                {"Category": "G", "Amount": 19},
+                {"Category": "H", "Amount": 87}
+            ]
+        },
+        "mark": "bar",
+        "encoding": {
+            "x": {"field": "Category", "type": "ordinal"},
+            "y": {"field": "Amount", "type": "quantitative"}
+        }
+    };
+
+    // @ts-ignore
+    return error ?
+        <div>{error}</div> :
+        <div style={{maxHeight:"450px"}}>
+            <div className="flex items-center space-x-4">
+                <IconZoomIn/>
+                <input
+                    type="range"
+                    min="250"
+                    max="4000"
+                    value={height}
+                    onChange={(e)=>{ // @ts-ignore
+                        setHeight(e.target.value)}}
+                />
+            </div>
+            <div style={{height: `${height + 20}px`, width: `${2 * height}px`, overflow:"auto"}}>
+                {messageIsStreaming && currentMessage ? <div><LoadingIcon/> Loading...</div> :
+                    // @ts-ignore
+                    // <Vega spec={spec}/>
+                    <div>Loading...</div>
+                }
+            </div>
+        </div>;
+};
+
+
+const Mermaid: React.FC<MermaidProps> = ({chart, currentMessage}) => {
+    const [svgDataUrl, setSvgDataUrl] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [height, setHeight] = useState<number>(500);
+
 
     const {
         state: {messageIsStreaming},
@@ -124,7 +204,7 @@ const Mermaid: React.FC<MermaidProps> = ({chart}) => {
 
             const showLoading = () => {
                 if (!messageIsStreaming) {
-                    setSvgDataUrl("data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"200\"><text x=\"50\" y=\"100\" font-size=\"16\">Loading...</text></svg>")
+                    setSvgDataUrl("data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"600\" height=\"600\"><text x=\"0\" y=\"100\" font-size=\"12\" font-family='sans-serif'>Loading...</text></svg>")
                 }
             };
 
@@ -138,18 +218,21 @@ const Mermaid: React.FC<MermaidProps> = ({chart}) => {
                                     const svgDataUrl = `data:image/svg+xml,${encodeURIComponent(svgContent.svg)}`;
                                     setSvgDataUrl(svgDataUrl);
                                 } else {
-                                    showLoading();
+                                    //showLoading();
                                 }
                             }
-                        ).catch(() => {
-                            showLoading();
+                        ).catch((e) => {
+                            console.log(e);
+                            //showLoading();
                         });
-                    }).catch(() => {
-                        showLoading();
+                    }).catch((e) => {
+                        console.log(e);
+                        //showLoading();
                     });
 
                 } catch (err) {
-                    showLoading();
+                    console.log(err);
+                    //showLoading();
                 }
             }
         }
@@ -171,8 +254,12 @@ const Mermaid: React.FC<MermaidProps> = ({chart}) => {
             />
             </div>
             <div style={{height: `${height + 20}px`, width: `${2 * height}px`, overflow:"auto"}}>
-                <img  style={{height: `${height}px`}} src={svgDataUrl|| "data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"80\"><text x=\"50\" y=\"30\" font-size=\"18\" font-family='sans-serif' font-weight=\"bold\" fill=\"white\">Loading...</text></svg>"} alt="Loading"/>
-             </div>
+                {messageIsStreaming && currentMessage ? <div><LoadingIcon/> Loading...</div> :
+                    <img style={{height: `${height}px`}}
+                         src={svgDataUrl || "data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"80\"><text x=\"0\" y=\"30\" font-size=\"18\" font-family='sans-serif' font-weight=\"bold\" fill=\"white\">Loading...</text></svg>"}
+                         alt="Loading"/>
+                }
+            </div>
         </div>;
 };
 
@@ -505,9 +592,15 @@ export const ChatMessage: FC<Props> = memo(({
 
 
                                             if (!inline && match && match[1] === 'mermaid') {
-                                                console.log("mermaid")
+                                                //console.log("mermaid")
                                                 //@ts-ignore
-                                                return (<Mermaid chart={String(children)}/>);
+                                                return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1 }/>);
+                                            }
+
+                                            if (!inline && match && match[1] === 'vega') {
+                                                //console.log("mermaid")
+                                                //@ts-ignore
+                                                return (<VegaVis chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1 }/>);
                                             }
 
                                             return !inline ? (
