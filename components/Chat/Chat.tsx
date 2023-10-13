@@ -38,7 +38,7 @@ import {MemoizedChatMessage} from './MemoizedChatMessage';
 import {useChatService} from '@/hooks/useChatService';
 import {VariableModal, parseVariableName} from "@/components/Chat/VariableModal";
 import {parsePromptVariables} from "@/utils/app/prompts";
-import { v4 as uuidv4 } from 'uuid';
+import {v4 as uuidv4} from 'uuid';
 
 import Workflow, {
     Context,
@@ -54,8 +54,9 @@ import Workflow, {
 import {OpenAIModel} from "@/types/openai";
 import {Prompt} from "@/types/prompt";
 import {InputType} from "@/types/workflow";
-import {AttachedDocument} from "@/components/Chat/AttachFile";
+import {AttachedDocument} from "@/types/attacheddocument";
 import {Key} from "@/components/Settings/Key";
+import {describeAsJsonSchema} from "@/utils/app/data";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -198,7 +199,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             selectedConversation
         ]);
 
-        const updateCurrentMessage = useCallback((text: string, data={}) => {
+        const updateCurrentMessage = useCallback((text: string, data = {}) => {
 
             if (selectedConversation) {
                 let toUpdate = selectedConversationRef.current || selectedConversation;
@@ -209,7 +210,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         if (index === toUpdate.messages.length - 1) {
                             return {
                                 ...message,
-                                data: (data)? data : (message.data) ? message.data: {},
+                                data: (data) ? data : (message.data) ? message.data : {},
                                 content: text,
                             };
                         }
@@ -434,21 +435,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             await handleAddMessages(selectedConversationRef.current || selectedConversation, messages)
         };
 
-        const onLinkClick = (href: string) =>{
-            if(selectedConversation) {
+        const onLinkClick = (href: string) => {
+            if (selectedConversation) {
                 handleCustomLinkClick(selectedConversationRef.current || selectedConversation, href);
             }
         }
 
 
-        const handleJsWorkflow = useCallback(async (message: Message, documents:AttachedDocument[] | null) => {
+        const handleJsWorkflow = useCallback(async (message: Message, documents: AttachedDocument[] | null) => {
             if (selectedConversation) {
 
                 const workflowId = uuidv4();
 
                 const telluser = async (msg: string) => {
                     await asyncSafeHandleAddMessages([
-                        newMessage({role: "assistant", content: msg, data:{workflow:workflowId, type:"workflow:tell"}})])
+                        newMessage({role: "assistant", content: msg, data: {workflow: workflowId, type: "workflow:tell"}})])
                 };
 
                 let tools = {
@@ -458,9 +459,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     }
                 }
 
-                message.data = (message.data)?
-                    {...message.data, ...{workflow:workflowId, type:"workflow:prompt"}} :
-                    {workflow:workflowId, type:"workflow:prompt"};
+                message.data = (message.data) ?
+                    {...message.data, ...{workflow: workflowId, type: "workflow:prompt"}} :
+                    {workflow: workflowId, type: "workflow:prompt"};
 
                 await asyncSafeHandleAddMessages([message]);
 
@@ -472,86 +473,37 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                     let docs = documents;
 
-                    console.log("Message documents", docs);
-
-                    // @ts-ignore
-                    function describeValue(value) {
-                        try {
-                            //console.log("Describe", value);
-
-                            if (value == null) {
-                                return "null";
-                            }
-
-                            if (typeof value === 'string') {
-                                return `string[length:${value.length}]`;
-                            }
-
-                            if (Array.isArray(value)) {
-                                if (value.length > 0) {
-                                    return `[${describeValue(value[0])}]`;
-                                } else {
-                                    return 'array[length:0]';
-                                }
-                            }
-
-                            if (value instanceof Object) {
-                                const kvDescriptions = [];
-                                for (let key in value) {
-                                    kvDescriptions.push(`${key}:${describeValue(value[key])}`);
-                                }
-
-                                if (kvDescriptions.length > 0) {
-                                    return `{${kvDescriptions.join(', ')}}`;
-                                } else {
-                                    return 'object[children:0]';
-                                }
-                            }
-
-                            // Check for presence of length property for non-string types
-                            if ('length' in value) {
-                                return `${typeof value}[length:${value.length}]`;
-                            } else {
-                                return typeof value;
-                            }
-                        } catch (e) {
-                            return "Unknown";
-                        }
-                    }
-
                     let documentsTypes = docs.map((doc) => {
-                        return {name:doc.name, type:doc.type};
+                        return {name: doc.name, type: doc.type};
                     });
 
-                    let documentsDescription = docs.map((doc) => {
-                        let rawDesc = describeValue(doc.raw);
-                        let dataDesc = describeValue(doc.data);
-                        return `{name:"${doc.name}", type:"${doc.type}", raw:${rawDesc}, data:${dataDesc}}`;
-                    }).join(",")
+                    console.log("Message documents", docs);
+
+                    let documentsSchema = docs.map((doc) => {
+                        // Describe as json schema and then remove line breaks.
+                        return describeAsJsonSchema(doc.data);
+                    });
+
+                    let documentsDescription = JSON.stringify(documentsSchema).replaceAll("\n", " ");
 
                     inputTypes = docs.map((doc) => {
                         let ext = doc.name.split('.').pop() || "none";
-                        let input:InputType = {fileExtension:ext, fileMimeType:doc.type};
+                        let input: InputType = {fileExtension: ext, fileMimeType: doc.type};
                         return input;
                     })
-
-                    console.log("documentsDescription", documentsDescription);
 
                     // @ts-ignore
                     tools["getDocuments"] = {
 
-                        description: "():[${documentsDescription}] // Prompts can never exceed approximately 25,000 characters," +
-                            "so check them carefully if you include a document in them and if the document" +
-                            "is bigger, then break it up into chunks to feed to the prompt and combine" +
-                            "results. If you provide a part or whole document in a prompt to the LLM, you should separate it with"+
-                            "------------------ \n document data \n----------------. If the document.data is not a string, " +
-                            "JSON.stringify it first.",
+                        description: "():[{name:string,raw:string},...]// returns an array of objects with name and raw properties." +
+                            " The raw property is a string representation of the document.",
                         exec: () => {
                             return docs;
                         }
                     };
 
-                    await telluser(`Using documents: \n\n${formatter({type:'table', data:documentsTypes})}`)
+                    await telluser(`Using documents: \n\n${formatter({type: 'table', data: documentsTypes})}`)
+
                 }
 
                 message.data.inputTypes = inputTypes;
@@ -574,11 +526,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 // @ts-ignore
                 executeJSWorkflow(apiKey, message.content, tools, stopper, (responseText) => {
-                    if (responseText.trim().startsWith("const")) {
-                        responseText = "```javascript\n" + responseText;
-                    }
+                    //if (responseText.trim().startsWith("const")) {
+                    responseText = "```javascript\n" + responseText;
+                    //}
 
-                    updateCurrentMessage(responseText, {workflow:workflowId, type:"workflow:code"});
+                    updateCurrentMessage(responseText, {workflow: workflowId, type: "workflow:code"});
                 }).then((result) => {
 
                     let resultStr = (typeof result.result === "string") ? result.result :
@@ -594,12 +546,27 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                     const msg = resultMsg; //+ codeMsg;
 
+
                     asyncSafeHandleAddMessages(
                         [
-                            newMessage({role:"assistant", content:msg, data:{workflow:workflowId, type:"workflow:result"}}),
-                            newMessage({role:"assistant",
-                                data:{workflow:workflowId, type:"workflow:post-actions"},
-                                content: `Would you like to: [Save Workflow](#workflow:save-workflow/${workflowId}) or [Discard Workflow](#workflow:discard-workflow)`})
+                            newMessage({
+                                role: "assistant", content: msg, data: {
+                                    // @ts-ignore
+                                    reusableDescription: result.reuseDesc,
+                                    // @ts-ignore
+                                    inputs: result.inputs,
+                                    workflow: workflowId,
+                                    type: "workflow:result"
+                                }
+                            }),
+                            newMessage({
+                                role: "assistant",
+                                data: {
+                                    workflow: workflowId,
+                                    type: "workflow:data"
+                                },
+                                content: `Would you like to: [Save Workflow](#workflow:save-workflow/${workflowId})?`
+                            })
                         ]
                     )
 
@@ -645,11 +612,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
         const formatter = (result: { type: string; data: Record<string, any>[]; } | null) => {
-            console.log("formatter",result);
+            console.log("formatter", result);
             if (result == null) {
                 return "The workflow didn't produce any results.";
             } else if (result.type && result.type == "text") {
                 return result.data;
+            } else if (result.type && result.type == "code" && typeof result.data === "string") {
+                return "```javascript\n\n" + result.data + "\n\n```";
+            } else if (result.type && result.type == "code") {
+                return "```javascript\n\n" + JSON.stringify(result.data) + "\n\n```";
             } else if (result.type && Array.isArray(result.data) && result.type == "table") {
                 return generateMarkdownTable(result.data);
             } else {
@@ -657,18 +628,17 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         };
 
-        const routeMessage = (message: Message, index: number | undefined, plugin: Plugin | null | undefined, documents:AttachedDocument[] | null) => {
+        const routeMessage = (message: Message, index: number | undefined, plugin: Plugin | null | undefined, documents: AttachedDocument[] | null) => {
             if (message.type == "prompt" || message.type == "chat") {
                 handleSend(message, index, plugin);
             } else if (message.type == "automation") {
                 handleJsWorkflow(message, documents);
-            }
-            else {
+            } else {
                 console.log("Unknown message type", message.type);
             }
         }
 
-        const handleSubmit = (updatedVariables: string[], documents:AttachedDocument[] | null) => {
+        const handleSubmit = (updatedVariables: string[], documents: AttachedDocument[] | null) => {
 
             let template = selectedConversation?.promptTemplate?.content;
 
@@ -682,15 +652,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 const index = variables.indexOf(variable);
 
 
-                if(!doWorkflow && documents && documents.length > 0){
+                if (!doWorkflow && documents && documents.length > 0) {
                     let document = documents.filter((doc) => {
                         console.log("doc.name", doc.name, variable);
-                        if(doc.name == parseVariableName(variable)){
+                        if (doc.name == parseVariableName(variable)) {
                             return "" + doc.raw;
                         }
                     })[0];
 
-                    if(document){
+                    if (document) {
                         return "" + document.raw;
                     }
                 }
@@ -716,7 +686,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const handleApiKeyChange = useCallback(
             (apiKey: string) => {
-                homeDispatch({ field: 'apiKey', value: apiKey });
+                homeDispatch({field: 'apiKey', value: apiKey});
 
                 localStorage.setItem('apiKey', apiKey);
             },
@@ -828,7 +798,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         <div className="text-left text-gray-500 dark:text-gray-400 mb-6">
                             <div className="text-left text-gray-500 dark:text-gray-400 mb-6">
                                 The tool allows you to plug in your API keys to use this UI with
-                                their API. Right now, only OpenAI is supported.  It is <span className="italic">only</span> used to communicate
+                                their API. Right now, only OpenAI is supported. It is <span
+                                className="italic">only</span> used to communicate
                                 with their APIs.
                             </div>
 
@@ -839,7 +810,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         Please set your OpenAI API key:
                                     </div>
                                     <div className="text-left text-4xl font-bold text-black dark:text-white">
-                                        <Key apiKey={apiKey} onApiKeyChange={handleApiKeyChange} />
+                                        <Key apiKey={apiKey} onApiKeyChange={handleApiKeyChange}/>
                                     </div>
                                 </div>
                             ) : null}
@@ -993,7 +964,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         <ChatInput
                             stopConversationRef={stopConversationRef}
                             textareaRef={textareaRef}
-                            onSend={(message, plugin, documents:AttachedDocument[] | null) => {
+                            onSend={(message, plugin, documents: AttachedDocument[] | null) => {
                                 setCurrentMessage(message);
                                 //handleSend(message, 0, plugin);
                                 routeMessage(message, 0, plugin, documents);

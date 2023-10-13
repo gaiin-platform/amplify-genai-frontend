@@ -1,11 +1,24 @@
 import {useChatService} from "@/hooks/useChatService";
 
-export const findWorkflowPattern = (inputString: string) => {
+export function stripComments(code: string) {
+    // This regular expression matches both '//' and '/* */' comments.
+    const commentPattern = /\/\/.*|\/\*[^]*?\*\//g; // [^]*? matches any character including newline.
 
-    const workflowPattern = /workflow\s*=\s*async\s*\(fnlibs\)\s*=>\s*{/g;
+    // Replace matches with an empty string
+    let strippedCode = code.replace(commentPattern, '');
+
+    return strippedCode;
+}
+
+export const findWorkflowPattern: (inputString: string, noFix?:boolean) => (null | string) = (inputString, noFix) => {
+
+    inputString = stripComments(inputString);
+
+    const workflowPattern = /workflow\s*=\s*async\s*\([^)]*\)\s*=>\s*{/g;
 
     let workflowFunction = workflowPattern.exec(inputString);
     if (workflowFunction === null) {
+        console.log("Error: No 'workflow' function found.");
         return null;
     }
 
@@ -13,9 +26,12 @@ export const findWorkflowPattern = (inputString: string) => {
     let inString = false;
     let stringChar = '';
     let prevChar = '';
+    let currChar = '';
+    let stringStart = 0;
 
     for (let i = workflowPattern.lastIndex - 1; i < inputString.length; i++) {
-        const currChar = inputString[i];
+        prevChar = currChar;
+        currChar = inputString[i];
 
         if (inString) {
             // Check for a closing quote, ensuring it's not escaped
@@ -26,6 +42,7 @@ export const findWorkflowPattern = (inputString: string) => {
         } else {
             // Check for an opening quote
             if (currChar === '"' || currChar === "'" || currChar === "`") {
+                stringStart = i;
                 inString = true;
                 stringChar = currChar;
             } else if (currChar === '{') {
@@ -39,56 +56,58 @@ export const findWorkflowPattern = (inputString: string) => {
             }
         }
 
-        prevChar = currChar;
     }
 
-    // Attempt to fix any missing closing brackets
-    if (bracketsStack > 0) {
-        console.log(`The code wasn't terminated properly, attempting to fix... [inString:${inString}, bracketsStack:${bracketsStack}, prevChar:${prevChar}]`);
-
-        let workflowFunctionCode = "async (fnlibs) => " + inputString.slice(workflowPattern.lastIndex - 1, -1);
-
-        // Generate as many "}" as left on bracketsStack
+    if (bracketsStack > 0 && !noFix) {
         for (let i = 0; i < bracketsStack; i++) {
-            workflowFunctionCode += "}";
+            inputString = inputString + "}";
+            // @ts-ignore
+            let result = findWorkflowPattern(inputString, true);
+            if (result != null) {
+                return result;
+            }
         }
-
-        return workflowFunctionCode.trim();
     }
 
     console.log(`Error: No proper ending for the 'workflow' function found. [inString:${inString}, bracketsStack:${bracketsStack}, prevChar:${prevChar}]`);
     return null;
 };
 
-export const generateCodeImprovementPrompt = (code:string, improvement:string) => {
-    return "// The code "+improvement;
+
+export const generateCodeImprovementPrompt = (code: string, improvement: string) => {
+    return "// The code " + improvement;
 }
 
-export const describeTools = (tools: { [s: string]: unknown; } | ArrayLike<unknown>)=>{
+export const describeTools = (tools: { [s: string]: unknown; } | ArrayLike<unknown>) => {
     return Object.entries(tools)
-        .map(([key,tool]) => { // @ts-ignore
-            return key +":"+tool.description;})
+        .map(([key, tool]) => { // @ts-ignore
+            return key + ":" + tool.description;
+        })
         .join(", ")
-        .replaceAll("\n","\\n");
+        .replaceAll("\n", "\\n");
 }
 
-export const generateWorkflowPrompt = (task: string, tools:{[key: string]:{description: string}}, extraPromptInstructions?:string[]) => {
+export const generateWorkflowPrompt = (task: string, tools: { [key: string]: { description: string } }, extraPromptInstructions?: string[], extraVarInstructions?:[]) => {
 
     const toolMsg = describeTools(tools);
-        //Object.entries(tools)
-        //.map(([key,tool]) => {return key +":"+tool.description;}).join(",\n");
+    //Object.entries(tools)
+    //.map(([key,tool]) => {return key +":"+tool.description;}).join(",\n");
 
-    const extraInstructions = (extraPromptInstructions)? "// PAY ATTENTION:\n" + extraPromptInstructions.join("\n//   ") : "";
+    const extraInstructions = (extraPromptInstructions) ? "// PAY ATTENTION:\n" + extraPromptInstructions.join("\n//   ") : "";
+    const varInstructions = (extraVarInstructions) ? extraVarInstructions.join("\n") : "";
 
     return `const fnlibs = {
                             ${toolMsg}
                         };
 
+                        //@START_WORKFLOW
                         const workflow = async (fnlibs) => {
-                            let result = new Promise((resolve, reject) => {
+                         
                             try {
                                 fnlibs.tellUser("Executing the generated workflow...");
                                 let value = {type:"text|table|code", data:null}; 
+                                ${varInstructions}
+                              
                                 // Any tasks based on summarizing, outlining, analyzing, suggesting,
                                 // brainstorming, etc. should be done by prompting the LLM. When you prompt
                                 // you must give the LLM detailed step-by-step instructions on what to do and give it a 
@@ -110,13 +129,10 @@ export const generateWorkflowPrompt = (task: string, tools:{[key: string]:{descr
                                // DESCRIBE HOW TO MAKE THE VALUE BEAUTIFULLY FORMATTED
                                // FOR THE USER 
                                // Store the output of the task in value so it can be returned
-                               resolve(value);
+                               return value;
                             }
                             catch(e){
-                                fnlibs.tellUser("I made a mistake, trying again...");
-                               reject(e);
+                               throw e;
                             }
-                          });
-                           return result;
-                        }`;
+                          };//@END_WORKFLOW`
 }

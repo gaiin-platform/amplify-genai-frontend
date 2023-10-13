@@ -7,17 +7,11 @@ import mammoth from "mammoth";
 import { useTranslation } from 'next-i18next';
 import JSZip from "jszip";
 import { v4 as uuidv4 } from 'uuid';
+import { AttachedDocument } from '@/types/attacheddocument';
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;
     id:string;
-}
-
-export interface AttachedDocument {
-    name:string;
-    raw:any|null;
-    type:string;
-    data:any|null;
 }
 
 const handleAsZip = (file: File): Promise<any[]> => {

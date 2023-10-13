@@ -248,61 +248,68 @@ const Home = ({
 
     const handleCustomLinkClick = (conversation: Conversation, href:string) => {
 
-        if(href.startsWith("#")) {
+        try {
 
-            let [category, action_path] = href.slice(1).split(":");
-            let [action, path] = action_path.split("/");
+            if (href.startsWith("#")) {
 
-            console.log(`handleCustomLinkClick ${category}:${action}/${path}`);
+                let [category, action_path] = href.slice(1).split(":");
+                let [action, path] = action_path.split("/");
 
-            if(category === "workflow" && action === "save-workflow") {
+                console.log(`handleCustomLinkClick ${category}:${action}/${path}`);
 
-                const workflowId = path;
-                console.log(`Saving workflow ${workflowId}...`);
+                if (category === "workflow" && action === "save-workflow") {
 
-                const workflowFilter = (workflowId: string, msgType: string) => {
-                    return (m: Message) => {
-                        return m.data
-                            && m.data.workflow
-                            && m.data.type
-                            && m.data.workflow === workflowId
-                            && m.data.type === msgType;
+                    const workflowId = path;
+                    console.log(`Saving workflow ${workflowId}...`);
+
+                    const workflowFilter = (workflowId: string, msgType: string) => {
+                        return (m: Message) => {
+                            return m.data
+                                && m.data.workflow
+                                && m.data.type
+                                && m.data.workflow === workflowId
+                                && m.data.type === msgType;
+                        }
+                    };
+
+                    let code = conversation.messages.filter(workflowFilter(workflowId, "workflow:code")).pop();
+                    let prompt = conversation.messages.filter(workflowFilter(workflowId, "workflow:prompt")).pop();
+                    let result = conversation.messages.filter(workflowFilter(workflowId, "workflow:result")).pop();
+
+                    console.log("Workflow Result", result);
+                    console.log("Workflow", {code: code, prompt: prompt, inputs:result?.data.inputs});
+
+                    if (prompt && code) {
+                        let workflowDefinition: WorkflowDefinition = {
+                            id: uuidv4(),
+                            formatVersion: "v1.0",
+                            version: "1",
+                            folderId: null,
+                            description: prompt.content,
+                            generatingPrompt: prompt.content,
+                            name: prompt.content,
+                            code: code.content,
+                            tags: [],
+                            inputs: result?.data.inputs || [],
+                            outputs: [],
+                        }
+
+                        const updatedWorkflowDefinitions = [
+                            ...workflows,
+                            workflowDefinition
+                        ]
+
+                        dispatch({field: 'workflows', value: updatedWorkflowDefinitions});
+
+                        saveWorkflowDefinitions(updatedWorkflowDefinitions);
+                        alert("Workflow saved.");
+                    } else {
+                        console.log("Workflow not saved, missing code or prompt.");
                     }
-                };
-
-                let code = conversation.messages.filter(workflowFilter(workflowId, "workflow:code")).pop();
-                let prompt = conversation.messages.filter(workflowFilter(workflowId, "workflow:prompt")).pop();
-                console.log("Workflow", {code:code, prompt:prompt});
-
-                if(prompt && code) {
-                    let workflowDefinition: WorkflowDefinition = {
-                        id: uuidv4(),
-                        formatVersion: "v1.0",
-                        version: "1",
-                        folderId: null,
-                        description: prompt.content,
-                        generatingPrompt: prompt.content,
-                        name: prompt.content,
-                        code: code.content,
-                        tags: [],
-                        inputs: prompt.data.inputTypes || [],
-                        outputs: [],
-                    }
-
-                    const updatedWorkflowDefinitions = [
-                        ...workflows,
-                        workflowDefinition
-                    ]
-
-                    dispatch({ field: 'workflows', value: updatedWorkflowDefinitions });
-
-                    saveWorkflowDefinitions(updatedWorkflowDefinitions);
-                    alert("Workflow saved.");
-                }
-                else {
-                    console.log("Workflow not saved, missing code or prompt.");
                 }
             }
+        } catch (e) {
+            console.log("Error handling custom link", e);
         }
 
     //let msgs = conversation.messages.filter(workflowFilter())

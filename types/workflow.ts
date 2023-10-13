@@ -1,7 +1,19 @@
 
-export interface InputType {
+export interface InputDocument {
     fileExtension: string;
     fileMimeType: string;
+}
+
+export interface InputParameter {
+    name: string;
+    description: string;
+    defaultValue: string;
+    jsonSchema: string;
+}
+
+export interface Inputs {
+    parameters: InputParameter[],
+    documents: InputDocument[]
 }
 
 export interface OutputType {
@@ -19,6 +31,6 @@ export interface WorkflowDefinition {
     name: string;
     code: string;
     tags: string[];
-    inputs: InputType[];
+    inputs: Inputs;
     outputs: OutputType[];
 }

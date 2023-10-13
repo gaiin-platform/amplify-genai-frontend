@@ -22,8 +22,9 @@ import { parsePromptVariables } from "@/utils/app/prompts";
 import { Message, newMessage } from '@/types/chat';
 import { Plugin } from '@/types/plugin';
 import { Prompt } from '@/types/prompt';
-import { AttachFile, AttachedDocument } from "@/components/Chat/AttachFile";
+import { AttachFile } from "@/components/Chat/AttachFile";
 import { FileList } from "@/components/Chat/FileList";
+import { AttachedDocument } from "@/types/attacheddocument";
 
 import HomeContext from '@/pages/api/home/home.context';
 
