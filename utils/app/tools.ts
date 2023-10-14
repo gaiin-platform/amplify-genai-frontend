@@ -135,6 +135,16 @@ const promptUntil = async (
 
 export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Promise<string>, stopper:Stopper, prompts: Prompt[], maxConcurrency: number) => {
     return new Promise((resolve, reject) => {
+
+        if(prompts.length == 1){
+            promptLLM(prompts[0].rootPrompt || "", prompts[0].prompt).then((result)=>{
+                resolve([result]);
+            }).catch((e)=>{
+                reject(e);
+            });
+            return;
+        }
+
         let results = new Array(prompts.length).fill(null);
         let currentIndex = 0;
 
@@ -353,9 +363,6 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
                 " This is useful if you need to do something to chunks or pages of a document and can prepare the prompts in advance them " +
                 " send the work off in parallel.",
             exec: (prompts: string[]) => {
-                if(prompts.length == 1){
-                    return promptLLM("", prompts[0]);
-                }
 
                 let promptObjs = prompts.map((pStr, index) => {
                     let p: Prompt = {

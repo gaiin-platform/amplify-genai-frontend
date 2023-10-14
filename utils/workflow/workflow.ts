@@ -332,7 +332,7 @@ Thought:`
     return reusableDescription;
 }
 
-async function executeWorkflow(tools: { [p: string]: AiTool }, workflowGlobalParams: { requestedDocuments: any[]; requestedParameters: {}; apiKey: string; stopper: Stopper; context: WorkflowContext }, code: string) {
+async function executeWorkflow(tools: { [p: string]: AiTool }, code: string) {
     let javascriptFn = null;
     let success = false;
     let result = null;
@@ -357,8 +357,6 @@ async function executeWorkflow(tools: { [p: string]: AiTool }, workflowGlobalPar
 
         // If we reset, we need to make sure and reset the
         // requested information from the workflow
-        workflowGlobalParams.requestedParameters = {};
-        workflowGlobalParams.requestedDocuments = [];
         eval("context.workflow = " + code);
 
         //console.log("workflow fn", context.workflow);
@@ -800,7 +798,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             if(stopper.shouldStop()){
                 return abortResult;
             }
-            const __ret = await executeWorkflow(tools, workflowGlobalParams, cleanedFn);
+            const __ret = await executeWorkflow(tools, cleanedFn);
 
             finalFn = __ret.javascriptFn;
             // @ts-ignore
@@ -824,6 +822,8 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             }
         });
 
+        console.log("Requested Documents:", workflowGlobalParams.requestedDocuments);
+
         //Filter the list of context.inputs.documents to only include those that were requested
         let allDocuments = workflowGlobalParams.requestedDocuments.find((docName) => docName === "*");
         let documentInputs = (allDocuments) ? availableDocuments :
@@ -846,6 +846,10 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             console.log("Workflow Result Data:", workflowResultData);
 
             return workflowResultData;
+        }
+        else {
+            workflowGlobalParams.requestedParameters = {};
+            workflowGlobalParams.requestedDocuments = [];
         }
     }
     return {success: false, inputs:{}, code: cleanedFn, exec: finalFn, uncleanCode: uncleanedCode, result: fnResult};
