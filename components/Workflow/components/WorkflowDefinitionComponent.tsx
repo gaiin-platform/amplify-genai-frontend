@@ -23,7 +23,7 @@ import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 
 import WorkflowDefinitionBarContext from "@/components/Workflow/WorkflowDefinitionBarContext";
 import { WorkflowDefinitionModal } from './WorkflowDefinitionModal';
-
+import { RunWorkflowDefinitionModal } from './RunWorkflowDefinitionModal';
 
 interface Props {
     workflow: WorkflowDefinition;
@@ -34,6 +34,7 @@ export const WorkflowDefinitionComponent = ({ workflow }: Props) => {
         dispatch: workflowDispatch,
         handleUpdateWorkflowDefinition,
         handleDeleteWorkflowDefinition,
+        handleRunWorkflow,
     } = useContext(WorkflowDefinitionBarContext);
 
     const {
@@ -48,11 +49,17 @@ export const WorkflowDefinitionComponent = ({ workflow }: Props) => {
     const [isRenaming, setIsRenaming] = useState(false);
     const [renameValue, setRenameValue] = useState('');
     const [showModal, setShowModal] = useState(false);
+    const [showRunModal, setShowRunModal] = useState(false);
 
     // create a method to open the Modal and set the selected WorkflowDefinition
     const handleEditWorkflowDefinition: MouseEventHandler<HTMLButtonElement> = (e) => {
         e.stopPropagation();
         setShowModal(true);
+    };
+
+    const handleShowRunWorkflowDefinitionModal: MouseEventHandler<HTMLButtonElement> = (e) => {
+        e.stopPropagation();
+        setShowRunModal(true);
     };
 
 
@@ -108,7 +115,7 @@ export const WorkflowDefinitionComponent = ({ workflow }: Props) => {
                 <button
                     className="flex-grow cursor-pointer items-center gap-1 rounded-lg p-1 text-sm transition-colors duration-200 hover:bg-[#343541]/90"
                     draggable="true"
-                    onClick={handleEditWorkflowDefinition}
+                    onClick={(e)=>{e.preventDefault(); handleRunWorkflow(workflow);}}
                     onDragStart={(e) => handleDragStart(e, workflow)}
                     onMouseLeave={() => {
                         setIsDeleting(false);
@@ -127,11 +134,11 @@ export const WorkflowDefinitionComponent = ({ workflow }: Props) => {
 
                 <div className="flex-shrink-0 flex items-center space-x-1">
 
-                    {/*{!isDeleting && !isRenaming && (*/}
-                    {/*    <SidebarActionButton handleClick={() => setShowModal(true)}>*/}
-                    {/*        <IconEdit size={18} />*/}
-                    {/*    </SidebarActionButton>*/}
-                    {/*)}*/}
+                    {!isDeleting && !isRenaming && (
+                        <SidebarActionButton handleClick={handleEditWorkflowDefinition}>
+                            <IconEdit size={18} />
+                        </SidebarActionButton>
+                    )}
 
                     {/*{!isDeleting && !isRenaming && (*/}
                     {/*    <SidebarActionButton handleClick={handleSharePrompt}>*/}
@@ -166,6 +173,14 @@ export const WorkflowDefinitionComponent = ({ workflow }: Props) => {
                     onUpdateWorkflowDefinition={handleUpdate}
                 />
             )}
+
+            {/*{showRunModal && (*/}
+            {/*    <RunWorkflowDefinitionModal*/}
+            {/*        workflowDefinition={workflow}*/}
+            {/*        onClose={() => setShowRunModal(false)}*/}
+            {/*        onRunWorkflow={handleRunWorkflow}*/}
+            {/*    />*/}
+            {/*)}*/}
 
             {/*{showModal && (*/}
             {/*    <PromptModal*/}

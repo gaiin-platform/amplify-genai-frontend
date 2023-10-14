@@ -1,6 +1,6 @@
 import React, {FC} from 'react';
 import { IconTrashX } from '@tabler/icons-react';
-import { AttachedDocument } from "@/components/Chat/AttachFile";
+import { AttachedDocument } from '@/types/attacheddocument';
 
 interface Props {
     documents:AttachedDocument[]|undefined;

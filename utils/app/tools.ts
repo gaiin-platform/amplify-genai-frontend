@@ -1,6 +1,9 @@
 import {OpenAIModelID, OpenAIModels} from "@/types/openai";
 import {CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {sendChatRequest} from "@/services/chatService";
+import {describeAsJsonSchema} from "@/utils/app/data";
+import {InputDocument} from "@/types/workflow";
+import {AttachedDocument} from "@/types/attacheddocument";
 
 
 export interface Prompt {
@@ -129,10 +132,21 @@ const promptUntil = async (
     }
 }
 
-export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Promise<string>, prompts: Prompt[], maxConcurrency: number) => {
+
+export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Promise<string>, stopper:Stopper, prompts: Prompt[], maxConcurrency: number) => {
     return new Promise((resolve, reject) => {
         let results = new Array(prompts.length).fill(null);
         let currentIndex = 0;
+
+        if(prompts.length === 0){
+            resolve(results);
+            return;
+        }
+
+        if(stopper.shouldStop()){
+            reject("Interrupted");
+            return;
+        }
 
         // Add an index to each prompt object to ensure results order.
         prompts.forEach((prompt, index) => {
@@ -141,6 +155,11 @@ export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Prom
 
         const executePrompt = async () => {
             // If we're done, resolve the promise with the results.
+            if(stopper.shouldStop()){
+                resolve("Interrupted");
+                return;
+            }
+
             if (currentIndex === prompts.length) {
                 if (results.every(result => result !== null)) {
                     resolve(results);
@@ -153,13 +172,28 @@ export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Prom
             currentIndex++;
 
             try {
+                console.log(`Executing prompt ${currentIndex} / ${prompts.length}`);
                 // Execute the promptLLM function and store the result in the correct index.
+
+                if(stopper.shouldStop()){
+                    reject("Interrupted");
+                    return;
+                }
+
                 const result = await promptLLM(currentPrompt.rootPrompt || "", currentPrompt.prompt);
+
+                console.log(`Finished prompt ${currentIndex} / ${prompts.length}`);
                 // @ts-ignore
                 results[currentPrompt.index] = result;
 
                 // Recursively call executePrompt to handle the next prompt.
-                executePrompt();
+                if(stopper.shouldStop()){
+                    reject("Interrupted");
+                    return;
+                }
+                else {
+                    executePrompt();
+                }
             } catch (err) {
                 reject(err);
             }
@@ -167,7 +201,9 @@ export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Prom
 
         // Start maxConcurrency "threads".
         for (let i = 0; i < Math.min(maxConcurrency, prompts.length); i++) {
-            executePrompt();
+            if(!stopper.shouldStop()) {
+                executePrompt();
+            }
         }
     });
 };
@@ -240,9 +276,31 @@ const promptLLMForJson = async (promptLLMFull: (persona: string, prompt: string,
 }
 
 
+const describeDocuments = (docs: AttachedDocument[]) => {
+
+    let documentsSchema = docs.map((doc) => {
+        // Describe as json schema and then remove line breaks.
+        return describeAsJsonSchema(doc.data);
+    });
+
+    let documentsDescription = JSON.stringify(documentsSchema).replaceAll("\n", " ");
+
+    const inputTypes = docs.map((doc) => {
+        let ext = doc.name.split('.').pop() || "none";
+        let input: InputDocument = {fileExtension: ext, fileMimeType: doc.type, name: doc.name};
+        return input;
+    })
+
+}
+
 
 // @ts-ignore
-export const parameterizeTools = ({apiKey, stopper, requestedParameters, requestedDocuments}) => {
+export const parameterizeTools = ({apiKey, stopper, context, requestedParameters, requestedDocuments}) => {
+
+    console.log("parameterizeTools", context, requestedParameters, requestedDocuments);
+
+    const documents = [...context.inputs.documents];
+    const parameters = {...context.inputs.parameters};
 
     const promptLLMFull: (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => any = (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) =>
         doPrompt(apiKey, stopper, persona, prompt, messageCallback, model, functions, function_call);
@@ -270,18 +328,22 @@ export const parameterizeTools = ({apiKey, stopper, requestedParameters, request
         return promptLLMForJson(promptLLMFull, persona, prompt, jsonSchemaAsJsonObject);
     }
 
+    const allDocuments = () => {
+        return documents;
+    };
+
     return {
-        getParameter:{
+        getParameter: {
             description: "(name:string, defaultValue:any)=>any Get a parameter from the workflow settings. You should" +
                 " call this for each important variable in the workflow that may need changing for reuse.",
-            exec: (name:string, defaultValue:any) => {
+            exec: (name: string, defaultValue: any) => {
                 console.log("getParameter", name, defaultValue);
-                requestedParameters[name] = defaultValue;
+                requestedParameters[name] = {defaultValue: defaultValue};
                 return defaultValue;
             }
         },
         promptLLMForJson: {
-           description: "(persona: string, prompt: string, desiredSchema: JsonSchema)=>Promise<any> Prompt the LLM to generate JSON that matches a specified schema." +
+            description: "(persona: string, prompt: string, desiredSchema: JsonSchema)=>Promise<any> Prompt the LLM to generate JSON that matches a specified schema." +
                 " This is useful for generating JSON for APIs, databases, or other systems that require a specific JSON schema.",
             exec: promptForJson
         },
@@ -290,6 +352,10 @@ export const parameterizeTools = ({apiKey, stopper, requestedParameters, request
                 " This is useful if you need to do something to chunks or pages of a document and can prepare the prompts in advance them " +
                 " send the work off in parallel.",
             exec: (prompts: string[]) => {
+                if(prompts.length == 1){
+                    return promptLLM("", prompts[0]);
+                }
+
                 let promptObjs = prompts.map((pStr, index) => {
                     let p: Prompt = {
                         prompt: "" + pStr,
@@ -299,7 +365,7 @@ export const parameterizeTools = ({apiKey, stopper, requestedParameters, request
                     return p;
                 });
 
-                return promptLLMInParallel(promptLLM, promptObjs, 10)
+                return promptLLMInParallel(promptLLM, stopper, promptObjs, 3)
             },
         },
         splitStringIntoChunks: {
@@ -311,5 +377,21 @@ export const parameterizeTools = ({apiKey, stopper, requestedParameters, request
                 return splitStringIntoChunks(str, chunkSize);
             }
         },
+        getDocuments: {
+
+            description: "():[{name:string,raw:string},...]// returns an array of documents with name and raw properties." +
+                " Use this function to access all documents as strings.",
+            exec: () => {
+                requestedDocuments.push("*");
+                return allDocuments();
+            },
+        },
+        getDocument: {
+            description: "(name:string)=>{name:string,raw:string} Get a document by name.",
+            exec: (name: string) => {
+                requestedDocuments.push(name);
+                return allDocuments().find(document => document.name === name);
+            }
+        }
     };
 }

@@ -31,6 +31,7 @@ const WorkflowDefinitionBar = () => {
         state: { workflows, defaultModelId },
         dispatch: homeDispatch,
         handleCreateFolder,
+        handleNewConversation
     } = useContext(HomeContext);
 
     const {
@@ -62,6 +63,35 @@ const WorkflowDefinitionBar = () => {
         homeDispatch({ field: 'workflows', value: updatedWorkflowDefinitions });
 
         saveWorkflowDefinitions(updatedWorkflowDefinitions);
+    };
+
+    const handleRunWorkflowDefinition = (workflowDefinition: WorkflowDefinition) => {
+
+    }
+
+    const dateTimeString = () => {
+        let date = new Date();
+
+        let month = ('0' + (date.getMonth() + 1)).slice(-2); // getMonth() starts from 0, so add 1
+        let day = ('0' + date.getDate()).slice(-2);
+        let year = date.getFullYear().toString().substr(-2); // take the last 2 digit of the year
+
+        let hours = ('0' + date.getHours()).slice(-2);
+        let minutes = ('0' + date.getMinutes()).slice(-2);
+
+        let formattedDate = `${month}/${day}/${year} ${hours}:${minutes}`;
+        return formattedDate;
+    }
+
+    const handleRunWorkflow = (workflowDefinition: WorkflowDefinition) => {
+        handleNewConversation(
+            {
+                name: workflowDefinition.name + " @" +dateTimeString(),
+                messages: [],
+                workflowDefinition: workflowDefinition,
+                processors: [],
+                tools:[],
+            })
     };
 
     const handleDrop = (e: any) => {
@@ -105,6 +135,7 @@ const WorkflowDefinitionBar = () => {
                 handleCreateWorkflowDefinition,
                 handleDeleteWorkflowDefinition,
                 handleUpdateWorkflowDefinition,
+                handleRunWorkflow,
             }}
         >
             <Sidebar<WorkflowDefinition>

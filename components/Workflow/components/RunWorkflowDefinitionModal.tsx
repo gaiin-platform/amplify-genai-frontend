@@ -1,17 +1,19 @@
 import { FC, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
-import {WorkflowDefinition} from "@/types/workflow";
+import {Parameters, WorkflowDefinition} from "@/types/workflow";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import {CodeBlock} from "@/components/Markdown/CodeBlock";
 import {MemoizedReactMarkdown} from "@/components/Markdown/MemoizedReactMarkdown";
 import {IconEdit, IconDots} from "@tabler/icons-react";
+import {WorkflowRun} from "@/types/workflow";
+import { v4 as uuidv4 } from 'uuid';
 
 interface Props {
     workflowDefinition: WorkflowDefinition;
     onClose: () => void;
-    onUpdateWorkflowDefinition: (workflowDefinition: WorkflowDefinition) => void;
+    onRunWorkflow: (workflowRun: WorkflowRun) => void;
 }
 
 const Tag: FC<{tag: string}> = ({ tag }) => (
@@ -22,7 +24,17 @@ const Tag: FC<{tag: string}> = ({ tag }) => (
     </span>
 );
 
-export const WorkflowDefinitionModal: FC<Props> = ({ workflowDefinition, onClose, onUpdateWorkflowDefinition }) => {
+const toParametersMap = (parameters:Parameters) => {
+    return Object.entries(parameters)
+        .map(([name, param]) => ({name:name, value:param.defaultValue}))
+        .reduce((acc, val) => {
+        // @ts-ignore
+        acc[val.name] = val.value;
+        return acc;
+    });
+}
+
+export const RunWorkflowDefinitionModal: FC<Props> = ({ workflowDefinition, onClose, onRunWorkflow }) => {
     const { t } = useTranslation('workflowDefinitionbar');
     const [name, setName] = useState(workflowDefinition.name);
     const [prompt, setPrompt] = useState(workflowDefinition.generatingPrompt);
@@ -31,10 +43,19 @@ export const WorkflowDefinitionModal: FC<Props> = ({ workflowDefinition, onClose
     const [tags, setTags] = useState(workflowDefinition.tags);
     const [inputs, setInputs] = useState(JSON.stringify(workflowDefinition.inputs, null, 2));
     const [outputs, setOutputs] = useState(JSON.stringify(workflowDefinition.outputs, null, 2));
-
+    const [workflowInputs, setWorkflowInputs] = useState(toParametersMap(workflowDefinition?.inputs.parameters));
+    const [workflowRun, setWorkflowRun] = useState<WorkflowRun>({
+        id: uuidv4(),
+        workflowDefinition: workflowDefinition,
+        inputs: {
+            parameters: toParametersMap(workflowDefinition?.inputs.parameters),
+            documents: []
+        },
+        // Create a date/time string
+        startTime: new Date().toISOString(),
+    });
 
     const modalRef = useRef<HTMLDivElement>(null);
-
 
     useEffect(() => {
         const handleMouseDown = (e: MouseEvent) => {
@@ -61,23 +82,12 @@ export const WorkflowDefinitionModal: FC<Props> = ({ workflowDefinition, onClose
         }
     };
 
-    const handleSave = (e: { preventDefault: () => void; }) => {
+    const handleRun = (e: { preventDefault: () => void; }) => {
         e.preventDefault();
-
-        const updatedWorkflowDefinition = {
-            ...workflowDefinition,
-            name,
-            description,
-            code: code.trim(),
-            tags: tags.map(t => t.trim()),
-            inputs: workflowDefinition.inputs,
-            outputs: workflowDefinition.outputs,
-        };
-        onUpdateWorkflowDefinition(updatedWorkflowDefinition);
+        console.log("Run workflow", workflowRun);
+        onRunWorkflow(workflowRun);
         onClose();
     }
-
-    console.log("workflowDefinition", workflowDefinition);
 
     return (
         <div
@@ -107,33 +117,40 @@ export const WorkflowDefinitionModal: FC<Props> = ({ workflowDefinition, onClose
                         <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
                             Description
                         </div>
-                        <textarea
-                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                            value={description} onChange={e => setDescription(e.target.value)} />
-
                         <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
-                            Generating Prompt
+                            {description}
                         </div>
-                        <input
-                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                            value={name} onChange={(e)=>{}} />
-
-                        <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
-                            Tags
-                        </div>
-                        <input
-                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                            value={tags.join(', ')} onChange={e => setTags(e.target.value.split(',').map(tag => tag.trim()))} />
 
                         <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200 mb-4">
                             Inputs
                         </div>
                         {Object.entries(workflowDefinition.inputs.parameters).map(([name,param], idx) => (
-                            <div key={idx} className="flex items-center space-x-2 mb-3">
-                                <IconEdit className="text-sm" />
-                                <span className="text-md">{param.name}:</span>
-                                <span className="text-sm ml-2">{param.description}</span>
+                         <div key={idx}>
+                            <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
+                                {param.name}: <span className="text-sm ml-2">{param.description}</span>
                             </div>
+
+                            <div className="flex items-center text-black space-x-2 mb-3">
+                                <textarea
+                                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                    value={workflowRun.inputs.parameters[name]} onChange={e => {
+                                        setWorkflowRun(
+                                            {
+                                                ...workflowRun,
+                                                inputs: {
+                                                    ...workflowRun.inputs,
+                                                    parameters: {
+                                                        ...workflowRun.inputs.parameters,
+                                                        [name]: e.target.value
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    }}
+                                />
+                            </div>
+
+                         </div>
                         ))}
 
                         <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
@@ -142,72 +159,11 @@ export const WorkflowDefinitionModal: FC<Props> = ({ workflowDefinition, onClose
                         {workflowDefinition.inputs.documents.map((doc, idx) => (
                             <div key={idx} className="flex items-center space-x-2 mb-3">
                                 <IconDots className="text-lg" />
-                                <span className="text-lg">{doc.name}</span>
                                 <span className="text-lg">{doc.fileExtension}</span>
                                 <span className="text-sm ml-2">{doc.fileMimeType}</span>
                             </div>
                         ))}
 
-
-
-
-                    <MemoizedReactMarkdown
-                                className="mt-6 prose dark:prose-invert flex-1"
-                                remarkPlugins={[remarkGfm, remarkMath]}
-                                //rehypePlugins={[rehypeMathjax]}
-                                components={{
-                                    a({href, title, ...props}) {
-                                        return <a href={href}>Button</a>
-                                    },
-                                    code({ node, inline, className, children, ...props }) {
-                                        if (children.length) {
-                                            if (children[0] == '▍') {
-                                                return <span className="animate-pulse cursor-default mt-1">▍</span>
-                                            }
-
-                                            children[0] = (children[0] as string).replace("`▍`", "▍")
-                                        }
-
-                                        const match = /language-(\w+)/.exec(className || '');
-
-                                        return !inline ? (
-                                            <CodeBlock
-                                                key={Math.random()}
-                                                language={(match && match[1]) || ''}
-                                                value={String(children).replace(/\n$/, '')}
-                                                {...props}
-                                            />
-                                        ) : (
-                                            <code className={className} {...props}>
-                                                {children}
-                                            </code>
-                                        );
-                                    },
-                                    table({ children }) {
-                                        return (
-                                            <table className="border-collapse border border-black px-3 py-1 dark:border-white">
-                                                {children}
-                                            </table>
-                                        );
-                                    },
-                                    th({ children }) {
-                                        return (
-                                            <th className="break-words border border-black bg-gray-500 px-3 py-1 text-white dark:border-white">
-                                                {children}
-                                            </th>
-                                        );
-                                    },
-                                    td({ children }) {
-                                        return (
-                                            <td className="break-words border border-black px-3 py-1 dark:border-white">
-                                                {children}
-                                            </td>
-                                        );
-                                    },
-                                }}
-                            >
-                                {`${"```javascript\n"+code+"```"}`}
-                        </MemoizedReactMarkdown>
 
                         <div className="bottom-0 left-0 w-full px-4 py-3 shadow-md flex justify-end items-center space-x-4">
                         <button
@@ -230,9 +186,9 @@ export const WorkflowDefinitionModal: FC<Props> = ({ workflowDefinition, onClose
                         <button
                             type="button"
                             className="w-full px-4 ml-2 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                            onClick={handleSave}
+                            onClick={handleRun}
                         >
-                            {t('Save')}
+                            {t('Run')}
                         </button>
                     </div>
 

@@ -1,5 +1,26 @@
+import {AttachedDocument} from "@/types/attacheddocument";
+
+export interface InputsContext {
+    parameters: { [key: string]: any };
+    documents: AttachedDocument[];
+}
+
+export interface WorkflowContext {
+    inputs: InputsContext;
+}
+
+export interface WorkflowRun {
+    id: string;
+    workflowDefinition: WorkflowDefinition;
+    startTime: string;
+    inputs: {
+        parameters: { [key: string]: string };
+        documents: AttachedDocument[];
+    }
+}
 
 export interface InputDocument {
+    name: string;
     fileExtension: string;
     fileMimeType: string;
 }
@@ -11,8 +32,12 @@ export interface InputParameter {
     jsonSchema: string;
 }
 
+export interface Parameters {
+    [key: string]: InputParameter;
+}
+
 export interface Inputs {
-    parameters: InputParameter[],
+    parameters: Parameters,
     documents: InputDocument[]
 }
 

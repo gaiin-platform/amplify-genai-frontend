@@ -83,11 +83,10 @@ export const describeTools = (tools: { [s: string]: unknown; } | ArrayLike<unkno
         .map(([key, tool]) => { // @ts-ignore
             return key + ":" + tool.description;
         })
-        .join(", ")
-        .replaceAll("\n", "\\n");
+        .join(", ");
 }
 
-export const generateWorkflowPrompt = (task: string, tools: { [key: string]: { description: string } }, extraPromptInstructions?: string[], extraVarInstructions?:[]) => {
+export const generateWorkflowPrompt = (task: string, tools: { [key: string]: { description: string } }, extraPromptInstructions?: string[], extraVarInstructions?:string[]) => {
 
     const toolMsg = describeTools(tools);
     //Object.entries(tools)

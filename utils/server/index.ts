@@ -33,8 +33,9 @@ export const OpenAIStream = async (
   function_call?: string
 ) => {
 
-  if(functions && !function_call){
-    function_call = "auto";
+  let function_call_obj = null;
+  if(functions && function_call){
+    function_call_obj = {name: function_call};
   }
 
   let url = `${OPENAI_API_HOST}/v1/chat/completions`;
@@ -71,7 +72,7 @@ export const OpenAIStream = async (
       temperature: temperature,
       stream: true,
       ...(functions && {functions: functions}),
-      ...(function_call && {function_call: {name: function_call}}),
+      ...(function_call_obj && {function_call: function_call_obj}),
     }),
   });
 
@@ -98,6 +99,7 @@ export const OpenAIStream = async (
 
   let nameDone = false;
   let first = true;
+
   const fnCallHandler = (controller:any, json:any) => {
     const base = json.choices[0].delta.function_call
     let text = "";
@@ -117,6 +119,7 @@ export const OpenAIStream = async (
       text += (base.arguments) ? base.arguments : "";
     }
     if (json.choices[0].finish_reason != null) {
+
         text += "}";
 
         const queue = encoder.encode(text);

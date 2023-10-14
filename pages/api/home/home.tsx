@@ -47,7 +47,7 @@ import {useUser} from '@auth0/nextjs-auth0/client';
 import styled from "styled-components";
 import {Button} from "react-query/types/devtools/styledComponents";
 import WorkflowDefinitionBar from "@/components/Workflow/WorkflowDefinitionBar";
-import {InputType, OutputType, WorkflowDefinition} from "@/types/workflow";
+import {WorkflowDefinition, WorkflowRun} from "@/types/workflow";
 import {saveWorkflowDefinitions} from "@/utils/app/workflows";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
@@ -518,7 +518,6 @@ const Home = ({
         setPostProcessingCallbacks(prev => prev.filter(c => c !== callback));
     }, []);
 
-
     if (user) {
         return (
             <HomeContext.Provider
@@ -537,7 +536,7 @@ const Home = ({
                     removePreProcessingCallback,
                     addPostProcessingCallback,
                     removePostProcessingCallback,
-                    handleAddMessages
+                    handleAddMessages,
                 }}
             >
                 <Head>

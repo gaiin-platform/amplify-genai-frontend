@@ -2,7 +2,7 @@ import {ChatBody, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {sendChatRequest} from "@/services/chatService";
 import {findWorkflowPattern, generateWorkflowPrompt, describeTools} from "@/utils/workflow/aiflow";
 import {OpenAIModelID, OpenAIModels} from "@/types/openai";
-import {WorkflowDefinition} from "@/types/workflow";
+import {InputDocument, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
 import {describeAsJsonSchema, extractFirstCodeBlock, extractSection} from "@/utils/app/data";
 import {parameterizeTools as coreTools} from "@/utils/app/tools";
 import {AttachedDocument} from "@/types/attacheddocument";
@@ -35,7 +35,71 @@ interface ReusableDescription {
 const abortResult = {success: false, code: null, exec: null, uncleanCode: null, result: null};
 
 
-async function generateReusableFunctionDescription(promptLLMForJson:any, javascriptPersona: string, task: string, prompt: string):Promise<ReusableDescription|null> {
+const promptLLMSelectOne = async (promptUntil:any,  options: {[key:string]:string}, instructions?: string, rootPrompt?: string, model?: OpenAIModelID) => {
+
+    const prompt = (instructions)? instructions : `
+        Select the correct options answer the question. "${instructions}":
+                
+        Please choose from the following options:
+        ------------------ 
+        ${Object.entries(options).map(([option,description]) => {
+            return "\t\t" + option + ". " + description.replaceAll("\n", " ");
+        }).join("\n")}
+        ------------------
+        `;
+
+    const optionsKeys = Object.keys(options);
+
+    rootPrompt = (rootPrompt) ? rootPrompt : "You are ChatGPT, a large language model trained by OpenAI. " +
+        "Follow the user's instructions carefully. " +
+        "Respond using JSON. ";
+
+    //console.log("Select One Prompt:", prompt);
+
+    const selectFunction = "correctAnswer";
+    const selectedOptionsProperty = "answer";
+    const selectFunctions: CustomFunction[] = [
+        {
+            name: selectFunction,
+            description: "call this function to indicate the correct YES or NO answer to the question",
+            parameters: {
+                type: "object",
+                properties: {
+                    thought: {
+                        "type": "string",
+                        description: "Your thoughts on why this is the right answer",
+                    },
+                    [selectedOptionsProperty]: {
+                        "type": "string",
+                        "enum": optionsKeys,
+                        description: "the correct answer to the question",
+                    },
+                },
+                "required": ["thought",selectedOptionsProperty]
+            }
+        },
+    ];
+
+    //console.log("Select One Functions:", selectFunctions);
+
+    return promptUntil(rootPrompt, prompt,
+        (rslt:any) => {
+            let json = JSON.parse(rslt);
+            return json.arguments[selectedOptionsProperty];
+        },
+        (selectedOption:any) => selectedOption,
+        3,
+        // @ts-ignore
+        null,
+        null,
+        model || OpenAIModelID.GPT_3_5_FN,
+        selectFunctions,
+        selectFunction
+    );
+}
+
+
+async function generateReusableFunctionDescription(promptLLMForJson:any, promptUntil:any, javascriptPersona: string, task: string, prompt: string, context:WorkflowContext):Promise<ReusableDescription|null> {
 
     let reusableDescription = null;
 
@@ -76,18 +140,25 @@ async function generateReusableFunctionDescription(promptLLMForJson:any, javascr
         "required": ["functionName", "parameters", "functionDescription"]
     };
 
+    let documents = context.inputs.documents;
     let reuseParams = [];
     try {
-        const jsonFnCode = await promptLLMForJson(
-            javascriptPersona,
-            `Describe a reusable Javascript function to perform the task "${task}".
+
+        let fnPrompt = `Describe a reusable Javascript function to perform the task "${task}".
                 Think step by step what parameters in the task might change. Think about how to make
                 the function as reusable and useful as possible while not introducing too many
-                parameters.`,
+                parameters. IGNORE DOCUMENTS FOR NOW.`;
+
+        fnPrompt += (documents.length>0)? `There are ${documents.length} included with the request. Focus on other possible parameters.`
+            : "";
+
+        const jsonFnCode = await promptLLMForJson(
+            javascriptPersona,
+            fnPrompt,
             functionSchema,
         );
 
-        console.log("JSON Function:", jsonFnCode);
+        //console.log("JSON Function:", jsonFnCode);
 
         // Iterate through each of the paramaters in jsonFnCode
         for (let param of jsonFnCode.parameters) {
@@ -159,28 +230,81 @@ async function generateReusableFunctionDescription(promptLLMForJson:any, javascr
 
         }
 
+
+        let documentParams:string[] = [];
+        if (documents.length > 0) {
+            try {
+                //console.log("Prompting to determine if documents are snowflakes...");
+
+                //Don't correct the indentation!!!
+                const opts = await promptLLMSelectOne(
+                    promptUntil,
+                    {yes: "yes", no: "no"},
+                    `
+Workflow: Summarize
+Thought: The same thing is done to all documents
+DocumentsHandledDifferently: NO
+
+Workflow: Insert a summary of the first excel file into the second document
+Thought: The first document is handled differently than the second document
+DocumentsHandledDifferently: YES
+
+Workflow: Outline each of the attached documents and then concatenate the outlines together
+Thought: All of the documents are processed the same way
+DocumentsHandledDifferently: NO
+
+Workflow: Outline the first slides to create a structure for the report. Then, write the first two sections. Finally, summarize the second and third documents and insert them into the report. 
+Thought: The first document is processed differently than the second and third documents
+DocumentsHandledDifferently: YES
+
+Workflow:${task}
+Thought:`
+                );
+
+                console.log("Documents are snowflakes:", opts);
+
+                if (opts.toLowerCase() === "yes") {
+                    console.log("Summarizing documents...");
+                    documentParams = documents.map((doc: AttachedDocument) => {
+
+                        // Filter the document name to only preserve the characters
+                        // that are valid in a variable name
+                        let safeName = doc.name.replaceAll(/[^a-zA-Z0-9\_]/g, "");
+                        return `// ${doc.name} is a document attached to the request of type ${doc.type}
+                                let ${safeName} = fnlibs.getDocument("${doc.name}");`;
+                    });
+                }
+            }catch (e){
+                console.log("Error:", e);
+            }
+        }
+
+        let documentsStr = documentParams.join("\n");
+
         let paramStr = reuseParams.map((param) => {
             return `// ${param.description}
                     // ${param.usage}
-                    let ${param.name} = fnlibs.getParameter("${param.name}", ${JSON.stringify(param.defaultValue)})`;
+                        let ${param.name} =
+                        fnlibs.getParameter("${param.name}", ${JSON.stringify(param.defaultValue)})`;
         }).join("\n");
-        console.log("Param String:", paramStr);
+
 
         reusableDescription = {
             name: jsonFnCode.functionName,
             description: jsonFnCode.functionDescription,
             params: reuseParams,
-            paramInstructions: paramStr,
+            paramInstructions: documentsStr + paramStr,
         }
 
     } catch (e) {
         console.log(e);
     }
 
+    // @ts-ignore
     return reusableDescription;
 }
 
-export const executeJSWorkflow = async (apiKey: string, task: string, customTools: { [p: string]: AiTool }, stopper: Stopper, incrementalPromptResultCallback: (responseText: string) => void) => {
+export const executeJSWorkflow = async (apiKey: string, task: string, customTools: { [p: string]: AiTool }, stopper: Stopper, context:WorkflowContext, incrementalPromptResultCallback: (responseText: string) => void) => {
 
 
     const promptLLMFull = async (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
@@ -248,7 +372,10 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         return promptLLMFull(persona, prompt);
     }
 
+    console.log("Workflow Context:", context);
+
     const workflowGlobalParams = {
+        context: context,
         requestedParameters:{},
         requestedDocuments:[],
         apiKey: apiKey,
@@ -269,11 +396,6 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         },
 
         ...parameterizedTools,
-        // readXlsxFile: {
-        //     description:"(document.raw)=>Promise<[[row1col1,row1col2,...],[row2col1,row2col2...]...]>",
-        //     exec: readXlsxFile
-        // },
-        //log: { description:"(msgString):void", exec:(msgString: string) => console.log(msgString)},
         ...customTools,
     };
 
@@ -314,11 +436,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
                 const raw = await promptLLMFull(persona, prompt, (m) => {
                 }, model || OpenAIModelID.GPT_3_5, functions, function_call);
 
-                //console.log("Raw result:", raw);
-
                 cleaned = extract(raw || "");
-
-                //console.log("cleaned", cleaned);
 
                 const finalResult = check(cleaned);
                 if (finalResult) {
@@ -468,9 +586,6 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             "Follow the user's instructions carefully. " +
             "Respond using JSON. ";
 
-        console.log("Select Options Prompt:", prompt);
-
-
         return promptUntil(systemPrompt + persona, prompt,
             (rslt) => {
 
@@ -483,7 +598,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
                     [] :
                     options.filter((option, index) => selected(json).get(index) === true);
             },
-            (selectedOptions) => selectedOptions != null,
+            (selectedOptions) => selectedOptions,
             3,
             // @ts-ignore
             null,
@@ -493,82 +608,6 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             selectFunction
         );
     }
-
-
-    // const jsonFn = await promptLLMForJson(
-    //     "Act as an expert Javascript developer.",
-    //     "Write simple, concise code with no imports for the task:\n" +
-    //     "-----------------------------------------\n" +
-    //     task +
-    //     "-----------------------------------------\n" +
-    //     "The function interface should be:  const workflow = async (fnLibs) => { } " +
-    //     "Do not output any other code to call the function. Just output the function." +
-    //     "You should return a result from the function in the format {type:'text,table',data:<your output>}.",
-    //     {
-    //         "type": "object",
-    //         "properties": {
-    //             "functionInterface": {
-    //                 "type": "string",
-    //                 "description": "Javascript function interface specification"
-    //             },
-    //             "functionBody": {
-    //                 "type": "string",
-    //                 "description": "body of the javascript function MUST include the function interface and be written" +
-    //                     " so that the function can be called by invoking workflow(fnLibs)"
-    //             }
-    //         },
-    //         "required": ["functionInterface", "functionBody"]
-    //     },
-    //     (json) => {
-    //
-    //         try {
-    //             console.log("Checking generated fn...")
-    //
-    //             let context = {
-    //                 workflow: (fnlibs: {}): any => {
-    //                 },
-    //                 result:{}
-    //             };
-    //
-    //             let fnLibs = {};
-    //
-    //             const codeToEval = "" + json.arguments.json.functionBody + "\n\n context.result = workflow;";
-    //             console.log("Will eval:", codeToEval);
-    //
-    //             context.result(fnLibs).then((result: any) => {
-    //                 console.log("JSON Prompt Code Eval:",result);
-    //             });
-    //
-    //
-    //         }catch (e) {
-    //             console.log(e);
-    //         }
-    //
-    //         return json;
-    //     }
-    // );
-    //
-    // console.log("JSON Function:", jsonFn);
-
-    // const opts = await promptLLMSelectFromOptions(
-    //     "Act as an expert Javascript developer.",
-    //     `Which of the following tools are relevant for "${task}".`,
-    //     [{
-    //         id: "promptLLM", description: "ask the large language to perform reasoning, writing, " +
-    //             "summarizing, outlining, brainstorming, or natural language processing tasks " +
-    //             "(no tasks that could be performed faster by code"
-    //     },
-    //         {id: "encrypt", description: "encrypt a message"},
-    //         {id: "decrypt", description: "decrypt a message"},
-    //         {id: "log", description: "log a message"},
-    //     ]
-    // );
-    //
-    // console.log("Options:", opts);
-
-
-    //console.log("AI Tools:", aiSelectedTools);
-
 
     //Write simple, concise code that does not rely on any library functions.  The code must start with ```{{language}} and end with ```.  Write a {{language}} function {{Signature}} {{Input}} that returns {{Output}}
     // @ts-ignore
@@ -581,10 +620,6 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         "If there is a library that you wish you had been able to use, include a comment about that in" +
         "the code in the form '// @library-wish <name-of-npm-module>. Note, only client-side libraries are allowed.",
 
-        // @ts-ignore
-        (tools.getDocuments && tools.getDocuments.exec().length > 0) ?
-            "Before using a document, make sure and describe its structure and properties relevant to the task." +
-            "Then, think step-by-step how to use the document properties to accomplish the task." : "",
         "When you produce a result, produce it as a json object has the following format:" +
         "{type:'text,table,code',data:<your output>}. If you specify a table, you should make" +
         " the output an array of objects where each object is a row and the properties of the object " +
@@ -597,7 +632,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     }
     let prompt = generateWorkflowPrompt(task, tools, extraInstructions);
 
-    console.log("Code generation prompt:", prompt);
+    //console.log("Code generation prompt:", prompt);
 
 
     let success = false;
@@ -617,21 +652,39 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     1. You CAN but are NOT REQUIRED to prompt the LLM to perform tasks that require reasoning about text, writing text, outlining text,
        extracting or filtering information from text, etc. However, you don't use the LLM for basic string
        manipulation, such as combining or joining outputs, unless they need to be potentially converted into
-       another textual format. 
+       another textual format. If you pass a document to promptLLM, make sure that you only pass chunks that are less than 25,000 characters.
     2. If you are summarizing, outlining, filtering, extracting, etc. with text, make sure the prompt is designed
        to be totally factual and not include details that aren't in the original information.
     3. You can use any standard Javascript that you want, just don't access global state, the document, etc.
     4. You can define helper functions, but they must be defined inside of the workflow function.
     5. Prompt in parallel when possible.
     6. DO AS MUCH IN CODE AS POSSIBLE AND ONLY PROMPT the LLM if ABSOLUTELY REQUIRED FOR TEXT PROCESSING AND REASONING
+    7. YOU MUST START YOUR OUTPUT WITH THE FUNCTION DECLARATION
     `;
+
+    let availableDocuments = context.inputs.documents.map((doc: AttachedDocument) => {
+        let parts = doc.name.split(".");
+        let fileExtension = (parts && parts.length > 1) ? parts.pop() : "None";
+
+        return {
+            name: doc.name,
+            fileExtension: fileExtension,
+            fileType: doc.type,
+        };
+    });
+    let availableDocumentsByName = {};
+    availableDocuments.forEach((doc) => {
+        // @ts-ignore
+        availableDocumentsByName[doc.name] = doc;
+    });
 
     while (!success && tries > 0 && !stopper.shouldStop()) {
 
-        console.log("Prompting for the code for task: ", task);
-        const reuseDesc = await generateReusableFunctionDescription(promptLLMForJson, javascriptPersona, task, prompt);
+        // console.log("Prompting for the code for task: ", task);
+        const reuseDesc = await generateReusableFunctionDescription(promptLLMForJson, promptUntil, javascriptPersona, task, prompt, context);
 
-        prompt = generateWorkflowPrompt(task, tools, extraInstructions, [reuseDesc?.paramInstructions]);
+        const reuseInstructions = (reuseDesc) ? [reuseDesc?.paramInstructions] : [];
+        prompt = generateWorkflowPrompt(task, tools, extraInstructions, reuseInstructions);
 
         //console.log("PROMPT: ", task);
         //console.log(prompt);
@@ -663,8 +716,8 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         finalFn = null;
         fnResult = "";
 
-        console.log(cleanedFn);
-        console.log(cleanedFn);
+        //console.log(cleanedFn);
+        //console.log(cleanedFn);
         if (cleanedFn != null) {
 
             try {
@@ -684,44 +737,70 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
                     workflow: (fnlibs: {}): any => {
                     }
                 };
+
+                // If we reset, we need to make sure and reset the
+                // requested information from the workflow
+                workflowGlobalParams.requestedParameters = {};
+                workflowGlobalParams.requestedDocuments = [];
                 eval("context.workflow = " + cleanedFn);
 
-                console.log("workflow fn", context.workflow);
+                //console.log("workflow fn", context.workflow);
 
                 finalFn = context.workflow;
                 let result = await context.workflow(fnlibs);
 
-                console.log("Workflow Parameters:", workflowGlobalParams.requestedParameters);
-                console.log("Workflow Documents:", workflowGlobalParams.requestedDocuments);
+                //console.log("Workflow Parameters:", workflowGlobalParams.requestedParameters);
+                //console.log("Workflow Documents:", workflowGlobalParams.requestedDocuments);
 
-                console.log("Result:", result);
-                console.log("Will try again:", result == null);
+                //console.log("Result:", result);
+                //console.log("Will try again:", result == null);
                 fnResult = result;
                 success = result != null;
 
             } catch (e) {
                 console.log(e);
-                tools.tellUser.exec("I made a mistake, trying again...");
+                tools.tellUser.exec("I am going to fix some errors in the workflow...");
             }
 
             tries = tries - 1;
         }
 
         // Go through the requestedParameters and map each one to:
-        // {name, description, jsonSchema, defaultValue} using additional information from reusableDescription
+        // {name, description, jsonSchema, defaultValue, usage} using additional information from reusableDescription
+        Object.entries(workflowGlobalParams.requestedParameters).forEach(([key, value]) => {
+            if (reuseDesc) {
+                let param = reuseDesc.params.find((param) => param.name === key);
+                if (param) {
+                    Object.entries(param).forEach(([pkey, pvalue]) => {
+                        // @ts-ignore
+                        value[pkey] = pvalue;
+                    });
+                }
+            }
+        });
 
+        //Filter the list of context.inputs.documents to only include those that were requested
+        let allDocuments = workflowGlobalParams.requestedDocuments.find((docName) => docName === "*");
+        let documentInputs = (allDocuments) ? availableDocuments :
+            workflowGlobalParams.requestedDocuments.map((docName) => {
+                return availableDocumentsByName[docName];
+            });
 
         if (success) {
-            return {success: success,
+            let workflowResultData = {success: success,
                 reusableDescription: reuseDesc,
                 inputs: {
                     parameters: {...workflowGlobalParams.requestedParameters},
-                    documents: [...workflowGlobalParams.requestedDocuments],
+                    documents: [...documentInputs],
                 },
                 code: cleanedFn,
                 exec: finalFn,
                 uncleanCode: uncleanedCode,
                 result: fnResult};
+
+            console.log("Workflow Result Data:", workflowResultData);
+
+            return workflowResultData;
         }
     }
     return {success: false, inputs:{}, code: cleanedFn, exec: finalFn, uncleanCode: uncleanedCode, result: fnResult};
@@ -825,7 +904,7 @@ export function fillTemplate(template: string, context: Context): string {
 
         key.split('.').forEach((k: string | number) => {
 
-            console.log(k, JSON.stringify(value[k]));
+            //console.log(k, JSON.stringify(value[k]));
 
             if (value && value.hasOwnProperty(k)) {
                 value = value[k];
@@ -892,7 +971,7 @@ export const ops: { [opName: string]: OpRunner } = {
     map: async (op: Op, context: Context) => {
         let result = [];
 
-        console.log("Map", context[op.input]);
+        //console.log("Map", context[op.input]);
 
         for (const item of context[op.input]) {
 

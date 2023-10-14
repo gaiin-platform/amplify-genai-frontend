@@ -1,6 +1,7 @@
 import { OpenAIModel } from './openai';
 import {Prompt} from "@/types/prompt";
 import { v4 as uuidv4 } from 'uuid';
+import {WorkflowDefinition} from "@/types/workflow";
 
 export interface Message {
   role: Role;
@@ -91,4 +92,5 @@ export interface Conversation {
   temperature: number;
   folderId: string | null;
   promptTemplate: Prompt | null;
+  workflowDefinition?: WorkflowDefinition;
 }

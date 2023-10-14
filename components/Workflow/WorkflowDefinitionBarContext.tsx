@@ -2,7 +2,7 @@ import { Dispatch, createContext } from 'react';
 
 import { ActionType } from '@/hooks/useCreateReducer';
 
-import {WorkflowDefinition} from "@/types/workflow";
+import {WorkflowDefinition, WorkflowRun} from "@/types/workflow";
 import {WorkflowDefinitionBarInitialState} from "@/components/Workflow/WorkflowDefinitionBar.state";
 
 export interface WorkflowDefinitionBarContextProps {
@@ -11,6 +11,7 @@ export interface WorkflowDefinitionBarContextProps {
     handleCreateWorkflowDefinition: () => void;
     handleDeleteWorkflowDefinition: (workflowDefinition: WorkflowDefinition) => void;
     handleUpdateWorkflowDefinition: (workflowDefinition: WorkflowDefinition) => void;
+    handleRunWorkflow: (workflowRun: WorkflowDefinition) => void;
 }
 
 const WorkflowDefinitionBarContext = createContext<WorkflowDefinitionBarContextProps>(undefined!);

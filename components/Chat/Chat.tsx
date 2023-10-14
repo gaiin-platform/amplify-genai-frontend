@@ -53,7 +53,7 @@ import Workflow, {
 } from "@/utils/workflow/workflow";
 import {OpenAIModel} from "@/types/openai";
 import {Prompt} from "@/types/prompt";
-import {InputType} from "@/types/workflow";
+import {InputDocument, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {Key} from "@/components/Settings/Key";
 import {describeAsJsonSchema} from "@/utils/app/data";
@@ -441,6 +441,18 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }
 
+        const getWorkflowDefinitionVariables = (workflowDefinition:WorkflowDefinition) => {
+            let variables = Object.entries(workflowDefinition.inputs.parameters)
+                .map(([name, param]) => {
+                    return name;
+                });
+
+            let documentVariables = workflowDefinition.inputs.documents.map((doc) => {
+                return doc.name+" :file";
+            });
+
+            return [...documentVariables,...variables];
+        }
 
         const handleJsWorkflow = useCallback(async (message: Message, documents: AttachedDocument[] | null) => {
             if (selectedConversation) {
@@ -465,11 +477,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 await asyncSafeHandleAddMessages([message]);
 
-                console.log("message.data", message.data);
+                let inputTypes: InputDocument[] = [];
 
-                let inputTypes: InputType[] = [];
-
-                if (documents) {
+                if (documents && documents.length > 0) {
 
                     let docs = documents;
 
@@ -477,37 +487,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         return {name: doc.name, type: doc.type};
                     });
 
-                    console.log("Message documents", docs);
-
-                    let documentsSchema = docs.map((doc) => {
-                        // Describe as json schema and then remove line breaks.
-                        return describeAsJsonSchema(doc.data);
-                    });
-
-                    let documentsDescription = JSON.stringify(documentsSchema).replaceAll("\n", " ");
-
-                    inputTypes = docs.map((doc) => {
-                        let ext = doc.name.split('.').pop() || "none";
-                        let input: InputType = {fileExtension: ext, fileMimeType: doc.type};
-                        return input;
-                    })
-
-                    // @ts-ignore
-                    tools["getDocuments"] = {
-
-                        description: "():[{name:string,raw:string},...]// returns an array of objects with name and raw properties." +
-                            " The raw property is a string representation of the document.",
-                        exec: () => {
-                            return docs;
-                        }
-                    };
-
                     await telluser(`Using documents: \n\n${formatter({type: 'table', data: documentsTypes})}`)
-
                 }
 
                 message.data.inputTypes = inputTypes;
-
 
                 let canceled = false;
                 const controller = new AbortController();
@@ -524,11 +507,18 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 await homeDispatch({field: 'loading', value: true});
                 await homeDispatch({field: 'messageIsStreaming', value: true});
 
+                console.log("Chat handleJSW Documents", documents);
+
+                const context:WorkflowContext = {
+                    inputs: {
+                        documents: documents || [],
+                        parameters: {},
+                    }
+                }
+
                 // @ts-ignore
-                executeJSWorkflow(apiKey, message.content, tools, stopper, (responseText) => {
-                    //if (responseText.trim().startsWith("const")) {
+                executeJSWorkflow(apiKey, message.content, tools, stopper, context, (responseText) => {
                     responseText = "```javascript\n" + responseText;
-                    //}
 
                     updateCurrentMessage(responseText, {workflow: workflowId, type: "workflow:code"});
                 }).then((result) => {
@@ -756,9 +746,18 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, [selectedConversation, throttledScrollDown]);
 
         useEffect(() => {
+
             if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
                 //alert("Prompt Template");
                 setVariables(parsePromptVariables(selectedConversation.promptTemplate.content))
+                setIsPromptTemplateDialogVisible(true);
+            }
+            else if (selectedConversation && selectedConversation.workflowDefinition && selectedConversation.messages.length == 0) {
+                //alert("Prompt Template");
+                const workflowVariables = Object.entries(selectedConversation.workflowDefinition.inputs.parameters)
+                    .map(([k, v]) => k);
+
+                setVariables(workflowVariables);
                 setIsPromptTemplateDialogVisible(true);
             }
         }, [selectedConversation]);
@@ -888,6 +887,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     <VariableModal
                                                         prompt={(selectedConversation.promptTemplate)}
                                                         variables={parsePromptVariables(selectedConversation?.promptTemplate.content)}
+                                                        onSubmit={handleSubmit}
+                                                        onClose={() => setIsPromptTemplateDialogVisible(false)}
+                                                    />
+                                                )}
+                                                {isPromptTemplateDialogVisible && selectedConversation.workflowDefinition && (
+                                                    <VariableModal
+                                                        workflowDefinition={selectedConversation.workflowDefinition}
+                                                        variables={getWorkflowDefinitionVariables(selectedConversation.workflowDefinition)}
                                                         onSubmit={handleSubmit}
                                                         onClose={() => setIsPromptTemplateDialogVisible(false)}
                                                     />
