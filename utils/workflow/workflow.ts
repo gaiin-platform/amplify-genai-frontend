@@ -379,6 +379,38 @@ async function executeWorkflow(tools: { [p: string]: AiTool }, code: string) {
     return {success, result, javascriptFn};
 }
 
+function createWorkflowParams(context: WorkflowContext, apiKey: string, stopper: Stopper) {
+    const workflowGlobalParams = {
+        context: context,
+        requestedParameters: {},
+        requestedDocuments: [],
+        apiKey: apiKey,
+        stopper: stopper
+    }
+    return workflowGlobalParams;
+}
+
+function createWorkflowTools(workflowGlobalParams: { requestedDocuments: any[]; requestedParameters: {}; apiKey: string; stopper: Stopper; context: WorkflowContext }, promptLLM: (persona: string, prompt: string) => Promise<null | string>, customTools: { [p: string]: AiTool }) {
+    const parameterizedTools = coreTools(workflowGlobalParams);
+
+    const tools: { [name: string]: AiTool } = {
+        promptLLM: {
+            description: "async (personaString,promptString):Promise<String> //persona should be an empty string, promptString must include detailed instructions for the " +
+                "LLM and any data that the prompt operates on as a string and MUST NOT EXCEED 25,000 characters.",
+            exec: promptLLM
+        },
+
+        tellUser: {
+            description: "(msg:string)//output a message to the user",
+            exec: (msg: string) => console.log(msg),
+        },
+
+        ...parameterizedTools,
+        ...customTools,
+    };
+    return tools;
+}
+
 export const executeJSWorkflow = async (apiKey: string, task: string, customTools: { [p: string]: AiTool }, stopper: Stopper, context:WorkflowContext, incrementalPromptResultCallback: (responseText: string) => void) => {
 
 
@@ -449,30 +481,8 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
 
     console.log("Workflow Context:", context);
 
-    const workflowGlobalParams = {
-        context: context,
-        requestedParameters:{},
-        requestedDocuments:[],
-        apiKey: apiKey,
-        stopper: stopper}
-
-    const parameterizedTools = coreTools(workflowGlobalParams);
-
-    const tools: { [name: string]: AiTool } = {
-        promptLLM: {
-            description: "async (personaString,promptString):Promise<String> //persona should be an empty string, promptString must include detailed instructions for the " +
-                "LLM and any data that the prompt operates on as a string and MUST NOT EXCEED 25,000 characters.",
-            exec: promptLLM
-        },
-
-        tellUser: {
-            description: "(msg:string)//output a message to the user",
-            exec: (msg: string) => console.log(msg),
-        },
-
-        ...parameterizedTools,
-        ...customTools,
-    };
+    const workflowGlobalParams = createWorkflowParams(context, apiKey, stopper);
+    const tools = createWorkflowTools(workflowGlobalParams, promptLLM, customTools);
 
     function extractCodeBlocks(str: string) {
         const pattern = /```(\w*)\n([^`]*?)```/gms;
