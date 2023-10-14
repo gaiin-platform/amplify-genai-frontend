@@ -628,7 +628,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }
 
-        const handleSubmit = (model:OpenAIModel, updatedVariables: string[], documents: AttachedDocument[] | null) => {
+        const handleSubmit = (updatedVariables: string[], documents: AttachedDocument[] | null) => {
 
 
             let template = selectedConversation?.promptTemplate?.content;
@@ -873,6 +873,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 <ModelSelect/>
 
                                                 <SystemPrompt
+                                                    models={models}
+                                                    handleUpdateModel={handleUpdateModel}
                                                     conversation={selectedConversation}
                                                     prompts={prompts}
                                                     onChangePrompt={(prompt) =>
@@ -983,6 +985,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         </div>
 
                         <ChatInput
+                            handleUpdateModel={handleUpdateModel}
                             stopConversationRef={stopConversationRef}
                             textareaRef={textareaRef}
                             onSend={(message, plugin, documents: AttachedDocument[] | null) => {

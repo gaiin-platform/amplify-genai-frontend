@@ -16,17 +16,22 @@ import { Prompt } from '@/types/prompt';
 
 import { PromptList } from './PromptList';
 import { VariableModal } from './VariableModal';
+import {OpenAIModel} from "@/types/openai";
 
 interface Props {
+  models: OpenAIModel[];
   conversation: Conversation;
   prompts: Prompt[];
   onChangePrompt: (prompt: string) => void;
+  handleUpdateModel: (model: OpenAIModel) => void;
 }
 
 export const SystemPrompt: FC<Props> = ({
   conversation,
   prompts,
   onChangePrompt,
+    models,
+    handleUpdateModel
 }) => {
   const { t } = useTranslation('chat');
 
@@ -232,6 +237,8 @@ export const SystemPrompt: FC<Props> = ({
 
       {isModalVisible && (
         <VariableModal
+            models={models}
+            handleUpdateModel={handleUpdateModel}
           prompt={prompts[activePromptIndex]}
           variables={variables}
           onSubmit={handleSubmit}

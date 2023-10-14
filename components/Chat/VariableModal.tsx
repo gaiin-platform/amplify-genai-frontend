@@ -12,7 +12,7 @@ interface Props {
     workflowDefinition?: WorkflowDefinition;
     variables: string[];
     handleUpdateModel: (model: OpenAIModel) => void;
-    onSubmit: (model:OpenAIModel, updatedVariables: string[], documents: AttachedDocument[] | null) => void;
+    onSubmit: (updatedVariables: string[], documents: AttachedDocument[] | null) => void;
     onClose: () => void;
 }
 
@@ -118,7 +118,7 @@ export const VariableModal: FC<Props> = ({
         console.log("justVariables", justVariables);
         console.log("justDocuments", documents);
 
-        onSubmit(selectedModel, justVariables, documents);
+        onSubmit(justVariables, documents);
         onClose();
     };
 

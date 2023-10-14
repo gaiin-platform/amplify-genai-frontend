@@ -144,12 +144,87 @@ async function generateReusableFunctionDescription(promptLLMForJson:any, promptU
     let reuseParams = [];
     try {
 
-        let fnPrompt = `Describe a reusable Javascript function to perform the task "${task}".
-                Think step by step what parameters in the task might change. Think about how to make
-                the function as reusable and useful as possible while not introducing too many
-                parameters. IGNORE DOCUMENTS FOR NOW.`;
+        let documentParams:string[] = [];
+        if (documents.length > 0) {
+            try {
+                //console.log("Prompting to determine if documents are snowflakes...");
 
-        fnPrompt += (documents.length>0)? `There are ${documents.length} included with the request. Focus on other possible parameters.`
+                //Don't correct the indentation!!!
+                const opts = await promptLLMSelectOne(
+                    promptUntil,
+                    {yes: "yes", no: "no"},
+                    `
+Workflow: Summarize
+Thought: The same thing is done to all documents
+DocumentsHandledDifferently: NO
+
+Workflow: Insert a summary of the first excel file into the second document
+Thought: The first document is handled differently than the second document
+DocumentsHandledDifferently: YES
+
+Workflow: Outline each of the attached documents and then concatenate the outlines together
+Thought: All of the documents are processed the same way
+DocumentsHandledDifferently: NO
+
+Workflow: Outline the first slides to create a structure for the report. Then, write the first two sections. Finally, summarize the second and third documents and insert them into the report. 
+Thought: The first document is processed differently than the second and third documents
+DocumentsHandledDifferently: YES
+
+Workflow:${task}
+Thought:`
+                );
+
+                console.log("Documents are snowflakes:", opts);
+
+                if (opts.toLowerCase() === "yes") {
+                    console.log("Summarizing documents...");
+                    documentParams = documents.map((doc: AttachedDocument) => {
+
+                        // Filter the document name to only preserve the characters
+                        // that are valid in a variable name
+                        let safeName = doc.name.replaceAll(/[^a-zA-Z0-9\_]/g, "");
+                        return `// ${doc.name} is a document attached to the request of type ${doc.type}
+                                let ${safeName}String = fnlibs.getDocument("${doc.name}").raw;`;
+                    });
+                } else if(documents.length > 0){
+                    documentParams = [
+                      `
+                      // Get all of the documents needed.
+                      let documents = fnlibs.getDocuments(); 
+                      `
+                    ];
+                }
+                else {
+                    documentParams = [
+                        `
+                      // Get the document to process as a string
+                      let documentToProcessString = fnlibs.getDocuments()[0].raw; 
+                      `
+                    ];
+                }
+            }catch (e){
+                console.log("Error:", e);
+            }
+        }
+
+        let documentsStr = documentParams.join("\n");
+
+        let fnPrompt = `Describe a reusable Javascript function to perform the task "${task}".
+                Think step by step what parameters, other than documents, might change. 
+                You should NOT create parameters for document paths, document contents, etc.
+                Think about how to make
+                the function as reusable and useful as possible while not introducing too many
+                parameters. Don't go crazy with parameters, just a couple is enough.
+                
+                IGNORE DOCUMENTS FOR NOW.`;
+
+        fnPrompt += (documents.length>0)? `There are ${documents.length} included with the request. 
+        Focus on other possible parameters. All documents are already provided and you should not
+        create parameters for them.
+        
+        The function will already include the following code:
+        ${documentsStr}
+        `
             : "";
 
         const jsonFnCode = await promptLLMForJson(
@@ -231,56 +306,6 @@ async function generateReusableFunctionDescription(promptLLMForJson:any, promptU
         }
 
 
-        let documentParams:string[] = [];
-        if (documents.length > 0) {
-            try {
-                //console.log("Prompting to determine if documents are snowflakes...");
-
-                //Don't correct the indentation!!!
-                const opts = await promptLLMSelectOne(
-                    promptUntil,
-                    {yes: "yes", no: "no"},
-                    `
-Workflow: Summarize
-Thought: The same thing is done to all documents
-DocumentsHandledDifferently: NO
-
-Workflow: Insert a summary of the first excel file into the second document
-Thought: The first document is handled differently than the second document
-DocumentsHandledDifferently: YES
-
-Workflow: Outline each of the attached documents and then concatenate the outlines together
-Thought: All of the documents are processed the same way
-DocumentsHandledDifferently: NO
-
-Workflow: Outline the first slides to create a structure for the report. Then, write the first two sections. Finally, summarize the second and third documents and insert them into the report. 
-Thought: The first document is processed differently than the second and third documents
-DocumentsHandledDifferently: YES
-
-Workflow:${task}
-Thought:`
-                );
-
-                console.log("Documents are snowflakes:", opts);
-
-                if (opts.toLowerCase() === "yes") {
-                    console.log("Summarizing documents...");
-                    documentParams = documents.map((doc: AttachedDocument) => {
-
-                        // Filter the document name to only preserve the characters
-                        // that are valid in a variable name
-                        let safeName = doc.name.replaceAll(/[^a-zA-Z0-9\_]/g, "");
-                        return `// ${doc.name} is a document attached to the request of type ${doc.type}
-                                let ${safeName} = fnlibs.getDocument("${doc.name}");`;
-                    });
-                }
-            }catch (e){
-                console.log("Error:", e);
-            }
-        }
-
-        let documentsStr = documentParams.join("\n");
-
         let paramStr = reuseParams.map((param) => {
             return `// ${param.description}
                     // ${param.usage}
@@ -302,6 +327,55 @@ Thought:`
 
     // @ts-ignore
     return reusableDescription;
+}
+
+async function executeWorkflow(tools: { [p: string]: AiTool }, workflowGlobalParams: { requestedDocuments: any[]; requestedParameters: {}; apiKey: string; stopper: Stopper; context: WorkflowContext }, code: string) {
+    let javascriptFn = null;
+    let success = false;
+    let result = null;
+
+    try {
+
+        const fnlibs = {}
+        Object.entries(tools).forEach(([key, tool]) => {
+            // @ts-ignore
+            fnlibs[key] = tool.exec;
+        })
+
+        // if (stopper.shouldStop()) {
+        //     return abortResult;
+        // }
+
+        tools.tellUser.exec("Running the workflow...");
+        let context = {
+            workflow: (fnlibs: {}): any => {
+            }
+        };
+
+        // If we reset, we need to make sure and reset the
+        // requested information from the workflow
+        workflowGlobalParams.requestedParameters = {};
+        workflowGlobalParams.requestedDocuments = [];
+        eval("context.workflow = " + code);
+
+        //console.log("workflow fn", context.workflow);
+
+        javascriptFn = context.workflow;
+        result = await context.workflow(fnlibs);
+
+        //console.log("Workflow Parameters:", workflowGlobalParams.requestedParameters);
+        //console.log("Workflow Documents:", workflowGlobalParams.requestedDocuments);
+
+        //console.log("Result:", result);
+        //console.log("Will try again:", result == null);
+
+        success = result != null;
+
+    } catch (e) {
+        console.log(e);
+        tools.tellUser.exec("I am going to fix some errors in the workflow...");
+    }
+    return {success, result, javascriptFn};
 }
 
 export const executeJSWorkflow = async (apiKey: string, task: string, customTools: { [p: string]: AiTool }, stopper: Stopper, context:WorkflowContext, incrementalPromptResultCallback: (responseText: string) => void) => {
@@ -720,47 +794,15 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         //console.log(cleanedFn);
         if (cleanedFn != null) {
 
-            try {
-
-                const fnlibs = {}
-                Object.entries(tools).forEach(([key, tool]) => {
-                    // @ts-ignore
-                    fnlibs[key] = tool.exec;
-                })
-
-                if (stopper.shouldStop()) {
-                    return abortResult;
-                }
-
-                tools.tellUser.exec("Running the workflow...");
-                let context = {
-                    workflow: (fnlibs: {}): any => {
-                    }
-                };
-
-                // If we reset, we need to make sure and reset the
-                // requested information from the workflow
-                workflowGlobalParams.requestedParameters = {};
-                workflowGlobalParams.requestedDocuments = [];
-                eval("context.workflow = " + cleanedFn);
-
-                //console.log("workflow fn", context.workflow);
-
-                finalFn = context.workflow;
-                let result = await context.workflow(fnlibs);
-
-                //console.log("Workflow Parameters:", workflowGlobalParams.requestedParameters);
-                //console.log("Workflow Documents:", workflowGlobalParams.requestedDocuments);
-
-                //console.log("Result:", result);
-                //console.log("Will try again:", result == null);
-                fnResult = result;
-                success = result != null;
-
-            } catch (e) {
-                console.log(e);
-                tools.tellUser.exec("I am going to fix some errors in the workflow...");
+            if(stopper.shouldStop()){
+                return abortResult;
             }
+            const __ret = await executeWorkflow(tools, workflowGlobalParams, cleanedFn);
+
+            finalFn = __ret.javascriptFn;
+            // @ts-ignore
+            fnResult = __ret.result;
+            success = __ret.success;
 
             tries = tries - 1;
         }

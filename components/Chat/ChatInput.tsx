@@ -32,10 +32,12 @@ import { PluginSelect } from './PluginSelect';
 import { PromptList } from './PromptList';
 import { VariableModal } from './VariableModal';
 import {Import} from "@/components/Settings/Import";
+import {OpenAIModel} from "@/types/openai";
 
 interface Props {
   onSend: (message: Message, plugin: Plugin | null, documents:AttachedDocument[]) => void;
   onRegenerate: () => void;
+  handleUpdateModel: (model: OpenAIModel) => void;
   onScrollDownClick: () => void;
   stopConversationRef: MutableRefObject<boolean>;
   textareaRef: MutableRefObject<HTMLTextAreaElement | null>;
@@ -48,12 +50,13 @@ export const ChatInput = ({
   onScrollDownClick,
   stopConversationRef,
   textareaRef,
+  handleUpdateModel,
   showScrollDownButton,
 }: Props) => {
   const { t } = useTranslation('chat');
 
   const {
-    state: { selectedConversation, messageIsStreaming, prompts },
+    state: { selectedConversation, messageIsStreaming, prompts, models},
 
     dispatch: homeDispatch,
   } = useContext(HomeContext);
@@ -423,6 +426,8 @@ export const ChatInput = ({
 
           {isModalVisible && (
             <VariableModal
+                models={models}
+                handleUpdateModel={handleUpdateModel}
               prompt={filteredPrompts[activePromptIndex]}
               variables={variables}
               onSubmit={handleSubmit}
