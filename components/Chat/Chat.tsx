@@ -628,7 +628,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }
 
-        const handleSubmit = (updatedVariables: string[], documents: AttachedDocument[] | null) => {
+        const handleSubmit = (model:OpenAIModel, updatedVariables: string[], documents: AttachedDocument[] | null) => {
+
 
             let template = selectedConversation?.promptTemplate?.content;
 
@@ -673,6 +674,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
 
         };
+
+        const handleUpdateModel = useCallback((model:OpenAIModel)=>{
+            if(selectedConversation) {
+                handleUpdateConversation(selectedConversation, {
+                    key: 'model',
+                    value: model,
+                });
+            }
+        },[selectedConversation]);
 
         const handleApiKeyChange = useCallback(
             (apiKey: string) => {
@@ -885,6 +895,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                                 {isPromptTemplateDialogVisible && selectedConversation.promptTemplate && (
                                                     <VariableModal
+                                                        models={models}
+                                                        handleUpdateModel={handleUpdateModel}
                                                         prompt={(selectedConversation.promptTemplate)}
                                                         variables={parsePromptVariables(selectedConversation?.promptTemplate.content)}
                                                         onSubmit={handleSubmit}
@@ -893,6 +905,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 )}
                                                 {isPromptTemplateDialogVisible && selectedConversation.workflowDefinition && (
                                                     <VariableModal
+                                                        models={models}
+                                                        handleUpdateModel={handleUpdateModel}
                                                         workflowDefinition={selectedConversation.workflowDefinition}
                                                         variables={getWorkflowDefinitionVariables(selectedConversation.workflowDefinition)}
                                                         onSubmit={handleSubmit}

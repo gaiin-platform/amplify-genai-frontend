@@ -4,12 +4,15 @@ import {Prompt} from '@/types/prompt';
 import {AttachFile} from "@/components/Chat/AttachFile";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {WorkflowDefinition} from "@/types/workflow";
+import {OpenAIModelID, OpenAIModel} from "@/types/openai";
 
 interface Props {
+    models: OpenAIModel[];
     prompt?: Prompt;
     workflowDefinition?: WorkflowDefinition;
     variables: string[];
-    onSubmit: (updatedVariables: string[], documents: AttachedDocument[] | null) => void;
+    handleUpdateModel: (model: OpenAIModel) => void;
+    onSubmit: (model:OpenAIModel, updatedVariables: string[], documents: AttachedDocument[] | null) => void;
     onClose: () => void;
 }
 
@@ -47,12 +50,17 @@ export const parseVariableName = (variable: string) => {
 }
 
 export const VariableModal: FC<Props> = ({
+                                             models,
+                                             handleUpdateModel,
                                              prompt,
                                              workflowDefinition,
                                              variables,
                                              onSubmit,
                                              onClose,
                                          }) => {
+
+    // @ts-ignore
+    const [selectedModel, setSelectedModel] = useState<OpenAIModel>((models.length>0)? models[0] : null);
     const [updatedVariables, setUpdatedVariables] = useState<{ key: string; value: any }[]>(
         variables
             .map((variable) => {
@@ -84,6 +92,14 @@ export const VariableModal: FC<Props> = ({
         });
     };
 
+    const handleModelChange = (modelId: string) => {
+        const model = models.find((m) => m.id === modelId);
+        if (model) {
+            setSelectedModel(model);
+            handleUpdateModel(model);
+        }
+    }
+
     const handleSubmit = () => {
         if (updatedVariables.some((variable) => variable.value === '')) {
             alert('Please fill out all variables');
@@ -102,7 +118,7 @@ export const VariableModal: FC<Props> = ({
         console.log("justVariables", justVariables);
         console.log("justDocuments", documents);
 
-        onSubmit(justVariables, documents);
+        onSubmit(selectedModel, justVariables, documents);
         onClose();
     };
 
@@ -228,8 +244,29 @@ export const VariableModal: FC<Props> = ({
                                 </select>
                             </div>
                         )}
+
                     </div>
                 ))}
+
+                <div className="mb-2 text-sm font-bold text-neutral-200">
+                    Model
+                </div>
+
+                {models && (
+                    <div className="flex items-center">
+                        <select
+                            className="rounded border-gray-300 text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
+                            value={selectedModel.id}
+                            onChange={(e) => handleModelChange(e.target.value)}
+                        >
+                            {models.map((model) => (
+                                <option key={model.id} value={model.id}>
+                                    {model.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
 
                 <button
                     className="mt-6 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
