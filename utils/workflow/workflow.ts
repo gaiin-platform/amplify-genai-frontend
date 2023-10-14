@@ -235,6 +235,9 @@ Thought:`
 
         //console.log("JSON Function:", jsonFnCode);
 
+        // Hack for now to skip this since it needs work
+        jsonFnCode.parameters = [];
+
         // Iterate through each of the paramaters in jsonFnCode
         for (let param of jsonFnCode.parameters) {
             // If the parameter is a string, prompt the user for a string

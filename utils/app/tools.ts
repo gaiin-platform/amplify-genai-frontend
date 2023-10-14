@@ -333,15 +333,16 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
     };
 
     return {
-        getParameter: {
-            description: "(name:string, defaultValue:any)=>any Get a parameter from the workflow settings. You should" +
-                " call this for each important variable in the workflow that may need changing for reuse.",
-            exec: (name: string, defaultValue: any) => {
-                console.log("getParameter", name, defaultValue);
-                requestedParameters[name] = {defaultValue: defaultValue};
-                return defaultValue;
-            }
-        },
+        // This creates reliability issues, so we are cutting it for now.
+        // getParameter: {
+        //     description: "(name:string, defaultValue:any)=>any Get a parameter from the workflow settings. You should" +
+        //         " call this for each important variable in the workflow that may need changing for reuse.",
+        //     exec: (name: string, defaultValue: any) => {
+        //         console.log("getParameter", name, defaultValue);
+        //         requestedParameters[name] = {defaultValue: defaultValue};
+        //         return defaultValue;
+        //     }
+        // },
         promptLLMForJson: {
             description: "(persona: string, prompt: string, desiredSchema: JsonSchema)=>Promise<any> Prompt the LLM to generate JSON that matches a specified schema." +
                 " This is useful for generating JSON for APIs, databases, or other systems that require a specific JSON schema.",
