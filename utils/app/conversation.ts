@@ -22,10 +22,17 @@ export const updateConversation = (
 };
 
 export const saveConversation = (conversation: Conversation) => {
-
-  localStorage.setItem('selectedConversation', JSON.stringify(conversation));
+  try {
+    localStorage.setItem('selectedConversation', JSON.stringify(conversation));
+  } catch (error) {
+    alert("You have exceeded your available storage space for conversations. Please delete some converations before continuing. You can export your current conversations before deleting them.");
+  }
 };
 
 export const saveConversations = (conversations: Conversation[]) => {
-  localStorage.setItem('conversationHistory', JSON.stringify(conversations));
+  try {
+    localStorage.setItem('conversationHistory', JSON.stringify(conversations));
+  } catch (error) {
+    alert("You have exceeded your available storage space for conversations. Please delete some converations before continuing. You can export your current conversations before deleting them.");
+  }
 };

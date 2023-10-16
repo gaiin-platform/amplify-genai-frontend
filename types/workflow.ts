@@ -1,5 +1,11 @@
 import {AttachedDocument} from "@/types/attacheddocument";
 
+export interface Status {
+    summary:string;
+    message:string;
+    type:string
+}
+
 export interface InputsContext {
     parameters: { [key: string]: any };
     documents: AttachedDocument[];

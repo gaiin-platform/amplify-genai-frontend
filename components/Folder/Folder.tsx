@@ -39,6 +39,7 @@ const Folder = ({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const handleEnterDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {
@@ -93,7 +94,10 @@ const Folder = ({
 
   return (
     <>
-      <div className="relative flex items-center">
+      <div className="relative flex items-center"
+           onMouseEnter={() => setIsHovered(true)}
+           onMouseLeave={() => setIsHovered(false)}
+      >
         {isRenaming ? (
           <div className="flex w-full items-center gap-3 bg-[#343541]/90 p-3">
             {isOpen ? (
@@ -161,7 +165,7 @@ const Folder = ({
           </div>
         )}
 
-        {!isDeleting && !isRenaming && (
+        {!isDeleting && !isRenaming && isHovered && (
           <div className="absolute right-1 z-10 flex text-gray-300">
             <SidebarActionButton
               handleClick={(e) => {

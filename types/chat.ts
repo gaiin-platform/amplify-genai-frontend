@@ -11,11 +11,16 @@ export interface Message {
   data: any | undefined;
 }
 
+export enum MessageType {
+  PROMPT = 'prompt',
+  AUTOMATION = 'automation',
+}
+
 export const newMessage = (data: any) => {
   return {
     role: "user",
     content: "",
-    type: "chat",
+    type: MessageType.PROMPT,
     data: {},
     ...data,
     id: uuidv4(),

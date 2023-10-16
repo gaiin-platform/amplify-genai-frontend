@@ -19,6 +19,7 @@ import PromptbarContext from './PromptBar.context';
 import { PromptbarInitialState, initialState } from './Promptbar.state';
 
 import { v4 as uuidv4 } from 'uuid';
+import {MessageType} from "@/types/chat";
 
 const Promptbar = () => {
   const { t } = useTranslation('promptbar');
@@ -52,7 +53,7 @@ const Promptbar = () => {
         content: '',
         model: OpenAIModels[defaultModelId],
         folderId: null,
-        type: "prompt"
+        type: MessageType.PROMPT
       };
 
       const updatedPrompts = [...prompts, newPrompt];

@@ -133,7 +133,7 @@ const promptUntil = async (
 }
 
 
-export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Promise<string>, stopper:Stopper, prompts: Prompt[], maxConcurrency: number) => {
+export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Promise<string>, stopper:Stopper, statusLogger:any, prompts: Prompt[], maxConcurrency: number) => {
     return new Promise((resolve, reject) => {
 
         if(prompts.length == 1){
@@ -185,6 +185,8 @@ export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Prom
                 console.log(`Executing prompt ${currentIndex} / ${prompts.length}`);
                 // Execute the promptLLM function and store the result in the correct index.
 
+               statusLogger({summary: `Prompting ${currentIndex} / ${prompts.length}...`, message: prompt, type: "info"});
+
                 if(stopper.shouldStop()){
                     reject("Interrupted");
                     return;
@@ -193,6 +195,7 @@ export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Prom
                 const result = await promptLLM(currentPrompt.rootPrompt || "", currentPrompt.prompt);
 
                 console.log(`Finished prompt ${currentIndex} / ${prompts.length}`);
+                statusLogger({summary: `Finished ${currentIndex} / ${prompts.length}...`, message: prompt, type: "info"});
                 // @ts-ignore
                 results[currentPrompt.index] = result;
 
@@ -247,6 +250,78 @@ const jsonFunctions: CustomFunction[] = [
     },
 ];
 
+const balanceBrackets = (inputString:string) => {
+
+    let bracketsStack = 0;
+    let inString = false;
+    let stringChar = '';
+    let prevChar = '';
+    let currChar = '';
+    let stringStart = 0;
+
+    for (let i = 0; i < inputString.length; i++) {
+        prevChar = currChar;
+        currChar = inputString[i];
+
+        if (inString) {
+            // Check for a closing quote, ensuring it's not escaped
+            if (currChar === stringChar && prevChar !== '\\') {
+                // Found the closing quote
+                inString = false;
+            }
+        } else {
+            // Check for an opening quote
+            if (currChar === '"' || currChar === "'" || currChar === "`") {
+                stringStart = i;
+                inString = true;
+                stringChar = currChar;
+            } else if (currChar === '{') {
+                bracketsStack += 1;
+            } else if (currChar === '}') {
+                bracketsStack -= 1;
+            }
+        }
+
+    }
+
+    if(bracketsStack > 0) {
+        for(let i = 0; i < bracketsStack; i++) {
+            inputString = inputString + "}";
+        }
+    }
+    if(bracketsStack < 0) {
+        for(let i = bracketsStack; i < 0; i++) {
+            inputString = "{" + inputString;
+        }
+    }
+
+    return inputString;
+};
+
+function convertToMarkdown(obj:any, prefix = "") {
+    let output = "";
+
+    if (obj.topic) {
+        output += `${prefix}${obj.topic}`;
+
+        if (obj.content) {
+            output += `\n\n${obj.content}\n`;
+        }
+
+        if (obj.subtopics && obj.subtopics.length > 0) {
+            obj.subtopics.forEach((subtopic:any, index:number) => {
+                const subtopicPrefix = `${prefix}${index + 1}.`;
+                output += `\n${convertToMarkdown(subtopic, subtopicPrefix)}`;
+            });
+        }
+    } else if (typeof obj === "string") {
+        output += `${prefix}${obj}`;
+    }
+
+    return output;
+}
+
+
 const promptLLMForJson = async (promptLLMFull: (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => any,
                                 persona: string,
                                 instructions: string,
@@ -272,7 +347,20 @@ const promptLLMForJson = async (promptLLMFull: (persona: string, prompt: string,
         promptLLMFull,
         systemPrompt + persona, prompt,
         (rslt) => {
-            return JSON.parse(rslt).arguments.json;
+            rslt = balanceBrackets(rslt);
+            let obj = null;
+            try {
+                obj = JSON.parse(rslt);
+            }catch (e){
+                console.log("Unable to parse json: ", rslt);
+                throw e;
+            }
+            try {
+                return obj.arguments.json;
+            } catch (e){
+                console.log("Result did not have arguments.json property: ", obj);
+                throw e;
+            }
         },
         check,
         3,
@@ -303,17 +391,138 @@ const describeDocuments = (docs: AttachedDocument[]) => {
 
 }
 
+const generateOutline = async (promptLLMFull:any, topic:string, maxDepth:number, minSubtopics:number) => {
+    try {
+        console.log("Creating an outline for a topic: Computer Incident Response.");
+
+        // 1. Define JSON Schema for the outline to be created
+        const outlineSchema = {
+            type: "object",
+            properties: {
+                topic: {type: "string"},
+                subtopics: {
+                    type: "array",
+                    items: {type: "string"}
+                }
+            }
+        };
+
+        // 2. Creating prompt for LLM to generate an instance of the schema with "Computer Incident Response" as the topic
+        const initialPrompt = `Create an outline for the topic "${topic}". 
+            The outline should include a single top-level topic and some number of subtopics. 
+            Also, include a cohesive motivating example that is used through all of the topics.`;
+
+        // 3. Generate an instance of the schema
+        let topLevelOutline:any = await promptLLMForJson(promptLLMFull,"", initialPrompt, outlineSchema);
+
+        // 4. For each sub topic in the generated outline, generate a sub outline
+        // Create a nested outline by generating sub-outlines for each subtopic
+        const generateNestedOutline = async (outline: { subtopics: string[]; }, depth = 1) => {
+            if (depth >= maxDepth) {
+                return outline;
+            }
+
+            for (let i = 0; i < outline.subtopics.length; i++) {
+                let subTopic = outline.subtopics[i];
+
+                console.log(`Generating ${i}/${outline.subtopics.length} at depth ${depth} for subtopic ${subTopic}`);
+
+                // Define a prompt using this subtopic
+                let promptForSubTopic = `Given the overall topic of 
+                "${topic}", the sub topics "${outline.subtopics.join(", ")}",
+                and the current subtopic "${subTopic}", 
+                generate an outline with this subtopic of "${subTopic}" as the top-level 
+                topic and at least ${minSubtopics} child topics.`;
+
+                // Generate a sub-outline for this subtopic
+                let subOutline:any = await promptLLMForJson(promptLLMFull,"", promptForSubTopic, outlineSchema);
+
+                // Recursively generate nested outlines for this sub-outline
+                subOutline = await generateNestedOutline(subOutline, depth + 1);
+
+                // Incorporate this sub-outline into the overall outline
+                outline.subtopics[i] = subOutline;
+            }
+
+            return outline;
+        };
+
+        // Create a nested outline
+        let fullOutline = await generateNestedOutline(topLevelOutline);
+
+        // // 6. Add an outline identifier to each topic
+        // const addIdentifiers = (outline: any, identifier = "") => {
+        //     // Check if the outline is a string, if so, return
+        //     if (typeof outline === 'string') {
+        //         return;
+        //     }
+        //     outline.topic = `${identifier} ${outline.topic}`;
+        //     for (let i = 0; i < outline.subtopics.length; i++) {
+        //         addIdentifiers(outline.subtopics[i], `${identifier}${i + 1}.`);
+        //     }
+        // };
+        //
+        // //Add identifiers to the outline
+        // addIdentifiers(fullOutline);
+        //
+        // // 7. Make each topic a markdown heading
+        // const markdownHeading = (outline: any, level = 1) => {
+        //     if (typeof outline === 'object' && outline !== null) {
+        //         outline.topic = `${"#".repeat(level)} ${outline.topic}`;
+        //         if (Array.isArray(outline.subtopics)) {
+        //             for (let i = 0; i < outline.subtopics.length; i++) {
+        //                 markdownHeading(outline.subtopics[i], level + 1);
+        //             }
+        //         }
+        //     }
+        // };
+        //
+        // //Convert the outline topics to markdown format
+        // markdownHeading(fullOutline);
+        //
+        // //8. Programmatically combine the topics into a single outline.
+        // const combineHeading = (outline: any, str = "") => {
+        //     str += `\n${outline.topic}`;
+        //     for (let i = 0; i < outline.subtopics.length; i++) {
+        //         str = combineHeading(outline.subtopics[i], str);
+        //     }
+        //     return str;
+        // };
+        //
+        // //Combine headings into a single outline
+        // let outlineString = combineHeading(fullOutline);
+
+        // Store result in value
+        let value = {
+            type: "object",
+            data: fullOutline
+        };
+
+        return value;
+    }
+    catch (e) {
+        console.log(e);
+        let value = {
+            type: "text",
+            data: ""
+        };
+    }
+};
+
+
 
 // @ts-ignore
-export const parameterizeTools = ({apiKey, stopper, context, requestedParameters, requestedDocuments}) => {
+export const parameterizeTools = ({apiKey, stopper, context, requestedParameters, requestedDocuments, statusLogger}) => {
 
     console.log("parameterizeTools", context, requestedParameters, requestedDocuments);
 
     const documents = [...context.inputs.documents];
     const parameters = {...context.inputs.parameters};
 
-    const promptLLMFull: (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => any = (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) =>
-        doPrompt(apiKey, stopper, persona, prompt, messageCallback, model, functions, function_call);
+    const promptLLMFull: (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => any = (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
+        // Grab the first 30 characters of the prompt
+        return doPrompt(apiKey, stopper, persona, prompt, messageCallback, model, functions, function_call);
+    }
 
     const promptLLM = (persona: string, prompt: string) => {
         return promptLLMFull(persona, prompt);
@@ -373,7 +582,7 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
                     return p;
                 });
 
-                return promptLLMInParallel(promptLLM, stopper, promptObjs, 3)
+                return promptLLMInParallel(promptLLM, stopper, statusLogger, promptObjs, 3)
             },
         },
         splitStringIntoChunks: {
@@ -383,6 +592,18 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
                 " when interfacing with APIs or systems that have size limitations.",
             exec: (str: string, chunkSize: number) => {
                 return splitStringIntoChunks(str, chunkSize);
+            }
+        },
+        generateOutline: {
+            description:"(topic:string, maxDepth:number, minSubtopics:number)=>Promise<{ \"type\": \"object\", \"properties\": { \"topic\": { \"type\": \"string\" }, \"subtopics\": { \"type\": \"array\", \"items\": { \"oneOf\": [{ \"$ref\": \"#\" }, { \"type\": \"string\" }] } } } }> Generate an outline for a topic.",
+            exec: (topic:string, maxDepth:number, minSubtopics:number) => {
+                return generateOutline(promptLLMFull, topic, maxDepth, minSubtopics);
+            }
+        },
+        outlineToMarkdown: {
+            description:"(outline:{\"type\":\"object\",\"properties\":{\"topic\":{\"type\":\"string\"},\"subtopics\":{\"type\":\"array\",\"items\":{\"oneOf\":[{\"$ref\":\"#\"},{\"type\":\"string\"}]}}},\"content\":{\"type\":\"string\"}})=>string Convert an outline to markdown.",
+            exec: (outline:any) => {
+                return convertToMarkdown(outline);
             }
         },
         getDocuments: {
@@ -400,6 +621,8 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
                 requestedDocuments.push(name);
                 return allDocuments().find(document => document.name === name);
             }
-        }
+        },
+
     };
 }
+

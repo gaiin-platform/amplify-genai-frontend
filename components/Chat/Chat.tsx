@@ -21,7 +21,7 @@ import {
 } from '@/utils/app/conversation';
 import {throttle} from '@/utils/data/throttle';
 
-import {ChatBody, Conversation, Message, newMessage} from '@/types/chat';
+import {ChatBody, Conversation, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -49,11 +49,11 @@ import Workflow, {
     ops,
     WorkflowRunner,
     fillTemplate,
-    executeJSWorkflow,
+    executeJSWorkflow, replayJSWorkflow,
 } from "@/utils/workflow/workflow";
 import {OpenAIModel} from "@/types/openai";
 import {Prompt} from "@/types/prompt";
-import {InputDocument, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
+import {InputDocument, Status, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {Key} from "@/components/Settings/Key";
 import {describeAsJsonSchema} from "@/utils/app/data";
@@ -459,6 +459,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 const workflowId = uuidv4();
 
+                const statusLogger = (status: Status | null) => {
+                    homeDispatch({field: 'status', value: status});
+                }
+
                 const telluser = async (msg: string) => {
                     await asyncSafeHandleAddMessages([
                         newMessage({role: "assistant", content: msg, data: {workflow: workflowId, type: "workflow:tell"}})])
@@ -507,8 +511,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 await homeDispatch({field: 'loading', value: true});
                 await homeDispatch({field: 'messageIsStreaming', value: true});
 
-                console.log("Chat handleJSW Documents", documents);
-
                 const context:WorkflowContext = {
                     inputs: {
                         documents: documents || [],
@@ -516,12 +518,40 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     }
                 }
 
-                // @ts-ignore
-                executeJSWorkflow(apiKey, message.content, tools, stopper, context, (responseText) => {
-                    responseText = "```javascript\n" + responseText;
+                let code = message.data?.templateData?.data?.code;
+                let isReplay = code != null;
 
-                    updateCurrentMessage(responseText, {workflow: workflowId, type: "workflow:code"});
-                }).then((result) => {
+                console.log("isReplay", isReplay);
+                console.log(message.data);
+
+                let runner = (isReplay) ?
+                    () => {
+                    console.log("Replaying workflow", code);
+                    return replayJSWorkflow(apiKey, code, tools, stopper, statusLogger, context, (responseText) => {
+                        statusLogger(null);
+
+                        updateCurrentMessage(responseText, {workflow: workflowId, type: "workflow:code"});
+                    });}
+                    :
+                    () => {return executeJSWorkflow(apiKey, message.content, tools, stopper, statusLogger, context, (responseText) => {
+                        responseText = "```javascript\n" + responseText;
+
+                        statusLogger(null);
+
+                        updateCurrentMessage(responseText, {workflow: workflowId, type: "workflow:code"});
+                    });};
+
+
+                // @ts-ignore
+                // executeJSWorkflow(apiKey, message.content, tools, stopper, context, (responseText) => {
+                //     responseText = "```javascript\n" + responseText;
+                //
+                //     updateCurrentMessage(responseText, {workflow: workflowId, type: "workflow:code"});
+                // })
+
+                runner().then((result) => {
+
+                    let workflowCode = result.code;
 
                     let resultStr = (typeof result.result === "string") ? result.result :
                         formatter(result.result);
@@ -536,19 +566,22 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                     const msg = resultMsg; //+ codeMsg;
 
+                    let resultMessages = [
+                        newMessage({
+                            role: "assistant", content: msg, data: {
+                                // @ts-ignore
+                                reusableDescription: result.reuseDesc,
+                                // @ts-ignore
+                                inputs: result.inputs,
+                                workflow: workflowId,
+                                workflowCode:workflowCode,
+                                type: "workflow:result"
+                            }
+                        }),
+                    ];
 
-                    asyncSafeHandleAddMessages(
-                        [
-                            newMessage({
-                                role: "assistant", content: msg, data: {
-                                    // @ts-ignore
-                                    reusableDescription: result.reuseDesc,
-                                    // @ts-ignore
-                                    inputs: result.inputs,
-                                    workflow: workflowId,
-                                    type: "workflow:result"
-                                }
-                            }),
+                    if(!isReplay){
+                        resultMessages.push(
                             newMessage({
                                 role: "assistant",
                                 data: {
@@ -556,9 +589,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     type: "workflow:data"
                                 },
                                 content: `Would you like to: [Save Workflow](#workflow:save-workflow/${workflowId})?`
-                            })
-                        ]
-                    )
+                            }));
+                    }
+
+                    asyncSafeHandleAddMessages(resultMessages)
 
                 }).finally(() => {
                     homeDispatch({field: 'loading', value: false});
@@ -606,22 +640,31 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (result == null) {
                 return "The workflow didn't produce any results.";
             } else if (result.type && result.type == "text") {
-                return result.data;
+                if(typeof result.data === "string") {
+                    return result.data;
+                }
+                else {
+                    return "```json\n" + JSON.stringify(result.data, null, 2) + "\n```";
+                }
             } else if (result.type && result.type == "code" && typeof result.data === "string") {
                 return "```javascript\n\n" + result.data + "\n\n```";
             } else if (result.type && result.type == "code") {
                 return "```javascript\n\n" + JSON.stringify(result.data) + "\n\n```";
-            } else if (result.type && Array.isArray(result.data) && result.type == "table") {
+            } else if (result.type && result.type == "object") {
+                return "```json\n" + JSON.stringify(result.data, null, 2) + "\n```";
+            } else if (result.type && Array.isArray(result.data) && result.type == "table" ) {
                 return generateMarkdownTable(result.data);
             } else {
-                return JSON.stringify(result.data, null, 2);
+                return "```json\n" + JSON.stringify(result.data, null, 2) + "\n```";
             }
         };
 
         const routeMessage = (message: Message, index: number | undefined, plugin: Plugin | null | undefined, documents: AttachedDocument[] | null) => {
-            if (message.type == "prompt" || message.type == "chat") {
+            if (message.type == MessageType.PROMPT
+                || message.type == "chat" //Unfortunate hack to support old messages
+            ) {
                 handleSend(message, index, plugin);
-            } else if (message.type == "automation") {
+            } else if (message.type == MessageType.AUTOMATION) {
                 handleJsWorkflow(message, documents);
             } else {
                 console.log("Unknown message type", message.type);
@@ -630,8 +673,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const handleSubmit = (updatedVariables: string[], documents: AttachedDocument[] | null) => {
 
-
-            let template = selectedConversation?.promptTemplate?.content;
+            let templateData = selectedConversation?.promptTemplate;
+            let template = templateData?.content;
 
             const doWorkflow = selectedConversation?.promptTemplate?.type == "automation";
 
@@ -641,7 +684,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             const newContent = template?.replace(/{{(.*?)}}/g, (match, variable) => {
                 const index = variables.indexOf(variable);
-
 
                 if (!doWorkflow && documents && documents.length > 0) {
                     let document = documents.filter((doc) => {
@@ -659,17 +701,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 return updatedVariables[index];
             });
 
+            // Jules
             let message = newMessage({
                 role: 'user',
-                content: newContent
+                content: newContent,
+                data: {templateData:templateData},
+                type: templateData?.type || MessageType.PROMPT
             });
 
             // @ts-ignore
             setCurrentMessage(message);
 
-            if (!doWorkflow) {
+            if (message.type == MessageType.PROMPT) {
                 handleSend(message, 0, null);
             } else {
+                console.log("Workflow", message);
                 handleJsWorkflow(message, documents);
             }
 

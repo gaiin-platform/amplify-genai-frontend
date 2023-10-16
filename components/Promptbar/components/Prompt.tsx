@@ -2,6 +2,9 @@ import {
   IconBulbFilled,
   IconEdit,
   IconCheck,
+  IconApiApp,
+  IconMessage2,
+  IconMessageChatbot,
   IconTrash,
   IconX,
   IconDots,
@@ -67,6 +70,7 @@ export const PromptComponent = ({ prompt }: Props) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  const [isHovered, setIsHovered] = useState(false);
 
   const handleStartPromptBuilder = () => {
     handleNewConversation(
@@ -160,10 +164,18 @@ export const PromptComponent = ({ prompt }: Props) => {
   // @ts-ignore
   // @ts-ignore
   return (
-      <div className="relative flex items-center">
-        <div className="flex w-full">
+      <div className="relative flex items-center"
+           onMouseEnter={() => setIsHovered(true)}
+           onMouseLeave={() => {
+             setIsDeleting(false);
+             setIsRenaming(false);
+             setRenameValue('');
+             setIsHovered(false)}
+           }
+      >
+        <div className="relative flex w-full">
           <button
-              className="flex-grow cursor-pointer items-center gap-1 rounded-lg p-1 text-sm transition-colors duration-200 hover:bg-[#343541]/90"
+              className="w-full  cursor-pointer p-1 items-center gap-1 rounded-lg p-2 text-sm transition-colors duration-200 hover:bg-[#343541]/90"
               draggable="true"
               onClick={(e) => {
                 e.stopPropagation();
@@ -171,53 +183,56 @@ export const PromptComponent = ({ prompt }: Props) => {
                 handleStartConversation(prompt)
               }}
               onDragStart={(e) => handleDragStart(e, prompt)}
-              onMouseLeave={() => {
-                setIsDeleting(false);
-                setIsRenaming(false);
-                setRenameValue('');
-              }}
           >
             {/*<IconEdit size={18} />*/}
 
-            <div className="relative flex-1 overflow-hidden pr-4 text-left text-[12.5px] leading-3">
-              <div style={{ maxWidth: '300px', overflowWrap: 'anywhere', hyphens: 'auto', lineHeight: '1.5em' }}>
+            <div className="relative flex items-center overflow-hidden text-left text-[12.5px] leading-3">
+              <div className="pr-2">
+                { (prompt.type === "automation") ? <IconApiApp/> : <IconMessage2/>}
+              </div>
+              <div className="overflow-hidden flex-1 text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">
                 {prompt.name}
               </div>
             </div>
+
           </button>
 
-          <div className="flex-shrink-0 flex items-center space-x-1">
+          {isHovered &&
+              <div className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-gray-900 rounded">
 
-            {!isDeleting && !isRenaming && (
-                <SidebarActionButton handleClick={() => setShowModal(true)}>
-                  <IconEdit size={18} />
-                </SidebarActionButton>
-            )}
+                {!isDeleting && !isRenaming && (
+                    <SidebarActionButton handleClick={() => setShowModal(true)}>
+                      <IconEdit size={18}/>
+                    </SidebarActionButton>
+                )}
 
-            {!isDeleting && !isRenaming && (
-                <SidebarActionButton handleClick={handleSharePrompt}>
-                  <IconShare size={18} />
-                </SidebarActionButton>
-            )}
+                {/*{!isDeleting && !isRenaming && (*/}
+                {/*    <SidebarActionButton handleClick={handleSharePrompt}>*/}
+                {/*      <IconShare size={18}/>*/}
+                {/*    </SidebarActionButton>*/}
+                {/*)}*/}
 
-            {!isDeleting && !isRenaming && (
-                <SidebarActionButton handleClick={handleOpenDeleteModal}>
-                  <IconTrash size={18} />
-                </SidebarActionButton>
-            )}
+                {!isDeleting && !isRenaming && (
+                    <SidebarActionButton handleClick={handleOpenDeleteModal}>
+                      <IconTrash size={18}/>
+                    </SidebarActionButton>
+                )}
 
-            {(isDeleting || isRenaming) && (
-                <>
-                  <SidebarActionButton handleClick={handleDelete}>
-                    <IconCheck size={18} />
-                  </SidebarActionButton>
+                {(isDeleting || isRenaming) && (
+                    <>
+                      <SidebarActionButton handleClick={handleDelete}>
+                        <IconCheck size={18}/>
+                      </SidebarActionButton>
 
-                  <SidebarActionButton handleClick={handleCancelDelete}>
-                    <IconX size={18} />
-                  </SidebarActionButton>
-                </>
-            )}
-          </div>
+                      <SidebarActionButton handleClick={handleCancelDelete}>
+                        <IconX size={18}/>
+                      </SidebarActionButton>
+                    </>
+                )}
+
+              </div>
+          }
+
         </div>
 
         {showModal && (

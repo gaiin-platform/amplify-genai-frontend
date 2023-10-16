@@ -8,66 +8,89 @@
 //     return strippedCode;
 // }
 //
-// const findWorkflowPattern = (inputString) => {
-//
-//     inputString = stripComments(inputString);
-//
-//     const workflowPattern = /workflow\s*=\s*async\s*\([^)]*\)\s*=>\s*{/g;
-//
-//     let workflowFunction = workflowPattern.exec(inputString);
-//     if (workflowFunction === null) {
-//         console.log("Error: No 'workflow' function found.");
-//         return null;
-//     }
-//
-//     let bracketsStack = 0;
-//     let inString = false;
-//     let stringChar = '';
-//     let prevChar = '';
-//     let currChar = '';
-//     let stringStart = 0;
-//
-//     for (let i = workflowPattern.lastIndex - 1; i < inputString.length; i++) {
-//         prevChar = currChar;
-//         currChar = inputString[i];
-//
-//         if (inString) {
-//             // Check for a closing quote, ensuring it's not escaped
-//             if (currChar === stringChar && prevChar !== '\\') {
-//                 // Found the closing quote
-//                 inString = false;
-//             }
-//         } else {
-//             // Check for an opening quote
-//             if (currChar === '"' || currChar === "'" || currChar === "`") {
-//                 stringStart = i;
-//                 inString = true;
-//                 stringChar = currChar;
-//             } else if (currChar === '{') {
-//                 bracketsStack += 1;
-//             } else if (currChar === '}') {
-//                 bracketsStack -= 1;
-//                 if (bracketsStack === 0) {
-//                     const workflowFunctionCode = "async (fnlibs) => " + inputString.slice(workflowPattern.lastIndex - 1, i + 1);
-//                     return workflowFunctionCode.trim();
-//                 }
-//             }
-//         }
-//
-//     }
-//
-//     if(bracketsStack > 0) {
-//         for(let i = 0; i < bracketsStack; i++){
-//             inputString = inputString + "}";
-//             let result = findWorkflowPattern(inputString);
-//             if(result != null) {
-//                 return result;
-//             }
-//     }
-//
-//     console.log(`Error: No proper ending for the 'workflow' function found. [inString:${inString}, bracketsStack:${bracketsStack}, prevChar:${prevChar}]`);
-//     return null;
-// };
+function convertToMarkdown(obj, prefix = "") {
+    let output = "";
+
+    if (obj.topic) {
+        output += `${prefix}${obj.topic}`;
+
+        if (obj.content) {
+            output += `\n\n${obj.content}\n`;
+        }
+
+        if (obj.subtopics && obj.subtopics.length > 0) {
+            obj.subtopics.forEach((subtopic, index) => {
+                const subtopicPrefix = `${prefix}${index + 1}.`;
+                output += `\n${convertToMarkdown(subtopic, subtopicPrefix)}`;
+            });
+        }
+    } else if (typeof obj === "string") {
+        output += `${prefix}${obj}`;
+    }
+
+    return output;
+}
+
+const balanceBrackets = (inputString) => {
+
+    let bracketsStack = 0;
+    let inString = false;
+    let stringChar = '';
+    let prevChar = '';
+    let currChar = '';
+    let stringStart = 0;
+
+    for (let i = 0; i < inputString.length; i++) {
+        prevChar = currChar;
+        currChar = inputString[i];
+
+        if (inString) {
+            // Check for a closing quote, ensuring it's not escaped
+            if (currChar === stringChar && prevChar !== '\\') {
+                // Found the closing quote
+                inString = false;
+            }
+        } else {
+            // Check for an opening quote
+            if (currChar === '"' || currChar === "'" || currChar === "`") {
+                stringStart = i;
+                inString = true;
+                stringChar = currChar;
+            } else if (currChar === '{') {
+                bracketsStack += 1;
+            } else if (currChar === '}') {
+                bracketsStack -= 1;
+            }
+        }
+
+    }
+
+    if(bracketsStack > 0) {
+        for(let i = 0; i < bracketsStack; i++) {
+            inputString = inputString + "}";
+        }
+    }
+    if(bracketsStack < 0) {
+        for(let i = bracketsStack; i < 0; i++) {
+            inputString = "{" + inputString;
+        }
+    }
+
+    return inputString;
+};
+
+console.log(balanceBrackets("{\"name\":\"jsonResult\", \"arguments\":{\n" +
+    "  \"json\": {\n" +
+    "    \"topic\": \"Food Festivals\",\n" +
+    "    \"subtopics\": [\n" +
+    "      \"History of Food Festivals in Nashville\",\n" +
+    "      \"Popular Food Festivals in Nashville\",\n" +
+    "      \"Upcoming Food Festivals in Nashville\"\n" +
+    "    ]\n" +
+    "  }\n" +
+    ""));
+
+
 //
 // // const test = "const workflow = async ({promptLLM, tellUser, getDocuments}) => {\n" +
 // //     "    let result = new Promise(async (resolve, reject) => {\n" +
@@ -342,3 +365,128 @@
 //     "};";
 //
 // console.log(findWorkflowPattern(test6) != null);
+
+
+console.log(convertToMarkdown({
+    "topic": "Nashville TN",
+    "subtopics": [
+        {
+            "topic": "Overview",
+            "subtopics": [
+                {
+                    "topic": "Geography",
+                    "subtopics": [
+                        "Climate",
+                        "Topography"
+                    ]
+                },
+                {
+                    "topic": "Demographics",
+                    "subtopics": [
+                        "Population",
+                        "Ethnicity",
+                        "Education"
+                    ]
+                }
+            ]
+        },
+        {
+            "topic": "Historical Significance",
+            "subtopics": [
+                {
+                    "topic": "Nashville's Role in the Civil War",
+                    "subtopics": [
+                        "Union Occupancy",
+                        "Battle of Nashville"
+                    ]
+                },
+                {
+                    "topic": "Music History in Nashville",
+                    "subtopics": [
+                        "Birth of Country Music",
+                        "Recording Industry",
+                        "Famous Music Venues"
+                    ]
+                },
+                {
+                    "topic": "Notable Landmarks and Historic Sites",
+                    "subtopics": [
+                        "Child Topic 1",
+                        "Child Topic 2"
+                    ]
+                }
+            ]
+        },
+        {
+            "topic": "Culture and Entertainment",
+            "subtopics": [
+                {
+                    "topic": "Music",
+                    "subtopics": [
+                        "Genres",
+                        "Venues"
+                    ]
+                },
+                {
+                    "topic": "Art",
+                    "subtopics": [
+                        "Types of Art",
+                        "Art Galleries"
+                    ]
+                },
+                {
+                    "topic": "Food",
+                    "subtopics": [
+                        "Restaurants",
+                        "Local Cuisine"
+                    ]
+                },
+                {
+                    "topic": "Festivals",
+                    "subtopics": [
+                        "Music Festivals",
+                        "Art Festivals"
+                    ]
+                }
+            ]
+        },
+        {
+            "topic": "Attractions",
+            "subtopics": [
+                {
+                    "topic": "Broadway",
+                    "subtopics": [
+                        "History of Broadway",
+                        "Shows and Performances on Broadway"
+                    ]
+                },
+                {
+                    "topic": "Country Music Hall of Fame",
+                    "subtopics": [
+                        "Exhibits",
+                        "Inductees"
+                    ]
+                }
+            ]
+        },
+        {
+            "topic": "Motivating Example",
+            "subtopics": [
+                {
+                    "topic": "Child Topic 1",
+                    "subtopics": [
+                        "Subtopic 1",
+                        "Subtopic 2"
+                    ]
+                },
+                {
+                    "topic": "Child Topic 2",
+                    "subtopics": [
+                        "Child Topic 2.1",
+                        "Child Topic 2.2"
+                    ]
+                }
+            ]
+        }
+    ]
+}));

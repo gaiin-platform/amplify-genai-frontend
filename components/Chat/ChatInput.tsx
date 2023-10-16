@@ -19,7 +19,7 @@ import {
 
 import { useTranslation } from 'next-i18next';
 import { parsePromptVariables } from "@/utils/app/prompts";
-import { Message, newMessage } from '@/types/chat';
+import {Message, MessageType, newMessage} from '@/types/chat';
 import { Plugin } from '@/types/plugin';
 import { Prompt } from '@/types/prompt';
 import { AttachFile } from "@/components/Chat/AttachFile";
@@ -56,7 +56,7 @@ export const ChatInput = ({
   const { t } = useTranslation('chat');
 
   const {
-    state: { selectedConversation, messageIsStreaming, prompts, models},
+    state: { selectedConversation, messageIsStreaming, prompts, models, status},
 
     dispatch: homeDispatch,
   } = useContext(HomeContext);
@@ -130,7 +130,7 @@ export const ChatInput = ({
       return;
     }
 
-    const type = (isWorkflowOn)? "automation" : "prompt";
+    const type = (isWorkflowOn)? MessageType.AUTOMATION : MessageType.PROMPT;
     let msg = newMessage({ role: 'user', content: content, type:type });
 
     if(documents && documents?.length > 0){
@@ -299,12 +299,23 @@ export const ChatInput = ({
     <div className="absolute bottom-0 left-0 w-full border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
       <div className="stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
         {messageIsStreaming && (
-          <button
-            className="absolute top-0 left-0 right-0 mx-auto mb-3 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 md:mt-2"
-            onClick={handleStopConversation}
-          >
-            <IconPlayerStop size={16} /> {t('Stop Generating')}
-          </button>
+            <div className='absolute top-0 left-0 right-0 mx-auto flex justify-center items-center gap-2'>
+              <button
+                  className="mb-3 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 md:mt-2"
+                  onClick={handleStopConversation}
+              >
+                <IconPlayerStop size={16} /> {t('Stop Generating')}
+              </button>
+
+              {status && (
+                  <button
+                      className="mb-3 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 md:mt-2"
+                      onClick={handleStopConversation}
+                  >
+                    <IconPlayerStop size={16} /> {status.summary}
+                  </button>
+              )}
+            </div>
         )}
 
         {/*{!messageIsStreaming &&*/}

@@ -104,7 +104,7 @@ export const generateWorkflowPrompt = (task: string, tools: { [key: string]: { d
                          
                             try {
                                 fnlibs.tellUser("Executing the generated workflow...");
-                                let value = {type:"text|table|code", data:null}; 
+                                let value = {type:"text|table|code|object", data:null}; 
                                 ${varInstructions}
                               
                                 // Any tasks based on summarizing, outlining, analyzing, suggesting,

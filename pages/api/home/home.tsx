@@ -26,7 +26,7 @@ import {saveFolders} from '@/utils/app/folders';
 import {savePrompts} from '@/utils/app/prompts';
 import {getSettings} from '@/utils/app/settings';
 
-import {Conversation, Message} from '@/types/chat';
+import {Conversation, Message, MessageType} from '@/types/chat';
 import {KeyValuePair} from '@/types/data';
 import {FolderInterface, FolderType} from '@/types/folder';
 import {OpenAIModelID, OpenAIModels, fallbackModelID} from '@/types/openai';
@@ -272,14 +272,14 @@ const Home = ({
                         }
                     };
 
-                    let code = conversation.messages.filter(workflowFilter(workflowId, "workflow:code")).pop();
+                    //let code = conversation.messages.filter(workflowFilter(workflowId, "workflow:code")).pop();
                     let prompt = conversation.messages.filter(workflowFilter(workflowId, "workflow:prompt")).pop();
                     let result = conversation.messages.filter(workflowFilter(workflowId, "workflow:result")).pop();
 
                     console.log("Workflow Result", result);
-                    console.log("Workflow", {code: code, prompt: prompt, inputs:result?.data.inputs});
+                    console.log("Workflow", {code: result?.data.workflowCode, prompt: prompt, inputs:result?.data.inputs});
 
-                    if (prompt && code) {
+                    if (prompt && result && result?.data.workflowCode) {
                         let workflowDefinition: WorkflowDefinition = {
                             id: uuidv4(),
                             formatVersion: "v1.0",
@@ -288,20 +288,43 @@ const Home = ({
                             description: prompt.content,
                             generatingPrompt: prompt.content,
                             name: prompt.content,
-                            code: code.content,
+                            code: result?.data.workflowCode,
                             tags: [],
                             inputs: result?.data.inputs || [],
                             outputs: [],
                         }
 
-                        const updatedWorkflowDefinitions = [
-                            ...workflows,
-                            workflowDefinition
-                        ]
+                        const documentStrings = workflowDefinition.inputs.documents.map((doc) => `{{${doc.name}:file}}`).join('\n');
+                        const parameterStrings = Object.keys(workflowDefinition.inputs.parameters).map((key) => `{{${key}}}`).join('\n');
+                        const formattedString =
+                            `${documentStrings}${parameterStrings}${prompt.content}`;
 
-                        dispatch({field: 'workflows', value: updatedWorkflowDefinitions});
+                        let promptTemplate:Prompt = {
+                            content: formattedString,
+                            data: {
+                                code: result?.data.workflowCode
+                            },
+                            description: prompt.content,
+                            folderId: null,
+                            id: uuidv4(),
+                            name: prompt.content,
+                            type: MessageType.AUTOMATION
+                        }
 
-                        saveWorkflowDefinitions(updatedWorkflowDefinitions);
+                        const updatedPrompts = [...prompts, promptTemplate];
+
+                        dispatch({ field: 'prompts', value: updatedPrompts });
+
+                        savePrompts(updatedPrompts);
+
+                        // const updatedWorkflowDefinitions = [
+                        //     ...workflows,
+                        //     workflowDefinition
+                        // ]
+
+                        // dispatch({field: 'workflows', value: updatedWorkflowDefinitions});
+
+                        // saveWorkflowDefinitions(updatedWorkflowDefinitions);
                         alert("Workflow saved.");
                     } else {
                         console.log("Workflow not saved, missing code or prompt.");
@@ -519,6 +542,7 @@ const Home = ({
     }, []);
 
     if (user) {
+        // @ts-ignore
         return (
             <HomeContext.Provider
                 value={{
@@ -591,7 +615,7 @@ const Home = ({
                                 side={"right"}
                             >
                                 <Tab icon={<Icon3dCubeSphere/>}><Promptbar/></Tab>
-                                <Tab icon={<IconBook2/>}><WorkflowDefinitionBar/></Tab>
+                                {/*<Tab icon={<IconBook2/>}><WorkflowDefinitionBar/></Tab>*/}
                             </TabSidebar>
 
                         </div>

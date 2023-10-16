@@ -4,6 +4,7 @@ import { useTranslation } from 'next-i18next';
 
 import { Prompt } from '@/types/prompt';
 import {boolean} from "property-information/lib/util/types";
+import {MessageType} from "@/types/chat";
 
 interface Props {
   prompt: Prompt;
@@ -17,7 +18,7 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
   const [description, setDescription] = useState(prompt.description);
   const [content, setContent] = useState(prompt.content);
 
-  const [selectedTemplate, setSelectedTemplate] = useState<string>(prompt.type || "prompt");
+  const [selectedTemplate, setSelectedTemplate] = useState<string>(prompt.type || MessageType.PROMPT);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -114,9 +115,9 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
                     type="radio"
                     name="template"
                     className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                    value="prompt"
-                    checked={selectedTemplate === 'prompt'}
-                    onChange={() => setSelectedTemplate('prompt')}
+                    value={MessageType.PROMPT}
+                    checked={selectedTemplate === MessageType.PROMPT}
+                    onChange={() => setSelectedTemplate(MessageType.PROMPT)}
                 />
                 <label className="ml-2">
                   Prompt template
@@ -127,9 +128,9 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
                     type="radio"
                     name="template"
                     className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                    value="automation"
-                    checked={selectedTemplate === 'automation'}
-                    onChange={() => setSelectedTemplate('automation')}
+                    value={MessageType.AUTOMATION}
+                    checked={selectedTemplate === MessageType.AUTOMATION}
+                    onChange={() => setSelectedTemplate(MessageType.AUTOMATION)}
                 />
                 <label className="ml-2">
                   Automation template

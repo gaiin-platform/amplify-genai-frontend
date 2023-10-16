@@ -2,7 +2,7 @@ import {ChatBody, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {sendChatRequest} from "@/services/chatService";
 import {findWorkflowPattern, generateWorkflowPrompt, describeTools} from "@/utils/workflow/aiflow";
 import {OpenAIModelID, OpenAIModels} from "@/types/openai";
-import {InputDocument, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
+import {InputDocument, Status, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
 import {describeAsJsonSchema, extractFirstCodeBlock, extractSection} from "@/utils/app/data";
 import {parameterizeTools as coreTools} from "@/utils/app/tools";
 import {AttachedDocument} from "@/types/attacheddocument";
@@ -379,18 +379,19 @@ async function executeWorkflow(tools: { [p: string]: AiTool }, code: string) {
     return {success, result, javascriptFn};
 }
 
-function createWorkflowParams(context: WorkflowContext, apiKey: string, stopper: Stopper) {
+function createWorkflowParams(context: WorkflowContext, apiKey: string, stopper: Stopper, statusLogger:(status:Status)=>void) {
     const workflowGlobalParams = {
         context: context,
         requestedParameters: {},
         requestedDocuments: [],
         apiKey: apiKey,
-        stopper: stopper
+        stopper: stopper,
+        statusLogger: statusLogger,
     }
     return workflowGlobalParams;
 }
 
-function createWorkflowTools(workflowGlobalParams: { requestedDocuments: any[]; requestedParameters: {}; apiKey: string; stopper: Stopper; context: WorkflowContext }, promptLLM: (persona: string, prompt: string) => Promise<null | string>, customTools: { [p: string]: AiTool }) {
+function createWorkflowTools(workflowGlobalParams: { requestedDocuments: any[]; requestedParameters: {}; apiKey: string; stopper: Stopper; statusLogger:(status:Status)=>void; context: WorkflowContext }, promptLLM: (persona: string, prompt: string) => Promise<null | string>, customTools: { [p: string]: AiTool }) {
     const parameterizedTools = coreTools(workflowGlobalParams);
 
     const tools: { [name: string]: AiTool } = {
@@ -411,93 +412,121 @@ function createWorkflowTools(workflowGlobalParams: { requestedDocuments: any[]; 
     return tools;
 }
 
-export const executeJSWorkflow = async (apiKey: string, task: string, customTools: { [p: string]: AiTool }, stopper: Stopper, context:WorkflowContext, incrementalPromptResultCallback: (responseText: string) => void) => {
+function extractCodeBlocks(str: string) {
+    const pattern = /```(\w*)\n([^`]*?)```/gms;
+    let match;
+    const blocks = [];
 
+    while ((match = pattern.exec(str)) !== null) {
+        blocks.push({
+            language: match[1],
+            code: match[2]
+        });
+    }
 
-    const promptLLMFull = async (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
+    return blocks;
+}
 
-        if (functions) {
-            if (model === OpenAIModelID.GPT_3_5) {
-                model = OpenAIModelID.GPT_3_5_FN;
-            } else if (model === OpenAIModelID.GPT_4) {
-                model = OpenAIModelID.GPT_4_FN;
-            } else if (!model) {
-                model = OpenAIModelID.GPT_3_5_FN;
-            }
+const promptLLMFull = async (apiKey:string, stopper:Stopper, persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
+
+    if (functions) {
+        if (model === OpenAIModelID.GPT_3_5) {
+            model = OpenAIModelID.GPT_3_5_FN;
+        } else if (model === OpenAIModelID.GPT_4) {
+            model = OpenAIModelID.GPT_4_FN;
+        } else if (!model) {
+            model = OpenAIModelID.GPT_3_5_FN;
         }
+    }
 
-        const chatBody = {
-            model: OpenAIModels[model || OpenAIModelID.GPT_4],
-            messages: [newMessage({content: prompt})],
-            key: apiKey,
-            prompt: persona,
-            temperature: 1.0,
-            ...(functions && {functions: functions}),
-            ...(function_call && {function_call: function_call}),
-        };
+    const chatBody = {
+        model: OpenAIModels[model || OpenAIModelID.GPT_4],
+        messages: [newMessage({content: prompt})],
+        key: apiKey,
+        prompt: persona,
+        temperature: 1.0,
+        ...(functions && {functions: functions}),
+        ...(function_call && {function_call: function_call}),
+    };
+
+    if (stopper.shouldStop()) {
+        return null;
+    }
+
+    console.log({prompt: prompt});
+    // @ts-ignore
+    const response = await sendChatRequest(apiKey, chatBody, null, stopper.signal);
+
+    const reader = response.body?.getReader();
+    let charsReceived = '';
+
+    while (true) {
 
         if (stopper.shouldStop()) {
             return null;
         }
 
-        console.log({prompt: prompt});
         // @ts-ignore
-        const response = await sendChatRequest(apiKey, chatBody, null, stopper.signal);
+        const {value, done} = await reader.read();
 
-        const reader = response.body?.getReader();
-        let charsReceived = '';
-
-        while (true) {
-
-            if (stopper.shouldStop()) {
-                return null;
-            }
-
-            // @ts-ignore
-            const {value, done} = await reader.read();
-
-            if (done) {
-                break;
-            }
-
-            let chunk = new TextDecoder("utf-8").decode(value);
-
-            charsReceived += chunk;
-
-            if (messageCallback) {
-                messageCallback(charsReceived);
-            }
+        if (done) {
+            break;
         }
 
-        return charsReceived;
+        let chunk = new TextDecoder("utf-8").decode(value);
+
+        charsReceived += chunk;
+
+        if (messageCallback) {
+            messageCallback(charsReceived);
+        }
     }
 
+    return charsReceived;
+}
+
+export const replayJSWorkflow = async (apiKey: string, code:string, customTools: { [p: string]: AiTool }, stopper: Stopper, statusLogger:(status:Status)=>void, context:WorkflowContext, incrementalPromptResultCallback: (responseText: string) => void) => {
+    if(stopper.shouldStop()){
+        return abortResult;
+    }
+
+    const promptLLM = (persona: string, prompt: string) => {
+        return promptLLMFull(apiKey, stopper, persona, prompt);
+    }
+
+    const workflowGlobalParams = createWorkflowParams(context, apiKey, stopper, statusLogger);
+    const tools = createWorkflowTools(workflowGlobalParams, promptLLM, customTools);
+
+    const __ret = await executeWorkflow(tools, code);
+
+    // @ts-ignore
+    let result = __ret.result;
+    let success = __ret.success;
+
+    let workflowResultData = {
+        success: success,
+        code: code,
+        exec: __ret.javascriptFn,
+        result: result};
+
+    console.log("Workflow Result Data:", workflowResultData);
+
+    return workflowResultData;
+}
+
+export const executeJSWorkflow = async (apiKey: string, task: string, customTools: { [p: string]: AiTool }, stopper: Stopper, statusLogger:(status:Status)=>void, context:WorkflowContext, incrementalPromptResultCallback: (responseText: string) => void) => {
+
     const promptLLMCode = (persona: string, prompt: string) => {
-        return promptLLMFull(persona, prompt, incrementalPromptResultCallback);
+        return promptLLMFull(apiKey, stopper, persona, prompt, incrementalPromptResultCallback);
     }
     const promptLLM = (persona: string, prompt: string) => {
-        return promptLLMFull(persona, prompt);
+        return promptLLMFull(apiKey, stopper, persona, prompt);
     }
 
     console.log("Workflow Context:", context);
 
-    const workflowGlobalParams = createWorkflowParams(context, apiKey, stopper);
+    const workflowGlobalParams = createWorkflowParams(context, apiKey, stopper, statusLogger);
     const tools = createWorkflowTools(workflowGlobalParams, promptLLM, customTools);
-
-    function extractCodeBlocks(str: string) {
-        const pattern = /```(\w*)\n([^`]*?)```/gms;
-        let match;
-        const blocks = [];
-
-        while ((match = pattern.exec(str)) !== null) {
-            blocks.push({
-                language: match[1],
-                code: match[2]
-            });
-        }
-
-        return blocks;
-    }
 
     const promptUntil = async (
         persona: string,
@@ -518,7 +547,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
                 let context = {
                     result: null
                 };
-                const raw = await promptLLMFull(persona, prompt, (m) => {
+                const raw = await promptLLMFull(apiKey, stopper, persona, prompt, (m) => {
                 }, model || OpenAIModelID.GPT_3_5, functions, function_call);
 
                 cleaned = extract(raw || "");
