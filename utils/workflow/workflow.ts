@@ -4,7 +4,7 @@ import {findWorkflowPattern, generateWorkflowPrompt, describeTools} from "@/util
 import {OpenAIModelID, OpenAIModels} from "@/types/openai";
 import {InputDocument, Status, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
 import {describeAsJsonSchema, extractFirstCodeBlock, extractSection} from "@/utils/app/data";
-import {parameterizeTools as coreTools} from "@/utils/app/tools";
+import {parameterizeTools as coreTools, evaluateWithLineNumber} from "@/utils/app/tools";
 import {AttachedDocument} from "@/types/attacheddocument";
 
 
@@ -336,6 +336,7 @@ async function executeWorkflow(tools: { [p: string]: AiTool }, code: string) {
     let javascriptFn = null;
     let success = false;
     let result = null;
+    let error = null;
 
     try {
 
@@ -355,9 +356,10 @@ async function executeWorkflow(tools: { [p: string]: AiTool }, code: string) {
             }
         };
 
-        // If we reset, we need to make sure and reset the
-        // requested information from the workflow
+        //console.log("Code:", code);
+
         eval("context.workflow = " + code);
+        //const evalError = evaluateWithLineNumber("context.workflow = " + code);
 
         //console.log("workflow fn", context.workflow);
 
@@ -374,9 +376,10 @@ async function executeWorkflow(tools: { [p: string]: AiTool }, code: string) {
 
     } catch (e) {
         console.log(e);
+        error = e;
         tools.tellUser.exec("I am going to fix some errors in the workflow...");
     }
-    return {success, result, javascriptFn};
+    return {success, result, javascriptFn, error};
 }
 
 function createWorkflowParams(context: WorkflowContext, apiKey: string, stopper: Stopper, statusLogger:(status:Status)=>void) {
@@ -395,14 +398,9 @@ function createWorkflowTools(workflowGlobalParams: { requestedDocuments: any[]; 
     const parameterizedTools = coreTools(workflowGlobalParams);
 
     const tools: { [name: string]: AiTool } = {
-        promptLLM: {
-            description: "async (personaString,promptString):Promise<String> //persona should be an empty string, promptString must include detailed instructions for the " +
-                "LLM and any data that the prompt operates on as a string and MUST NOT EXCEED 25,000 characters.",
-            exec: promptLLM
-        },
 
         tellUser: {
-            description: "(msg:string)//output a message to the user",
+            description: "(msg:string) Promise<void>//output a message to the user",
             exec: (msg: string) => console.log(msg),
         },
 
@@ -483,6 +481,90 @@ const promptLLMFull = async (apiKey:string, stopper:Stopper, persona: string, pr
     }
 
     return charsReceived;
+}
+
+export const fixCodeLoop = async (stopper:Stopper, tellUser:any, promptLLM:(persona:string, prompt:string)=>Promise<string|null>,code:string|null, feedback:(code:string)=>Promise<string>, maxTries:number) => {
+
+    let originalCode = code;
+    let error = await feedback(code||"");
+
+    console.log("Do we need to code and fix?", (error != null));
+
+    if(error) {
+
+        for (var i = 0; i < maxTries; i++) {
+
+            const prompt = `
+Rules:
+-----------------------------
+1. The output must be a workflow function defined as:
+const workflow = async (fnlibs) => {
+    ....
+}
+-----------------------------
+Code:
+
+\`\`\`javascript
+${code}
+\`\`\`
+
+------------------
+Error:
+
+${error}
+
+----------------------------
+Thinking: I take a deep breath. 
+Thought: First, I will explain what is wrong with the code that produced the error. Then, I will explain what lines need to change to fix the error. Then, I will output a javascript code block with the corrected code for the workflow function.
+
+`;
+
+            try {
+                if (stopper.shouldStop()) {
+                    return originalCode;
+                }
+                await tellUser("Reworking my code...")
+                console.log("Attempting to fix the workflow...");
+                code = await promptLLM("", prompt);
+
+                // Check if the code contains ```javascript and append it to the start if it doesn't
+                if (code && !code.includes("```javascript")) {
+                    code = "```javascript\n" + code + "\n```";
+                }
+                // Check if the code contains a second ``` somewhere and append it to the end if it doesn't
+                if (code && code.split("```").length < 3) {
+                    code = code + "\n```";
+                }
+
+                // Extract the code inside of the first ```javascript block
+                code = extractFirstCodeBlock(code || "");
+
+                code = findWorkflowPattern(code || "", false);
+                if (!code) {
+                    console.log("Workflow function not found.")
+                    error = "const workflow = async (fnlibs) function not found."
+                } else {
+                    console.log("Potentially fixed code", code);
+
+                        // Do: Look carefully at the program you wrote
+                        // Think: Did it produce the output that the user wanted?
+                        // Thought: <YOUR THOUGHTS>
+                        // Done?: <yes|no>
+
+                    error = await feedback(code || "");
+                }
+
+                console.log("Worked?", error != null && code && code?.length > 0);
+                if (!error && code && code.length > 0) {
+                    return code;
+                }
+            } catch (e) {
+                code = originalCode;
+            }
+        }
+    }
+
+    return code;
 }
 
 export const replayJSWorkflow = async (apiKey: string, code:string, customTools: { [p: string]: AiTool }, stopper: Stopper, statusLogger:(status:Status)=>void, context:WorkflowContext, incrementalPromptResultCallback: (responseText: string) => void) => {
@@ -795,8 +877,12 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     while (!success && tries > 0 && !stopper.shouldStop()) {
 
         // console.log("Prompting for the code for task: ", task);
-        const reuseDesc = await generateReusableFunctionDescription(promptLLMForJson, promptUntil, javascriptPersona, task, prompt, context);
+        //const reuseDesc = await generateReusableFunctionDescription(promptLLMForJson, promptUntil, javascriptPersona, task, prompt, context);
+        const reuseDesc = {
 
+        };
+
+        // @ts-ignore
         const reuseInstructions = (reuseDesc) ? [reuseDesc?.paramInstructions] : [];
         prompt = generateWorkflowPrompt(task, tools, extraInstructions, reuseInstructions);
 
@@ -834,32 +920,63 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         //console.log(cleanedFn);
         if (cleanedFn != null) {
 
-            if(stopper.shouldStop()){
-                return abortResult;
-            }
+            // Old way
             const __ret = await executeWorkflow(tools, cleanedFn);
-
-            finalFn = __ret.javascriptFn;
-            // @ts-ignore
             fnResult = __ret.result;
             success = __ret.success;
+            finalFn = __ret.javascriptFn;
+
+            // New way
+            const fnCaller = (fn: string) => {
+                if(stopper.shouldStop()){
+                    return Promise.resolve("Interrupted");
+                }
+                return new Promise(
+                    async (resolve, reject) => {
+                        executeWorkflow(tools, fn)
+                            .then((__ret)=>{
+                                console.log("Checking workflow...");
+                                finalFn = __ret.javascriptFn;
+                                // @ts-ignore
+                                fnResult = __ret.result;
+                                success = __ret.success;
+                                let error = __ret.error;
+                                finalFn = __ret.javascriptFn;
+
+                                if (success) {
+                                    console.log("Workflow success.");
+                                    resolve(null);
+                                }
+                                else {
+                                    console.log("Workflow failed.");
+                                    resolve(error);
+                                }
+                            });
+                    }
+                );
+            }
+
+            console.log("Entering the fix code loop...");
+            // @ts-ignore
+            await fixCodeLoop(stopper, tools.tellUser.exec, promptLLMCode, cleanedFn, fnCaller, 0);
 
             tries = tries - 1;
         }
 
+
         // Go through the requestedParameters and map each one to:
         // {name, description, jsonSchema, defaultValue, usage} using additional information from reusableDescription
-        Object.entries(workflowGlobalParams.requestedParameters).forEach(([key, value]) => {
-            if (reuseDesc) {
-                let param = reuseDesc.params.find((param) => param.name === key);
-                if (param) {
-                    Object.entries(param).forEach(([pkey, pvalue]) => {
-                        // @ts-ignore
-                        value[pkey] = pvalue;
-                    });
-                }
-            }
-        });
+        // Object.entries(workflowGlobalParams.requestedParameters).forEach(([key, value]) => {
+        //     if (reuseDesc) {
+        //         let param = reuseDesc.params.find((param) => param.name === key);
+        //         if (param) {
+        //             Object.entries(param).forEach(([pkey, pvalue]) => {
+        //                 // @ts-ignore
+        //                 value[pkey] = pvalue;
+        //             });
+        //         }
+        //     }
+        // });
 
         console.log("Requested Documents:", workflowGlobalParams.requestedDocuments);
 

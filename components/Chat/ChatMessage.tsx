@@ -393,11 +393,26 @@ export const ChatMessage: FC<Props> = memo(({
 
         if (findIndex < 0) return;
 
+        // Find the index of the next 'user' message after findIndex
+        let nextUserIndex = findIndex + 1;
+        for (let i = findIndex + 1; i < messages.length; i++) {
+            nextUserIndex = i;
+            if (messages[i].role === 'user') {
+                break;
+            }
+        }
+        if (nextUserIndex === messages.length - 1){ nextUserIndex = messages.length;}
+
+        let deleteCount = nextUserIndex - findIndex;
+        console.log("Find Index: " + findIndex + " Next User Index: " + nextUserIndex
+            + " Messages Length: " + messages.length + " Delete Count: " + (nextUserIndex - findIndex));
+
         if (
             findIndex < messages.length - 1 &&
-            messages[findIndex + 1].role === 'assistant'
+            messages[findIndex + 1].role === 'assistant' &&
+            deleteCount > 0
         ) {
-            messages.splice(findIndex, 2);
+            messages.splice(findIndex, deleteCount);
         } else {
             messages.splice(findIndex, 1);
         }
