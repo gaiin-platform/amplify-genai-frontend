@@ -14,6 +14,9 @@ export const DEFAULT_TEMPERATURE =
 export const OPENAI_API_TYPE =
   process.env.OPENAI_API_TYPE || 'openai';
 
+export const AVAILABLE_MODELS =
+    process.env.AVAILABLE_MODELS || '';
+
 export const OPENAI_API_VERSION =
   process.env.OPENAI_API_VERSION || '2023-03-15-preview';
 
