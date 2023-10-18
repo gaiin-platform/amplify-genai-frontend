@@ -62,6 +62,6 @@ export const initialState: HomeInitialState = {
   serverSidePluginKeysSet: false,
   featureFlags: {
     workflowRun:true,
-    workflowCreate:true,
+    workflowCreate:false,
   },
 };
