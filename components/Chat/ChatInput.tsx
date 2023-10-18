@@ -56,7 +56,7 @@ export const ChatInput = ({
   const { t } = useTranslation('chat');
 
   const {
-    state: { selectedConversation, messageIsStreaming, prompts, models, status},
+    state: { selectedConversation, messageIsStreaming, prompts, models, status, featureFlags},
 
     dispatch: homeDispatch,
   } = useContext(HomeContext);
@@ -343,13 +343,16 @@ export const ChatInput = ({
               {plugin ? <IconBrandGoogle size={20} /> : <IconBolt size={20} />}
             </button>
 
-            <button
-                className={buttonClasses}
-                onClick={handleWorkflowClick}
-                onKeyDown={(e) => {}}
-            >
-              <IconApiApp size={20} />
-            </button>
+
+            {featureFlags.workflowCreate && (
+              <button
+                  className={buttonClasses}
+                  onClick={handleWorkflowClick}
+                  onKeyDown={(e) => {}}
+              >
+                <IconApiApp size={20} />
+              </button>
+            )}
 
             <AttachFile id="__attachFile" onAttach={addDocument} />
 

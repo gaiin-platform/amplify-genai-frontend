@@ -22,8 +22,8 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { model, messages, key, prompt, temperature, functions, function_call } = (await req.json()) as ChatBody;
 
-    console.log("Chat [model="+model.id+", temperature="+temperature+"]")
-    console.log("Chat [functions=]", functions);
+    //console.log("Chat [model="+model.id+", temperature="+temperature+"]")
+    //console.log("Chat [functions=]", functions);
 
     await init((imports) => WebAssembly.instantiate(wasm, imports));
     const encoding = new Tiktoken(
@@ -49,7 +49,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     var maxTokens = model.tokenLimit;
     if (typeof maxTokens === "undefined") {
-      console.log("Token Limit is undefined, setting to 8192");
+      //console.log("Token Limit is undefined, setting to 8192");
       maxTokens = 4000
     }
 
@@ -64,7 +64,7 @@ const handler = async (req: Request): Promise<Response> => {
       messagesToSend = [message, ...messagesToSend];
     }
 
-    console.log("Sending: "+ tokenCount + " [max: " + maxTokens +"]")
+    //console.log("Sending: "+ tokenCount + " [max: " + maxTokens +"]")
 
     encoding.free();
 

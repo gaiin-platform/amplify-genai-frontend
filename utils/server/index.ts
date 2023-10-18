@@ -120,6 +120,10 @@ export const OpenAIStream = async (
     }
     if (json.choices[0].finish_reason != null) {
 
+        console.log("------------- Completing------------")
+        console.log(json.choices)
+        console.log("------------------------------------")
+
         text += "}";
 
         const queue = encoder.encode(text);

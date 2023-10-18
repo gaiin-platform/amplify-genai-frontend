@@ -1,10 +1,11 @@
-import { FC, KeyboardEvent, useEffect, useRef, useState } from 'react';
+import {FC, KeyboardEvent, useContext, useEffect, useRef, useState} from 'react';
 
 import { useTranslation } from 'next-i18next';
 
 import { Prompt } from '@/types/prompt';
 import {boolean} from "property-information/lib/util/types";
 import {MessageType} from "@/types/chat";
+import HomeContext from "@/pages/api/home/home.context";
 
 interface Props {
   prompt: Prompt;
@@ -14,6 +15,10 @@ interface Props {
 
 export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
   const { t } = useTranslation('promptbar');
+  const {
+    state: { featureFlags },
+  } = useContext(HomeContext);
+
   const [name, setName] = useState(prompt.name);
   const [description, setDescription] = useState(prompt.description);
   const [content, setContent] = useState(prompt.content);
@@ -123,6 +128,8 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
                   Prompt template
                 </label>
               </div>
+
+              {featureFlags.workflowCreate && (
               <div className="inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
                 <input
                     type="radio"
@@ -136,7 +143,10 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
                   Automation template
                 </label>
               </div>
+              )}
+
             </div>
+
 
             <button
               type="button"

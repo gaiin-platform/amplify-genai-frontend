@@ -39,6 +39,49 @@ export function getErrorStackTrace(errorDetails: ErrorDetails): string {
     return stackTrace;
 }
 
+
+function parseJSONObjects(str: string) {
+    let stack = [];
+    let result = [];
+    let temp = "";
+    let inString = false;
+    let inObjectOrArray = false;
+
+    for (let ch of str) {
+        if (ch === '"' && str[str.indexOf(ch) - 1] !== '\\') {
+            inString = !inString;
+        }
+
+        if (!inString) {
+            if (ch === '{' || ch === '[') {
+                inObjectOrArray = true;
+                stack.push(ch);
+                temp += ch;
+            } else if ((ch === '}' && stack[stack.length - 1] === '{') || (ch === ']' && stack[stack.length - 1] === '[')) {
+                stack.pop();
+                temp += ch;
+
+                if (stack.length === 0) {
+                    inObjectOrArray = false;
+                    result.push(JSON.parse(temp));
+                    temp = "";
+                }
+            } else if (inObjectOrArray) {
+                temp += ch;
+            }
+        } else {
+            temp += ch;
+        }
+    }
+
+    while (result.length === 1) {
+        result = result.pop();
+    }
+
+    return result;
+}
+
+
 export function evaluateWithLineNumber(code: string): ErrorDetails|null {
     try {
         eval(code);
@@ -544,6 +587,57 @@ const generateOutline = async (statusLogger:any, promptLLMFull:any, topic:string
     }
 };
 
+const applyPromptToDocument = async (promptLLM:any, promptLLMInParallel:any, document:string, persona:string, prompt:string) => {
+
+    try {
+
+        // Fetch pdf as a raw string
+        let documentString = document;
+
+        // Split the document into 5000 character chunks
+        let chunks = splitStringIntoChunks(documentString, 5000);
+
+        // Prepare prompts for the LLM to ask about techniques discussed in each chunk
+        let prompts:string[] = chunks.map(chunk => `${prompt}:\n----------------------------\n ${chunk}`);
+        // let promptPass2:string[] = chunks.map(chunk => `${prompt}:\n----------------------------\n ${chunk}`);
+        // let promptPass3:string[] = chunks.map(chunk => `${prompt}:\n----------------------------\n ${chunk}`);
+        // prompts = [...prompts, ...promptPass2, ...promptPass3];
+
+        console.log("Will send prompts to LLM: ", prompts.length);
+        // Prompt the LLM in parallel with each prompt
+        let results = await promptLLMInParallel(prompts);
+
+        // Perform a reduce of the results by prompting the LLM
+        // Ask it to filter the current aggregated result and the next chunk to combine them and remove duplicates
+        let aggregate = '';
+        for (let result of results) {
+
+            const reducePrompt = `
+                Take the current aggregated list of techniques and the next chunk and combine them into a new aggregated result, ensuring there are no duplicates.
+                
+                Aggregated Result:
+                ---------------------------------
+                ${aggregate}
+                
+                ---------------------------------
+                
+                Next Chunk:
+                ---------------------------------
+                ${result}
+                ---------------------------------
+                
+                De Duplicated Result:
+                ---------------------------------
+            `
+
+            aggregate = await promptLLM("", reducePrompt);
+        }
+
+        return aggregate;
+    } catch (e) {
+        throw e;
+    }
+}
 
 
 // @ts-ignore
@@ -638,6 +732,25 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
                 " when interfacing with APIs or systems that have size limitations.",
             exec: (str: string, chunkSize: number) => {
                 return splitStringIntoChunks(str, chunkSize);
+            }
+        },
+        applyPromptToDocument: {
+            description:"(document:string, persona:string, prompt:string) => Promise<string>",
+            exec: (document:string, persona:string, prompt:string) => {
+                const promptLLMInParallelDeep = (prompts: string[]) =>{
+                    let promptObjs = prompts.map((pStr, index) => {
+                        let p: Prompt = {
+                            prompt: "" + pStr,
+                            index: index
+                        };
+
+                        return p;
+                    });
+
+                    return promptLLMInParallel(promptLLM, stopper, statusLogger, promptObjs, 5);
+                };
+
+                return applyPromptToDocument(promptLLM, promptLLMInParallelDeep, document, persona, prompt);
             }
         },
         generateOutline: {

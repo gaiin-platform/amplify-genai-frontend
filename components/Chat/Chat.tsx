@@ -41,14 +41,6 @@ import {parsePromptVariables} from "@/utils/app/prompts";
 import {v4 as uuidv4} from 'uuid';
 
 import Workflow, {
-    Context,
-    executeOp,
-    Op,
-    OpRunner,
-    createWorkflowRunner,
-    ops,
-    WorkflowRunner,
-    fillTemplate,
     executeJSWorkflow, replayJSWorkflow,
 } from "@/utils/workflow/workflow";
 import {OpenAIModel} from "@/types/openai";
@@ -77,6 +69,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 modelError,
                 loading,
                 prompts,
+                featureFlags,
             },
             handleUpdateConversation,
             handleCustomLinkClick,
@@ -84,6 +77,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             dispatch: homeDispatch,
             handleAddMessages: handleAddMessages
         } = useContext(HomeContext);
+
 
         const {sendChatRequest} = useChatService();
 
@@ -103,101 +97,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const [messageQueue, setMessageQueue] = useState<Message[]>([]);
 
-// State variables
-        const [runnerQueue, setRunnerQueue] = useState<ReturnType<typeof createWorkflowRunner>[]>([]);
 
-
-        const localOps = {
-            prompt: async (op: Op, context: Context) => {
-
-                if (selectedConversation) {
-                    if (!op.message) throw new Error("The 'message' property is missing in 'send' operation.");
-
-                    let message = newMessage({
-                        ...op.message,
-                        content: fillTemplate(op.message.content, context)
-                    });
-
-                    const chatBody: ChatBody = {
-                        model: selectedConversation.model,
-                        messages: [message],
-                        key: apiKey,
-                        prompt: selectedConversation.prompt,
-                        temperature: selectedConversation.temperature,
-                    };
-
-                    return new Promise((resolve, reject) => {
-                        sendChatRequest(chatBody, null, null)
-                            .then(async (result) => {
-                                let data = await result.text()
-                                resolve(data);
-                            })
-                    });
-                }
-            }
-        };
-
-        const [runIndex, setRunIndex] = useState<number>(0);
-        const [runner, setRunner] = useState<any | undefined>();
-
-// Enqueue workflows
-        const handleRunWorkflow = useCallback(async (workflow: Workflow) => {
-            let allOps = {...localOps};
-
-            console.log("Starting workflow...", runner)
-
-            const runResult = workflow.run(
-                {},
-                allOps,
-                async (stage, op, data) => {
-                    console.log("Executing/" + stage, op);
-                    await asyncSafeHandleAddMessages([newMessage({content: "Executing/" + stage + " op:" + op.op})])
-                }
-            );
-
-            let result = await runResult;
-            console.log("Run result", result);
-
-            // @ts-ignore
-            let resultMessages = Object.entries(result)
-                .filter(([k, v]) => !k.startsWith("_"))
-                .map(([k, v]) => {
-                    let result = (typeof v !== 'string') ? JSON.stringify(v) : v;
-                    return newMessage({role: "assistant", content: `${k}\n------------------\n${result}`});
-                });
-
-
-            await asyncSafeHandleAddMessages(
-                // @ts-ignore
-                [
-                    newMessage({role: "user", content: `Workflow completed: ${workflow.name}`}),
-                    ...resultMessages
-                ]
-            )
-
-        }, [selectedConversation]);
-
-        // enqueueMessage function to add a new message to the queue
-        const enqueueWorkflowMessages = (messages: Message[]) => {
-            setMessageQueue(currentQueue => [...currentQueue, ...messages]);
-        };
-
-        useEffect(() => {
-            if (messageQueue.length > 0) {
-                // There is a message in the queue, send it.
-                const message = messageQueue[0]; // Get the first message.
-                handleSend(message).then((response) => {
-                    // After message is sent, remove it from the queue.
-                    setMessageQueue(currentQueue => currentQueue.slice(1));
-                });
-            }
-        }, [messageQueue]);
-
-        const handleWorkflow = useCallback(async (messages: Message[]) => {
-            enqueueWorkflowMessages(messages);
-        }, [
-            selectedConversation
-        ]);
 
         const updateCurrentMessage = useCallback((text: string, data = {}) => {
 
@@ -455,6 +355,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
         const handleJsWorkflow = useCallback(async (message: Message, documents: AttachedDocument[] | null) => {
+
+            if(!featureFlags.workflowRun){
+                alert("Running workflows is currently disabled.");
+                return;
+            }
+
             if (selectedConversation) {
 
                 const workflowId = uuidv4();
@@ -1006,8 +912,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 routeMessage(message[0], 0, null, []);
                                             }}
                                             handleCustomLinkClick={onLinkClick}
-                                            handleWorkflow={handleWorkflow}
-                                            handleRunWorkflow={handleRunWorkflow}
                                             onEdit={(editedMessage) => {
                                                 setCurrentMessage(editedMessage);
                                                 // discard edited message and the ones that come after then resend
@@ -1015,7 +919,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 //     editedMessage,
                                                 //     selectedConversation?.messages.length - index,
                                                 // );
-                                                routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
+                                                if (editedMessage.role != "assistant") {
+                                                    routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
+                                                }
                                             }}
                                         />
                                     ))}

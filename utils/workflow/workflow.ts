@@ -227,17 +227,23 @@ Thought:`
         `
             : "";
 
-        const jsonFnCode = await promptLLMForJson(
-            javascriptPersona,
-            fnPrompt,
-            functionSchema,
-        );
+        // const jsonFnCode = await promptLLMForJson(
+        //     javascriptPersona,
+        //     fnPrompt,
+        //     functionSchema,
+        // );
+        const jsonFnCode = {
+            functionName:task,
+            functionDescription:task,
+            parameters:[]
+        };
 
         //console.log("JSON Function:", jsonFnCode);
 
         // Hack for now to skip this since it needs work
         jsonFnCode.parameters = [];
 
+        /*
         // Iterate through each of the paramaters in jsonFnCode
         for (let param of jsonFnCode.parameters) {
             // If the parameter is a string, prompt the user for a string
@@ -308,7 +314,9 @@ Thought:`
 
         }
 
+         */
 
+        let reuseParams: any[] = [];
         let paramStr = reuseParams.map((param) => {
             return `// ${param.description}
                     // ${param.usage}
@@ -592,6 +600,10 @@ export const replayJSWorkflow = async (apiKey: string, code:string, customTools:
         result: result};
 
     console.log("Workflow Result Data:", workflowResultData);
+
+    // Clear the status
+    // @ts-ignore
+    await statusLogger(null);
 
     return workflowResultData;
 }
@@ -877,10 +889,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     while (!success && tries > 0 && !stopper.shouldStop()) {
 
         // console.log("Prompting for the code for task: ", task);
-        //const reuseDesc = await generateReusableFunctionDescription(promptLLMForJson, promptUntil, javascriptPersona, task, prompt, context);
-        const reuseDesc = {
-
-        };
+        const reuseDesc = await generateReusableFunctionDescription(promptLLMForJson, promptUntil, javascriptPersona, task, prompt, context);
 
         // @ts-ignore
         const reuseInstructions = (reuseDesc) ? [reuseDesc?.paramInstructions] : [];
@@ -921,10 +930,10 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         if (cleanedFn != null) {
 
             // Old way
-            const __ret = await executeWorkflow(tools, cleanedFn);
-            fnResult = __ret.result;
-            success = __ret.success;
-            finalFn = __ret.javascriptFn;
+            // const __ret = await executeWorkflow(tools, cleanedFn);
+            // fnResult = __ret.result;
+            // success = __ret.success;
+            // finalFn = __ret.javascriptFn;
 
             // New way
             const fnCaller = (fn: string) => {
@@ -935,6 +944,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
                     async (resolve, reject) => {
                         executeWorkflow(tools, fn)
                             .then((__ret)=>{
+
                                 console.log("Checking workflow...");
                                 finalFn = __ret.javascriptFn;
                                 // @ts-ignore
@@ -959,6 +969,10 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             console.log("Entering the fix code loop...");
             // @ts-ignore
             await fixCodeLoop(stopper, tools.tellUser.exec, promptLLMCode, cleanedFn, fnCaller, 0);
+
+            // Clear the status
+            // @ts-ignore
+            await statusLogger(null);
 
             tries = tries - 1;
         }
@@ -1011,449 +1025,4 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     return {success: false, inputs:{}, code: cleanedFn, exec: finalFn, uncleanCode: uncleanedCode, result: fnResult};
 };
 
-
-function parseJSONObjects(str: string) {
-    let stack = [];
-    let result = [];
-    let temp = "";
-    let inString = false;
-    let inObjectOrArray = false;
-
-    for (let ch of str) {
-        if (ch === '"' && str[str.indexOf(ch) - 1] !== '\\') {
-            inString = !inString;
-        }
-
-        if (!inString) {
-            if (ch === '{' || ch === '[') {
-                inObjectOrArray = true;
-                stack.push(ch);
-                temp += ch;
-            } else if ((ch === '}' && stack[stack.length - 1] === '{') || (ch === ']' && stack[stack.length - 1] === '[')) {
-                stack.pop();
-                temp += ch;
-
-                if (stack.length === 0) {
-                    inObjectOrArray = false;
-                    result.push(JSON.parse(temp));
-                    temp = "";
-                }
-            } else if (inObjectOrArray) {
-                temp += ch;
-            }
-        } else {
-            temp += ch;
-        }
-    }
-
-    while (result.length === 1) {
-        result = result.pop();
-    }
-
-    return result;
-}
-
-export default class Workflow {
-
-    constructor(public name: string, public workflow: Op[]) {
-    }
-
-    runner = (extraOps: any, initialContext: Context | undefined, listener: (stage: string, op: Op, data: {}) => void) => {
-        return createWorkflowRunner(
-            this.workflow,
-            {...ops, ...extraOps},
-            initialContext,
-            listener
-        );
-    }
-
-    run = async (initialContext: Context, extraOps: {}, listener: { (stage: string, op: Op, data: {}): void }) => {
-        return new Promise(async (resolve, reject) => {
-            try {
-                const runner = createWorkflowRunner(this.workflow, {...ops, ...extraOps}, initialContext, listener);
-
-                let result;
-                for await (const res of runner()) {
-                    result = await res; // Hold onto the result to retrieve the final context
-                    //console.log(`Generator returned: ${JSON.stringify(result)}`, result);
-                }
-
-                // Resolve with the final context
-                resolve(result ? result[0] : initialContext);
-
-            } catch (error) {
-                console.error(`Error running workflow: ${error}`);
-                reject(error);
-            }
-        });
-    };
-}
-
-export interface Context {
-    [key: string]: any;
-}
-
-export interface Op {
-    op: string;
-
-    [otherProps: string]: any;
-}
-
-export interface OpRunner {
-    (op: Op, context: Context): Promise<any>;
-}
-
-export function fillTemplate(template: string, context: Context): string {
-    return template.replace(/\{\{([^}]+)\}\}/g, function (_matchedString, key) {
-        let value: any = context;
-
-        key.split('.').forEach((k: string | number) => {
-
-            //console.log(k, JSON.stringify(value[k]));
-
-            if (value && value.hasOwnProperty(k)) {
-                value = value[k];
-            } else {
-                value = undefined;
-            }
-        });
-
-        if (value && typeof value !== 'string') {
-            value = JSON.stringify(value);
-        }
-
-        return typeof value !== 'undefined' ? value : '';
-    });
-}
-
-export const ops: { [opName: string]: OpRunner } = {
-
-    prompt: async (op: Op, context: Context) => {
-
-        if (!op.message) throw new Error("The 'message' property is missing in 'send' operation.");
-
-        let message = newMessage({
-            ...op.message,
-            content: fillTemplate(op.message.content, context)
-        });
-
-        const chatBody: ChatBody = {
-            model: op.model,
-            messages: [message],
-            key: op.apiKey,
-            prompt: op.rootPrompt,
-            temperature: op.temperature,
-        };
-
-        return new Promise((resolve, reject) => {
-            sendChatRequest(chatBody, null, null)
-                .then(async (result) => {
-                    let data = await result.text()
-                    resolve(data);
-                })
-        });
-
-    },
-
-    extractJson: async (op: Op, context: Context) => {
-        // Given json mixed with text describing it, this
-        // function will find and extract all of the valid json
-        // and return a list of the valid json objects it found
-
-        return parseJSONObjects(fillTemplate(op.input, context));
-    },
-
-    input: async (op: Op, context: Context) => {
-        // Placeholder function for input
-        return op.variables; // handle input operation
-    },
-
-    split: async (op: Op, context: Context) => {
-        // Placeholder function for split
-        return [context[op.input]]; // handle split operation
-    },
-
-    map: async (op: Op, context: Context) => {
-        let result = [];
-
-        //console.log("Map", context[op.input]);
-
-        for (const item of context[op.input]) {
-
-            const newContext = {...context, [op.itemVariable]: item};
-
-            for (const operation of op.function) {
-                const mapResult = await executeOp(operation, newContext);
-                console.log("mapResult", mapResult["_output"]);
-                result.push(mapResult["_output"]);
-            }
-        }
-        return result;
-    },
-
-    format: async (op: Op, context: Context) => {
-        let result = fillTemplate(op.input, context);
-        return result;
-    },
-
-    join: async (op: Op, context: Context) => {
-        const stringify = (s: any) => {
-            return (typeof s !== 'string') ? JSON.stringify(s) : s;
-        };
-
-        const sep = op.separator ? op.separator : "";
-        let result = context[op.input].reduce((s: any, v: any) => stringify(s) + sep + stringify(v));
-        return result;
-    },
-
-    parallel: async (op: Op, context: Context) => {
-        return await Promise.all(op.ops.map((itemOp: Op) => executeOp(itemOp, context)));
-    },
-
-    sequential: async (op: Op, context: Context) => {
-        let result;
-        let results = []
-
-        // Force a deep copy to avoid shenanigans
-        let tempContext = JSON.parse(JSON.stringify(context));
-
-        for (const itemOp of op.ops) {
-            result = await executeOp(itemOp, tempContext);
-            results.push(JSON.parse(JSON.stringify(result)));
-
-            if (itemOp.output) {
-                tempContext[itemOp.output] = result[itemOp.output];
-            }
-        }
-        return results;
-    },
-
-    fetch: async (op: Op, context: Context) => {
-        const response = await fetch(op.url, {
-            method: op.method || 'GET',
-            headers: op.headers || {},
-            body: op.body || null,
-        });
-        return response.json();
-    },
-
-    parseJSON: async (op: Op, context: Context) => {
-        return JSON.parse(context[op.input]);
-    },
-
-    domQuery: async (op: Op, context: Context) => {
-        return document.querySelectorAll(op.query);
-    },
-
-    localStorage: async (op: Op, context: Context) => {
-        switch (op.action) {
-            case 'get':
-                return localStorage.getItem(op.key);
-            case 'set':
-                localStorage.setItem(op.key, op.value);
-                break;
-            case 'remove':
-                localStorage.removeItem(op.key);
-                break;
-        }
-    },
-
-    sessionStorage: async (op: Op, context: Context) => {
-        switch (op.action) {
-            case 'get':
-                return sessionStorage.getItem(op.key);
-            case 'set':
-                sessionStorage.setItem(op.key, op.value);
-                break;
-            case 'remove':
-                sessionStorage.removeItem(op.key);
-                break;
-        }
-    },
-
-    cookie: async (op: Op, context: Context) => {
-        const key = fillTemplate(op.key, context);
-        const value = fillTemplate(op.value, context);
-
-        switch (op.action) {
-            case 'get':
-                // @ts-ignore
-                return document.cookie.split('; ').find(row => row.startsWith(key)).split('=')[1];
-            case 'set':
-                document.cookie = `${key}=${value}`;
-                break;
-            case 'remove':
-                document.cookie = `${key}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-                break;
-        }
-    },
-
-    redirect: async (op: Op, context: Context) => {
-        window.location.href = fillTemplate(op.url, context);
-    },
-
-    // executeJS: async (op: Op, context: Context) => {
-    //     return eval(op.script);
-    // },
-
-    formInput: async (op: Op, context: Context) => {
-        const form = document.querySelector(op.formSelector);
-        if (form) {
-            const input = form.querySelector(op.fieldSelector);
-            if (input) input.value = op.value;
-        }
-    },
-
-    click: async (op: Op, context: Context) => {
-        const element = document.querySelector(op.selector);
-        if (element) {
-            element.click();
-        }
-    },
-
-    geolocation: async (op: Op, context: Context) => {
-        return new Promise((resolve, reject) => {
-            if (!navigator.geolocation) {
-                reject("Geolocation is not supported by your browser");
-            } else {
-                navigator.geolocation.getCurrentPosition(position => resolve(position), err => reject(err));
-            }
-        });
-    },
-
-    notification: async (op: Op, context: Context) => {
-        const title = fillTemplate(op.title, context);
-
-        if (!("Notification" in window)) {
-            throw new Error("This browser does not support desktop notification");
-        } else if (Notification.permission === "granted") {
-            const notification = new Notification(title, op.options);
-        } else { // @ts-ignore
-            if (Notification.permission !== 'denied' || Notification.permission === "default") {
-                const permission = await Notification.requestPermission();
-                if (permission === "granted") {
-                    const notification = new Notification(title, op.options);
-                }
-            }
-        }
-    },
-
-    history: async (op: Op, context: Context) => {
-        switch (op.action) {
-            case 'push':
-                history.pushState(op.state, op.title, op.url);
-                break;
-            case 'replace':
-                history.replaceState(op.state, op.title, op.url);
-                break;
-            case 'back':
-                history.back();
-                break;
-            case 'forward':
-                history.forward();
-                break;
-            case 'go':
-                history.go(op.value);
-                break;
-        }
-    },
-
-    fileAPI: async (op: Op, context: Context) => {
-        // Placeholder function for File API. Detailed implementation will depend on the type of operation e.g. readFile, writeFile, etc.
-        console.log('File API used');
-    },
-
-    navigator: async (op: Op, context: Context) => {
-        // @ts-ignore
-        return navigator[op.property];
-    },
-
-    audioAPI: async (op: Op, context: Context) => {
-        const audioContext = new AudioContext();
-        const oscillator = audioContext.createOscillator();
-        oscillator.type = 'square';
-        oscillator.frequency.value = 3000;
-        oscillator.start();
-        return oscillator;
-    },
-
-    consoleLog: async (op: Op, context: Context) => {
-        console.log(fillTemplate(op.message, context));
-    },
-
-    noOp: async (op: Op, context: Context) => {
-    }
-};
-
-export async function executeOp(operation: Op, context: Context = {}): Promise<any> {
-    const opRunner = ops[operation.op];
-    if (!opRunner) throw new Error(`Unknown operation: ${operation.op}`);
-
-    let localContext = {...context}
-    const result = await opRunner(operation, localContext);
-
-    if (operation.output) {
-        localContext[operation.output] = result;
-    }
-    localContext["_output"] = result;
-
-    return localContext;
-}
-
-export interface WorkflowRunner {
-    (): AsyncGenerator<Promise<any>, void, any>;
-}
-
-export const createWorkflowRunner = (
-    workflow: Op[],
-    executors: Record<string, (op: Op, context: Context) => Promise<any>>,
-    initialContext: Context = {},
-    listener: (stage: string, op: Op, data: {}) => void
-) => {
-    return async function* () {
-        const context = {...initialContext};
-
-        listener('workflow:start', {op: "noOp"}, context);
-
-        const execOp = async (op: Op): Promise<[{}, any]> => {
-
-            listener("op:pre", op, context);
-
-            const executor = executors[op.op];
-            //console.log("op:pre/executor", executors[op.op]);
-
-            const result = executor != null ? await executors[op.op](op, context) : Promise.reject("Unknown operaton: " + op.op);
-            //console.log("op:post/result", result);
-
-            if (op.output) {
-                context[op.output] = result;
-            }
-
-            listener("op:post", op, context);
-
-            return [context, result];
-        };
-
-        for (let op of workflow) {
-            if (op.op === 'until') {
-                const condition = op.condition;
-                while (!context[condition]) {
-                    for (let innerOp of op.ops) {
-                        yield execOp(innerOp);
-                    }
-                }
-            } else if (op.op === 'while') {
-                const condition = op.condition;
-                while (context[condition]) {
-                    for (let innerOp of op.ops) {
-                        yield execOp(innerOp);
-                    }
-                }
-            } else {
-                yield execOp(op);
-            }
-        }
-
-        listener('workflow:done', {op: "noOp"}, context);
-    }
-};
+export default executeJSWorkflow;
