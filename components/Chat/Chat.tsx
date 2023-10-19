@@ -354,7 +354,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             return [...documentVariables,...variables];
         }
 
-        const handleJsWorkflow = useCallback(async (message: Message, documents: AttachedDocument[] | null) => {
+        const handleJsWorkflow = useCallback(async (message: Message, updatedVariables: string[], documents: AttachedDocument[] | null) => {
 
             if(!featureFlags.workflowRun){
                 alert("Running workflows is currently disabled.");
@@ -432,7 +432,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 let runner = (isReplay) ?
                     () => {
-                    console.log("Replaying workflow", code);
+                    console.log("Replaying workflow", fillInTemplate(code, updatedVariables, documents, false));
+
+                    code = fillInTemplate(code, updatedVariables, documents, false);
+
                     return replayJSWorkflow(apiKey, code, tools, stopper, statusLogger, context, (responseText) => {
                         statusLogger(null);
 
@@ -571,29 +574,18 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             ) {
                 handleSend(message, index, plugin);
             } else if (message.type == MessageType.AUTOMATION) {
-                handleJsWorkflow(message, documents);
+                handleJsWorkflow(message, [], documents);
             } else {
                 console.log("Unknown message type", message.type);
             }
         }
 
-        const handleSubmit = (updatedVariables: string[], documents: AttachedDocument[] | null) => {
-
-            let templateData = selectedConversation?.promptTemplate;
-            let template = templateData?.content;
-
-            const doWorkflow = selectedConversation?.promptTemplate?.type == "automation";
-
-            console.log("Is automation?", doWorkflow);
-
-            setWorkflowMode(doWorkflow);
-
-            const newContent = template?.replace(/{{(.*?)}}/g, (match, variable) => {
+        const fillInTemplate = (template:string, updatedVariables: string[], documents: AttachedDocument[] | null, insertDocuments:boolean) => {
+            const newContent = template.replace(/{{(.*?)}}/g, (match, variable) => {
                 const index = variables.indexOf(variable);
 
-                if (!doWorkflow && documents && documents.length > 0) {
+                if (insertDocuments && documents && documents.length > 0) {
                     let document = documents.filter((doc) => {
-                        console.log("doc.name", doc.name, variable);
                         if (doc.name == parseVariableName(variable)) {
                             return "" + doc.raw;
                         }
@@ -606,6 +598,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 return updatedVariables[index];
             });
+
+            return newContent;
+        }
+
+
+        const handleSubmit = (updatedVariables: string[], documents: AttachedDocument[] | null) => {
+
+            let templateData = selectedConversation?.promptTemplate;
+            let template = templateData?.content;
+
+            const doWorkflow = selectedConversation?.promptTemplate?.type == "automation";
+
+            console.log("Is automation?", doWorkflow);
+
+            setWorkflowMode(doWorkflow);
+
+            const newContent = fillInTemplate(template || "", updatedVariables, documents, !doWorkflow);
 
             // Jules
             let message = newMessage({
@@ -622,7 +631,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 handleSend(message, 0, null);
             } else {
                 console.log("Workflow", message);
-                handleJsWorkflow(message, documents);
+                handleJsWorkflow(message, updatedVariables, documents);
             }
 
         };
@@ -706,6 +715,17 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 selectedConversation.messages[selectedConversation.messages.length - 2],
             );
         }, [selectedConversation, throttledScrollDown]);
+
+        const handlePromptTemplateDialogCancel = () => {
+            if(selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
+                selectedConversation.promptTemplate = null;
+                handleUpdateConversation(selectedConversation, {
+                    key: 'promptTemplate',
+                    value: null,
+                })
+            }
+            setIsPromptTemplateDialogVisible(false);
+        }
 
         useEffect(() => {
 
@@ -854,7 +874,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         prompt={(selectedConversation.promptTemplate)}
                                                         variables={parsePromptVariables(selectedConversation?.promptTemplate.content)}
                                                         onSubmit={handleSubmit}
-                                                        onClose={() => setIsPromptTemplateDialogVisible(false)}
+                                                        onClose={handlePromptTemplateDialogCancel}
                                                     />
                                                 )}
                                                 {isPromptTemplateDialogVisible && selectedConversation.workflowDefinition && (
@@ -864,7 +884,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         workflowDefinition={selectedConversation.workflowDefinition}
                                                         variables={getWorkflowDefinitionVariables(selectedConversation.workflowDefinition)}
                                                         onSubmit={handleSubmit}
-                                                        onClose={() => setIsPromptTemplateDialogVisible(false)}
+                                                        onClose={handlePromptTemplateDialogCancel}
                                                     />
                                                 )}
 

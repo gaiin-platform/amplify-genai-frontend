@@ -120,9 +120,9 @@ export const OpenAIStream = async (
     }
     if (json.choices[0].finish_reason != null) {
 
-        console.log("------------- Completing------------")
-        console.log(json.choices)
-        console.log("------------------------------------")
+        // console.log("------------- Completing------------")
+        // console.log(json.choices)
+        // console.log("------------------------------------")
 
         text += "}";
 

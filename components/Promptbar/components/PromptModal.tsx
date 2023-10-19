@@ -6,6 +6,7 @@ import { Prompt } from '@/types/prompt';
 import {boolean} from "property-information/lib/util/types";
 import {MessageType} from "@/types/chat";
 import HomeContext from "@/pages/api/home/home.context";
+import {findWorkflowPattern} from "@/utils/workflow/aiflow";
 
 interface Props {
   prompt: Prompt;
@@ -19,18 +20,49 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
     state: { featureFlags },
   } = useContext(HomeContext);
 
+  let initialCode = prompt.data?.code ? "const workflow = " + prompt.data.code :  '//@START_WORKFLOW\n' +
+      'const workflow = async (fnlibs) => {\n' +
+      '     \n' +
+      '    try {\n' +
+      '        fnlibs.tellUser("Executing the generated workflow...");\n' +
+      '        let value = {type:"table", data:null}; // Initialize value\n' +
+      '' +
+      '        return value;\n' +
+      '    }\n' +
+      '    catch(e){\n' +
+      '       throw e;\n' +
+      '    }\n' +
+      '};//@\n' +
+      '\n';
+
   const [name, setName] = useState(prompt.name);
   const [description, setDescription] = useState(prompt.description);
   const [content, setContent] = useState(prompt.content);
+  const [code, setCode] = useState(initialCode);
 
   const [selectedTemplate, setSelectedTemplate] = useState<string>(prompt.type || MessageType.PROMPT);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
+  const handleUpdatePrompt = () => {
+    const newPrompt = { ...prompt, name, description, content: content.trim(), type: selectedTemplate};
+
+    if (featureFlags.workflowCreate
+        && selectedTemplate === MessageType.AUTOMATION
+        && code
+        && findWorkflowPattern(code)) {
+      console.log("Updated code:", findWorkflowPattern(code));
+      newPrompt.data = {...prompt.data, code: findWorkflowPattern(code)};
+    }
+
+    onUpdatePrompt(newPrompt);
+  }
+
   const handleEnter = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
-      onUpdatePrompt({ ...prompt, name, description, content: content.trim(), type: selectedTemplate });
+
+      handleUpdatePrompt();
       onClose();
     }
   };
@@ -114,6 +146,39 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
               rows={10}
             />
 
+            {featureFlags.workflowCreate && selectedTemplate === MessageType.AUTOMATION && (
+                <>
+                <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
+                  {t('Code')}
+                </div>
+                <textarea
+                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                    style={{ resize: 'none' }}
+                    placeholder={
+                        t(
+                            '//@START_WORKFLOW\n' +
+                            'const workflow = async (fnlibs) => {\n' +
+                            '     \n' +
+                            '    try {\n' +
+                            '        fnlibs.tellUser("Executing the generated workflow...");\n' +
+                            '        let value = {type:"table", data:null}; // Initialize value\n' +
+                            '' +
+                            '        return value;\n' +
+                            '    }\n' +
+                            '    catch(e){\n' +
+                            '       throw e;\n' +
+                            '    }\n' +
+                            '};//@\n' +
+                            '\n',
+                        ) || ''
+                    }
+                    value={code||""}
+                    onChange={(e) => setCode(e.target.value)}
+                    rows={10}
+                />
+                </>
+            )}
+
             <div className="mt-2">
               <div className="inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100 mr-8">
                 <input
@@ -128,6 +193,8 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
                   Prompt template
                 </label>
               </div>
+
+
 
               {featureFlags.workflowCreate && (
               <div className="inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
@@ -152,15 +219,7 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
               type="button"
               className="w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
               onClick={() => {
-                const updatedPrompt = {
-                  ...prompt,
-                  name,
-                  description,
-                  content: content.trim(),
-                  type: selectedTemplate
-                };
-
-                onUpdatePrompt(updatedPrompt);
+                handleUpdatePrompt();
                 onClose();
               }}
             >

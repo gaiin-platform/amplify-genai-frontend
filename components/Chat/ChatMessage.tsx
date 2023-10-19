@@ -32,6 +32,7 @@ import rehypeRaw from 'rehype-raw';
 import Workflow from "@/utils/workflow/workflow";
 import mermaid from "mermaid";
 import { Vega } from 'react-vega';
+import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 
 const mermaidConfig = {
     startOnLoad: true,
@@ -614,6 +615,12 @@ export const ChatMessage: FC<Props> = memo(({
                                                 //console.log("mermaid")
                                                 //@ts-ignore
                                                 return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1 }/>);
+                                            }
+
+                                            if (!inline && match && match[1] === 'toggle') {
+                                                //console.log("mermaid")
+                                                //@ts-ignore
+                                                return (<ExpansionComponent content={String(children)} title={"Source"}/>);
                                             }
 
                                             if (!inline && match && match[1] === 'vega') {

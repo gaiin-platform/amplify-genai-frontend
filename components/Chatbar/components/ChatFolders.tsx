@@ -14,7 +14,7 @@ interface Props {
 
 export const ChatFolders = ({ searchTerm }: Props) => {
   const {
-    state: { folders, conversations },
+    state: { folders, conversations, selectedConversation },
     handleUpdateConversation,
   } = useContext(HomeContext);
 
