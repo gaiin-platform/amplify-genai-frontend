@@ -40,7 +40,7 @@ export const OpenAIStream = async (
 
   let url = `${OPENAI_API_HOST}/v1/chat/completions`;
   if (OPENAI_API_TYPE === 'azure') {
-    url = `${OPENAI_API_HOST}/${AZURE_API_NAME}/deployments/${AZURE_DEPLOYMENT_ID}/chat/completions?api-version=${OPENAI_API_VERSION}`;
+    url = `${OPENAI_API_HOST}/${AZURE_API_NAME}/deployments/${model.id}/chat/completions?api-version=${OPENAI_API_VERSION}`;
   }
 
   console.log("URL: " + url);
@@ -142,6 +142,7 @@ export const OpenAIStream = async (
     async start(controller) {
       const onParse = (event: ParsedEvent | ReconnectInterval) => {
         if (event.type === 'event') {
+
           const data = event.data;
 
           try {
@@ -161,7 +162,12 @@ export const OpenAIStream = async (
               controller.enqueue(queue);
             }
           } catch (e) {
-            controller.error(e);
+            // Apparent edge case required for Azure
+            if (data === "[DONE]") {
+              return;
+            } else {
+               controller.error(e);
+            }
           }
         }
       };

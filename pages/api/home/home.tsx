@@ -679,6 +679,8 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
             process.env.DEFAULT_MODEL) ||
         fallbackModelID;
 
+    console.log("Default Model Id:", defaultModelId);
+
     let serverSidePluginKeysSet = false;
 
     const googleApiKey = process.env.GOOGLE_API_KEY;

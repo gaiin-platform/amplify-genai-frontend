@@ -3,7 +3,8 @@ import {
   OPENAI_API_HOST,
   OPENAI_API_TYPE,
   OPENAI_API_VERSION,
-  OPENAI_ORGANIZATION
+  OPENAI_ORGANIZATION,
+  AVAILABLE_MODELS,
 } from '@/utils/app/const';
 
 import { OpenAIModel, OpenAIModelID, OpenAIModels } from '@/types/openai';
@@ -68,12 +69,13 @@ const handler = async (req: Request): Promise<Response> => {
     //       tokenLimit: OpenAIModels[model.id].tokenLimit,
     //     }))
 
-    
+    const modelIds = AVAILABLE_MODELS.split(',');
+
     const models: OpenAIModel[] = json.data
       .map((model: any) => {
         const model_name = model.id; //(OPENAI_API_TYPE === 'azure') ? model.model : model.id;
         for (const [key, value] of Object.entries(OpenAIModelID)) {
-          if (value === model_name) {
+          if (value === model_name && modelIds.includes(model.id)) {
             return {
               id: model.id,
               name: OpenAIModels[value].name,
