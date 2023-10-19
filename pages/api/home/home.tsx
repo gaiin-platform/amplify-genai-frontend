@@ -145,6 +145,8 @@ const Home = ({
 
         dispatch({field: 'folders', value: updatedFolders});
         saveFolders(updatedFolders);
+
+        return newFolder;
     };
 
     const handleDeleteFolder = (folderId: string) => {
@@ -217,6 +219,22 @@ const Home = ({
     const handleNewConversation = (params = {}) => {
         const lastConversation = conversations[conversations.length - 1];
 
+        // Create a string for the current date like Oct-18-2021
+        const date = new Date().toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        });
+
+        // See if there is a folder with the same name as the date
+        let folder = folders.find((f) => f.name === date);
+
+        console.log("handleNewConversation", {date, folder});
+
+        if(!folder){
+            folder = handleCreateFolder(date, "chat");
+        }
+
         const newConversation: Conversation = {
             id: uuidv4(),
             name: t('New Conversation'),
@@ -229,7 +247,7 @@ const Home = ({
             },
             prompt: DEFAULT_SYSTEM_PROMPT,
             temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
-            folderId: null,
+            folderId: folder.id,
             promptTemplate: null,
             ...params
         };
@@ -679,7 +697,7 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
             process.env.DEFAULT_MODEL) ||
         fallbackModelID;
 
-    console.log("Default Model Id:", defaultModelId);
+    //console.log("Default Model Id:", defaultModelId);
 
     let serverSidePluginKeysSet = false;
 
