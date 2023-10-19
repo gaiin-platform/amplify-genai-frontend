@@ -7,7 +7,6 @@ import { KeyValuePair } from '@/types/data';
 import { FolderType } from '@/types/folder';
 
 import { HomeInitialState } from './home.state';
-import {WorkflowRun} from "@/types/workflow";
 
 export type Processor = (data:any) => {};
 

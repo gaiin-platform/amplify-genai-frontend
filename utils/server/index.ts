@@ -142,6 +142,7 @@ export const OpenAIStream = async (
     async start(controller) {
       const onParse = (event: ParsedEvent | ReconnectInterval) => {
         if (event.type === 'event') {
+
           const data = event.data;
 
           try {
@@ -161,7 +162,12 @@ export const OpenAIStream = async (
               controller.enqueue(queue);
             }
           } catch (e) {
-            controller.error(e);
+            // Apparent edge case required for Azure
+            if (data === "[DONE]") {
+              return;
+            } else {
+               controller.error(e);
+            }
           }
         }
       };
