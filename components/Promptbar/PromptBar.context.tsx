@@ -10,6 +10,7 @@ export interface PromptbarContextProps {
   state: PromptbarInitialState;
   dispatch: Dispatch<ActionType<PromptbarInitialState>>;
   handleCreatePrompt: () => void;
+  handleAddPrompt: (prompt: Prompt) => void;
   handleDeletePrompt: (prompt: Prompt) => void;
   handleUpdatePrompt: (prompt: Prompt) => void;
 }

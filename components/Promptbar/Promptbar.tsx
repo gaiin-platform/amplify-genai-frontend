@@ -44,6 +44,14 @@ const Promptbar = () => {
     localStorage.setItem('showPromptbar', JSON.stringify(!showPromptbar));
   };
 
+  const handleAddPrompt = (prompt: Prompt) => {
+    const updatedPrompts = [...prompts, prompt];
+
+    homeDispatch({ field: 'prompts', value: updatedPrompts });
+
+    savePrompts(updatedPrompts);
+  }
+
   const handleCreatePrompt = () => {
     if (defaultModelId) {
       const newPrompt: Prompt = {
@@ -127,6 +135,7 @@ const Promptbar = () => {
         handleCreatePrompt,
         handleDeletePrompt,
         handleUpdatePrompt,
+        handleAddPrompt,
       }}
     >
       <Sidebar<Prompt>

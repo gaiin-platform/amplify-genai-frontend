@@ -432,9 +432,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 let runner = (isReplay) ?
                     () => {
-                    console.log("Replaying workflow", fillInTemplate(code, updatedVariables, documents, false));
 
+                    console.log("Filling in variables...");
                     code = fillInTemplate(code, updatedVariables, documents, false);
+                    console.log("Replaying workflow :: ", code);
 
                     return replayJSWorkflow(apiKey, code, tools, stopper, statusLogger, context, (responseText) => {
                         statusLogger(null);
@@ -581,12 +582,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
         const fillInTemplate = (template:string, updatedVariables: string[], documents: AttachedDocument[] | null, insertDocuments:boolean) => {
+            console.log("Fill in Template");
+            const names = variables.map(v => parseVariableName(v));
+
+            console.log("Variables", variables);
+            console.log("Names", names);
+
             const newContent = template.replace(/{{(.*?)}}/g, (match, variable) => {
-                const index = variables.indexOf(variable);
+                const name = parseVariableName(variable);
+                const index = names.indexOf(name);
+
+                console.log("Variable", name, index, updatedVariables[index]);
 
                 if (insertDocuments && documents && documents.length > 0) {
                     let document = documents.filter((doc) => {
-                        if (doc.name == parseVariableName(variable)) {
+                        if (doc.name == name) {
                             return "" + doc.raw;
                         }
                     })[0];

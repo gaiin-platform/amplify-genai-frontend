@@ -1,6 +1,7 @@
 import {
   IconBulbFilled,
   IconEdit,
+    IconCopy,
   IconCheck,
   IconApiApp,
   IconMessage2,
@@ -28,6 +29,7 @@ import PromptbarContext from '../PromptBar.context';
 import { PromptModal } from './PromptModal';
 import { ShareModal } from './ShareModal';
 import { useChatService } from '@/hooks/useChatService';
+import {v4 as uuidv4} from "uuid";
 
 
 interface Props {
@@ -37,6 +39,7 @@ interface Props {
 export const PromptComponent = ({ prompt }: Props) => {
   const {
     dispatch: promptDispatch,
+      handleAddPrompt,
     handleUpdatePrompt,
     handleDeletePrompt,
   } = useContext(PromptbarContext);
@@ -152,6 +155,11 @@ export const PromptComponent = ({ prompt }: Props) => {
     }
   };
 
+  const handleCopy = () => {
+    const newPrompt = { ...prompt, id: uuidv4(), name: prompt.name + ' (copy)' };
+    handleAddPrompt(newPrompt);
+  }
+
 
   useEffect(() => {
     if (isRenaming) {
@@ -199,6 +207,12 @@ export const PromptComponent = ({ prompt }: Props) => {
 
           {isHovered &&
               <div className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-gray-900 rounded">
+
+                {!isDeleting && !isRenaming && (
+                    <SidebarActionButton handleClick={handleCopy}>
+                      <IconCopy size={18}/>
+                    </SidebarActionButton>
+                )}
 
                 {!isDeleting && !isRenaming && (
                     <SidebarActionButton handleClick={() => setShowModal(true)}>
