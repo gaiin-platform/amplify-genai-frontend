@@ -62,6 +62,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             state: {
                 selectedConversation,
                 conversations,
+                folders,
                 models,
                 apiKey,
                 pluginKeys,
@@ -423,6 +424,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     inputs: {
                         documents: documents || [],
                         parameters: {},
+                        conversations: conversations,
+                        prompts: prompts,
+                        folders: folders,
                     }
                 }
 

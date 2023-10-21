@@ -1,5 +1,5 @@
 import {OpenAIModelID, OpenAIModels} from "@/types/openai";
-import {CustomFunction, JsonSchema, newMessage} from "@/types/chat";
+import {Conversation, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {sendChatRequest} from "@/services/chatService";
 import {describeAsJsonSchema} from "@/utils/app/data";
 import {InputDocument} from "@/types/workflow";
@@ -512,12 +512,15 @@ const generateOutline = async (promptLLMFull:any, topic:string, maxDepth:number,
 
 
 // @ts-ignore
-export const parameterizeTools = ({apiKey, stopper, context, requestedParameters, requestedDocuments, statusLogger}) => {
+export const parameterizeTools = ({apiKey, stopper, context, requestedParameters, requestedDocuments, statusLogger}:params) => {
 
     console.log("parameterizeTools", context, requestedParameters, requestedDocuments);
 
     const documents = [...context.inputs.documents];
     const parameters = {...context.inputs.parameters};
+    const conversations = [...context.inputs.conversations];
+    const prompts = [...context.inputs.prompts];
+    const folders = [...context.inputs.folders];
 
     const promptLLMFull: (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => any = (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
         // Grab the first 30 characters of the prompt

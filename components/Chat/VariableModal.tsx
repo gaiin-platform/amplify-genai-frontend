@@ -7,6 +7,7 @@ import {WorkflowDefinition} from "@/types/workflow";
 import {OpenAIModelID, OpenAIModel} from "@/types/openai";
 import HomeContext from "@/pages/api/home/home.context";
 import JSON5 from 'json5'
+import {parsePromptVariableValues} from "@/utils/app/prompts";
 
 interface Props {
     models: OpenAIModel[];
@@ -125,14 +126,20 @@ export const VariableModal: FC<Props> = ({
             alert('Please fill out all variables');
             return;
         }
+
+        // Final updates that shouldn't be visible / editable to the user
+        // Transform all of the values of the updateVariables map with the getValue function
+        const transformedVariables =
+        updatedVariables.map((variable) => ({...variable, value: getValue(variable.key, variable.value)}));
+
         // Separate the documents into their own array
-        const documents = updatedVariables
+        const documents = transformedVariables
             .filter((variable) => isFile(variable.key))
             .map((variable) => {
                 return {...variable.value, name: parseVariableName(variable.key)};
             });
 
-        const justVariables = updatedVariables
+        const justVariables = transformedVariables
             .map((variable) => (isFile(variable.key)) ? "" : variable.value);
 
 
@@ -171,43 +178,14 @@ export const VariableModal: FC<Props> = ({
         }
     }, []);
 
-    const parseOptions = (variable: string) => {
-        let type = variable.split(":");
-        if(type.length > 1) {
-            let optionsPart = type[1].trim();
 
-            let delims = (optionsPart.split("(")[0].length < optionsPart.split("[")[0].length)
-                ? ["(",")"] : ["[","]"];
-
-            let start = variable.indexOf(delims[0]);
-            let end = variable.indexOf(delims[1]);
-
-            let dataStr = "{" + variable.substring(start + 1, end) + "}";
-
-            if (delims[0] === "(") {
-                try {
-                    return JSON5.parse(dataStr);
-                } catch (e) {
-                    return {}
-                }
-            } else {
-                try {
-                    return JSON5.parse(dataStr);
-                } catch (e) {
-                    return {options: dataStr.split(",")};
-                }
-            }
-        }
-        else {
-            return {};
-        }
-    }
 
     const getConversations = (variable: string) => {
-        const options = parseOptions(variable);
+        const options = parsePromptVariableValues(variable);
 
         let filtered = conversations.filter((conversation) => {
            if(options.startsWith){
+               console.log(conversation.name + " .startsWith " + options.startsWith + " = " + conversation.name.startsWith(options.startsWith));
                return conversation.name.startsWith(options.startsWith);
            }
            else if(options.options) {
@@ -224,9 +202,7 @@ export const VariableModal: FC<Props> = ({
     }
 
     const getPromptTemplates = (variable: string) => {
-        const options = parseOptions(variable);
-
-        console.log("Options:", options);
+        const options = parsePromptVariableValues(variable);
 
         let filtered = prompts.filter((prompt) => {
             if(options.startsWith){
@@ -236,7 +212,6 @@ export const VariableModal: FC<Props> = ({
                 return options.options.includes(prompt.name);
             }
             else if(options.type) {
-                console.log("Prompt type:", prompt.type, options.type);
                 return prompt.type === options.type;
             }
             return prompt;
@@ -247,6 +222,32 @@ export const VariableModal: FC<Props> = ({
 
     const getPromptTemplateValue = (prompt: any) => {
         return JSON.stringify(prompt);
+    }
+
+
+
+    const getTextValue = (variable:string, text: string) => {
+        let options = parsePromptVariableValues(variable);
+
+        console.log("Text Options:", options);
+
+        // Append a line number to the start of every line of text
+        text = (options.lineNumbers) ? text.split("\n")
+            .map((line, index) => "Line "+index+": "+line).join("\n") : text;
+        text = (options.escape) ? text.replaceAll("\"", "\\\"")
+            .replaceAll("\n","\\n") : text;
+        text = (options.truncate) ? text.slice(0, options.truncate) : text;
+        text = (options.truncateFromEnd) ? text.slice(-1 * options.truncate) : text;
+        return text;
+    }
+
+    const getValue = (variable: string, value: any) => {
+        if(isText(variable)) {
+            return getTextValue(variable, value);
+        }
+        else {
+            return value;
+        }
     }
 
     const truncate = (str: string, n: number) => {

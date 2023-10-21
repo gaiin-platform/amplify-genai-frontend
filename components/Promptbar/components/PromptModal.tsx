@@ -1,17 +1,39 @@
 import {FC, KeyboardEvent, useContext, useEffect, useRef, useState} from 'react';
 
 import { useTranslation } from 'next-i18next';
-
+import JSON5 from 'json5'
 import { Prompt } from '@/types/prompt';
 import {boolean} from "property-information/lib/util/types";
 import {MessageType} from "@/types/chat";
 import HomeContext from "@/pages/api/home/home.context";
 import {findWorkflowPattern} from "@/utils/workflow/aiflow";
+import {variableTypeOptions, parsePromptVariableValues, parsePromptVariables, getType, getName} from "@/utils/app/prompts";
+import ExpansionComponent from "@/components/Chat/ExpansionComponent";
+import EditableField from "@/components/Promptbar/components/EditableField";
 
 interface Props {
   prompt: Prompt;
   onClose: () => void;
   onUpdatePrompt: (prompt: Prompt) => void;
+}
+
+const getVariableOptions = (promptTemplate:string) => {
+  const variables = parsePromptVariables(promptTemplate);
+
+  return variables.map((variable) => {
+    const type = getType(variable);
+    const values = parsePromptVariableValues(variable);
+    // @ts-ignore
+    const typeData = variableTypeOptions[type];
+
+    return {
+      label: getName(variable),
+      variable: variable,
+      type: type,
+      optionValues: values,
+      typeData: typeData
+    };
+  });
 }
 
 export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
@@ -40,11 +62,59 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
   const [description, setDescription] = useState(prompt.description);
   const [content, setContent] = useState(prompt.content);
   const [code, setCode] = useState(initialCode);
+  const [variableOptions, setVariableOptions] = useState(getVariableOptions(content));
 
   const [selectedTemplate, setSelectedTemplate] = useState<string>(prompt.type || MessageType.PROMPT);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUpdateTemplate = (promptTemplate:string) =>{
+    setVariableOptions(getVariableOptions(promptTemplate));
+    setContent(promptTemplate);
+  };
+
+  const handleUpdateVariableOptionValues = (variable:string, type:string, optionName:string, optionValue:any) => {
+
+    console.log("Variable:", variable, "Option name:", optionName, "Option value:", optionValue);
+
+    let newVariableOptions = [...variableOptions];
+    newVariableOptions.forEach((variableOption) => {
+      if(variableOption.label === variable){
+        if(optionValue == null){
+            delete variableOption.optionValues[optionName];
+        }
+        else {
+          variableOption.optionValues[optionName] = optionValue;
+        }
+      }
+    });
+
+    const optionValuesToRender = newVariableOptions.filter((variableOption) => {
+        return (variableOption.label === variable);
+    })[0].optionValues;
+
+    let renderedVariable = "{{"
+        + variable + ":" + type
+        + ((optionValuesToRender.length == 0)? "" : "(" + JSON5.stringify(optionValuesToRender).slice(1,-1) + ")")
+        +"}}";
+
+    console.log("Rendered variable:", renderedVariable);
+
+
+    const search = new RegExp("{{\\s*"+variable+"\\s*(\\s*:\\s*(.*?)\\s*(\\(.*?\\))?)?\\s*}}", "g");
+
+    let newContent = content.replaceAll(search, renderedVariable);
+
+    console.log("New content:", newContent);
+
+    setVariableOptions(newVariableOptions);
+    setContent(newContent);
+  }
+
+  const handleUpdateVariable = (variable:string) =>{
+
+  }
 
   const handleUpdatePrompt = () => {
     const newPrompt = { ...prompt, name, description, content: content.trim(), type: selectedTemplate};
@@ -59,14 +129,6 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
 
     onUpdatePrompt(newPrompt);
   }
-
-  const handleEnter = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-
-      handleUpdatePrompt();
-      onClose();
-    }
-  };
 
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
@@ -91,10 +153,10 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
     nameInputRef.current?.focus();
   }, []);
 
+
   return (
     <div
       className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
-      onKeyDown={handleEnter}
     >
       <div className="fixed inset-0 z-10 overflow-hidden">
         <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -143,9 +205,47 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
                 ) || ''
               }
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={(e) => handleUpdateTemplate(e.target.value)}
               rows={10}
             />
+
+            {variableOptions.length > 0 && (
+                <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
+                    {t('Variables')}
+                </div>
+            )}
+            {variableOptions.map((variableOption,index) => (
+              <div key={index} className="mt-2 mb-6 text-sm font-bold text-black dark:text-neutral-200">
+
+                  <ExpansionComponent key={variableOption.variable} title={variableOption.label + ":" + variableOption.type}
+                      // @ts-ignore
+                                      content={
+                        <div className="mt-2 mb-6 text-sm font-bold text-black dark:text-neutral-200">
+                          {variableOption.typeData && Object.entries(variableOption.typeData).map(([key,data],index) => (
+                              <div key={key} className="mt-4">
+                                <input
+                                    className={"mr-2"}
+                                    type="checkbox"
+                                    checked={variableOption.optionValues[key] != null}
+                                    onChange={(e) => {
+                                      if(!e.target.checked) {
+                                        variableOption.optionValues[key] = null;
+                                      }
+                                      else {
+                                        variableOption.optionValues[key] = variableOption.typeData[key].default;
+                                      }
+                                      handleUpdateVariableOptionValues(variableOption.label, variableOption.type, key, e.target.checked? variableOption.typeData[key].default || '' : null)
+                                    }}
+                                />
+
+                                {// @ts-ignore
+                                  data.title}: <EditableField currentValue={variableOption.optionValues[key] || variableOption.typeData[key].default || ''} data={data} handleUpdate={(v)=>handleUpdateVariableOptionValues(variableOption.label, variableOption.type, key, v)}/>
+                              </div>
+                              ))}
+                        </div>
+                  }></ExpansionComponent>
+              </div>
+            ))}
 
             {featureFlags.workflowCreate && selectedTemplate === MessageType.AUTOMATION && (
                 <>

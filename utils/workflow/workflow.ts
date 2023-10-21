@@ -1,4 +1,4 @@
-import {ChatBody, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
+import {ChatBody, Conversation, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {sendChatRequest} from "@/services/chatService";
 import {findWorkflowPattern, generateWorkflowPrompt, describeTools} from "@/utils/workflow/aiflow";
 import {OpenAIModelID, OpenAIModels} from "@/types/openai";
@@ -440,7 +440,7 @@ function createWorkflowParams(context: WorkflowContext, apiKey: string, stopper:
     return workflowGlobalParams;
 }
 
-function createWorkflowTools(workflowGlobalParams: { requestedDocuments: any[]; requestedParameters: {}; apiKey: string; stopper: Stopper; statusLogger:(status:Status)=>void; context: WorkflowContext }, promptLLM: (persona: string, prompt: string) => Promise<null | string>, customTools: { [p: string]: AiTool }) {
+function createWorkflowTools(workflowGlobalParams: {requestedDocuments: any[]; requestedParameters: {}; apiKey: string; stopper: Stopper; statusLogger:(status:Status)=>void; context: WorkflowContext }, promptLLM: (persona: string, prompt: string) => Promise<null | string>, customTools: { [p: string]: AiTool }) {
     const parameterizedTools = coreTools(workflowGlobalParams);
 
     const tools: { [name: string]: AiTool } = {
