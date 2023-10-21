@@ -20,6 +20,7 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
     state: { featureFlags },
   } = useContext(HomeContext);
 
+
   let initialCode = prompt.data?.code ? "const workflow = " + prompt.data.code :  '//@START_WORKFLOW\n' +
       'const workflow = async (fnlibs) => {\n' +
       '     \n' +

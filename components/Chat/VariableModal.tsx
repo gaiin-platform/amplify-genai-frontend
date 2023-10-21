@@ -1,10 +1,12 @@
-import {FC, KeyboardEvent, useEffect, useRef, useState} from 'react';
+import {FC, KeyboardEvent, useContext, useEffect, useRef, useState} from 'react';
 
 import {Prompt} from '@/types/prompt';
 import {AttachFile} from "@/components/Chat/AttachFile";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {WorkflowDefinition} from "@/types/workflow";
 import {OpenAIModelID, OpenAIModel} from "@/types/openai";
+import HomeContext from "@/pages/api/home/home.context";
+import JSON5 from 'json5'
 
 interface Props {
     models: OpenAIModel[];
@@ -13,12 +15,12 @@ interface Props {
     variables: string[];
     handleUpdateModel: (model: OpenAIModel) => void;
     onSubmit: (updatedVariables: string[], documents: AttachedDocument[] | null) => void;
-    onClose: () => void;
+    onClose: (canceled:boolean) => void;
 }
 
 const isText = (variable: string) => {
     // return if the variable is not any of the other is* functions
-    return !isFile(variable) && !isBoolean(variable) && !isOptions(variable);
+    return variable.indexOf(":") === -1 || variable.split(":")[1].startsWith("text");
 }
 
 const isFile = (variable: string) => {
@@ -36,15 +38,28 @@ const isOptions = (variable: string) => {
     return variable.includes(':options[');
 }
 
+const isConversation = (variable: string) => {
+    return variable.includes(':conversation');
+}
+
+const isConversationFolder = (variable: string) => {
+    return variable.includes(':conversation-folder');
+}
+
+const isPromptTemplate = (variable: string) => {
+    return variable.includes(':template');
+}
+
+const isPromptTemplateFolder = (variable: string) => {
+    return variable.includes(':template-folder');
+}
+
 // Parse the name of a variable to remove the suffixes
 export const parseVariableName = (variable: string) => {
-    if (isFile(variable)) {
-        return variable.split(':')[0];
-    } else if (isBoolean(variable)) {
-        return variable.split(':')[0];
-    } else if (isOptions(variable)) {
-        return variable.split(':')[0];
-    } else {
+    if(variable.indexOf(":") > -1) {
+        return variable.split(":")[0];
+    }
+    else {
         return variable;
     }
 }
@@ -59,8 +74,13 @@ export const VariableModal: FC<Props> = ({
                                              onClose,
                                          }) => {
 
+    const {
+        state: { featureFlags, prompts, conversations },
+    } = useContext(HomeContext);
+
     // @ts-ignore
     const [selectedModel, setSelectedModel] = useState<OpenAIModel>((models.length>0)? models[0] : null);
+    const [isConversationDropdownOpen, setIsConversationDropdownOpen] = useState(false);
     const [updatedVariables, setUpdatedVariables] = useState<{ key: string; value: any }[]>(
         variables
             .map((variable) => {
@@ -115,11 +135,9 @@ export const VariableModal: FC<Props> = ({
         const justVariables = updatedVariables
             .map((variable) => (isFile(variable.key)) ? "" : variable.value);
 
-        console.log("justVariables", justVariables);
-        console.log("justDocuments", documents);
 
         onSubmit(justVariables, documents);
-        onClose();
+        onClose(false);
     };
 
 
@@ -129,14 +147,14 @@ export const VariableModal: FC<Props> = ({
             e.preventDefault();
             //handleSubmit();
         } else if (e.key === 'Escape') {
-            onClose();
+            onClose(true);
         }
     };
 
     useEffect(() => {
         const handleOutsideClick = (e: MouseEvent) => {
             if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-                onClose();
+                onClose(true);
             }
         };
 
@@ -153,6 +171,87 @@ export const VariableModal: FC<Props> = ({
         }
     }, []);
 
+    const parseOptions = (variable: string) => {
+        let type = variable.split(":");
+        if(type.length > 1) {
+            let optionsPart = type[1].trim();
+
+            let delims = (optionsPart.split("(")[0].length < optionsPart.split("[")[0].length)
+                ? ["(",")"] : ["[","]"];
+
+            let start = variable.indexOf(delims[0]);
+            let end = variable.indexOf(delims[1]);
+
+            let dataStr = "{" + variable.substring(start + 1, end) + "}";
+
+            if (delims[0] === "(") {
+                try {
+                    return JSON5.parse(dataStr);
+                } catch (e) {
+                    return {}
+                }
+            } else {
+                try {
+                    return JSON5.parse(dataStr);
+                } catch (e) {
+                    return {options: dataStr.split(",")};
+                }
+            }
+        }
+        else {
+            return {};
+        }
+    }
+
+    const getConversations = (variable: string) => {
+        const options = parseOptions(variable);
+
+        let filtered = conversations.filter((conversation) => {
+           if(options.startsWith){
+               return conversation.name.startsWith(options.startsWith);
+           }
+           else if(options.options) {
+               return options.options.includes(conversation.name);
+           }
+           return conversation;
+        });
+
+        return filtered;
+    }
+
+    const getConversationValue = (conversation: any) => {
+        return JSON.stringify(conversation.messages);
+    }
+
+    const getPromptTemplates = (variable: string) => {
+        const options = parseOptions(variable);
+
+        console.log("Options:", options);
+
+        let filtered = prompts.filter((prompt) => {
+            if(options.startsWith){
+                return prompt.name.startsWith(options.startsWith);
+            }
+            else if(options.options) {
+                return options.options.includes(prompt.name);
+            }
+            else if(options.type) {
+                console.log("Prompt type:", prompt.type, options.type);
+                return prompt.type === options.type;
+            }
+            return prompt;
+        });
+
+        return filtered;
+    }
+
+    const getPromptTemplateValue = (prompt: any) => {
+        return JSON.stringify(prompt);
+    }
+
+    const truncate = (str: string, n: number) => {
+        return (str.length > n) ? str.slice(0, n-1) + '...' : str;
+    }
 
     return (
         <div
@@ -244,6 +343,61 @@ export const VariableModal: FC<Props> = ({
                                 </select>
                             </div>
                         )}
+                        {isConversation(variable.key) && (
+                            <div style={{ width: '200px' }} >
+                                <select
+                                    className="rounded truncate border-gray-300 text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
+                                    value={variable.value}
+                                    style={{ width:'100%', maxWidth: '250px' }}
+                                    onChange={(e) => handleChange(index, e.target.value)}
+                                    onClick={()=>setIsConversationDropdownOpen(!isConversationDropdownOpen)}
+                                    onBlur={()=>setIsConversationDropdownOpen(!isConversationDropdownOpen)}
+                                >
+                                    <option
+                                        style={{ maxWidth: '250px', overflow:'hidden' }}
+                                        className={'truncate'}
+                                        key={"not selected"} value={''}>
+                                        {'Select a Conversation...'}
+                                    </option>
+                                    {getConversations(variable.key).map((conversation) => (
+                                        <option
+                                            style={{ maxWidth: '250px', overflow:'hidden' }}
+                                            className={'truncate'}
+                                            key={conversation.id} value={getConversationValue(conversation)}>
+                                            {truncate(conversation.name, 50)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        {isPromptTemplate(variable.key) && (
+                            <div style={{ width: '200px' }} >
+                                <select
+                                    className="rounded truncate border-gray-300 text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
+                                    value={variable.value}
+                                    style={{ width:'100%', maxWidth: '250px' }}
+                                    onChange={(e) => handleChange(index, e.target.value)}
+                                    onClick={()=>setIsConversationDropdownOpen(!isConversationDropdownOpen)}
+                                    onBlur={()=>setIsConversationDropdownOpen(!isConversationDropdownOpen)}
+                                >
+                                    <option
+                                        style={{ maxWidth: '250px', overflow:'hidden' }}
+                                        className={'truncate'}
+                                        key={"not selected"} value={''}>
+                                        {'Select a Template...'}
+                                    </option>
+                                    {getPromptTemplates(variable.key).map((template) => (
+                                        <option
+                                            style={{ maxWidth: '250px', overflow:'hidden' }}
+                                            className={'truncate'}
+                                            key={template.id} value={getPromptTemplateValue(template)}>
+                                            {truncate(template.name, 50)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                     </div>
                 ))}
@@ -260,12 +414,14 @@ export const VariableModal: FC<Props> = ({
                             onChange={(e) => handleModelChange(e.target.value)}
                         >
                             {models.map((model) => (
-                                <option key={model.id} value={model.id}>
+                                <option key={model.id} value={model.id}
+                                >
                                     {model.name}
                                 </option>
                             ))}
                         </select>
                     </div>
+
                 )}
 
                 <button

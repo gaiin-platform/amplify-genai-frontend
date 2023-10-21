@@ -20,6 +20,7 @@
     "esprima": "^4.0.1",
     "eventsource-parser": "^0.1.0",
     "i18next": "^22.4.13",
+    "json5": "^2.2.3",
     "jszip": "^3.10.1",
     "mammoth": "^1.6.0",
     "mermaid": "^10.5.0",

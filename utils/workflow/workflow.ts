@@ -6,6 +6,8 @@ import {InputDocument, Status, WorkflowContext, WorkflowDefinition} from "@/type
 import {describeAsJsonSchema, extractFirstCodeBlock, extractSection} from "@/utils/app/data";
 import {parameterizeTools as coreTools} from "@/utils/app/tools";
 import {AttachedDocument} from "@/types/attacheddocument";
+import {parseVariableName} from "@/components/Chat/VariableModal";
+import {Prompt} from "@/types/prompt";
 
 
 interface AiTool {
@@ -34,6 +36,36 @@ interface ReusableDescription {
 
 const abortResult = {success: false, code: null, exec: null, uncleanCode: null, result: null};
 
+export const fillInTemplate = (template:string, variables:string[], variableValues: string[], documents: AttachedDocument[] | null, insertDocuments:boolean) => {
+    console.log("Fill in Template");
+    const names = variables.map(v => parseVariableName(v));
+
+    console.log("Variables", variables);
+    console.log("Names", names);
+
+    const newContent = template.replace(/{{(.*?)}}/g, (match, variable) => {
+        const name = parseVariableName(variable);
+        const index = names.indexOf(name);
+
+        console.log("Variable", name, index, variableValues[index]);
+
+        if (insertDocuments && documents && documents.length > 0) {
+            let document = documents.filter((doc) => {
+                if (doc.name == name) {
+                    return "" + doc.raw;
+                }
+            })[0];
+
+            if (document) {
+                return "" + document.raw;
+            }
+        }
+
+        return variableValues[index];
+    });
+
+    return newContent;
+}
 
 const promptLLMSelectOne = async (promptUntil:any,  options: {[key:string]:string}, instructions?: string, rootPrompt?: string, model?: OpenAIModelID) => {
 
@@ -338,6 +370,23 @@ async function executeWorkflow(tools: { [p: string]: AiTool }, code: string) {
     let result = null;
 
     try {
+
+        tools.executeWorkflow = {
+          description: "",
+          exec: async (workflow:Prompt, params:{[key:string]:any}) => {
+            console.log("--> Sub Workflow:", workflow);
+            let workflowCode = workflow.data?.code;
+            console.log("--> Sub Workflow Code:", workflowCode);
+            let documents = params.documents as AttachedDocument[];
+            let variableData = params.variables;
+            let variables = Object.keys(variableData);
+            let variableValues = Object.values(variableData) as string[];
+
+            let updatedCode = fillInTemplate(workflowCode, variables, variableValues, documents, false);
+
+            return executeWorkflow(tools, updatedCode);
+          }
+        };
 
         const fnlibs = {}
         Object.entries(tools).forEach(([key, tool]) => {

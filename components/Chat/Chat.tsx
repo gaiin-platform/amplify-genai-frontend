@@ -41,14 +41,15 @@ import {parsePromptVariables} from "@/utils/app/prompts";
 import {v4 as uuidv4} from 'uuid';
 
 import Workflow, {
-    executeJSWorkflow, replayJSWorkflow,
+    executeJSWorkflow, replayJSWorkflow, fillInTemplate
 } from "@/utils/workflow/workflow";
-import {OpenAIModel} from "@/types/openai";
+import {OpenAIModel, OpenAIModels} from "@/types/openai";
 import {Prompt} from "@/types/prompt";
 import {InputDocument, Status, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {Key} from "@/components/Settings/Key";
 import {describeAsJsonSchema} from "@/utils/app/data";
+import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from "@/utils/app/const";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -69,6 +70,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 modelError,
                 loading,
                 prompts,
+                defaultModelId,
                 featureFlags,
             },
             handleUpdateConversation,
@@ -434,7 +436,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     () => {
 
                     console.log("Filling in variables...");
-                    code = fillInTemplate(code, updatedVariables, documents, false);
+                    code = fillInTemplate(code, variables, updatedVariables, documents, false);
                     console.log("Replaying workflow :: ", code);
 
                     return replayJSWorkflow(apiKey, code, tools, stopper, statusLogger, context, (responseText) => {
@@ -581,37 +583,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }
 
-        const fillInTemplate = (template:string, updatedVariables: string[], documents: AttachedDocument[] | null, insertDocuments:boolean) => {
-            console.log("Fill in Template");
-            const names = variables.map(v => parseVariableName(v));
-
-            console.log("Variables", variables);
-            console.log("Names", names);
-
-            const newContent = template.replace(/{{(.*?)}}/g, (match, variable) => {
-                const name = parseVariableName(variable);
-                const index = names.indexOf(name);
-
-                console.log("Variable", name, index, updatedVariables[index]);
-
-                if (insertDocuments && documents && documents.length > 0) {
-                    let document = documents.filter((doc) => {
-                        if (doc.name == name) {
-                            return "" + doc.raw;
-                        }
-                    })[0];
-
-                    if (document) {
-                        return "" + document.raw;
-                    }
-                }
-
-                return updatedVariables[index];
-            });
-
-            return newContent;
-        }
-
 
         const handleSubmit = (updatedVariables: string[], documents: AttachedDocument[] | null) => {
 
@@ -624,7 +595,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             setWorkflowMode(doWorkflow);
 
-            const newContent = fillInTemplate(template || "", updatedVariables, documents, !doWorkflow);
+            const newContent = fillInTemplate(template || "", variables, updatedVariables, documents, !doWorkflow);
 
             // Jules
             let message = newMessage({
@@ -726,13 +697,46 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             );
         }, [selectedConversation, throttledScrollDown]);
 
-        const handlePromptTemplateDialogCancel = () => {
-            if(selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
-                selectedConversation.promptTemplate = null;
-                handleUpdateConversation(selectedConversation, {
-                    key: 'promptTemplate',
-                    value: null,
-                })
+        const handleDeleteConversation = (conversation: Conversation) => {
+            const updatedConversations = conversations.filter(
+                (c) => c.id !== conversation.id,
+            );
+
+            homeDispatch({ field: 'conversations', value: updatedConversations });
+
+            saveConversations(updatedConversations);
+
+            if (updatedConversations.length > 0) {
+                homeDispatch({
+                    field: 'selectedConversation',
+                    value: updatedConversations[updatedConversations.length - 1],
+                });
+
+                saveConversation(updatedConversations[updatedConversations.length - 1]);
+            } else {
+                defaultModelId &&
+                homeDispatch({
+                    field: 'selectedConversation',
+                    value: {
+                        id: uuidv4(),
+                        name: t('New Conversation'),
+                        messages: [],
+                        model: OpenAIModels[defaultModelId],
+                        prompt: DEFAULT_SYSTEM_PROMPT,
+                        temperature: DEFAULT_TEMPERATURE,
+                        folderId: null,
+                    },
+                });
+
+                localStorage.removeItem('selectedConversation');
+            }
+        };
+
+        const handlePromptTemplateDialogCancel = (canceled:boolean) => {
+            if(canceled) {
+                if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
+                    handleDeleteConversation(selectedConversation);
+                }
             }
             setIsPromptTemplateDialogVisible(false);
         }
