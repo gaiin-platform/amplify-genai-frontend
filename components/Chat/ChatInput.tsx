@@ -137,9 +137,6 @@ export const ChatInput = ({
       if(!isWorkflowOn) {
         msg.content = handleAppendDocumentsToContent(content, documents);
       }
-      // else {
-      //   msg.data = {documents: documents};
-      // }
     }
 
     onSend(msg, plugin, documents || []);

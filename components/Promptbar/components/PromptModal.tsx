@@ -13,7 +13,8 @@ import EditableField from "@/components/Promptbar/components/EditableField";
 
 interface Props {
   prompt: Prompt;
-  onClose: () => void;
+  onSave: () => void;
+  onCancel: () => void;
   onUpdatePrompt: (prompt: Prompt) => void;
 }
 
@@ -36,12 +37,17 @@ const getVariableOptions = (promptTemplate:string) => {
   });
 }
 
-export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
+export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePrompt }) => {
   const { t } = useTranslation('promptbar');
   const {
-    state: { featureFlags },
+    state: { featureFlags, prompts },
   } = useContext(HomeContext);
 
+
+  const rootPrompts = prompts.filter((p) => p.type === MessageType.ROOT);
+  const workflowRoot =
+      rootPrompts.filter(p => p.id === prompt.data?.rootPromptId)[0]
+      || rootPrompts[0];
 
   let initialCode = prompt.data?.code ? "const workflow = " + prompt.data.code :  '//@START_WORKFLOW\n' +
       'const workflow = async (fnlibs) => {\n' +
@@ -58,6 +64,7 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
       '};//@\n' +
       '\n';
 
+  const [rootPrompt, setRootPrompt] = useState<Prompt>(workflowRoot);
   const [name, setName] = useState(prompt.name);
   const [description, setDescription] = useState(prompt.description);
   const [content, setContent] = useState(prompt.content);
@@ -69,14 +76,17 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
+  const handleUpdateRootPrompt = (rootPromptId:string) => {
+    let root = prompts.filter((p) => p.id === rootPromptId)[0];
+    setRootPrompt(root);
+  }
+
   const handleUpdateTemplate = (promptTemplate:string) =>{
     setVariableOptions(getVariableOptions(promptTemplate));
     setContent(promptTemplate);
   };
 
   const handleUpdateVariableOptionValues = (variable:string, type:string, optionName:string, optionValue:any) => {
-
-    console.log("Variable:", variable, "Option name:", optionName, "Option value:", optionValue);
 
     let newVariableOptions = [...variableOptions];
     newVariableOptions.forEach((variableOption) => {
@@ -99,25 +109,18 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
         + ((optionValuesToRender.length == 0)? "" : "(" + JSON5.stringify(optionValuesToRender).slice(1,-1) + ")")
         +"}}";
 
-    console.log("Rendered variable:", renderedVariable);
-
-
     const search = new RegExp("{{\\s*"+variable+"\\s*(\\s*:\\s*(.*?)\\s*(\\(.*?\\))?)?\\s*}}", "g");
 
     let newContent = content.replaceAll(search, renderedVariable);
-
-    console.log("New content:", newContent);
 
     setVariableOptions(newVariableOptions);
     setContent(newContent);
   }
 
-  const handleUpdateVariable = (variable:string) =>{
-
-  }
 
   const handleUpdatePrompt = () => {
     const newPrompt = { ...prompt, name, description, content: content.trim(), type: selectedTemplate};
+    newPrompt.data = {...prompt.data, rootPromptId: rootPrompt.id};
 
     if (featureFlags.workflowCreate
         && selectedTemplate === MessageType.AUTOMATION
@@ -139,7 +142,7 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
 
     const handleMouseUp = (e: MouseEvent) => {
       window.removeEventListener('mouseup', handleMouseUp);
-      onClose();
+      onCancel();
     };
 
     window.addEventListener('mousedown', handleMouseDown);
@@ -147,7 +150,7 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
     return () => {
       window.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [onClose]);
+  }, [onCancel]);
 
   useEffect(() => {
     nameInputRef.current?.focus();
@@ -192,6 +195,25 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
             />
+
+            {selectedTemplate !== MessageType.ROOT && (
+                <>
+                <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
+                  {t('Custom Instructions')}
+                </div>
+              <select
+              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+              value={rootPrompt.id}
+              onChange={(e) => handleUpdateRootPrompt(e.target.value)}
+              >
+            {rootPrompts.map((rootPrompt) => (
+              <option key={rootPrompt.id} value={rootPrompt.id}>
+                 {rootPrompt.name}
+              </option>
+              ))}
+              </select>
+                </>)}
+
 
             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
               {t('Prompt')}
@@ -280,7 +302,9 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
                 </>
             )}
 
-            <div className="mt-2">
+
+
+              <div className="mt-2">
               <div className="inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100 mr-8">
                 <input
                     type="radio"
@@ -295,7 +319,21 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
                 </label>
               </div>
 
-
+                {featureFlags.rootPromptCreate && (
+                    <div className="inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
+                      <input
+                          type="radio"
+                          name="template"
+                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
+                          value={MessageType.ROOT}
+                          checked={selectedTemplate === MessageType.ROOT}
+                          onChange={() => setSelectedTemplate(MessageType.ROOT)}
+                      />
+                      <label className="ml-2">
+                        Custom instructions
+                      </label>
+                    </div>
+                )}
 
               {featureFlags.workflowCreate && (
               <div className="inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
@@ -321,7 +359,7 @@ export const PromptModal: FC<Props> = ({ prompt, onClose, onUpdatePrompt }) => {
               className="w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
               onClick={() => {
                 handleUpdatePrompt();
-                onClose();
+                onSave();
               }}
             >
               {t('Save')}

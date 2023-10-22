@@ -20,6 +20,7 @@ import { PromptbarInitialState, initialState } from './Promptbar.state';
 
 import { v4 as uuidv4 } from 'uuid';
 import {MessageType} from "@/types/chat";
+import {PromptModal} from "@/components/Promptbar/components/PromptModal";
 
 const Promptbar = () => {
   const { t } = useTranslation('promptbar');
@@ -44,6 +45,21 @@ const Promptbar = () => {
     localStorage.setItem('showPromptbar', JSON.stringify(!showPromptbar));
   };
 
+  const createPrompt = ():Prompt => {
+    return {
+      id: uuidv4(),
+      name: `Prompt ${prompts.length + 1}`,
+      description: '',
+      content: '',
+      model: (defaultModelId)? OpenAIModels[defaultModelId] : OpenAIModels["gpt-3.5-turbo"],
+      folderId: null,
+      type: MessageType.PROMPT
+    };
+  }
+
+  const [showModal, setShowModal] = useState(false);
+  const [prompt, setPrompt] = useState<Prompt>(createPrompt());
+
   const handleAddPrompt = (prompt: Prompt) => {
     const updatedPrompts = [...prompts, prompt];
 
@@ -52,23 +68,19 @@ const Promptbar = () => {
     savePrompts(updatedPrompts);
   }
 
+
   const handleCreatePrompt = () => {
     if (defaultModelId) {
-      const newPrompt: Prompt = {
-        id: uuidv4(),
-        name: `Prompt ${prompts.length + 1}`,
-        description: '',
-        content: '',
-        model: OpenAIModels[defaultModelId],
-        folderId: null,
-        type: MessageType.PROMPT
-      };
+      const newPrompt = createPrompt();
 
       const updatedPrompts = [...prompts, newPrompt];
 
       homeDispatch({ field: 'prompts', value: updatedPrompts });
 
       savePrompts(updatedPrompts);
+
+      setPrompt(newPrompt);
+      setShowModal(true);
     }
   };
 
@@ -79,8 +91,12 @@ const Promptbar = () => {
     savePrompts(updatedPrompts);
   };
 
+  const handleCancelNewPrompt = () => {
+    handleDeletePrompt(prompt);
+    setShowModal(false);
+  }
+
   const handleUpdatePrompt = (prompt: Prompt) => {
-    console.log("Prompt updated:", prompt);
 
     const updatedPrompts = prompts.map((p) => {
       if (p.id === prompt.id) {
@@ -158,6 +174,15 @@ const Promptbar = () => {
         handleCreateFolder={() => handleCreateFolder(t('New folder'), 'prompt')}
         handleDrop={handleDrop}
       />
+
+      {showModal && (
+          <PromptModal
+              prompt={prompt}
+              onCancel={() => handleCancelNewPrompt()}
+              onSave={() => setShowModal(false)}
+              onUpdatePrompt={handleUpdatePrompt}
+          />
+      )}
     </PromptbarContext.Provider>
   );
 };

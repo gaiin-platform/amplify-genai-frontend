@@ -375,7 +375,7 @@ async function executeWorkflow(tools: { [p: string]: AiTool }, code: string) {
           description: "",
           exec: async (workflow:Prompt, params:{[key:string]:any}) => {
             console.log("--> Sub Workflow:", workflow);
-            let workflowCode = workflow.data?.code;
+            let workflowCode = workflow.data?.code || "";
             console.log("--> Sub Workflow Code:", workflowCode);
             let documents = params.documents as AttachedDocument[];
             let variableData = params.variables;

@@ -34,6 +34,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     let promptToSend = prompt;
     if (!promptToSend) {
+      console.log("Root prompt is empty, using default");
       promptToSend = DEFAULT_SYSTEM_PROMPT;
     }
 

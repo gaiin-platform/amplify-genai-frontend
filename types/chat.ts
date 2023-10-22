@@ -14,6 +14,7 @@ export interface Message {
 export enum MessageType {
   PROMPT = 'prompt',
   AUTOMATION = 'automation',
+  ROOT = 'root_prompt',
 }
 
 export const newMessage = (data: any) => {

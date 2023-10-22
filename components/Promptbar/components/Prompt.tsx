@@ -112,7 +112,12 @@ export const PromptComponent = ({ prompt }: Props) => {
   }
 
   const handleStartConversation = (prompt: Prompt) => {
-    console.log("Conversation Starter Prompt:", prompt);
+
+
+    let rootPrompt = (prompt.data?.rootPromptId)?
+        prompts.find((p) => p.id == prompt.data?.rootPromptId) : null;
+
+
     handleNewConversation(
         {
           name: prompt.name + " " +dateTimeString(),
@@ -120,6 +125,7 @@ export const PromptComponent = ({ prompt }: Props) => {
           promptTemplate: prompt,
           processors: [],
           tools:[],
+          ...(rootPrompt != null && { prompt: rootPrompt.content }),
         })
   }
 
@@ -252,7 +258,8 @@ export const PromptComponent = ({ prompt }: Props) => {
         {showModal && (
             <PromptModal
                 prompt={prompt}
-                onClose={() => setShowModal(false)}
+                onCancel={() => setShowModal(false)}
+                onSave={() => setShowModal(false)}
                 onUpdatePrompt={handleUpdate}
             />
         )}

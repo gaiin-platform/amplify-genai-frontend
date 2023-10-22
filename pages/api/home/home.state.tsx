@@ -63,5 +63,6 @@ export const initialState: HomeInitialState = {
   featureFlags: {
     workflowRun:true,
     workflowCreate:true,
+    rootPromptCreate:true,
   },
 };

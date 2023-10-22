@@ -138,6 +138,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null) => {
                 return new Promise(async (resolve, reject) => {
                     if (selectedConversation) {
+
+                        //console.log("Root Prompt ID", selectedConversation.prompt.)
+
                         let updatedConversation: Conversation;
                         if (deleteCount) {
                             const updatedMessages = [...selectedConversation.messages];
