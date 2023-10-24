@@ -185,7 +185,7 @@ export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Prom
                 console.log(`Executing prompt ${currentIndex} / ${prompts.length}`);
                 // Execute the promptLLM function and store the result in the correct index.
 
-               statusLogger({summary: `Prompting ${currentIndex} / ${prompts.length}...`, message: prompt, type: "info"});
+                statusLogger({summary: `Prompting ${currentIndex} / ${prompts.length}...`, message: prompt, type: "info"});
 
                 if(stopper.shouldStop()){
                     reject("Interrupted");
@@ -333,8 +333,8 @@ const promptLLMForJson = async (promptLLMFull: (persona: string, prompt: string,
     const prompt = instructions;
 
     const systemPrompt = ""; //"You are ChatGPT, a large language model trained by OpenAI. " +
-        // "Follow the user's instructions carefully. " +
-        // "Respond using JSON. ";
+    // "Follow the user's instructions carefully. " +
+    // "Respond using JSON. ";
 
     let functionsToCall = [...jsonFunctions];
 
@@ -568,11 +568,6 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
         //         return defaultValue;
         //     }
         // },
-        promptLLM: {
-            description: "(personaString,promptString):Promise<String> //persona should be an empty string, promptString must include detailed instructions for the " +
-                "LLM and any data that the prompt operates on as a string and MUST NOT EXCEED 25,000 characters.",
-            exec: promptLLM
-        },
         promptLLMForJson: {
             description: "(persona: string, prompt: string, desiredSchema: JsonSchema)=>Promise<any> // Prompt the LLM to generate JSON that matches a specified schema." +
                 " This is useful for generating JSON for APIs, databases, or other systems that require a specific JSON schema.",
@@ -597,7 +592,7 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
             },
         },
         splitStringIntoChunks: {
-            description: "(str: string, chunkSize: number)=>string[] // Splits a string into chunks of a specified size." +
+            description: "(str: string, chunkSize: number)=>string[] Splits a string into chunks of a specified size." +
                 " The function returns an array of substrings, ensuring that each chunk is at most `chunkSize` characters long." +
                 " This is useful for processing or transmitting large strings in smaller, manageable pieces, especially" +
                 " when interfacing with APIs or systems that have size limitations.",
@@ -636,4 +631,3 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
 
     };
 }
-
