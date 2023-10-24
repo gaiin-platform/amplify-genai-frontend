@@ -18,7 +18,7 @@ import { PromptList } from './PromptList';
 import { VariableModal } from './VariableModal';
 import {OpenAIModel} from "@/types/openai";
 import {AttachedDocument} from "@/types/attacheddocument";
-import {fillInTemplate} from "@/utils/workflow/workflow";
+import {fillInTemplate} from "@/utils/app/prompts";
 
 interface Props {
   models: OpenAIModel[];

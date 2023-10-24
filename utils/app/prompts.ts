@@ -1,5 +1,19 @@
 import { Prompt } from '@/types/prompt';
 import JSON5 from "json5";
+import { v4 as uuidv4 } from 'uuid';
+import {AttachedDocument} from "@/types/attacheddocument";
+import {parseVariableName} from "@/components/Chat/VariableModal";
+import {getToolMetadata} from "@/utils/app/tools";
+import {WorkflowContext} from "@/types/workflow";
+
+export interface VariableFillOption {
+    isEditable?: boolean,
+    filler?: (variable:string) => any;
+}
+
+export interface VariableFillOptions {
+    [key: string]: VariableFillOption;
+}
 
 export const updatePrompt = (updatedPrompt: Prompt, allPrompts: Prompt[]) => {
   const updatedPrompts = allPrompts.map((c) => {
@@ -91,7 +105,118 @@ export const getType = (variable:string) => {
   }
 }
 
+
+export const defaultVariableFillOptions:VariableFillOptions = {
+    "uniqueId":{
+      isEditable: false,
+      filler: (variable:string) => {
+        return uuidv4();
+      }
+    },
+    "tools": {
+      isEditable: false,
+      filler: (name: string) => {
+        console.log("Filling in tools information...");
+
+        const context:WorkflowContext = {
+            inputs: {
+                documents: [],
+                parameters: {},
+                prompts: [],
+                folders: [],
+                conversations: [],
+            },
+        }
+
+        // @ts-ignore
+        let metadata = getToolMetadata({context:context});
+        let description = Object.entries(metadata)
+            .map(([k, v]) => {
+              return `${k}${v.description}`;
+            }).join("\n");
+        return description;
+      }
+    },
+    "options":{
+      isEditable: true,
+    },
+    "file":{
+      isEditable: true,
+    },
+    "conversation": {
+      isEditable: true,
+    },
+    "template": {
+      isEditable: true,
+    },
+    "text": {
+      isEditable: true,
+    },
+}
+
+
+export const getFillHelp = (fillOptions: VariableFillOptions, variable:string) => {
+  let type = getType(variable);
+  let options = fillOptions[type];
+  if(options && options.filler) {
+      return options.filler;
+  }
+  else {
+      return null;
+  }
+}
+
+export const parseEditableVariables = (content: string) => {
+  const all = parsePromptVariables(content);
+  const editable = all.filter((variable) => {
+        let type = getType(variable);
+        let options = defaultVariableFillOptions[type];
+        return options && !(!(options.isEditable));
+    })
+  return editable;
+}
+
+export const fillInTemplate = (template:string, variables:string[], variableValues: string[], documents: AttachedDocument[] | null, insertDocuments:boolean, fillOptions?:VariableFillOptions) => {
+  console.log("Fill in Template");
+  const names = variables.map(v => parseVariableName(v));
+
+  console.log("Variables", variables);
+  console.log("Names", names);
+
+  const newContent = template.replace(/{{(.*?)}}/g, (match, variable) => {
+    const name = parseVariableName(variable);
+    const index = names.indexOf(name);
+    const filler = getFillHelp(fillOptions || defaultVariableFillOptions, variable);
+
+    if(filler) {
+      let filled = filler(variable);
+      console.log("Filled", name, filled);
+      return filled;
+    }
+
+    if (insertDocuments && documents && documents.length > 0) {
+      let document = documents.filter((doc) => {
+        if (doc.name == name) {
+          return "" + doc.raw;
+        }
+      })[0];
+
+      if (document) {
+        return "" + document.raw;
+      }
+    }
+
+    return variableValues[index];
+  });
+
+  return newContent;
+}
+
 export const variableTypeOptions = {
+  "uniqueId":{},
+  "tools":{},
+  "options":{},
+  "file":{},
   "conversation": {
     options: {
       stage: "display",

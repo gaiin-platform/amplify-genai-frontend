@@ -68,7 +68,7 @@ export const findWorkflowPattern = (inputString:string, noFix?:boolean):string|n
         }
     }
 
-    console.log(`Error: No proper ending for the 'workflow' function found. [inString:${inString}, bracketsStack:${bracketsStack}, prevChar:${prevChar}]`);
+    //console.log(`Error: No proper ending for the 'workflow' function found. [inString:${inString}, bracketsStack:${bracketsStack}, prevChar:${prevChar}]`);
     return null;
 }
 
@@ -93,6 +93,7 @@ export const generateWorkflowPrompt = (task: string, tools: { [key: string]: { d
 
     const extraInstructions = (extraPromptInstructions) ? "// PAY ATTENTION:\n" + extraPromptInstructions.join("\n//   ") : "";
     const varInstructions = (extraVarInstructions) ? extraVarInstructions.join("\n") : "";
+
 
     return `const fnlibs = {
                             ${toolMsg}

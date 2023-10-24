@@ -8,6 +8,7 @@ import {parameterizeTools as coreTools} from "@/utils/app/tools";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {parseVariableName} from "@/components/Chat/VariableModal";
 import {Prompt} from "@/types/prompt";
+import {fillInTemplate} from "@/utils/app/prompts";
 
 
 interface AiTool {
@@ -36,36 +37,6 @@ interface ReusableDescription {
 
 const abortResult = {success: false, code: null, exec: null, uncleanCode: null, result: null};
 
-export const fillInTemplate = (template:string, variables:string[], variableValues: string[], documents: AttachedDocument[] | null, insertDocuments:boolean) => {
-    console.log("Fill in Template");
-    const names = variables.map(v => parseVariableName(v));
-
-    console.log("Variables", variables);
-    console.log("Names", names);
-
-    const newContent = template.replace(/{{(.*?)}}/g, (match, variable) => {
-        const name = parseVariableName(variable);
-        const index = names.indexOf(name);
-
-        console.log("Variable", name, index, variableValues[index]);
-
-        if (insertDocuments && documents && documents.length > 0) {
-            let document = documents.filter((doc) => {
-                if (doc.name == name) {
-                    return "" + doc.raw;
-                }
-            })[0];
-
-            if (document) {
-                return "" + document.raw;
-            }
-        }
-
-        return variableValues[index];
-    });
-
-    return newContent;
-}
 
 const promptLLMSelectOne = async (promptUntil:any,  options: {[key:string]:string}, instructions?: string, rootPrompt?: string, model?: OpenAIModelID) => {
 
@@ -444,11 +415,6 @@ function createWorkflowTools(workflowGlobalParams: {requestedDocuments: any[]; r
     const parameterizedTools = coreTools(workflowGlobalParams);
 
     const tools: { [name: string]: AiTool } = {
-        promptLLM: {
-            description: "async (personaString,promptString):Promise<String> //persona should be an empty string, promptString must include detailed instructions for the " +
-                "LLM and any data that the prompt operates on as a string and MUST NOT EXCEED 25,000 characters.",
-            exec: promptLLM
-        },
 
         tellUser: {
             description: "(msg:string)//output a message to the user",
@@ -795,7 +761,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
     }
     let prompt = generateWorkflowPrompt(task, tools, extraInstructions);
 
-    //console.log("Code generation prompt:", prompt);
+    console.log("Code generation prompt:", prompt);
 
 
     let success = false;

@@ -98,5 +98,6 @@ export interface Conversation {
   temperature: number;
   folderId: string | null;
   promptTemplate: Prompt | null;
+  tags?: string[]
   workflowDefinition?: WorkflowDefinition;
 }

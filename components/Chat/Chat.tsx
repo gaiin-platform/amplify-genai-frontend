@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 
 import {useTranslation} from 'next-i18next';
 
+import { getHook } from "@/utils/app/chathooks";
 import {getEndpoint} from '@/utils/app/api';
 
 import {
@@ -37,12 +38,13 @@ import {MemoizedChatMessage} from './MemoizedChatMessage';
 
 import {useChatService} from '@/hooks/useChatService';
 import {VariableModal, parseVariableName} from "@/components/Chat/VariableModal";
-import {parsePromptVariables} from "@/utils/app/prompts";
+import {defaultVariableFillOptions, parseEditableVariables, parsePromptVariables} from "@/utils/app/prompts";
 import {v4 as uuidv4} from 'uuid';
 
 import Workflow, {
-    executeJSWorkflow, replayJSWorkflow, fillInTemplate
+    executeJSWorkflow, replayJSWorkflow
 } from "@/utils/workflow/workflow";
+import { fillInTemplate } from "@/utils/app/prompts";
 import {OpenAIModel, OpenAIModels} from "@/types/openai";
 import {Prompt} from "@/types/prompt";
 import {InputDocument, Status, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
@@ -50,6 +52,7 @@ import {AttachedDocument} from "@/types/attacheddocument";
 import {Key} from "@/components/Settings/Key";
 import {describeAsJsonSchema} from "@/utils/app/data";
 import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from "@/utils/app/const";
+import {getToolMetadata} from "@/utils/app/tools";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -91,6 +94,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [variables, setVariables] = useState<string[]>([]);
         const [showScrollDownButton, setShowScrollDownButton] =
             useState<boolean>(false);
+        const [promptTemplate, setPromptTemplate] = useState<Prompt | null>(null);
 
         const messagesEndRef = useRef<HTMLDivElement>(null);
         const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -259,6 +263,33 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     response: text
                                 }));
 
+                                const hook = getHook(selectedConversation.tags || []);
+                                if(hook){
+
+                                    const result = hook.exec({}, selectedConversation, text);
+
+                                    let updatedText = (result && result.updatedContent)? result.updatedContent : text;
+
+                                    const updatedMessages: Message[] =
+                                        updatedConversation.messages.map((message, index) => {
+                                            if (index === updatedConversation.messages.length - 1) {
+                                                return {
+                                                    ...message,
+                                                    content: updatedText,
+                                                };
+                                            }
+                                            return message;
+                                        });
+                                    updatedConversation = {
+                                        ...updatedConversation,
+                                        messages: updatedMessages,
+                                    };
+                                    homeDispatch({
+                                        field: 'selectedConversation',
+                                        value: updatedConversation,
+                                    });
+                                }
+
                                 saveConversation(updatedConversation);
                                 const updatedConversations: Conversation[] = conversations.map(
                                     (conversation) => {
@@ -341,9 +372,65 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             await handleAddMessages(selectedConversationRef.current || selectedConversation, messages)
         };
 
-        const onLinkClick = (href: string) => {
+        const handlePromptSelect = (prompt: Prompt) => {
+            if(selectedConversation) {
+                selectedConversation.promptTemplate = prompt;
+
+                const parsedVariables = parseEditableVariables(prompt.content);
+                setVariables(parsedVariables);
+
+                if (parsedVariables.length > 0) {
+                    setIsPromptTemplateDialogVisible(true);
+                } else {
+                    // setContent((prevContent) => {
+                    //     const updatedContent = prevContent?.replace(/\/\w*$/, prompt.content);
+                    //     return updatedContent;
+                    // });
+                    //updatePromptListVisibility(prompt.content);
+                }
+            }
+        };
+
+        const onLinkClick = (message:Message, href: string) => {
+
             if (selectedConversation) {
-                handleCustomLinkClick(selectedConversationRef.current || selectedConversation, href);
+                let [category, action_path] = href.slice(1).split(":");
+                let [action, path] = action_path.split("/");
+
+                if(category === "chat"){
+                    if(action === "send"){
+                        const content = path;
+                        handleSend(newMessage({role: 'user', content: content}), 0, null);
+                    }
+                    else if(action === "template"){
+                        const name = path;
+
+                        const prompt = prompts.find((p) => p.name === name);
+
+                        console.log("Prompt", prompt);
+
+                        if(prompt){
+
+                            const variables = parseEditableVariables(prompt.content);
+
+                            if(variables.length > 0) {
+                                console.log("Showing Prompt Dialog", prompt);
+                                setPromptTemplate(prompt);
+                                setIsPromptTemplateDialogVisible(true);
+                            }
+                            else {
+                                console.log("Submitting Prompt", prompt);
+                                handleSubmit([], [], prompt);
+                            }
+
+                        }
+                    }
+                }
+                else {
+                    handleCustomLinkClick(selectedConversationRef.current || selectedConversation, href,
+                        {message: message, conversation: selectedConversation}
+                    );
+                }
             }
         }
 
@@ -591,35 +678,40 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
 
-        const handleSubmit = (updatedVariables: string[], documents: AttachedDocument[] | null) => {
+        const handleSubmit = (updatedVariables: string[], documents: AttachedDocument[] | null, promptTemplate?:Prompt) => {
 
-            let templateData = selectedConversation?.promptTemplate;
-            let template = templateData?.content;
+            let templateData = promptTemplate || selectedConversation?.promptTemplate;
 
-            const doWorkflow = selectedConversation?.promptTemplate?.type == "automation";
+            console.log("Template Data", templateData);
 
-            console.log("Is automation?", doWorkflow);
+            if(templateData) {
+                let template = templateData?.content;
 
-            setWorkflowMode(doWorkflow);
+                const doWorkflow = templateData.type == "automation";
 
-            const newContent = fillInTemplate(template || "", variables, updatedVariables, documents, !doWorkflow);
+                console.log("Do Workflow", doWorkflow);
 
-            // Jules
-            let message = newMessage({
-                role: 'user',
-                content: newContent,
-                data: {templateData:templateData},
-                type: templateData?.type || MessageType.PROMPT
-            });
+                setWorkflowMode(doWorkflow);
 
-            // @ts-ignore
-            setCurrentMessage(message);
+                const newContent = fillInTemplate(template || "", variables, updatedVariables, documents, !doWorkflow);
 
-            if (message.type == MessageType.PROMPT) {
-                handleSend(message, 0, null);
-            } else {
-                console.log("Workflow", message);
-                handleJsWorkflow(message, updatedVariables, documents);
+                // Jules
+                let message = newMessage({
+                    role: 'user',
+                    content: newContent,
+                    data: {templateData: templateData},
+                    type: templateData?.type || MessageType.PROMPT
+                });
+
+                // @ts-ignore
+                setCurrentMessage(message);
+
+                if (message.type == MessageType.PROMPT) {
+                    handleSend(message, 0, null);
+                } else {
+                    console.log("Workflow", message);
+                    handleJsWorkflow(message, updatedVariables, documents);
+                }
             }
 
         };
@@ -752,7 +844,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
                 //alert("Prompt Template");
-                setVariables(parsePromptVariables(selectedConversation.promptTemplate.content))
+                setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
                 setIsPromptTemplateDialogVisible(true);
             }
             else if (selectedConversation && selectedConversation.workflowDefinition && selectedConversation.messages.length == 0) {
@@ -893,7 +985,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         models={models}
                                                         handleUpdateModel={handleUpdateModel}
                                                         prompt={(selectedConversation.promptTemplate)}
-                                                        variables={parsePromptVariables(selectedConversation?.promptTemplate.content)}
+                                                        variables={parseEditableVariables(selectedConversation?.promptTemplate.content)}
                                                         onSubmit={handleSubmit}
                                                         onClose={handlePromptTemplateDialogCancel}
                                                     />
@@ -973,6 +1065,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         className="h-[162px] bg-white dark:bg-[#343541]"
                                         ref={messagesEndRef}
                                     />
+
+                                    {isPromptTemplateDialogVisible && promptTemplate && (
+                                        <VariableModal
+                                            models={models}
+                                            handleUpdateModel={handleUpdateModel}
+                                            variables={parseEditableVariables(promptTemplate.content)}
+                                            onSubmit={(updatedVariables, documents)=>{
+                                                handleSubmit(updatedVariables, documents);
+                                                //setPromptTemplate(null);
+                                            }}
+                                            onClose={(e)=>{
+                                                console.log("Closing propt template dialog");
+                                                setIsPromptTemplateDialogVisible(false);
+                                                //setPromptTemplate(null);
+                                                }}
+                                        />
+                                    )}
                                 </>
                             )}
                         </div>

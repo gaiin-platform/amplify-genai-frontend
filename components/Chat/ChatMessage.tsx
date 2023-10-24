@@ -283,7 +283,7 @@ export interface Props {
     messageIndex: number;
     onEdit?: (editedMessage: Message) => void,
     onSend: (message: Message[]) => void,
-    handleCustomLinkClick: (href: string) => void,
+    handleCustomLinkClick: (message:Message, href: string) => void,
 }
 
 const animate = keyframes`
@@ -587,13 +587,15 @@ export const ChatMessage: FC<Props> = memo(({
                                                         className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-green-600"
                                                         onClick={(e) => {
                                                             e.preventDefault();
-                                                            handleCustomLinkClick(href || "#");
+                                                            e.stopPropagation();
+                                                            handleCustomLinkClick(message, href || "#");
                                                         }}>
                                                         {children}
                                                     </button> :
                                                     <a href={href} onClick={(e) => {
                                                         e.preventDefault();
-                                                        handleCustomLinkClick(href || "/");
+                                                        e.stopPropagation();
+                                                        handleCustomLinkClick(message, href || "/");
                                                     }}>
                                                         {children}
                                                     </a>

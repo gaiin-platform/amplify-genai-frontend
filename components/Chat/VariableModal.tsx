@@ -15,7 +15,7 @@ interface Props {
     workflowDefinition?: WorkflowDefinition;
     variables: string[];
     handleUpdateModel: (model: OpenAIModel) => void;
-    onSubmit: (updatedVariables: string[], documents: AttachedDocument[] | null) => void;
+    onSubmit: (updatedVariables: string[], documents: AttachedDocument[] | null, prompt?:Prompt) => void;
     onClose: (canceled:boolean) => void;
 }
 
@@ -143,13 +143,13 @@ export const VariableModal: FC<Props> = ({
             .map((variable) => (isFile(variable.key)) ? "" : variable.value);
 
 
-        onSubmit(justVariables, documents);
+        onSubmit(justVariables, documents, prompt);
         onClose(false);
     };
 
 
     const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-        console.log("Keydown");
+
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             //handleSubmit();

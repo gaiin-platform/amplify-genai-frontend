@@ -30,6 +30,8 @@ import { PromptModal } from './PromptModal';
 import { ShareModal } from './ShareModal';
 import { useChatService } from '@/hooks/useChatService';
 import {v4 as uuidv4} from "uuid";
+import {fillInTemplate, parsePromptVariables, VariableFillOptions} from "@/utils/app/prompts";
+import {AttachedDocument} from "@/types/attacheddocument";
 
 
 interface Props {
@@ -113,9 +115,26 @@ export const PromptComponent = ({ prompt }: Props) => {
 
   const handleStartConversation = (prompt: Prompt) => {
 
-
-    let rootPrompt = (prompt.data?.rootPromptId)?
+    let rootPromptObj = (prompt.data?.rootPromptId)?
         prompts.find((p) => p.id == prompt.data?.rootPromptId) : null;
+
+    let rootPrompt = null;
+    if(rootPromptObj != null && rootPromptObj?.content){
+       let variables = parsePromptVariables(rootPromptObj?.content);
+       let variableValues = variables.map((v) => "");
+       rootPrompt = fillInTemplate(rootPromptObj?.content , variables, variableValues, [], true);
+
+       console.log("Root Prompt Filled", rootPrompt);
+    }
+
+    const getPromptTags = (prompt:Prompt|null|undefined) => {
+      return (prompt && prompt.data && prompt.data.conversationTags) ? prompt.data.conversationTags : [];
+    }
+
+    let tags:string[] = [...getPromptTags(rootPromptObj), ...getPromptTags(prompt)]
+    if(prompt.type == "automation"){
+        tags.push("automation");
+    }
 
 
     handleNewConversation(
@@ -125,7 +144,8 @@ export const PromptComponent = ({ prompt }: Props) => {
           promptTemplate: prompt,
           processors: [],
           tools:[],
-          ...(rootPrompt != null && { prompt: rootPrompt.content }),
+          tags: tags,
+          ...(rootPrompt != null && { prompt: rootPrompt }),
         })
   }
 

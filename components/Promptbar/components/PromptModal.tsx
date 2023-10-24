@@ -64,11 +64,14 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
       '};//@\n' +
       '\n';
 
+  let cTags = (prompt.data && prompt.data.conversationTags)? prompt.data.conversationTags.join(",") : "";
+
   const [rootPrompt, setRootPrompt] = useState<Prompt>(workflowRoot);
   const [name, setName] = useState(prompt.name);
   const [description, setDescription] = useState(prompt.description);
   const [content, setContent] = useState(prompt.content);
   const [code, setCode] = useState(initialCode);
+  const [conversationTags, setConversationTags] = useState(cTags);
   const [variableOptions, setVariableOptions] = useState(getVariableOptions(content));
 
   const [selectedTemplate, setSelectedTemplate] = useState<string>(prompt.type || MessageType.PROMPT);
@@ -120,14 +123,25 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
 
   const handleUpdatePrompt = () => {
     const newPrompt = { ...prompt, name, description, content: content.trim(), type: selectedTemplate};
-    newPrompt.data = {...prompt.data, rootPromptId: rootPrompt.id};
+
+    if(newPrompt.type === MessageType.PROMPT) {
+      newPrompt.data = {...prompt.data, rootPromptId: rootPrompt.id};
+    }
+    else if (newPrompt.data && newPrompt.data.rootPromptId) {
+      delete newPrompt.data.rootPromptId;
+    }
+
+
+    if(conversationTags){
+      newPrompt.data = {...newPrompt.data, conversationTags: conversationTags.split(",")};
+    }
 
     if (featureFlags.workflowCreate
         && selectedTemplate === MessageType.AUTOMATION
         && code
         && findWorkflowPattern(code)) {
-      console.log("Updated code:", findWorkflowPattern(code));
-      newPrompt.data = {...prompt.data, code: findWorkflowPattern(code)};
+
+      newPrompt.data = {...newPrompt.data, code: findWorkflowPattern(code)};
     }
 
     onUpdatePrompt(newPrompt);
@@ -196,7 +210,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               rows={3}
             />
 
-            {selectedTemplate !== MessageType.ROOT && (
+            {selectedTemplate !== MessageType.ROOT && selectedTemplate !== MessageType.AUTOMATION && (
                 <>
                 <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
                   {t('Custom Instructions')}
@@ -269,6 +283,20 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               </div>
             ))}
 
+            <ExpansionComponent title={"Conversation Tags"} content={
+                <div className="mt-2 mb-6 text-sm font-bold text-black dark:text-neutral-200">
+                  <input
+                      ref={nameInputRef}
+                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                      placeholder={t('Tags for conversations created with this template.') || ''}
+                      value={conversationTags}
+                      onChange={(e) => {
+                        setConversationTags(e.target.value);
+                      }}
+                  />
+                </div>
+            }/>
+
             {featureFlags.workflowCreate && selectedTemplate === MessageType.AUTOMATION && (
                 <>
                 <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
@@ -303,7 +331,9 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             )}
 
 
-
+            <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
+              {t('Template Type')}
+            </div>
               <div className="mt-2">
               <div className="inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100 mr-8">
                 <input
