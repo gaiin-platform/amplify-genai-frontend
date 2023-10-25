@@ -53,6 +53,7 @@ import {Key} from "@/components/Settings/Key";
 import {describeAsJsonSchema} from "@/utils/app/data";
 import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from "@/utils/app/const";
 import {getToolMetadata} from "@/utils/app/tools";
+import {findWorkflowPattern} from "@/utils/workflow/aiflow";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -104,6 +105,44 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const [messageQueue, setMessageQueue] = useState<Message[]>([]);
 
+
+        const updateMessage = (selectedConversation:Conversation, updatedMessage:Message, updateIndex:number)=> {
+            let updatedConversation = {
+                ...selectedConversation,
+            }
+
+            const updatedMessages: Message[] =
+                updatedConversation.messages.map((message, index) => {
+                    if (index === updateIndex) {
+                        return {...updatedMessage};
+                    }
+                    return message;
+                });
+
+            updatedConversation = {
+                ...updatedConversation,
+                messages: updatedMessages,
+            };
+            homeDispatch({
+                field: 'selectedConversation',
+                value: updatedConversation,
+            });
+
+            saveConversation(updatedConversation);
+            const updatedConversations: Conversation[] = conversations.map(
+                (conversation) => {
+                    if (conversation.id === selectedConversation.id) {
+                        return updatedConversation;
+                    }
+                    return conversation;
+                },
+            );
+            if (updatedConversations.length === 0) {
+                updatedConversations.push(updatedConversation);
+            }
+            homeDispatch({field: 'conversations', value: updatedConversations});
+            saveConversations(updatedConversations);
+        }
 
 
         const updateCurrentMessage = useCallback((text: string, data = {}) => {
@@ -393,11 +432,53 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const onLinkClick = (message:Message, href: string) => {
 
+            // This should all be refactored into a separate module at some point
+            // ...should really be looking up the handler by category/action and passing
+            function runPrompt(prompt: Prompt) {
+                const variables = parseEditableVariables(prompt.content);
+
+                if (variables.length > 0) {
+                    console.log("Showing Prompt Dialog", prompt);
+                    setPromptTemplate(prompt);
+                    setIsPromptTemplateDialogVisible(true);
+                } else {
+                    console.log("Submitting Prompt", prompt);
+                    handleSubmit([], [], prompt);
+                }
+            }
+
+// it some sort of context
             if (selectedConversation) {
                 let [category, action_path] = href.slice(1).split(":");
                 let [action, path] = action_path.split("/");
 
-                if(category === "chat"){
+                if(category === "workflow" && action === "run-workflow"){
+                    const code = findWorkflowPattern(message.content);
+                    if(code){
+                        const prompt:Prompt = {
+                            id: uuidv4(),
+                            folderId: null,
+                            name: "Run Workflow",
+                            content: "{{Document 1:file}}" +
+                                // "{{Document 2:file}}" +
+                                // "{{Document 3:file}}" +
+                                // "{{Document 4:file}}" +
+                                // "{{Document 5:file}}" +
+                                "Running your workflow...",
+                            type: "automation",
+                            description: "Run a workflow",
+                            data: {
+                                code: code,
+                                inputs: {
+                                    parameters: {},
+                                    documents: []
+                                }
+                            }
+                        };
+                        runPrompt(prompt);
+                    }
+                }
+                else if(category === "chat"){
                     if(action === "send"){
                         const content = path;
                         handleSend(newMessage({role: 'user', content: content}), 0, null);
@@ -410,19 +491,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         console.log("Prompt", prompt);
 
                         if(prompt){
-
-                            const variables = parseEditableVariables(prompt.content);
-
-                            if(variables.length > 0) {
-                                console.log("Showing Prompt Dialog", prompt);
-                                setPromptTemplate(prompt);
-                                setIsPromptTemplateDialogVisible(true);
-                            }
-                            else {
-                                console.log("Submitting Prompt", prompt);
-                                handleSubmit([], [], prompt);
-                            }
-
+                            runPrompt(prompt);
                         }
                     }
                 }
@@ -1046,6 +1115,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             }}
                                             handleCustomLinkClick={onLinkClick}
                                             onEdit={(editedMessage) => {
+                                                console.log("Editing message", editedMessage);
+
                                                 setCurrentMessage(editedMessage);
                                                 // discard edited message and the ones that come after then resend
                                                 // handleSend(
@@ -1054,6 +1125,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 // );
                                                 if (editedMessage.role != "assistant") {
                                                     routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
+                                                }
+                                                else {
+                                                    console.log("updateMessage");
+                                                    updateMessage(selectedConversation, editedMessage, index);
                                                 }
                                             }}
                                         />
@@ -1069,16 +1144,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     {isPromptTemplateDialogVisible && promptTemplate && (
                                         <VariableModal
                                             models={models}
+                                            prompt={promptTemplate}
                                             handleUpdateModel={handleUpdateModel}
                                             variables={parseEditableVariables(promptTemplate.content)}
-                                            onSubmit={(updatedVariables, documents)=>{
-                                                handleSubmit(updatedVariables, documents);
-                                                //setPromptTemplate(null);
+                                            onSubmit={(updatedVariables, documents, prompt)=>{
+                                                handleSubmit(updatedVariables, documents, prompt);
                                             }}
                                             onClose={(e)=>{
-                                                console.log("Closing propt template dialog");
                                                 setIsPromptTemplateDialogVisible(false);
-                                                //setPromptTemplate(null);
                                                 }}
                                         />
                                     )}

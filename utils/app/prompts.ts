@@ -212,12 +212,24 @@ export const fillInTemplate = (template:string, variables:string[], variableValu
   return newContent;
 }
 
+export const required = {
+  stage: "display",
+  type: "boolean",
+  title: "Required",
+  default: true,
+};
+
 export const variableTypeOptions = {
   "uniqueId":{},
   "tools":{},
-  "options":{},
-  "file":{},
+  "options":{
+    required
+  },
+  "file":{
+    required
+  },
   "conversation": {
+    required,
     options: {
       stage: "display",
       type: "list",
@@ -234,6 +246,7 @@ export const variableTypeOptions = {
     },
   },
   "template": {
+    required,
     options: {
       stage: "display",
       type: "list",
@@ -258,6 +271,7 @@ export const variableTypeOptions = {
       },
   },
   "text": {
+    required,
     lineNumbers: {
       stage: "submit",
       type: "boolean",

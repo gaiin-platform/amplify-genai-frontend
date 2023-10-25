@@ -511,7 +511,38 @@ const generateOutline = async (promptLLMFull:any, topic:string, maxDepth:number,
 
 // @ts-ignore
 export const getToolMetadata = ({apiKey, stopper, context, requestedParameters, requestedDocuments, statusLogger}) => {
-    return parameterizeTools({apiKey, stopper, context, requestedParameters, requestedDocuments, statusLogger});
+    return {
+        promptLLM: {
+            description: "async (personaString,promptString):Promise<String> //persona should be an empty string, promptString must include detailed instructions for the " +
+                "LLM and any data that the prompt operates on as a string and MUST NOT EXCEED 25,000 characters.",
+        },
+        tellUser: {
+            description: "(msg:string)//output a message to the user",
+        },
+        promptLLMForJson: {
+            description: "(persona: string, prompt: string, desiredSchema: JsonSchema)=>Promise<any> // Prompt the LLM to generate JSON that matches a specified schema." +
+                " This is useful for generating JSON for APIs, databases, or other systems that require a specific JSON schema.",
+        },
+        promptLLMInParallel: {
+            description: "(prompts: string[])=>Promise<string>[] // Execute a promptLLM function in parallel on a list of prompts." +
+                " This is useful if you need to do something to chunks or pages of a document and can prepare the prompts in advance them " +
+                " send the work off in parallel.",
+        },
+        splitStringIntoChunks: {
+            description: "(str: string, chunkSize: number)=>string[] Splits a string into chunks of a specified size." +
+                " The function returns an array of substrings, ensuring that each chunk is at most `chunkSize` characters long." +
+                " This is useful for processing or transmitting large strings in smaller, manageable pieces, especially" +
+                " when interfacing with APIs or systems that have size limitations.",
+        },
+        getDocuments: {
+            description: "():[{name:string,raw:string},...] // returns an array of documents with name and raw properties." +
+                " Use this function to access all documents as strings.",
+        },
+        getDocument: {
+            description: "(name:string)=>{name:string,raw:string} // Get a document by name.",
+        },
+
+    };
 };
 
 // @ts-ignore

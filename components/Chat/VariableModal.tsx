@@ -143,6 +143,7 @@ export const VariableModal: FC<Props> = ({
             .map((variable) => (isFile(variable.key)) ? "" : variable.value);
 
 
+        console.log("Submitting prompt :", prompt);
         onSubmit(justVariables, documents, prompt);
         onClose(false);
     };

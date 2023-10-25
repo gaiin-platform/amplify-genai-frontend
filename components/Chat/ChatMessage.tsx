@@ -375,8 +375,12 @@ export const ChatMessage: FC<Props> = memo(({
     };
 
     const handleEditMessage = () => {
+
         if (message.content != messageContent) {
             if (selectedConversation && onEdit) {
+
+                console.log("handleEditMessage", messageContent);
+
                 onEdit({...message, content: messageContent});
             }
         }
