@@ -21,8 +21,6 @@ interface EditableFieldProps {
 const EditableField: React.FC<EditableFieldProps> = ({ data, currentValue, handleUpdate }) => {
     let startValue = (currentValue)?  currentValue : data.default;
 
-    console.log("Current Value: ", [currentValue, data.default, startValue]);
-
     const [value, setValue] = useState<any>(startValue);
     const [errorMessage, setErrorMessage] = useState<string>('');
 

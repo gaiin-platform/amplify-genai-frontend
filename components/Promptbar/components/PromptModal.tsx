@@ -96,16 +96,16 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
     // @ts-ignore
     const optionType = variableTypeOptions[variableType][optionName].type;
 
-    console.log("Value and type", optionValue, optionType);
-    if(optionType === "number"){
-      try{
-        optionValue = Number(optionValue);
-      } catch (e){
-        optionValue = 0;
-      }
-    } else if(optionType === "boolean"){
-        optionValue = optionValue === "true";
-    }
+    // console.log("Value and type", optionValue, optionType);
+    // if(optionType === "number"){
+    //   try{
+    //     optionValue = Number(optionValue);
+    //   } catch (e){
+    //     optionValue = 0;
+    //   }
+    // } else if(optionType === "boolean"){
+    //     optionValue = optionValue === "true";
+    // }
 
     let newVariableOptions = [...variableOptions];
     newVariableOptions.forEach((variableOption) => {
@@ -114,7 +114,6 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             delete variableOption.optionValues[optionName];
         }
         else {
-
           variableOption.optionValues[optionName] = optionValue;
         }
       }
@@ -262,12 +261,12 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               rows={10}
             />
 
-            {false && variableOptions.length > 0 && (
+            { variableOptions.length > 0 && (
                 <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
                     {t('Variables')}
                 </div>
             )}
-            {false && variableOptions.map((variableOption,index) => (
+            { variableOptions.map((variableOption,index) => (
               <div key={index} className="mt-2 mb-6 text-sm font-bold text-black dark:text-neutral-200">
 
                   <ExpansionComponent key={variableOption.variable} title={variableOption.label + ":" + variableOption.type}
@@ -279,15 +278,26 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                                 <input
                                     className={"mr-2"}
                                     type="checkbox"
-                                    checked={variableOption.optionValues[key] != null}
+                                    checked={
+                                        variableOption.typeData[key].type === "boolean" ?
+                                            (variableOption.optionValues[key]) :
+                                            variableOption.optionValues[key] != null}
                                     onChange={(e) => {
+                                      let newValue = null;
+
                                       if(!e.target.checked) {
                                         variableOption.optionValues[key] = null;
                                       }
                                       else {
+                                        console.log("Type data", variableOption.typeData[key]);
+                                        newValue = (variableOption.typeData[key].type === "boolean")? true :
+                                            variableOption.typeData[key].default;
                                         variableOption.optionValues[key] = variableOption.typeData[key].default;
                                       }
-                                      handleUpdateVariableOptionValues(variableOption.label, variableOption.type, key, e.target.checked? variableOption.typeData[key].default || '' : null)
+
+                                      console.log("New value", newValue, e.target.checked);
+
+                                      handleUpdateVariableOptionValues(variableOption.label, variableOption.type, key, newValue);
                                     }}
                                 />
 
