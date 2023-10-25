@@ -751,20 +751,20 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             let templateData = promptTemplate || selectedConversation?.promptTemplate;
 
-            console.log("Template Data", templateData);
+            // console.log("Template Data", templateData);
 
             if(templateData) {
                 let template = templateData?.content;
+                const variables = parseEditableVariables(template);
 
                 const doWorkflow = templateData.type == "automation";
 
-                console.log("Do Workflow", doWorkflow);
+                // console.log("Do Workflow", doWorkflow);
 
                 setWorkflowMode(doWorkflow);
 
                 const newContent = fillInTemplate(template || "", variables, updatedVariables, documents, !doWorkflow);
 
-                // Jules
                 let message = newMessage({
                     role: 'user',
                     content: newContent,

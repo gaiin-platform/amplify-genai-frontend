@@ -8,6 +8,8 @@
 //     return strippedCode;
 // }
 //
+import JSON5 from "json5";
+
 function convertToMarkdown(obj, prefix = "") {
     let output = "";
 
@@ -616,3 +618,4 @@ const test6 = "const workflow = async (fnlibs) => {\n" +
     "};";
 
 console.log(findWorkflowPattern(test6) != null);
+

@@ -513,7 +513,7 @@ const generateOutline = async (promptLLMFull:any, topic:string, maxDepth:number,
 export const getToolMetadata = ({apiKey, stopper, context, requestedParameters, requestedDocuments, statusLogger}) => {
     return {
         promptLLM: {
-            description: "async (personaString,promptString):Promise<String> //persona should be an empty string, promptString must include detailed instructions for the " +
+            description: "(personaString,promptString)=>Promise<String> // persona should be an empty string, promptString must include detailed instructions for the " +
                 "LLM and any data that the prompt operates on as a string and MUST NOT EXCEED 25,000 characters.",
         },
         tellUser: {
@@ -535,7 +535,7 @@ export const getToolMetadata = ({apiKey, stopper, context, requestedParameters, 
                 " when interfacing with APIs or systems that have size limitations.",
         },
         getDocuments: {
-            description: "():[{name:string,raw:string},...] // returns an array of documents with name and raw properties." +
+            description: "()=>[{name:string,raw:string},...] // returns an array of documents with name and raw properties." +
                 " Use this function to access all documents as strings.",
         },
         getDocument: {

@@ -7,7 +7,7 @@ import {WorkflowDefinition} from "@/types/workflow";
 import {OpenAIModelID, OpenAIModel} from "@/types/openai";
 import HomeContext from "@/pages/api/home/home.context";
 import JSON5 from 'json5'
-import {parsePromptVariableValues} from "@/utils/app/prompts";
+import {getType, parsePromptVariableValues, variableTypeOptions} from "@/utils/app/prompts";
 
 interface Props {
     models: OpenAIModel[];
@@ -36,7 +36,7 @@ const isBoolean = (variable: string) => {
 
 const isOptions = (variable: string) => {
     // return if the variable contains :options[option1,option2,...]
-    return variable.includes(':options[');
+    return variable.includes(':options[') || getType(variable) === "options";
 }
 
 const isConversation = (variable: string) => {
@@ -65,6 +65,11 @@ export const parseVariableName = (variable: string) => {
     }
 }
 
+const getSelectOptions = (variable: string) => {
+    const options = parsePromptVariableValues(variable);
+    return (options.values)? options.values : [];
+}
+
 export const VariableModal: FC<Props> = ({
                                              models,
                                              handleUpdateModel,
@@ -85,13 +90,16 @@ export const VariableModal: FC<Props> = ({
     const [updatedVariables, setUpdatedVariables] = useState<{ key: string; value: any }[]>(
         variables
             .map((variable) => {
-                let value: any = '';
+                const options = parsePromptVariableValues(variable);
+
+                let value: any = options.default || '';
 
                 if (isBoolean(variable)) {
                     value = false;
                 } else if (isOptions(variable)) {
                     // set the value to the first option
-                    value = variable.split(':')[1].split('[')[1].split(']')[0].split(',')[0];
+                    const values = getSelectOptions(variable);
+                    value = (values && values.length > 0) ? values[0] : '';
                 }
                 return {key: variable, value: value}
             })
@@ -104,6 +112,8 @@ export const VariableModal: FC<Props> = ({
 
     const modalRef = useRef<HTMLDivElement>(null);
     const nameInputRef = useRef<HTMLTextAreaElement>(null);
+
+
 
     const handleChange = (index: number, value: any) => {
         setUpdatedVariables((prev) => {
@@ -122,7 +132,10 @@ export const VariableModal: FC<Props> = ({
     }
 
     const handleSubmit = () => {
-        if (updatedVariables.some((variable) => variable.value === '')) {
+
+        if (updatedVariables.some((variable) =>
+            variable.value === '' && !parsePromptVariableValues(variable.key).optional)) {
+
             alert('Please fill out all variables');
             return;
         }
@@ -227,6 +240,7 @@ export const VariableModal: FC<Props> = ({
 
 
 
+
     const getTextValue = (variable:string, text: string) => {
         let options = parsePromptVariableValues(variable);
 
@@ -243,11 +257,26 @@ export const VariableModal: FC<Props> = ({
     }
 
     const getValue = (variable: string, value: any) => {
-        if(isText(variable)) {
-            return getTextValue(variable, value);
+        if(value) {
+
+            if (isText(variable)) {
+                return getTextValue(variable, value);
+            } else {
+                return value;
+            }
         }
         else {
-            return value;
+            const info = parsePromptVariableValues(variable);
+
+            if(info.default) {
+                return info.default;
+            }
+            else if (info.type === "file"){
+                return {name:"", raw:""};
+            }
+            else {
+                return "";
+            }
         }
     }
 
@@ -337,7 +366,7 @@ export const VariableModal: FC<Props> = ({
                                     value={variable.value}
                                     onChange={(e) => handleChange(index, e.target.value)}
                                 >
-                                    {variable.key.split(':')[1].split('[')[1].split(']')[0].split(',').map((option) => (
+                                    {getSelectOptions(variable.key).map((option:any) => (
                                         <option key={option} value={option}>
                                             {option}
                                         </option>

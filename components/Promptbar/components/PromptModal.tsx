@@ -91,6 +91,22 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
 
   const handleUpdateVariableOptionValues = (variable:string, type:string, optionName:string, optionValue:any) => {
 
+    const variableType = getType(variable);
+
+    // @ts-ignore
+    const optionType = variableTypeOptions[variableType][optionName].type;
+
+    console.log("Value and type", optionValue, optionType);
+    if(optionType === "number"){
+      try{
+        optionValue = Number(optionValue);
+      } catch (e){
+        optionValue = 0;
+      }
+    } else if(optionType === "boolean"){
+        optionValue = optionValue === "true";
+    }
+
     let newVariableOptions = [...variableOptions];
     newVariableOptions.forEach((variableOption) => {
       if(variableOption.label === variable){
@@ -98,6 +114,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             delete variableOption.optionValues[optionName];
         }
         else {
+
           variableOption.optionValues[optionName] = optionValue;
         }
       }
@@ -245,12 +262,12 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               rows={10}
             />
 
-            {variableOptions.length > 0 && (
+            {false && variableOptions.length > 0 && (
                 <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
                     {t('Variables')}
                 </div>
             )}
-            {variableOptions.map((variableOption,index) => (
+            {false && variableOptions.map((variableOption,index) => (
               <div key={index} className="mt-2 mb-6 text-sm font-bold text-black dark:text-neutral-200">
 
                   <ExpansionComponent key={variableOption.variable} title={variableOption.label + ":" + variableOption.type}
@@ -275,7 +292,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                                 />
 
                                 {// @ts-ignore
-                                  data.title}: <EditableField currentValue={variableOption.optionValues[key] || variableOption.typeData[key].default || ''} data={data} handleUpdate={(v)=>handleUpdateVariableOptionValues(variableOption.label, variableOption.type, key, v)}/>
+                                  data.title} <EditableField currentValue={variableOption.optionValues[key] || variableOption.typeData[key].default || ''} data={data} handleUpdate={(v)=>handleUpdateVariableOptionValues(variableOption.label, variableOption.type, key, v)}/>
                               </div>
                               ))}
                         </div>

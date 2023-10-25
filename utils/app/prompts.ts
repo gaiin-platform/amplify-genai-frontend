@@ -42,7 +42,7 @@ export const parsePromptVariables = (content: string) => {
   let match;
 
   while ((match = regex.exec(content)) !== null) {
-    foundVariables.push(match[1]);
+    foundVariables.push(match[1].trim());
   }
 
   return foundVariables;
@@ -71,7 +71,7 @@ export const parsePromptVariableValues = (variable: string) => {
       try {
         return JSON5.parse(dataStr);
       } catch (e) {
-        return {options: dataStr.split(",")};
+        return {values: variable.substring(start + 1, end).split(",")};
       }
     }
   }
@@ -173,19 +173,24 @@ export const parseEditableVariables = (content: string) => {
         let options = defaultVariableFillOptions[type];
         return options && !(!(options.isEditable));
     })
+
   return editable;
 }
 
 export const fillInTemplate = (template:string, variables:string[], variableValues: string[], documents: AttachedDocument[] | null, insertDocuments:boolean, fillOptions?:VariableFillOptions) => {
-  console.log("Fill in Template");
+  // console.log("Fill in Template");
   const names = variables.map(v => parseVariableName(v));
 
   console.log("Variables", variables);
   console.log("Names", names);
+  console.log("Variable Values", variableValues);
 
-  const newContent = template.replace(/{{(.*?)}}/g, (match, variable) => {
+  const newContent = template.replace(/{{\s*(.*?)\s*}}/g, (match, variable) => {
     const name = parseVariableName(variable);
     const index = names.indexOf(name);
+
+    console.log("Variable", variable, "Name", name, "Index", index);
+
     const filler = getFillHelp(fillOptions || defaultVariableFillOptions, variable);
 
     if(filler) {
@@ -206,30 +211,32 @@ export const fillInTemplate = (template:string, variables:string[], variableValu
       }
     }
 
+    console.log("Variable", variable, "Index", index, "Value", variableValues[index]);
+
     return variableValues[index];
   });
 
   return newContent;
 }
 
-export const required = {
+export const optional = {
   stage: "display",
   type: "boolean",
-  title: "Required",
-  default: true,
+  title: "Optional",
+  default: false,
 };
 
 export const variableTypeOptions = {
   "uniqueId":{},
   "tools":{},
   "options":{
-    required
+    optional
   },
   "file":{
-    required
+    optional
   },
   "conversation": {
-    required,
+    optional,
     options: {
       stage: "display",
       type: "list",
@@ -246,7 +253,7 @@ export const variableTypeOptions = {
     },
   },
   "template": {
-    required,
+    optional,
     options: {
       stage: "display",
       type: "list",
@@ -271,7 +278,7 @@ export const variableTypeOptions = {
       },
   },
   "text": {
-    required,
+    optional,
     lineNumbers: {
       stage: "submit",
       type: "boolean",
