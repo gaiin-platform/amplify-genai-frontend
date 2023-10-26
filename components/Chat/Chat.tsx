@@ -486,8 +486,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                         const prompt = prompts.find((p) => p.name === name);
 
-                        console.log("Prompt", prompt);
-
                         if(prompt){
                             runPrompt(prompt);
                         }
