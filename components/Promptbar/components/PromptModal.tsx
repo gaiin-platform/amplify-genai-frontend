@@ -86,6 +86,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
   const [code, setCode] = useState(initialCode);
   const [conversationTags, setConversationTags] = useState(cTags);
   const [variableOptions, setVariableOptions] = useState(getVariableOptions(content));
+  const [requiredTags, setRequiredTags] = useState(prompt.data?.requiredTags?.join(",") || "");
 
   const [selectedTemplate, setSelectedTemplate] = useState<string>(prompt.type || MessageType.PROMPT);
 
@@ -147,9 +148,15 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
       delete newPrompt.data.rootPromptId;
     }
 
+    if(requiredTags){
+      newPrompt.data = {...newPrompt.data, requiredTags: requiredTags.split(",").map((t: string) => t.trim())};
+    }
+    else {
+      newPrompt.data = {...newPrompt.data, requiredTags: []};
+    }
 
     if(conversationTags){
-      newPrompt.data = {...newPrompt.data, conversationTags: conversationTags.split(",")};
+      newPrompt.data = {...newPrompt.data, conversationTags: conversationTags.split(",").map((t: string) => t.trim())};
     }
 
     if (featureFlags.workflowCreate
@@ -226,7 +233,8 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               rows={3}
             />
 
-            {selectedTemplate !== MessageType.ROOT && selectedTemplate !== MessageType.AUTOMATION && (
+            {selectedTemplate !== MessageType.ROOT && selectedTemplate !== MessageType.AUTOMATION &&
+                selectedTemplate !== MessageType.FOLLOW_UP && (
                 <>
                 <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
                   {t('Custom Instructions')}
@@ -354,12 +362,26 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                 </>
             )}
 
+            {featureFlags.followUpCreate && selectedTemplate === MessageType.FOLLOW_UP && (
+                <>
+                <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
+                  {t('Required Tags')}
+                </div>
+                <input
+                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                    placeholder={t('A list of any tags that must be present on the conversation for the buttons to appear.') || ''}
+                    value={requiredTags}
+                    onChange={(e) => setRequiredTags(e.target.value)}
+                />
+                </>
+              )}
+
 
             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
               {t('Template Type')}
             </div>
               <div className="mt-2">
-              <div className="inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100 mr-8">
+              <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100 mr-8">
                 <input
                     type="radio"
                     name="template"
@@ -374,7 +396,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               </div>
 
                 {featureFlags.rootPromptCreate && (
-                    <div className="inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
+                    <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
                       <input
                           type="radio"
                           name="template"
@@ -389,8 +411,24 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                     </div>
                 )}
 
+                {featureFlags.followUpCreate && (
+                    <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
+                      <input
+                          type="radio"
+                          name="template"
+                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
+                          value={MessageType.FOLLOW_UP}
+                          checked={selectedTemplate === MessageType.FOLLOW_UP}
+                          onChange={() => setSelectedTemplate(MessageType.FOLLOW_UP)}
+                      />
+                      <label className="ml-2">
+                        Follow-up button
+                      </label>
+                    </div>
+                )}
+
               {featureFlags.workflowCreate && (
-              <div className="inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
+              <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
                 <input
                     type="radio"
                     name="template"

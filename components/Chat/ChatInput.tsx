@@ -326,6 +326,7 @@ export const ChatInput = ({
 
           <div className="flex items-center">
 
+            {featureFlags.pluginsOnInput && (
             <button
               className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
               onClick={() => setShowPluginSelect(!showPluginSelect)}
@@ -333,7 +334,7 @@ export const ChatInput = ({
             >
               {plugin ? <IconBrandGoogle size={20} /> : <IconBolt size={20} />}
             </button>
-
+            )}
 
             {featureFlags.workflowCreate && (
               <button

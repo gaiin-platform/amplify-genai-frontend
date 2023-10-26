@@ -64,5 +64,7 @@ export const initialState: HomeInitialState = {
     workflowRun:true,
     workflowCreate:true,
     rootPromptCreate:true,
+    pluginsOnInput:false,
+    followUpCreate:true,
   },
 };

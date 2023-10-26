@@ -29,6 +29,7 @@ import PromptbarContext from '../PromptBar.context';
 import { PromptModal } from './PromptModal';
 import { ShareModal } from './ShareModal';
 import { useChatService } from '@/hooks/useChatService';
+import { shareItems } from "@/services/shareService";
 import {v4 as uuidv4} from "uuid";
 import {fillInTemplate, parsePromptVariables, VariableFillOptions} from "@/utils/app/prompts";
 import {AttachedDocument} from "@/types/attacheddocument";
@@ -245,7 +246,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                 )}
 
                 {/*{!isDeleting && !isRenaming && (*/}
-                {/*    <SidebarActionButton handleClick={handleSharePrompt}>*/}
+                {/*    <SidebarActionButton handleClick={()=>shareItems("",null)}>*/}
                 {/*      <IconShare size={18}/>*/}
                 {/*    </SidebarActionButton>*/}
                 {/*)}*/}

@@ -430,20 +430,22 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         };
 
+        function runPrompt(prompt: Prompt) {
+            const variables = parseEditableVariables(prompt.content);
+
+            if (variables.length > 0) {
+                setPromptTemplate(prompt);
+                setIsPromptTemplateDialogVisible(true);
+            } else {
+                handleSubmit([], [], prompt);
+            }
+        }
+
         const onLinkClick = (message:Message, href: string) => {
 
             // This should all be refactored into a separate module at some point
             // ...should really be looking up the handler by category/action and passing
-            function runPrompt(prompt: Prompt) {
-                const variables = parseEditableVariables(prompt.content);
 
-                if (variables.length > 0) {
-                    setPromptTemplate(prompt);
-                    setIsPromptTemplateDialogVisible(true);
-                } else {
-                    handleSubmit([], [], prompt);
-                }
-            }
 
             // it some sort of context
             if (selectedConversation) {
@@ -1120,6 +1122,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 //handleSend(message[0], 0, null);
                                                 routeMessage(message[0], 0, null, []);
                                             }}
+                                            onSendPrompt={runPrompt}
                                             handleCustomLinkClick={onLinkClick}
                                             onEdit={(editedMessage) => {
                                                 console.log("Editing message", editedMessage);

@@ -20,6 +20,13 @@ export interface ChatHook {
     exec: (context:HookContext, conversation:Conversation, messageContent:string)=>HookResult;
 }
 
+export const appendOnce = (content:string, append:string):string => {
+    if(content.indexOf(append) === -1){
+        return content + append;
+    }
+    return content;
+}
+
 export const getHook = (tags: string[]):ChatHook => {
 
     if(tags.includes("automation")){
@@ -34,8 +41,8 @@ export const getHook = (tags: string[]):ChatHook => {
                 try {
                     const code = findWorkflowPattern(messageContent);
                     if(code){
-                        updatedContent += "\n\n## Options: \n\n" +
-                            "Would you like to: [Run Workflow](#workflow:run-workflow/) or [Save Workflow](#workflow:save-workflow/)?";
+                        updatedContent = appendOnce(updatedContent,"\n\n## Options: \n\n" +
+                            "Would you like to: [Run Workflow](#workflow:run-workflow/) or [Save Workflow](#workflow:save-workflow/)?");
                     }
                 }catch (e){
 

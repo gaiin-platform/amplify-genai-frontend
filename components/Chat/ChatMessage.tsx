@@ -33,6 +33,7 @@ import Workflow from "@/utils/workflow/workflow";
 import mermaid from "mermaid";
 import { Vega } from 'react-vega';
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
+import {Prompt} from "@/types/prompt";
 
 const mermaidConfig = {
     startOnLoad: true,
@@ -283,6 +284,7 @@ export interface Props {
     messageIndex: number;
     onEdit?: (editedMessage: Message) => void,
     onSend: (message: Message[]) => void,
+    onSendPrompt: (prompt: Prompt) => void,
     handleCustomLinkClick: (message:Message, href: string) => void,
 }
 
@@ -302,7 +304,7 @@ const LoadingIcon = styled(FiCommand)`
 `;
 
 export const ChatMessage: FC<Props> = memo(({
-                                                message, messageIndex, onEdit, onSend, handleCustomLinkClick
+                                                message, messageIndex, onEdit, onSend, onSendPrompt, handleCustomLinkClick
                                             }) => {
     const {t} = useTranslation('chat');
 
@@ -314,46 +316,46 @@ export const ChatMessage: FC<Props> = memo(({
 
     const {sendChatRequest} = useChatService();
 
-    const userFollowupButtonsConfig = [
-        {
-            title: 'Suggest Prompt Improvements', handler: () => {
-                onSend([newMessage({
-                    role: "user", content: "Given the prompt: " +
-                        "---------------------------------\n" +
-                        "" + message.content +
-                        "\n---------------------------------\n" +
-                        "Suggest an enhanced version of it.\n" +
-                        "1. Start with clear, precise instructions placed at the beginning of the prompt.\n" +
-                        "2. Include specific details about the desired context, outcome, length, format, and style.\n" +
-                        "3. Provide examples of the desired output format, if possible.\n" +
-                        "4. Use appropriate leading words or phrases to guide the desired output, especially if code generation is involved.\n" +
-                        "5. Avoid any vague or imprecise language. \n" +
-                        "6. Rather than only stating what not to do, provide guidance on what should be done instead.\n" +
-                        "\n" +
-                        "Remember to ensure the revised prompt remains true to the user's original intent. At the end, ask me if you should respond to this prompt."
-                })])
+    // const userFollowupButtonsConfig = [
+    //     {
+    //         title: 'Suggest Prompt Improvements', handler: () => {
+    //             onSend([newMessage({
+    //                 role: "user", content: "Given the prompt: " +
+    //                     "---------------------------------\n" +
+    //                     "" + message.content +
+    //                     "\n---------------------------------\n" +
+    //                     "Suggest an enhanced version of it.\n" +
+    //                     "1. Start with clear, precise instructions placed at the beginning of the prompt.\n" +
+    //                     "2. Include specific details about the desired context, outcome, length, format, and style.\n" +
+    //                     "3. Provide examples of the desired output format, if possible.\n" +
+    //                     "4. Use appropriate leading words or phrases to guide the desired output, especially if code generation is involved.\n" +
+    //                     "5. Avoid any vague or imprecise language. \n" +
+    //                     "6. Rather than only stating what not to do, provide guidance on what should be done instead.\n" +
+    //                     "\n" +
+    //                     "Remember to ensure the revised prompt remains true to the user's original intent. At the end, ask me if you should respond to this prompt."
+    //             })])
+    //
+    //         }
+    //     },
+    // ];
 
-            }
-        },
-    ];
-
-    const followUpButtonsConfig = [
-        {
-            title: 'Follow-up Prompts',
-            handler: () => onSend([newMessage({
-                role: "user",
-                content: "Act as an expert prompt engineer. Suggest really five really innovative, creative, follow-up prompts that would generate concrete outputs or analyses that would help me do something related to this content. Be very very specific with the wording of your suggestions and all of them should include building a step by step plan as part of the prompt. All of them should include a persona."
-            })])
-        },
-        {
-            title: 'Follow-up Questions',
-            handler: () => onSend([newMessage({role: "user", content: "What are follow-up questions I should ask?"})])
-        },
-        {
-            title: 'Fact List',
-            handler: () => onSend([newMessage({role: "user", content: "Create a bulleted list of facts related to this content that should be checked to determine its veracity."})])
-        },
-    ];
+    // const followUpButtonsConfig = [
+    //     {
+    //         title: 'Follow-up Prompts',
+    //         handler: () => onSend([newMessage({
+    //             role: "user",
+    //             content: "Act as an expert prompt engineer. Suggest really five really innovative, creative, follow-up prompts that would generate concrete outputs or analyses that would help me do something related to this content. Be very very specific with the wording of your suggestions and all of them should include building a step by step plan as part of the prompt. All of them should include a persona."
+    //         })])
+    //     },
+    //     {
+    //         title: 'Follow-up Questions',
+    //         handler: () => onSend([newMessage({role: "user", content: "What are follow-up questions I should ask?"})])
+    //     },
+    //     {
+    //         title: 'Fact List',
+    //         handler: () => onSend([newMessage({role: "user", content: "Create a bulleted list of facts related to this content that should be checked to determine its veracity."})])
+    //     },
+    // ];
 
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [isTyping, setIsTyping] = useState<boolean>(false);
@@ -541,7 +543,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     </div>
                                     <div className="flex flex-row">
                                         {(isEditing || messageIsStreaming) ? null : (
-                                            <ChatFollowups buttonsConfig={userFollowupButtonsConfig}/>
+                                            <ChatFollowups promptSelected={(p)=>{onSendPrompt(p)}}/>
                                         )}
                                     </div>
                                 </div>
@@ -740,7 +742,7 @@ export const ChatMessage: FC<Props> = memo(({
                                 </div>
                             </div>
                             {(messageIsStreaming || isEditing) ? null : (
-                                <ChatFollowups buttonsConfig={followUpButtonsConfig}/>
+                                <ChatFollowups promptSelected={(p)=>{onSendPrompt(p)}}/>
                             )}
                             {(messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1) ?
                                 <LoadingIcon/> : null}
