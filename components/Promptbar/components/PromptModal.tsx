@@ -10,6 +10,8 @@ import {findWorkflowPattern} from "@/utils/workflow/aiflow";
 import {variableTypeOptions, parsePromptVariableValues, parsePromptVariables, getType, getName} from "@/utils/app/prompts";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import EditableField from "@/components/Promptbar/components/EditableField";
+import { DEFAULT_SYSTEM_PROMPT } from "@/utils/app/const";
+import { v4 as uuidv4 } from 'uuid';
 
 interface Props {
   prompt: Prompt;
@@ -43,11 +45,22 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
     state: { featureFlags, prompts },
   } = useContext(HomeContext);
 
+  let workflowRoot:Prompt = {
+    id: "default",
+    name: "Default custom instructions",
+    description: "Default custom instructions ",
+    content: DEFAULT_SYSTEM_PROMPT,
+    type: MessageType.ROOT,
+    folderId: null,
+  };
 
-  const rootPrompts = prompts.filter((p) => p.type === MessageType.ROOT);
-  const workflowRoot =
-      rootPrompts.filter(p => p.id === prompt.data?.rootPromptId)[0]
-      || rootPrompts[0];
+  let rootPrompts = [workflowRoot, ...prompts.filter((p) => p.type === MessageType.ROOT)];
+
+  if(rootPrompts.length > 0) {
+    workflowRoot =
+        rootPrompts.filter(p => p.id === prompt.data?.rootPromptId)[0]
+        || rootPrompts[0];
+  }
 
   let initialCode = prompt.data?.code ? "const workflow = " + prompt.data.code :  '//@START_WORKFLOW\n' +
       'const workflow = async (fnlibs) => {\n' +
@@ -80,8 +93,11 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const handleUpdateRootPrompt = (rootPromptId:string) => {
-    let root = prompts.filter((p) => p.id === rootPromptId)[0];
-    setRootPrompt(root);
+    try {
+      let root = prompts.filter((p) => p.id === rootPromptId)[0];
+      setRootPrompt(root);
+    }catch (e) {
+    }
   }
 
   const handleUpdateTemplate = (promptTemplate:string) =>{
@@ -124,7 +140,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
   const handleUpdatePrompt = () => {
     const newPrompt = { ...prompt, name, description, content: content.trim(), type: selectedTemplate};
 
-    if(newPrompt.type === MessageType.PROMPT) {
+    if(newPrompt.type === MessageType.PROMPT && rootPrompt && rootPrompt.id) {
       newPrompt.data = {...prompt.data, rootPromptId: rootPrompt.id};
     }
     else if (newPrompt.data && newPrompt.data.rootPromptId) {
@@ -220,12 +236,12 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               value={rootPrompt.id}
               onChange={(e) => handleUpdateRootPrompt(e.target.value)}
               >
-            {rootPrompts.map((rootPrompt) => (
-              <option key={rootPrompt.id} value={rootPrompt.id}>
-                 {rootPrompt.name}
-              </option>
-              ))}
-              </select>
+            {rootPrompts.map((rootPrompt, index) => (
+                  <option key={index} value={rootPrompt.id}>
+                     {rootPrompt.name}
+                  </option>
+                  ))}
+                  </select>
                 </>)}
 
 

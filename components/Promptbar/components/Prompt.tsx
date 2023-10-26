@@ -123,8 +123,6 @@ export const PromptComponent = ({ prompt }: Props) => {
        let variables = parsePromptVariables(rootPromptObj?.content);
        let variableValues = variables.map((v) => "");
        rootPrompt = fillInTemplate(rootPromptObj?.content , variables, variableValues, [], true);
-
-       console.log("Root Prompt Filled", rootPrompt);
     }
 
     const getPromptTags = (prompt:Prompt|null|undefined) => {
