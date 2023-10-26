@@ -91,22 +91,6 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
 
   const handleUpdateVariableOptionValues = (variable:string, type:string, optionName:string, optionValue:any) => {
 
-    const variableType = getType(variable);
-
-    // @ts-ignore
-    const optionType = variableTypeOptions[variableType][optionName].type;
-
-    // console.log("Value and type", optionValue, optionType);
-    // if(optionType === "number"){
-    //   try{
-    //     optionValue = Number(optionValue);
-    //   } catch (e){
-    //     optionValue = 0;
-    //   }
-    // } else if(optionType === "boolean"){
-    //     optionValue = optionValue === "true";
-    // }
-
     let newVariableOptions = [...variableOptions];
     newVariableOptions.forEach((variableOption) => {
       if(variableOption.label === variable){
@@ -289,13 +273,10 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                                         variableOption.optionValues[key] = null;
                                       }
                                       else {
-                                        console.log("Type data", variableOption.typeData[key]);
                                         newValue = (variableOption.typeData[key].type === "boolean")? true :
                                             variableOption.typeData[key].default;
                                         variableOption.optionValues[key] = variableOption.typeData[key].default;
                                       }
-
-                                      console.log("New value", newValue, e.target.checked);
 
                                       handleUpdateVariableOptionValues(variableOption.label, variableOption.type, key, newValue);
                                     }}

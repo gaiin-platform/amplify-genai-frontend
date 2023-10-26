@@ -33,6 +33,7 @@ import { PromptList } from './PromptList';
 import { VariableModal } from './VariableModal';
 import {Import} from "@/components/Settings/Import";
 import {OpenAIModel} from "@/types/openai";
+import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 
 interface Props {
   onSend: (message: Message, plugin: Plugin | null, documents:AttachedDocument[]) => void;
@@ -304,14 +305,7 @@ export const ChatInput = ({
                 <IconPlayerStop size={16} /> {t('Stop Generating')}
               </button>
 
-              {status && (
-                  <button
-                      className="mb-3 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 md:mt-2"
-                      onClick={handleStopConversation}
-                  >
-                    <IconPlayerStop size={16} /> {status.summary}
-                  </button>
-              )}
+              <StatusDisplay statusHistory={status}/>
             </div>
         )}
 

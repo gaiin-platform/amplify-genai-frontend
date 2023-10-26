@@ -19,6 +19,12 @@ interface Props {
     onClose: (canceled:boolean) => void;
 }
 
+const isRequired = (variable: string) => {
+    const optional = (parsePromptVariableValues(variable).optional);
+
+    return !optional;
+}
+
 const isText = (variable: string) => {
     // return if the variable is not any of the other is* functions
     return variable.indexOf(":") === -1 || variable.split(":")[1].startsWith("text");
@@ -26,12 +32,12 @@ const isText = (variable: string) => {
 
 const isFile = (variable: string) => {
     // return if the variable is suffixed with :file
-    return variable.endsWith(':file');
+    return variable.endsWith(':file') || getType(variable) === "file";
 }
 
 const isBoolean = (variable: string) => {
     // return if the variable is suffixed with :file
-    return variable.endsWith(':boolean');
+    return variable.endsWith(':boolean') || getType(variable) === "boolean";
 }
 
 const isOptions = (variable: string) => {
@@ -40,19 +46,19 @@ const isOptions = (variable: string) => {
 }
 
 const isConversation = (variable: string) => {
-    return variable.includes(':conversation');
+    return variable.includes(':conversation') || getType(variable) === "conversation";
 }
 
 const isConversationFolder = (variable: string) => {
-    return variable.includes(':conversation-folder');
+    return variable.includes(':conversation-folder') || getType(variable) === "conversation-folder";
 }
 
 const isPromptTemplate = (variable: string) => {
-    return variable.includes(':template');
+    return variable.includes(':template') || getType(variable) === "template";
 }
 
 const isPromptTemplateFolder = (variable: string) => {
-    return variable.includes(':template-folder');
+    return variable.includes(':template-folder') || getType(variable) === "template-folder";
 }
 
 // Parse the name of a variable to remove the suffixes
@@ -321,7 +327,7 @@ export const VariableModal: FC<Props> = ({
                     <div className="mb-4" key={index}>
                         {!isBoolean(variable.key) &&
                             <div className="mb-2 text-sm font-bold text-neutral-200">
-                                {parseVariableName(variable.key)}
+                                {parseVariableName(variable.key)}{isRequired(variable.key) && "*"}
                             </div>}
 
                         {isText(variable.key) && (
@@ -356,7 +362,7 @@ export const VariableModal: FC<Props> = ({
                                     checked={variable.value === 'true'}
                                     onChange={(e) => handleChange(index, e.target.checked ? 'true' : 'false')}
                                 />
-                                <span className="ml-2 text-sm text-neutral-200">{parseVariableName(variable.key)}</span>
+                                <span className="ml-2 text-sm text-neutral-200">{parseVariableName(variable.key)}{isRequired(variable.key) && "*"}</span>
                             </div>
                         )}
                         {isOptions(variable.key) && (
@@ -454,6 +460,9 @@ export const VariableModal: FC<Props> = ({
                     </div>
 
                 )}
+                <div className="mb-2 mt-6 text-sm font-bold text-neutral-200">
+                    Required fields are marked with *
+                </div>
 
                 <button
                     className="mt-6 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"

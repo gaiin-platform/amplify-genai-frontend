@@ -94,6 +94,7 @@ export const getName = (variable:string) => {
 }
 
 export const getType = (variable:string) => {
+
   if(variable.indexOf(":") > -1) {
     let startParen = (variable.indexOf("(") > -1) ? variable.indexOf("(") : variable.length;
     let startBracket = (variable.indexOf("[") > -1) ? variable.indexOf("[") : variable.length;
@@ -181,6 +182,7 @@ export const fillInTemplate = (template:string, variables:string[], variableValu
   // console.log("Fill in Template");
   const names = variables.map(v => parseVariableName(v));
 
+  console.log("Insert?", insertDocuments);
   console.log("Variables", variables);
   console.log("Names", names);
   console.log("Variable Values", variableValues);
@@ -188,6 +190,10 @@ export const fillInTemplate = (template:string, variables:string[], variableValu
   const newContent = template.replace(/{{\s*(.*?)\s*}}/g, (match, variable) => {
     const name = parseVariableName(variable);
     const index = names.indexOf(name);
+    const type = getType(variable);
+    const options = parsePromptVariableValues(variable);
+    // @ts-ignore
+    //const typeData:any = variableTypeOptions[type as keyof typeof variableTypeOptions];
 
     console.log("Variable", variable, "Name", name, "Index", index);
 
@@ -200,20 +206,43 @@ export const fillInTemplate = (template:string, variables:string[], variableValu
     }
 
     if (insertDocuments && documents && documents.length > 0) {
+
       let document = documents.filter((doc) => {
-        if (doc.name == name) {
-          return "" + doc.raw;
-        }
+        return (doc.name == name);
       })[0];
 
       if (document) {
-        return "" + document.raw;
+        let text = document.raw;
+        if(text && text.length > 0){
+          console.log("Document Options", options);
+
+          if(options.includeMetadata) {
+            text = "Document Name: "+document.name+"\nDocument Type: "+document.type+"\n"+text;
+          }
+          if(options.lineNumbers) {
+            text = text.split("\n").map((line:string, index:number) => "Line "+index+": "+line).join("\n");
+          }
+          if(options.escape) {
+            text = text.replaceAll("\"", "\\\"")
+                .replaceAll("\'", "\\\'")
+                .replaceAll("\`", "\\\`")
+                .replaceAll("\n","\\n");
+          }
+          if(options.truncate && options.truncate > 0) {
+            text = text.slice(0, options.truncate);
+          }
+          if(options.truncateFromEnd && options.truncateFromEnd > 0) {
+            text = text.slice(-1 * options.truncateFromEnd);
+          }
+        }
+
+        return "" + ((text)? text : "");
       }
     }
 
-    console.log("Variable", variable, "Index", index, "Value", variableValues[index]);
+    console.log("-->", variable, "Index", index, "Value", variableValues[index]);
 
-    return variableValues[index];
+    return (variableValues[index])? variableValues[index] : "";
   });
 
   return newContent;
@@ -233,7 +262,56 @@ export const variableTypeOptions = {
     optional
   },
   "file":{
-    optional
+    optional,
+    // insert:{
+    //     stage: "submit",
+    //     type: "boolean",
+    //     title: "Insert Content into Prompt (workflows only)",
+    //     description: "For workflows, this will skip attaching the document and directly include it in the prompt.",
+    //     default: true,
+    // },
+    includeMetadata: {
+      stage: "submit",
+      type: "boolean",
+      title: "Include Document Metadata",
+      default: false,
+      description: "Add the document name and type at the top of the content",
+    },
+    lineNumbers: {
+      stage: "submit",
+      type: "boolean",
+      title: "Line Numbers",
+      default: false,
+      description: "Add line numbers to the start of each line of text",
+      function: (options:VariableOptions, text:string) => text.split("\n")
+          .map((line, index) => "Line "+index+": "+line).join("\n")
+    },
+    escape: {
+      stage: "submit",
+      type: "boolean",
+      title: "Escape",
+      default: false,
+      description: "Remove all double quotes and newlines from the text",
+      function: (options:VariableOptions, text:string) => text.split("\n")
+          .map((line, index) => text.replaceAll("\"", "\\\"")
+              .replaceAll("\n","\\n"))
+    },
+    truncate: {
+      stage: "submit",
+      type: "integer",
+      title: "Truncate",
+      default: 0,
+      description: "If the text is longer than the max characters, truncate it.",
+      function: (options:VariableOptions, text:string) => text.slice(0, options.truncate)
+    },
+    truncateFromEnd: {
+      stage: "submit",
+      type: "integer",
+      title: "Truncate from End",
+      default: -1,
+      description: "If the text is longer than the max characters, truncate it start from the end.",
+      function: (options:VariableOptions, text:string) => text.slice(-1 * options.truncate)
+    },
   },
   "conversation": {
     optional,

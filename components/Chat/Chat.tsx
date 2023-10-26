@@ -438,16 +438,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 const variables = parseEditableVariables(prompt.content);
 
                 if (variables.length > 0) {
-                    console.log("Showing Prompt Dialog", prompt);
                     setPromptTemplate(prompt);
                     setIsPromptTemplateDialogVisible(true);
                 } else {
-                    console.log("Submitting Prompt", prompt);
                     handleSubmit([], [], prompt);
                 }
             }
 
-// it some sort of context
+            // it some sort of context
             if (selectedConversation) {
                 let [category, action_path] = href.slice(1).split(":");
                 let [action, path] = action_path.split("/");
@@ -459,14 +457,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             id: uuidv4(),
                             folderId: null,
                             name: "Run Workflow",
-                            content: "{{Document 1:file}}" +
-                                // "{{Document 2:file}}" +
-                                // "{{Document 3:file}}" +
-                                // "{{Document 4:file}}" +
-                                // "{{Document 5:file}}" +
+                            content: "{{Document 1:file(optional:true)}}" +
+                                "{{Document 2:file(optional:true)}}" +
+                                "{{Document 3:file(optional:true)}}" +
+                                // "{{Document 4:file(optional:true)}}" +
+                                // "{{Document 5:file(optional:true)}}" +
                                 "Running your workflow...",
                             type: "automation",
-                            description: "Run a workflow",
+                            description: "Please provide any needed documents for the workflow.",
                             data: {
                                 code: code,
                                 inputs: {
@@ -526,9 +524,18 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (selectedConversation) {
 
                 const workflowId = uuidv4();
+                let statusHistory:Status[] = [];
 
                 const statusLogger = (status: Status | null) => {
-                    homeDispatch({field: 'status', value: status});
+
+                    if(status){
+                        statusHistory.push(status);
+                    }
+                    else {
+                        statusHistory = [];
+                    }
+
+                    homeDispatch({field: 'status', value: statusHistory});
                 }
 
                 const telluser = async (msg: string) => {
@@ -574,7 +581,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     signal: controller.signal
                 }
 
-                await telluser("Creating the workflow...");
+                await telluser("Starting...");
 
                 await homeDispatch({field: 'loading', value: true});
                 await homeDispatch({field: 'messageIsStreaming', value: true});
@@ -670,6 +677,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     asyncSafeHandleAddMessages(resultMessages)
 
                 }).finally(() => {
+                    statusLogger(null);
+
                     homeDispatch({field: 'loading', value: false});
                     homeDispatch({field: 'messageIsStreaming', value: false});
                 });

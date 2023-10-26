@@ -181,11 +181,15 @@ export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Prom
             const currentPrompt = prompts[currentIndex];
             currentIndex++;
 
+            const finished = results.filter(result => result !== null).length
+            const total = results.length;
+            //await statusLogger({summary: `Prompting [${total - finished} running]: ${currentPrompt}`, message: prompt, type: "info"});
+
             try {
                 console.log(`Executing prompt ${currentIndex} / ${prompts.length}`);
                 // Execute the promptLLM function and store the result in the correct index.
 
-                statusLogger({summary: `Prompting ${currentIndex} / ${prompts.length}...`, message: prompt, type: "info"});
+                //statusLogger({summary: `Prompting ${currentIndex} / ${prompts.length}...`, message: prompt, type: "info"});
 
                 if(stopper.shouldStop()){
                     reject("Interrupted");
@@ -195,7 +199,7 @@ export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Prom
                 const result = await promptLLM(currentPrompt.rootPrompt || "", currentPrompt.prompt);
 
                 console.log(`Finished prompt ${currentIndex} / ${prompts.length}`);
-                statusLogger({summary: `Finished ${currentIndex} / ${prompts.length}...`, message: prompt, type: "info"});
+                //statusLogger({summary: `Finished ${currentIndex} / ${prompts.length}...`, message: currentPrompt.prompt, type: "info"});
                 // @ts-ignore
                 results[currentPrompt.index] = result;
 
@@ -558,10 +562,12 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
 
     const promptLLMFull: (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => any = (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
         // Grab the first 30 characters of the prompt
+        statusLogger({summary: `Prompting: ${prompt}`, message: prompt, type: "info"});
         return doPrompt(apiKey, stopper, persona, prompt, messageCallback, model, functions, function_call);
     }
 
     const promptLLM = (persona: string, prompt: string) => {
+
         return promptLLMFull(persona, prompt);
     }
 
@@ -581,6 +587,7 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
     }
 
     const promptForJson = (persona: string, prompt: string, jsonSchemaAsJsonObject: JsonSchema) =>{
+        statusLogger({summary: `Prompting (json): ${prompt.slice(0,30)}`, message: prompt, type: "info"});
         return promptLLMForJson(promptLLMFull, persona, prompt, jsonSchemaAsJsonObject);
     }
 

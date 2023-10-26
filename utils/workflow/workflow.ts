@@ -540,6 +540,7 @@ export const replayJSWorkflow = async (apiKey: string, code:string, customTools:
     }
 
     const promptLLM = (persona: string, prompt: string) => {
+        statusLogger({summary: `Prompting: ${prompt}`, message: prompt, type: "info"});
         return promptLLMFull(apiKey, stopper, persona, prompt);
     }
 
