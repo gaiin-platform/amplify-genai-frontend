@@ -7,7 +7,7 @@ import {WorkflowDefinition} from "@/types/workflow";
 import {OpenAIModelID, OpenAIModel} from "@/types/openai";
 import HomeContext from "@/pages/api/home/home.context";
 import JSON5 from 'json5'
-import {parsePromptVariableValues} from "@/utils/app/prompts";
+import {getType, parsePromptVariableValues, variableTypeOptions} from "@/utils/app/prompts";
 
 interface Props {
     models: OpenAIModel[];
@@ -15,8 +15,14 @@ interface Props {
     workflowDefinition?: WorkflowDefinition;
     variables: string[];
     handleUpdateModel: (model: OpenAIModel) => void;
-    onSubmit: (updatedVariables: string[], documents: AttachedDocument[] | null) => void;
+    onSubmit: (updatedVariables: string[], documents: AttachedDocument[] | null, prompt?:Prompt) => void;
     onClose: (canceled:boolean) => void;
+}
+
+const isRequired = (variable: string) => {
+    const optional = (parsePromptVariableValues(variable).optional);
+
+    return !optional;
 }
 
 const isText = (variable: string) => {
@@ -26,33 +32,33 @@ const isText = (variable: string) => {
 
 const isFile = (variable: string) => {
     // return if the variable is suffixed with :file
-    return variable.endsWith(':file');
+    return variable.endsWith(':file') || getType(variable) === "file";
 }
 
 const isBoolean = (variable: string) => {
     // return if the variable is suffixed with :file
-    return variable.endsWith(':boolean');
+    return variable.endsWith(':boolean') || getType(variable) === "boolean";
 }
 
 const isOptions = (variable: string) => {
     // return if the variable contains :options[option1,option2,...]
-    return variable.includes(':options[');
+    return variable.includes(':options[') || getType(variable) === "options";
 }
 
 const isConversation = (variable: string) => {
-    return variable.includes(':conversation');
+    return variable.includes(':conversation') || getType(variable) === "conversation";
 }
 
 const isConversationFolder = (variable: string) => {
-    return variable.includes(':conversation-folder');
+    return variable.includes(':conversation-folder') || getType(variable) === "conversation-folder";
 }
 
 const isPromptTemplate = (variable: string) => {
-    return variable.includes(':template');
+    return variable.includes(':template') || getType(variable) === "template";
 }
 
 const isPromptTemplateFolder = (variable: string) => {
-    return variable.includes(':template-folder');
+    return variable.includes(':template-folder') || getType(variable) === "template-folder";
 }
 
 // Parse the name of a variable to remove the suffixes
@@ -63,6 +69,11 @@ export const parseVariableName = (variable: string) => {
     else {
         return variable;
     }
+}
+
+const getSelectOptions = (variable: string) => {
+    const options = parsePromptVariableValues(variable);
+    return (options.values)? options.values : [];
 }
 
 export const VariableModal: FC<Props> = ({
@@ -85,13 +96,16 @@ export const VariableModal: FC<Props> = ({
     const [updatedVariables, setUpdatedVariables] = useState<{ key: string; value: any }[]>(
         variables
             .map((variable) => {
-                let value: any = '';
+                const options = parsePromptVariableValues(variable);
+
+                let value: any = options.default || '';
 
                 if (isBoolean(variable)) {
                     value = false;
                 } else if (isOptions(variable)) {
                     // set the value to the first option
-                    value = variable.split(':')[1].split('[')[1].split(']')[0].split(',')[0];
+                    const values = getSelectOptions(variable);
+                    value = (values && values.length > 0) ? values[0] : '';
                 }
                 return {key: variable, value: value}
             })
@@ -104,6 +118,8 @@ export const VariableModal: FC<Props> = ({
 
     const modalRef = useRef<HTMLDivElement>(null);
     const nameInputRef = useRef<HTMLTextAreaElement>(null);
+
+
 
     const handleChange = (index: number, value: any) => {
         setUpdatedVariables((prev) => {
@@ -122,7 +138,10 @@ export const VariableModal: FC<Props> = ({
     }
 
     const handleSubmit = () => {
-        if (updatedVariables.some((variable) => variable.value === '')) {
+
+        if (updatedVariables.some((variable) =>
+            variable.value === '' && !parsePromptVariableValues(variable.key).optional)) {
+
             alert('Please fill out all variables');
             return;
         }
@@ -143,13 +162,14 @@ export const VariableModal: FC<Props> = ({
             .map((variable) => (isFile(variable.key)) ? "" : variable.value);
 
 
-        onSubmit(justVariables, documents);
+        console.log("Submitting prompt :", prompt);
+        onSubmit(justVariables, documents, prompt);
         onClose(false);
     };
 
 
     const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-        console.log("Keydown");
+
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             //handleSubmit();
@@ -226,6 +246,7 @@ export const VariableModal: FC<Props> = ({
 
 
 
+
     const getTextValue = (variable:string, text: string) => {
         let options = parsePromptVariableValues(variable);
 
@@ -242,11 +263,26 @@ export const VariableModal: FC<Props> = ({
     }
 
     const getValue = (variable: string, value: any) => {
-        if(isText(variable)) {
-            return getTextValue(variable, value);
+        if(value) {
+
+            if (isText(variable)) {
+                return getTextValue(variable, value);
+            } else {
+                return value;
+            }
         }
         else {
-            return value;
+            const info = parsePromptVariableValues(variable);
+
+            if(info.default) {
+                return info.default;
+            }
+            else if (info.type === "file"){
+                return {name:"", raw:""};
+            }
+            else {
+                return "";
+            }
         }
     }
 
@@ -291,7 +327,7 @@ export const VariableModal: FC<Props> = ({
                     <div className="mb-4" key={index}>
                         {!isBoolean(variable.key) &&
                             <div className="mb-2 text-sm font-bold text-neutral-200">
-                                {parseVariableName(variable.key)}
+                                {parseVariableName(variable.key)}{isRequired(variable.key) && "*"}
                             </div>}
 
                         {isText(variable.key) && (
@@ -326,7 +362,7 @@ export const VariableModal: FC<Props> = ({
                                     checked={variable.value === 'true'}
                                     onChange={(e) => handleChange(index, e.target.checked ? 'true' : 'false')}
                                 />
-                                <span className="ml-2 text-sm text-neutral-200">{parseVariableName(variable.key)}</span>
+                                <span className="ml-2 text-sm text-neutral-200">{parseVariableName(variable.key)}{isRequired(variable.key) && "*"}</span>
                             </div>
                         )}
                         {isOptions(variable.key) && (
@@ -336,7 +372,7 @@ export const VariableModal: FC<Props> = ({
                                     value={variable.value}
                                     onChange={(e) => handleChange(index, e.target.value)}
                                 >
-                                    {variable.key.split(':')[1].split('[')[1].split(']')[0].split(',').map((option) => (
+                                    {getSelectOptions(variable.key).map((option:any) => (
                                         <option key={option} value={option}>
                                             {option}
                                         </option>
@@ -424,6 +460,9 @@ export const VariableModal: FC<Props> = ({
                     </div>
 
                 )}
+                <div className="mb-2 mt-6 text-sm font-bold text-neutral-200">
+                    Required fields are marked with *
+                </div>
 
                 <button
                     className="mt-6 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"

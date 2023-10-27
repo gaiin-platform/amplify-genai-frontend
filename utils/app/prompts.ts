@@ -1,5 +1,19 @@
 import { Prompt } from '@/types/prompt';
 import JSON5 from "json5";
+import { v4 as uuidv4 } from 'uuid';
+import {AttachedDocument} from "@/types/attacheddocument";
+import {parseVariableName} from "@/components/Chat/VariableModal";
+import {getToolMetadata} from "@/utils/app/tools";
+import {WorkflowContext} from "@/types/workflow";
+
+export interface VariableFillOption {
+    isEditable?: boolean,
+    filler?: (variable:string) => any;
+}
+
+export interface VariableFillOptions {
+    [key: string]: VariableFillOption;
+}
 
 export const updatePrompt = (updatedPrompt: Prompt, allPrompts: Prompt[]) => {
   const updatedPrompts = allPrompts.map((c) => {
@@ -28,7 +42,7 @@ export const parsePromptVariables = (content: string) => {
   let match;
 
   while ((match = regex.exec(content)) !== null) {
-    foundVariables.push(match[1]);
+    foundVariables.push(match[1].trim());
   }
 
   return foundVariables;
@@ -57,7 +71,7 @@ export const parsePromptVariableValues = (variable: string) => {
       try {
         return JSON5.parse(dataStr);
       } catch (e) {
-        return {options: dataStr.split(",")};
+        return {values: variable.substring(start + 1, end).split(",")};
       }
     }
   }
@@ -80,6 +94,7 @@ export const getName = (variable:string) => {
 }
 
 export const getType = (variable:string) => {
+
   if(variable.indexOf(":") > -1) {
     let startParen = (variable.indexOf("(") > -1) ? variable.indexOf("(") : variable.length;
     let startBracket = (variable.indexOf("[") > -1) ? variable.indexOf("[") : variable.length;
@@ -91,8 +106,215 @@ export const getType = (variable:string) => {
   }
 }
 
+
+export const defaultVariableFillOptions:VariableFillOptions = {
+    "uniqueId":{
+      isEditable: false,
+      filler: (variable:string) => {
+        return uuidv4();
+      }
+    },
+    "tools": {
+      isEditable: false,
+      filler: (name: string) => {
+        console.log("Filling in tools information...");
+
+        const context:WorkflowContext = {
+            inputs: {
+                documents: [],
+                parameters: {},
+                prompts: [],
+                folders: [],
+                conversations: [],
+            },
+        }
+
+        // @ts-ignore
+        let metadata = getToolMetadata({context:context});
+        let description = Object.entries(metadata)
+            .map(([k, v]) => {
+              return `${k}${v.description}`;
+            }).join("\n");
+        return description;
+      }
+    },
+    "options":{
+      isEditable: true,
+    },
+    "file":{
+      isEditable: true,
+    },
+    "conversation": {
+      isEditable: true,
+    },
+    "template": {
+      isEditable: true,
+    },
+    "text": {
+      isEditable: true,
+    },
+}
+
+
+export const getFillHelp = (fillOptions: VariableFillOptions, variable:string) => {
+  let type = getType(variable);
+  let options = fillOptions[type];
+  if(options && options.filler) {
+      return options.filler;
+  }
+  else {
+      return null;
+  }
+}
+
+export const parseEditableVariables = (content: string) => {
+  const all = parsePromptVariables(content);
+  const editable = all.filter((variable) => {
+        let type = getType(variable);
+        let options = defaultVariableFillOptions[type];
+        return options && !(!(options.isEditable));
+    })
+
+  return editable;
+}
+
+export const fillInTemplate = (template:string, variables:string[], variableValues: string[], documents: AttachedDocument[] | null, insertDocuments:boolean, fillOptions?:VariableFillOptions) => {
+  // console.log("Fill in Template");
+  const names = variables.map(v => parseVariableName(v));
+
+  console.log("Insert?", insertDocuments);
+  console.log("Variables", variables);
+  console.log("Names", names);
+  console.log("Variable Values", variableValues);
+
+  const newContent = template.replace(/{{\s*(.*?)\s*}}/g, (match, variable) => {
+    const name = parseVariableName(variable);
+    const index = names.indexOf(name);
+    const type = getType(variable);
+    const options = parsePromptVariableValues(variable);
+    // @ts-ignore
+    //const typeData:any = variableTypeOptions[type as keyof typeof variableTypeOptions];
+
+    console.log("Variable", variable, "Name", name, "Index", index);
+
+    const filler = getFillHelp(fillOptions || defaultVariableFillOptions, variable);
+
+    if(filler) {
+      let filled = filler(variable);
+      console.log("Filled", name, filled);
+      return filled;
+    }
+
+    if (insertDocuments && documents && documents.length > 0) {
+
+      let document = documents.filter((doc) => {
+        return (doc.name == name);
+      })[0];
+
+      if (document) {
+        let text = document.raw;
+        if(text && text.length > 0){
+          console.log("Document Options", options);
+
+          if(options.includeMetadata) {
+            text = "Document Name: "+document.name+"\nDocument Type: "+document.type+"\n"+text;
+          }
+          if(options.lineNumbers) {
+            text = text.split("\n").map((line:string, index:number) => "Line "+index+": "+line).join("\n");
+          }
+          if(options.escape) {
+            text = text.replaceAll("\"", "\\\"")
+                .replaceAll("\'", "\\\'")
+                .replaceAll("\`", "\\\`")
+                .replaceAll("\n","\\n");
+          }
+          if(options.truncate && options.truncate > 0) {
+            text = text.slice(0, options.truncate);
+          }
+          if(options.truncateFromEnd && options.truncateFromEnd > 0) {
+            text = text.slice(-1 * options.truncateFromEnd);
+          }
+        }
+
+        return "" + ((text)? text : "");
+      }
+    }
+
+    console.log("-->", variable, "Index", index, "Value", variableValues[index]);
+
+    return (variableValues[index])? variableValues[index] : "";
+  });
+
+  return newContent;
+}
+
+export const optional = {
+  stage: "display",
+  type: "boolean",
+  title: "Optional",
+  default: false,
+};
+
 export const variableTypeOptions = {
+  "uniqueId":{},
+  "tools":{},
+  "options":{
+    optional
+  },
+  "file":{
+    optional,
+    // insert:{
+    //     stage: "submit",
+    //     type: "boolean",
+    //     title: "Insert Content into Prompt (workflows only)",
+    //     description: "For workflows, this will skip attaching the document and directly include it in the prompt.",
+    //     default: true,
+    // },
+    includeMetadata: {
+      stage: "submit",
+      type: "boolean",
+      title: "Include Document Metadata",
+      default: false,
+      description: "Add the document name and type at the top of the content",
+    },
+    lineNumbers: {
+      stage: "submit",
+      type: "boolean",
+      title: "Line Numbers",
+      default: false,
+      description: "Add line numbers to the start of each line of text",
+      function: (options:VariableOptions, text:string) => text.split("\n")
+          .map((line, index) => "Line "+index+": "+line).join("\n")
+    },
+    escape: {
+      stage: "submit",
+      type: "boolean",
+      title: "Escape",
+      default: false,
+      description: "Remove all double quotes and newlines from the text",
+      function: (options:VariableOptions, text:string) => text.split("\n")
+          .map((line, index) => text.replaceAll("\"", "\\\"")
+              .replaceAll("\n","\\n"))
+    },
+    truncate: {
+      stage: "submit",
+      type: "integer",
+      title: "Truncate",
+      default: 0,
+      description: "If the text is longer than the max characters, truncate it.",
+      function: (options:VariableOptions, text:string) => text.slice(0, options.truncate)
+    },
+    truncateFromEnd: {
+      stage: "submit",
+      type: "integer",
+      title: "Truncate from End",
+      default: -1,
+      description: "If the text is longer than the max characters, truncate it start from the end.",
+      function: (options:VariableOptions, text:string) => text.slice(-1 * options.truncate)
+    },
+  },
   "conversation": {
+    optional,
     options: {
       stage: "display",
       type: "list",
@@ -109,6 +331,7 @@ export const variableTypeOptions = {
     },
   },
   "template": {
+    optional,
     options: {
       stage: "display",
       type: "list",
@@ -133,6 +356,7 @@ export const variableTypeOptions = {
       },
   },
   "text": {
+    optional,
     lineNumbers: {
       stage: "submit",
       type: "boolean",

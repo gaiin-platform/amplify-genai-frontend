@@ -33,6 +33,7 @@ import { PromptList } from './PromptList';
 import { VariableModal } from './VariableModal';
 import {Import} from "@/components/Settings/Import";
 import {OpenAIModel} from "@/types/openai";
+import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 
 interface Props {
   onSend: (message: Message, plugin: Plugin | null, documents:AttachedDocument[]) => void;
@@ -304,14 +305,7 @@ export const ChatInput = ({
                 <IconPlayerStop size={16} /> {t('Stop Generating')}
               </button>
 
-              {status && (
-                  <button
-                      className="mb-3 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 md:mt-2"
-                      onClick={handleStopConversation}
-                  >
-                    <IconPlayerStop size={16} /> {status.summary}
-                  </button>
-              )}
+              <StatusDisplay statusHistory={status}/>
             </div>
         )}
 
@@ -332,6 +326,7 @@ export const ChatInput = ({
 
           <div className="flex items-center">
 
+            {featureFlags.pluginsOnInput && (
             <button
               className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
               onClick={() => setShowPluginSelect(!showPluginSelect)}
@@ -339,7 +334,7 @@ export const ChatInput = ({
             >
               {plugin ? <IconBrandGoogle size={20} /> : <IconBolt size={20} />}
             </button>
-
+            )}
 
             {featureFlags.workflowCreate && (
               <button

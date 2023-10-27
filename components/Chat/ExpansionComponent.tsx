@@ -2,7 +2,7 @@ import React, { useState } from "react";
 
 type ExpansionProps = {
     title: string;
-    content: string;
+    content: any;
 };
 
 const ExpansionComponent: React.FC<ExpansionProps> = ({ title, content }) => {

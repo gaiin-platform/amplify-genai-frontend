@@ -15,6 +15,7 @@ export enum MessageType {
   PROMPT = 'prompt',
   AUTOMATION = 'automation',
   ROOT = 'root_prompt',
+  FOLLOW_UP = 'follow_up',
 }
 
 export const newMessage = (data: any) => {
@@ -98,5 +99,6 @@ export interface Conversation {
   temperature: number;
   folderId: string | null;
   promptTemplate: Prompt | null;
+  tags?: string[]
   workflowDefinition?: WorkflowDefinition;
 }

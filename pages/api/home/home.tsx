@@ -39,16 +39,18 @@ import {Navbar} from '@/components/Mobile/Navbar';
 import Promptbar from '@/components/Promptbar';
 import {Icon3dCubeSphere, IconApiApp, IconMessage, IconSettings, IconBook2} from "@tabler/icons-react";
 import {IconUser, IconLogout} from "@tabler/icons-react";
-import HomeContext, {Processor} from './home.context';
+import HomeContext, {ClickContext, Processor} from './home.context';
 import {HomeInitialState, initialState} from './home.state';
 
 import {v4 as uuidv4} from 'uuid';
 import {useUser} from '@auth0/nextjs-auth0/client';
+
 import styled from "styled-components";
 import {Button} from "react-query/types/devtools/styledComponents";
 import WorkflowDefinitionBar from "@/components/Workflow/WorkflowDefinitionBar";
 import {WorkflowDefinition, WorkflowRun} from "@/types/workflow";
 import {saveWorkflowDefinitions} from "@/utils/app/workflows";
+import {findWorkflowPattern} from "@/utils/workflow/aiflow";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -264,7 +266,7 @@ const Home = ({
         dispatch({field: 'loading', value: false});
     };
 
-    const handleCustomLinkClick = (conversation: Conversation, href:string) => {
+    const handleCustomLinkClick = (conversation: Conversation, href:string, context:ClickContext) => {
 
         try {
 
@@ -275,7 +277,8 @@ const Home = ({
 
                 console.log(`handleCustomLinkClick ${category}:${action}/${path}`);
 
-                if (category === "workflow" && action === "save-workflow") {
+
+                if (category === "workflow" && action === "save-workflow" && path && path.trim().length > 0) {
 
                     const workflowId = path;
                     console.log(`Saving workflow ${workflowId}...`);
@@ -346,6 +349,64 @@ const Home = ({
                         alert("Workflow saved.");
                     } else {
                         console.log("Workflow not saved, missing code or prompt.");
+                    }
+                }
+                else if (category === "workflow" && action === "save-workflow" && context.message && context.conversation) {
+
+                    let code = findWorkflowPattern(context.message.content);
+                    let codeMessageIndex = context.conversation.messages.indexOf(context.message);
+
+                    console.log("Workflow Code", code);
+                    console.log("Workflow Message Index", codeMessageIndex);
+
+                    if(codeMessageIndex > 0) {
+                        let msgBefore = context.conversation.messages[codeMessageIndex - 1];
+                        let prompt = msgBefore.content;
+
+                        console.log("Workflow Prompt", prompt);
+
+                        if (code && prompt) {
+                            let workflowDefinition: WorkflowDefinition = {
+                                id: uuidv4(),
+                                formatVersion: "v1.0",
+                                version: "1",
+                                folderId: null,
+                                description: prompt,
+                                generatingPrompt: prompt,
+                                name: prompt,
+                                code: code,
+                                tags: [],
+                                inputs: {parameters: {}, documents: []},
+                                outputs: [],
+                            }
+
+                            const documentStrings = workflowDefinition.inputs.documents.map((doc) => `{{${doc.name}:file}}`).join('\n');
+                            const parameterStrings = Object.keys(workflowDefinition.inputs.parameters).map((key) => `{{${key}}}`).join('\n');
+                            const formattedString =
+                                `${documentStrings}${parameterStrings}${prompt}`;
+
+                            let promptTemplate: Prompt = {
+                                content: formattedString,
+                                data: {
+                                    code: code
+                                },
+                                description: prompt,
+                                folderId: null,
+                                id: uuidv4(),
+                                name: prompt,
+                                type: MessageType.AUTOMATION
+                            }
+
+                            const updatedPrompts = [...prompts, promptTemplate];
+
+                            dispatch({field: 'prompts', value: updatedPrompts});
+
+                            savePrompts(updatedPrompts);
+
+                            alert("Workflow saved.");
+                        } else {
+                            console.log("Workflow not saved, missing code or prompt.");
+                        }
                     }
                 }
             }

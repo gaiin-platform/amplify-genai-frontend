@@ -8,7 +8,7 @@ import {parameterizeTools as coreTools} from "@/utils/app/tools";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {parseVariableName} from "@/components/Chat/VariableModal";
 import {Prompt} from "@/types/prompt";
-
+import { fillInTemplate } from "@/utils/app/prompts";
 
 interface AiTool {
     description: string,
@@ -36,36 +36,36 @@ interface ReusableDescription {
 
 const abortResult = {success: false, code: null, exec: null, uncleanCode: null, result: null};
 
-export const fillInTemplate = (template:string, variables:string[], variableValues: string[], documents: AttachedDocument[] | null, insertDocuments:boolean) => {
-    console.log("Fill in Template");
-    const names = variables.map(v => parseVariableName(v));
-
-    console.log("Variables", variables);
-    console.log("Names", names);
-
-    const newContent = template.replace(/{{(.*?)}}/g, (match, variable) => {
-        const name = parseVariableName(variable);
-        const index = names.indexOf(name);
-
-        console.log("Variable", name, index, variableValues[index]);
-
-        if (insertDocuments && documents && documents.length > 0) {
-            let document = documents.filter((doc) => {
-                if (doc.name == name) {
-                    return "" + doc.raw;
-                }
-            })[0];
-
-            if (document) {
-                return "" + document.raw;
-            }
-        }
-
-        return variableValues[index];
-    });
-
-    return newContent;
-}
+// export const fillInTemplate = (template:string, variables:string[], variableValues: string[], documents: AttachedDocument[] | null, insertDocuments:boolean) => {
+//     console.log("Fill in Template");
+//     const names = variables.map(v => parseVariableName(v));
+//
+//     console.log("Variables", variables);
+//     console.log("Names", names);
+//
+//     const newContent = template.replace(/{{(.*?)}}/g, (match, variable) => {
+//         const name = parseVariableName(variable);
+//         const index = names.indexOf(name);
+//
+//         console.log("Variable", name, index, variableValues[index]);
+//
+//         if (insertDocuments && documents && documents.length > 0) {
+//             let document = documents.filter((doc) => {
+//                 if (doc.name == name) {
+//                     return "" + doc.raw;
+//                 }
+//             })[0];
+//
+//             if (document) {
+//                 return "" + document.raw;
+//             }
+//         }
+//
+//         return variableValues[index];
+//     });
+//
+//     return newContent;
+// }
 
 const promptLLMSelectOne = async (promptUntil:any,  options: {[key:string]:string}, instructions?: string, rootPrompt?: string, model?: OpenAIModelID) => {
 
@@ -75,8 +75,8 @@ const promptLLMSelectOne = async (promptUntil:any,  options: {[key:string]:strin
         Please choose from the following options:
         ------------------ 
         ${Object.entries(options).map(([option,description]) => {
-            return "\t\t" + option + ". " + description.replaceAll("\n", " ");
-        }).join("\n")}
+        return "\t\t" + option + ". " + description.replaceAll("\n", " ");
+    }).join("\n")}
         ------------------
         `;
 
@@ -220,7 +220,7 @@ Thought:`
                     });
                 } else if(documents.length > 0){
                     documentParams = [
-                      `
+                        `
                       // Get all of the documents needed.
                       let documents = fnlibs.getDocuments(); 
                       `
@@ -372,20 +372,20 @@ async function executeWorkflow(tools: { [p: string]: AiTool }, code: string) {
     try {
 
         tools.executeWorkflow = {
-          description: "",
-          exec: async (workflow:Prompt, params:{[key:string]:any}) => {
-            console.log("--> Sub Workflow:", workflow);
-            let workflowCode = workflow.data?.code || "";
-            console.log("--> Sub Workflow Code:", workflowCode);
-            let documents = params.documents as AttachedDocument[];
-            let variableData = params.variables;
-            let variables = Object.keys(variableData);
-            let variableValues = Object.values(variableData) as string[];
+            description: "",
+            exec: async (workflow:Prompt, params:{[key:string]:any}) => {
+                console.log("--> Sub Workflow:", workflow);
+                let workflowCode = workflow.data?.code || "";
+                console.log("--> Sub Workflow Code:", workflowCode);
+                let documents = params.documents as AttachedDocument[];
+                let variableData = params.variables;
+                let variables = Object.keys(variableData);
+                let variableValues = Object.values(variableData) as string[];
 
-            let updatedCode = fillInTemplate(workflowCode, variables, variableValues, documents, false);
+                let updatedCode = fillInTemplate(workflowCode, variables, variableValues, documents, false);
 
-            return executeWorkflow(tools, updatedCode);
-          }
+                return executeWorkflow(tools, updatedCode);
+            }
         };
 
         const fnlibs = {}
@@ -540,6 +540,7 @@ export const replayJSWorkflow = async (apiKey: string, code:string, customTools:
     }
 
     const promptLLM = (persona: string, prompt: string) => {
+        statusLogger({summary: `Prompting: ${prompt}`, message: prompt, type: "info"});
         return promptLLMFull(apiKey, stopper, persona, prompt);
     }
 
@@ -736,9 +737,9 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         Please choose
             from the following options:
         ------------------ ${options.map((option: Option, index: number) => {
-                return "\t\t" + index + ". " + option.id +
-                        " : " + option.description.replaceAll("\n", " ")
-            }).join("\n")}
+            return "\t\t" + index + ". " + option.id +
+                " : " + option.description.replaceAll("\n", " ")
+        }).join("\n")}
                  ------------------
                 You may also answer
             with an empty selection.ONLY CHOOSE OPTIONS
