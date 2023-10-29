@@ -385,8 +385,27 @@ const Home = ({
                             const formattedString =
                                 `${documentStrings}${parameterStrings}${prompt}`;
 
+
+                            const extractGetDocuments = (code: string): boolean => {
+                                const regex = /fnlibs.getDocuments\(\)/;
+                                return regex.test(code);
+                            };
+
+                            const extractGetDocumentArguments = (code: string): string[] => {
+                                const regex = /fnlibs.getDocument\(\s*"([^"]+)"\s*\)/g;
+                                const matches = code.match(regex);
+                                if (!matches) return [];
+                                return matches.map((match) => match.replace('fnlibs.getDocument("', "").replace('")', ""));
+                            };
+
+                            const promptDocumentVariables = "" +
+                                (extractGetDocuments(code) ? "{{Documents:files}}" : "") +
+                                extractGetDocumentArguments(code).map((arg) => `{{${arg}:file}}`).join('\n');
+
+                            console.log("Prompt Document Variables", promptDocumentVariables);
+
                             let promptTemplate: Prompt = {
-                                content: formattedString,
+                                content: promptDocumentVariables + formattedString,
                                 data: {
                                     code: code
                                 },
