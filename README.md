@@ -7,6 +7,7 @@ Build locally:
 ```shell
 docker build -t chatgpt-ui .
 docker run -e OPENAI_API_KEY=xxxxxxxx -p 3000:3000 chatgpt-ui
+docker run --env-file ./.env.local  -p 3000:3000 chatgpt-ui to pull in env file for multiple azure variables needed
 ```
 
 Pull from ghcr:
