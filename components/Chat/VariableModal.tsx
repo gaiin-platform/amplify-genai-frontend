@@ -8,6 +8,7 @@ import {OpenAIModelID, OpenAIModel} from "@/types/openai";
 import HomeContext from "@/pages/api/home/home.context";
 import JSON5 from 'json5'
 import {getType, parsePromptVariableValues, variableTypeOptions} from "@/utils/app/prompts";
+import {FileList} from "@/components/Chat/FileList";
 
 interface Props {
     models: OpenAIModel[];
@@ -33,6 +34,11 @@ const isText = (variable: string) => {
 const isFile = (variable: string) => {
     // return if the variable is suffixed with :file
     return variable.endsWith(':file') || getType(variable) === "file";
+}
+
+const isFiles = (variable: string) => {
+    // return if the variable is suffixed with :file
+    return variable.endsWith(':files') || getType(variable) === "files";
 }
 
 const isBoolean = (variable: string) => {
@@ -93,6 +99,7 @@ export const VariableModal: FC<Props> = ({
     // @ts-ignore
     const [selectedModel, setSelectedModel] = useState<OpenAIModel>((models.length>0)? models[0] : null);
     const [isConversationDropdownOpen, setIsConversationDropdownOpen] = useState(false);
+    const [files, setFiles] = useState<AttachedDocument[]>([]);
     const [updatedVariables, setUpdatedVariables] = useState<{ key: string; value: any }[]>(
         variables
             .map((variable) => {
@@ -102,7 +109,10 @@ export const VariableModal: FC<Props> = ({
 
                 if (isBoolean(variable)) {
                     value = false;
-                } else if (isOptions(variable)) {
+                } else if(isFiles(variable)) {
+                    value = [];
+                }
+                else if (isOptions(variable)) {
                     // set the value to the first option
                     const values = getSelectOptions(variable);
                     value = (values && values.length > 0) ? values[0] : '';
@@ -129,6 +139,16 @@ export const VariableModal: FC<Props> = ({
         });
     };
 
+    const handleRemoveFile = (index: number, value: any) => {
+        const newFiles:AttachedDocument[] = files.filter((file) => file !== value);
+        setFiles(newFiles);
+    };
+
+    const handleAddFile = (index: number, value: AttachedDocument) => {
+        const newFiles:AttachedDocument[] = [...files, value];
+        setFiles(newFiles);
+    };
+
     const handleModelChange = (modelId: string) => {
         const model = models.find((m) => m.id === modelId);
         if (model) {
@@ -152,7 +172,7 @@ export const VariableModal: FC<Props> = ({
         updatedVariables.map((variable) => ({...variable, value: getValue(variable.key, variable.value)}));
 
         // Separate the documents into their own array
-        const documents = transformedVariables
+        let documents = transformedVariables
             .filter((variable) => isFile(variable.key))
             .map((variable) => {
                 return {...variable.value, name: parseVariableName(variable.key)};
@@ -161,6 +181,8 @@ export const VariableModal: FC<Props> = ({
         const justVariables = transformedVariables
             .map((variable) => (isFile(variable.key)) ? "" : variable.value);
 
+
+        documents = [...documents, ...files];
 
         console.log("Submitting prompt :", prompt);
         onSubmit(justVariables, documents, prompt);
@@ -351,6 +373,16 @@ export const VariableModal: FC<Props> = ({
                                     // @ts-ignore
                                     <span>{variable.value.name}</span>
                                 }
+                            </div>
+                        )}
+
+                        {isFiles(variable.key) && ( //use AttachFile component
+                            <div>
+                                <AttachFile id={"__idVarFile" + index} onAttach={(doc) => {
+                                    // handleChange(index, doc);
+                                    handleAddFile(index, doc);
+                                }}/>
+                                <FileList documents={files} setDocuments={setFiles}/>
                             </div>
                         )}
 

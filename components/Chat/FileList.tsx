@@ -20,7 +20,11 @@ export const FileList: FC<Props> = ({ documents, setDocuments }) => {
                 >
                     <button
                         className="text-gray-400 hover:text-gray-600 transition-all"
-                        onClick={() => setDocuments(documents?.filter(x => x != document))}
+                        onClick={(e) =>{
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setDocuments(documents?.filter(x => x != document));
+                        }}
                     >
                         <IconTrashX/>
                     </button>

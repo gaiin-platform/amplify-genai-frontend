@@ -144,6 +144,9 @@ export const defaultVariableFillOptions:VariableFillOptions = {
     "file":{
       isEditable: true,
     },
+    "files":{
+      isEditable: true,
+    },
     "conversation": {
       isEditable: true,
     },
