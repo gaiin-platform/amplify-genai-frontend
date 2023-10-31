@@ -126,6 +126,11 @@ export const OpenAIStream = async (
 
         const queue = encoder.encode(text);
         controller.enqueue(queue);
+
+        console.log("Chat request completed",
+          //current time
+          new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+
         controller.close();
         return;
     }
@@ -151,6 +156,11 @@ export const OpenAIStream = async (
             }
             else {
               if (json.choices[0].finish_reason != null) {
+
+                console.log("Chat request completed",
+                    //current time
+                    new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+
                 controller.close();
                 return;
               }

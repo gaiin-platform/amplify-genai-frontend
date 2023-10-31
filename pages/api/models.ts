@@ -24,7 +24,7 @@ const handler = async (req: Request): Promise<Response> => {
       url = `${OPENAI_API_HOST}/${AZURE_API_NAME}/models?api-version=${OPENAI_API_VERSION}`;
     }
 
-    console.log("URL: " + url);
+    //console.log("URL: " + url);
 
     const response = await fetch(url, {
       headers: {
@@ -87,7 +87,7 @@ const handler = async (req: Request): Promise<Response> => {
       })
       .filter(Boolean);
 
-    console.log(models);
+    //console.log(models);
 
     return new Response(JSON.stringify(models), { status: 200 });
   } catch (error) {

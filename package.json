@@ -16,6 +16,7 @@
     "@dqbd/tiktoken": "^1.0.2",
     "@tabler/icons-react": "^2.9.0",
     "@types/react-svg-pan-zoom-loader": "^1.4.2",
+    "ai": "^2.2.20",
     "core-js": "^3.33.0",
     "esprima": "^4.0.1",
     "eventsource-parser": "^0.1.0",

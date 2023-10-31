@@ -135,7 +135,7 @@ const Home = ({
     // FOLDER OPERATIONS  --------------------------------------------
 
     const handleCreateFolder = (name: string, type: FolderType) => {
-        console.log("handleCreateFolder", name, type);
+        //console.log("handleCreateFolder", name, type);
 
         const newFolder: FolderInterface = {
             id: uuidv4(),
@@ -402,7 +402,6 @@ const Home = ({
                                 (extractGetDocuments(code) ? "{{Documents:files}}" : "") +
                                 extractGetDocumentArguments(code).map((arg) => `{{${arg}:file}}`).join('\n');
 
-                            console.log("Prompt Document Variables", promptDocumentVariables);
 
                             let promptTemplate: Prompt = {
                                 content: promptDocumentVariables + formattedString,
