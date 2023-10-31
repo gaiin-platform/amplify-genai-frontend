@@ -34,6 +34,7 @@ import mermaid from "mermaid";
 import { Vega } from 'react-vega';
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {Prompt} from "@/types/prompt";
+import {Stars} from "@/components/Chat/Stars";
 
 const mermaidConfig = {
     startOnLoad: true,
@@ -361,6 +362,7 @@ export const ChatMessage: FC<Props> = memo(({
     const [isTyping, setIsTyping] = useState<boolean>(false);
     const [messageContent, setMessageContent] = useState(message.content);
     const [messagedCopied, setMessageCopied] = useState(false);
+    const [rating, setRating] = useState<number>(message.data.rating || 0);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -380,9 +382,6 @@ export const ChatMessage: FC<Props> = memo(({
 
         if (message.content != messageContent) {
             if (selectedConversation && onEdit) {
-
-                console.log("handleEditMessage", messageContent);
-
                 onEdit({...message, content: messageContent});
             }
         }
@@ -743,6 +742,13 @@ export const ChatMessage: FC<Props> = memo(({
                             </div>
                             {(messageIsStreaming || isEditing) ? null : (
                                 <ChatFollowups promptSelected={(p)=>{onSendPrompt(p)}}/>
+                            )}
+                            {(messageIsStreaming || isEditing) ? null : (
+                                <Stars starRating={message.data.rating} setStars={(r)=>{
+                                    if(onEdit) {
+                                        onEdit({...message, data: {...message.data, rating: r}});
+                                    }
+                                }}/>
                             )}
                             {(messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1) ?
                                 <LoadingIcon/> : null}
