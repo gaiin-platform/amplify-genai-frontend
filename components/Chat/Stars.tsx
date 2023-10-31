@@ -1,4 +1,16 @@
 import React, {FC, useState} from 'react';
+import {IconStar, IconStarFilled} from '@tabler/icons-react';
+import styled from "styled-components";
+
+const Star = styled(IconStar)`
+  height: 15px;
+  width: 15px;
+`;
+
+const FilledStar = styled(IconStarFilled)`
+  height: 15px;
+  width: 15px;
+`;
 
 interface Props {
     starRating: number;
@@ -20,13 +32,14 @@ export const Stars: FC<Props> = ({ starRating, setStars }) => {
             {stars.map((star) => (
                 <button
                     key={star}
-                    className={`mx-1 ${star <= currentStars ? 'text-gray-300' : 'text-gray-800'}`}
+                    className={`mx-1`}
+                    style={{ fontSize: '0.6rem' }}
                     onClick={() => {
                         setCurrentStars(star);
                         handleStarClick(star)
                     }}
                 >
-                    &#9733;
+                    {star <= currentStars ? <FilledStar/> : <Star/>}
                 </button>
             ))}
         </div>
