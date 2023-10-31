@@ -54,6 +54,7 @@ import {describeAsJsonSchema} from "@/utils/app/data";
 import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from "@/utils/app/const";
 import {getToolMetadata} from "@/utils/app/tools";
 import {findWorkflowPattern} from "@/utils/workflow/aiflow";
+import {TagsList} from "@/components/Chat/TagsList";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -1111,6 +1112,26 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             </div>
                                         </div>
                                     )}
+
+                                    <div
+                                        className="flex flex-col space-y-10 md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
+
+                                        <div
+                                            className="flex h-full flex-col space-y-4 border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border">
+
+                                            <TagsList tags={selectedConversation?.tags || []} setTags={
+                                                (tags) => {
+                                                    if(selectedConversation) {
+                                                        handleUpdateConversation(selectedConversation, {
+                                                            key: 'tags',
+                                                            value: tags,
+                                                        });
+                                                    }
+                                                }
+                                            }/>
+                                        </div>
+                                    </div>
+
 
                                     {selectedConversation?.messages.map((message, index) => (
                                         <MemoizedChatMessage
