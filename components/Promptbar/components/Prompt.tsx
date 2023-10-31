@@ -1,6 +1,7 @@
 import {
   IconBulbFilled,
   IconEdit,
+    IconCopy,
   IconCheck,
   IconApiApp,
   IconMessage2,
@@ -28,6 +29,10 @@ import PromptbarContext from '../PromptBar.context';
 import { PromptModal } from './PromptModal';
 import { ShareModal } from './ShareModal';
 import { useChatService } from '@/hooks/useChatService';
+import { shareItems } from "@/services/shareService";
+import {v4 as uuidv4} from "uuid";
+import {fillInTemplate, parsePromptVariables, VariableFillOptions} from "@/utils/app/prompts";
+import {AttachedDocument} from "@/types/attacheddocument";
 
 
 interface Props {
@@ -37,6 +42,7 @@ interface Props {
 export const PromptComponent = ({ prompt }: Props) => {
   const {
     dispatch: promptDispatch,
+      handleAddPrompt,
     handleUpdatePrompt,
     handleDeletePrompt,
   } = useContext(PromptbarContext);
@@ -109,7 +115,27 @@ export const PromptComponent = ({ prompt }: Props) => {
   }
 
   const handleStartConversation = (prompt: Prompt) => {
-    console.log("Conversation Starter Prompt:", prompt);
+
+    let rootPromptObj = (prompt.data?.rootPromptId)?
+        prompts.find((p) => p.id == prompt.data?.rootPromptId) : null;
+
+    let rootPrompt = null;
+    if(rootPromptObj != null && rootPromptObj?.content){
+       let variables = parsePromptVariables(rootPromptObj?.content);
+       let variableValues = variables.map((v) => "");
+       rootPrompt = fillInTemplate(rootPromptObj?.content , variables, variableValues, [], true);
+    }
+
+    const getPromptTags = (prompt:Prompt|null|undefined) => {
+      return (prompt && prompt.data && prompt.data.conversationTags) ? prompt.data.conversationTags : [];
+    }
+
+    let tags:string[] = [...getPromptTags(rootPromptObj), ...getPromptTags(prompt)]
+    if(prompt.type == "automation"){
+        tags.push("automation");
+    }
+
+
     handleNewConversation(
         {
           name: prompt.name + " " +dateTimeString(),
@@ -117,6 +143,8 @@ export const PromptComponent = ({ prompt }: Props) => {
           promptTemplate: prompt,
           processors: [],
           tools:[],
+          tags: tags,
+          ...(rootPrompt != null && { prompt: rootPrompt }),
         })
   }
 
@@ -151,6 +179,11 @@ export const PromptComponent = ({ prompt }: Props) => {
       e.dataTransfer.setData('prompt', JSON.stringify(prompt));
     }
   };
+
+  const handleCopy = () => {
+    const newPrompt = { ...prompt, id: uuidv4(), name: prompt.name + ' (copy)' };
+    handleAddPrompt(newPrompt);
+  }
 
 
   useEffect(() => {
@@ -201,13 +234,19 @@ export const PromptComponent = ({ prompt }: Props) => {
               <div className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-gray-900 rounded">
 
                 {!isDeleting && !isRenaming && (
+                    <SidebarActionButton handleClick={handleCopy}>
+                      <IconCopy size={18}/>
+                    </SidebarActionButton>
+                )}
+
+                {!isDeleting && !isRenaming && (
                     <SidebarActionButton handleClick={() => setShowModal(true)}>
                       <IconEdit size={18}/>
                     </SidebarActionButton>
                 )}
 
                 {/*{!isDeleting && !isRenaming && (*/}
-                {/*    <SidebarActionButton handleClick={handleSharePrompt}>*/}
+                {/*    <SidebarActionButton handleClick={()=>shareItems("",null)}>*/}
                 {/*      <IconShare size={18}/>*/}
                 {/*    </SidebarActionButton>*/}
                 {/*)}*/}
@@ -238,7 +277,8 @@ export const PromptComponent = ({ prompt }: Props) => {
         {showModal && (
             <PromptModal
                 prompt={prompt}
-                onClose={() => setShowModal(false)}
+                onCancel={() => setShowModal(false)}
+                onSave={() => setShowModal(false)}
                 onUpdatePrompt={handleUpdate}
             />
         )}

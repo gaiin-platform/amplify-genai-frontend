@@ -1,19 +1,6 @@
 import {useChatService} from "@/hooks/useChatService";
 
-export function stripComments(code: string) {
-    // This regular expression matches both '//' and '/* */' comments.
-    const commentPattern = /\/\/.*|\/\*[^]*?\*\//g; // [^]*? matches any character including newline.
-
-    // Replace matches with an empty string
-    let strippedCode = code.replace(commentPattern, '');
-
-    return strippedCode;
-}
-
-export const findWorkflowPattern: (inputString: string, noFix?:boolean) => (null | string) = (inputString, noFix) => {
-
-    inputString = stripComments(inputString);
-
+export const findWorkflowPattern = (inputString:string, noFix?:boolean):string|null => {
     const workflowPattern = /workflow\s*=\s*async\s*\([^)]*\)\s*=>\s*{/g;
 
     let workflowFunction = workflowPattern.exec(inputString);
@@ -28,20 +15,34 @@ export const findWorkflowPattern: (inputString: string, noFix?:boolean) => (null
     let prevChar = '';
     let currChar = '';
     let stringStart = 0;
+    let inSingleLineComment = false;
+    let inMultiLineComment = false;
 
     for (let i = workflowPattern.lastIndex - 1; i < inputString.length; i++) {
         prevChar = currChar;
         currChar = inputString[i];
 
         if (inString) {
-            // Check for a closing quote, ensuring it's not escaped
             if (currChar === stringChar && prevChar !== '\\') {
                 // Found the closing quote
                 inString = false;
             }
+        } else if (inSingleLineComment) {
+            if (currChar === '\n') {
+                // End of Single Line Comment
+                inSingleLineComment = false;
+            }
+        } else if (inMultiLineComment) {
+            if (currChar === '/' && prevChar === '*') {
+                // End of multi line Comment
+                inMultiLineComment = false;
+            }
         } else {
-            // Check for an opening quote
-            if (currChar === '"' || currChar === "'" || currChar === "`") {
+            if (currChar === '/' && prevChar === '/') {
+                inSingleLineComment = true;
+            } else if (currChar === '*' && prevChar === '/') {
+                inMultiLineComment = true;
+            } else if (currChar === '"' || currChar === "'" || currChar === "`") {
                 stringStart = i;
                 inString = true;
                 stringChar = currChar;
@@ -55,23 +56,21 @@ export const findWorkflowPattern: (inputString: string, noFix?:boolean) => (null
                 }
             }
         }
-
     }
 
     if (bracketsStack > 0 && !noFix) {
         for (let i = 0; i < bracketsStack; i++) {
             inputString = inputString + "}";
-            // @ts-ignore
-            let result = findWorkflowPattern(inputString, true);
+            let result:string|null = findWorkflowPattern(inputString, true);
             if (result != null) {
                 return result;
             }
         }
     }
 
-    console.log(`Error: No proper ending for the 'workflow' function found. [inString:${inString}, bracketsStack:${bracketsStack}, prevChar:${prevChar}]`);
+    //console.log(`Error: No proper ending for the 'workflow' function found. [inString:${inString}, bracketsStack:${bracketsStack}, prevChar:${prevChar}]`);
     return null;
-};
+}
 
 
 export const generateCodeImprovementPrompt = (code: string, improvement: string) => {
@@ -94,6 +93,7 @@ export const generateWorkflowPrompt = (task: string, tools: { [key: string]: { d
 
     const extraInstructions = (extraPromptInstructions) ? "// PAY ATTENTION:\n" + extraPromptInstructions.join("\n//   ") : "";
     const varInstructions = (extraVarInstructions) ? extraVarInstructions.join("\n") : "";
+
 
     return `const fnlibs = {
                             ${toolMsg}

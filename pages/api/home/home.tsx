@@ -39,16 +39,18 @@ import {Navbar} from '@/components/Mobile/Navbar';
 import Promptbar from '@/components/Promptbar';
 import {Icon3dCubeSphere, IconApiApp, IconMessage, IconSettings, IconBook2} from "@tabler/icons-react";
 import {IconUser, IconLogout} from "@tabler/icons-react";
-import HomeContext, {Processor} from './home.context';
+import HomeContext, {ClickContext, Processor} from './home.context';
 import {HomeInitialState, initialState} from './home.state';
 
 import {v4 as uuidv4} from 'uuid';
 import {useUser} from '@auth0/nextjs-auth0/client';
+
 import styled from "styled-components";
 import {Button} from "react-query/types/devtools/styledComponents";
 import WorkflowDefinitionBar from "@/components/Workflow/WorkflowDefinitionBar";
 import {WorkflowDefinition, WorkflowRun} from "@/types/workflow";
 import {saveWorkflowDefinitions} from "@/utils/app/workflows";
+import {findWorkflowPattern} from "@/utils/workflow/aiflow";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -133,7 +135,7 @@ const Home = ({
     // FOLDER OPERATIONS  --------------------------------------------
 
     const handleCreateFolder = (name: string, type: FolderType) => {
-        console.log("handleCreateFolder", name, type);
+        //console.log("handleCreateFolder", name, type);
 
         const newFolder: FolderInterface = {
             id: uuidv4(),
@@ -145,6 +147,8 @@ const Home = ({
 
         dispatch({field: 'folders', value: updatedFolders});
         saveFolders(updatedFolders);
+
+        return newFolder;
     };
 
     const handleDeleteFolder = (folderId: string) => {
@@ -217,6 +221,22 @@ const Home = ({
     const handleNewConversation = (params = {}) => {
         const lastConversation = conversations[conversations.length - 1];
 
+        // Create a string for the current date like Oct-18-2021
+        const date = new Date().toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        });
+
+        // See if there is a folder with the same name as the date
+        let folder = folders.find((f) => f.name === date);
+
+        console.log("handleNewConversation", {date, folder});
+
+        if(!folder){
+            folder = handleCreateFolder(date, "chat");
+        }
+
         const newConversation: Conversation = {
             id: uuidv4(),
             name: t('New Conversation'),
@@ -229,7 +249,7 @@ const Home = ({
             },
             prompt: DEFAULT_SYSTEM_PROMPT,
             temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
-            folderId: null,
+            folderId: folder.id,
             promptTemplate: null,
             ...params
         };
@@ -246,7 +266,7 @@ const Home = ({
         dispatch({field: 'loading', value: false});
     };
 
-    const handleCustomLinkClick = (conversation: Conversation, href:string) => {
+    const handleCustomLinkClick = (conversation: Conversation, href:string, context:ClickContext) => {
 
         try {
 
@@ -257,7 +277,8 @@ const Home = ({
 
                 console.log(`handleCustomLinkClick ${category}:${action}/${path}`);
 
-                if (category === "workflow" && action === "save-workflow") {
+
+                if (category === "workflow" && action === "save-workflow" && path && path.trim().length > 0) {
 
                     const workflowId = path;
                     console.log(`Saving workflow ${workflowId}...`);
@@ -328,6 +349,82 @@ const Home = ({
                         alert("Workflow saved.");
                     } else {
                         console.log("Workflow not saved, missing code or prompt.");
+                    }
+                }
+                else if (category === "workflow" && action === "save-workflow" && context.message && context.conversation) {
+
+                    let code = findWorkflowPattern(context.message.content);
+                    let codeMessageIndex = context.conversation.messages.indexOf(context.message);
+
+                    console.log("Workflow Code", code);
+                    console.log("Workflow Message Index", codeMessageIndex);
+
+                    if(codeMessageIndex > 0) {
+                        let msgBefore = context.conversation.messages[codeMessageIndex - 1];
+                        let prompt = msgBefore.content;
+
+                        console.log("Workflow Prompt", prompt);
+
+                        if (code && prompt) {
+                            let workflowDefinition: WorkflowDefinition = {
+                                id: uuidv4(),
+                                formatVersion: "v1.0",
+                                version: "1",
+                                folderId: null,
+                                description: prompt,
+                                generatingPrompt: prompt,
+                                name: prompt,
+                                code: code,
+                                tags: [],
+                                inputs: {parameters: {}, documents: []},
+                                outputs: [],
+                            }
+
+                            const documentStrings = workflowDefinition.inputs.documents.map((doc) => `{{${doc.name}:file}}`).join('\n');
+                            const parameterStrings = Object.keys(workflowDefinition.inputs.parameters).map((key) => `{{${key}}}`).join('\n');
+                            const formattedString =
+                                `${documentStrings}${parameterStrings}${prompt}`;
+
+
+                            const extractGetDocuments = (code: string): boolean => {
+                                const regex = /fnlibs.getDocuments\(\)/;
+                                return regex.test(code);
+                            };
+
+                            const extractGetDocumentArguments = (code: string): string[] => {
+                                const regex = /fnlibs.getDocument\(\s*"([^"]+)"\s*\)/g;
+                                const matches = code.match(regex);
+                                if (!matches) return [];
+                                return matches.map((match) => match.replace('fnlibs.getDocument("', "").replace('")', ""));
+                            };
+
+                            const promptDocumentVariables = "" +
+                                (extractGetDocuments(code) ? "{{Documents:files}}" : "") +
+                                extractGetDocumentArguments(code).map((arg) => `{{${arg}:file}}`).join('\n');
+
+
+                            let promptTemplate: Prompt = {
+                                content: promptDocumentVariables + formattedString,
+                                data: {
+                                    code: code
+                                },
+                                description: prompt,
+                                folderId: null,
+                                id: uuidv4(),
+                                name: prompt,
+                                type: MessageType.AUTOMATION
+                            }
+
+                            const updatedPrompts = [...prompts, promptTemplate];
+
+                            dispatch({field: 'prompts', value: updatedPrompts});
+
+                            savePrompts(updatedPrompts);
+
+                            alert("Workflow saved.");
+                        } else {
+                            console.log("Workflow not saved, missing code or prompt.");
+                        }
                     }
                 }
             }
@@ -679,7 +776,7 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
             process.env.DEFAULT_MODEL) ||
         fallbackModelID;
 
-    console.log("Default Model Id:", defaultModelId);
+    //console.log("Default Model Id:", defaultModelId);
 
     let serverSidePluginKeysSet = false;
 

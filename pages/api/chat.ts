@@ -8,22 +8,24 @@ import wasm from '../../node_modules/@dqbd/tiktoken/lite/tiktoken_bg.wasm?module
 
 import tiktokenModel from '@dqbd/tiktoken/encoders/cl100k_base.json';
 import { Tiktoken, init } from '@dqbd/tiktoken/lite/init';
-import {NextApiRequest, NextApiResponse} from "next";
 
 export const config = {
   runtime: 'edge',
 };
 
-// export async function withApiAuthRequired(a(req:NextApiRequest, res:NextApiResponse) {
-// //  res.send()
-// //}
-
 const handler = async (req: Request): Promise<Response> => {
   try {
+
+    console.log("Chat request received",
+    //current time
+    new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+
     const { model, messages, key, prompt, temperature, functions, function_call } = (await req.json()) as ChatBody;
 
-    //console.log("Chat [model="+model.id+", temperature="+temperature+"]")
-    //console.log("Chat [functions=]", functions);
+    console.log("Chat request unmarshalled",
+        `Model Id: ${model.id}, Temperature: ${temperature}`,
+        //current time
+        new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
 
     await init((imports) => WebAssembly.instantiate(wasm, imports));
     const encoding = new Tiktoken(
@@ -67,6 +69,11 @@ const handler = async (req: Request): Promise<Response> => {
     //console.log("Sending: "+ tokenCount + " [max: " + maxTokens +"]")
 
     encoding.free();
+
+    console.log("Chat request built",
+        `Token Count: ${tokenCount}`,
+        //current time
+        new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
 
     const stream = await OpenAIStream(model, promptToSend, temperatureToUse, key, messagesToSend, functions, function_call);
 

@@ -1,4 +1,7 @@
 import {AttachedDocument} from "@/types/attacheddocument";
+import {Conversation} from "@/types/chat";
+import {Prompt} from "@/types/prompt";
+import {FolderInterface} from "@/types/folder";
 
 export interface Status {
     summary:string;
@@ -7,6 +10,9 @@ export interface Status {
 }
 
 export interface InputsContext {
+    conversations?: Conversation[];
+    prompts?: Prompt[];
+    folders?: FolderInterface[];
     parameters: { [key: string]: any };
     documents: AttachedDocument[];
 }

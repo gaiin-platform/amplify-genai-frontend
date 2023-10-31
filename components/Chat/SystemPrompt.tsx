@@ -11,12 +11,14 @@ import { useTranslation } from 'next-i18next';
 
 import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
 
-import { Conversation } from '@/types/chat';
+import {Conversation, MessageType} from '@/types/chat';
 import { Prompt } from '@/types/prompt';
 
 import { PromptList } from './PromptList';
 import { VariableModal } from './VariableModal';
 import {OpenAIModel} from "@/types/openai";
+import {AttachedDocument} from "@/types/attacheddocument";
+import {fillInTemplate} from "@/utils/app/prompts";
 
 interface Props {
   models: OpenAIModel[];
@@ -35,7 +37,7 @@ export const SystemPrompt: FC<Props> = ({
 }) => {
   const { t } = useTranslation('chat');
 
-  const [value, setValue] = useState<string>('');
+  const [value, setValue] = useState<string>('/');
   const [activePromptIndex, setActivePromptIndex] = useState(0);
   const [showPromptList, setShowPromptList] = useState(false);
   const [promptInputValue, setPromptInputValue] = useState('');
@@ -46,7 +48,7 @@ export const SystemPrompt: FC<Props> = ({
   const promptListRef = useRef<HTMLUListElement | null>(null);
 
   const filteredPrompts = prompts.filter((prompt) =>
-    prompt.name.toLowerCase().includes(promptInputValue.toLowerCase()),
+    prompt.name.toLowerCase().includes(promptInputValue.toLowerCase()) && prompt.type === MessageType.ROOT,
   );
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -121,11 +123,10 @@ export const SystemPrompt: FC<Props> = ({
     }
   };
 
-  const handleSubmit = (updatedVariables: string[]) => {
-    const newContent = value?.replace(/{{(.*?)}}/g, (match, variable) => {
-      const index = variables.indexOf(variable);
-      return updatedVariables[index];
-    });
+  const handleSubmit = (updatedVariables: string[], documents: AttachedDocument[] | null) => {
+    const newContent = fillInTemplate(prompts[activePromptIndex].content || "", variables, updatedVariables, documents, true);
+
+    console.log("newContent", newContent);
 
     setValue(newContent);
     onChangePrompt(newContent);

@@ -43,8 +43,6 @@ export const OpenAIStream = async (
     url = `${OPENAI_API_HOST}/${AZURE_API_NAME}/deployments/${model.id}/chat/completions?api-version=${OPENAI_API_VERSION}`;
   }
 
-  console.log("URL: " + url);
-
   const res = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
@@ -120,14 +118,19 @@ export const OpenAIStream = async (
     }
     if (json.choices[0].finish_reason != null) {
 
-        console.log("------------- Completing------------")
-        console.log(json.choices)
-        console.log("------------------------------------")
+        // console.log("------------- Completing------------")
+        // console.log(json.choices)
+        // console.log("------------------------------------")
 
         text += "}";
 
         const queue = encoder.encode(text);
         controller.enqueue(queue);
+
+        console.log("Chat request completed",
+          //current time
+          new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+
         controller.close();
         return;
     }
@@ -153,6 +156,11 @@ export const OpenAIStream = async (
             }
             else {
               if (json.choices[0].finish_reason != null) {
+
+                console.log("Chat request completed",
+                    //current time
+                    new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+
                 controller.close();
                 return;
               }

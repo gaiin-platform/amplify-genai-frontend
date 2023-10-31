@@ -8,5 +8,9 @@ export interface Prompt {
   model?: OpenAIModel;
   folderId: string | null;
   type: string | undefined;
-  data?:{[key:string]:any}
+  data?:{
+    [key:string]:any,
+    rootPromptId?:string,
+    code?:string | null,
+  }
 }

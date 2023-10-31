@@ -2,13 +2,19 @@ import { Dispatch, createContext } from 'react';
 
 import { ActionType } from '@/hooks/useCreateReducer';
 
-import { Conversation } from '@/types/chat';
+import {Conversation, Message} from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
 import { FolderType } from '@/types/folder';
 
 import { HomeInitialState } from './home.state';
 
 export type Processor = (data:any) => {};
+
+export interface ClickContext {
+  message?: Message;
+  conversation?: Conversation;
+  [key:string] : any
+}
 
 export interface HomeContextProps {
   state: HomeInitialState;
@@ -22,7 +28,7 @@ export interface HomeContextProps {
     conversation: Conversation,
     data: KeyValuePair,
   ) => void;
-  handleCustomLinkClick:(conversation: Conversation, href:string) => void,
+  handleCustomLinkClick:(conversation: Conversation, href:string, context:ClickContext) => void,
   // New callback-related operations.
   preProcessingCallbacks: Processor[];
   postProcessingCallbacks: Processor[];

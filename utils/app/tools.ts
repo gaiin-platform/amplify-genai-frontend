@@ -1,5 +1,5 @@
 import {OpenAIModelID, OpenAIModels} from "@/types/openai";
-import {CustomFunction, JsonSchema, newMessage} from "@/types/chat";
+import {Conversation, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {sendChatRequest} from "@/services/chatService";
 import {describeAsJsonSchema} from "@/utils/app/data";
 import {InputDocument} from "@/types/workflow";
@@ -181,11 +181,15 @@ export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Prom
             const currentPrompt = prompts[currentIndex];
             currentIndex++;
 
+            const finished = results.filter(result => result !== null).length
+            const total = results.length;
+            //await statusLogger({summary: `Prompting [${total - finished} running]: ${currentPrompt}`, message: prompt, type: "info"});
+
             try {
                 console.log(`Executing prompt ${currentIndex} / ${prompts.length}`);
                 // Execute the promptLLM function and store the result in the correct index.
 
-               statusLogger({summary: `Prompting ${currentIndex} / ${prompts.length}...`, message: prompt, type: "info"});
+                //statusLogger({summary: `Prompting ${currentIndex} / ${prompts.length}...`, message: prompt, type: "info"});
 
                 if(stopper.shouldStop()){
                     reject("Interrupted");
@@ -195,7 +199,7 @@ export const promptLLMInParallel = (promptLLM:(root:string, prompt:string)=>Prom
                 const result = await promptLLM(currentPrompt.rootPrompt || "", currentPrompt.prompt);
 
                 console.log(`Finished prompt ${currentIndex} / ${prompts.length}`);
-                statusLogger({summary: `Finished ${currentIndex} / ${prompts.length}...`, message: prompt, type: "info"});
+                //statusLogger({summary: `Finished ${currentIndex} / ${prompts.length}...`, message: currentPrompt.prompt, type: "info"});
                 // @ts-ignore
                 results[currentPrompt.index] = result;
 
@@ -333,8 +337,8 @@ const promptLLMForJson = async (promptLLMFull: (persona: string, prompt: string,
     const prompt = instructions;
 
     const systemPrompt = ""; //"You are ChatGPT, a large language model trained by OpenAI. " +
-        // "Follow the user's instructions carefully. " +
-        // "Respond using JSON. ";
+    // "Follow the user's instructions carefully. " +
+    // "Respond using JSON. ";
 
     let functionsToCall = [...jsonFunctions];
 
@@ -509,22 +513,61 @@ const generateOutline = async (promptLLMFull:any, topic:string, maxDepth:number,
     }
 };
 
+// @ts-ignore
+export const getToolMetadata = ({apiKey, stopper, context, requestedParameters, requestedDocuments, statusLogger}) => {
+    return {
+        promptLLM: {
+            description: "(personaString,promptString)=>Promise<String> // persona should be an empty string, promptString must include detailed instructions for the " +
+                "LLM and any data that the prompt operates on as a string and MUST NOT EXCEED 25,000 characters.",
+        },
+        tellUser: {
+            description: "(msg:string)//output a message to the user",
+        },
+        promptLLMForJson: {
+            description: "(persona: string, prompt: string, desiredSchema: JsonSchema)=>Promise<any> // Prompt the LLM to generate JSON that matches a specified schema." +
+                " This is useful for generating JSON for APIs, databases, or other systems that require a specific JSON schema.",
+        },
+        promptLLMInParallel: {
+            description: "(prompts: string[])=>Promise<string>[] // Execute a promptLLM function in parallel on a list of prompts." +
+                " This is useful if you need to do something to chunks or pages of a document and can prepare the prompts in advance them " +
+                " send the work off in parallel.",
+        },
+        splitStringIntoChunks: {
+            description: "(str: string, chunkSize: number)=>string[] Splits a string into chunks of a specified size." +
+                " The function returns an array of substrings, ensuring that each chunk is at most `chunkSize` characters long." +
+                " This is useful for processing or transmitting large strings in smaller, manageable pieces, especially" +
+                " when interfacing with APIs or systems that have size limitations.",
+        },
+        getDocuments: {
+            description: "()=>[{name:string,raw:string},...] // returns an array of documents with name and raw properties." +
+                " Use this function to access all documents as strings.",
+        },
+        getDocument: {
+            description: "(name:string)=>{name:string,raw:string} // Get a document by name.",
+        },
 
+    };
+};
 
 // @ts-ignore
-export const parameterizeTools = ({apiKey, stopper, context, requestedParameters, requestedDocuments, statusLogger}) => {
+export const parameterizeTools = ({apiKey, stopper, context, requestedParameters, requestedDocuments, statusLogger}:params) => {
 
     console.log("parameterizeTools", context, requestedParameters, requestedDocuments);
 
     const documents = [...context.inputs.documents];
     const parameters = {...context.inputs.parameters};
+    const conversations = [...context.inputs.conversations];
+    const prompts = [...context.inputs.prompts];
+    const folders = [...context.inputs.folders];
 
     const promptLLMFull: (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => any = (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
         // Grab the first 30 characters of the prompt
+        statusLogger({summary: `Prompting: ${prompt}`, message: prompt, type: "info"});
         return doPrompt(apiKey, stopper, persona, prompt, messageCallback, model, functions, function_call);
     }
 
     const promptLLM = (persona: string, prompt: string) => {
+
         return promptLLMFull(persona, prompt);
     }
 
@@ -544,6 +587,7 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
     }
 
     const promptForJson = (persona: string, prompt: string, jsonSchemaAsJsonObject: JsonSchema) =>{
+        statusLogger({summary: `Prompting (json): ${prompt.slice(0,30)}`, message: prompt, type: "info"});
         return promptLLMForJson(promptLLMFull, persona, prompt, jsonSchemaAsJsonObject);
     }
 
@@ -563,12 +607,12 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
         //     }
         // },
         promptLLMForJson: {
-            description: "(persona: string, prompt: string, desiredSchema: JsonSchema)=>Promise<any> Prompt the LLM to generate JSON that matches a specified schema." +
+            description: "(persona: string, prompt: string, desiredSchema: JsonSchema)=>Promise<any> // Prompt the LLM to generate JSON that matches a specified schema." +
                 " This is useful for generating JSON for APIs, databases, or other systems that require a specific JSON schema.",
             exec: promptForJson
         },
         promptLLMInParallel: {
-            description: "(prompts: string[])=>Promise<string>[] Execute a promptLLM function in parallel on a list of prompts." +
+            description: "(prompts: string[])=>Promise<string>[] // Execute a promptLLM function in parallel on a list of prompts." +
                 " This is useful if you need to do something to chunks or pages of a document and can prepare the prompts in advance them " +
                 " send the work off in parallel.",
             exec: (prompts: string[]) => {
@@ -594,21 +638,21 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
                 return splitStringIntoChunks(str, chunkSize);
             }
         },
-        generateOutline: {
-            description:"(topic:string, maxDepth:number, minSubtopics:number)=>Promise<{ \"type\": \"object\", \"properties\": { \"topic\": { \"type\": \"string\" }, \"subtopics\": { \"type\": \"array\", \"items\": { \"oneOf\": [{ \"$ref\": \"#\" }, { \"type\": \"string\" }] } } } }> Generate an outline for a topic.",
-            exec: (topic:string, maxDepth:number, minSubtopics:number) => {
-                return generateOutline(promptLLMFull, topic, maxDepth, minSubtopics);
-            }
-        },
-        outlineToMarkdown: {
-            description:"(outline:{\"type\":\"object\",\"properties\":{\"topic\":{\"type\":\"string\"},\"subtopics\":{\"type\":\"array\",\"items\":{\"oneOf\":[{\"$ref\":\"#\"},{\"type\":\"string\"}]}}},\"content\":{\"type\":\"string\"}})=>string Convert an outline to markdown.",
-            exec: (outline:any) => {
-                return convertToMarkdown(outline);
-            }
-        },
+        // generateOutline: {
+        //     description:"(topic:string, maxDepth:number, minSubtopics:number)=>Promise<{ \"type\": \"object\", \"properties\": { \"topic\": { \"type\": \"string\" }, \"subtopics\": { \"type\": \"array\", \"items\": { \"oneOf\": [{ \"$ref\": \"#\" }, { \"type\": \"string\" }] } } } }> Generate an outline for a topic.",
+        //     exec: (topic:string, maxDepth:number, minSubtopics:number) => {
+        //         return generateOutline(promptLLMFull, topic, maxDepth, minSubtopics);
+        //     }
+        // },
+        // outlineToMarkdown: {
+        //     description:"(outline:{\"type\":\"object\",\"properties\":{\"topic\":{\"type\":\"string\"},\"subtopics\":{\"type\":\"array\",\"items\":{\"oneOf\":[{\"$ref\":\"#\"},{\"type\":\"string\"}]}}},\"content\":{\"type\":\"string\"}})=>string Convert an outline to markdown.",
+        //     exec: (outline:any) => {
+        //         return convertToMarkdown(outline);
+        //     }
+        // },
         getDocuments: {
 
-            description: "():[{name:string,raw:string},...]// returns an array of documents with name and raw properties." +
+            description: "():[{name:string,raw:string},...] // returns an array of documents with name and raw properties." +
                 " Use this function to access all documents as strings.",
             exec: () => {
                 requestedDocuments.push("*");
@@ -616,7 +660,7 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
             },
         },
         getDocument: {
-            description: "(name:string)=>{name:string,raw:string} Get a document by name.",
+            description: "(name:string)=>{name:string,raw:string} // Get a document by name.",
             exec: (name: string) => {
                 requestedDocuments.push(name);
                 return allDocuments().find(document => document.name === name);
@@ -625,4 +669,3 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
 
     };
 }
-

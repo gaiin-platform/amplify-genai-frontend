@@ -168,7 +168,10 @@ export const Chatbar = () => {
         }
         toggleOpen={handleToggleChatbar}
         handleCreateItem={() => handleNewConversation({})}
-        handleCreateFolder={() => handleCreateFolder(t('New folder'), 'chat')}
+        handleCreateFolder={() => {
+          const name = window.prompt("Folder name:");
+          handleCreateFolder(name || "New Folder", 'chat')
+        }}
         handleDrop={handleDrop}
         footerComponent={
           <>

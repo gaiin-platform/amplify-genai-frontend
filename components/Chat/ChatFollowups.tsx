@@ -1,25 +1,45 @@
 // ChatFollowups.tsx
-import React from 'react';
-
-type ButtonConfig = {
-    title: string,
-    handler: () => void,
-};
+import React, {useContext} from 'react';
+import {Conversation, MessageType} from "@/types/chat";
+import {Prompt} from "@/types/prompt";
+import HomeContext from "@/pages/api/home/home.context";
 
 type ChatFollowupsProps = {
-    buttonsConfig: ButtonConfig[],
+    promptSelected: (prompt: Prompt) => void,
 };
 
-const ChatFollowups: React.FC<ChatFollowupsProps> = ({buttonsConfig}) => {
+const ChatFollowups: React.FC<ChatFollowupsProps> = ({promptSelected}) => {
+
+    const {
+        state: {prompts, selectedConversation},
+    } = useContext(HomeContext);
+
+    const conversationTags = selectedConversation?.tags || [];
+    const promptButtons = prompts.filter((prompt) => {
+        const promptTags = prompt.data?.requiredTags;
+        if (prompt.type === MessageType.FOLLOW_UP && (!promptTags || promptTags.length === 0)) {
+            return true;
+        }
+        if (!conversationTags || prompt.type !== MessageType.FOLLOW_UP) {
+            return false;
+        }
+        return promptTags.some((tag: string) => conversationTags.includes(tag));
+    });
+
+    const sendPrompt = (prompt:Prompt) => {
+        const toSend = {...prompt, type: MessageType.PROMPT};
+        promptSelected(toSend);
+    }
+
     return (
-        <div className="mt-4 flex gap-4">
-            {buttonsConfig.map(({title, handler}) => (
+        <div className="mt-4 flex-wrap gap-4">
+            {promptButtons.map((prompt) => (
                 <button
-                    key={title}
-                    className="invisible group-hover:visible focus:visible px-5 py-2 text-sm border border-gray-600 rounded-lg text-gray-700 hover:bg-gray-100 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800"
-                    onClick={handler}
+                    key={prompt.id}
+                    className="invisible group-hover:visible focus:visible px-5 py-2 mr-1 mt-1 text-sm border border-gray-600 rounded-lg text-gray-700 hover:bg-gray-100 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800"
+                    onClick={(e)=>{sendPrompt(prompt)}}
                 >
-                    {title}
+                    {prompt.name}
                 </button>
             ))}
         </div>

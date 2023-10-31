@@ -14,7 +14,7 @@ export interface HomeInitialState {
   lightMode: 'light' | 'dark';
   messageIsStreaming: boolean;
   modelError: ErrorMessage | null;
-  status: Status | null;
+  status: Status[];
   models: OpenAIModel[];
   folders: FolderInterface[];
   conversations: Conversation[];
@@ -39,7 +39,7 @@ export const initialState: HomeInitialState = {
   loading: false,
   pluginKeys: [],
   lightMode: 'dark',
-  status: null,
+  status: [],
   messageIsStreaming: false,
   modelError: null,
   models: [],
@@ -62,6 +62,9 @@ export const initialState: HomeInitialState = {
   serverSidePluginKeysSet: false,
   featureFlags: {
     workflowRun:true,
-    workflowCreate:false,
+    workflowCreate:true,
+    rootPromptCreate:true,
+    pluginsOnInput:false,
+    followUpCreate:true,
   },
 };
