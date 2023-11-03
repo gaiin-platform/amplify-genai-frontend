@@ -37,7 +37,11 @@ const ChatFollowups: React.FC<ChatFollowupsProps> = ({promptSelected}) => {
                 <button
                     key={prompt.id}
                     className="invisible group-hover:visible focus:visible px-5 py-2 mr-1 mt-1 text-sm border border-gray-600 rounded-lg text-gray-700 hover:bg-gray-100 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800"
-                    onClick={(e)=>{sendPrompt(prompt)}}
+                    onClick={(e)=>{
+                        e.preventDefault();
+                        e.stopPropagation();
+                        sendPrompt(prompt);
+                    }}
                 >
                     {prompt.name}
                 </button>

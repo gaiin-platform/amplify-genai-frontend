@@ -432,6 +432,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         };
 
         function runPrompt(prompt: Prompt) {
+
             const variables = parseEditableVariables(prompt.content);
 
             if (variables.length > 0) {
