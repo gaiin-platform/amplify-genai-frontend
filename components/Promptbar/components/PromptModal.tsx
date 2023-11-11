@@ -315,6 +315,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               </div>
             ))}
 
+            <div className="mt-6">
             <ExpansionComponent title={"Conversation Tags"} content={
                 <div className="mt-2 mb-6 text-sm font-bold text-black dark:text-neutral-200">
                   <input
@@ -328,6 +329,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                   />
                 </div>
             }/>
+            </div>
 
             {featureFlags.workflowCreate && selectedTemplate === MessageType.AUTOMATION && (
                 <>

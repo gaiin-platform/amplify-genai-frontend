@@ -17,6 +17,7 @@ export const PromptFolders = () => {
   const {
     state: { searchTerm, filteredPrompts },
     handleUpdatePrompt,
+    handleShareFolder,
   } = useContext(PromptbarContext);
 
   const handleDrop = (e: any, folder: FolderInterface) => {

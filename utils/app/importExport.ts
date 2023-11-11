@@ -71,29 +71,26 @@ function currentDate() {
   return `${month}-${day}`;
 }
 
-export const exportData = () => {
-  let history = localStorage.getItem('conversationHistory');
-  let folders = localStorage.getItem('folders');
-  let prompts = localStorage.getItem('prompts');
-
-  if (history) {
-    history = JSON.parse(history);
-  }
-
-  if (folders) {
-    folders = JSON.parse(folders);
-  }
-
-  if (prompts) {
-    prompts = JSON.parse(prompts);
-  }
-
+export function createExport(history: Conversation[], folders: FolderInterface[], prompts: Prompt[]) {
   const data = {
     version: 4,
     history: history || [],
     folders: folders || [],
     prompts: prompts || [],
   } as LatestExportFormat;
+  return data;
+}
+
+export const exportData = () => {
+  let historyStr = localStorage.getItem('conversationHistory');
+  let foldersStr = localStorage.getItem('folders');
+  let promptsStr = localStorage.getItem('prompts');
+
+  const history = (historyStr)?  JSON.parse(historyStr) as Conversation[] : [];
+  const folders = (foldersStr)?  JSON.parse(foldersStr) as FolderInterface[] : [];
+  const prompts = (promptsStr)?  JSON.parse(promptsStr) as Prompt[] : [];
+
+  const data = createExport(history, folders, prompts);
 
   const blob = new Blob([JSON.stringify(data, null, 2)], {
     type: 'application/json',

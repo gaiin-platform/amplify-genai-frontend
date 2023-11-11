@@ -7,6 +7,7 @@ import { SupportedExportFormats } from '@/types/export';
 import { PluginKey } from '@/types/plugin';
 
 import { ChatbarInitialState } from './Chatbar.state';
+import {FolderInterface} from "@/types/folder";
 
 export interface ChatbarContextProps {
   state: ChatbarInitialState;
@@ -18,6 +19,7 @@ export interface ChatbarContextProps {
   handlePluginKeyChange: (pluginKey: PluginKey) => void;
   handleClearPluginKey: (pluginKey: PluginKey) => void;
   handleApiKeyChange: (apiKey: string) => void;
+  handleShareFolder: (folder: FolderInterface) => void;
 }
 
 const ChatbarContext = createContext<ChatbarContextProps>(undefined!);

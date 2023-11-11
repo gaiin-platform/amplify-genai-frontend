@@ -7,6 +7,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import Folder from '@/components/Folder';
 
 import { ConversationComponent } from './Conversation';
+import ChatbarContext from "@/components/Chatbar/Chatbar.context";
 
 interface Props {
   searchTerm: string;
@@ -17,6 +18,8 @@ export const ChatFolders = ({ searchTerm }: Props) => {
     state: { folders, conversations, selectedConversation },
     handleUpdateConversation,
   } = useContext(HomeContext);
+
+  const { handleShareFolder } = useContext(ChatbarContext);
 
   const handleDrop = (e: any, folder: FolderInterface) => {
     if (e.dataTransfer) {

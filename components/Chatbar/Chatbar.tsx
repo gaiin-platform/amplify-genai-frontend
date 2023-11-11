@@ -25,6 +25,7 @@ import ChatbarContext from './Chatbar.context';
 import { ChatbarInitialState, initialState } from './Chatbar.state';
 
 import { v4 as uuidv4 } from 'uuid';
+import {FolderInterface} from "@/types/folder";
 
 export const Chatbar = () => {
   const { t } = useTranslation('sidebar');
@@ -46,12 +47,17 @@ export const Chatbar = () => {
     dispatch: chatDispatch,
   } = chatBarContextValue;
 
+
   const handleApiKeyChange = useCallback(
     (apiKey: string) => {
 
     },
     [homeDispatch],
   );
+
+  const handleShareFolder = (folder: FolderInterface) => {
+
+  }
 
   const handlePluginKeyChange = (pluginKey: PluginKey) => {
 
@@ -153,6 +159,7 @@ export const Chatbar = () => {
         handlePluginKeyChange,
         handleClearPluginKey,
         handleApiKeyChange,
+        handleShareFolder,
       }}
     >
       <Sidebar<Conversation>

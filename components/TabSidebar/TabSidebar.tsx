@@ -33,7 +33,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                         <button
                             key={index}
                             onClick={() => setActiveTab(index)}
-                            className={`px-3 py-2 rounded-t ${activeTab === index ? 'border-l-2 border-t-2 border-r-2 border-gray-500 text-white' : 'text-gray-600'}`}>
+                            className={`px-3 py-2 rounded-t ${activeTab === index ? 'border-l-1 border-t-1 border-r-1 border-gray-500 text-white' : 'text-gray-600'}`}>
                             {child.props.icon}
                         </button>
                     ))}

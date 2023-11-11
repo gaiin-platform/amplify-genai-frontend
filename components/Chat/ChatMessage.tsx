@@ -125,7 +125,6 @@ const VegaVis: React.FC<VegaProps> = ({chart, currentMessage}) => {
     const [error, setError] = useState<string | null>(null);
     const [height, setHeight] = useState<number>(500);
 
-
     const {
         state: {messageIsStreaming},
     } = useContext(HomeContext);
@@ -317,6 +316,8 @@ export const ChatMessage: FC<Props> = memo(({
 
     const {sendChatRequest} = useChatService();
 
+    const markdownComponentRef = useRef<HTMLDivElement>(null);
+
     // const userFollowupButtonsConfig = [
     //     {
     //         title: 'Suggest Prompt Improvements', handler: () => {
@@ -362,7 +363,7 @@ export const ChatMessage: FC<Props> = memo(({
     const [isTyping, setIsTyping] = useState<boolean>(false);
     const [messageContent, setMessageContent] = useState(message.content);
     const [messagedCopied, setMessageCopied] = useState(false);
-    const [rating, setRating] = useState<number>(message.data.rating || 0);
+    const [rating, setRating] = useState<number>(message.data && message.data.rating || 0);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -449,6 +450,37 @@ export const ChatMessage: FC<Props> = memo(({
             }, 2000);
         });
     };
+
+    const handleTextHighlight = (event:any) => {
+        const selection = window.getSelection();
+        // @ts-ignore
+        if (selection && selection.toString().length > 0) {
+            // Text is highlighted
+            // Implement your logic for text highlighting
+            console.log(selection.toString());
+        }
+    };
+
+    const handleRightClick = (event:any) => {
+        // Implement your logic for right-click event handling
+    };
+
+    useEffect(() => {
+        const componentElement = markdownComponentRef.current;
+
+        if (componentElement) {
+            componentElement.addEventListener('mousedown', handleTextHighlight);
+            componentElement.addEventListener('contextmenu', handleRightClick);
+        }
+
+        return () => {
+            if (componentElement) {
+                componentElement.removeEventListener('mousedown', handleTextHighlight);
+                componentElement.removeEventListener('contextmenu', handleRightClick);
+            }
+        };
+    }, []);
+
 
     useEffect(() => {
         setMessageContent(message.content);
@@ -573,7 +605,7 @@ export const ChatMessage: FC<Props> = memo(({
                             )}
                         </div>
                     ) : (
-                        <div className="flex flex-col">
+                        <div className="flex flex-col" ref={markdownComponentRef}>
                             <div className="flex flex-row">
                                 {!isEditing && (
                                 <MemoizedReactMarkdown
@@ -744,7 +776,7 @@ export const ChatMessage: FC<Props> = memo(({
                                 <ChatFollowups promptSelected={(p)=>{onSendPrompt(p)}}/>
                             )}
                             {(messageIsStreaming || isEditing) ? null : (
-                                <Stars starRating={message.data.rating} setStars={(r)=>{
+                                <Stars starRating={message.data && message.data.rating || 0} setStars={(r)=>{
                                     if(onEdit) {
                                         onEdit({...message, data: {...message.data, rating: r}});
                                     }

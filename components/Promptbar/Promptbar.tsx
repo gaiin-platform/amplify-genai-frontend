@@ -21,6 +21,8 @@ import { PromptbarInitialState, initialState } from './Promptbar.state';
 import { v4 as uuidv4 } from 'uuid';
 import {MessageType} from "@/types/chat";
 import {PromptModal} from "@/components/Promptbar/components/PromptModal";
+import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
+import {FolderInterface} from "@/types/folder";
 
 const Promptbar = () => {
   const { t } = useTranslation('promptbar');
@@ -28,6 +30,10 @@ const Promptbar = () => {
   const promptBarContextValue = useCreateReducer<PromptbarInitialState>({
     initialState,
   });
+
+  const [isShareDialogVisible, setIsShareDialogVisible] = useState(false);
+  const [sharedPrompts, setSharedPrompts] = useState<Prompt[]>([])
+  const [sharedFolders, setSharedFolders] = useState<FolderInterface[]>([])
 
   const {
     state: { prompts, defaultModelId, showPromptbar },
@@ -44,6 +50,16 @@ const Promptbar = () => {
     homeDispatch({ field: 'showPromptbar', value: !showPromptbar });
     localStorage.setItem('showPromptbar', JSON.stringify(!showPromptbar));
   };
+
+  const handleSharePrompt = (prompt: Prompt) => {
+    setSharedPrompts([prompt]);
+    setIsShareDialogVisible(true);
+  }
+
+  const handleShareFolder = (folder: FolderInterface) => {
+    setSharedFolders([folder]);
+    setIsShareDialogVisible(true);
+  }
 
   const createPrompt = ():Prompt => {
     return {
@@ -152,6 +168,8 @@ const Promptbar = () => {
         handleDeletePrompt,
         handleUpdatePrompt,
         handleAddPrompt,
+        handleSharePrompt,
+        handleShareFolder
       }}
     >
       <Sidebar<Prompt>
@@ -176,6 +194,19 @@ const Promptbar = () => {
           handleCreateFolder(name || "New Folder", 'prompt')
         }}
         handleDrop={handleDrop}
+      />
+
+      <ShareAnythingModal
+          open={isShareDialogVisible}
+          onCancel={()=>{setIsShareDialogVisible(false)}}
+          onShare={()=>{
+            setIsShareDialogVisible(false);
+          }}
+          includePrompts={true}
+          includeConversations={false}
+          includeFolders={false}
+          selectedPrompts={sharedPrompts}
+          selectedFolders={sharedFolders}
       />
 
       {showModal && (

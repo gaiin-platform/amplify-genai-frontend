@@ -4,6 +4,7 @@ import {
   IconCheck,
   IconPencil,
   IconTrash,
+  IconShare,
   IconX,
 } from '@tabler/icons-react';
 import {
@@ -176,6 +177,7 @@ const Folder = ({
             >
               <IconPencil size={18} />
             </SidebarActionButton>
+
             <SidebarActionButton
               handleClick={(e) => {
                 e.stopPropagation();

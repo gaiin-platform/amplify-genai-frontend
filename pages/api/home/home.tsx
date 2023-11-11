@@ -37,7 +37,7 @@ import {Chat} from '@/components/Chat/Chat';
 import {Chatbar} from '@/components/Chatbar/Chatbar';
 import {Navbar} from '@/components/Mobile/Navbar';
 import Promptbar from '@/components/Promptbar';
-import {Icon3dCubeSphere, IconApiApp, IconMessage, IconSettings, IconBook2} from "@tabler/icons-react";
+import {Icon3dCubeSphere, IconShare, IconApiApp, IconMessage, IconSettings, IconBook2} from "@tabler/icons-react";
 import {IconUser, IconLogout} from "@tabler/icons-react";
 import HomeContext, {ClickContext, Processor} from './home.context';
 import {HomeInitialState, initialState} from './home.state';
@@ -46,11 +46,10 @@ import {v4 as uuidv4} from 'uuid';
 import {useUser} from '@auth0/nextjs-auth0/client';
 
 import styled from "styled-components";
-import {Button} from "react-query/types/devtools/styledComponents";
-import WorkflowDefinitionBar from "@/components/Workflow/WorkflowDefinitionBar";
-import {WorkflowDefinition, WorkflowRun} from "@/types/workflow";
+import {WorkflowDefinition} from "@/types/workflow";
 import {saveWorkflowDefinitions} from "@/utils/app/workflows";
 import {findWorkflowPattern} from "@/utils/workflow/aiflow";
+import SharedItemsList from "@/components/Share/SharedItemList";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -700,6 +699,7 @@ const Home = ({
                                 }
                             >
                                 <Tab icon={<IconMessage/>}><Chatbar/></Tab>
+                                <Tab icon={<IconShare/>}><SharedItemsList/></Tab>
                                 <Tab icon={<IconSettings/>}><SettingsBar/></Tab>
                             </TabSidebar>
 

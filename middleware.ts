@@ -6,6 +6,7 @@ import { withMiddlewareAuthRequired, getSession } from '@auth0/nextjs-auth0/edge
 export default withMiddlewareAuthRequired(async (req: NextRequest) => {
     const res = NextResponse.next();
     const user = await getSession(req, res);
+
     return res;
 });
 
