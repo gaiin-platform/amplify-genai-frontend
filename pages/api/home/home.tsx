@@ -684,8 +684,8 @@ const Home = ({
                             <TabSidebar
                                 side={"left"}
                                 footerComponent={
-                                    <div className="m-0 p-0 border-t border-white/20 pt-1 text-sm">
-                                        <button className="text-white" onClick={() => {
+                                    <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
+                                        <button className="dark:text-white" onClick={() => {
                                             window.location.href = '/api/auth/logout'
                                         }}>
 
