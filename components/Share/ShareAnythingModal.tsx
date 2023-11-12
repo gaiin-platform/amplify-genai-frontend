@@ -196,7 +196,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                         handleItemSelect(item, itemType)
                     }}
                 />
-                <div className="ml-2">{`${itemType} : ${item.name}`}</div>
+                <div className="ml-2 text-black dark:text-white ">{`${itemType} : ${item.name}`}</div>
             </div>
         );
     };
@@ -254,13 +254,13 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                         {isSharing && (
                             <div className="flex flex-col items-center justify-center">
                                 <LoadingIcon/>
-                                <span className="text-xl font-bold mt-4">Sharing...</span>
+                                <span className="text-black dark:text-white text-xl font-bold mt-4">Sharing...</span>
                             </div>
                         )}
 
                         {!isSharing && (
                             <>
-                                <h2 className="text-xl font-bold">Add People to Share With</h2>
+                                <h2 className="text-black dark:text-white text-xl font-bold">Add People to Share With</h2>
 
                                 <div className="overflow-y-auto" style={{maxHeight: "calc(100vh - 200px)"}}>
 
@@ -271,7 +271,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                                               setTags={setSelectedPeople}/>
 
 
-                                    <h3 className="text-lg mt-4 border-b">Note</h3>
+                                    <h3 className="text-black dark:text-white text-lg mt-2 border-b">Note</h3>
                                     <textarea
                                         className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                         style={{resize: 'none'}}
@@ -285,21 +285,21 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
                                     {includePrompts && (
                                         <>
-                                            <h3 className="text-lg mt-4 border-b">Prompts</h3>
+                                            <h3 className="text-black dark:text-white text-lg mt-4 border-b">Prompts</h3>
                                             {renderScrollableSection(prompts, 'Prompt')}
                                         </>
                                     )}
 
                                     {includeConversations && (
                                         <>
-                                            <h3 className="text-lg mt-4 border-b">Conversations</h3>
+                                            <h3 className="text-black dark:text-white text-lg mt-4 border-b">Conversations</h3>
                                             {renderScrollableSection(conversations, 'Conversation')}
                                         </>
                                     )}
 
                                     {includeFolders && (
                                         <>
-                                            <h3 className="text-lg mt-4 border-b">Folders</h3>
+                                            <h3 className="text-black dark:text-white text-lg mt-4 border-b">Folders</h3>
                                             {renderScrollableSection(folders, 'Folder')}
                                         </>
                                     )}

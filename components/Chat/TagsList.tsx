@@ -34,7 +34,7 @@ export const TagsList: FC<Props> = (
                     <IconPlus/>
                 </button>
                 <div>
-                    <p className="truncate font-medium text-sm pl-2 " style={{ maxWidth: '160px' }}>
+                    <p className="text-black dark:text-white truncate font-medium text-sm pl-2 " style={{ maxWidth: '160px' }}>
                         {label}:
                     </p>
                 </div>
@@ -57,7 +57,7 @@ export const TagsList: FC<Props> = (
                             <IconCircleX/>
                         </button>
                         <div>
-                            <p className="truncate font-medium text-sm text-gray-800" style={{ maxWidth: '160px' }}>
+                            <p className="text-black dark:text-gray-800 truncate font-medium text-sm" style={{ maxWidth: '160px' }}>
                                 {tag}
                             </p>
                         </div>

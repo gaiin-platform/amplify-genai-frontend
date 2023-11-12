@@ -13,7 +13,7 @@ import Folder from "@/components/Folder";
 import {ExportFormatV4, LatestExportFormat} from "@/types/export";
 
 export interface ImportModalProps {
-    onImport: (importData:ExportFormatV4) => void;
+    onImport: (importData: ExportFormatV4) => void;
     onCancel: () => void;
     includeConversations: boolean;
     includePrompts: boolean;
@@ -44,15 +44,15 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         includePrompts,
         includeConversations,
         includeFolders,
-         importKey,
+        importKey,
         note
     }) => {
 
 
-
     const {
-        state: {prompts:localPrompts, conversations:localConversations, folders:localFolders},
-        dispatch: homeDispatch } = useContext(HomeContext);
+        state: {prompts: localPrompts, conversations: localConversations, folders: localFolders},
+        dispatch: homeDispatch
+    } = useContext(HomeContext);
 
     const {user} = useUser();
 
@@ -84,8 +84,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                         }
                     }
                     setSelectedPrompts([...selectedPromptsState, ...promptsToSelect]);
-                }
-                else {
+                } else {
                     setSelectedPrompts(prevItems => toggleItem(prevItems, item as Prompt));
                 }
                 break;
@@ -135,7 +134,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         //onSave(selectedItems);
         const exportData = createExport(selectedConversationsState, selectedFoldersState, selectedPromptsState);
 
-        const needsFolderReset = (item:Conversation | Prompt) => {
+        const needsFolderReset = (item: Conversation | Prompt) => {
             return item.folderId != null &&
                 !exportData.folders.some(folder => folder.id === item.folderId) &&
                 !localFolders.some(folder => folder.id === item.folderId)
@@ -151,7 +150,10 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
         const cleanedUpExport = createExport(
             exportData.history.map(conversation => {
-                return conversationsToSetFolderToNull.some(c => c.id === conversation.id) ? {...conversation, folderId: null} : conversation;
+                return conversationsToSetFolderToNull.some(c => c.id === conversation.id) ? {
+                    ...conversation,
+                    folderId: null
+                } : conversation;
             }),
             exportData.folders,
             exportData.prompts.map(prompt => {
@@ -160,17 +162,17 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
         console.log("Cleaned up export: ", cleanedUpExport);
 
-        const { history, folders, prompts }: LatestExportFormat = importData(cleanedUpExport);
+        const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport);
 
         console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);
 
-        homeDispatch({ field: 'conversations', value: history });
+        homeDispatch({field: 'conversations', value: history});
         homeDispatch({
             field: 'selectedConversation',
             value: history[history.length - 1],
         });
-        homeDispatch({ field: 'folders', value: folders });
-        homeDispatch({ field: 'prompts', value: prompts });
+        homeDispatch({field: 'folders', value: folders});
+        homeDispatch({field: 'prompts', value: prompts});
 
         onImport(exportData);
         resetSelection();
@@ -204,13 +206,13 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
             <div className="flex items-center p-2" ref={itemRefs.current[item.id]} key={item.id}>
                 <input
                     type="checkbox"
-                    className="form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
+                    className="form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:focus:bg-neutral-700 dark:ring-offset-neutral-300 dark:border-opacity-50"
                     checked={isSelected(item, itemType)}
                     onChange={() => {
                         handleItemSelect(item, itemType)
                     }}
                 />
-                <div className="ml-2">{`${itemType} : ${item.name}`}</div>
+                <div className="ml-2 text-black dark:text-white">{`${itemType} : ${item.name}`}</div>
             </div>
         );
     };
@@ -235,43 +237,40 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         const fetchData = async () => {
 
 
-                if (user && user.name) {
+            if (user && user.name) {
 
-                    const result = await loadSharedItem(user?.name, importKey);
+                const result = await loadSharedItem(user?.name, importKey);
 
-                    if (result.ok) {
-                        const item = await result.json();
-                        const sharedData = JSON.parse(item.item) as ExportFormatV4;
-                        console.log(sharedData);
+                if (result.ok) {
+                    const item = await result.json();
+                    const sharedData = JSON.parse(item.item) as ExportFormatV4;
+                    console.log(sharedData);
 
-                        setPrompts(sharedData.prompts);
-                        setSelectedPrompts(sharedData.prompts);
-                        setConversations(sharedData.history);
-                        setSelectedConversations(sharedData.history);
-                        setFolders(sharedData.folders);
-                        setSelectedFolders(sharedData.folders);
+                    setPrompts(sharedData.prompts);
+                    setSelectedPrompts(sharedData.prompts);
+                    setConversations(sharedData.history);
+                    setSelectedConversations(sharedData.history);
+                    setFolders(sharedData.folders);
+                    setSelectedFolders(sharedData.folders);
 
-                        setIsImporting(false);
-                    } else {
-                        alert("Unable to find shared item. It may have been deleted.");
-                        resetSelection();
-                        onCancel();
-                    }
-
+                    setIsImporting(false);
+                } else {
+                    alert("Unable to find shared item. It may have been deleted.");
+                    resetSelection();
+                    onCancel();
                 }
 
-                setSelectedPrompts([...prompts]);
-                setSelectedConversations([...conversations]);
-                setSelectedFolders([...folders]);
+            }
+
+            setSelectedPrompts([...prompts]);
+            setSelectedConversations([...conversations]);
+            setSelectedFolders([...folders]);
 
         };
 
         fetchData();
 
     }, []);
-
-
-
 
 
     // ...Other Code...
@@ -286,20 +285,26 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                         className="border-neutral-400 dark:border-netural-400 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-w-lg sm:p-6 sm:align-middle"
                         role="dialog"
                     >
-                        {isImporting && (
-                            <div className="flex flex-col items-center justify-center">
-                                <LoadingIcon/>
-                                <span className="text-xl font-bold mt-4">Importing...</span>
-                            </div>
-                        )}
+                        {
+                            isImporting && (
+                                <div className="flex flex-col items-center justify-center">
+                                    <LoadingIcon/>
+                                    <span className="text-black dark:text-white text-xl font-bold mt-4">
+                                      Importing...
+                                    </span>
+                                </div>
+                            )
+                        }
 
                         {!isImporting && (
                             <>
-                                <h2 className="text-xl font-bold">Choose Shared Items to Accept</h2>
+                                <h2 className="text-black dark:text-white text-xl font-bold">
+                                    Choose Shared Items to Accept
+                                </h2>
 
                                 <div className="overflow-y-auto" style={{maxHeight: "calc(100vh - 200px)"}}>
 
-                                    <h3 className="text-lg mt-4 border-b">Note</h3>
+                                    <h3 className="text-black dark:text-white text-lg mt-4 border-b">Note</h3>
                                     <div
                                         className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                     >{note}</div>
@@ -333,7 +338,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                             <button
                                 type="button"
                                 className="w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                                onClick={(e)=>{
+                                onClick={(e) => {
                                     e.stopPropagation();
                                     resetSelection();
                                     onCancel();
