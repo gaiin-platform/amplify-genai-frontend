@@ -7,22 +7,22 @@ import {
     IconUser,
     IconZoomIn,
 } from '@tabler/icons-react';
-import {FiCommand} from "react-icons/fi";
-import styled, {keyframes} from 'styled-components';
-import {FC, memo, useContext, useEffect, useLayoutEffect, useRef, useState} from 'react';
+import { FiCommand } from "react-icons/fi";
+import styled, { keyframes } from 'styled-components';
+import { FC, memo, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import {useTranslation} from 'next-i18next';
+import { useTranslation } from 'next-i18next';
 
-import {updateConversation} from '@/utils/app/conversation';
+import { updateConversation } from '@/utils/app/conversation';
 
-import {ChatBody, Message, newMessage} from '@/types/chat';
+import { ChatBody, Message, newMessage } from '@/types/chat';
 
-import {useChatService} from "@/hooks/useChatService";
+import { useChatService } from "@/hooks/useChatService";
 
 import HomeContext from '@/pages/api/home/home.context';
 
-import {CodeBlock} from '../Markdown/CodeBlock';
-import {MemoizedReactMarkdown} from '../Markdown/MemoizedReactMarkdown';
+import { CodeBlock } from '../Markdown/CodeBlock';
+import { MemoizedReactMarkdown } from '../Markdown/MemoizedReactMarkdown';
 import ChatFollowups from './ChatFollowups';
 //import rehypeMermaid from 'rehype-mermaidjs'
 //import rehypeMathjax from 'rehype-mathjax';
@@ -32,9 +32,10 @@ import rehypeRaw from 'rehype-raw';
 import Workflow from "@/utils/workflow/workflow";
 import mermaid from "mermaid";
 import { Vega } from 'react-vega';
+import { VegaLite } from 'react-vega';
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
-import {Prompt} from "@/types/prompt";
-import {Stars} from "@/components/Chat/Stars";
+import { Prompt } from "@/types/prompt";
+import { Stars } from "@/components/Chat/Stars";
 
 const mermaidConfig = {
     startOnLoad: true,
@@ -104,11 +105,6 @@ interface MermaidProps {
     currentMessage: boolean;
 }
 
-interface VegaProps {
-    chart: string;
-    currentMessage: boolean;
-}
-
 // export default class Mermaid extends React.Component {
 //   componentDidMount() {
 //     mermaid.contentLoaded();
@@ -120,86 +116,72 @@ interface VegaProps {
 //   }
 // }
 
-const VegaVis: React.FC<VegaProps> = ({chart, currentMessage}) => {
-    const [svgDataUrl, setSvgDataUrl] = useState<string | null>(null);
+interface VegaProps {
+    chart: string; // JSON string for Vega specification
+    currentMessage: boolean;
+}
+
+const VegaVis: React.FC<VegaProps> = ({ chart, currentMessage }) => {
+    
     const [error, setError] = useState<string | null>(null);
-    const [height, setHeight] = useState<number>(500);
-
-
-    const {
-        state: {messageIsStreaming},
-    } = useContext(HomeContext);
+    const { state: { messageIsStreaming } } = useContext(HomeContext);
 
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-
-            if (!messageIsStreaming) {
-                try {
-
-
-                } catch (err) {
-                    console.log(err);
-                    //showLoading();
-                }
+        // Effect for initializing or updating the visualization when 'chart' changes
+        if (typeof window !== 'undefined' && !messageIsStreaming) {
+            try {
+                // Test if 'chart' can be parsed as JSON and catch any errors
+                JSON.parse(chart);
+            } catch (err) {
+                console.error(err);
+                setError('Failed to parse Vega specification. Please check the JSON format.');
             }
         }
-    }, [chart]);
+    }, [chart, messageIsStreaming]); // Rerun effect if 'chart' or 'messageIsStreaming' changes
 
-    const spec = {
-        "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
-        "data": {
-            "values": [
-                {"Category": "A", "Amount": 28},
-                {"Category": "B", "Amount": 55},
-                {"Category": "C", "Amount": 43},
-                {"Category": "D", "Amount": 91},
-                {"Category": "E", "Amount": 81},
-                {"Category": "F", "Amount": 53},
-                {"Category": "G", "Amount": 19},
-                {"Category": "H", "Amount": 87}
-            ]
-        },
-        "mark": "bar",
-        "encoding": {
-            "x": {"field": "Category", "type": "ordinal"},
-            "y": {"field": "Amount", "type": "quantitative"}
+    const renderVisualization = () => {
+        try {
+            // Parse the JSON string only once and handle errors
+            const parsedChart = JSON.parse(chart);
+
+            parsedChart.autosize = { type: 'fit', contains: 'padding' };
+
+            return <VegaLite spec={parsedChart} actions={false} />;
+        } catch (parseError) {
+            console.error(parseError);
+            setError('Failed to parse the Vega specification. Check the JSON format.');
+            return <div>{error}</div>;
         }
     };
 
-    // @ts-ignore
-    return error ?
-        <div>{error}</div> :
-        <div style={{maxHeight:"450px"}}>
-            <div className="flex items-center space-x-4">
-                <IconZoomIn/>
-                <input
-                    type="range"
-                    min="250"
-                    max="4000"
-                    value={height}
-                    onChange={(e)=>{ // @ts-ignore
-                        setHeight(e.target.value)}}
-                />
-            </div>
-            <div style={{height: `${height + 20}px`, width: `${2 * height}px`, overflow:"auto"}}>
-                {messageIsStreaming && currentMessage ? <div><LoadingIcon/> Loading...</div> :
-                    // @ts-ignore
-                    // <Vega spec={spec}/>
-                    <div>Loading...</div>
-                }
-            </div>
-        </div>;
+    return (
+        <div>
+            {error ? (
+                <div>{error}</div>
+            ) : (
+                // flex container with no specified width, allowing it to grow with the content
+                <div style={{ display: 'flex', justifyContent: 'center', background: 'black', padding: '10px' }}>
+                    {messageIsStreaming && currentMessage ? (
+                        <div>Loading...</div>
+                    ) : (
+                        <div style={{ display: 'inline-flex', justifyContent: 'center' }}>
+                            {renderVisualization()}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
 };
 
-
-const Mermaid: React.FC<MermaidProps> = ({chart, currentMessage}) => {
+const Mermaid: React.FC<MermaidProps> = ({ chart, currentMessage }) => {
     const [svgDataUrl, setSvgDataUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [height, setHeight] = useState<number>(500);
 
 
     const {
-        state: {messageIsStreaming},
+        state: { messageIsStreaming },
     } = useContext(HomeContext);
 
     useEffect(() => {
@@ -244,23 +226,24 @@ const Mermaid: React.FC<MermaidProps> = ({chart, currentMessage}) => {
     // @ts-ignore
     return error ?
         <div>{error}</div> :
-        <div style={{maxHeight:"450px"}}>
+        <div style={{ maxHeight: "450px" }}>
             <div className="flex items-center space-x-4">
-            <IconZoomIn/>
-            <input
-                type="range"
-                min="250"
-                max="4000"
-                value={height}
-                onChange={(e)=>{ // @ts-ignore
-                    setHeight(e.target.value)}}
-            />
+                <IconZoomIn />
+                <input
+                    type="range"
+                    min="250"
+                    max="4000"
+                    value={height}
+                    onChange={(e) => { // @ts-ignore
+                        setHeight(e.target.value)
+                    }}
+                />
             </div>
-            <div style={{height: `${height + 20}px`, width: `${2 * height}px`, overflow:"auto"}}>
-                {messageIsStreaming && currentMessage ? <div><LoadingIcon/> Loading...</div> :
-                    <img style={{height: `${height}px`}}
-                         src={svgDataUrl || "data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"80\"><text x=\"0\" y=\"30\" font-size=\"18\" font-family='sans-serif' font-weight=\"bold\" fill=\"white\">Loading...</text></svg>"}
-                         alt="Loading"/>
+            <div style={{ height: `${height + 20}px`, width: `${2 * height}px`, overflow: "auto" }}>
+                {messageIsStreaming && currentMessage ? <div><LoadingIcon /> Loading...</div> :
+                    <img style={{ height: `${height}px` }}
+                        src={svgDataUrl || "data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"80\"><text x=\"0\" y=\"30\" font-size=\"18\" font-family='sans-serif' font-weight=\"bold\" fill=\"white\">Loading...</text></svg>"}
+                        alt="Loading" />
                 }
             </div>
         </div>;
@@ -286,7 +269,7 @@ export interface Props {
     onEdit?: (editedMessage: Message) => void,
     onSend: (message: Message[]) => void,
     onSendPrompt: (prompt: Prompt) => void,
-    handleCustomLinkClick: (message:Message, href: string) => void,
+    handleCustomLinkClick: (message: Message, href: string) => void,
 }
 
 const animate = keyframes`
@@ -305,17 +288,17 @@ const LoadingIcon = styled(FiCommand)`
 `;
 
 export const ChatMessage: FC<Props> = memo(({
-                                                message, messageIndex, onEdit, onSend, onSendPrompt, handleCustomLinkClick
-                                            }) => {
-    const {t} = useTranslation('chat');
+    message, messageIndex, onEdit, onSend, onSendPrompt, handleCustomLinkClick
+}) => {
+    const { t } = useTranslation('chat');
 
     const {
-        state: {selectedConversation, conversations, currentMessage, messageIsStreaming},
+        state: { selectedConversation, conversations, currentMessage, messageIsStreaming },
         dispatch: homeDispatch,
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
 
-    const {sendChatRequest} = useChatService();
+    const { sendChatRequest } = useChatService();
 
     // const userFollowupButtonsConfig = [
     //     {
@@ -382,7 +365,7 @@ export const ChatMessage: FC<Props> = memo(({
 
         if (message.content != messageContent) {
             if (selectedConversation && onEdit) {
-                onEdit({...message, content: messageContent});
+                onEdit({ ...message, content: messageContent });
             }
         }
         setIsEditing(false);
@@ -391,7 +374,7 @@ export const ChatMessage: FC<Props> = memo(({
     const handleDeleteMessage = () => {
         if (!selectedConversation) return;
 
-        const {messages} = selectedConversation;
+        const { messages } = selectedConversation;
         const findIndex = messages.findIndex((elm) => elm === message);
 
         if (findIndex < 0) return;
@@ -404,7 +387,7 @@ export const ChatMessage: FC<Props> = memo(({
                 break;
             }
         }
-        if (nextUserIndex === messages.length - 1){ nextUserIndex = messages.length;}
+        if (nextUserIndex === messages.length - 1) { nextUserIndex = messages.length; }
 
         let deleteCount = nextUserIndex - findIndex;
         console.log("Find Index: " + findIndex + " Next User Index: " + nextUserIndex
@@ -424,12 +407,12 @@ export const ChatMessage: FC<Props> = memo(({
             messages,
         };
 
-        const {single, all} = updateConversation(
+        const { single, all } = updateConversation(
             updatedConversation,
             conversations,
         );
-        homeDispatch({field: 'selectedConversation', value: single});
-        homeDispatch({field: 'conversations', value: all});
+        homeDispatch({ field: 'selectedConversation', value: single });
+        homeDispatch({ field: 'conversations', value: all });
     };
 
     const handlePressEnter = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -474,20 +457,19 @@ export const ChatMessage: FC<Props> = memo(({
     // @ts-ignore
     return (
         <div
-            className={`group md:px-4 ${
-                message.role === 'assistant'
-                    ? 'border-b border-black/10 bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100'
-                    : 'border-b border-black/10 bg-white text-gray-800 dark:border-gray-900/50 dark:bg-[#343541] dark:text-gray-100'
-            }`}
-            style={{overflowWrap: 'anywhere'}}
+            className={`group md:px-4 ${message.role === 'assistant'
+                ? 'border-b border-black/10 bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100'
+                : 'border-b border-black/10 bg-white text-gray-800 dark:border-gray-900/50 dark:bg-[#343541] dark:text-gray-100'
+                }`}
+            style={{ overflowWrap: 'anywhere' }}
         >
             <div
                 className="relative m-auto flex p-4 text-base md:max-w-2xl md:gap-6 md:py-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
                 <div className="min-w-[40px] text-right font-bold">
                     {message.role === 'assistant' ? (
-                        <IconRobot size={30}/>
+                        <IconRobot size={30} />
                     ) : (
-                        <IconUser size={30}/>
+                        <IconUser size={30} />
                     )}
                 </div>
 
@@ -496,23 +478,23 @@ export const ChatMessage: FC<Props> = memo(({
                         <div className="flex w-full">
                             {isEditing ? (
                                 <div className="flex w-full flex-col">
-                  <textarea
-                      ref={textareaRef}
-                      className="w-full resize-none whitespace-pre-wrap border-none dark:bg-[#343541]"
-                      value={messageContent}
-                      onChange={handleInputChange}
-                      onKeyDown={handlePressEnter}
-                      onCompositionStart={() => setIsTyping(true)}
-                      onCompositionEnd={() => setIsTyping(false)}
-                      style={{
-                          fontFamily: 'inherit',
-                          fontSize: 'inherit',
-                          lineHeight: 'inherit',
-                          padding: '0',
-                          margin: '0',
-                          overflow: 'hidden',
-                      }}
-                  />
+                                    <textarea
+                                        ref={textareaRef}
+                                        className="w-full resize-none whitespace-pre-wrap border-none dark:bg-[#343541]"
+                                        value={messageContent}
+                                        onChange={handleInputChange}
+                                        onKeyDown={handlePressEnter}
+                                        onCompositionStart={() => setIsTyping(true)}
+                                        onCompositionEnd={() => setIsTyping(false)}
+                                        style={{
+                                            fontFamily: 'inherit',
+                                            fontSize: 'inherit',
+                                            lineHeight: 'inherit',
+                                            padding: '0',
+                                            margin: '0',
+                                            overflow: 'hidden',
+                                        }}
+                                    />
 
                                     <div className="mt-10 flex justify-center space-x-4">
                                         <button
@@ -542,7 +524,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     </div>
                                     <div className="flex flex-row">
                                         {(isEditing || messageIsStreaming) ? null : (
-                                            <ChatFollowups promptSelected={(p)=>{onSendPrompt(p)}}/>
+                                            <ChatFollowups promptSelected={(p) => { onSendPrompt(p) }} />
                                         )}
                                     </div>
                                 </div>
@@ -555,19 +537,19 @@ export const ChatMessage: FC<Props> = memo(({
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={copyOnClick}
                                     >
-                                        <IconCopy size={20}/>
+                                        <IconCopy size={20} />
                                     </button>
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={toggleEditing}
                                     >
-                                        <IconEdit size={20}/>
+                                        <IconEdit size={20} />
                                     </button>
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={handleDeleteMessage}
                                     >
-                                        <IconTrash size={20}/>
+                                        <IconTrash size={20} />
                                     </button>
                                 </div>
                             )}
@@ -576,126 +558,126 @@ export const ChatMessage: FC<Props> = memo(({
                         <div className="flex flex-col">
                             <div className="flex flex-row">
                                 {!isEditing && (
-                                <MemoizedReactMarkdown
-                                    className="prose dark:prose-invert flex-1"
-                                    remarkPlugins={[remarkGfm, remarkMath]}
-                                    // @ts-ignore
-                                    //rehypePlugins={[rehypeRaw]}
-                                    //rehypePlugins={[rehypeMathjax]}
-                                    components={{
+                                    <MemoizedReactMarkdown
+                                        className="prose dark:prose-invert flex-1"
+                                        remarkPlugins={[remarkGfm, remarkMath]}
                                         // @ts-ignore
-                                        Mermaid,
-                                        a({href, title, children, ...props}) {
-                                            return (
-                                                (href && href.startsWith("#")) ?
-                                                    <button
-                                                        className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-green-600"
-                                                        onClick={(e) => {
+                                        //rehypePlugins={[rehypeRaw]}
+                                        //rehypePlugins={[rehypeMathjax]}
+                                        components={{
+                                            // @ts-ignore
+                                            Mermaid,
+                                            a({ href, title, children, ...props }) {
+                                                return (
+                                                    (href && href.startsWith("#")) ?
+                                                        <button
+                                                            className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-green-600"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                handleCustomLinkClick(message, href || "#");
+                                                            }}>
+                                                            {children}
+                                                        </button> :
+                                                        <a href={href} onClick={(e) => {
                                                             e.preventDefault();
                                                             e.stopPropagation();
-                                                            handleCustomLinkClick(message, href || "#");
+                                                            handleCustomLinkClick(message, href || "/");
                                                         }}>
-                                                        {children}
-                                                    </button> :
-                                                    <a href={href} onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        handleCustomLinkClick(message, href || "/");
-                                                    }}>
-                                                        {children}
-                                                    </a>
-                                            );
-                                        },
-                                        code({node, inline, className, children, ...props}) {
-                                            if (children.length) {
-                                                if (children[0] == '▍') {
-                                                    return <span className="animate-pulse cursor-default mt-1">▍</span>
+                                                            {children}
+                                                        </a>
+                                                );
+                                            },
+                                            code({ node, inline, className, children, ...props }) {
+                                                if (children.length) {
+                                                    if (children[0] == '▍') {
+                                                        return <span className="animate-pulse cursor-default mt-1">▍</span>
+                                                    }
+
+                                                    children[0] = (children[0] as string).replace("`▍`", "▍")
                                                 }
 
-                                                children[0] = (children[0] as string).replace("`▍`", "▍")
-                                            }
-
-                                            const match = /language-(\w+)/.exec(className || '');
+                                                const match = /language-(\w+)/.exec(className || '');
 
 
-                                            if (!inline && match && match[1] === 'mermaid') {
-                                                //console.log("mermaid")
-                                                //@ts-ignore
-                                                return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1 }/>);
-                                            }
+                                                if (!inline && match && match[1] === 'mermaid') {
+                                                    //console.log("mermaid")
+                                                    //@ts-ignore
+                                                    return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1} />);
+                                                }
 
-                                            if (!inline && match && match[1] === 'toggle') {
-                                                //console.log("mermaid")
-                                                //@ts-ignore
-                                                return (<ExpansionComponent content={String(children)} title={"Source"}/>);
-                                            }
+                                                if (!inline && match && match[1] === 'toggle') {
+                                                    //console.log("mermaid")
+                                                    //@ts-ignore
+                                                    return (<ExpansionComponent content={String(children)} title={"Source"} />);
+                                                }
+                                                
+                                                console.log('inline:', inline, 'match:', match);
+                                                if (!inline && match && match[1] === 'vega') {
+                                                    //console.log("mermaid")
+                                                    //@ts-ignore
+                                                    return (<VegaVis chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1} />);
+                                                }
 
-                                            if (!inline && match && match[1] === 'vega') {
-                                                //console.log("mermaid")
-                                                //@ts-ignore
-                                                return (<VegaVis chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1 }/>);
-                                            }
-
-                                            return !inline ? (
-                                                <CodeBlock
-                                                    key={Math.random()}
-                                                    language={(match && match[1]) || ''}
-                                                    value={String(children).replace(/\n$/, '')}
-                                                    {...props}
-                                                />
-                                            ) : (
-                                                <code className={className} {...props}>
-                                                    {children}
-                                                </code>
-                                            );
-                                        },
-                                        table({children}) {
-                                            return (
-                                                <table
-                                                    className="border-collapse border border-black px-3 py-1 dark:border-white">
-                                                    {children}
-                                                </table>
-                                            );
-                                        },
-                                        th({children}) {
-                                            return (
-                                                <th className="break-words border border-black bg-gray-500 px-3 py-1 text-white dark:border-white">
-                                                    {children}
-                                                </th>
-                                            );
-                                        },
-                                        td({children}) {
-                                            return (
-                                                <td className="break-words border border-black px-3 py-1 dark:border-white">
-                                                    {children}
-                                                </td>
-                                            );
-                                        },
-                                    }}
-                                >
-                                    {`${message.content}${
-                                        messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1 ? '`▍`' : ''
-                                    }`}
-                                </MemoizedReactMarkdown>)}
+                                                return !inline ? (
+                                                    <CodeBlock
+                                                        key={Math.random()}
+                                                        language={(match && match[1]) || ''}
+                                                        value={String(children).replace(/\n$/, '')}
+                                                        {...props}
+                                                    />
+                                                ) : (
+                                                    <code className={className} {...props}>
+                                                        {children}
+                                                    </code>
+                                                );
+                                            },
+                                            table({ children }) {
+                                                return (
+                                                    <table
+                                                        className="border-collapse border border-black px-3 py-1 dark:border-white">
+                                                        {children}
+                                                    </table>
+                                                );
+                                            },
+                                            th({ children }) {
+                                                return (
+                                                    <th className="break-words border border-black bg-gray-500 px-3 py-1 text-white dark:border-white">
+                                                        {children}
+                                                    </th>
+                                                );
+                                            },
+                                            td({ children }) {
+                                                return (
+                                                    <td className="break-words border border-black px-3 py-1 dark:border-white">
+                                                        {children}
+                                                    </td>
+                                                );
+                                            },
+                                        }}
+                                    >
+                                        {`${message.content}${messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1 ? '`▍`' : ''
+                                            }`}
+                                    </MemoizedReactMarkdown>)}
                                 {isEditing && (
                                     <div className="flex w-full flex-col">
-                                    <textarea
-                                        ref={textareaRef}
-                                        className="w-full resize-none whitespace-pre-wrap border-none dark:bg-[#343541]"
-                                        value={messageContent}
-                                        onChange={handleInputChange}
-                                        onKeyDown={handlePressEnter}
-                                        onCompositionStart={() => setIsTyping(true)}
-                                        onCompositionEnd={() => setIsTyping(false)}
-                                        style={{
-                                            fontFamily: 'inherit',
-                                            fontSize: 'inherit',
-                                            lineHeight: 'inherit',
-                                            padding: '0',
-                                            margin: '0',
-                                            overflow: 'hidden',
-                                        }}
-                                    />
+                                        <textarea
+                                            ref={textareaRef}
+                                            className="w-full resize-none whitespace-pre-wrap border-none dark:bg-[#343541]"
+                                            value={messageContent}
+                                            onChange={handleInputChange}
+                                            onKeyDown={handlePressEnter}
+                                            onCompositionStart={() => setIsTyping(true)}
+                                            onCompositionEnd={() => setIsTyping(false)}
+                                            style={{
+                                                fontFamily: 'inherit',
+                                                fontSize: 'inherit',
+                                                lineHeight: 'inherit',
+                                                padding: '0',
+                                                margin: '0',
+                                                overflow: 'hidden',
+                                            }}
+                                        />
                                         <div className="mt-10 flex justify-center space-x-4">
                                             <button
                                                 className="h-[40px] rounded-md bg-blue-500 px-4 py-1 text-sm font-medium text-white enabled:hover:bg-blue-600 disabled:opacity-50"
@@ -729,29 +711,29 @@ export const ChatMessage: FC<Props> = memo(({
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={copyOnClick}
                                         >
-                                            <IconCopy size={20}/>
+                                            <IconCopy size={20} />
                                         </button>
                                     )}
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={toggleEditing}
                                     >
-                                        <IconEdit size={20}/>
+                                        <IconEdit size={20} />
                                     </button>
                                 </div>
                             </div>
                             {(messageIsStreaming || isEditing) ? null : (
-                                <ChatFollowups promptSelected={(p)=>{onSendPrompt(p)}}/>
+                                <ChatFollowups promptSelected={(p) => { onSendPrompt(p) }} />
                             )}
                             {(messageIsStreaming || isEditing) ? null : (
-                                <Stars starRating={message.data.rating} setStars={(r)=>{
-                                    if(onEdit) {
-                                        onEdit({...message, data: {...message.data, rating: r}});
+                                <Stars starRating={message.data.rating} setStars={(r) => {
+                                    if (onEdit) {
+                                        onEdit({ ...message, data: { ...message.data, rating: r } });
                                     }
-                                }}/>
+                                }} />
                             )}
                             {(messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1) ?
-                                <LoadingIcon/> : null}
+                                <LoadingIcon /> : null}
                         </div>
                     )}
                 </div>
