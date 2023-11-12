@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 
 import {useTranslation} from 'next-i18next';
 
-import { getHook } from "@/utils/app/chathooks";
+import {getHook} from "@/utils/app/chathooks";
 import {getEndpoint} from '@/utils/app/api';
 
 import {
@@ -44,7 +44,7 @@ import {v4 as uuidv4} from 'uuid';
 import Workflow, {
     executeJSWorkflow, replayJSWorkflow
 } from "@/utils/workflow/workflow";
-import { fillInTemplate } from "@/utils/app/prompts";
+import {fillInTemplate} from "@/utils/app/prompts";
 import {OpenAIModel, OpenAIModels} from "@/types/openai";
 import {Prompt} from "@/types/prompt";
 import {InputDocument, Status, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
@@ -109,7 +109,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [messageQueue, setMessageQueue] = useState<Message[]>([]);
 
 
-        const updateMessage = (selectedConversation:Conversation, updatedMessage:Message, updateIndex:number)=> {
+        const updateMessage = (selectedConversation: Conversation, updatedMessage: Message, updateIndex: number) => {
             let updatedConversation = {
                 ...selectedConversation,
             }
@@ -145,6 +145,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
             homeDispatch({field: 'conversations', value: updatedConversations});
             saveConversations(updatedConversations);
+
+            return updatedConversation;
         }
 
 
@@ -176,6 +178,159 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     field: 'selectedConversation',
                     value: updatedConversation,
                 });
+            }
+        }, [selectedConversation]);
+
+
+        const handleChatRewrite = useCallback(async (message: Message, updateIndex: number, toRewrite:string, prefix:string, suffix:string, feedback:string) => {
+            if (selectedConversation) {
+
+                homeDispatch({field: 'loading', value: true});
+                homeDispatch({field: 'messageIsStreaming', value: true});
+
+                const chatBody: ChatBody = {
+                    model: selectedConversation.model,
+                    messages: [...selectedConversation.messages.slice(0, -1),
+                        {
+                            ...message,
+                            content:
+                                "Prefix: Mary had a little lamb\n" +
+                                "ToEdit: It's fleece was white as snow\n" +
+                                "Suffix: Everywhere that Mary went, the lamb was sure to go." +
+                                "Feedback: Make the lamb's fleece black." +
+                                "Edited: It's fleece was black as coal\n" +
+                                "Prefix: Once upon a time in the faraway kingdom \n" +
+                                "ToEdit: There was a wise and just queen who loved her people deeply\n" +
+                                "Suffix: She ruled the kingdom with honesty and kindness, earning her people's love and respect." +
+                                "Feedback: Make the queen cruel and feared." +
+                                "Edited: There was a cruel and feared queen who ruled her people with an iron fist.\n" +
+                                "Prefix: The forest echoed with the songs of birds\n" +
+                                "ToEdit: Their sweet melodies filling the air like a symphony\n" +
+                                "Suffix: Their music was a constant reminder of the vibrant life that inhabited these woods." +
+                                "Feedback: Make the birdsong discordant and cacophonous." +
+                                "Edited: Their discordant, cacophonous cawing filled the air with unsettling noise.\n"+
+                                "Prefix: The spaceship was hurtling towards the unknown\n" +
+                                "ToEdit: The team inside were excited to be the first to explore new planets\n" +
+                                "Suffix: It was a historic moment for mankind, a testament to human ingenuity and ambition." +
+                                "Feedback: Make the team feel fearful and uncertain." +
+                                "Edited: The team inside were gripped by a fearful uncertainty as they faced the alien expanse.\n"+
+                                "Prefix: Research Report on Technological Innovations\n" +
+                                "ToEdit: 1. AI and Machine Learning: A comprehensive study of the integration of AI and Machine Learning in different sectors.\n" +
+                                "Suffix: 2. Blockchain Technology: An examination of the groundbreaking changes Blockchain has brought to the financial industry." +
+                                "Feedback: Add sub-points under AI and Machine Learning detailing its applications in healthcare and automated driving." +
+                                "Edited: \\n1.1 Healthcare: Analyzing how AI is improving diagnostics, patient care, and hospital management. \\n1.2 Automated Driving: Studying the influence of Machine Learning on the development of autonomous vehicles.\n"+
+                                "Prefix: function fibonacci(n){\\n   if(n<=0){\\n        return \"Input should be a positive integer.\";\\n    }else if(n==1){\\n        return [0, 1];\\n    }else{\n" +
+                                "ToEdit:  let seq = [0, 1];\\n        for(let i = 2; i < n; i++){\\n" +
+                                "Suffix:  seq[i] = seq[i-1] + seq[i-2];\\n        }\\n        return seq;\\n   }\\n}\n" +
+                                "Feedback: Instead of the Fibonacci sequence, make it generate a sequence of the form seq[i] = seq[i-1] * 2." +
+                                "Edited: let seq = [1];\\n        for(let i = 1; i < n; i++){\\n" +
+                                "Prefix: " +
+                                prefix.replaceAll("\n","\\n") +
+                                "\nToEdit: " +
+                                toRewrite.replaceAll("\n","\\n") +
+                                "\nSuffix: " +
+                                suffix.replaceAll("\n","\\n") +
+                                "Feedback: " + feedback.replaceAll("\n","\\n") +
+                                "\nEdited: "
+                        }
+                    ],
+                    key: apiKey,
+                    prompt:
+                        "You are a parsimonious editor who revises text, with no more or less than indicated. You are" +
+                        "going to revise just the parts of messages indicated. Do not repeat anything that" +
+                        "comes before or after the indicated part to edit. For outlines, pay close attention to the formatting" +
+                        " of the outline. If you are editing a list, make sure to keep the list formatting and " +
+                        "numbering continuity. Remember, what comes before and after will be grafted on. Pay attention" +
+                        " in an outline to what depth you are and only write from that depth down unless specifically" +
+                        " requested. Make the absolute minimum changes necessary to address the feedback. Don't escape " +
+                        "new lines in your output. NEVER EXPLAIN YOUR CHANGES."
+                    ,
+                    temperature: selectedConversation.temperature,
+                };
+
+                console.log("Chat Body", chatBody);
+
+                const controller = new AbortController();
+
+                try {
+                    const response = await sendChatRequest(chatBody, null, controller.signal);
+                    let updatedConversation = {...selectedConversation};
+
+                    if (!response.ok) {
+                        homeDispatch({field: 'loading', value: false});
+                        homeDispatch({field: 'messageIsStreaming', value: false});
+                        toast.error(response.statusText);
+                        return;
+                    }
+                    const data = response.body;
+                    if (!data) {
+                        homeDispatch({field: 'loading', value: false});
+                        homeDispatch({field: 'messageIsStreaming', value: false});
+                        return;
+                    }
+
+                    homeDispatch({field: 'loading', value: false});
+                    const reader = data.getReader();
+                    const decoder = new TextDecoder();
+                    let done = false;
+
+                    let text = '';
+                    while (!done) {
+                        if (stopConversationRef.current === true) {
+                            controller.abort();
+                            done = true;
+                            break;
+                        }
+                        const {value, done: doneReading} = await reader.read();
+                        done = doneReading;
+                        const chunkValue = decoder.decode(value);
+                        text += chunkValue;
+
+                        while (text.trim().startsWith("-")){
+                            text = text.trim().substring(text.indexOf("-") + 1);
+                        }
+
+                        while (text.trim().endsWith("-")){
+                            text = text.trim().substring(0,text.length - 1);
+                        }
+
+                        updatedConversation = updateMessage(selectedConversation, newMessage(
+                            {...message, content: prefix + text + suffix}),
+                            updateIndex);
+                    }
+
+                    homeDispatch({field: 'selectedConversation', value: updatedConversation});
+                    saveConversation(updatedConversation);
+
+                    const updatedConversations: Conversation[] = conversations.map(
+                        (conversation) => {
+                            if (conversation.id === selectedConversation.id) {
+                                return updatedConversation;
+                            }
+                            return conversation;
+                        },
+                    );
+                    if (updatedConversations.length === 0) {
+                        updatedConversations.push(updatedConversation);
+                    }
+                    homeDispatch({field: 'conversations', value: updatedConversations});
+                    saveConversations(updatedConversations);
+                    homeDispatch({field: 'messageIsStreaming', value: false});
+
+                    return prefix + text + suffix;
+
+                } catch (error: any) {
+                    if (error.name === 'AbortError') {
+                        // The request has been aborted. Clear out the queue.
+                        setMessageQueue([]);
+                    }
+
+                    homeDispatch({field: 'loading', value: false});
+                    homeDispatch({field: 'messageIsStreaming', value: false});
+
+                    throw error;
+                    // Handle any other errors, as required.
+                }
             }
         }, [selectedConversation]);
 
@@ -306,11 +461,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 }));
 
                                 const hook = getHook(selectedConversation.tags || []);
-                                if(hook){
+                                if (hook) {
 
                                     const result = hook.exec({}, selectedConversation, text);
 
-                                    let updatedText = (result && result.updatedContent)? result.updatedContent : text;
+                                    let updatedText = (result && result.updatedContent) ? result.updatedContent : text;
 
                                     const updatedMessages: Message[] =
                                         updatedConversation.messages.map((message, index) => {
@@ -415,7 +570,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         };
 
         const handlePromptSelect = (prompt: Prompt) => {
-            if(selectedConversation) {
+            if (selectedConversation) {
                 selectedConversation.promptTemplate = prompt;
 
                 const parsedVariables = parseEditableVariables(prompt.content);
@@ -445,7 +600,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }
 
-        const onLinkClick = (message:Message, href: string) => {
+        const onLinkClick = (message: Message, href: string) => {
 
             // This should all be refactored into a separate module at some point
             // ...should really be looking up the handler by category/action and passing
@@ -456,10 +611,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 let [category, action_path] = href.slice(1).split(":");
                 let [action, path] = action_path.split("/");
 
-                if(category === "workflow" && action === "run-workflow"){
+                if (category === "workflow" && action === "run-workflow") {
                     const code = findWorkflowPattern(message.content);
-                    if(code){
-                        const prompt:Prompt = {
+                    if (code) {
+                        const prompt: Prompt = {
                             id: uuidv4(),
                             folderId: null,
                             name: "Run Workflow",
@@ -481,23 +636,20 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         };
                         runPrompt(prompt);
                     }
-                }
-                else if(category === "chat"){
-                    if(action === "send"){
+                } else if (category === "chat") {
+                    if (action === "send") {
                         const content = path;
                         handleSend(newMessage({role: 'user', content: content}), 0, null);
-                    }
-                    else if(action === "template"){
+                    } else if (action === "template") {
                         const name = path;
 
                         const prompt = prompts.find((p) => p.name === name);
 
-                        if(prompt){
+                        if (prompt) {
                             runPrompt(prompt);
                         }
                     }
-                }
-                else {
+                } else {
                     handleCustomLinkClick(selectedConversationRef.current || selectedConversation, href,
                         {message: message, conversation: selectedConversation}
                     );
@@ -505,22 +657,22 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }
 
-        const getWorkflowDefinitionVariables = (workflowDefinition:WorkflowDefinition) => {
+        const getWorkflowDefinitionVariables = (workflowDefinition: WorkflowDefinition) => {
             let variables = Object.entries(workflowDefinition.inputs.parameters)
                 .map(([name, param]) => {
                     return name;
                 });
 
             let documentVariables = workflowDefinition.inputs.documents.map((doc) => {
-                return doc.name+" :file";
+                return doc.name + " :file";
             });
 
-            return [...documentVariables,...variables];
+            return [...documentVariables, ...variables];
         }
 
         const handleJsWorkflow = useCallback(async (message: Message, updatedVariables: string[], documents: AttachedDocument[] | null) => {
 
-            if(!featureFlags.workflowRun){
+            if (!featureFlags.workflowRun) {
                 alert("Running workflows is currently disabled.");
                 return;
             }
@@ -528,14 +680,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (selectedConversation) {
 
                 const workflowId = uuidv4();
-                let statusHistory:Status[] = [];
+                let statusHistory: Status[] = [];
 
                 const statusLogger = (status: Status | null) => {
 
-                    if(status){
+                    if (status) {
                         statusHistory.push(status);
-                    }
-                    else {
+                    } else {
                         statusHistory = [];
                     }
 
@@ -590,7 +741,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 await homeDispatch({field: 'loading', value: true});
                 await homeDispatch({field: 'messageIsStreaming', value: true});
 
-                const context:WorkflowContext = {
+                const context: WorkflowContext = {
                     inputs: {
                         documents: documents || [],
                         parameters: {},
@@ -609,23 +760,26 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 let runner = (isReplay) ?
                     () => {
 
-                    console.log("Filling in variables...");
-                    code = fillInTemplate(code, variables, updatedVariables, documents, false);
-                    console.log("Replaying workflow :: ", code);
+                        console.log("Filling in variables...");
+                        code = fillInTemplate(code, variables, updatedVariables, documents, false);
+                        console.log("Replaying workflow :: ", code);
 
-                    return replayJSWorkflow(apiKey, code, tools, stopper, statusLogger, context, (responseText) => {
-                        statusLogger(null);
+                        return replayJSWorkflow(apiKey, code, tools, stopper, statusLogger, context, (responseText) => {
+                            statusLogger(null);
 
-                        updateCurrentMessage(responseText, {workflow: workflowId, type: "workflow:code"});
-                    });}
+                            updateCurrentMessage(responseText, {workflow: workflowId, type: "workflow:code"});
+                        });
+                    }
                     :
-                    () => {return executeJSWorkflow(apiKey, message.content, tools, stopper, statusLogger, context, (responseText) => {
-                        responseText = "```javascript\n" + responseText;
+                    () => {
+                        return executeJSWorkflow(apiKey, message.content, tools, stopper, statusLogger, context, (responseText) => {
+                            responseText = "```javascript\n" + responseText;
 
-                        statusLogger(null);
+                            statusLogger(null);
 
-                        updateCurrentMessage(responseText, {workflow: workflowId, type: "workflow:code"});
-                    });};
+                            updateCurrentMessage(responseText, {workflow: workflowId, type: "workflow:code"});
+                        });
+                    };
 
 
                 // @ts-ignore
@@ -660,13 +814,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 // @ts-ignore
                                 inputs: result.inputs,
                                 workflow: workflowId,
-                                workflowCode:workflowCode,
+                                workflowCode: workflowCode,
                                 type: "workflow:result"
                             }
                         }),
                     ];
 
-                    if(!isReplay){
+                    if (!isReplay) {
                         resultMessages.push(
                             newMessage({
                                 role: "assistant",
@@ -728,10 +882,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (result == null) {
                 return "The workflow didn't produce any results.";
             } else if (result.type && result.type == "text") {
-                if(typeof result.data === "string") {
+                if (typeof result.data === "string") {
                     return result.data;
-                }
-                else {
+                } else {
                     return "```json\n" + JSON.stringify(result.data, null, 2) + "\n```";
                 }
             } else if (result.type && result.type == "code" && typeof result.data === "string") {
@@ -740,7 +893,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 return "```javascript\n\n" + JSON.stringify(result.data) + "\n\n```";
             } else if (result.type && result.type == "object") {
                 return "```json\n" + JSON.stringify(result.data, null, 2) + "\n```";
-            } else if (result.type && Array.isArray(result.data) && result.type == "table" ) {
+            } else if (result.type && Array.isArray(result.data) && result.type == "table") {
                 return generateMarkdownTable(result.data);
             } else {
                 return "```json\n" + JSON.stringify(result.data, null, 2) + "\n```";
@@ -760,13 +913,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
 
-        const handleSubmit = (updatedVariables: string[], documents: AttachedDocument[] | null, promptTemplate?:Prompt) => {
+        const handleSubmit = (updatedVariables: string[], documents: AttachedDocument[] | null, promptTemplate?: Prompt) => {
 
             let templateData = promptTemplate || selectedConversation?.promptTemplate;
 
             // console.log("Template Data", templateData);
 
-            if(templateData) {
+            if (templateData) {
                 let template = templateData?.content;
                 const variables = parseEditableVariables(template);
 
@@ -798,14 +951,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         };
 
-        const handleUpdateModel = useCallback((model:OpenAIModel)=>{
-            if(selectedConversation) {
+        const handleUpdateModel = useCallback((model: OpenAIModel) => {
+            if (selectedConversation) {
                 handleUpdateConversation(selectedConversation, {
                     key: 'model',
                     value: model,
                 });
             }
-        },[selectedConversation]);
+        }, [selectedConversation]);
 
         const handleApiKeyChange = useCallback(
             (apiKey: string) => {
@@ -883,7 +1036,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 (c) => c.id !== conversation.id,
             );
 
-            homeDispatch({ field: 'conversations', value: updatedConversations });
+            homeDispatch({field: 'conversations', value: updatedConversations});
 
             saveConversations(updatedConversations);
 
@@ -913,8 +1066,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         };
 
-        const handlePromptTemplateDialogCancel = (canceled:boolean) => {
-            if(canceled) {
+        const handlePromptTemplateDialogCancel = (canceled: boolean) => {
+            if (canceled) {
                 if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
                     handleDeleteConversation(selectedConversation);
                 }
@@ -928,8 +1081,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 //alert("Prompt Template");
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
                 setIsPromptTemplateDialogVisible(true);
-            }
-            else if (selectedConversation && selectedConversation.workflowDefinition && selectedConversation.messages.length == 0) {
+            } else if (selectedConversation && selectedConversation.workflowDefinition && selectedConversation.messages.length == 0) {
                 //alert("Prompt Template");
                 const workflowVariables = Object.entries(selectedConversation.workflowDefinition.inputs.parameters)
                     .map(([k, v]) => k);
@@ -1092,8 +1244,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     {/* eslint-disable-next-line react/jsx-no-undef */}
                                     <ShareAnythingModal
                                         open={isShareDialogVisible}
-                                        onCancel={()=>{setIsShareDialogVisible(false)}}
-                                        onShare={()=>{
+                                        onCancel={() => {
+                                            setIsShareDialogVisible(false)
+                                        }}
+                                        onShare={() => {
                                             setIsShareDialogVisible(false);
                                         }}
                                         includePrompts={false}
@@ -1119,7 +1273,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         </button>
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
-                                            onClick={()=>setIsShareDialogVisible(true)}
+                                            onClick={() => setIsShareDialogVisible(true)}
                                         >
                                             <IconShare size={18}/>
                                         </button>
@@ -1142,7 +1296,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                             <TagsList tags={selectedConversation?.tags || []} setTags={
                                                 (tags) => {
-                                                    if(selectedConversation) {
+                                                    if (selectedConversation) {
                                                         handleUpdateConversation(selectedConversation, {
                                                             key: 'tags',
                                                             value: tags,
@@ -1161,6 +1315,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             key={index}
                                             message={message}
                                             messageIndex={index}
+                                            onChatRewrite={handleChatRewrite}
                                             onSend={(message) => {
                                                 setCurrentMessage(message[0]);
                                                 //handleSend(message[0], 0, null);
@@ -1179,8 +1334,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 // );
                                                 if (editedMessage.role != "assistant") {
                                                     routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
-                                                }
-                                                else {
+                                                } else {
                                                     console.log("updateMessage");
                                                     updateMessage(selectedConversation, editedMessage, index);
                                                 }
@@ -1201,12 +1355,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             prompt={promptTemplate}
                                             handleUpdateModel={handleUpdateModel}
                                             variables={parseEditableVariables(promptTemplate.content)}
-                                            onSubmit={(updatedVariables, documents, prompt)=>{
+                                            onSubmit={(updatedVariables, documents, prompt) => {
                                                 handleSubmit(updatedVariables, documents, prompt);
                                             }}
-                                            onClose={(e)=>{
+                                            onClose={(e) => {
                                                 setIsPromptTemplateDialogVisible(false);
-                                                }}
+                                            }}
                                         />
                                     )}
                                 </>

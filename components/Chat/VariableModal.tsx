@@ -18,6 +18,7 @@ interface Props {
     handleUpdateModel: (model: OpenAIModel) => void;
     onSubmit: (updatedVariables: string[], documents: AttachedDocument[] | null, prompt?:Prompt) => void;
     onClose: (canceled:boolean) => void;
+    showModelSelector?: boolean;
 }
 
 const isRequired = (variable: string) => {
@@ -90,6 +91,7 @@ export const VariableModal: FC<Props> = ({
                                              variables,
                                              onSubmit,
                                              onClose,
+                                             showModelSelector = true,
                                          }) => {
 
     const {
@@ -471,15 +473,17 @@ export const VariableModal: FC<Props> = ({
                     </div>
                 ))}
 
+                {showModelSelector && models && (
                 <div className="mb-2 text-sm font-bold text-neutral-200">
                     Model
                 </div>
+                )}
 
-                {models && (
+                {showModelSelector && models && (
                     <div className="flex items-center">
                         <select
                             className="rounded border-gray-300 text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
-                            value={selectedModel.id}
+                            value={selectedModel && selectedModel.id || ""}
                             onChange={(e) => handleModelChange(e.target.value)}
                         >
                             {models.map((model) => (

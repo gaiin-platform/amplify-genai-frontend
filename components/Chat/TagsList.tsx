@@ -43,7 +43,7 @@ export const TagsList: FC<Props> = (
                 {tags?.map((tag, i) => (
                     <div
                         key={i}
-                        className="flex items-center justify-between bg-white rounded-md px-1 py-1 mr-2 shadow-lg"
+                        className="flex items-center justify-between border bg-white dark:bg-neutral-200 rounded-md px-1 py-1 mr-2 shadow-lg"
                         style={{ maxWidth: '200px' }}
                     >
                         <button
