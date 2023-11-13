@@ -440,7 +440,7 @@ export const ChatMessage: FC<Props> = memo(({
                                                 // Calculate mouse position relative to the div
                                                 const x = event.clientX - (rect?.left ?? 0);
                                                 const y = event.clientY - (rect?.top ?? 0);
-                                                
+
                                                 setPopupStyle({
                                                     cursor: 'pointer',
                                                     display: (valid)? 'block' : 'none',
@@ -460,7 +460,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             message={message}
                                             selectedConversation={selectedConversation}
                                             handleCustomLinkClick={handleCustomLinkClick}
-                                            handleTextHighlight={handleTextHighlight}/>
+                                            handleTextHighlight={()=>{}}/>
                                         {editSelection.length > 0 && (
                                             <div style={popupStyle} className="bg-neutral-200 dark:bg-neutral-600 dark:text-white rounded">
                                                 <button
