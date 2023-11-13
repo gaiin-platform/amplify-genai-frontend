@@ -8,18 +8,30 @@ import Folder from '@/components/Folder';
 
 import { ConversationComponent } from './Conversation';
 import ChatbarContext from "@/components/Chatbar/Chatbar.context";
+import {Conversation} from "@/types/chat";
 
 interface Props {
   searchTerm: string;
+  conversations: Conversation[];
 }
 
-export const ChatFolders = ({ searchTerm }: Props) => {
+export const ChatFolders = ({ searchTerm, conversations }: Props) => {
   const {
-    state: { folders, conversations, selectedConversation },
+    state: { folders, selectedConversation },
     handleUpdateConversation,
   } = useContext(HomeContext);
 
   const { handleShareFolder } = useContext(ChatbarContext);
+
+
+    const filteredFolders = searchTerm ?
+        folders.filter((folder:FolderInterface) => {
+          return conversations.some((conversation) => conversation.folderId === folder.id);
+        }) :
+        folders;
+
+
+
 
   const handleDrop = (e: any, folder: FolderInterface) => {
     if (e.dataTransfer) {
@@ -50,7 +62,7 @@ export const ChatFolders = ({ searchTerm }: Props) => {
 
   return (
     <div className="flex w-full flex-col pt-2">
-      {folders
+      {filteredFolders
         .filter((folder) => folder.type === 'chat')
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((folder, index) => (

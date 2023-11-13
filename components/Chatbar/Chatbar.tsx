@@ -130,17 +130,23 @@ export const Chatbar = () => {
 
   useEffect(() => {
     if (searchTerm) {
-      chatDispatch({
-        field: 'filteredConversations',
-        value: conversations.filter((conversation) => {
-          const searchable =
+
+      const results = conversations.filter((conversation) => {
+        const searchable =
             conversation.name.toLocaleLowerCase() +
             ' ' +
             conversation.messages.map((message) => message.content).join(' ');
-          return searchable.toLowerCase().includes(searchTerm.toLowerCase());
-        }),
+        return searchable.toLowerCase().includes(searchTerm.toLowerCase());
       });
+      console.log("Search result count:", results.length);
+
+      chatDispatch({
+        field: 'filteredConversations',
+        value: results,}
+      );
     } else {
+      console.log("Resetting search.");
+
       chatDispatch({
         field: 'filteredConversations',
         value: conversations,
@@ -167,7 +173,7 @@ export const Chatbar = () => {
         isOpen={showChatbar}
         addItemButtonTitle={t('New Chat')}
         itemComponent={<Conversations conversations={filteredConversations} />}
-        folderComponent={<ChatFolders searchTerm={searchTerm} />}
+        folderComponent={<ChatFolders searchTerm={searchTerm} conversations={filteredConversations}/>}
         items={filteredConversations}
         searchTerm={searchTerm}
         handleSearchTerm={(searchTerm: string) =>
