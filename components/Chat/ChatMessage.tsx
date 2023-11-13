@@ -211,17 +211,50 @@ export const ChatMessage: FC<Props> = memo(({
         });
     };
 
-    const handleTextHighlight = (event: any) => {
-
-        const selection = window.getSelection();
-
+    const handleTextHighlight = (selection: string) => {
         if (selection && selection.toString().length > 0) {
-            console.log("Selection: " + selection.toString());
             setEditSelection(selection.toString());
         } else {
             setEditSelection("");
         }
     };
+
+    const checkTextHighlight = () => {
+        const selection = document.getSelection();
+        if (!selection || selection.toString().length === 0){
+            setEditSelection("");
+            return false;
+        }
+
+        return true;
+    }
+
+    useEffect(() => {
+        function handleSelectionChange() {
+            const selection = document.getSelection();
+            if (selection && selection.rangeCount > 0) {
+                // process selection
+                handleTextHighlight(selection.toString());
+            }
+        }
+
+        // Fires whenever the document's selection changes
+        document.onselectionchange = handleSelectionChange;
+
+        if(markdownComponentRef.current) {
+            markdownComponentRef.current.onmouseup = handleSelectionChange;
+        }
+
+        return () => {
+            // Cleanup
+            if(markdownComponentRef.current) {
+                markdownComponentRef.current.onmouseup = null;
+            }
+            document.onselectionchange = null;
+        }
+
+    }, []);
+
 
     const handleRightClick = (event: any) => {
         // Implement your logic for right-click event handling
@@ -292,25 +325,6 @@ export const ChatMessage: FC<Props> = memo(({
         }
 
     }
-
-    useEffect(() => {
-        function handleSelectionChange() {
-            const selection = document.getSelection();
-            if (selection && selection.rangeCount > 0) {
-                // process selection
-                handleTextHighlight(selection);
-            }
-        }
-
-        // Fires whenever the document's selection changes
-        document.onselectionchange = handleSelectionChange;
-
-        return () => {
-            // Cleanup
-            document.onselectionchange = null;
-        }
-
-    }, []);
 
 
     useEffect(() => {
@@ -422,13 +436,14 @@ export const ChatMessage: FC<Props> = memo(({
                                             onMouseMove={event => {
                                                 const rect = divRef.current?.getBoundingClientRect();
 
+                                                const valid = checkTextHighlight();
                                                 // Calculate mouse position relative to the div
                                                 const x = event.clientX - (rect?.left ?? 0);
                                                 const y = event.clientY - (rect?.top ?? 0);
-
+                                                
                                                 setPopupStyle({
                                                     cursor: 'pointer',
-                                                    display: 'block',
+                                                    display: (valid)? 'block' : 'none',
                                                     position: 'absolute',
                                                     marginLeft: `-30px`,
                                                     marginTop: `${y - 25}px`,
