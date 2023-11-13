@@ -49,13 +49,13 @@ const VegaVis: React.FC<VegaProps> = ({ chart, currentMessage }) => {
             // Parse the JSON string only once and handle errors
             const parsedChart = JSON.parse(chart);
 
-            parsedChart.autosize = { type: 'fit', contains: 'padding' };
+            //parsedChart.autosize = { type: 'fit', contains: 'padding' };
 
-            return <VegaLite spec={parsedChart} actions={false} />;
+            return <VegaLite width={550} height={450} spec={parsedChart} actions={false} />;
         } catch (parseError) {
-            console.error(parseError);
-            setError('Failed to parse the Vega specification. Check the JSON format.');
-            return <div>{error}</div>;
+            //console.error(parseError);
+            //setError('Failed to parse the Vega specification. Check the JSON format.');
+            return <div>Loading...</div>;
         }
     };
 
@@ -65,14 +65,12 @@ const VegaVis: React.FC<VegaProps> = ({ chart, currentMessage }) => {
                 <div>{error}</div>
             ) : (
                 // flex container with no specified width, allowing it to grow with the content
-                <div style={{ display: 'flex', justifyContent: 'center', background: 'black', padding: '10px' }}>
-                    {messageIsStreaming && currentMessage ? (
-                        <div>Loading...</div>
-                    ) : (
-                        <div style={{ display: 'inline-flex', justifyContent: 'center' }}>
-                            {renderVisualization()}
-                        </div>
+                // <div style={{ display: 'flex', justifyContent: 'center', background: 'black', padding: '10px' }}>
+                <div className="p-0 m-0 w-full">
+                    {(
+                        renderVisualization()
                     )}
+                 {/*</div>*/}
                 </div>
             )}
         </div>

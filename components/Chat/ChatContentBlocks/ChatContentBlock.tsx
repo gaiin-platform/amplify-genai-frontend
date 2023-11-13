@@ -67,8 +67,7 @@ const ChatContentBlock: React.FC<Props> = (
                 children[0] = (children[0] as string).replace("`▍`", "▍")
             }
 
-            const match = /language-(\w+)/.exec(className || '');
-
+            let match = /language-(\w+)/.exec(className || '');
 
             if (!inline && match && match[1] === 'mermaid') {
                 //console.log("mermaid")
@@ -82,7 +81,7 @@ const ChatContentBlock: React.FC<Props> = (
                 return (<ExpansionComponent content={String(children)} title={"Source"}/>);
             }
 
-            if (!inline && match && match[1] === 'vega') {
+            if (!inline && match && (match[1].toLowerCase() === 'vega' || match[1].toLowerCase() === 'vegalite')) {
                 //console.log("mermaid")
                 //@ts-ignore
                 return (<VegaVis chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1} />);
