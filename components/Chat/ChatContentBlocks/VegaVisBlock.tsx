@@ -3,7 +3,7 @@ import HomeContext from "@/pages/api/home/home.context";
 import {IconZoomIn} from "@tabler/icons-react";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
-
+import {VegaLite} from "react-vega";
 
 const animate = keyframes`
   0% {
@@ -26,74 +26,57 @@ interface VegaProps {
 }
 
 
-const VegaVis: React.FC<VegaProps> = ({chart, currentMessage}) => {
-    const [svgDataUrl, setSvgDataUrl] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [height, setHeight] = useState<number>(500);
+const VegaVis: React.FC<VegaProps> = ({ chart, currentMessage }) => {
 
-    const {
-        state: {messageIsStreaming},
-    } = useContext(HomeContext);
+    const [error, setError] = useState<string | null>(null);
+    const { state: { messageIsStreaming } } = useContext(HomeContext);
 
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-
-            if (!messageIsStreaming) {
-                try {
-
-
-                } catch (err) {
-                    console.log(err);
-                    //showLoading();
-                }
+        // Effect for initializing or updating the visualization when 'chart' changes
+        if (typeof window !== 'undefined' && !messageIsStreaming) {
+            try {
+                // Test if 'chart' can be parsed as JSON and catch any errors
+                JSON.parse(chart);
+            } catch (err) {
+                console.error(err);
+                setError('Failed to parse Vega specification. Please check the JSON format.');
             }
         }
-    }, [chart]);
+    }, [chart, messageIsStreaming]); // Rerun effect if 'chart' or 'messageIsStreaming' changes
 
-    const spec = {
-        "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
-        "data": {
-            "values": [
-                {"Category": "A", "Amount": 28},
-                {"Category": "B", "Amount": 55},
-                {"Category": "C", "Amount": 43},
-                {"Category": "D", "Amount": 91},
-                {"Category": "E", "Amount": 81},
-                {"Category": "F", "Amount": 53},
-                {"Category": "G", "Amount": 19},
-                {"Category": "H", "Amount": 87}
-            ]
-        },
-        "mark": "bar",
-        "encoding": {
-            "x": {"field": "Category", "type": "ordinal"},
-            "y": {"field": "Amount", "type": "quantitative"}
+    const renderVisualization = () => {
+        try {
+            // Parse the JSON string only once and handle errors
+            const parsedChart = JSON.parse(chart);
+
+            parsedChart.autosize = { type: 'fit', contains: 'padding' };
+
+            return <VegaLite spec={parsedChart} actions={false} />;
+        } catch (parseError) {
+            console.error(parseError);
+            setError('Failed to parse the Vega specification. Check the JSON format.');
+            return <div>{error}</div>;
         }
     };
 
-    // @ts-ignore
-    return error ?
-        <div>{error}</div> :
-        <div style={{maxHeight:"450px"}}>
-            <div className="flex items-center space-x-4">
-                <IconZoomIn/>
-                <input
-                    type="range"
-                    min="250"
-                    max="4000"
-                    value={height}
-                    onChange={(e)=>{ // @ts-ignore
-                        setHeight(e.target.value)}}
-                />
-            </div>
-            <div style={{height: `${height + 20}px`, width: `${2 * height}px`, overflow:"auto"}}>
-                {messageIsStreaming && currentMessage ? <div><LoadingIcon/> Loading...</div> :
-                    // @ts-ignore
-                    // <Vega spec={spec}/>
-                    <div>Loading...</div>
-                }
-            </div>
-        </div>;
+    return (
+        <div>
+            {error ? (
+                <div>{error}</div>
+            ) : (
+                // flex container with no specified width, allowing it to grow with the content
+                <div style={{ display: 'flex', justifyContent: 'center', background: 'black', padding: '10px' }}>
+                    {messageIsStreaming && currentMessage ? (
+                        <div>Loading...</div>
+                    ) : (
+                        <div style={{ display: 'inline-flex', justifyContent: 'center' }}>
+                            {renderVisualization()}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
 };
 
 export default VegaVis;

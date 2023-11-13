@@ -50,6 +50,8 @@ import {WorkflowDefinition} from "@/types/workflow";
 import {saveWorkflowDefinitions} from "@/utils/app/workflows";
 import {findWorkflowPattern} from "@/utils/workflow/aiflow";
 import SharedItemsList from "@/components/Share/SharedItemList";
+import {Features} from "@/types/features";
+import {saveFeatures} from "@/utils/app/features";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -129,6 +131,18 @@ const Home = ({
         });
 
         saveConversation(conversation);
+    };
+
+    // Feature OPERATIONS  --------------------------------------------
+
+    const handleToggleFeature = (name: string) => {
+        const features = {...contextValue.state.featureFlags};
+        features[name] = !features[name];
+
+        dispatch({field: 'featureFlags', value: features});
+        saveFeatures(features);
+
+        return features;
     };
 
     // FOLDER OPERATIONS  --------------------------------------------

@@ -6,31 +6,24 @@ import {
     IconTrash,
     IconWriting,
     IconUser,
-    IconZoomIn,
 } from '@tabler/icons-react';
-import {FiCommand} from "react-icons/fi";
-import styled, {keyframes} from 'styled-components';
-import {FC, memo, useContext, useEffect, useLayoutEffect, useRef, useState} from 'react';
-
-import {useTranslation} from 'next-i18next';
-
-import {updateConversation} from '@/utils/app/conversation';
-
-import {ChatBody, Message, newMessage} from '@/types/chat';
-
-import {useChatService} from "@/hooks/useChatService";
-
+import { FiCommand } from "react-icons/fi";
+import styled, { keyframes } from 'styled-components';
+import { FC, memo, useContext, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'next-i18next';
+import { updateConversation } from '@/utils/app/conversation';
+import { Message } from '@/types/chat';
+import { useChatService } from "@/hooks/useChatService";
 import HomeContext from '@/pages/api/home/home.context';
-
 import ChatFollowups from './ChatFollowups';
-
-import {Prompt} from "@/types/prompt";
-import {Stars} from "@/components/Chat/Stars";
 import {VariableModal} from "@/components/Chat/VariableModal";
 import ChatContentBlock from "@/components/Chat/ChatContentBlocks/ChatContentBlock";
 import UserMessageEditor from "@/components/Chat/ChatContentBlocks/UserMessageEditor";
 import AssistantMessageEditor from "@/components/Chat/ChatContentBlocks/AssistantMessageEditor";
 import {Style} from "css-to-react-native";
+import { Prompt } from "@/types/prompt";
+import { Stars } from "@/components/Chat/Stars";
+
 
 
 export interface Props {
@@ -70,13 +63,12 @@ export const ChatMessage: FC<Props> = memo(({
     const {t} = useTranslation('chat');
 
     const {
-        state: {selectedConversation, conversations, currentMessage, messageIsStreaming},
+        state: { selectedConversation, conversations, currentMessage, messageIsStreaming },
         dispatch: homeDispatch,
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
 
-
-    const {sendChatRequest} = useChatService();
+    const { sendChatRequest } = useChatService();
 
     const markdownComponentRef = useRef<HTMLDivElement>(null);
 
@@ -141,7 +133,7 @@ export const ChatMessage: FC<Props> = memo(({
 
         if (message.content != messageContent) {
             if (selectedConversation && onEdit) {
-                onEdit({...message, content: messageContent});
+                onEdit({ ...message, content: messageContent });
             }
         }
         setIsEditing(false);
@@ -150,7 +142,7 @@ export const ChatMessage: FC<Props> = memo(({
     const handleDeleteMessage = () => {
         if (!selectedConversation) return;
 
-        const {messages} = selectedConversation;
+        const { messages } = selectedConversation;
         const findIndex = messages.findIndex((elm) => elm === message);
 
         if (findIndex < 0) return;
@@ -163,6 +155,7 @@ export const ChatMessage: FC<Props> = memo(({
                 break;
             }
         }
+
         if (nextUserIndex === messages.length - 1) {
             nextUserIndex = messages.length;
         }
@@ -185,12 +178,12 @@ export const ChatMessage: FC<Props> = memo(({
             messages,
         };
 
-        const {single, all} = updateConversation(
+        const { single, all } = updateConversation(
             updatedConversation,
             conversations,
         );
-        homeDispatch({field: 'selectedConversation', value: single});
-        homeDispatch({field: 'conversations', value: all});
+        homeDispatch({ field: 'selectedConversation', value: single });
+        homeDispatch({ field: 'conversations', value: all });
     };
 
     const handlePressEnter = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -335,12 +328,11 @@ export const ChatMessage: FC<Props> = memo(({
     // @ts-ignore
     return (
         <div
-            className={`group md:px-4 ${
-                message.role === 'assistant'
-                    ? 'border-b border-black/10 bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100'
-                    : 'border-b border-black/10 bg-white text-gray-800 dark:border-gray-900/50 dark:bg-[#343541] dark:text-gray-100'
-            }`}
-            style={{overflowWrap: 'anywhere'}}
+            className={`group md:px-4 ${message.role === 'assistant'
+                ? 'border-b border-black/10 bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100'
+                : 'border-b border-black/10 bg-white text-gray-800 dark:border-gray-900/50 dark:bg-[#343541] dark:text-gray-100'
+                }`}
+            style={{ overflowWrap: 'anywhere' }}
         >
 
             {editModalVisible && (
@@ -366,9 +358,9 @@ export const ChatMessage: FC<Props> = memo(({
                 className="relative m-auto flex p-4 text-base md:max-w-2xl md:gap-6 md:py-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
                 <div className="min-w-[40px] text-right font-bold">
                     {message.role === 'assistant' ? (
-                        <IconRobot size={30}/>
+                        <IconRobot size={30} />
                     ) : (
-                        <IconUser size={30}/>
+                        <IconUser size={30} />
                     )}
                 </div>
 
@@ -376,6 +368,7 @@ export const ChatMessage: FC<Props> = memo(({
                     {message.role === 'user' ? (
                         <div className="flex w-full">
                             {isEditing ? (
+
                                 <UserMessageEditor
                                     messageIsStreaming={messageIsStreaming}
                                     messageIndex={messageIndex}
@@ -386,6 +379,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     isEditing={isEditing}
                                     messageContent={messageContent}
                                     setMessageContent={setMessageContent}/>
+
                             ) : (
                                 <div className="flex flex-col">
                                     <div className="flex flex-row">
@@ -395,9 +389,11 @@ export const ChatMessage: FC<Props> = memo(({
                                     </div>
                                     <div className="flex flex-row">
                                         {(isEditing || messageIsStreaming) ? null : (
+
                                             <ChatFollowups promptSelected={(p) => {
                                                 onSendPrompt(p)
                                             }}/>
+
                                         )}
                                     </div>
                                 </div>
@@ -410,19 +406,19 @@ export const ChatMessage: FC<Props> = memo(({
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={copyOnClick}
                                     >
-                                        <IconCopy size={20}/>
+                                        <IconCopy size={20} />
                                     </button>
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={toggleEditing}
                                     >
-                                        <IconEdit size={20}/>
+                                        <IconEdit size={20} />
                                     </button>
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={handleDeleteMessage}
                                     >
-                                        <IconTrash size={20}/>
+                                        <IconTrash size={20} />
                                     </button>
                                 </div>
                             )}
@@ -503,14 +499,14 @@ export const ChatMessage: FC<Props> = memo(({
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={copyOnClick}
                                         >
-                                            <IconCopy size={20}/>
+                                            <IconCopy size={20} />
                                         </button>
                                     )}
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={toggleEditing}
                                     >
-                                        <IconEdit size={20}/>
+                                        <IconEdit size={20} />
                                     </button>
 
 
@@ -539,10 +535,10 @@ export const ChatMessage: FC<Props> = memo(({
                                     if (onEdit) {
                                         onEdit({...message, data: {...message.data, rating: r}});
                                     }
-                                }}/>
+                                }} />
                             )}
                             {(messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1) ?
-                                <LoadingIcon/> : null}
+                                <LoadingIcon /> : null}
                         </div>
                     )}
                 </div>

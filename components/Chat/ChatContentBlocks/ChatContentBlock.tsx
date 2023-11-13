@@ -85,7 +85,7 @@ const ChatContentBlock: React.FC<Props> = (
             if (!inline && match && match[1] === 'vega') {
                 //console.log("mermaid")
                 //@ts-ignore
-                return (<VegaVis chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1 }/>);
+                return (<VegaVis chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1} />);
             }
 
             return !inline ? (
