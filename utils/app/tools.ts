@@ -629,14 +629,14 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
             description:"getFolders()=>FolderInterface[] // Get all folders in my workspace in the format " +
                 "interface FolderInterface { id: string; name: string; type: FolderType; }",
             exec: () => {
-                return conversations;
+                return folders;
             }
         },
         getPromptTemplates: {
             description:"getPromptTemplates()=>PromptTemplate[] // Get all prompt templates in my workspace in the format " +
                 "export interface Prompt { id: string; name: string; description: string; content: string; folderId: string | null; type: string | undefined;  }",
             exec: () => {
-                return conversations;
+                return prompts;
             }
         },
         promptLLMForJson: {
