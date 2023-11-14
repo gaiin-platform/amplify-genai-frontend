@@ -516,16 +516,22 @@ const generateOutline = async (promptLLMFull:any, topic:string, maxDepth:number,
 // @ts-ignore
 export const getToolMetadata = ({apiKey, stopper, context, requestedParameters, requestedDocuments, statusLogger}) => {
     return {
+        log: {
+            description: "(...args:any)=>void // Saves debug information for later inspection.",
+        },
+        getParameter: {
+            description: "(name:string, type:\"string|options\")=>string // Get a parameter from the workflow settings. Options can be specified as a string like \"options(value=['option1','option2',....])\"",
+        },
         getConversations: {
-            description:"getConversations()=>Conversation[] // Get all conversations in my workspace in the format " +
+            description:"()=>Conversation[] // Get all conversations in my workspace in the format " +
                 "Conversation { id: string; name: string; messages: Message[]; model: OpenAIModel; prompt: string; temperature: number; folderId: string | null; promptTemplate: Prompt | null; tags?: string[]; }, export interface Message { role: Role; content: string; id: string; type: string | undefined; data: any | undefined; }.",
         },
         getFolders: {
-            description:"getFolders()=>FolderInterface[] // Get all folders in my workspace in the format " +
+            description:"()=>FolderInterface[] // Get all folders in my workspace in the format " +
                 "interface FolderInterface { id: string; name: string; type: FolderType; }",
         },
         getPromptTemplates: {
-            description:"getPromptTemplates()=>PromptTemplate[] // Get all prompt templates in my workspace in the format " +
+            description:"()=>PromptTemplate[] // Get all prompt templates in my workspace in the format " +
                 "export interface Prompt { id: string; name: string; description: string; content: string; folderId: string | null; type: string | undefined;  }",
         },
         promptLLM: {
@@ -540,7 +546,7 @@ export const getToolMetadata = ({apiKey, stopper, context, requestedParameters, 
                 " This is useful for generating JSON for APIs, databases, or other systems that require a specific JSON schema.",
         },
         promptLLMInParallel: {
-            description: "(prompts: string[])=>Promise<string>[] // Execute a promptLLM function in parallel on a list of prompts." +
+            description: "(prompts: string[])=>Promise<string[]> // Execute a promptLLM function in parallel on a list of prompts." +
                 " This is useful if you need to do something to chunks or pages of a document and can prepare the prompts in advance them " +
                 " send the work off in parallel.",
         },
@@ -562,7 +568,7 @@ export const getToolMetadata = ({apiKey, stopper, context, requestedParameters, 
 };
 
 // @ts-ignore
-export const parameterizeTools = ({apiKey, stopper, context, requestedParameters, requestedDocuments, statusLogger}:params) => {
+export const parameterizeTools = ({apiKey, stopper, context, requestedParameters, requestedDocuments, debugOutput, statusLogger}:params) => {
 
     console.log("parameterizeTools", context, requestedParameters, requestedDocuments);
 
@@ -571,6 +577,11 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
     const conversations = [...context.inputs.conversations];
     const prompts = [...context.inputs.prompts];
     const folders = [...context.inputs.folders];
+
+    const getParameter = (name:string, type:string) => {
+        console.log("Fetch param:", name);
+        return parameters[name];
+    };
 
     const promptLLMFull: (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => any = (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
         // Grab the first 30 characters of the prompt
@@ -618,6 +629,20 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
         //         return defaultValue;
         //     }
         // },
+        log: {
+            description: "log(...args:any)=>void // Saves debug information for later inspection.",
+            exec: (...args: any[]) => {
+                // Stringify the arguments and combine them into a single string.
+                const message = args.map(arg => JSON.stringify(arg)).join(" ");
+                debugOutput.push(message);
+            }
+        },
+        getParameter: {
+               description: "getParameter(name:string, type:\"string|options\")=>string // Get a parameter from the workflow settings. Options can be specified as a string like \"options(value=['option1','option2',....])\"",
+                exec: (name: string, type: string) => {
+                   return getParameter(name, type);
+                }
+        },
         getConversations: {
             description:"getConversations()=>Conversation[] // Get all conversations in my workspace in the format " +
                 "Conversation { id: string; name: string; messages: Message[]; model: OpenAIModel; prompt: string; temperature: number; folderId: string | null; promptTemplate: Prompt | null; tags?: string[]; }, export interface Message { role: Role; content: string; id: string; type: string | undefined; data: any | undefined; }.",
@@ -645,7 +670,7 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
             exec: promptForJson
         },
         promptLLMInParallel: {
-            description: "(prompts: string[])=>Promise<string>[] // Execute a promptLLM function in parallel on a list of prompts." +
+            description: "(prompts: string[])=>Promise<string[]> // Execute a promptLLM function in parallel on a list of prompts." +
                 " This is useful if you need to do something to chunks or pages of a document and can prepare the prompts in advance them " +
                 " send the work off in parallel.",
             exec: (prompts: string[]) => {

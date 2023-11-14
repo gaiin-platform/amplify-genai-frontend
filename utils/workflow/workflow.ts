@@ -423,7 +423,9 @@ async function executeWorkflow(tools: { [p: string]: AiTool }, code: string) {
 
     } catch (e) {
         console.log(e);
-        tools.tellUser.exec("I am going to fix some errors in the workflow...");
+        success = false;
+        result = "" + e;
+        //tools.tellUser.exec("I am going to fix some errors in the workflow...");
     }
     return {success, result, javascriptFn};
 }
@@ -433,6 +435,7 @@ function createWorkflowParams(context: WorkflowContext, apiKey: string, stopper:
         context: context,
         requestedParameters: {},
         requestedDocuments: [],
+        debugOutput: [],
         apiKey: apiKey,
         stopper: stopper,
         statusLogger: statusLogger,

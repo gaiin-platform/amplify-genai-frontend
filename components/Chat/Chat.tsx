@@ -614,16 +614,39 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (category === "workflow" && action === "run-workflow") {
                     const code = findWorkflowPattern(message.content);
                     if (code) {
+
+                        // see if getDocument appears in code
+                        let codeStrippedOfComments = code.replace(/\/\/.*/g, "");
+                        codeStrippedOfComments = codeStrippedOfComments.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, "");
+                        // String \/\/ to the end of lines
+                        codeStrippedOfComments = codeStrippedOfComments.replace(/\/\/.*/g, "");
+
+                        let paramNamesStr = "";
+                        try {
+                            // Find all instances of getParameter("NAME", ....) and extract the NAMEs as a list
+                            const paramNames = codeStrippedOfComments.match(/getParameter\(\"([^\"]*)\"/g);
+                            // Transform all the paramNames into the format {{NAME}} and join them with a space
+                            paramNamesStr = (paramNames) ?
+                                paramNames.map((name) => "{{" + name.substring(14, name.length - 2).trim() + "}}").join(" ") : "";
+                        } catch (e) {
+
+                        }
+                        //console.log("paramNamesStr", paramNamesStr);
+
+                        const usesDocuments = codeStrippedOfComments.includes("getDocument");
+                        const content = usesDocuments?
+                            paramNamesStr +
+                            "{{Document 1:file(optional:true)}}" +
+                            "{{Document 2:file(optional:true)}}" +
+                            "{{Document 3:file(optional:true)}}" +
+                            "Running your workflow..." :
+                            paramNamesStr + "Running your workflow...";
+
                         const prompt: Prompt = {
                             id: uuidv4(),
                             folderId: null,
                             name: "Run Workflow",
-                            content: "{{Document 1:file(optional:true)}}" +
-                                "{{Document 2:file(optional:true)}}" +
-                                "{{Document 3:file(optional:true)}}" +
-                                // "{{Document 4:file(optional:true)}}" +
-                                // "{{Document 5:file(optional:true)}}" +
-                                "Running your workflow...",
+                            content: content,
                             type: "automation",
                             description: "Please provide any needed documents for the workflow.",
                             data: {
