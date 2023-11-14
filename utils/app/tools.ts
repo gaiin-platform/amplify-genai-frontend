@@ -578,8 +578,10 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
     const prompts = [...context.inputs.prompts];
     const folders = [...context.inputs.folders];
 
+    console.log(parameters);
+
     const getParameter = (name:string, type:string) => {
-        console.log("Fetch param:", name);
+        console.log("Fetch workflow param:", name, parameters[name]);
         return parameters[name];
     };
 

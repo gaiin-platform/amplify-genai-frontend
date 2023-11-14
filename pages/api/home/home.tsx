@@ -52,6 +52,7 @@ import {findWorkflowPattern} from "@/utils/workflow/aiflow";
 import SharedItemsList from "@/components/Share/SharedItemList";
 import {Features} from "@/types/features";
 import {saveFeatures} from "@/utils/app/features";
+import {findParametersInWorkflowCode} from "@/utils/workflow/workflow";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -396,7 +397,9 @@ const Home = ({
                             }
 
                             const documentStrings = workflowDefinition.inputs.documents.map((doc) => `{{${doc.name}:file}}`).join('\n');
-                            const parameterStrings = Object.keys(workflowDefinition.inputs.parameters).map((key) => `{{${key}}}`).join('\n');
+                            let parameterStrings = Object.keys(workflowDefinition.inputs.parameters).map((key) => `{{${key}}}`).join('\n');
+                            parameterStrings += findParametersInWorkflowCode(code);
+
                             const formattedString =
                                 `${documentStrings}${parameterStrings}${prompt}`;
 

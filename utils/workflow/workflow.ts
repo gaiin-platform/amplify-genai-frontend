@@ -537,6 +537,31 @@ const promptLLMFull = async (apiKey:string, stopper:Stopper, persona: string, pr
     return charsReceived;
 }
 
+export function stripComments(code: string) {
+    let codeStrippedOfComments = code.replace(/\/\/.*/g, "");
+    codeStrippedOfComments = codeStrippedOfComments.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, "");
+    // String \/\/ to the end of lines
+    return codeStrippedOfComments.replace(/\/\/.*/g, "");
+}
+
+export const findParametersInWorkflowCode = (code: string) => {
+    // see if getDocument appears in code
+    let codeStrippedOfComments = stripComments(code);
+
+    let paramNamesStr = "";
+    try {
+        // Find all instances of getParameter("NAME", ....) and extract the NAMEs as a list
+        const paramNames = codeStrippedOfComments.match(/getParameter\(\"([^\"]*)\"/g);
+        // Transform all the paramNames into the format {{NAME}} and join them with a space
+        paramNamesStr = (paramNames) ?
+            paramNames.map((name) => "{{" + name.substring(14, name.length - 1).trim() + "}}").join(" ") : "";
+    } catch (e) {
+
+    }
+
+    return paramNamesStr;
+}
+
 export const replayJSWorkflow = async (apiKey: string, code:string, customTools: { [p: string]: AiTool }, stopper: Stopper, statusLogger:(status:Status)=>void, context:WorkflowContext, incrementalPromptResultCallback: (responseText: string) => void) => {
     if(stopper.shouldStop()){
         return abortResult;

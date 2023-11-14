@@ -42,7 +42,7 @@ import {defaultVariableFillOptions, parseEditableVariables, parsePromptVariables
 import {v4 as uuidv4} from 'uuid';
 
 import Workflow, {
-    executeJSWorkflow, replayJSWorkflow
+    executeJSWorkflow, findParametersInWorkflowCode, replayJSWorkflow, stripComments
 } from "@/utils/workflow/workflow";
 import {fillInTemplate} from "@/utils/app/prompts";
 import {OpenAIModel, OpenAIModels} from "@/types/openai";
@@ -615,25 +615,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     const code = findWorkflowPattern(message.content);
                     if (code) {
 
-                        // see if getDocument appears in code
-                        let codeStrippedOfComments = code.replace(/\/\/.*/g, "");
-                        codeStrippedOfComments = codeStrippedOfComments.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, "");
-                        // String \/\/ to the end of lines
-                        codeStrippedOfComments = codeStrippedOfComments.replace(/\/\/.*/g, "");
-
-                        let paramNamesStr = "";
-                        try {
-                            // Find all instances of getParameter("NAME", ....) and extract the NAMEs as a list
-                            const paramNames = codeStrippedOfComments.match(/getParameter\(\"([^\"]*)\"/g);
-                            // Transform all the paramNames into the format {{NAME}} and join them with a space
-                            paramNamesStr = (paramNames) ?
-                                paramNames.map((name) => "{{" + name.substring(14, name.length - 2).trim() + "}}").join(" ") : "";
-                        } catch (e) {
-
-                        }
+                        let paramNamesStr = findParametersInWorkflowCode(code);
                         //console.log("paramNamesStr", paramNamesStr);
 
-                        const usesDocuments = codeStrippedOfComments.includes("getDocument");
+                        const usesDocuments = stripComments(code).includes("getDocument");
                         const content = usesDocuments?
                             paramNamesStr +
                             "{{Document 1:file(optional:true)}}" +
@@ -693,7 +678,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             return [...documentVariables, ...variables];
         }
 
-        const handleJsWorkflow = useCallback(async (message: Message, updatedVariables: string[], documents: AttachedDocument[] | null) => {
+        const handleJsWorkflow = useCallback(async (message: Message, updatedVariables: string[], variablesByName:{[key:string]:any}, documents: AttachedDocument[] | null) => {
 
             if (!featureFlags.workflowRun) {
                 alert("Running workflows is currently disabled.");
@@ -767,7 +752,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 const context: WorkflowContext = {
                     inputs: {
                         documents: documents || [],
-                        parameters: {},
+                        parameters: variablesByName,
                         conversations: conversations,
                         prompts: prompts,
                         folders: folders,
@@ -929,7 +914,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             ) {
                 handleSend(message, index, plugin);
             } else if (message.type == MessageType.AUTOMATION) {
-                handleJsWorkflow(message, [], documents);
+                handleJsWorkflow(message, [], {}, documents);
             } else {
                 console.log("Unknown message type", message.type);
             }
@@ -954,6 +939,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 const newContent = fillInTemplate(template || "", variables, updatedVariables, documents, !doWorkflow);
 
+                // Create a map with variable mapped to updatedVariables
+                const variablesByName:{[key:string]:any} = {};
+                const updatedVariablesMap = variables.forEach((v, index) => {
+                    variablesByName[v] = updatedVariables[index];
+                });
+
+
                 let message = newMessage({
                     role: 'user',
                     content: newContent,
@@ -968,7 +960,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     handleSend(message, 0, null);
                 } else {
                     console.log("Workflow", message);
-                    handleJsWorkflow(message, updatedVariables, documents);
+                    handleJsWorkflow(message, updatedVariables, variablesByName, documents);
                 }
             }
 
