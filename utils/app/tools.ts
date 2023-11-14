@@ -516,6 +516,18 @@ const generateOutline = async (promptLLMFull:any, topic:string, maxDepth:number,
 // @ts-ignore
 export const getToolMetadata = ({apiKey, stopper, context, requestedParameters, requestedDocuments, statusLogger}) => {
     return {
+        getConversations: {
+            description:"getConversations()=>Conversation[] // Get all conversations in my workspace in the format " +
+                "Conversation { id: string; name: string; messages: Message[]; model: OpenAIModel; prompt: string; temperature: number; folderId: string | null; promptTemplate: Prompt | null; tags?: string[]; }, export interface Message { role: Role; content: string; id: string; type: string | undefined; data: any | undefined; }.",
+        },
+        getFolders: {
+            description:"getFolders()=>FolderInterface[] // Get all folders in my workspace in the format " +
+                "interface FolderInterface { id: string; name: string; type: FolderType; }",
+        },
+        getPromptTemplates: {
+            description:"getPromptTemplates()=>PromptTemplate[] // Get all prompt templates in my workspace in the format " +
+                "export interface Prompt { id: string; name: string; description: string; content: string; folderId: string | null; type: string | undefined;  }",
+        },
         promptLLM: {
             description: "(personaString,promptString)=>Promise<String> // persona should be an empty string, promptString must include detailed instructions for the " +
                 "LLM and any data that the prompt operates on as a string and MUST NOT EXCEED 25,000 characters.",
@@ -606,6 +618,27 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
         //         return defaultValue;
         //     }
         // },
+        getConversations: {
+            description:"getConversations()=>Conversation[] // Get all conversations in my workspace in the format " +
+                "Conversation { id: string; name: string; messages: Message[]; model: OpenAIModel; prompt: string; temperature: number; folderId: string | null; promptTemplate: Prompt | null; tags?: string[]; }, export interface Message { role: Role; content: string; id: string; type: string | undefined; data: any | undefined; }.",
+            exec: () => {
+                return conversations;
+            }
+        },
+        getFolders: {
+            description:"getFolders()=>FolderInterface[] // Get all folders in my workspace in the format " +
+                "interface FolderInterface { id: string; name: string; type: FolderType; }",
+            exec: () => {
+                return conversations;
+            }
+        },
+        getPromptTemplates: {
+            description:"getPromptTemplates()=>PromptTemplate[] // Get all prompt templates in my workspace in the format " +
+                "export interface Prompt { id: string; name: string; description: string; content: string; folderId: string | null; type: string | undefined;  }",
+            exec: () => {
+                return conversations;
+            }
+        },
         promptLLMForJson: {
             description: "(persona: string, prompt: string, desiredSchema: JsonSchema)=>Promise<any> // Prompt the LLM to generate JSON that matches a specified schema." +
                 " This is useful for generating JSON for APIs, databases, or other systems that require a specific JSON schema.",
