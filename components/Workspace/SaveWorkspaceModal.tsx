@@ -4,22 +4,22 @@ import {Conversation} from "@/types/chat";
 import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";
 import {TagsList} from "@/components/Chat/TagsList";
-import {createExport, exportData, importData} from "@/utils/app/importExport";
+import {createExport, exportData} from "@/utils/app/importExport";
 import {useUser} from '@auth0/nextjs-auth0/client';
-import {loadSharedItem, shareItems} from "@/services/shareService";
+import {shareItems} from "@/services/shareService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
-import Folder from "@/components/Folder";
-import {ExportFormatV4, LatestExportFormat} from "@/types/export";
 
-export interface ImportModalProps {
-    onImport: (importData: ExportFormatV4) => void;
+export interface SharingModalProps {
+    open: boolean;
+    onShare: (selectedItems: Array<Prompt | Conversation | FolderInterface>) => void;
     onCancel: () => void;
     includeConversations: boolean;
     includePrompts: boolean;
     includeFolders: boolean;
-    importKey: string;
-    note: string;
+    selectedPrompts?: Prompt[];
+    selectedConversations?: Conversation[];
+    selectedFolders?: FolderInterface[];
 }
 
 const animate = keyframes`
@@ -37,33 +37,46 @@ const LoadingIcon = styled(FiCommand)`
   animation: ${animate} 2s infinite;
 `;
 
-export const ImportAnythingModal: FC<ImportModalProps> = (
+export const SaveWorkspaceModal: FC<SharingModalProps> = (
     {
-        onImport,
+        open,
+        onShare,
         onCancel,
         includePrompts,
         includeConversations,
         includeFolders,
-        importKey,
-        note
+        selectedPrompts = [],
+        selectedConversations = [],
+        selectedFolders = []
     }) => {
-
-
     const {
-        state: {prompts: localPrompts, conversations: localConversations, folders: localFolders},
-        dispatch: homeDispatch
+        state: {prompts, conversations, folders, workspaceMetadata},
     } = useContext(HomeContext);
+
+    let currentWorkspaceMetadata = workspaceMetadata;
+
+    if(!workspaceMetadata) {
+        currentWorkspaceMetadata = {
+            name: "",
+            description: "",
+            tags: [],
+            id: "",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            lastAccessedAt: new Date().toISOString(),
+            data:{},
+        }
+    }
+
 
     const {user} = useUser();
 
     // Individual states for selected prompts, conversations, and folders
-    const [isImporting, setIsImporting] = useState(true);
-    const [prompts, setPrompts] = useState<Prompt[]>([]);
-    const [conversations, setConversations] = useState<Conversation[]>([]);
-    const [folders, setFolders] = useState<FolderInterface[]>([]);
-    const [selectedPromptsState, setSelectedPrompts] = useState<Prompt[]>([]);
-    const [selectedConversationsState, setSelectedConversations] = useState<Conversation[]>([]);
-    const [selectedFoldersState, setSelectedFolders] = useState<FolderInterface[]>([]);
+    const [isSharing, setIsSharing] = useState(false);
+    const [selectedPromptsState, setSelectedPrompts] = useState([...selectedPrompts]);
+    const [selectedConversationsState, setSelectedConversations] = useState([...selectedConversations]);
+    const [selectedFoldersState, setSelectedFolders] = useState([...selectedFolders]);
+    const [sharingNote, setSharingNote] = useState<string>(currentWorkspaceMetadata.name || '');
     const itemRefs = useRef<Record<string, React.RefObject<HTMLDivElement>>>({});
     const [promptsChecked, setPromptsChecked] = useState(false);
     const [conversationsChecked, setConversationsChecked] = useState(false);
@@ -71,6 +84,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
     const handlePromptsCheck = (checked:boolean) => {
         // if checked, add all prompts to selected, else remove them
+        //setSharingNote(currentWorkspaceMetadata.name);
         setSelectedPrompts(checked ? prompts: []);
         setPromptsChecked(checked);
     };
@@ -85,26 +99,16 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         setFoldersChecked(checked);
     };
 
+    useEffect(() => {
+        handleConversationsCheck(true);
+        handleFoldersCheck(true);
+        handlePromptsCheck(true);
+    });
+
     const handleItemSelect = (item: Prompt | Conversation | FolderInterface, itemType: string) => {
         switch (itemType) {
             case 'Prompt': {
-                const prompt = item as Prompt;
-
-                if (!selectedPromptsState.some(i => i.id === prompt.id)) {
-                    let promptsToSelect = [prompt];
-
-                    // See if the prompt has a data.rootPromptId that is in the selected prompts
-                    // and if not, select it
-                    if (prompt.data?.rootPromptId) {
-                        const rootPrompt = prompts.find(p => p.id === prompt.data?.rootPromptId);
-                        if (rootPrompt && !selectedPromptsState.some(i => i.id === rootPrompt.id)) {
-                            promptsToSelect.push(rootPrompt);
-                        }
-                    }
-                    setSelectedPrompts([...selectedPromptsState, ...promptsToSelect]);
-                } else {
-                    setSelectedPrompts(prevItems => toggleItem(prevItems, item as Prompt));
-                }
+                setSelectedPrompts(prevItems => toggleItem(prevItems, item as Prompt));
                 break;
             }
             case 'Conversation': {
@@ -144,57 +148,68 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         return items.some(i => i === item) ? items.filter(i => i !== item) : [...items, item];
     }
 
-    const canImport = () => {
-        return (selectedPromptsState.length > 0 || selectedConversationsState.length > 0 || selectedFoldersState.length > 0);
+    const canShare = () => {
+
+        console.log("selectedPromptsState", selectedPromptsState.length);
+        console.log("selectedConversationsState", selectedConversationsState.length);
+        console.log("selectedFoldersState", selectedFoldersState.length);
+        console.log("sharingNote", sharingNote.length);
+
+        return (selectedPromptsState.length > 0 || selectedConversationsState.length > 0 || selectedFoldersState.length > 0)
+            && (sharingNote && sharingNote?.length > 0);
     }
 
-    const handleImport = async () => {
-        //onSave(selectedItems);
-        const exportData = createExport(selectedConversationsState, selectedFoldersState, selectedPromptsState);
+    const handleShare = async () => {
 
-        const needsFolderReset = (item: Conversation | Prompt) => {
-            return item.folderId != null &&
-                !exportData.folders.some(folder => folder.id === item.folderId) &&
-                !localFolders.some(folder => folder.id === item.folderId)
-        };
+        if(user?.name) {
+            //onSave(selectedItems);
+            setIsSharing(true);
 
-        // Check if any of the folders of the prompts or conversations don't exist in local folders
-        // and if so, set the folder to null
-        const promptsToSetFolderToNull = exportData.prompts.filter(needsFolderReset);
-        const conversationsToSetFolderToNull = exportData.history.filter(needsFolderReset);
+            // Go through the prompts and look for ones that have a value for prompt.data.rootPromptId and
+            // automatically find those prompts and add them to the list of prompts to share if they are not already there
+            // This is necessary because the root prompt is needed for the prompt to work properly.
+            const rootPromptsToAdd = selectedPromptsState.filter(prompt => {
+                if (prompt.data && prompt.data.rootPromptId) {
+                    // @ts-ignore
+                    const rootPrompt = prompts.find(p => p.id === prompt.data.rootPromptId);
+                    if (rootPrompt && !selectedPromptsState.some(p => p.id === rootPrompt.id)) {
+                        return true;
+                    }
+                }
+                return false;
+            })
+                .map(prompt => prompt.data?.rootPromptId)
+                .map(id => prompts.find(p => p.id === id))
+                .filter(prompt => prompt !== undefined) as Prompt[];
 
-        console.log("Prompts needing folder reset: ", promptsToSetFolderToNull);
-        console.log("Conversations needing folder reset: ", conversationsToSetFolderToNull);
+            const sharedData = createExport(
+                selectedConversationsState,
+                selectedFoldersState,
+                [...selectedPromptsState, ...rootPromptsToAdd]);
 
-        const cleanedUpExport = createExport(
-            exportData.history.map(conversation => {
-                return conversationsToSetFolderToNull.some(c => c.id === conversation.id) ? {
-                    ...conversation,
-                    folderId: null
-                } : conversation;
-            }),
-            exportData.folders,
-            exportData.prompts.map(prompt => {
-                return promptsToSetFolderToNull.some(p => p.id === prompt.id) ? {...prompt, folderId: null} : prompt;
-            }));
+            const sharedWith = [user?.name];
+            const sharedBy = user?.name;
 
-        console.log("Cleaned up export: ", cleanedUpExport);
+            if (sharedBy && sharingNote) {
+                try {
+                    const result = await shareItems(sharedBy, sharedWith, sharingNote, sharedData);
 
-        const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport);
+                    if (result.ok) {
+                        setIsSharing(false);
+                        alert("Saved successfully");
+                        onShare([...selectedPromptsState, ...selectedConversationsState, ...selectedFoldersState]);
+                    } else {
+                        setIsSharing(false);
+                        alert("Saving failed, please try again.");
+                    }
+                } catch (e) {
+                    setIsSharing(false);
+                    alert("Saving failed, please try again.");
+                }
+            }
+        }
 
-        console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);
-
-        homeDispatch({field: 'conversations', value: history});
-        homeDispatch({
-            field: 'selectedConversation',
-            value: history[history.length - 1],
-        });
-        homeDispatch({field: 'folders', value: folders});
-        homeDispatch({field: 'prompts', value: prompts});
-
-        onImport(exportData);
-        resetSelection();
-        //window.location.reload();
+        //onShare([...selectedPromptsState, ...selectedConversationsState, ...selectedFoldersState]);
     }
 
     const isSelected = (item: { id: string; }, itemType: string) => {
@@ -224,13 +239,13 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
             <div className="flex items-center p-2" ref={itemRefs.current[item.id]} key={item.id}>
                 <input
                     type="checkbox"
-                    className="form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:focus:bg-neutral-700 dark:ring-offset-neutral-300 dark:border-opacity-50"
+                    className="form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
                     checked={isSelected(item, itemType)}
                     onChange={() => {
                         handleItemSelect(item, itemType)
                     }}
                 />
-                <div className="ml-2 text-black dark:text-white">{`${itemType} : ${item.name}`}</div>
+                <div className="ml-2 text-black dark:text-white ">{`${itemType} : ${item.name}`}</div>
             </div>
         );
     };
@@ -245,50 +260,32 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         );
     };
 
-    function resetSelection() {
-        setSelectedPrompts([]);
-        setSelectedConversations([]);
-        setSelectedFolders([]);
+    useEffect(() => {
+        if (open) {
+            const firstSelectedId =
+                selectedPrompts[0]?.id || selectedConversations[0]?.id || selectedFolders[0]?.id;
+
+            // @ts-ignore
+            itemRefs.current[firstSelectedId]?.current?.scrollIntoView({
+                block: 'center',
+            });
+
+            setSelectedPrompts([...selectedPrompts]);
+            setSelectedConversations([...selectedConversations]);
+            setSelectedFolders([...selectedFolders]);
+        }
+    }, [open]);
+
+    function extractEmails(inputText: string): string[] {
+        const regex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi;
+        const emails = inputText.match(regex);
+        return emails ?? [];  // return an empty array if no emails found.
     }
 
-    useEffect(() => {
-        const fetchData = async () => {
 
-
-            if (user && user.name) {
-
-                const result = await loadSharedItem(user?.name, importKey);
-
-                if (result.ok) {
-                    const item = await result.json();
-                    const sharedData = JSON.parse(item.item) as ExportFormatV4;
-                    console.log(sharedData);
-
-                    setPrompts(sharedData.prompts);
-                    setSelectedPrompts(sharedData.prompts);
-                    setConversations(sharedData.history);
-                    setSelectedConversations(sharedData.history);
-                    setFolders(sharedData.folders);
-                    setSelectedFolders(sharedData.folders);
-
-                    setIsImporting(false);
-                } else {
-                    alert("Unable to find shared item. It may have been deleted.");
-                    resetSelection();
-                    onCancel();
-                }
-
-            }
-
-            setSelectedPrompts([...prompts]);
-            setSelectedConversations([...conversations]);
-            setSelectedFolders([...folders]);
-
-        };
-
-        fetchData();
-
-    }, []);
+    if (!open) {
+        return <></>;
+    }
 
 
     // ...Other Code...
@@ -303,33 +300,41 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                         className="border-neutral-400 dark:border-netural-400 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-w-lg sm:p-6 sm:align-middle"
                         role="dialog"
                     >
-                        {
-                            isImporting && (
-                                <div className="flex flex-col items-center justify-center">
-                                    <LoadingIcon/>
-                                    <span className="text-black dark:text-white text-xl font-bold mt-4">
-                                      Importing...
-                                    </span>
-                                </div>
-                            )
-                        }
+                        {isSharing && (
+                            <div className="flex flex-col items-center justify-center">
+                                <LoadingIcon/>
+                                <span className="text-black dark:text-white text-xl font-bold mt-4">Saving...</span>
+                            </div>
+                        )}
 
-                        {!isImporting && (
+                        {!isSharing && (
                             <>
-                                <h2 className="text-black dark:text-white text-xl font-bold">
-                                    Choose Shared Items to Accept
-                                </h2>
+                                <h2 className="text-black dark:text-white text-xl font-bold">Select What to Include</h2>
 
                                 <div className="overflow-y-auto" style={{maxHeight: "calc(100vh - 200px)"}}>
 
-                                    <h3 className="text-black dark:text-white text-lg mt-4 border-b">Note</h3>
-                                    <div
-                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                    >{note}</div>
+                                    {/*<TagsList label={"Tags"}*/}
+                                    {/*          addMessage={"Tags for the Workspace:"}*/}
+                                    {/*          tagParser={extractEmails}*/}
+                                    {/*          tags={selectedPeople}*/}
+                                    {/*          setTags={setSelectedPeople}/>*/}
 
-                                    {includePrompts && prompts.length > 0 && (
+
+                                    <h3 className="text-black dark:text-white text-lg mt-2 border-b">Workspace Name</h3>
+                                    <textarea
+                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                        style={{resize: 'none'}}
+                                        placeholder={
+                                            "Describe the workspace (required)."
+                                        }
+                                        value={sharingNote || ''}
+                                        onChange={(e) => setSharingNote(e.target.value)}
+                                        rows={1}
+                                    />
+
+                                    {includePrompts && (
                                         <>
-                                            <div className="mt-3 flex items-center border-b ">
+                                            <div className="mt-3 flex items-center border-b">
                                                 <input
                                                     type="checkbox"
                                                     className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
@@ -342,9 +347,10 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                                         </>
                                     )}
 
-                                    {includeConversations && conversations.length > 0 && (
+                                    {includeConversations && (
                                         <>
                                             <div className="mt-3 flex items-center border-b ">
+
                                                 <input
                                                     type="checkbox"
                                                     className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
@@ -357,9 +363,10 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                                         </>
                                     )}
 
-                                    {includeFolders && folders.length > 0 && (
+                                    {includeFolders && (
                                         <>
                                             <div className="mt-3 flex items-center border-b ">
+
                                                 <input
                                                     type="checkbox"
                                                     className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
@@ -371,6 +378,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                                             {renderScrollableSection(folders, 'Folder')}
                                         </>
                                     )}
+
                                 </div>
                             </>
                         )}
@@ -380,23 +388,19 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                             <button
                                 type="button"
                                 className="w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    resetSelection();
-                                    onCancel();
-                                }}
+                                onClick={onCancel}
                             >
                                 Cancel
                             </button>
-                            {!isImporting && (
+                            {!isSharing && (
                                 <button
                                     type="button"
-                                    style={{opacity: !canImport() ? 0.3 : 1}}
+                                    style={{opacity: !canShare() ? 0.3 : 1}}
                                     className="ml-2 w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300 ${selectedPeople.length === 0 || (selectedPromptsState.length === 0 && selectedConversationsState.length === 0 && selectedFoldersState.length === 0) ? 'cursor-not-allowed' : ''}"
-                                    onClick={handleImport}
-                                    disabled={!canImport()}
+                                    onClick={handleShare}
+                                    disabled={!canShare()}
                                 >
-                                    Import
+                                    Save
                                 </button>
                             )}
                         </div>

@@ -63,6 +63,25 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
     const [selectedPeople, setSelectedPeople] = useState<Array<string>>([]);
     const [sharingNote, setSharingNote] = useState<string>("");
     const itemRefs = useRef<Record<string, React.RefObject<HTMLDivElement>>>({});
+    const [promptsChecked, setPromptsChecked] = useState(false);
+    const [conversationsChecked, setConversationsChecked] = useState(false);
+    const [foldersChecked, setFoldersChecked] = useState(false);
+
+    const handlePromptsCheck = (checked:boolean) => {
+        // if checked, add all prompts to selected, else remove them
+        setSelectedPrompts(checked ? prompts: []);
+        setPromptsChecked(checked);
+    };
+
+    const handleConversationsCheck = (checked:boolean) => {
+        setSelectedConversations(checked ? conversations : []);
+        setConversationsChecked(checked);
+    };
+
+    const handleFoldersCheck = (checked:boolean) => {
+        setSelectedFolders(checked ? folders: []);
+        setFoldersChecked(checked);
+    };
 
     const handleItemSelect = (item: Prompt | Conversation | FolderInterface, itemType: string) => {
         switch (itemType) {
@@ -285,24 +304,51 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
                                     {includePrompts && (
                                         <>
-                                            <h3 className="text-black dark:text-white text-lg mt-4 border-b">Prompts</h3>
+                                            <div className="mt-3 flex items-center border-b">
+                                                <input
+                                                    type="checkbox"
+                                                    className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
+                                                    checked={promptsChecked}
+                                                    onChange={(e) => handlePromptsCheck(e.target.checked)}
+                                                />
+                                                <h3 className="ml-2 text-black dark:text-white text-lg">Prompts</h3>
+                                            </div>
                                             {renderScrollableSection(prompts, 'Prompt')}
                                         </>
                                     )}
 
                                     {includeConversations && (
                                         <>
-                                            <h3 className="text-black dark:text-white text-lg mt-4 border-b">Conversations</h3>
+                                            <div className="mt-3 flex items-center border-b ">
+
+                                                <input
+                                                    type="checkbox"
+                                                    className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
+                                                    checked={conversationsChecked}
+                                                    onChange={(e) => handleConversationsCheck(e.target.checked)}
+                                                />
+                                                <h3 className="ml-2 text-black dark:text-white text-lg">Conversations</h3>
+                                            </div>
                                             {renderScrollableSection(conversations, 'Conversation')}
                                         </>
                                     )}
 
                                     {includeFolders && (
                                         <>
-                                            <h3 className="text-black dark:text-white text-lg mt-4 border-b">Folders</h3>
+                                            <div className="mt-3 flex items-center border-b ">
+
+                                                <input
+                                                    type="checkbox"
+                                                    className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
+                                                    checked={foldersChecked}
+                                                    onChange={(e) => handleFoldersCheck(e.target.checked)}
+                                                />
+                                                <h3 className="ml-2 text-black dark:text-white text-lg">Folders</h3>
+                                            </div>
                                             {renderScrollableSection(folders, 'Folder')}
                                         </>
                                     )}
+
                                 </div>
                             </>
                         )}

@@ -11,6 +11,7 @@ import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import Folder from "@/components/Folder";
 import {ExportFormatV4, LatestExportFormat} from "@/types/export";
+import {saveWorkspaceMetadata} from "@/utils/app/settings";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -20,6 +21,7 @@ export interface ImportModalProps {
     includeFolders: boolean;
     importKey: string;
     note: string;
+    date: string;
 }
 
 const animate = keyframes`
@@ -37,7 +39,7 @@ const LoadingIcon = styled(FiCommand)`
   animation: ${animate} 2s infinite;
 `;
 
-export const ImportAnythingModal: FC<ImportModalProps> = (
+export const ImportWorkspaceModal: FC<ImportModalProps> = (
     {
         onImport,
         onCancel,
@@ -45,14 +47,23 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         includeConversations,
         includeFolders,
         importKey,
-        note
+        note,
+        date
     }) => {
 
-
     const {
-        state: {prompts: localPrompts, conversations: localConversations, folders: localFolders},
-        dispatch: homeDispatch
+        state: {prompts: localPrompts, conversations: localConversations, folders: localFolders, workspaceMetadata},
+        dispatch: homeDispatch,
+        clearWorkspace
     } = useContext(HomeContext);
+
+    const updatedWorkspaceMetadata = {
+        ...workspaceMetadata,
+        lastAccessed: new Date().toISOString(),
+        id: importKey,
+        name: note,
+        createdAt: date,
+    };
 
     const {user} = useUser();
 
@@ -84,6 +95,12 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         setSelectedFolders(checked ? folders: []);
         setFoldersChecked(checked);
     };
+
+    useEffect(() => {
+        handleConversationsCheck(true);
+        handleFoldersCheck(true);
+        handlePromptsCheck(true);
+    });
 
     const handleItemSelect = (item: Prompt | Conversation | FolderInterface, itemType: string) => {
         switch (itemType) {
@@ -149,6 +166,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
     }
 
     const handleImport = async () => {
+
         //onSave(selectedItems);
         const exportData = createExport(selectedConversationsState, selectedFoldersState, selectedPromptsState);
 
@@ -192,9 +210,12 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         homeDispatch({field: 'folders', value: folders});
         homeDispatch({field: 'prompts', value: prompts});
 
+        homeDispatch({field: 'workspaceMetadata', value: updatedWorkspaceMetadata});
+        saveWorkspaceMetadata(updatedWorkspaceMetadata);
+
         onImport(exportData);
         resetSelection();
-        //window.location.reload();
+        window.location.reload();
     }
 
     const isSelected = (item: { id: string; }, itemType: string) => {
@@ -273,7 +294,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
                     setIsImporting(false);
                 } else {
-                    alert("Unable to find shared item. It may have been deleted.");
+                    alert("Unable to find workspace. It may have been deleted.");
                     resetSelection();
                     onCancel();
                 }
@@ -308,7 +329,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                                 <div className="flex flex-col items-center justify-center">
                                     <LoadingIcon/>
                                     <span className="text-black dark:text-white text-xl font-bold mt-4">
-                                      Importing...
+                                      Loading workspace...
                                     </span>
                                 </div>
                             )
@@ -317,7 +338,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                         {!isImporting && (
                             <>
                                 <h2 className="text-black dark:text-white text-xl font-bold">
-                                    Choose Shared Items to Accept
+                                    Choose Workspace Items to Load
                                 </h2>
 
                                 <div className="overflow-y-auto" style={{maxHeight: "calc(100vh - 200px)"}}>
@@ -396,7 +417,31 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                                     onClick={handleImport}
                                     disabled={!canImport()}
                                 >
-                                    Import
+                                    Merge
+                                </button>
+                            )}
+                            {!isImporting && (
+                                <button
+                                    type="button"
+                                    style={{opacity: !canImport() ? 0.3 : 1}}
+                                    className="ml-2 w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300 ${selectedPeople.length === 0 || (selectedPromptsState.length === 0 && selectedConversationsState.length === 0 && selectedFoldersState.length === 0) ? 'cursor-not-allowed' : ''}"
+                                    onClick={(e)=>{
+                                        e.stopPropagation();
+                                        e.preventDefault();
+
+                                        if(confirm(`Are you sure you want to load this workspace as new? This will clear your current workspace. If you have any unsaved changes, they will be lost.`)) {
+                                            clearWorkspace().then(()=> {
+                                                handleImport();
+
+                                            }).catch(err => {
+                                                console.error(err);
+                                                alert("Unable to load workspace. Please try again.");
+                                            });
+                                        }
+                                    }}
+                                    disabled={!canImport()}
+                                >
+                                    Load as New
                                 </button>
                             )}
                         </div>

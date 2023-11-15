@@ -37,7 +37,7 @@ import {Chat} from '@/components/Chat/Chat';
 import {Chatbar} from '@/components/Chatbar/Chatbar';
 import {Navbar} from '@/components/Mobile/Navbar';
 import Promptbar from '@/components/Promptbar';
-import {Icon3dCubeSphere, IconShare, IconApiApp, IconMessage, IconSettings, IconBook2} from "@tabler/icons-react";
+import {Icon3dCubeSphere, IconTournament, IconShare, IconApiApp, IconMessage, IconSettings, IconBook2} from "@tabler/icons-react";
 import {IconUser, IconLogout} from "@tabler/icons-react";
 import HomeContext, {ClickContext, Processor} from './home.context';
 import {HomeInitialState, initialState} from './home.state';
@@ -53,6 +53,7 @@ import SharedItemsList from "@/components/Share/SharedItemList";
 import {Features} from "@/types/features";
 import {saveFeatures} from "@/utils/app/features";
 import {findParametersInWorkflowCode} from "@/utils/workflow/workflow";
+import WorkspaceList from "@/components/Workspace/WorkspaceList";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -473,6 +474,28 @@ const Home = ({
         dispatch({field: 'conversations', value: all});
     };
 
+    const clearWorkspace = async () => {
+        await dispatch({field: 'conversations', value: []});
+        await dispatch({field: 'prompts', value: []});
+        await dispatch({field: 'folders', value: []});
+
+        saveConversation({
+            id: uuidv4(),
+            name: t('New Conversation'),
+            messages: [],
+            model: OpenAIModels[defaultModelId],
+            prompt: DEFAULT_SYSTEM_PROMPT,
+            temperature: DEFAULT_TEMPERATURE,
+            folderId: null,
+            promptTemplate: null
+        });
+        saveConversations([]);
+        saveFolders([]);
+        savePrompts([]);
+
+        await dispatch({field: 'selectedConversation', value: null});
+    }
+
     const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
 
         if (selectedConversation) {
@@ -514,6 +537,7 @@ const Home = ({
     useEffect(() => {
         if (window.innerWidth < 640) {
             dispatch({field: 'showChatbar', value: false});
+            dispatch({field: 'showPromptbar', value: false});
         }
     }, [selectedConversation]);
 
@@ -544,6 +568,11 @@ const Home = ({
         }
 
         const apiKey = localStorage.getItem('apiKey');
+
+        const workspaceMetadataStr = localStorage.getItem('workspaceMetadata');
+        if(workspaceMetadataStr){
+            dispatch({field: 'workspaceMetadata', value: JSON.parse(workspaceMetadataStr)});
+        }
 
         if (serverSideApiKeyIsSet) {
             dispatch({field: 'apiKey', value: ''});
@@ -675,6 +704,7 @@ const Home = ({
                     removePreProcessingCallback,
                     addPostProcessingCallback,
                     removePostProcessingCallback,
+                    clearWorkspace,
                     handleAddMessages,
                 }}
             >
@@ -719,6 +749,7 @@ const Home = ({
                             >
                                 <Tab icon={<IconMessage/>}><Chatbar/></Tab>
                                 <Tab icon={<IconShare/>}><SharedItemsList/></Tab>
+                                <Tab icon={<IconTournament/>}><WorkspaceList/></Tab>
                                 <Tab icon={<IconSettings/>}><SettingsBar/></Tab>
                             </TabSidebar>
 

@@ -36,6 +36,7 @@ export interface HomeContextProps {
   removePreProcessingCallback: (callback: Processor) => void;
   addPostProcessingCallback: (callback: Processor) => void;
   removePostProcessingCallback: (callback: Processor) => void;
+  clearWorkspace: () => Promise<void>;
   handleAddMessages: (selectedConversation: Conversation | undefined, messages: any[]) => void;
 }
 

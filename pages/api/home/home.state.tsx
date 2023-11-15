@@ -6,6 +6,8 @@ import { PluginKey } from '@/types/plugin';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
 import { Status } from "@/types/workflow";
+import {Workspace} from "@/types/workspace";
+import { v4 as uuidv4 } from 'uuid';
 
 export interface HomeInitialState {
   apiKey: string;
@@ -32,6 +34,7 @@ export interface HomeInitialState {
   serverSideApiKeyIsSet: boolean;
   serverSidePluginKeysSet: boolean,
   featureFlags: {[key:string]:boolean},
+  workspaceMetadata: Workspace;
 }
 
 export const initialState: HomeInitialState = {
@@ -48,6 +51,17 @@ export const initialState: HomeInitialState = {
   workflows:[
 
   ],
+  workspaceMetadata: {
+    name: '',
+    description: '',
+    id: uuidv4(),
+    // populate with date tiem string in iso format
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    lastAccessedAt: new Date().toISOString(),
+    tags:[],
+    data: {},
+  },
   selectedConversation: undefined,
   currentMessage: undefined,
   prompts: [],
