@@ -72,6 +72,8 @@ export const ChatInput = ({
   const [showPluginSelect, setShowPluginSelect] = useState(false);
   const [plugin, setPlugin] = useState<Plugin | null>(null);
   const [documents, setDocuments] = useState<AttachedDocument[]>();
+  const [documentState, setDocumentState] = useState<{[key:string]:number}>({});
+  const [documentAborts, setDocumentAborts] = useState<{[key:string]:AbortController}>({});
 
   const promptListRef = useRef<HTMLUListElement | null>(null);
   const [isWorkflowOn, setWorkflowOn] = useState(false);
@@ -293,6 +295,54 @@ export const ChatInput = ({
     buttonClasses += " bg-green-400 text-white"; // provide your desired 'on' state style classes
   }
 
+  const onCancelUpload = (document:AttachedDocument) => {
+    try {
+
+      if (documentAborts && documentAborts[document.id]) {
+        // @ts-ignore
+        documentAborts[document.id]();
+      }
+      else if (documentState && documentState[document.id]) {
+        // Needt to delete from server
+      }
+    } catch (e) {
+        console.log(e);
+    }
+  }
+
+  const handleDocumentAbortController = (document:AttachedDocument, abortController:any) => {
+
+    setDocumentAborts((prevState) => {
+      let newState = {...prevState, [document.id]: abortController};
+      newState[document.id] = abortController;
+      return newState;
+    });
+  }
+
+  const handleDocumentState = (document:AttachedDocument, progress:number) => {
+      console.log("Progress: " + progress);
+
+      setDocumentState((prevState) => {
+        let newState = {...prevState, [document.id]: progress};
+        newState[document.id] = progress;
+        return newState;
+      });
+
+  }
+
+  const handleSetKey = (document:AttachedDocument, key:string) => {
+    if(documents) {
+      const newDocuments = documents?.map((d) => {
+        if (d.id === document.id) {
+          return {...d, key: key};
+        }
+        return d;
+      });
+
+      setDocuments(newDocuments);
+    }
+  }
+
   return (
     <div className="absolute bottom-0 left-0 w-full border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
       <div className="stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
@@ -322,7 +372,10 @@ export const ChatInput = ({
 
         <div className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4">
 
-          <FileList documents={documents} setDocuments={setDocuments}/>
+          <FileList documents={documents}
+                    documentStates={documentState}
+                    onCancelUpload={onCancelUpload}
+                    setDocuments={setDocuments}/>
 
           <div className="flex items-center">
 
@@ -346,7 +399,12 @@ export const ChatInput = ({
               </button>
             )}
 
-            <AttachFile id="__attachFile" onAttach={addDocument} />
+            <AttachFile id="__attachFile"
+                        onAttach={addDocument}
+                        onSetKey={handleSetKey}
+                        onSetAbortController={handleDocumentAbortController}
+                        onUploadProgress={handleDocumentState}
+            />
 
             {showPluginSelect && (
               <div className="absolute left-0 bottom-14 rounded bg-white dark:bg-[#343541]">

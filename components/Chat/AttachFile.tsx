@@ -1,5 +1,5 @@
 import { IconPlus } from '@tabler/icons-react';
-import { FC } from 'react';
+import {FC, useContext} from 'react';
 import { getDocument, PDFDocumentProxy, Util } from './JsPDF'
 import * as pdfjs from './JsPDF'
 import readXlsxFile from 'read-excel-file'
@@ -8,9 +8,14 @@ import { useTranslation } from 'next-i18next';
 import JSZip from "jszip";
 import { v4 as uuidv4 } from 'uuid';
 import { AttachedDocument } from '@/types/attacheddocument';
+import { addFile } from "@/services/fileService";
+import HomeContext from "@/pages/api/home/home.context";
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;
+    onUploadProgress?: (data: AttachedDocument, progress: number) => void;
+    onSetKey?: (data:AttachedDocument, key:string) => void;
+    onSetAbortController?: (data:AttachedDocument, abortController:AbortController) => void;
     id:string;
 }
 
@@ -96,7 +101,7 @@ const handlePdf = (file:any):Promise<AttachedDocument> => {
                         allText += text;
                     }
 
-                    resolve({name:file.name, type:file.type, raw:allText, data:pages});
+                    resolve({id:uuidv4(), name:file.name, type:file.type, raw:allText, data:pages});
                 }).catch((error: any) => {
                     reject(error);
                 });
@@ -119,7 +124,7 @@ const handleAsDocx = (file:any) => {
                 // @ts-ignore
                 mammoth.extractRawText({arrayBuffer: arrayBuffer})
                     .then(function (result) {
-                        const data = {name:file.name, type:file.type, raw:result.value, data:result.value}
+                        const data = {id:uuidv4(), name:file.name, type:file.type, raw:result.value, data:result.value}
                         resolve(data); // The raw text
                     });
             }
@@ -137,9 +142,7 @@ const handleAsText = (processor:any, file: any):Promise<AttachedDocument> => {
             let result = (e.target?.result as string);
             let data = (processor) ? processor(result) : result;
 
-            console.log(`${file.name}`,{name:file.name, type:file.type, raw:result, data:data});
-
-            resolve({name:file.name, type:file.type, raw:result, data:data});
+            resolve({id:uuidv4(), name:file.name, type:file.type, raw:result, data:data});
         };
         reader.onerror = (e) => {
             reject(new Error("Failed to read the file."));
@@ -164,16 +167,30 @@ const handlersByType = {
     "*":(file:any)=>{return handleAsText(null, file)}
 }
 
-const handleFile = async (file:any, onAttach:any) => {
-    console.log("Handling file...");
+const handleFile = async (file:any,
+                          onAttach:any,
+                          onUploadProgress:any,
+                          onSetKey:any,
+                          onSetAbortController:any,
+                          uploadDocuments:boolean,
+                          extractDocumentsLocally:boolean) => {
+
     try {
         let type:string = file.type;
 
-        console.log("Document type", type);
+        let size = file.size;
 
-        // @ts-ignore
-        let handler = handlersByType[type] || handlersByType['*'];
-        let document = await handler(file);
+        let document:AttachedDocument = {id:uuidv4(), name:file.name, type:file.type, raw:"", data:""};
+
+        if(extractDocumentsLocally && size < 524289){
+            // @ts-ignore
+            let handler = handlersByType[type] || handlersByType['*'];
+            document = await handler(file);
+        }
+        else if(extractDocumentsLocally && !uploadDocuments) {
+            alert("This file is too large to send in a prompt.");
+            return;
+        }
 
         if (Array.isArray(document)) {
             document.forEach(
@@ -183,6 +200,37 @@ const handleFile = async (file:any, onAttach:any) => {
             onAttach(document);
         }
 
+        if(uploadDocuments) {
+            try {
+
+                const {key, response, abortController} = await addFile({id: uuidv4(), name: file.name, raw: "", type: file.type, data: ""}, file,
+                    (progress: number) => {
+                        if (onUploadProgress) {
+                            onUploadProgress(document, progress);
+                        }
+                    });
+
+                if(onSetAbortController) {
+                    onSetAbortController(document, abortController);
+                }
+
+                if (onSetKey) {
+                    document.key = key;
+                    onSetKey(document, key);
+                }
+
+                await response;
+            }
+            catch (e) {
+                // @ts-ignore
+                if(e.message !== 'Abort') {
+                    alert("upload failed");
+                }
+            }
+        }
+        else {
+            onUploadProgress(document, 100);
+        }
 
         // Process the document...
         //alert("Processed: "+ document.type +" : dataType? " + (typeof document.data) + " hasRaw? "+ (document.raw != null));
@@ -192,8 +240,13 @@ const handleFile = async (file:any, onAttach:any) => {
     }
 }
 
-export const AttachFile: FC<Props> = ({id, onAttach }) => {
+export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetKey , onSetAbortController}) => {
     const { t } = useTranslation('sidebar');
+
+    const {state: { featureFlags } } = useContext(HomeContext);
+
+    const uploadDocuments = featureFlags.uploadDocuments
+    const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
 
     return (
         <>
@@ -206,7 +259,7 @@ export const AttachFile: FC<Props> = ({id, onAttach }) => {
                 onChange={(e) => {
                     if (!e.target.files?.length) return;
                     const file = e.target.files[0];
-                    handleFile(file, onAttach);
+                    handleFile(file, onAttach, onUploadProgress, onSetKey, onSetAbortController, uploadDocuments, extractDocumentsLocally);
 
                     e.target.value = "";
                 }}

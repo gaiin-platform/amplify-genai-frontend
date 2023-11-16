@@ -75,6 +75,8 @@ export const initialState: HomeInitialState = {
   serverSideApiKeyIsSet: false,
   serverSidePluginKeysSet: false,
   featureFlags: {
+    uploadDocuments:true,
+    extractDocumentsLocally:true,
     workflowRun:true,
     workflowCreate:true,
     rootPromptCreate:true,

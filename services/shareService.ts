@@ -29,7 +29,9 @@ export const getSharedItems = async (user:string, abortSignal= null)=> {
 
 export const loadSharedItem = async (user:string, key:string, abortSignal= null)=> {
 
-    const response = await fetch('/api/sharedload', {
+    const filesEndpoint = process.env.FILES_API_URL || "";
+
+    const response = await fetch(filesEndpoint + '/upload', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
