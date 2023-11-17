@@ -366,7 +366,7 @@ export const ChatMessage: FC<Props> = memo(({
 
                 <div className="prose mt-[-2px] w-full dark:prose-invert">
                     {message.role === 'user' ? (
-                        <div className="flex w-full">
+                        <div className="flex flex-grow">
                             {isEditing ? (
 
                                 <UserMessageEditor
@@ -381,7 +381,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     setMessageContent={setMessageContent}/>
 
                             ) : (
-                                <div className="flex flex-col">
+                                <div className="flex flex-grow flex-col">
                                     <div className="flex flex-row">
                                         <div className="prose whitespace-pre-wrap dark:prose-invert flex-1">
                                             {message.content}
@@ -424,10 +424,10 @@ export const ChatMessage: FC<Props> = memo(({
                             )}
                         </div>
                     ) : (
-                        <div className="flex flex-col" ref={markdownComponentRef}>
-                            <div className="flex flex-row">
+                        <div className="flex flex-col w-full" ref={markdownComponentRef}>
+                            <div className="flex flex-row w-full">
                                 {!isEditing && (
-                                    <div className="flex flex-row"
+                                    <div className="flex flex-grow"
                                             ref={divRef}
                                             onMouseMove={event => {
                                                 const rect = divRef.current?.getBoundingClientRect();

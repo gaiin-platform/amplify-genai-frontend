@@ -7,7 +7,6 @@ const getPresignedUrl = withApiAuthRequired(
         const itemData = req.body;
         const apiUrl = (process.env.FILES_API_URL || "") + '/upload'; // API Gateway URL from environment variables
 
-        console.log(apiUrl);
         try {
             const { accessToken } = await getAccessToken(req, res);
 
@@ -23,8 +22,6 @@ const getPresignedUrl = withApiAuthRequired(
             if (!response.ok) throw new Error(`Failed with status: ${response.status}`);
 
             const data = await response.json();
-
-            console.log(data.presigned_url);
 
             res.status(200).json({ url: data.presigned_url, key: data.key });
         } catch (error) {

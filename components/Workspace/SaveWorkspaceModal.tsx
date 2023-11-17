@@ -103,7 +103,7 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
         handleConversationsCheck(true);
         handleFoldersCheck(true);
         handlePromptsCheck(true);
-    });
+    }, [open]);
 
     const handleItemSelect = (item: Prompt | Conversation | FolderInterface, itemType: string) => {
         switch (itemType) {
@@ -270,9 +270,9 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
                 block: 'center',
             });
 
-            setSelectedPrompts([...selectedPrompts]);
-            setSelectedConversations([...selectedConversations]);
-            setSelectedFolders([...selectedFolders]);
+            //setSelectedPrompts([...selectedPrompts]);
+            //setSelectedConversations([...selectedConversations]);
+            //setSelectedFolders([...selectedFolders]);
         }
     }, [open]);
 

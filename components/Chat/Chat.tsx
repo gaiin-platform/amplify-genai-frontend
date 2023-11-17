@@ -698,6 +698,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         statusHistory = [];
                     }
 
+                    console.log("statusHistory", statusHistory);
+
                     homeDispatch({field: 'status', value: statusHistory});
                 }
 
