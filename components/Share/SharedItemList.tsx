@@ -61,6 +61,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
 
                     if (result.ok) {
                         const items = await result.json();
+
                         const grouped = groupBy('sharedBy', items.item);
                         setGroupedItems(grouped);
                     }

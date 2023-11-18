@@ -100,7 +100,7 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
         handleConversationsCheck(true);
         handleFoldersCheck(true);
         handlePromptsCheck(true);
-    });
+    },[open, prompts, conversations, folders]);
 
     const handleItemSelect = (item: Prompt | Conversation | FolderInterface, itemType: string) => {
         switch (itemType) {

@@ -3,6 +3,8 @@ import { IconTrashX, IconCircleX } from '@tabler/icons-react';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
+import styled, {keyframes} from "styled-components";
+import {FiCommand} from "react-icons/fi";
 
 interface Props {
     documents:AttachedDocument[]|undefined;
@@ -10,6 +12,22 @@ interface Props {
     documentStates?: {[key:string]:number}
     onCancelUpload?: (document:AttachedDocument) => void;
 }
+
+const animate = keyframes`
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(720deg);
+  }
+`;
+
+const LoadingIcon = styled(FiCommand)`
+  color: #777777;
+  font-size: 1.1rem;
+  font-weight: bold;
+  animation: ${animate} 2s infinite;
+`;
 
 export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, onCancelUpload}) => {
     //console.log("Document list: ", documents)
@@ -44,7 +62,7 @@ export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, 
                 </div>
             );
         }
-        return 0;
+        return <LoadingIcon/>;
     }
 
     return (
