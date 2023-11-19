@@ -8,24 +8,24 @@ frontend:
         - npm ci
     build:
       commands:
-        - NEXT_PUBLIC_DEFAULT_SYSTEM_PROMPT=${NEXT_PUBLIC_DEFAULT_SYSTEM_PROMPT}
-        - OPENAI_API_KEY=${OPENAI_API_KEY}
-        - OPENAI_API_HOST=${OPENAI_API_HOST}
-        - OPENAI_API_TYPE=${OPENAI_API_TYPE}
-        - OPENAI_API_VERSION=${OPENAI_API_VERSION}
-        - AZURE_DEPLOYMENT_ID=${AZURE_DEPLOYMENT_ID}
-        - AZURE_API_NAME=${AZURE_API_NAME}
-        - AUTH0_AUDIENCE=${AUTH0_AUDIENCE}
-        - AUTH0_SCOPE=${AUTH0_SCOPE}
-        - STATE_API_URL=${STATE_API_URL}
-        - SHARE_API_URL=${SHARE_API_URL}
-        - AVAILABLE_MODELS=${AVAILABLE_MODELS}
-        - DEFAULT_MODEL=${DEFAULT_MODEL}
-        - AUTH0_SECRET=${AUTH0_SECRET}
-        - AUTH0_BASE_URL=${AUTH0_BASE_URL}
-        - AUTH0_ISSUER_BASE_URL=${AUTH0_ISSUER_BASE_URL}
-        - AUTH0_CLIENT_ID=${AUTH0_CLIENT_ID}
-        - AUTH0_CLIENT_SECRET=${AUTH0_CLIENT_SECRET}
+        - env | grep -e  NEXT_PUBLIC_DEFAULT_SYSTEM_PROMPT >> .env.dev
+        - env | grep -e  OPENAI_API_KEY >> .env.dev
+        - env | grep -e  OPENAI_API_HOST >> .env.dev
+        - env | grep -e  OPENAI_API_TYPE >> .env.dev
+        - env | grep -e  OPENAI_API_VERSION >> .env.dev
+        - env | grep -e  AZURE_DEPLOYMENT_ID >> .env.dev
+        - env | grep -e  AZURE_API_NAME >> .env.dev
+        - env | grep -e  AUTH0_AUDIENCE >> .env.dev
+        - env | grep -e  AUTH0_SCOPE >> .env.dev
+        - env | grep -e  STATE_API_URL >> .env.dev
+        - env | grep -e  SHARE_API_URL >> .env.dev
+        - env | grep -e  AVAILABLE_MODELS >> .env.dev
+        - env | grep -e  DEFAULT_MODEL >> .env.dev
+        - env | grep -e  AUTH0_SECRET >> .env.dev
+        - env | grep -e  AUTH0_BASE_URL >> .env.dev
+        - env | grep -e  AUTH0_ISSUER_BASE_URL >> .env.dev
+        - env | grep -e  AUTH0_CLIENT_ID >> .env.dev
+        - env | grep -e  AUTH0_CLIENT_SECRET >> .env.dev
 
 
         - npm run build
@@ -36,4 +36,3 @@ frontend:
   cache:
     paths:
       - node_modules/**/*
-
