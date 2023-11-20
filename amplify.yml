@@ -8,26 +8,6 @@ frontend:
         - npm ci
     build:
       commands:
-        - env | grep -e  NEXT_PUBLIC_DEFAULT_SYSTEM_PROMPT >> .env.development
-        - env | grep -e  OPENAI_API_KEY >> .env.development
-        - env | grep -e  OPENAI_API_HOST >> .env.development
-        - env | grep -e  OPENAI_API_TYPE >> .env.development
-        - env | grep -e  OPENAI_API_VERSION >> .env.development
-        - env | grep -e  AZURE_DEPLOYMENT_ID >> .env.development
-        - env | grep -e  AZURE_API_NAME >> .env.development
-        - env | grep -e  AUTH0_AUDIENCE >> .env.development
-        - env | grep -e  AUTH0_SCOPE >> .env.development
-        - env | grep -e  STATE_API_URL >> .env.development
-        - env | grep -e  SHARE_API_URL >> .env.development
-        - env | grep -e  AVAILABLE_MODELS >> .env.development
-        - env | grep -e  DEFAULT_MODEL >> .env.development
-        - env | grep -e  AUTH0_SECRET >> .env.development
-        - env | grep -e  AUTH0_BASE_URL >> .env.development
-        - env | grep -e  AUTH0_ISSUER_BASE_URL >> .env.development
-        - env | grep -e  AUTH0_CLIENT_ID >> .env.development
-        - env | grep -e  AUTH0_CLIENT_SECRET >> .env.development
-
-
         - npm run build
   artifacts:
     baseDirectory: .next
