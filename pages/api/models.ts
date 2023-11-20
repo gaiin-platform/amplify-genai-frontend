@@ -23,7 +23,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (OPENAI_API_TYPE === 'azure') {
       url = `${OPENAI_API_HOST}/${AZURE_API_NAME}/models?api-version=${OPENAI_API_VERSION}`;
     }
-console.log(url);
+
 
     const response = await fetch(url, {
       headers: {
@@ -39,7 +39,7 @@ console.log(url);
         }),
       },
     });
-  console.log(response);
+
 
 
     if (response.status === 401) {
