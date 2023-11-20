@@ -5,8 +5,26 @@ frontend:
       commands:
         - nvm install 18    # Install Node.js version 18
         - nvm use 18        # Use Node.js version 18
+        - env | grep -e  NEXT_PUBLIC_DEFAULT_SYSTEM_PROMPT >> .env.dev
+        - env | grep -e  OPENAI_API_KEY >> .env.dev
+        - env | grep -e  OPENAI_API_HOST >> .env.dev
+        - env | grep -e  OPENAI_API_TYPE >> .env.dev
+        - env | grep -e  OPENAI_API_VERSION >> .env.dev
+        - env | grep -e  AZURE_DEPLOYMENT_ID >> .env.dev
+        - env | grep -e  AZURE_API_NAME >> .env.dev
+        - env | grep -e  AUTH0_AUDIENCE >> .env.dev
+        - env | grep -e  AUTH0_SCOPE >> .env.dev
+        - env | grep -e  STATE_API_URL >> .env.dev
+        - env | grep -e  SHARE_API_URL >> .env.dev
+        - env | grep -e  AVAILABLE_MODELS >> .env.dev
+        - env | grep -e  DEFAULT_MODEL >> .env.dev
+        - env | grep -e  AUTH0_SECRET >> .env.dev
+        - env | grep -e  AUTH0_BASE_URL >> .env.dev
+        - env | grep -e  AUTH0_ISSUER_BASE_URL >> .env.dev
+        - env | grep -e  AUTH0_CLIENT_ID >> .env.dev
+        - env | grep -e  AUTH0_CLIENT_SECRET >> .env.dev
         - npm ci
-        
+
     build:
       commands:
         - npm run build
