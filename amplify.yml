@@ -6,6 +6,7 @@ frontend:
         - nvm install 18    # Install Node.js version 18
         - nvm use 18        # Use Node.js version 18
         - npm ci
+        
     build:
       commands:
         - npm run build
