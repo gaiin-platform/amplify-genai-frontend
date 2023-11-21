@@ -6,8 +6,6 @@ export const baseURL=process.env.AUTH0_BASE_URL;
 export const clientID=process.env.AUTH0_CLIENT_ID;
 export const clientSecret=process.env.AUTH0_CLIENT_SECRET;
 
-console.log(AUTH0_SECRET);
-
 export default handleAuth({
     // @ts-ignore
     async login(req, res) {
