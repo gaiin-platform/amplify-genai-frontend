@@ -92,6 +92,7 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
 
     }, [user]);
 
+
     const handleFetchShare = async (item: ShareItem) => {
         let date = '';
         if(item.sharedAt){
@@ -143,8 +144,9 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
                 includePrompts={true}
                 includeFolders={true}/>
 
+
             <div className="flex flex-row w-full items-center p-3">
-                <div className="w-full flex items-center p-3">
+                <div className="w-full flex items-center">
                     <button
                         className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
                         onClick={() => {
@@ -155,7 +157,7 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
                         Save
                     </button>
                 </div>
-                <div className="w-full flex items-center p-3">
+                <div className="w-full flex items-center pl-2">
                     <button
                         className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
                         onClick={() => {

@@ -9,6 +9,7 @@ import {
     IconTrash,
     IconX,
     IconDots,
+    IconRobot,
     IconShare,
 } from '@tabler/icons-react';
 import {
@@ -36,6 +37,7 @@ import {AttachedDocument} from "@/types/attacheddocument";
 import saveState from "@/services/stateService";
 import {useUser} from '@auth0/nextjs-auth0/client';
 import { createExport } from "@/utils/app/importExport";
+import {MessageType} from "@/types/chat";
 
 interface Props {
     prompt: Prompt;
@@ -108,10 +110,27 @@ export const PromptComponent = ({prompt}: Props) => {
         return formattedDate;
     }
 
-    const handleStartConversation = (prompt: Prompt) => {
+    const handleStartConversation = (startPrompt: Prompt) => {
+
+        let prompt = startPrompt;
 
         let rootPromptObj = (prompt.data?.rootPromptId) ?
             prompts.find((p) => p.id == prompt.data?.rootPromptId) : null;
+
+        if(rootPromptObj == null && prompt.type === MessageType.ROOT){
+            rootPromptObj = prompt;
+            prompt = {
+                description: rootPromptObj.description,
+                folderId: null,
+                id: uuidv4(),
+                name: "Conversation Started with "+rootPromptObj.name,
+                type: MessageType.PROMPT,
+                content: "Tell me about what you can help me with.",
+                data: {
+                    rootPromptId: rootPromptObj.id
+                }
+            }
+        }
 
         let rootPrompt = null;
         if (rootPromptObj != null && rootPromptObj?.content) {
@@ -179,6 +198,18 @@ export const PromptComponent = ({prompt}: Props) => {
         handleAddPrompt(newPrompt);
     }
 
+    const getIcon = (prompt: Prompt) => {
+        if(prompt.data && prompt.data.assistant){
+            return (<IconRobot size={18}/>);
+        }
+        else if(prompt.type === "automation"){
+            return (<IconApiApp size={18}/>);
+        }
+        else {
+            return (<IconMessage2 size={18}/>);
+        }
+    }
+
 
     useEffect(() => {
         if (isRenaming) {
@@ -217,7 +248,7 @@ export const PromptComponent = ({prompt}: Props) => {
 
                     <div className="relative flex items-center overflow-hidden text-left text-[12.5px] leading-3">
                         <div className="pr-2">
-                            {(prompt.type === "automation") ? <IconApiApp/> : <IconMessage2/>}
+                            {getIcon(prompt)}
                         </div>
                         <div
                             className="overflow-hidden flex-1 text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">

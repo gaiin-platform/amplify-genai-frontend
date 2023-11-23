@@ -6,6 +6,7 @@ import {CodeBlock} from "@/components/Markdown/CodeBlock";
 import {Conversation, Message} from "@/types/chat";
 import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
 import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
+import AssistantBlock from "@/components/Chat/ChatContentBlocks/AssistantBlock";
 
 
 interface Props {
@@ -72,6 +73,12 @@ const ChatContentBlock: React.FC<Props> = (
                 //console.log("mermaid")
                 //@ts-ignore
                 return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1 }/>);
+            }
+
+            if (!inline && match && match[1] === 'assistant') {
+                //console.log("mermaid")
+                //@ts-ignore
+                return (<AssistantBlock definition={String(children)}/>);
             }
 
             if (!inline && match && match[1] === 'toggle') {

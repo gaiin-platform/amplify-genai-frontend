@@ -54,6 +54,7 @@ import {Features} from "@/types/features";
 import {saveFeatures} from "@/utils/app/features";
 import {findParametersInWorkflowCode} from "@/utils/workflow/workflow";
 import WorkspaceList from "@/components/Workspace/WorkspaceList";
+import {Market} from "@/components/Market/Market";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -96,6 +97,7 @@ const Home = ({
             selectedConversation,
             prompts,
             temperature,
+            page,
         },
         dispatch,
     } = contextValue;
@@ -129,6 +131,8 @@ const Home = ({
     // FETCH MODELS ----------------------------------------------
 
     const handleSelectConversation = (conversation: Conversation) => {
+        dispatch({field: 'page', value: 'chat'})
+
         dispatch({
             field: 'selectedConversation',
             value: conversation,
@@ -236,6 +240,8 @@ const Home = ({
     // CONVERSATION OPERATIONS  --------------------------------------------
 
     const handleNewConversation = (params = {}) => {
+        dispatch({field: 'page', value: 'chat'})
+
         const lastConversation = conversations[conversations.length - 1];
 
         // Create a string for the current date like Oct-18-2021
@@ -754,7 +760,14 @@ const Home = ({
                             </TabSidebar>
 
                             <div className="flex flex-1">
-                                <Chat stopConversationRef={stopConversationRef}/>
+                                {page === 'chat' && (
+                                    <Chat stopConversationRef={stopConversationRef}/>
+                                )}
+                                {page === 'market' && (
+                                    <Market items={[
+                                        // {id: "1", name: "Item 1"},
+                                    ]}/>
+                                )}
                             </div>
 
 

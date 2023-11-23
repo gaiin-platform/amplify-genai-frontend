@@ -1,8 +1,11 @@
-import React, {FC, useEffect, useState} from 'react';
+import React, {FC, useContext, useEffect, useState} from 'react';
 import {ExportFormatV4, ShareItem} from "@/types/export";
 import {
     IconCaretDown,
     IconCaretRight,
+    IconHexagonLetterM,
+    IconJetpack,
+    IconPlanet,
     IconCheck,
     IconPencil,
     IconTrash,
@@ -16,12 +19,12 @@ import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
+import HomeContext from "@/pages/api/home/home.context";
 
-type SharedItemsListProps = {
-};
+type SharedItemsListProps = {};
 
-function groupBy(key: string, array: ShareItem[]): {[key: string]: ShareItem[]} {
-    return array.reduce((result: {[key: string]: ShareItem[]}, currentItem) => {
+function groupBy(key: string, array: ShareItem[]): { [key: string]: ShareItem[] } {
+    return array.reduce((result: { [key: string]: ShareItem[] }, currentItem) => {
         (result[currentItem[key as keyof ShareItem]] = result[currentItem[key as keyof ShareItem]] || []).push(currentItem);
         return result;
     }, {});
@@ -43,19 +46,22 @@ const LoadingIcon = styled(FiCommand)`
 `;
 
 const SharedItemsList: FC<SharedItemsListProps> = () => {
+
+    const {dispatch: homeDispatch} = useContext(HomeContext);
+
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
     const [importModalOpen, setImportModalOpen] = useState<boolean>(false);
     const [selectedKey, setSelectedKey] = useState<string>("");
     const [selectedNote, setSelectedNote] = useState<string>("");
     const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [groupedItems, setGroupedItems] = useState<{[key:string]:ShareItem[]}>({});
+    const [groupedItems, setGroupedItems] = useState<{ [key: string]: ShareItem[] }>({});
     const {user} = useUser();
 
-    useEffect( () => {
+    useEffect(() => {
         const name = user?.name;
 
         const fetchData = async () => {
-            if(name) {
+            if (name) {
                 try {
                     const result = await getSharedItems(name);
 
@@ -74,9 +80,9 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
 
         fetchData();
 
-    },[user]);
+    }, [user]);
 
-    const handleFetchShare = async (item:ShareItem) => {
+    const handleFetchShare = async (item: ShareItem) => {
         setSelectedKey(item.key);
         setSelectedNote(item.note);
         setImportModalOpen(true);
@@ -88,8 +94,12 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
 
             {importModalOpen && (
                 <ImportAnythingModal
-                    onImport={()=>{setImportModalOpen(false);}}
-                    onCancel={()=>{setImportModalOpen(false);}}
+                    onImport={() => {
+                        setImportModalOpen(false);
+                    }}
+                    onCancel={() => {
+                        setImportModalOpen(false);
+                    }}
                     includeConversations={true}
                     includePrompts={true}
                     includeFolders={true}
@@ -100,22 +110,40 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
 
             <ShareAnythingModal
                 open={isModalOpen}
-                onShare={()=>{setIsModalOpen(false)}}
-                onCancel={()=>{setIsModalOpen(false)}}
+                onShare={() => {
+                    setIsModalOpen(false)
+                }}
+                onCancel={() => {
+                    setIsModalOpen(false)
+                }}
                 includeConversations={true}
                 includePrompts={true}
                 includeFolders={true}/>
 
-            <div className="flex items-center p-3">
-                <button
-                    className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
-                    onClick={() => {
-                        setIsModalOpen(true);
-                    }}
-                >
-                    <IconPlus size={16} />
-                    Share Something
-                </button>
+            <div className="flex flex-row items-center pt-3 pl-3 pr-3">
+                <div className="flex items-center">
+                    <button
+                        className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
+                        onClick={() => {
+                            homeDispatch({field: 'page', value: 'market'})
+                        }}
+                    >
+                        <IconJetpack size={16}/>
+                        Marketplace
+                    </button>
+                </div>
+
+                <div className="flex items-center pl-2">
+                    <button
+                        className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
+                        onClick={() => {
+                            setIsModalOpen(true);
+                        }}
+                    >
+                        <IconShare size={16}/>
+                        Share
+                    </button>
+                </div>
             </div>
 
             <h3 className="text-lg border-b p-3 ml-3 mr-3">Shared with You</h3>
@@ -131,8 +159,8 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                 <div key={sharedBy} className="sharedBy-group ml-3 mt-6 p-2">
                     <ExpansionComponent
                         title={sharedBy}
-                        openWidget={<IconCaretDown size={18} />}
-                        closedWidget={<IconCaretRight size={18} />}
+                        openWidget={<IconCaretDown size={18}/>}
+                        closedWidget={<IconCaretRight size={18}/>}
                         content={items.map((item, index) => (
                             <button
                                 key={index}
@@ -141,15 +169,15 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                                     handleFetchShare(item);
                                 }}
                             >
-                                <IconShare size={18} />
+                                <IconShare size={18}/>
                                 <div className="flex-1 flex-col break-all text-left text-[12.5px] leading-3 pr-1">
-                                <div className="mb-1 text-gray-500">{new Date(item.sharedAt).toLocaleString()}</div>
-                                <div
-                                    className="relative max-w-5 flex-1 break-all text-left text-[12.5px] leading-3 pr-1"
-                                    style={{ wordWrap: "break-word" }} // Added word wrap style
-                                >
-                                     {item.note}
-                                </div>
+                                    <div className="mb-1 text-gray-500">{new Date(item.sharedAt).toLocaleString()}</div>
+                                    <div
+                                        className="relative max-w-5 flex-1 break-all text-left text-[12.5px] leading-3 pr-1"
+                                        style={{wordWrap: "break-word"}} // Added word wrap style
+                                    >
+                                        {item.note}
+                                    </div>
                                 </div>
                             </button>
                         ))}

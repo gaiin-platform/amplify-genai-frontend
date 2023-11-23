@@ -8,6 +8,7 @@ import { WorkflowDefinition } from "@/types/workflow";
 import { Status } from "@/types/workflow";
 import {Workspace} from "@/types/workspace";
 import { v4 as uuidv4 } from 'uuid';
+import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 
 export interface HomeInitialState {
   apiKey: string;
@@ -35,6 +36,8 @@ export interface HomeInitialState {
   serverSidePluginKeysSet: boolean,
   featureFlags: {[key:string]:boolean},
   workspaceMetadata: Workspace;
+  selectedAssistant: Assistant | null;
+  page: string;
 }
 
 export const initialState: HomeInitialState = {
@@ -74,6 +77,8 @@ export const initialState: HomeInitialState = {
   defaultModelId: undefined,
   serverSideApiKeyIsSet: false,
   serverSidePluginKeysSet: false,
+  selectedAssistant: null,
+  page: 'market',
   featureFlags: {
     uploadDocuments:true,
     extractDocumentsLocally:true,

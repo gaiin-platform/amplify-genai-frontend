@@ -7,17 +7,24 @@ export type FieldNames<T> = {
 
 // Returns the Action Type for the dispatch object to be used for typing in things like context
 export type ActionType<T> =
-  | { type: 'reset' }
-  | { type?: 'change'; field: FieldNames<T>; value: any };
+    | { type: 'reset' }
+    | { type: 'append'; field: FieldNames<T>; value: any  }
+    | { type?: 'change'; field: FieldNames<T>; value: any };
 
 // Returns a typed dispatch and state
 export const useCreateReducer = <T>({ initialState }: { initialState: T }) => {
   type Action =
-    | { type: 'reset' }
-    | { type?: 'change'; field: FieldNames<T>; value: any };
+      | { type: 'reset' }
+      | { type: 'append'; field: FieldNames<T>; value: any  }
+      | { type?: 'change'; field: FieldNames<T>; value: any };
 
   const reducer = (state: T, action: Action) => {
     if (!action.type) return { ...state, [action.field]: action.value };
+    if (action.type === 'append') {
+      console.log("append", action.field, action.value);
+      const curr = state[action.field] as [];
+      return { ...state, [action.field]: [...curr, action.value] };
+    }
 
     if (action.type === 'reset') return initialState;
 
