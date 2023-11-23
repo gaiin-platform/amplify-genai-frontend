@@ -14,6 +14,8 @@ export interface MarketCategory {
     icon: string;
     tags: string[];
     image: string;
+    categories?: MarketCategory[];
+    items?: MarketItem[];
 }
 
 export interface MarketItem {

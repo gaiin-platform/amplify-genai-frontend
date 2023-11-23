@@ -6,6 +6,7 @@ import {
     IconHexagonLetterM,
     IconJetpack,
     IconPlanet,
+    IconRocket,
     IconCheck,
     IconPencil,
     IconTrash,
@@ -20,6 +21,7 @@ import {FiCommand} from "react-icons/fi";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
 import HomeContext from "@/pages/api/home/home.context";
+import {ShareAnythingToMarketModal} from "@/components/Share/ShareAnythingToMarketModal";
 
 type SharedItemsListProps = {};
 
@@ -50,6 +52,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
     const {dispatch: homeDispatch} = useContext(HomeContext);
 
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+    const [isMarketModalOpen, setIsMarketModalOpen] = useState<boolean>(false);
     const [importModalOpen, setImportModalOpen] = useState<boolean>(false);
     const [selectedKey, setSelectedKey] = useState<string>("");
     const [selectedNote, setSelectedNote] = useState<string>("");
@@ -120,8 +123,20 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                 includePrompts={true}
                 includeFolders={true}/>
 
+            <ShareAnythingToMarketModal
+                open={isMarketModalOpen}
+                onShare={() => {
+                    setIsMarketModalOpen(false);
+                }}
+                onCancel={() => {
+                    setIsMarketModalOpen(false);
+                }}
+                includeConversations={true}
+                includePrompts={true}
+                includeFolders={true}/>
+
             <div className="flex flex-row items-center pt-3 pl-3 pr-3">
-                <div className="flex items-center">
+                <div className="flex w-full items-center">
                     <button
                         className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
                         onClick={() => {
@@ -129,11 +144,13 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                         }}
                     >
                         <IconJetpack size={16}/>
-                        Marketplace
+                        Open Marketplace
                     </button>
                 </div>
+            </div>
 
-                <div className="flex items-center pl-2">
+            <div className="flex flex-row items-center pt-3 pl-3 pr-3">
+                <div className="flex items-center">
                     <button
                         className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
                         onClick={() => {
@@ -141,7 +158,18 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                         }}
                     >
                         <IconShare size={16}/>
-                        Share
+                        Share to Users
+                    </button>
+                </div>
+                <div className="flex items-center pl-2">
+                    <button
+                        className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
+                        onClick={() => {
+                            setIsMarketModalOpen(true);
+                        }}
+                    >
+                        <IconRocket size={16}/>
+                        Publish to Market
                     </button>
                 </div>
             </div>
