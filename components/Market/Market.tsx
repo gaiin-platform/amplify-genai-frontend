@@ -30,9 +30,10 @@ import {TagsList} from "@/components/Chat/TagsList";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {MarketCategory, MarketItem, MarketItemType} from "@/types/market";
 import {ShareItem} from "@/types/export";
-import {getCategory} from "@/services/marketService";
+import {getCategory, getItem} from "@/services/marketService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
+import {ImportAnythingModal, ImportFetcher} from "@/components/Share/ImportAnythingModal";
 
 interface Props {
     items: MarketItem[];
@@ -112,7 +113,13 @@ export const Market = ({items}: Props) => {
         }
     ];
 
-    //
+    const noOpImportFetcher:ImportFetcher = async () => {
+        return {success:false, message: "No Op", data: null};
+    }
+
+    const [showMarketItemInstallModal, setShowMarketItemInstallModal] = useState<boolean>(false);
+    const [marketItemDescription, setMarketItemDescription] = useState<string>("");
+    const [importFetcher, setImportFetcher] = useState<ImportFetcher>(noOpImportFetcher);
     const [groupedItems, setGroupedItems] = useState<{ [key: string]: MarketItem[]; }>({});
     const [groupedMarketCategories, setGroupedMarketCategories] = useState<{ [key: string]: MarketCategory[]; }>({});
     const [marketCategories, setMarketCategories] = useState<MarketCategory[]>([]);
@@ -309,6 +316,25 @@ export const Market = ({items}: Props) => {
         }
     }
 
+    const handleGetItem = async (item: MarketItem) => {
+
+        const marketItemFetcher:ImportFetcher = async () => {
+            const response = await getItem(item.id);
+
+            if(response.success) {
+                const itemData = response.data.content;
+                return {success:true, message: "Downloaded", data: itemData};
+            } else {
+                return response;
+            }
+        };
+
+
+        setImportFetcher(()=>marketItemFetcher);
+        setMarketItemDescription(item.description);
+        setShowMarketItemInstallModal(true);
+    }
+
     function getSectionImage(index: number) {
         const sectionImages: string[] = [
             "https://www.vanderbilt.edu/wp-content/uploads/sites/3/2021/04/bronson-ingram.jpeg",
@@ -388,6 +414,27 @@ export const Market = ({items}: Props) => {
                 >
                     <div>
 
+                        {showMarketItemInstallModal && (
+                            <ImportAnythingModal
+                                onImport={
+                                    ()=>{
+                                        alert("Market item installed.");
+                                        setShowMarketItemInstallModal(false);
+                                    }
+                                }
+                                onCancel={
+                                    ()=>{
+                                        setShowMarketItemInstallModal(false);
+                                    }
+                                }
+                                includeConversations={true}
+                                includePrompts={true}
+                                includeFolders={true}
+                                importKey={""}
+                                importFetcher={importFetcher}
+                                note={marketItemDescription}/>
+                        )}
+
                         {/*{showSettings && (*/}
                         {/*    <div*/}
                         {/*        className="flex flex-col space-y-10 md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">*/}
@@ -404,7 +451,7 @@ export const Market = ({items}: Props) => {
                                 className="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 grid lg:grid-cols-2 gap-8 lg:gap-16">
                                 <div className="flex flex-col justify-center">
                                     <h1 className="mb-4 text-4xl font-extrabold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl dark:text-white">
-                                        <IconRocket size={89}/> Launch Your Generative AI</h1>
+                                        <IconRocket size={89}/>Generative AI Market</h1>
                                     <p className="mb-6 text-lg font-normal text-gray-500 lg:text-xl dark:text-gray-400">
                                         Discover and share prompts, assistants, and automations with the community.
                                         Build
@@ -563,10 +610,16 @@ export const Market = ({items}: Props) => {
                                                             <p className="mt-2 mb-3 font-normal text-gray-700 dark:text-gray-400">
                                                                 By: {item.author}
                                                             </p>
-                                                            <a href="#"
+                                                            <button
+                                                               onClick={(e) => {
+                                                                   e.stopPropagation();
+                                                                   e.preventDefault();
+                                                                   handleGetItem(item);
+                                                               }
+                                                               }
                                                                className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
                                                                 <IconDownload/> Get
-                                                            </a>
+                                                            </button>
                                                         </div>
                                                     </div>
 

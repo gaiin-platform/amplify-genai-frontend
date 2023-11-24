@@ -6,9 +6,11 @@ import {Prompt} from "@/types/prompt";
 import {TagsList} from "@/components/Chat/TagsList";
 import {createExport, exportData} from "@/utils/app/importExport";
 import {useUser} from '@auth0/nextjs-auth0/client';
-import {shareItems} from "@/services/shareService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
+import {getCategories, getCategory, publish} from "@/services/marketService";
+import {MarketCategory} from "@/types/market";
+import {v4} from "uuid";
 
 export interface SharingModalProps {
     open: boolean;
@@ -56,16 +58,23 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
     const {user} = useUser();
 
     // Individual states for selected prompts, conversations, and folders
-    const [isSharing, setIsSharing] = useState(false);
+    const [isPublishing, setIsPublishing] = useState(false);
     const [selectedPromptsState, setSelectedPrompts] = useState([...selectedPrompts]);
     const [selectedConversationsState, setSelectedConversations] = useState([...selectedConversations]);
     const [selectedFoldersState, setSelectedFolders] = useState([...selectedFolders]);
-    const [selectedPeople, setSelectedPeople] = useState<Array<string>>([]);
-    const [sharingNote, setSharingNote] = useState<string>("");
+    const [selectedTags, setSelectedTags] = useState<Array<string>>([]);
+    const [publishedDescription, setPublishedDescription] = useState<string>("");
     const itemRefs = useRef<Record<string, React.RefObject<HTMLDivElement>>>({});
     const [promptsChecked, setPromptsChecked] = useState(false);
     const [conversationsChecked, setConversationsChecked] = useState(false);
     const [foldersChecked, setFoldersChecked] = useState(false);
+    const [publishingName, setPublishingName] = useState<string>("");
+    const [selectedCategory, setSelectedCategory] = useState<string>("");
+    const [allowedCategories, setAllowedCategories] = useState<Array<{name:string, category:string}>>([]);
+
+    const getSubCategories = async (category:string)  => {
+        return await getCategory(category);
+    }
 
     const handlePromptsCheck = (checked:boolean) => {
         // if checked, add all prompts to selected, else remove them
@@ -126,15 +135,17 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
         return items.some(i => i === item) ? items.filter(i => i !== item) : [...items, item];
     }
 
-    const canShare = () => {
-        return selectedPeople.length > 0
+    const canPublish = () => {
+
+        return publishingName.length > 3
             && (selectedPromptsState.length > 0 || selectedConversationsState.length > 0 || selectedFoldersState.length > 0)
-            && (sharingNote && sharingNote?.length > 0);
+            && (publishedDescription && publishedDescription?.length > 0)
+            && (selectedCategory && selectedCategory?.length > 0)
     }
 
-    const handleShare = async () => {
+    const handlePublish = async () => {
         //onSave(selectedItems);
-        setIsSharing(true);
+        setIsPublishing(true);
 
         // Go through the prompts and look for ones that have a value for prompt.data.rootPromptId and
         // automatically find those prompts and add them to the list of prompts to share if they are not already there
@@ -153,29 +164,69 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
             .map(id => prompts.find(p => p.id === id))
             .filter(prompt => prompt !== undefined) as Prompt[];
 
+
+        const newPromptFolder:FolderInterface = {
+            id: v4(),
+            name: "Mkt: "+publishingName,
+            type: "prompt"
+        }
+
+        const newConversationsFolder:FolderInterface = {
+            id: v4(),
+            name: "Mkt: "+publishingName,
+            type: "chat"
+        }
+
+        const allPrompts = [...selectedPromptsState, ...rootPromptsToAdd].map(
+            prompt => {
+                return {
+                    ...prompt,
+                    folderId: newPromptFolder.id
+                }
+            }
+        );
+
+        const allConversations = selectedConversationsState.map(
+            conversation => {
+                return {
+                    ...conversation,
+                    folderId: newConversationsFolder.id
+                }
+            });
+
+        const foldersToAdd = [];
+        if(allPrompts.length > 0) {
+            foldersToAdd.push(newPromptFolder);
+        }
+        if(allConversations.length > 0) {
+            foldersToAdd.push(newConversationsFolder);
+        }
+
         const sharedData = createExport(
-            selectedConversationsState,
-            selectedFoldersState,
-            [...selectedPromptsState, ...rootPromptsToAdd]);
+            allConversations,
+            foldersToAdd,
+            allPrompts);
 
-        const sharedWith = selectedPeople;
-        const sharedBy = user?.name;
 
-        if (sharedBy && sharingNote) {
+        if (publishingName && publishedDescription) {
             try {
-                const result = await shareItems(sharedBy, sharedWith, sharingNote, sharedData);
+                const result = await publish(publishingName,
+                    publishedDescription,
+                    selectedCategory,
+                    selectedTags,
+                    sharedData);
 
-                if (result.ok) {
-                    setIsSharing(false);
-                    alert("Shared successfully");
+                if (result.success) {
+                    setIsPublishing(false);
+                    alert("Published successfully");
                     onShare([...selectedPromptsState, ...selectedConversationsState, ...selectedFoldersState]);
                 } else {
-                    setIsSharing(false);
-                    alert("Sharing failed, please try again.");
+                    setIsPublishing(false);
+                    alert("Publishing failed, please try again.");
                 }
             } catch (e) {
-                setIsSharing(false);
-                alert("Sharing failed, please try again.");
+                setIsPublishing(false);
+                alert("Publishing failed, please try again.");
             }
         }
 
@@ -243,8 +294,23 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
             setSelectedPrompts([...selectedPrompts]);
             setSelectedConversations([...selectedConversations]);
             setSelectedFolders([...selectedFolders]);
+
+            try {
+                getCategories().then((categories) => {
+                    try {
+                        const base = {category: "", name: "Please select a category"};
+                        setAllowedCategories([base, ...categories.data]);
+                        setSelectedCategory(base.category);
+                    } catch (e) {
+                        alert("Unable to reach the market. Please try again later.");
+                    }
+                });
+            }catch (e) {
+                alert("Unable to reach the market. Please try again later.");
+            }
         }
     }, [open]);
+
 
     function extractEmails(inputText: string): string[] {
         const regex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi;
@@ -270,14 +336,14 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
                         className="border-neutral-400 dark:border-netural-400 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-w-lg sm:p-6 sm:align-middle"
                         role="dialog"
                     >
-                        {isSharing && (
+                        {isPublishing && (
                             <div className="flex flex-col items-center justify-center">
                                 <LoadingIcon/>
-                                <span className="text-black dark:text-white text-xl font-bold mt-4">Sharing to Market...</span>
+                                <span className="text-black dark:text-white text-xl font-bold mt-4">Publishing to Market...</span>
                             </div>
                         )}
 
-                        {!isSharing && (
+                        {!isPublishing && (
                             <>
                                 <h2 className="text-black dark:text-white text-xl font-bold">Publish to the Market</h2>
 
@@ -290,8 +356,8 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
                                         placeholder={
                                             "Provide a concise name for what you are publishing (required)."
                                         }
-                                        value={sharingNote || ''}
-                                        onChange={(e) => setSharingNote(e.target.value)}
+                                        value={publishingName || ''}
+                                        onChange={(e) => setPublishingName(e.target.value)}
                                         rows={1}
                                     />
 
@@ -302,27 +368,34 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
                                         placeholder={
                                             "Describe what you are publishing in 2-3 sentences (required)."
                                         }
-                                        value={sharingNote || ''}
-                                        onChange={(e) => setSharingNote(e.target.value)}
-                                        rows={3}
+                                        value={publishedDescription || ''}
+                                        onChange={(e) => setPublishedDescription(e.target.value)}
+                                        rows={2}
                                     />
 
-                                    <h3 className="text-black dark:text-white text-lg mt-2 border-b">Market Categorization</h3>
-                                    <div className="flex flex-row items-center">
-                                        <select className="text-black text-xl mt-2 mr-4 rounded">
-                                            <option value="public">Academics</option>
-                                            <option value="public">Operations</option>
-                                            <option value="public">Learning</option>
+                                    <h3 className="text-black dark:text-white text-lg mt-2 border-b">Category</h3>
+                                    <div className="flex flex-col p-2">
+
+                                        <select
+                                                value={selectedCategory}
+                                                onChange={(e) => {
+                                                    const newCategory = e.target.value;
+                                                    setSelectedCategory(newCategory);
+                                                }}
+                                                className="text-black text-lg mt-2 rounded">
+                                            {allowedCategories.map((option, index) => (
+                                                <option key={option.category} value={option.category}>{option.name}</option>
+                                            ))}
                                         </select>
 
                                         <TagsList label={"Add Tags"}
                                                   addMessage={"Tags to help people find this:"}
-                                                  tags={selectedPeople}
-                                                  setTags={setSelectedPeople}/>
+                                                  tags={selectedTags}
+                                                  setTags={setSelectedTags}/>
                                     </div>
 
                                     <h3 className="text-black dark:text-white text-lg mt-3 mb-2 border-b">Select What to Publish</h3>
-                                    <div style={{height: "200px", overflowY: "scroll"}}>
+                                    <div style={{height: "150px", overflowY: "scroll"}}>
 
                                     {includePrompts && (
                                         <>
@@ -386,15 +459,15 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
                             >
                                 Cancel
                             </button>
-                            {!isSharing && (
+                            {!isPublishing && (
                                 <button
                                     type="button"
-                                    style={{opacity: selectedPeople.length === 0 || !canShare() ? 0.3 : 1}}
+                                    style={{opacity: !canPublish() ? 0.3 : 1}}
                                     className="ml-2 w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300 ${selectedPeople.length === 0 || (selectedPromptsState.length === 0 && selectedConversationsState.length === 0 && selectedFoldersState.length === 0) ? 'cursor-not-allowed' : ''}"
-                                    onClick={handleShare}
-                                    disabled={!canShare()}
+                                    onClick={handlePublish}
+                                    disabled={!canPublish()}
                                 >
-                                    Share
+                                    Publish
                                 </button>
                             )}
                         </div>

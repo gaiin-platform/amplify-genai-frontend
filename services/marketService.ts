@@ -4,6 +4,7 @@ import {ChatBody, Message, newMessage} from "@/types/chat";
 import {sendChatRequest} from "@/services/chatService";
 import {Stopper} from "@/utils/app/tools";
 import {v4 as uuidv4} from 'uuid';
+import {ExportFormatV4} from "@/types/export";
 
 const failureResponse = (reason: string) => {
     return {
@@ -12,6 +13,7 @@ const failureResponse = (reason: string) => {
         data: {}
     }
 }
+
 
 const doMarketOp = async (opName:string, data:any, errorHandler=(e:any)=>{}) => {
     const op = {
@@ -47,6 +49,23 @@ const doMarketOp = async (opName:string, data:any, errorHandler=(e:any)=>{}) => 
     }
 }
 
+const serviceHook = (opName: string) => {
+
+    return async (requestData: any) => {
+        const {success, message, data} = await doMarketOp(
+            opName,
+            requestData);
+
+        console.log(`{opName} response:`, success, message, data);
+
+        if (!success) {
+            return failureResponse(message);
+        }
+
+        return {success: true, message: `${opName} success.`, data: data};
+    }
+}
+
 export const getCategory = async (category:string ) => {
 
     const {success, message, data} = await doMarketOp(
@@ -62,3 +81,48 @@ export const getCategory = async (category:string ) => {
     return {success:true, message:"Category fetched successfully.", data:data};
 }
 
+export const getCategories = async () => {
+
+    const {success, message, data} = await doMarketOp(
+        '/category/list',
+        {});
+
+    console.log("Categories response:", success, message, data);
+
+    if(!success){
+        return failureResponse(message);
+    }
+
+    return {success:true, message:"Category fetched successfully.", data:data};
+}
+
+export const getItem = async (id:string ) => {
+    const service = serviceHook('/item/get');
+    return await service({id:id});
+}
+
+export const publish = async (
+    name:string,
+    description:string,
+    category:string,
+    tags:string[],
+    content:ExportFormatV4) => {
+
+    const {success, message, data} = await doMarketOp(
+        '/item/publish',
+        {
+            name:name,
+            description:description,
+            category:category,
+            tags:tags,
+            content:content
+        });
+
+    console.log("Publish response:", success, message, data);
+
+    if(!success){
+        return failureResponse(message);
+    }
+
+    return {success:true, message:"Published item successfully.", data:data};
+}

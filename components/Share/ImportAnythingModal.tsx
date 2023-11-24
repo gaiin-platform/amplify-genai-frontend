@@ -20,6 +20,11 @@ export interface ImportModalProps {
     includeFolders: boolean;
     importKey: string;
     note: string;
+    importFetcher?: ImportFetcher;
+}
+
+export interface ImportFetcher {
+    (): Promise<{success:boolean, message:string, data: ExportFormatV4|null}>;
 }
 
 const animate = keyframes`
@@ -45,7 +50,8 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         includeConversations,
         includeFolders,
         importKey,
-        note
+        note,
+        importFetcher
     }) => {
 
 
@@ -69,19 +75,19 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
     const [conversationsChecked, setConversationsChecked] = useState(false);
     const [foldersChecked, setFoldersChecked] = useState(false);
 
-    const handlePromptsCheck = (checked:boolean) => {
+    const handlePromptsCheck = (checked: boolean) => {
         // if checked, add all prompts to selected, else remove them
-        setSelectedPrompts(checked ? prompts: []);
+        setSelectedPrompts(checked ? prompts : []);
         setPromptsChecked(checked);
     };
 
-    const handleConversationsCheck = (checked:boolean) => {
+    const handleConversationsCheck = (checked: boolean) => {
         setSelectedConversations(checked ? conversations : []);
         setConversationsChecked(checked);
     };
 
-    const handleFoldersCheck = (checked:boolean) => {
-        setSelectedFolders(checked ? folders: []);
+    const handleFoldersCheck = (checked: boolean) => {
+        setSelectedFolders(checked ? folders : []);
         setFoldersChecked(checked);
     };
 
@@ -185,10 +191,13 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);
 
         homeDispatch({field: 'conversations', value: history});
-        homeDispatch({
-            field: 'selectedConversation',
-            value: history[history.length - 1],
-        });
+
+        if(history && history.length > 0) {
+            homeDispatch({
+                field: 'selectedConversation',
+                value: history[history.length - 1],
+            });
+        }
         homeDispatch({field: 'folders', value: folders});
         homeDispatch({field: 'prompts', value: prompts});
 
@@ -251,25 +260,50 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         setSelectedFolders([]);
     }
 
-    useEffect(() => {
-        const fetchData = async () => {
+    const initWithImportData = (sharedData: ExportFormatV4) => {
+        setPrompts(sharedData.prompts);
+        setSelectedPrompts(sharedData.prompts);
+        setConversations(sharedData.history);
+        setSelectedConversations(sharedData.history);
+        setFolders(sharedData.folders);
+        setSelectedFolders(sharedData.folders);
+    }
 
+    useEffect(() => {
+
+
+        const fetchData = async () => {
 
             if (user && user.name) {
 
-                const result = await loadSharedItem(user?.name, importKey);
+                const shareFetcher:ImportFetcher = async () => {
 
-                if (result.ok) {
-                    const item = await result.json();
-                    const sharedData = JSON.parse(item.item) as ExportFormatV4;
+                    const result = await loadSharedItem(user?.name || "", importKey);
+                    if (result.ok) {
+                        const item = await result.json();
+                        const sharedData = JSON.parse(item.item) as ExportFormatV4;
+
+                        return {success: true, message:"Loaded share successfully.", data: sharedData};
+                    } else {
+                        return {success: false, message:"Failed to load share.", data: null};
+                    }
+                }
+
+                console.log("Import fetcher: ", importFetcher);
+
+                const result = (importFetcher) ?
+                    await importFetcher() :
+                    await shareFetcher();
+
+                if (result.success) {
+                    const sharedData = result.data;
                     console.log(sharedData);
 
-                    setPrompts(sharedData.prompts);
-                    setSelectedPrompts(sharedData.prompts);
-                    setConversations(sharedData.history);
-                    setSelectedConversations(sharedData.history);
-                    setFolders(sharedData.folders);
-                    setSelectedFolders(sharedData.folders);
+                    if(sharedData) {
+                        initWithImportData(sharedData);
+                    } else {
+                        alert("Unable to find item. It may have been removed.");
+                    }
 
                     setIsImporting(false);
                 } else {
@@ -280,13 +314,14 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
             }
 
-            setSelectedPrompts([...prompts]);
-            setSelectedConversations([...conversations]);
-            setSelectedFolders([...folders]);
+            // setSelectedPrompts([...prompts]);
+            // setSelectedConversations([...conversations]);
+            // setSelectedFolders([...folders]);
 
         };
 
         fetchData();
+
 
     }, []);
 
