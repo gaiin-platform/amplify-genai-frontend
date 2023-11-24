@@ -22,6 +22,7 @@ export interface ImportModalProps {
     importKey: string;
     note: string;
     date: string;
+    editable: boolean;
 }
 
 const animate = keyframes`
@@ -48,11 +49,16 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
         includeFolders,
         importKey,
         note,
-        date
+        date,
+        editable
     }) => {
 
     const {
-        state: {prompts: localPrompts, conversations: localConversations, folders: localFolders, workspaceMetadata},
+        state: {prompts: localPrompts,
+            conversations: localConversations,
+            folders: localFolders,
+            workspaceMetadata,
+            workspaceDirty},
         dispatch: homeDispatch,
         clearWorkspace
     } = useContext(HomeContext);
@@ -243,6 +249,7 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
 
         return (
             <div className="flex items-center p-2" ref={itemRefs.current[item.id]} key={item.id}>
+                {editable && (
                 <input
                     type="checkbox"
                     className="form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:focus:bg-neutral-700 dark:ring-offset-neutral-300 dark:border-opacity-50"
@@ -251,6 +258,7 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
                         handleItemSelect(item, itemType)
                     }}
                 />
+                )}
                 <div className="ml-2 text-black dark:text-white">{`${itemType} : ${item.name}`}</div>
             </div>
         );
@@ -338,7 +346,7 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
                         {!isImporting && (
                             <>
                                 <h2 className="text-black dark:text-white text-xl font-bold">
-                                    Choose Workspace Items to Load
+                                    Open Workspace
                                 </h2>
 
                                 <div className="overflow-y-auto" style={{maxHeight: "calc(100vh - 200px)"}}>
@@ -351,12 +359,14 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
                                     {includePrompts && prompts.length > 0 && (
                                         <>
                                             <div className="mt-3 flex items-center border-b ">
-                                                <input
-                                                    type="checkbox"
-                                                    className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                                                    checked={promptsChecked}
-                                                    onChange={(e) => handlePromptsCheck(e.target.checked)}
-                                                />
+                                                {editable && (
+                                                    <input
+                                                        type="checkbox"
+                                                        className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
+                                                        checked={promptsChecked}
+                                                        onChange={(e) => handlePromptsCheck(e.target.checked)}
+                                                    />
+                                                )}
                                                 <h3 className="ml-2 text-black dark:text-white text-lg">Prompts</h3>
                                             </div>
                                             {renderScrollableSection(prompts, 'Prompt')}
@@ -366,12 +376,14 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
                                     {includeConversations && conversations.length > 0 && (
                                         <>
                                             <div className="mt-3 flex items-center border-b ">
-                                                <input
-                                                    type="checkbox"
-                                                    className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                                                    checked={conversationsChecked}
-                                                    onChange={(e) => handleConversationsCheck(e.target.checked)}
-                                                />
+                                                {editable && (
+                                                    <input
+                                                        type="checkbox"
+                                                        className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
+                                                        checked={conversationsChecked}
+                                                        onChange={(e) => handleConversationsCheck(e.target.checked)}
+                                                    />
+                                                )}
                                                 <h3 className="ml-2 text-black dark:text-white text-lg">Conversations</h3>
                                             </div>
                                             {renderScrollableSection(conversations, 'Conversation')}
@@ -381,12 +393,14 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
                                     {includeFolders && folders.length > 0 && (
                                         <>
                                             <div className="mt-3 flex items-center border-b ">
-                                                <input
-                                                    type="checkbox"
-                                                    className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                                                    checked={foldersChecked}
-                                                    onChange={(e) => handleFoldersCheck(e.target.checked)}
-                                                />
+                                                {editable && (
+                                                    <input
+                                                        type="checkbox"
+                                                        className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
+                                                        checked={foldersChecked}
+                                                        onChange={(e) => handleFoldersCheck(e.target.checked)}
+                                                    />
+                                                )}
                                                 <h3 className="ml-2 text-black dark:text-white text-lg">Folders</h3>
                                             </div>
                                             {renderScrollableSection(folders, 'Folder')}
@@ -409,17 +423,17 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
                             >
                                 Cancel
                             </button>
-                            {!isImporting && (
-                                <button
-                                    type="button"
-                                    style={{opacity: !canImport() ? 0.3 : 1}}
-                                    className="ml-2 w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300 ${selectedPeople.length === 0 || (selectedPromptsState.length === 0 && selectedConversationsState.length === 0 && selectedFoldersState.length === 0) ? 'cursor-not-allowed' : ''}"
-                                    onClick={handleImport}
-                                    disabled={!canImport()}
-                                >
-                                    Merge
-                                </button>
-                            )}
+                            {/*{!isImporting && (*/}
+                            {/*    <button*/}
+                            {/*        type="button"*/}
+                            {/*        style={{opacity: !canImport() ? 0.3 : 1}}*/}
+                            {/*        className="ml-2 w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300 ${selectedPeople.length === 0 || (selectedPromptsState.length === 0 && selectedConversationsState.length === 0 && selectedFoldersState.length === 0) ? 'cursor-not-allowed' : ''}"*/}
+                            {/*        onClick={handleImport}*/}
+                            {/*        disabled={!canImport()}*/}
+                            {/*    >*/}
+                            {/*        Merge*/}
+                            {/*    </button>*/}
+                            {/*)}*/}
                             {!isImporting && (
                                 <button
                                     type="button"
@@ -429,7 +443,12 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
                                         e.stopPropagation();
                                         e.preventDefault();
 
-                                        if(confirm(`Are you sure you want to load this workspace as new? This will clear your current workspace. If you have any unsaved changes, they will be lost.`)) {
+                                        let proceed = true;
+                                        if (workspaceDirty) {
+                                            proceed = confirm(`Are you sure you want to merge this workspace? This will overwrite your current workspace. Your unsaved workspace changes will be lost.`);
+                                        }
+
+                                        if(proceed) {
                                             clearWorkspace().then(()=> {
                                                 handleImport();
 
@@ -441,7 +460,7 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
                                     }}
                                     disabled={!canImport()}
                                 >
-                                    Load as New
+                                    Open
                                 </button>
                             )}
                         </div>

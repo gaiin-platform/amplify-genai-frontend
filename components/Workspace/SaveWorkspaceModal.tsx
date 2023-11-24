@@ -20,6 +20,7 @@ export interface SharingModalProps {
     selectedPrompts?: Prompt[];
     selectedConversations?: Conversation[];
     selectedFolders?: FolderInterface[];
+    editable: boolean;
 }
 
 const animate = keyframes`
@@ -47,10 +48,12 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
         includeFolders,
         selectedPrompts = [],
         selectedConversations = [],
-        selectedFolders = []
+        selectedFolders = [],
+        editable
     }) => {
     const {
         state: {prompts, conversations, folders, workspaceMetadata},
+        dispatch: homeDispatch
     } = useContext(HomeContext);
 
     let currentWorkspaceMetadata = workspaceMetadata;
@@ -150,11 +153,6 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
 
     const canShare = () => {
 
-        console.log("selectedPromptsState", selectedPromptsState.length);
-        console.log("selectedConversationsState", selectedConversationsState.length);
-        console.log("selectedFoldersState", selectedFoldersState.length);
-        console.log("sharingNote", sharingNote.length);
-
         return (selectedPromptsState.length > 0 || selectedConversationsState.length > 0 || selectedFoldersState.length > 0)
             && (sharingNote && sharingNote?.length > 0);
     }
@@ -197,6 +195,7 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
                     if (result.ok) {
                         setIsSharing(false);
                         alert("Saved successfully");
+                        homeDispatch({field: 'workspaceDirty', value: false});
                         onShare([...selectedPromptsState, ...selectedConversationsState, ...selectedFoldersState]);
                     } else {
                         setIsSharing(false);
@@ -309,7 +308,7 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
 
                         {!isSharing && (
                             <>
-                                <h2 className="text-black dark:text-white text-xl font-bold">Select What to Include</h2>
+                                <h2 className="text-black dark:text-white text-xl font-bold">Save Workspace</h2>
 
                                 <div className="overflow-y-auto" style={{maxHeight: "calc(100vh - 200px)"}}>
 
@@ -332,7 +331,9 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
                                         rows={1}
                                     />
 
-                                    {includePrompts && (
+
+
+                                    {includePrompts && editable && (
                                         <>
                                             <div className="mt-3 flex items-center border-b">
                                                 <input
@@ -347,7 +348,7 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
                                         </>
                                     )}
 
-                                    {includeConversations && (
+                                    {includeConversations && editable && (
                                         <>
                                             <div className="mt-3 flex items-center border-b ">
 
@@ -363,7 +364,7 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
                                         </>
                                     )}
 
-                                    {includeFolders && (
+                                    {includeFolders && editable && (
                                         <>
                                             <div className="mt-3 flex items-center border-b ">
 
@@ -383,7 +384,7 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
                             </>
                         )}
 
-                        <div className="pt-4 flex justify-end items-center border-t border-gray-200">
+                        <div className="pt-4 flex justify-end items-center">
 
                             <button
                                 type="button"

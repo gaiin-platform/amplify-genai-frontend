@@ -28,6 +28,7 @@ export interface HomeInitialState {
   temperature: number;
   showChatbar: boolean;
   showPromptbar: boolean;
+  workspaceDirty: boolean;
   currentFolder: FolderInterface | undefined;
   messageError: boolean;
   searchTerm: string;
@@ -46,6 +47,7 @@ export const initialState: HomeInitialState = {
   pluginKeys: [],
   lightMode: 'dark',
   status: [],
+  workspaceDirty: false,
   messageIsStreaming: false,
   modelError: null,
   models: [],

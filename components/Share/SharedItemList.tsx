@@ -64,20 +64,24 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
         const name = user?.name;
 
         const fetchData = async () => {
-            if (name) {
-                try {
-                    const result = await getSharedItems(name);
+            try {
+                if (name) {
+                    try {
+                        const result = await getSharedItems(name);
 
-                    if (result.ok) {
-                        const items = await result.json();
+                        if (result.ok) {
+                            const items = await result.json();
 
-                        const grouped = groupBy('sharedBy', items.item);
-                        setGroupedItems(grouped);
+                            const grouped = groupBy('sharedBy', items.item);
+                            setGroupedItems(grouped);
+                        }
+
+                    } finally {
+                        setIsLoading(false);
                     }
-
-                } finally {
-                    setIsLoading(false);
                 }
+            } catch (e) {
+               alert("Unable to fetch your shared items. Please check your Internet connection and try again later.")
             }
         };
 

@@ -60,28 +60,32 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
     const {user} = useUser();
 
     const {
-        state: {workspaceMetadata},
+        state: {workspaceMetadata, workspaceDirty},
         dispatch: homeDispatch,
         clearWorkspace
     } = useContext(HomeContext);
 
     const fetchData = async () => {
-        if (user?.name) {
-            try {
-                const result = await getSharedItems(user.name);
+        try {
+            if (user?.name) {
+                try {
+                    const result = await getSharedItems(user.name);
 
-                if (result.ok) {
-                    const items = await result.json();
-                    const mine = items.item.filter((item: { sharedBy: string; }) => {
-                        return item.sharedBy === user.name;
-                    });
-                    const grouped = groupBy('note', items.item);
-                    setGroupedItems(grouped);
+                    if (result.ok) {
+                        const items = await result.json();
+                        const mine = items.item.filter((item: { sharedBy: string; }) => {
+                            return item.sharedBy === user.name;
+                        });
+                        const grouped = groupBy('note', items.item);
+                        setGroupedItems(grouped);
+                    }
+
+                } finally {
+                    setIsLoading(false);
                 }
-
-            } finally {
-                setIsLoading(false);
             }
+        } catch (e) {
+            alert("Unable to context the Amplify API. Please check your Internet connection and try again later.")
         }
     };
 
@@ -127,6 +131,7 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
                     importKey={selectedKey}
                     note={selectedNote}
                     date={selectedDate}
+                    editable={false}
                 />
             )}
 
@@ -142,7 +147,9 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
                 }}
                 includeConversations={true}
                 includePrompts={true}
-                includeFolders={true}/>
+                includeFolders={true}
+                editable={false}
+            />
 
 
             <div className="flex flex-row w-full items-center p-3">
@@ -161,7 +168,13 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
                     <button
                         className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
                         onClick={() => {
-                            if(confirm(`Are you sure you want to load a new workspace? This will clear your current workspace. If you have any unsaved changes, they will be lost.`)) {
+
+                            let proceed = true;
+                            if (workspaceDirty) {
+                                proceed = confirm(`Are you sure you want to create a new workspace? This will overwrite your current workspace. Your unsaved workspace changes will be lost.`);
+                            }
+
+                            if(proceed) {
                                 clearWorkspace().then(()=> {
                                     let name = prompt("Please provide a name for the new workspace.");
                                     if(name) {
@@ -191,6 +204,13 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
                     </button>
                 </div>
             </div>
+
+            {workspaceMetadata && (
+                <div className="flex flex-col items-center pt-3 pl-3 pr-3">
+                    <div className="text-md"><b>Workspace:</b> {workspaceMetadata.name}</div>
+                    {workspaceDirty && <span className="text-red-500 text-xs">(unsaved changes)</span>}
+                </div>
+            )}
 
             <h3 className="text-lg border-b p-3 ml-3 mr-3">Your Workspaces</h3>
 
