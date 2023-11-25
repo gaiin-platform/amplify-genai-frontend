@@ -138,14 +138,12 @@ export const Chatbar = () => {
             conversation.messages.map((message) => message.content).join(' ');
         return searchable.toLowerCase().includes(searchTerm.toLowerCase());
       });
-      console.log("Search result count:", results.length);
 
       chatDispatch({
         field: 'filteredConversations',
         value: results,}
       );
     } else {
-      console.log("Resetting search.");
 
       chatDispatch({
         field: 'filteredConversations',

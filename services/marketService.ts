@@ -21,8 +21,6 @@ const doMarketOp = async (opName:string, data:any, errorHandler=(e:any)=>{}) => 
         op: opName
     };
 
-    console.log("Market Op:", op);
-
     const response = await fetch('/api/market/op', {
         method: 'POST',
         headers: {
@@ -32,12 +30,10 @@ const doMarketOp = async (opName:string, data:any, errorHandler=(e:any)=>{}) => 
         body: JSON.stringify(op),
     });
 
-    console.log("Market Op response:", response);
 
     if (response.ok){
         try {
             const result = await response.json();
-            console.log("Market Op result:", result);
 
             return result;
         } catch (e){
@@ -72,8 +68,6 @@ export const getCategory = async (category:string ) => {
         '/category/get',
         {category:category});
 
-    console.log("Category response:", success, message, data);
-
     if(!success){
         return failureResponse(message);
     }
@@ -86,8 +80,6 @@ export const getCategories = async () => {
     const {success, message, data} = await doMarketOp(
         '/category/list',
         {});
-
-    console.log("Categories response:", success, message, data);
 
     if(!success){
         return failureResponse(message);
@@ -118,7 +110,6 @@ export const publish = async (
             content:content
         });
 
-    console.log("Publish response:", success, message, data);
 
     if(!success){
         return failureResponse(message);

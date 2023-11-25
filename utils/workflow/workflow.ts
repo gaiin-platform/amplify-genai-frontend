@@ -551,7 +551,9 @@ export const findParametersInWorkflowCode = (code: string) => {
     let paramNamesStr = "";
     try {
         // Find all instances of getParameter("NAME", ....) and extract the NAMEs as a list
-        const paramNames = codeStrippedOfComments.match(/getParameter\(\"([^\"]*)\"/g);
+        //getParameter('prompt1','text')
+        const paramNames = codeStrippedOfComments.match(/getParameter\(\s*[\"\']([^\"\']*)[\"\']/g);
+
         // Transform all the paramNames into the format {{NAME}} and join them with a space
         paramNamesStr = (paramNames) ?
             paramNames.map((name) => "{{" + name.substring(14, name.length - 1).trim() + "}}").join(" ") : "";
