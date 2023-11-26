@@ -21,6 +21,9 @@ export interface ImportModalProps {
     importKey: string;
     note: string;
     importFetcher?: ImportFetcher;
+    importButtonLabel?: string;
+    title?: string;
+    customImportFn?: (conversations:Conversation[], folders:FolderInterface[], prompts:Prompt[]) => void;
 }
 
 export interface ImportFetcher {
@@ -51,7 +54,10 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         includeFolders,
         importKey,
         note,
-        importFetcher
+        importFetcher,
+        customImportFn,
+        importButtonLabel = "Import",
+        title = "Choose Shared Items to Accept"
     }) => {
 
 
@@ -155,6 +161,12 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
     }
 
     const handleImport = async () => {
+
+        if(customImportFn) {
+            customImportFn(selectedConversationsState, selectedFoldersState, selectedPromptsState);
+            return;
+        }
+
         //onSave(selectedItems);
         const exportData = createExport(selectedConversationsState, selectedFoldersState, selectedPromptsState);
 
@@ -352,7 +364,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                         {!isImporting && (
                             <>
                                 <h2 className="text-black dark:text-white text-xl font-bold">
-                                    Choose Shared Items to Accept
+                                    {title}
                                 </h2>
 
                                 <div className="overflow-y-auto" style={{maxHeight: "calc(100vh - 200px)"}}>
@@ -431,7 +443,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                                     onClick={handleImport}
                                     disabled={!canImport()}
                                 >
-                                    Import
+                                    {importButtonLabel}
                                 </button>
                             )}
                         </div>

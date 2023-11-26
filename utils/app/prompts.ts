@@ -5,6 +5,7 @@ import {AttachedDocument} from "@/types/attacheddocument";
 import {parseVariableName} from "@/components/Chat/VariableModal";
 import {getToolMetadata} from "@/utils/app/tools";
 import {WorkflowContext} from "@/types/workflow";
+import {MessageType} from "@/types/chat";
 
 export interface VariableFillOption {
     isEditable?: boolean,
@@ -13,6 +14,71 @@ export interface VariableFillOption {
 
 export interface VariableFillOptions {
     [key: string]: VariableFillOption;
+}
+
+const dateTimeString = () => {
+  let date = new Date();
+
+  let month = ('0' + (date.getMonth() + 1)).slice(-2); // getMonth() starts from 0, so add 1
+  let day = ('0' + date.getDate()).slice(-2);
+  let year = date.getFullYear().toString().substr(-2); // take the last 2 digit of the year
+
+  let hours = ('0' + date.getHours()).slice(-2);
+  let minutes = ('0' + date.getMinutes()).slice(-2);
+
+  let formattedDate = `${month}/${day}/${year} ${hours}:${minutes}`;
+  return formattedDate;
+}
+
+export const handleStartConversationWithPrompt = (handleNewConversation:any, prompts:Prompt[], startPrompt: Prompt) => {
+
+  let prompt = startPrompt;
+
+  let rootPromptObj = (prompt.data?.rootPromptId) ?
+      prompts.find((p) => p.id == prompt.data?.rootPromptId) : null;
+
+  if(rootPromptObj == null && prompt.type === MessageType.ROOT){
+    rootPromptObj = prompt;
+    prompt = {
+      description: rootPromptObj.description,
+      folderId: null,
+      id: uuidv4(),
+      name: "Conversation Started with "+rootPromptObj.name,
+      type: MessageType.PROMPT,
+      content: "Tell me about what you can help me with.",
+      data: {
+        rootPromptId: rootPromptObj.id
+      }
+    }
+  }
+
+  let rootPrompt = null;
+  if (rootPromptObj != null && rootPromptObj?.content) {
+    let variables = parsePromptVariables(rootPromptObj?.content);
+    let variableValues = variables.map((v) => "");
+    rootPrompt = fillInTemplate(rootPromptObj?.content, variables, variableValues, [], true);
+  }
+
+  const getPromptTags = (prompt: Prompt | null | undefined) => {
+    return (prompt && prompt.data && prompt.data.conversationTags) ? prompt.data.conversationTags : [];
+  }
+
+  let tags: string[] = [...getPromptTags(rootPromptObj), ...getPromptTags(prompt)]
+  if (prompt.type == "automation") {
+    tags.push("automation");
+  }
+
+
+  handleNewConversation(
+      {
+        name: prompt.name + " " + dateTimeString(),
+        messages: [],
+        promptTemplate: prompt,
+        processors: [],
+        tools: [],
+        tags: tags,
+        ...(rootPrompt != null && {prompt: rootPrompt}),
+      })
 }
 
 export const updatePrompt = (updatedPrompt: Prompt, allPrompts: Prompt[]) => {

@@ -12,6 +12,9 @@ import {
     IconTree
 } from '@tabler/icons-react';
 import {
+    handleStartConversationWithPrompt
+} from "@/utils/app/prompts";
+import {
     MutableRefObject,
     memo,
     useCallback,
@@ -34,6 +37,9 @@ import {getCategory, getItem} from "@/services/marketService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {ImportAnythingModal, ImportFetcher} from "@/components/Share/ImportAnythingModal";
+import {Conversation} from "@/types/chat";
+import {FolderInterface} from "@/types/folder";
+import {Prompt} from "@/types/prompt";
 
 interface Props {
     items: MarketItem[];
@@ -75,161 +81,28 @@ export const Market = ({items}: Props) => {
             featureFlags,
             workspaceMetadata
         },
+        handleNewConversation,
         dispatch: homeDispatch,
     } = useContext(HomeContext);
 
-    const sampleCategories = [
-        {
-            "id": "academic",
-            "name": "Academic",
-            "description": "Prompts and tasks related to academic assignments and topics.",
-            "icon": "academic-icon.png",
-            "tags": ["essay", "writing", "programming", "java", "math", "calculus"],
-            "image": "https://www.vanderbilt.edu/wp-content/uploads/sites/3/2021/04/bronson-ingram.jpeg"
-        },
-        {
-            "id": "computer-science",
-            "name": "Computer Science",
-            "description": "Prompts and tasks related to computer science and programming.",
-            "icon": "cs-icon.png",
-            "tags": ["programming", "java"],
-            "image": "https://www.goodyclancy.com/wp-content/uploads/2023/06/Vanderbilt_Warren-and-Moore_exterior-1_Goody-Clancy.jpg"
-        },
-        {
-            "id": "mathematics",
-            "name": "Mathematics",
-            "description": "Prompts and tasks related to mathematics and problem-solving.",
-            "icon": "math-icon.png",
-            "tags": ["math", "calculus"],
-            "image": "https://cdn.vanderbilt.edu/vu-URL/wp-content/uploads/sites/97/2021/09/19231133/Local-Color-campus-shot.jpg"
-        },
-        {
-            "id": "operational",
-            "name": "Operational",
-            "description": "Prompts and tasks related to operational aspects of a university.",
-            "icon": "operational-icon.png",
-            "tags": ["grants", "administration", "event", "planning", "advising", "lesson"],
-            "image": "https://thecollegepost.com/wp-content/uploads/2018/08/ariel_kirkland.jpg"
-        }
-    ];
 
     const noOpImportFetcher:ImportFetcher = async () => {
         return {success:false, message: "No Op", data: null};
     }
 
+    const [showMarketItemTryModal, setShowMarketItemTryModal] = useState<boolean>(false);
     const [showMarketItemInstallModal, setShowMarketItemInstallModal] = useState<boolean>(false);
     const [marketItemDescription, setMarketItemDescription] = useState<string>("");
     const [importFetcher, setImportFetcher] = useState<ImportFetcher>(noOpImportFetcher);
     const [groupedItems, setGroupedItems] = useState<{ [key: string]: MarketItem[]; }>({});
     const [groupedMarketCategories, setGroupedMarketCategories] = useState<{ [key: string]: MarketCategory[]; }>({});
     const [marketCategories, setMarketCategories] = useState<MarketCategory[]>([]);
-    const [marketItems, setMarketItems] = useState<MarketItem[]>([
-        {
-            id: "1",
-            name: "Essay Prompt",
-            description: "A prompt for writing an essay on a given topic",
-            author: "University Task Generator",
-            lastUpdated: "2022-10-01",
-            created: "2022-09-01",
-            tags: ["essay", "writing", "university"],
-            category: "Academic",
-            sourceUrl: "https://example.com/essay-prompt",
-            type: MarketItemType.PROMPT,
-        },
-        {
-            id: "2",
-            name: "Programming Assignment Prompt",
-            description: "A prompt for a programming assignment in Java",
-            author: "Computer Science Department",
-            lastUpdated: "2022-10-02",
-            created: "2022-09-02",
-            tags: ["programming", "java", "university"],
-            category: "Computer Science",
-            sourceUrl: "https://example.com/programming-prompt",
-            type: MarketItemType.ASSISTANT,
-        },
-        {
-            id: "3",
-            name: "Math Problem Prompt",
-            description: "A prompt for solving a math problem related to calculus",
-            author: "Mathematics Department",
-            lastUpdated: "2022-10-03",
-            created: "2022-09-03",
-            tags: ["math", "calculus", "university"],
-            category: "Mathematics",
-            sourceUrl: "https://example.com/math-prompt",
-            type: MarketItemType.PROMPT,
-        },
-        {
-            id: "4",
-            name: "Grants Administration Task",
-            description: "A prompt for managing and administering grants",
-            author: "Research Office",
-            lastUpdated: "2022-09-20",
-            created: "2022-08-10",
-            tags: ["grants", "administration", "university"],
-            category: "Operational",
-            sourceUrl: "https://example.com/grants-task",
-            type: MarketItemType.AUTOMATION,
-        },
-        {
-            id: "5",
-            name: "Event Planning Prompt",
-            description: "A prompt for planning an upcoming university event",
-            author: "Student Activities Department",
-            lastUpdated: "2022-09-25",
-            created: "2022-08-15",
-            tags: ["event", "planning", "university"],
-            category: "Operational",
-            sourceUrl: "https://example.com/event-prompt",
-            type: MarketItemType.ROOT,
-        },
-        {
-            id: "6",
-            name: "Academic Advising Task",
-            description: "A prompt for advising students on their academic journey",
-            author: "Academic Advising Office",
-            lastUpdated: "2022-09-18",
-            created: "2022-08-05",
-            tags: ["advising", "academic", "university"],
-            category: "Operational",
-            sourceUrl: "https://example.com/advising-task",
-            type: MarketItemType.COLLECTION,
-        },
-        {
-            id: "7",
-            name: "Lesson Planning Prompt",
-            description: "A prompt for planning a lesson in a specific subject",
-            author: "Education Department",
-            lastUpdated: "2022-09-30",
-            created: "2022-08-25",
-            tags: ["lesson", "planning", "university"],
-            category: "Operational",
-            sourceUrl: "https://example.com/lesson-prompt",
-            type: MarketItemType.PROMPT,
-        },
-        // Add more operational prompts...
-    ]);
+    const [marketItems, setMarketItems] = useState<MarketItem[]>([]);
 
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [searchStr, setSearchStr] = useState<string>("");
     const [searchCategory, setSearchCategory] = useState<string>("*");
 
-    const fetchCategory = async (category: string) => {
-        const data = {
-            "id": "mathematics",
-            "name": "Mathematics",
-            "description": "Prompts and tasks related to mathematics and problem-solving.",
-            "icon": "math-icon.png",
-            "tags": ["math", "calculus"],
-            "image": "https://cdn.vanderbilt.edu/vu-URL/wp-content/uploads/sites/97/2021/09/19231133/Local-Color-campus-shot.jpg",
-            "items": [],
-            "categories": [
-                ...sampleCategories
-            ]
-        };
-        return data;
-    }
 
     const groupBy = (array: any[], key: string | number) => {
         return array.reduce((result: { [x: string]: any[]; }, currentItem: { [x: string]: any; }) => {
@@ -328,6 +201,25 @@ export const Market = ({items}: Props) => {
         setShowMarketItemInstallModal(true);
     }
 
+    const handleTryItem = async (item: MarketItem) => {
+
+        const marketItemFetcher:ImportFetcher = async () => {
+            const response = await getItem(item.id);
+
+            if(response.success) {
+                const itemData = response.data.content;
+                return {success:true, message: "Downloaded", data: itemData};
+            } else {
+                return response;
+            }
+        };
+
+
+        setImportFetcher(()=>marketItemFetcher);
+        setMarketItemDescription(item.description);
+        setShowMarketItemTryModal(true);
+    }
+
     function getSectionImage(index: number) {
         const sectionImages: string[] = [
             "https://www.vanderbilt.edu/wp-content/uploads/sites/3/2021/04/bronson-ingram.jpeg",
@@ -398,6 +290,15 @@ export const Market = ({items}: Props) => {
         }
     }
 
+    const doTryItem = async (consersations:Conversation[], folders:FolderInterface[], itemPrompts:Prompt[]) => {
+        if(itemPrompts.length > 0) {
+            handleStartConversationWithPrompt(handleNewConversation, [...prompts, ...itemPrompts], itemPrompts[0]);
+        }
+        else {
+            alert("There are no prompts to try in this market item.");
+        }
+    }
+
 // @ts-ignore
     return (
         <div className="relative flex-1 overflow-hidden bg-white dark:bg-[#343541]">
@@ -407,8 +308,37 @@ export const Market = ({items}: Props) => {
                 >
                     <div>
 
+                        {showMarketItemTryModal && (
+                            <ImportAnythingModal
+                                title={"Try Market Item"}
+                                importButtonLabel={"Try"}
+                                onImport={
+                                    ()=>{
+                                        alert("Try market item.");
+                                        setShowMarketItemTryModal(false);
+                                    }
+                                }
+                                onCancel={
+                                    ()=>{
+                                        setShowMarketItemTryModal(false);
+                                    }
+                                }
+                                customImportFn={async (conversations, folders, prompts) => {
+                                    doTryItem(conversations, folders, prompts);
+                                    setShowMarketItemTryModal(false);
+                                }}
+                                includeConversations={false}
+                                includePrompts={false}
+                                includeFolders={false}
+                                importKey={""}
+                                importFetcher={importFetcher}
+                                note={marketItemDescription}/>
+                        )}
+
                         {showMarketItemInstallModal && (
                             <ImportAnythingModal
+                                title={"Install Market Item"}
+                                importButtonLabel={"Install"}
                                 onImport={
                                     ()=>{
                                         alert("Market item installed.");
@@ -608,6 +538,16 @@ export const Market = ({items}: Props) => {
                                                                }
                                                                className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
                                                                 <IconDownload/> Get
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    e.preventDefault();
+                                                                    handleTryItem(item);
+                                                                }
+                                                                }
+                                                                className="ml-2 inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-neutral-700 rounded-lg hover:bg-neutral-800 focus:ring-4 focus:outline-none focus:ring-neutral-300 dark:bg-neutral-600 dark:hover:bg-neutral-700 dark:focus:ring-neutral-800">
+                                                                <IconRocket/> Try It
                                                             </button>
                                                         </div>
                                                     </div>
