@@ -91,13 +91,21 @@ export const getCategories = async () => {
 }
 
 export const getItem = async (id:string ) => {
-    const service = serviceHook('/item/get');
-    return await service({id:id});
+    try {
+        const service = serviceHook('/item/get');
+        return await service({id:id});
+    } catch (e){
+        return failureResponse("Error fetching item.");
+    }
 }
 
 export const getItemExamples = async (category:string, id:string) => {
-    const service = serviceHook('/item/examples/get');
-    return await service({id:id, category:category});
+    try {
+        const service = serviceHook('/item/examples/get');
+        return await service({id: id, category: category});
+    } catch (e){
+        return failureResponse("Error fetching item examples.");
+    }
 }
 
 export const publish = async (

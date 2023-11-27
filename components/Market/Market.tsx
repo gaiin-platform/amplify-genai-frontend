@@ -373,8 +373,8 @@ export const Market = ({items}: Props) => {
 
             const itemAndDetails:ItemDetails = {
                 item: item,
-                examples: data.data.examples
-            }
+                examples: (data.success)? data.data.examples : []
+            };
 
             setShowExample(itemAndDetails);
 
