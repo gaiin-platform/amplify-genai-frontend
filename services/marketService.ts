@@ -48,11 +48,13 @@ const doMarketOp = async (opName:string, data:any, errorHandler=(e:any)=>{}) => 
 const serviceHook = (opName: string) => {
 
     return async (requestData: any) => {
+        console.log(`${opName} request:`, requestData);
+
         const {success, message, data} = await doMarketOp(
             opName,
             requestData);
 
-        console.log(`{opName} response:`, success, message, data);
+        console.log(`${opName} response:`, success, message, data);
 
         if (!success) {
             return failureResponse(message);
@@ -91,6 +93,11 @@ export const getCategories = async () => {
 export const getItem = async (id:string ) => {
     const service = serviceHook('/item/get');
     return await service({id:id});
+}
+
+export const getItemExamples = async (category:string, id:string) => {
+    const service = serviceHook('/item/examples/get');
+    return await service({id:id, category:category});
 }
 
 export const publish = async (

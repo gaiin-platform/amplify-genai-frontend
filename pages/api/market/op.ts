@@ -17,8 +17,6 @@ const marketOp = withApiAuthRequired(
         try {
             const { accessToken } = await getAccessToken(req, res);
 
-            console.log("Calling market: ", apiUrl, payload);
-
             const response = await fetch(apiUrl, {
                 method: "POST",
                 body: JSON.stringify({data:payload}),
