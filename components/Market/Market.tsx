@@ -480,7 +480,7 @@ export const Market = ({items}: Props) => {
                                     <div className="flex flex-row w-full">
                                     <button
                                         onClick={(e) => {
-                                            setShowExample(null);
+                                            handleNavCategory("");
                                         }
                                         }
                                         className="mt-6 inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-neutral-700 rounded-lg hover:bg-neutral-800 focus:ring-4 focus:outline-none focus:ring-neutral-300 dark:bg-neutral-600 dark:hover:bg-neutral-700 dark:focus:ring-neutral-800">
