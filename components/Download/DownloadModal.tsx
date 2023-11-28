@@ -21,6 +21,9 @@ export interface DownloadModalProps {
     selectedPrompts?: Prompt[];
     selectedConversations?: Conversation[];
     selectedFolders?: FolderInterface[];
+    selectedMessages?: Message[];
+    showHeaders?: boolean;
+    showInclude?: boolean;
 }
 
 const animate = keyframes`
@@ -47,7 +50,10 @@ export const DownloadModal: FC<DownloadModalProps> = (
         includeFolders,
         selectedPrompts = [],
         selectedConversations = [],
-        selectedFolders = []
+        selectedFolders = [],
+        selectedMessages= [],
+        showHeaders= true,
+        showInclude = true,
     }) => {
     const {
         state: {prompts, conversations, folders},
@@ -57,7 +63,9 @@ export const DownloadModal: FC<DownloadModalProps> = (
 
     // Individual states for selected prompts, conversations, and folders
     const [isSharing, setIsDownloading] = useState(false);
+    const [includeConversationName, setIncludeConversationName] = useState(false);
     const [selectedPromptsState, setSelectedPrompts] = useState([...selectedPrompts]);
+    const [selectedMessagesState, setSelectedMessagesState] = useState<Message[]>([...selectedMessages]);
     const [selectedConversationsState, setSelectedConversations] = useState([...selectedConversations]);
     const [selectedFoldersState, setSelectedFolders] = useState([...selectedFolders]);
     const [downloadUrl, setDownloadUrl] = useState<string|null>(null);
@@ -72,6 +80,19 @@ export const DownloadModal: FC<DownloadModalProps> = (
     const [promptsChecked, setPromptsChecked] = useState(false);
     const [conversationsChecked, setConversationsChecked] = useState(false);
     const [foldersChecked, setFoldersChecked] = useState(false);
+
+    const powerPointTemplateOptions = [
+        "none",
+        "vandy_1.pptx",
+        "template_vapor.pptx"
+    ];
+
+    const wordTemplateOptions = [
+        "none",
+    ];
+
+    const [templateSelection, setTemplateSelection] = useState<string>(wordTemplateOptions[0]);
+    const [templateOptions, setTemplateOptions] = useState<string[]>(wordTemplateOptions);
 
     const handlePromptsCheck = (checked: boolean) => {
         // if checked, add all prompts to selected, else remove them
@@ -133,8 +154,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
     }
 
     const canShare = () => {
-        return (selectedPromptsState.length > 0 || selectedConversationsState.length > 0 || selectedFoldersState.length > 0)
-            && (conversationHeader && conversationHeader?.length > 0);
+        return (selectedPromptsState.length > 0 || selectedConversationsState.length > 0 || selectedFoldersState.length > 0);
     }
 
     const handleDownload = async () => {
@@ -159,54 +179,81 @@ export const DownloadModal: FC<DownloadModalProps> = (
                 .map(id => prompts.find(p => p.id === id))
                 .filter(prompt => prompt !== undefined) as Prompt[];
 
-            console.log("IncludeMode", includeMode);
+            let exportedConversations:Conversation[] = [];
 
-            const exportedConversations: Conversation[] = selectedConversationsState.map(conversation => {
-                let includedMessages: Message[];
+            if(selectedMessagesState.length > 0
+                && selectedConversationsState
+                && selectedConversationsState.length > 0){
+                exportedConversations = [
+                    {...selectedConversations[0], messages: [...selectedMessagesState]}
+                ]
+            }
+            else {
+                exportedConversations = selectedConversationsState.map(conversation => {
+                    let includedMessages: Message[];
 
-                switch(includeMode) {
-                    case "assistant":
-                        includedMessages = conversation.messages.filter(message => message.role === 'assistant');
-                        break;
+                    switch (includeMode) {
+                        case "assistant":
+                            includedMessages = conversation.messages.filter(message => message.role === 'assistant');
+                            break;
 
-                    case "user":
-                        includedMessages = conversation.messages.filter(message => message.role === 'user');
-                        break;
+                        case "user":
+                            includedMessages = conversation.messages.filter(message => message.role === 'user');
+                            break;
 
-                    case "all":
-                        includedMessages = conversation.messages;
-                        break;
+                        case "all":
+                            includedMessages = conversation.messages;
+                            break;
 
-                    case "starred":
-                        includedMessages = conversation.messages.filter(message => message.data && message.data.rating);
-                        break;
+                        case "starred":
+                            includedMessages = conversation.messages.filter((message, index) => {
+                                if (message.data && message.data.rating) {
+                                    return true;
+                                } else if (message.role === 'user' && conversation.messages.length > index + 1) {
+                                    const next = conversation.messages[index + 1];
+                                    return next.role === 'assistant' && next.data && next.data.rating;
+                                } else {
+                                    return false;
+                                }
+                            });
+                            break;
 
-                    case "starred_assistant":
-                        includedMessages = conversation.messages.filter(message => message.role === "assistant" && message.data && message.data.rating);
-                        break;
+                        case "starred_assistant":
+                            includedMessages = conversation.messages.filter(message => message.role === "assistant" && message.data && message.data.rating);
+                            break;
 
-                    case "starred_user":
-                        includedMessages = conversation.messages.filter(message => message.role === "user" && message.data && message.data.rating);
-                        break;
+                        case "starred_user":
+                            includedMessages = conversation.messages.filter(message => message.role === "user" && message.data && message.data.rating);
+                            break;
 
-                    default:
-                        includedMessages = conversation.messages;
-                }
+                        default:
+                            includedMessages = conversation.messages;
+                    }
 
-                return {...conversation, messages: includedMessages};
-            });
+                    return {...conversation, messages: includedMessages};
+                });
+            }
 
             const sharedData = createExport(
                 exportedConversations,
                 selectedFoldersState,
                 [...selectedPromptsState, ...rootPromptsToAdd]);
 
+            const withNewline = (s:string) => {
+                return s ? s + "\n\n" : s;
+            }
+
             const conversionOptions: ConversionOptions = {
-                assistantMessageHeader: assistantMessageHeader,
-                conversationHeader: conversationHeader,
+                assistantHeader: withNewline(assistantMessageHeader),
+                conversationHeader: withNewline(conversationHeader),
                 format: format,
-                messageHeader: messageHeader,
-                userMessageHeader: userMessageHeader
+                messageHeader: withNewline(messageHeader),
+                userHeader: withNewline(userMessageHeader),
+                includeConversationName: includeConversationName
+            }
+
+            if(templateSelection !== 'none'){
+               conversionOptions.templateName = templateSelection;
             }
 
             const result = await convert(conversionOptions, sharedData);
@@ -216,6 +263,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
 
             const checkReady = async (url:string) => {
                 try {
+                    triesLeft = triesLeft - 1;
                     const result = await fetch(url);
                     if(result.ok){
                         resultArrived = true;
@@ -312,6 +360,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
         setSelectedPrompts([...selectedPrompts]);
         setSelectedConversations([...selectedConversations]);
         setSelectedFolders([...selectedFolders]);
+        setSelectedMessagesState([...selectedMessages]);
 
     }, []);
 
@@ -366,6 +415,13 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                         <div className="ml-2 rounded w-full text-black pr-2 pt-2">
                                         <select
                                             onChange={(e) => {
+                                                if(e.target.value === 'pptx'){
+                                                    setTemplateOptions(powerPointTemplateOptions);
+                                                }
+                                                else {
+                                                    setTemplateOptions(wordTemplateOptions);
+                                                }
+
                                                 setFormat(e.target.value);
                                             }}
                                             value={format}
@@ -375,7 +431,37 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                         </select>
                                         </div>
 
+                                        <div>Template</div>
+                                        <div className="ml-2 rounded w-full text-black pr-2 pt-2">
+                                            <select
+                                                onChange={(e) => {
+                                                    setTemplateSelection(e.target.value );
+                                                }}
+                                                value={templateSelection}
+                                            >
+                                                {templateOptions.map((template,index)=>(
+                                                    <option key="index" value={template}>{template}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>Include Conversation Name</div>
+                                        <div className="ml-2 rounded w-full text-black pr-2 pt-2">
+                                            <select
+                                                onChange={(e) => {
+                                                    setIncludeConversationName(e.target.value === 'true');
+                                                }}
+                                                value={""+includeConversationName}
+                                            >
+                                                <option value="true">Yes</option>
+                                                <option value="false">No</option>
+                                            </select>
+                                        </div>
+
+                                        {showInclude && (
                                         <div className="mt-2">Include</div>
+                                            )}
+                                        {showInclude && (
                                         <div className="ml-2 rounded text-black pr-2 pt-2">
                                             <select
                                                 onChange={(e) => {
@@ -391,8 +477,12 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                                 <option value="starred_user">Starred Prompts</option>
                                             </select>
                                         </div>
+                                            )}
 
+                                        {showHeaders && (
                                         <div>Conversation Header</div>
+                                            )}
+                                        {showHeaders && (
                                         <div className="ml-2">
                                             <textarea
                                                 className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
@@ -405,10 +495,13 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                                 rows={1}
                                             />
                                         </div>
+                                            )}
 
 
-
+                                        {showHeaders && (
                                         <div>Message Header</div>
+                                            )}
+                                        {showHeaders && (
                                         <div className="ml-2">
                                             <textarea
                                                 className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
@@ -421,8 +514,12 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                                 rows={1}
                                             />
                                         </div>
+                                            )}
 
+                                        {showHeaders && (
                                         <div>User Message Header</div>
+                                            )}
+                                        {showHeaders && (
                                         <div className="ml-2">
                                             <textarea
                                                 className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
@@ -435,8 +532,11 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                                 rows={1}
                                             />
                                         </div>
-
+                                            )}
+                                        {showHeaders && (
                                         <div>Assistant Header</div>
+                                            )}
+                                        {showHeaders && (
                                         <div className="ml-2">
                                             <textarea
                                                 className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
@@ -449,6 +549,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                                 rows={1}
                                             />
                                         </div>
+                                        )}
                                     </div>
 
                                     {includePrompts && (

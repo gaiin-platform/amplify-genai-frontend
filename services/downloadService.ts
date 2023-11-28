@@ -66,10 +66,12 @@ const serviceHook = (opName: string) => {
 
 export interface ConversionOptions {
     format: string;
-    userMessageHeader: string;
-    assistantMessageHeader: string;
+    userHeader: string;
+    assistantHeader: string;
     messageHeader: string;
     conversationHeader: string;
+    templateName?: string;
+    includeConversationName?: boolean;
 }
 
 export const convert = async (options:ConversionOptions, content:ExportFormatV4) => {
