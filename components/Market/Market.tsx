@@ -923,7 +923,7 @@ If people need help with prompt engineering, which is how you converse effective
                                                     category.categories?.length === 0) && (
                                                     <h2 className="w-full mt-10 mb-4 text-2xl font-extrabold tracking-tight leading-none text-white md:text-3xl lg:text-4xl">
                                                         We don&apos;t have anything in this category yet. You should
-                                                        publish somethign to it!
+                                                        publish something to it!
                                                     </h2>
                                                 )}
                                             <div

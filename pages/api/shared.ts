@@ -10,7 +10,7 @@ export const getShares = withApiAuthRequired(
 
         try {
             const { accessToken } = await getAccessToken(req, res);
-            
+
             const response = await fetch(apiUrl, {
                 method: "GET",
                 headers: {

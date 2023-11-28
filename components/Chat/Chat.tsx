@@ -1,4 +1,4 @@
-import {IconClearAll, IconSettings, IconShare} from '@tabler/icons-react';
+import {IconClearAll, IconSettings, IconShare, IconDownload} from '@tabler/icons-react';
 import {
     MutableRefObject,
     memo,
@@ -58,6 +58,7 @@ import {TagsList} from "@/components/Chat/TagsList";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import { sendChat as assistantChat } from "@/services/assistantService";
+import {DownloadModal} from "@/components/Download/DownloadModal";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -98,6 +99,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
         const [showSettings, setShowSettings] = useState<boolean>(false);
         const [isPromptTemplateDialogVisible, setIsPromptTemplateDialogVisible] = useState<boolean>(false);
+        const [isDownloadDialogVisible, setIsDownloadDialogVisible] = useState<boolean>(false);
         const [isShareDialogVisible, setIsShareDialogVisible] = useState<boolean>(false);
         const [variables, setVariables] = useState<string[]>([]);
         const [showScrollDownButton, setShowScrollDownButton] =
@@ -1379,6 +1381,19 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         includeFolders={false}
                                         selectedConversations={selectedConversation ? [selectedConversation] : []}
                                     />
+                                    {isDownloadDialogVisible && (
+                                        <DownloadModal
+                                            includeConversations={true}
+                                            includePrompts={false}
+                                            includeFolders={false}
+                                            selectedConversations={selectedConversation ? [selectedConversation] : []}
+                                            onCancel={() => {
+                                                setIsDownloadDialogVisible(false);
+                                            }}
+                                            onDownloadReady={function (url: string): void {
+
+                                            }}/>
+                                    )}
                                     <div
                                         className="sticky top-0 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 py-2 text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
                                         {t('Workspace: ' + workspaceMetadata.name)} | {t('Model')}: {selectedConversation?.model.name} | {t('Temp')}
@@ -1400,6 +1415,17 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             onClick={() => setIsShareDialogVisible(true)}
                                         >
                                             <IconShare size={18}/>
+                                        </button>
+                                        <button
+                                            className="ml-2 cursor-pointer hover:opacity-50"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setIsDownloadDialogVisible(true)
+
+                                            }}
+                                        >
+                                            <IconDownload size={18}/>
                                         </button>
                                     </div>
                                     {showSettings && (
