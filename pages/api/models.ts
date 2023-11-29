@@ -13,33 +13,33 @@ export const config = {
   runtime: 'edge',
 };
 
+let url = `${OPENAI_API_HOST}/v1/models`;
+if (OPENAI_API_TYPE === 'azure') {
+  url = `${OPENAI_API_HOST}/${AZURE_API_NAME}/models?api-version=${OPENAI_API_VERSION}`;
+}
+
 const handler = async (req: Request): Promise<Response> => {
   try {
     const { key } = (await req.json()) as {
       key: string;
     };
 
-    let url = `${OPENAI_API_HOST}/v1/models`;
-    if (OPENAI_API_TYPE === 'azure') {
-      url = `${OPENAI_API_HOST}/${AZURE_API_NAME}/models?api-version=${OPENAI_API_VERSION}`;
-    }
-
+    const actualKey = key ? key : process.env.OPENAI_API_KEY;
 
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
         ...(OPENAI_API_TYPE === 'openai' && {
-          Authorization: `Bearer ${key ? key : process.env.OPENAI_API_KEY}`
+          Authorization: `Bearer ${actualKey}`
         }),
         ...(OPENAI_API_TYPE === 'azure' && {
-          'api-key': `${key ? key : process.env.OPENAI_API_KEY}`
+          'api-key': `${actualKey}`
         }),
         ...((OPENAI_API_TYPE === 'openai' && OPENAI_ORGANIZATION) && {
           'OpenAI-Organization': OPENAI_ORGANIZATION,
         }),
       },
     });
-
 
     if (response.status === 401) {
       return new Response(response.body, {
@@ -57,33 +57,22 @@ const handler = async (req: Request): Promise<Response> => {
 
     const json = await response.json();
 
-    //const modelIds = Object.keys(OpenAIModels)
-
-    // const result = json.data.filter(model => modelIds.includes(model.id))
-    //     .map(model => ({
-    //       id: model.id,
-    //       name: OpenAIModels[model.id].name,
-    //       maxLength: OpenAIModels[model.id].maxLength,
-    //       tokenLimit: OpenAIModels[model.id].tokenLimit,
-    //     }))
-
     const modelIds = AVAILABLE_MODELS.split(',');
 
-    const models: OpenAIModel[] = json.data
-      .map((model: any) => {
-        const model_name = model.id; //(OPENAI_API_TYPE === 'azure') ? model.model : model.id;
-        for (const [key, value] of Object.entries(OpenAIModelID)) {
-          if (value === model_name && modelIds.includes(model.id)) {
-            return {
-              id: model.id,
-              name: OpenAIModels[value].name,
-              maxLength: OpenAIModels[value].maxLength,
-              tokenLimit: OpenAIModels[value].tokenLimit,
-            };
-          }
+    const models: OpenAIModel[] = json.data.reduce((result: OpenAIModel[], model: any) => {
+      const model_name = model.id;
+      for (const [key, value] of Object.entries(OpenAIModelID)) {
+        if (value === model_name && modelIds.includes(model.id)) {
+          result.push({
+            id: model.id,
+            name: OpenAIModels[value].name,
+            maxLength: OpenAIModels[value].maxLength,
+            tokenLimit: OpenAIModels[value].tokenLimit,
+          });
         }
-      })
-      .filter(Boolean);
+      }
+      return result;
+    }, []);
 
     return new Response(JSON.stringify(models), { status: 200 });
   } catch (error) {
