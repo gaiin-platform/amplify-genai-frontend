@@ -99,6 +99,16 @@ export const getItem = async (id:string ) => {
     }
 }
 
+export const deleteItem = async (id:string ) => {
+    try {
+        const service = serviceHook('/item/delete');
+        return await service({id:id});
+    } catch (e){
+        return failureResponse("Error deleting item.");
+    }
+}
+
+
 export const getItemExamples = async (category:string, id:string) => {
     try {
         const service = serviceHook('/item/examples/get');

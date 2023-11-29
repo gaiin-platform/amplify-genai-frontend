@@ -37,7 +37,7 @@ import {TagsList} from "@/components/Chat/TagsList";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {MarketCategory, MarketItem, MarketItemType} from "@/types/market";
 import {ShareItem} from "@/types/export";
-import {getCategory, getItem, getItemExamples} from "@/services/marketService";
+import {deleteItem, getCategory, getItem, getItemExamples} from "@/services/marketService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {ImportAnythingModal, ImportFetcher} from "@/components/Share/ImportAnythingModal";
@@ -103,7 +103,8 @@ export const Market = ({items}: Props) => {
             prompts,
             defaultModelId,
             featureFlags,
-            workspaceMetadata
+            workspaceMetadata,
+            featureFlags: {marketItemDelete},
         },
         handleNewConversation,
         dispatch: homeDispatch,
@@ -453,6 +454,19 @@ If people need help with prompt engineering, which is how you converse effective
     }
 
 
+    const handleMarketItemDelete = async(item:MarketItem) => {
+        if(marketItemDelete){
+            deleteItem(item.id).then((data)=> {
+                if(data.success) {
+                    alert("Market item deleted.");
+                    const updatedItems = [...marketItems].filter((i) => i.id !== item.id);
+                    setMarketItems(updatedItems);
+                } else {
+                    alert("There was an error deleting the market item.");
+                }
+            });
+        }
+    }
 
     const handleViewItemDetails = async (item: MarketItem) => {
         const category = item.category;
@@ -507,7 +521,7 @@ If people need help with prompt engineering, which is how you converse effective
                     <li key={index}>
                         <div className="flex items-center">
                             <svg className="rtl:rotate-180 block w-3 h-3 mx-1 text-gray-400 " aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
-                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
+                                <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m1 9 4-4-4-4"/>
                             </svg>
                             <a href="#"
                                onClick={
@@ -525,6 +539,7 @@ If people need help with prompt engineering, which is how you converse effective
         </nav>);
     }
 
+
 // @ts-ignore
     return showExample ? (
             <div className="relative flex-1 overflow-hidden bg-white dark:bg-[#343541]">
@@ -533,6 +548,56 @@ If people need help with prompt engineering, which is how you converse effective
                         className="max-h-full overflow-x-hidden"
                     >
                         {getNav()}
+
+                        {showMarketItemTryModal && (
+                            <ImportAnythingModal
+                                title={"Try Market Item"}
+                                importButtonLabel={"Try"}
+                                onImport={
+                                    () => {
+                                        alert("Try market item.");
+                                        setShowMarketItemTryModal(false);
+                                    }
+                                }
+                                onCancel={
+                                    () => {
+                                        setShowMarketItemTryModal(false);
+                                    }
+                                }
+                                customImportFn={async (conversations, folders, prompts) => {
+                                    doTryItem(conversations, folders, prompts);
+                                    setShowMarketItemTryModal(false);
+                                }}
+                                includeConversations={false}
+                                includePrompts={false}
+                                includeFolders={false}
+                                importKey={""}
+                                importFetcher={importFetcher}
+                                note={marketItemDescription}/>
+                        )}
+
+                        {showMarketItemInstallModal && (
+                            <ImportAnythingModal
+                                title={"Install Market Item"}
+                                importButtonLabel={"Install"}
+                                onImport={
+                                    () => {
+                                        alert("Market item installed.");
+                                        setShowMarketItemInstallModal(false);
+                                    }
+                                }
+                                onCancel={
+                                    () => {
+                                        setShowMarketItemInstallModal(false);
+                                    }
+                                }
+                                includeConversations={true}
+                                includePrompts={true}
+                                includeFolders={true}
+                                importKey={""}
+                                importFetcher={importFetcher}
+                                note={marketItemDescription}/>
+                        )}
 
                         <section className="bg-gray-50 dark:bg-gray-900">
                             <div
@@ -1006,6 +1071,19 @@ If people need help with prompt engineering, which is how you converse effective
                                                                     className="m-2 inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
                                                                     <IconDownload/> Get
                                                                 </button>
+
+                                                                {marketItemDelete && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            e.preventDefault();
+                                                                            handleMarketItemDelete(item);
+                                                                        }
+                                                                        }
+                                                                        className="m-2 inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
+                                                                        Delete
+                                                                    </button>
+                                                                    )}
 
                                                             </div>
                                                         </div>

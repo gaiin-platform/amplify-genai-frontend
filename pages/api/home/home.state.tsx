@@ -89,5 +89,6 @@ export const initialState: HomeInitialState = {
     rootPromptCreate:true,
     pluginsOnInput:false,
     followUpCreate:true,
+    marketItemDelete:true,
   },
 };
