@@ -176,7 +176,7 @@ export const SettingsBar = () => {
             />
 
             <ChatbarSettings />
-            <RAG />
+            {/*<RAG />*/}
         </ChatbarContext.Provider>
     );
 };

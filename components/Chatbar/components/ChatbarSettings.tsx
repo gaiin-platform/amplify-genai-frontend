@@ -40,13 +40,13 @@ export const ChatbarSettings = () => {
 
     return (
         <div className="flex flex-col items-center space-y-0 m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-            {conversations.length > 0 ? (
-                <ClearConversations onClearConversations={handleClearConversations}/>
-            ) : null}
+            {/*{conversations.length > 0 ? (*/}
+            {/*    <ClearConversations onClearConversations={handleClearConversations}/>*/}
+            {/*) : null}*/}
 
             <Import onImport={handleImportConversations}/>
 
-            <ImportFromUrl onImport={handleImportConversations}/>
+            {/*<ImportFromUrl onImport={handleImportConversations}/>*/}
 
 
             <SidebarButton
