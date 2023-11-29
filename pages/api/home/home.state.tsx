@@ -82,7 +82,7 @@ export const initialState: HomeInitialState = {
   selectedAssistant: null,
   page: 'market',
   featureFlags: {
-    uploadDocuments:true,
+    uploadDocuments:false,
     extractDocumentsLocally:true,
     workflowRun:true,
     workflowCreate:true,

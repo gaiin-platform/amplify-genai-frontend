@@ -182,7 +182,8 @@ const handleFile = async (file:any,
 
         let document:AttachedDocument = {id:uuidv4(), name:file.name, type:file.type, raw:"", data:""};
 
-        if(extractDocumentsLocally && size < 524289){
+        const enforceMaxFileSize = true;
+        if(extractDocumentsLocally && (size < 524289 || !enforceMaxFileSize)){
             // @ts-ignore
             let handler = handlersByType[type] || handlersByType['*'];
             document = await handler(file);
