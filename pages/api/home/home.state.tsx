@@ -85,10 +85,10 @@ export const initialState: HomeInitialState = {
     uploadDocuments:false,
     extractDocumentsLocally:true,
     workflowRun:true,
-    workflowCreate:true,
+    workflowCreate:false,
     rootPromptCreate:true,
     pluginsOnInput:false,
     followUpCreate:true,
-    marketItemDelete:true,
+    marketItemDelete:false,
   },
 };
