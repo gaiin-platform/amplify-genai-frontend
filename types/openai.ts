@@ -10,7 +10,7 @@ export interface OpenAIModel {
 
 export enum OpenAIModelID {
   GPT_4_TURBO = 'gpt-4-1106-preview',
-  GPT_4_TURBO_AZ = 'gpt-4-turbo',
+  GPT_4_TURBO_AZ = 'gpt-4-1106-Preview',
   GPT_3_5 = 'gpt-3.5-turbo',
   GPT_3_5_FN = 'gpt-3.5-turbo-0613',
   GPT_3_5_AZ = 'gpt-35-turbo',
