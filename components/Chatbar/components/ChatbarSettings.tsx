@@ -1,24 +1,24 @@
-import {IconFileExport, IconSettings} from '@tabler/icons-react';
-import {useContext, useState} from 'react';
+import { IconFileExport, IconSettings, IconHelp } from '@tabler/icons-react';
+import { useContext, useState } from 'react';
 
-import {useTranslation} from 'next-i18next';
+import { useTranslation } from 'next-i18next';
 
 import HomeContext from '@/pages/api/home/home.context';
 
-import {SettingDialog} from '@/components/Settings/SettingDialog';
+import { SettingDialog } from '@/components/Settings/SettingDialog';
 
-import {Import} from '../../Settings/Import';
-import {Key} from '../../Settings/Key';
-import {SidebarButton} from '../../Sidebar/SidebarButton';
+import { Import } from '../../Settings/Import';
+import { Key } from '../../Settings/Key';
+import { SidebarButton } from '../../Sidebar/SidebarButton';
 import ChatbarContext from '../Chatbar.context';
-import {ClearConversations} from './ClearConversations';
-import {PluginKeys} from './PluginKeys';
-import {ImportFromUrl} from "@/components/Settings/ImportFromUrl";
-import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
+import { ClearConversations } from './ClearConversations';
+import { PluginKeys } from './PluginKeys';
+import { ImportFromUrl } from "@/components/Settings/ImportFromUrl";
+import { ShareAnythingModal } from "@/components/Share/ShareAnythingModal";
 import useStatsService from "@/services/eventService";
 
 export const ChatbarSettings = () => {
-    const {t} = useTranslation('sidebar');
+    const { t } = useTranslation('sidebar');
     const [isSettingDialogOpen, setIsSettingDialog] = useState<boolean>(false);
 
     const {
@@ -45,28 +45,34 @@ export const ChatbarSettings = () => {
             {/*    <ClearConversations onClearConversations={handleClearConversations}/>*/}
             {/*) : null}*/}
 
-            <Import onImport={handleImportConversations}/>
+            <Import onImport={handleImportConversations} />
 
             {/*<ImportFromUrl onImport={handleImportConversations}/>*/}
 
 
             <SidebarButton
                 text={t('Export Conversations')}
-                icon={<IconFileExport size={18}/>}
+                icon={<IconFileExport size={18} />}
                 onClick={() => handleExportData()}
             />
 
             <SidebarButton
                 text={t('Theme')}
-                icon={<IconSettings size={18}/>}
+                icon={<IconSettings size={18} />}
                 onClick={() => {
                     //statsService.setThemeEvent();
                     setIsSettingDialog(true)
                 }}
             />
 
+            <SidebarButton
+                text={t('Send Feedback')}
+                icon={<IconHelp size={18} />}
+                onClick={() => window.location.href = 'mailto:amplify@vanderbilt.edu'}
+            />
+
             {!serverSideApiKeyIsSet ? (
-                <Key apiKey={apiKey} onApiKeyChange={handleApiKeyChange}/>
+                <Key apiKey={apiKey} onApiKeyChange={handleApiKeyChange} />
             ) : null}
 
             {/*{!serverSidePluginKeysSet ? <PluginKeys /> : null}*/}
