@@ -9,6 +9,7 @@ import {useUser} from '@auth0/nextjs-auth0/client';
 import {shareItems} from "@/services/shareService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
+import useStatsService from "@/services/eventService";
 
 export interface SharingModalProps {
     open: boolean;
@@ -54,6 +55,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
     } = useContext(HomeContext);
 
     const {user} = useUser();
+    const statsService = useStatsService();
 
     // Individual states for selected prompts, conversations, and folders
     const [isSharing, setIsSharing] = useState(false);
@@ -166,6 +168,8 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                 const result = await shareItems(sharedBy, sharedWith, sharingNote, sharedData);
 
                 if (result.ok) {
+                    statsService.sharedItemEvent(sharedBy, sharedWith, sharingNote, sharedData);
+
                     setIsSharing(false);
                     alert("Shared successfully");
                     onShare([...selectedPromptsState, ...selectedConversationsState, ...selectedFoldersState]);

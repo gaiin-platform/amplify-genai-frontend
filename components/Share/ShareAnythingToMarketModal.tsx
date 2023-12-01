@@ -11,6 +11,7 @@ import {FiCommand} from "react-icons/fi";
 import {getCategories, getCategory, publish} from "@/services/marketService";
 import {MarketCategory} from "@/types/market";
 import {v4} from "uuid";
+import useStatsService from "@/services/eventService";
 
 export interface SharingModalProps {
     open: boolean;
@@ -56,6 +57,7 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
     } = useContext(HomeContext);
 
     const {user} = useUser();
+    const statsService = useStatsService();
 
     // Individual states for selected prompts, conversations, and folders
     const [isPublishing, setIsPublishing] = useState(false);
@@ -217,6 +219,15 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
                     sharedData);
 
                 if (result.success) {
+
+                    statsService.marketItemPublishEvent(
+                        publishingName,
+                        publishedDescription,
+                        selectedCategory,
+                        selectedTags,
+                        sharedData
+                    );
+
                     setIsPublishing(false);
                     alert("Published successfully");
                     onShare([...selectedPromptsState, ...selectedConversationsState, ...selectedFoldersState]);

@@ -139,6 +139,8 @@ export const Chatbar = () => {
 
     if (searchTerm) {
 
+      statsService.searchConversationsEvent(searchTerm);
+
       const results = conversations.filter((conversation) => {
         const searchable =
             conversation.name.toLocaleLowerCase() +

@@ -15,6 +15,7 @@ import {ClearConversations} from './ClearConversations';
 import {PluginKeys} from './PluginKeys';
 import {ImportFromUrl} from "@/components/Settings/ImportFromUrl";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
+import useStatsService from "@/services/eventService";
 
 export const ChatbarSettings = () => {
     const {t} = useTranslation('sidebar');
@@ -58,7 +59,10 @@ export const ChatbarSettings = () => {
             <SidebarButton
                 text={t('Theme')}
                 icon={<IconSettings size={18}/>}
-                onClick={() => setIsSettingDialog(true)}
+                onClick={() => {
+                    //statsService.setThemeEvent();
+                    setIsSettingDialog(true)
+                }}
             />
 
             {!serverSideApiKeyIsSet ? (

@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { addFile } from "@/services/fileService";
 import HomeContext from "@/pages/api/home/home.context";
+import useStatsService from "@/services/eventService";
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;
@@ -182,6 +183,8 @@ const handleFile = async (file:any,
 
         let document:AttachedDocument = {id:uuidv4(), name:file.name, type:file.type, raw:"", data:""};
 
+
+
         const enforceMaxFileSize = false;
         if(extractDocumentsLocally && (size < 524289 || !enforceMaxFileSize)){
             // @ts-ignore
@@ -249,6 +252,8 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetKey ,
     const uploadDocuments = featureFlags.uploadDocuments
     const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
 
+    const statsService = useStatsService();
+
     return (
         <>
             <input
@@ -260,6 +265,9 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetKey ,
                 onChange={(e) => {
                     if (!e.target.files?.length) return;
                     const file = e.target.files[0];
+
+                    statsService.attachFileEvent(file, uploadDocuments, extractDocumentsLocally);
+
                     handleFile(file, onAttach, onUploadProgress, onSetKey, onSetAbortController, uploadDocuments, extractDocumentsLocally);
 
                     e.target.value = "";

@@ -5,6 +5,7 @@ import {MIXPANEL_TOKEN} from "@/utils/app/const";
 import {OpenAIModel} from "@/types/openai";
 import {MarketItem} from "@/types/market";
 import {ChatBody, Conversation, Message} from "@/types/chat";
+import {ExportFormatV4} from "@/types/export";
 
 mixpanel.init(MIXPANEL_TOKEN, {debug: true, track_pageview: true, persistence: 'localStorage'});
 
@@ -51,10 +52,67 @@ const useStatsService = () => {
         mixpanel.identify(user.email);
     }
 
+    const getExportData = (sharedData:ExportFormatV4) => {
+        const sharedPromptIds = sharedData.prompts.map(p => p.id);
+        const sharedConversationIds = sharedData.history.map(c => c.id);
+        const sharedFolderIds = sharedData.folders.map(f => f.id);
+
+        return {
+            sharedPromptCount: sharedPromptIds.length,
+            sharedConversationCount: sharedConversationIds.length,
+            sharedFolderCount: sharedFolderIds.length,
+            sharedPromptIds: sharedPromptIds,
+            sharedConversationIds: sharedConversationIds,
+            sharedFolderIds: sharedFolderIds,
+        };
+    }
+
     return {
-        // sendEvent: async (event: string, data: any) => {
-        //     mixpanel.track(event, data);
-        // },
+
+        marketItemPublishEvent : async (publishingName:string,
+                                        publishedDescription:string,
+                                        selectedCategory:string,
+                                        selectedTags:string[],
+                                        sharedData:ExportFormatV4) => {
+            mixpanel.track('Item Published to Market', {
+                ...toEventData("Item", getExportData(sharedData)),
+                publishingName:publishingName,
+                publishedDescription:publishedDescription,
+                selectedCategory:selectedCategory,
+                selectedTags:selectedTags,
+            });
+        },
+        sharedItemEvent: async (sharedBy:string, sharedWith:string[], sharingNote:string, sharedData:ExportFormatV4) => {
+            mixpanel.track('Item Shared', {
+                ...toEventData("Item", getExportData(sharedData)),
+                    sharedBy:sharedBy,
+                    sharedWith:sharedWith,
+                    sharingNote:sharingNote
+            });
+        },
+        setThemeEvent: async (theme: string) => {
+            mixpanel.track('Theme Set',
+                {...toEventData("Theme", {name: theme})});
+        },
+        attachFileEvent: async (file: File, maxFileSizeEnforced:boolean, uploadDocuments:boolean) => {
+            const data = {
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                maxFileSizeEnforced: maxFileSizeEnforced,
+                uploadDocuments: uploadDocuments,
+            }
+            mixpanel.track('File Attached',
+                {...toEventData("File", data)})
+        },
+        searchConversationsEvent: async (searchTerm: string) => {
+            mixpanel.track('Conversations Searched',
+                {...toEventData("Search", {term: searchTerm})})
+        },
+        searchPromptsEvent: async (searchTerm: string) => {
+            mixpanel.track('Prompts Searched',
+                {...toEventData("Search", {term: searchTerm})})
+        },
         tryMarketItemEvent: async (item: MarketItem) => {
             mixpanel.track('Market Item Tried', {
                 ...toEventData("Market Item", item,

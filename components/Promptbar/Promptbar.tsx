@@ -155,6 +155,9 @@ const Promptbar = () => {
 
   useEffect(() => {
     if (searchTerm) {
+
+      statsService.searchPromptsEvent(searchTerm);
+
       promptDispatch({
         field: 'filteredPrompts',
         value: prompts.filter((prompt) => {

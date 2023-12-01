@@ -9,6 +9,7 @@ import { getSettings, saveSettings } from '@/utils/app/settings';
 import { Settings } from '@/types/settings';
 
 import HomeContext from '@/pages/api/home/home.context';
+import useStatsService from "@/services/eventService";
 
 interface Props {
   open: boolean;
@@ -24,6 +25,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
   const { dispatch: homeDispatch } = useContext(HomeContext);
   const modalRef = useRef<HTMLDivElement>(null);
 
+  const statsService = useStatsService();
 
 
   useEffect(() => {
@@ -81,8 +83,10 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
             <select
               className="w-full cursor-pointer bg-transparent p-2 text-neutral-700 dark:text-neutral-200"
               value={state.theme}
-              onChange={(event) =>
-                dispatch({ field: 'theme', value: event.target.value })
+              onChange={(event) => {
+                statsService.setThemeEvent(event.target.value);
+                dispatch({field: 'theme', value: event.target.value});
+              }
               }
             >
               <option value="dark">{t('Dark mode')}</option>
