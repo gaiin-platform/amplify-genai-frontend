@@ -80,7 +80,7 @@ export const initialState: HomeInitialState = {
   serverSideApiKeyIsSet: false,
   serverSidePluginKeysSet: false,
   selectedAssistant: null,
-  page: 'market',
+  page: 'chat',
   featureFlags: {
     uploadDocuments:false,
     extractDocumentsLocally:true,
@@ -89,6 +89,6 @@ export const initialState: HomeInitialState = {
     rootPromptCreate:true,
     pluginsOnInput:false,
     followUpCreate:true,
-    marketItemDelete:false,
+    marketItemDelete:true,
   },
 };

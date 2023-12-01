@@ -22,6 +22,7 @@ import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
 import HomeContext from "@/pages/api/home/home.context";
 import {ShareAnythingToMarketModal} from "@/components/Share/ShareAnythingToMarketModal";
+import useStatsService from "@/services/eventService";
 
 type SharedItemsListProps = {};
 
@@ -50,6 +51,7 @@ const LoadingIcon = styled(FiCommand)`
 const SharedItemsList: FC<SharedItemsListProps> = () => {
 
     const {dispatch: homeDispatch} = useContext(HomeContext);
+    const statsService = useStatsService();
 
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
     const [isMarketModalOpen, setIsMarketModalOpen] = useState<boolean>(false);
@@ -62,6 +64,8 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
 
     useEffect(() => {
         const name = user?.name;
+
+        statsService.openSharedItemsEvent();
 
         const fetchData = async () => {
             try {
@@ -144,6 +148,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                     <button
                         className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
                         onClick={() => {
+                            statsService.openMarketEvent();
                             homeDispatch({field: 'page', value: 'market'})
                         }}
                     >

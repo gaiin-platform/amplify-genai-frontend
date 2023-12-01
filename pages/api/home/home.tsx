@@ -55,6 +55,7 @@ import {saveFeatures} from "@/utils/app/features";
 import {findParametersInWorkflowCode} from "@/utils/workflow/workflow";
 import WorkspaceList from "@/components/Workspace/WorkspaceList";
 import {Market} from "@/components/Market/Market";
+import useStatsService from "@/services/eventService";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -85,7 +86,7 @@ const Home = ({
     });
 
 
-
+    const statsService = useStatsService();
 
     const {
         state: {
@@ -108,7 +109,7 @@ const Home = ({
     const {data, error, refetch} = useQuery(
         ['GetModels', apiKey, serverSideApiKeyIsSet],
         ({signal}) => {
-            if (!apiKey && !serverSideApiKeyIsSet) return null;
+            if (!apiKey && !serverSideApiKeyIsSet && !user) return null;
 
             return getModels(
                 {
@@ -276,6 +277,8 @@ const Home = ({
             promptTemplate: null,
             ...params
         };
+
+        statsService.createConversationEvent(newConversation);
 
         const updatedConversations = [...conversations, newConversation];
 

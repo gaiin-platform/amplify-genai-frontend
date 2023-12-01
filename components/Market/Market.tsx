@@ -46,6 +46,7 @@ import {FolderInterface} from "@/types/folder";
 import {Prompt} from "@/types/prompt";
 import {ExampleChat} from "@/components/Market/components/ExampleChat";
 import {saveFolders} from "@/utils/app/folders";
+import useStatsService from "@/services/eventService";
 
 interface Props {
     items: MarketItem[];
@@ -110,6 +111,8 @@ export const Market = ({items}: Props) => {
         dispatch: homeDispatch,
     } = useContext(HomeContext);
 
+    const statsService = useStatsService();
+    const { startConversationEvent, tryMarketItemEvent } = statsService;
 
     const noOpImportFetcher: ImportFetcher = async () => {
         return {success: false, message: "No Op", data: null};
@@ -249,6 +252,8 @@ export const Market = ({items}: Props) => {
 
     const handleGetItem = async (item: MarketItem) => {
 
+        statsService.installMarketItemEvent(item);
+
         const marketItemFetcher: ImportFetcher = async () => {
             const response = await getItem(item.id);
 
@@ -267,6 +272,8 @@ export const Market = ({items}: Props) => {
     }
 
     const handleTryItem = async (item: MarketItem) => {
+
+        statsService.tryMarketItemEvent(item);
 
         const marketItemFetcher: ImportFetcher = async () => {
             const response = await getItem(item.id);
@@ -449,7 +456,7 @@ If people need help with prompt engineering, which is how you converse effective
         //homeDispatch({ field: 'prompts', value: updatedPrompts });
 
         //savePrompts(updatedPrompts);
-
+        startConversationEvent(startTutorialPrompt);
         handleStartConversationWithPrompt(handleNewConversation, updatedPrompts, startTutorialPrompt);
     }
 
@@ -472,6 +479,8 @@ If people need help with prompt engineering, which is how you converse effective
         const category = item.category;
         const id = item.id;
 
+        statsService.viewMarketItemEvent(item);
+
         setIsLoading(true);
 
         getItemExamples(category, id).then((data) => {
@@ -492,6 +501,7 @@ If people need help with prompt engineering, which is how you converse effective
 
     const doTryItem = async (consersations: Conversation[], folders: FolderInterface[], itemPrompts: Prompt[]) => {
         if (itemPrompts.length > 0) {
+            startConversationEvent(itemPrompts[0]);
             handleStartConversationWithPrompt(handleNewConversation, [...prompts, ...itemPrompts], itemPrompts[0]);
         } else {
             alert("There are no prompts to try in this market item.");
@@ -555,7 +565,6 @@ If people need help with prompt engineering, which is how you converse effective
                                 importButtonLabel={"Try"}
                                 onImport={
                                     () => {
-                                        alert("Try market item.");
                                         setShowMarketItemTryModal(false);
                                     }
                                 }
@@ -791,7 +800,6 @@ If people need help with prompt engineering, which is how you converse effective
                                     importButtonLabel={"Try"}
                                     onImport={
                                         () => {
-                                            alert("Try market item.");
                                             setShowMarketItemTryModal(false);
                                         }
                                     }
@@ -818,6 +826,7 @@ If people need help with prompt engineering, which is how you converse effective
                                     importButtonLabel={"Install"}
                                     onImport={
                                         () => {
+
                                             alert("Market item installed.");
                                             setShowMarketItemInstallModal(false);
                                         }

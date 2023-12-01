@@ -62,12 +62,10 @@ const handler = async (req: Request): Promise<Response> => {
     const models: OpenAIModel[] = json.data.reduce((result: OpenAIModel[], model: any) => {
       const model_name = model.id;
 
-      console.log("Available Model:", model_name);
 
       for (const [key, value] of Object.entries(OpenAIModelID)) {
         if (value === model_name && modelIds.includes(model.id)) {
 
-          console.log("Allowing Model:", model_name);
 
           result.push({
             id: model.id,
