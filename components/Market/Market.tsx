@@ -226,14 +226,14 @@ export const Market = ({items}: Props) => {
         const results = search(searchStr, grouped);
         setGroupedItems(results);
 
-        setTimeout(() => {
-            scrollToTop();
-        }, 500);
+        // setTimeout(() => {
+        //     scrollToTop();
+        // }, 500);
     }, [marketItems, searchStr, searchCategory]);
 
-    useEffect(() => {
-        scrollToTop();
-    }, [showExample]);
+    // useEffect(() => {
+    //     scrollToTop();
+    // }, [showExample]);
 
     const search = (query: string, grouped: { [key: string]: MarketItem[]; }) => {
         if (query) {
@@ -531,7 +531,7 @@ If people need help with prompt engineering, which is how you converse effective
     }
 
     const getNav = () => {
-        return (<nav ref={scrollRef} className="pl-20 flex px-5 py-3 text-gray-700 border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-800 dark:border-gray-700" aria-label="Breadcrumb">
+        return (<nav ref={scrollRef} className="sticky top-0 z-50 pl-20 flex px-5 py-3 text-gray-700 border border-gray-200 bg-gray-50 dark:bg-gray-800 dark:border-gray-700" aria-label="Breadcrumb">
             <ol className="inline-flex items-center space-x-1 md:space-x-2 rtl:space-x-reverse">
                 <li className="inline-flex items-center">
                     <a onClick={
@@ -575,7 +575,7 @@ If people need help with prompt engineering, which is how you converse effective
 
 
 // @ts-ignore
-    return showExample ? (
+    return (
             <div className="relative flex-1 overflow-hidden bg-white dark:bg-[#343541]">
                 <>
                     <div
@@ -632,6 +632,8 @@ If people need help with prompt engineering, which is how you converse effective
                                 note={marketItemDescription}/>
                         )}
 
+                        {showExample  && (
+                        <>
                         <section className="bg-gray-50 dark:bg-gray-900">
                             <div
                                 className="ml-8 py-8 px-4 mx-auto max-w-screen-xl lg:py-16 grid lg:grid-cols-2 gap-8 lg:gap-8">
@@ -806,80 +808,10 @@ If people need help with prompt engineering, which is how you converse effective
                             <ExampleChat key={index} messages={example.conversation.messages.slice(1)}/>
                             </>
                         ))}
-                    </div>
-                </>
-            </div>
-        ) :
-        (
-            <div className="relative flex-1 overflow-hidden bg-white dark:bg-[#343541]">
-                <>
-                    <div
-                        className="max-h-full overflow-x-hidden"
-                    >
-                        <div>
+                        </>)}
 
-                            {showMarketItemTryModal && (
-                                <ImportAnythingModal
-                                    title={"Try Market Item"}
-                                    importButtonLabel={"Try"}
-                                    onImport={
-                                        () => {
-                                            setShowMarketItemTryModal(false);
-                                        }
-                                    }
-                                    onCancel={
-                                        () => {
-                                            setShowMarketItemTryModal(false);
-                                        }
-                                    }
-                                    customImportFn={async (conversations, folders, prompts) => {
-                                        doTryItem(conversations, folders, prompts);
-                                        setShowMarketItemTryModal(false);
-                                    }}
-                                    includeConversations={false}
-                                    includePrompts={false}
-                                    includeFolders={false}
-                                    importKey={""}
-                                    importFetcher={importFetcher}
-                                    note={marketItemDescription}/>
-                            )}
-
-                            {showMarketItemInstallModal && (
-                                <ImportAnythingModal
-                                    title={"Install Market Item"}
-                                    importButtonLabel={"Install"}
-                                    onImport={
-                                        () => {
-
-                                            alert("Market item installed.");
-                                            setShowMarketItemInstallModal(false);
-                                        }
-                                    }
-                                    onCancel={
-                                        () => {
-                                            setShowMarketItemInstallModal(false);
-                                        }
-                                    }
-                                    includeConversations={true}
-                                    includePrompts={true}
-                                    includeFolders={true}
-                                    importKey={""}
-                                    importFetcher={importFetcher}
-                                    note={marketItemDescription}/>
-                            )}
-
-                            {/*{showSettings && (*/}
-                            {/*    <div*/}
-                            {/*        className="flex flex-col space-y-10 md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">*/}
-                            {/*        <div*/}
-                            {/*            className="flex h-full flex-col space-y-4 border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border">*/}
-                            {/*            <ModelSelect/>*/}
-                            {/*        </div>*/}
-                            {/*    </div>*/}
-                            {/*)}*/}
-
-                            {getNav()}
-
+                        {!showExample && (
+                            <>
                             <section className="bg-gray-50 dark:bg-gray-900">
                                 <div
                                     className="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 grid lg:grid-cols-2 gap-8 lg:gap-16">
@@ -978,29 +910,6 @@ If people need help with prompt engineering, which is how you converse effective
                                     </div>
                                 </div>
                             </section>
-
-
-                            {/*{Object.entries(groupedItems)*/}
-                            {/*    .filter(([category, items]) => {*/}
-                            {/*        return searchCategory === "*" || searchCategory === category;*/}
-                            {/*    }).length === 0 && (*/}
-                            {/*    <section*/}
-                            {/*        className={`bg-center bg-cover bg-no-repeat bg-[image:var(--image-url)] bg-gray-700 bg-blend-multiply`}>*/}
-                            {/*        <div className="px-4 mx-auto max-w-screen-xl text-center py-18 lg:py-20">*/}
-                            {/*            <h1 className="mb-4 text-4xl font-extrabold tracking-tight leading-none text-white md:text-5xl lg:text-6xl">*/}
-                            {/*                <div className="flex flex-row items-center justify-center">*/}
-                            {/*                    <div className="flex">*/}
-                            {/*                        <IconRocketOff size={89}/>*/}
-                            {/*                    </div>*/}
-                            {/*                    <div className="ml-3 flex">*/}
-                            {/*                        No Matches*/}
-                            {/*                    </div>*/}
-                            {/*                </div>*/}
-                            {/*            </h1>*/}
-                            {/*        </div>*/}
-                            {/*    </section>*/}
-                            {/*    )*/}
-                            {/*}*/}
 
                             {isLoading && (
                                 <div className="flex flex-col w-full items-center justify-center mt-6">
@@ -1175,28 +1084,7 @@ If people need help with prompt engineering, which is how you converse effective
 
                                             </div>
                                         </div>
-                                        <div className="flex flex-row items-center justify-center p-4 mt-3">
-                                            {searchCategory !== "*" && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        setSearchCategory("*");
-                                                    }}
-                                                    className="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-7 py-2.5 me-2 mb-6 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800">
-                                                    See All Categories
-                                                </button>
-                                            )}
-                                            {/*{searchCategory === "*" && (*/}
-                                            {/*    <button*/}
-                                            {/*        onClick={(e) => {*/}
-                                            {/*            e.preventDefault();*/}
-                                            {/*            setSearchCategory(category.id);*/}
-                                            {/*        }}*/}
-                                            {/*        className="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-7 py-2.5 me-2 mb-6 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800">*/}
-                                            {/*        See All in {category.name}*/}
-                                            {/*    </button>*/}
-                                            {/*)}*/}
-                                        </div>
+                                        
                                     </section>
                                 ))
                             )}
@@ -1292,30 +1180,9 @@ If people need help with prompt engineering, which is how you converse effective
                                             )}
                                         </div>
                                     </section>
-
                                 ))}
-
+                            </>)}
                         </div>
-                    </div>
-
-                    {/*<ChatInput*/}
-                    {/*    handleUpdateModel={handleUpdateModel}*/}
-                    {/*    stopConversationRef={stopConversationRef}*/}
-                    {/*    textareaRef={textareaRef}*/}
-                    {/*    onSend={(message, plugin, documents: AttachedDocument[] | null) => {*/}
-                    {/*        setCurrentMessage(message);*/}
-                    {/*        //handleSend(message, 0, plugin);*/}
-                    {/*        routeMessage(message, 0, plugin, documents);*/}
-                    {/*    }}*/}
-                    {/*    onScrollDownClick={handleScrollDown}*/}
-                    {/*    onRegenerate={() => {*/}
-                    {/*        if (currentMessage) {*/}
-                    {/*            //handleSend(currentMessage, 2, null);*/}
-                    {/*            routeMessage(currentMessage, 2, null, null);*/}
-                    {/*        }*/}
-                    {/*    }}*/}
-                    {/*    showScrollDownButton={showScrollDownButton}*/}
-                    {/*/>*/}
                 </>
 
             </div>);
