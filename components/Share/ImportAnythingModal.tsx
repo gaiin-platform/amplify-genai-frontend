@@ -57,7 +57,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         importFetcher,
         customImportFn,
         importButtonLabel = "Import",
-        title = "Choose Shared Items to Accept"
+        title = "Choose Shared Items to Accept",
     }) => {
 
 

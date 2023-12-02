@@ -56,6 +56,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
     const [isMarketModalOpen, setIsMarketModalOpen] = useState<boolean>(false);
     const [importModalOpen, setImportModalOpen] = useState<boolean>(false);
+    const [sharedBy, setSharedBy] = useState<string>("");
     const [selectedKey, setSelectedKey] = useState<string>("");
     const [selectedNote, setSelectedNote] = useState<string>("");
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -75,6 +76,8 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
 
                         if (result.ok) {
                             const items = await result.json();
+
+                            console.log("items", items);
 
                             const grouped = groupBy('sharedBy', items.item);
                             setGroupedItems(grouped);
@@ -105,7 +108,8 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
 
             {importModalOpen && (
                 <ImportAnythingModal
-                    onImport={() => {
+                    onImport={(sharedData) => {
+                        statsService.sharedItemAcceptedEvent(sharedBy, selectedNote, sharedData);
                         setImportModalOpen(false);
                     }}
                     onCancel={() => {
@@ -203,6 +207,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                                 key={index}
                                 className="flex w-full cursor-pointer items-center gap-3 rounded-lg pb-2 pt-3 pr-2 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
                                 onClick={() => {
+                                    setSharedBy(item.sharedBy);
                                     handleFetchShare(item);
                                 }}
                             >

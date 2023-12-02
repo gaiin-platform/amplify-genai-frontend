@@ -6,6 +6,7 @@ import {OpenAIModel} from "@/types/openai";
 import {MarketItem} from "@/types/market";
 import {ChatBody, Conversation, Message} from "@/types/chat";
 import {ExportFormatV4} from "@/types/export";
+import {ConversionOptions} from "@/services/downloadService";
 
 mixpanel.init(MIXPANEL_TOKEN, {debug: true, track_pageview: true, persistence: 'localStorage'});
 
@@ -82,12 +83,25 @@ const useStatsService = () => {
                 selectedTags:selectedTags,
             });
         },
+        downloadItemEvent: async (conversionOptions:ConversionOptions, sharedData:ExportFormatV4) => {
+            mixpanel.track('Export Downloaded', {
+                ...toEventData("Item", getExportData(sharedData)),
+                ...toEventData("Conversion Options", conversionOptions),
+            });
+        },
         sharedItemEvent: async (sharedBy:string, sharedWith:string[], sharingNote:string, sharedData:ExportFormatV4) => {
             mixpanel.track('Item Shared', {
                 ...toEventData("Item", getExportData(sharedData)),
                     sharedBy:sharedBy,
                     sharedWith:sharedWith,
                     sharingNote:sharingNote
+            });
+        },
+        sharedItemAcceptedEvent: async (sharedBy:string, sharingNote:string, sharedData:ExportFormatV4) => {
+            mixpanel.track('Shared Item Imported', {
+                ...toEventData("Item", getExportData(sharedData)),
+                sharedBy:sharedBy,
+                sharingNote:sharingNote
             });
         },
         setThemeEvent: async (theme: string) => {

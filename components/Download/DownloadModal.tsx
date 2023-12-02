@@ -11,6 +11,7 @@ import {IconDownload} from '@tabler/icons-react';
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {ConversionOptions, convert} from "@/services/downloadService";
+import useStatsService from "@/services/eventService";
 
 export interface DownloadModalProps {
     onDownloadReady: (url: string) => void;
@@ -58,6 +59,8 @@ export const DownloadModal: FC<DownloadModalProps> = (
     const {
         state: {prompts, conversations, folders},
     } = useContext(HomeContext);
+
+    const statsService = useStatsService();
 
     const {user} = useUser();
 
@@ -257,6 +260,8 @@ export const DownloadModal: FC<DownloadModalProps> = (
             }
 
             const result = await convert(conversionOptions, sharedData);
+
+            statsService.downloadItemEvent(conversionOptions, sharedData);
 
             let resultArrived = false;
             let triesLeft = 60;
