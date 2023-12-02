@@ -897,44 +897,58 @@ If people need help with prompt engineering, which is how you converse effective
                                         <div
                                             className="w-full lg:max-w-xl p-6 space-y-8 sm:p-8 bg-white rounded-lg shadow-xl dark:bg-gray-800">
                                             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                                                Search the Market
+                                                AI-Generated Prompts & Tools for Vanderbilt
                                             </h2>
+                                            <div>
+                                                <h4>We asked GPT-4 to think of prompts that would be helpful to Vanderbilt
+                                                    faculty and staff.</h4>
+                                            </div>
+                                            <div>
+                                                We then taught GPT-4 how to write reusable prompt
+                                                templates for Amplify. Most of what you see in the market is GPT-4&apos;s
+                                                prompts to help you. We hope you find them useful.
+                                            </div>
+                                            {/*<h2 className="text-2xl font-bold text-gray-900 dark:text-white">*/}
+                                            {/*    Search this Category*/}
+                                            {/*</h2>*/}
                                             <form className="mt-8 space-y-6" action="#">
-                                                <div>
-                                                    <label htmlFor="keywords"
-                                                           className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Key
-                                                        Words</label>
-                                                    <input type="text" name="keywords" id="keywords"
-                                                           value={searchStr}
-                                                           onChange={(e) => setSearchStr(e.target.value)}
-                                                           className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                                                           placeholder="Enter your search terms..." required/>
-                                                </div>
-                                                <div>
-                                                    <label htmlFor="category"
-                                                           className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Category</label>
-                                                    <select id="category" className="text-black text-xl rounded"
-                                                            onChange={(e) => setSearchCategory(e.target.value)}
-                                                            value={searchCategory}
-                                                    >
-                                                        <option key="all" value="*">All Categories</option>
-                                                        {marketCategories.map((category) => (
-                                                            <option key={category.id}
-                                                                    value={category.id}>{category.name}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
+                                                {/*<div>*/}
+                                                {/*    <label htmlFor="keywords"*/}
+                                                {/*           className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Key*/}
+                                                {/*        Words</label>*/}
+                                                {/*    <input type="text" name="keywords" id="keywords"*/}
+                                                {/*           value={searchStr}*/}
+                                                {/*           onChange={(e) => setSearchStr(e.target.value)}*/}
+                                                {/*           className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"*/}
+                                                {/*           placeholder="Enter your search terms..." required/>*/}
+                                                {/*</div>*/}
+                                                {/*<div>*/}
+                                                {/*    <label htmlFor="category"*/}
+                                                {/*           className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Category</label>*/}
+                                                {/*    <select id="category" className="text-black text-xl rounded"*/}
+                                                {/*            onChange={(e) => setSearchCategory(e.target.value)}*/}
+                                                {/*            value={searchCategory}*/}
+                                                {/*    >*/}
+                                                {/*        <option key="all" value="*">All Categories</option>*/}
+                                                {/*        {marketCategories.map((category) => (*/}
+                                                {/*            <option key={category.id}*/}
+                                                {/*                    value={category.id}>{category.name}</option>*/}
+                                                {/*        ))}*/}
+                                                {/*    </select>*/}
+                                                {/*</div>*/}
 
-                                                <button type="submit"
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            setSearchStr("");
-                                                            setSearchCategory("*");
-                                                        }}
+                                                <div>
+                                                <a href="mailto:jules.white@vanderbilt.edu?subject=AI-Generated%40Prompts"
                                                         className="w-full px-5 py-3 text-base font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 sm:w-auto dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
-                                                    Reset
-                                                </button>
-
+                                                    Send Feedback
+                                                </a>
+                                                </div>
+                                                <div>
+                                                <a href="mailto:jules.white@vanderbilt.edu?subject=AI-Generated%40Prompts"
+                                                   className="w-full px-5 py-3 text-base font-medium text-center text-white bg-purple-700 rounded-lg hover:bg-purple-800 focus:ring-4 focus:ring-purple-300 sm:w-auto dark:bg-purple-600 dark:hover:bg-purple-700 dark:focus:ring-purple-800">
+                                                    Request a New Category
+                                                </a>
+                                                </div>
                                             </form>
                                         </div>
                                     </div>
