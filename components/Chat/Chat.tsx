@@ -115,6 +115,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const messagesEndRef = useRef<HTMLDivElement>(null);
         const chatContainerRef = useRef<HTMLDivElement>(null);
         const textareaRef = useRef<HTMLTextAreaElement>(null);
+        const modelSelectRef = useRef<HTMLDivElement>(null);
 
         const [isWorkflowMode, setWorkflowMode] = useState<boolean>();
 
@@ -346,6 +347,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }, [selectedConversation]);
 
+
+        const scrollToModelSelect = useCallback(() => {
+
+            if (modelSelectRef.current) {
+                modelSelectRef.current.scrollIntoView({behavior: 'smooth'});
+            }
+        }, []);
 
         const handleSend = useCallback(
             async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt:string|null = null) => {
@@ -1409,7 +1417,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
-                                            onClick={handleSettings}
+                                            onClick={(e)=>{
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                scrollToModelSelect();
+                                                handleSettings();
+                                            }}
                                         >
                                             <IconSettings size={18}/>
                                         </button>
@@ -1437,6 +1450,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             <IconDownload size={18}/>
                                         </button>
                                     </div>
+                                    <div ref={modelSelectRef}></div>
                                     {showSettings && (
                                         <div
                                             className="flex flex-col space-y-10 md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
