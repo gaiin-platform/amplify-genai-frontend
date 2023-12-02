@@ -44,6 +44,7 @@ export const SystemPrompt: FC<Props> = ({
   const [variables, setVariables] = useState<string[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
+  const [selectedPromptId, setSelectedPromptId] = useState<string>("default");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const promptListRef = useRef<HTMLUListElement | null>(null);
 
@@ -200,29 +201,48 @@ export const SystemPrompt: FC<Props> = ({
   return (
     <div className="flex flex-col">
       <label className="mb-2 text-left text-neutral-700 dark:text-neutral-400">
-        {t('System Prompt')}
+        {t('Custom Instructions')}
       </label>
-      <textarea
-        ref={textareaRef}
-        className="w-full rounded-lg border border-neutral-200 bg-transparent px-4 py-3 text-neutral-900 dark:border-neutral-600 dark:text-neutral-100"
-        style={{
-          resize: 'none',
-          bottom: `${textareaRef?.current?.scrollHeight}px`,
-          maxHeight: '300px',
-          overflow: `${
-            textareaRef.current && textareaRef.current.scrollHeight > 400
-              ? 'auto'
-              : 'hidden'
-          }`,
+
+      <select
+          className="w-full rounded-lg border border-neutral-200 bg-transparent px-4 py-3 text-neutral-900 dark:border-neutral-600 dark:text-neutral-100"
+        onChange={(e) => {
+          setSelectedPromptId(e.target.value);
+          if(e.target.value === "default") {
+            onChangePrompt(DEFAULT_SYSTEM_PROMPT);
+          }
+          else {
+            onChangePrompt(prompts.find(p => p.id === e.target.value)?.content || "");
+          }
         }}
-        placeholder={
-          t(`Enter a prompt or type "/" to select a prompt...`) || ''
-        }
-        value={t(value) || ''}
-        rows={1}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-      />
+        value={selectedPromptId}
+      >
+        <option key="default" value="default">Default</option>
+        {prompts.filter(p => p.type === MessageType.ROOT).map((prompt, index) => (
+          <option key={index} value={prompt.id}>{prompt.name}</option>
+        ))}
+      </select>
+      {/*<textarea*/}
+      {/*  ref={textareaRef}*/}
+      {/*  className="w-full rounded-lg border border-neutral-200 bg-transparent px-4 py-3 text-neutral-900 dark:border-neutral-600 dark:text-neutral-100"*/}
+      {/*  style={{*/}
+      {/*    resize: 'none',*/}
+      {/*    bottom: `${textareaRef?.current?.scrollHeight}px`,*/}
+      {/*    maxHeight: '300px',*/}
+      {/*    overflow: `${*/}
+      {/*      textareaRef.current && textareaRef.current.scrollHeight > 400*/}
+      {/*        ? 'auto'*/}
+      {/*        : 'hidden'*/}
+      {/*    }`,*/}
+      {/*  }}*/}
+      {/*  placeholder={*/}
+      {/*    t(`Enter a prompt or type "/" to select a prompt...`) || ''*/}
+      {/*  }*/}
+      {/*  value={t(value) || ''}*/}
+      {/*  rows={1}*/}
+      {/*  onChange={handleChange}*/}
+      {/*  onKeyDown={handleKeyDown}*/}
+      {/*/>*/}
 
       {showPromptList && filteredPrompts.length > 0 && (
         <div>
