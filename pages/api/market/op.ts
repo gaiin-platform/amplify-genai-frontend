@@ -14,6 +14,8 @@ const marketOp = withApiAuthRequired(
 
         apiUrl = apiUrl + op;
 
+        console.log("apiUrl: ", apiUrl, " op: ", op, " payload: ", payload);
+
         try {
             const { accessToken } = await getAccessToken(req, res);
 

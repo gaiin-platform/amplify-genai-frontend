@@ -190,14 +190,27 @@ export const Market = ({items}: Props) => {
     };
 
     useEffect(() => {
+        scrollToTop();
 
         const fetchCategory = (searchCategory && searchCategory !== "*") ? searchCategory : "/";
 
         setIsLoading(true);
 
+        updateNavItems(fetchCategory);
+
         getCategory(fetchCategory).then((data) => {
 
+            console.log("Fetched Category: ", data.data);
+
             completeSubCategories(data.data).then((subCategories) => {
+
+                console.log("Fetched Sub Categories: ", subCategories);
+
+                if(!subCategories || subCategories.length === 0) {
+                    subCategories = [
+                        data.data
+                    ]
+                }
 
                 setMarketCategories(subCategories);
                 setIsLoading(false);
@@ -213,7 +226,9 @@ export const Market = ({items}: Props) => {
         const results = search(searchStr, grouped);
         setGroupedItems(results);
 
-        scrollToTop();
+        setTimeout(() => {
+            scrollToTop();
+        }, 500);
     }, [marketItems, searchStr, searchCategory]);
 
     useEffect(() => {
@@ -508,6 +523,13 @@ If people need help with prompt engineering, which is how you converse effective
         }
     }
 
+    function formatCategoryName(input: string): string {
+        return input
+            .split("_")
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(" ");
+    }
+
     const getNav = () => {
         return (<nav ref={scrollRef} className="pl-20 flex px-5 py-3 text-gray-700 border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-800 dark:border-gray-700" aria-label="Breadcrumb">
             <ol className="inline-flex items-center space-x-1 md:space-x-2 rtl:space-x-reverse">
@@ -541,7 +563,9 @@ If people need help with prompt engineering, which is how you converse effective
                                        crumb.nav();
                                    }
                                }
-                               className="ms-1 text-sm font-medium text-gray-700 hover:text-blue-600 md:ms-2 dark:text-gray-400 dark:hover:text-white">{crumb.name}</a>
+                               className="ms-1 text-sm font-medium text-gray-700 hover:text-blue-600 md:ms-2 dark:text-gray-400 dark:hover:text-white">
+                                {formatCategoryName(crumb.name)}
+                            </a>
                         </div>
                     </li>
                 ))}
@@ -1000,9 +1024,44 @@ If people need help with prompt engineering, which is how you converse effective
                                             <p className="mb-8 text-lg font-normal text-gray-300 lg:text-xl sm:px-16 lg:px-48">
                                                 {category.description}
                                             </p>
+                                            <div className="flex flex-col w-full">
+                                                {(category.categories
+                                                    && category.categories?.length > 0) && (
+                                                    <h2 className="w-full mt-10 mb-4 text-2xl font-extrabold tracking-tight leading-none text-white md:text-3xl lg:text-4xl">
+                                                        Sub Categories
+                                                    </h2>
+                                                )}
+                                                <div className="grid grid-cols-3 gap-1 content-center">
+                                                    {category.categories?.map((item, index) => (
+                                                        <div key={item.id}
+                                                             onClick={(e) => {
+                                                                 e.preventDefault();
+                                                                 setSearchCategory(item.id);
+                                                             }
+                                                             }
+                                                             className="m-3 max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
+                                                            <div className="">
+
+                                                            </div>
+
+                                                            <div className="p-5">
+                                                                <a href="#">
+                                                                    <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                                                                        {item.name}
+                                                                    </h5>
+                                                                </a>
+                                                                <p className="mb-3 font-normal text-gray-700 dark:text-gray-400">
+                                                                    {item.description}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                    ))}
+                                                </div>
+                                            </div>
                                             {category.items && category.items?.length > 0 && (
                                                 <h2 className="w-full mt-10 mb-4 text-2xl font-extrabold tracking-tight leading-none text-white md:text-3xl lg:text-4xl">
-                                                    Featured
+                                                    Featured Prompt Templates
                                                 </h2>
                                             )}
                                             {(category.items
@@ -1113,41 +1172,7 @@ If people need help with prompt engineering, which is how you converse effective
 
                                                     ))}
                                                 </div>
-                                                <div className="flex flex-col w-full">
-                                                    {(category.categories
-                                                        && category.categories?.length > 0) && (
-                                                        <h2 className="w-full mt-10 mb-4 text-2xl font-extrabold tracking-tight leading-none text-white md:text-3xl lg:text-4xl">
-                                                            Sub Categories
-                                                        </h2>
-                                                    )}
-                                                    <div className="grid grid-cols-3 gap-1 content-center">
-                                                        {category.categories?.map((item, index) => (
-                                                            <div key={item.id}
-                                                                 onClick={(e) => {
-                                                                     e.preventDefault();
-                                                                     setSearchCategory(item.id);
-                                                                 }
-                                                                 }
-                                                                 className="m-3 max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
-                                                                <div className="">
 
-                                                                </div>
-
-                                                                <div className="p-5">
-                                                                    <a href="#">
-                                                                        <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-                                                                            {item.name}
-                                                                        </h5>
-                                                                    </a>
-                                                                    <p className="mb-3 font-normal text-gray-700 dark:text-gray-400">
-                                                                        {item.description}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-
-                                                        ))}
-                                                    </div>
-                                                </div>
                                             </div>
                                         </div>
                                         <div className="flex flex-row items-center justify-center p-4 mt-3">
