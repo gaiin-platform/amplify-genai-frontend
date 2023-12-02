@@ -134,6 +134,13 @@ export const VariableModal: FC<Props> = ({
     const [documentState, setDocumentState] = useState<{[key:string]:number}>({});
     const [documentAborts, setDocumentAborts] = useState<{[key:string]:()=>void}>({});
 
+    useEffect(() => {
+        if(models.length > 0) {
+            setSelectedModel(models[0]);
+            handleUpdateModel(models[0]);
+        }
+    },[])
+
     const onCancelUpload = (document:AttachedDocument) => {
         try {
             
@@ -236,9 +243,6 @@ export const VariableModal: FC<Props> = ({
             return document;
         });
 
-        console.log("Submitted Documents: ", documents);
-
-        console.log("Submitting prompt :", prompt);
         onSubmit(justVariables, documents, prompt);
         onClose(false);
     };
@@ -281,7 +285,6 @@ export const VariableModal: FC<Props> = ({
 
         let filtered = conversations.filter((conversation) => {
            if(options.startsWith){
-               console.log(conversation.name + " .startsWith " + options.startsWith + " = " + conversation.name.startsWith(options.startsWith));
                return conversation.name.startsWith(options.startsWith);
            }
            else if(options.options) {
@@ -325,8 +328,6 @@ export const VariableModal: FC<Props> = ({
 
     const getTextValue = (variable:string, text: string) => {
         let options = parsePromptVariableValues(variable);
-
-        console.log("Text Options:", options);
 
         // Append a line number to the start of every line of text
         text = (options.lineNumbers) ? text.split("\n")
