@@ -86,8 +86,14 @@ export const DownloadModal: FC<DownloadModalProps> = (
 
     const powerPointTemplateOptions = [
         "none",
-        "vandy_1.pptx",
-        "template_vapor.pptx"
+        "vanderbilt_1.pptx",
+        "celestial.pptx",
+        "frame.pptx",
+        "gallery.pptx",
+        "integral.pptx",
+        "ion.pptx",
+        "parcel.pptx",
+        "vapor.pptx"
     ];
 
     const wordTemplateOptions = [
@@ -422,6 +428,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                             onChange={(e) => {
                                                 if(e.target.value === 'pptx'){
                                                     setTemplateOptions(powerPointTemplateOptions);
+                                                    setTemplateSelection("vanderbilt_1.pptx");
                                                 }
                                                 else {
                                                     setTemplateOptions(wordTemplateOptions);
