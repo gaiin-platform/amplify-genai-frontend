@@ -83,7 +83,8 @@ const handler = async (req: Request): Promise<Response> => {
     if (error instanceof OpenAIError) {
       return new Response('Error', { status: 500, statusText: error.message });
     } else {
-      return new Response('Error', { status: 500 });
+      // @ts-ignore
+      return new Response('Error', { status: 500, statusText: error.message });
     }
   }
 };
