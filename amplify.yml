@@ -3,13 +3,13 @@ frontend:
   phases:
     preBuild:
       commands:
-        - nvm install 18    # Install Node.js version 18
-        - nvm use 18        # Use Node.js version 18
+        - nvm install 20    # Install Node.js version 18
+        - nvm use 20        # Use Node.js version 18
         - env | grep -e  OPENAI_API_KEY >> .env.production
         - env | grep -e  OPENAI_API_HOST >> .env.production
         - env | grep -e  OPENAI_API_TYPE >> .env.production
         - env | grep -e  OPENAI_API_VERSION >> .env.production
-        - env | grep -e  AZURE_DEPLOYMENT_ID >> .env.
+        - env | grep -e  AZURE_DEPLOYMENT_ID >> .env. 
         - env | grep -e  AZURE_API_NAME >> .env.production
         - env | grep -e  AUTH0_AUDIENCE >> .env.production
         - env | grep -e  AUTH0_SCOPE >> .env.production

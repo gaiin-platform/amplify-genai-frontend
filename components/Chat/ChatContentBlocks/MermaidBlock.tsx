@@ -1,9 +1,9 @@
 import mermaid from "mermaid";
-import {useContext, useEffect, useState} from "react";
+import { useContext, useEffect, useState } from "react";
 import HomeContext from "@/pages/api/home/home.context";
-import {IconZoomIn} from "@tabler/icons-react";
-import styled, {keyframes} from "styled-components";
-import {FiCommand} from "react-icons/fi";
+import { IconZoomIn } from "@tabler/icons-react";
+import styled, { keyframes } from "styled-components";
+import { FiCommand } from "react-icons/fi";
 
 const animate = keyframes`
   0% {
@@ -30,55 +30,123 @@ const mermaidConfig = {
         darkMode: true,
         background: "#282a36",
         mainBkg: "#282a36",
-
-        lineColor: "#ff79c6",
+        lineColor: "#fff",
     },
-    // themeCSS: `
-    //   g.classGroup rect {
-    //     fill: #282a36;
-    //     stroke: #6272a4;
-    //   }
-    //   g.classGroup text {
-    //     fill: #f8f8f2;
-    //   }
-    //   g.classGroup line {
-    //     stroke: #f8f8f2;
-    //     stroke-width: 0.5;
-    //   }
-    //   .classLabel .box {
-    //     stroke: #21222c;
-    //     stroke-width: 3;
-    //     fill: #21222c;
-    //     opacity: 1;
-    //   }
-    //   .classLabel .label {
-    //     fill: #f1fa8c;
-    //   }
-    //   .relation {
-    //     stroke: #ff79c6;
-    //     stroke-width: 1;
-    //   }
-    //   #compositionStart, #compositionEnd {
-    //     fill: #bd93f9;
-    //     stroke: #bd93f9;
-    //     stroke-width: 1;
-    //   }
-    //   #aggregationEnd, #aggregationStart {
-    //     fill: #21222c;
-    //     stroke: #50fa7b;
-    //     stroke-width: 1;
-    //   }
-    //   #dependencyStart, #dependencyEnd {
-    //     fill: #00bcd4;
-    //     stroke: #00bcd4;
-    //     stroke-width: 1;
-    //   }
-    //   #extensionStart, #extensionEnd {
-    //     fill: #f8f8f2;
-    //     stroke: #f8f8f2;
-    //     stroke-width: 1;
-    //   }`,
+    themeCSS: `
+        
+        /* START GANTT CSS */
 
+        /* Enhance task bar visuals */
+        .task, .task0, .task1 {
+            fill: #4e79a7; /* Change task bar color */
+            stroke: #2c3e50; /* Add border to task bars */
+            stroke-width: 1px; /* Border width */
+        }
+        /* Task text styles - now set to be hidden */
+        .taskText, .taskText0, .taskText1 {
+            fill: #ffffff; /* Change task text color for readability; THIS IS THE TEXT THAT SHOWS UP ON THE TASK BARS */
+            font-weight: bold; /* Make text bold */
+        }
+        /* Section styles for better separation */
+        .section, .section0, .section1 {
+            fill: #f8f9fa; /* Light background for sections */
+            stroke: #ced4da; /* Border color for sections */
+            stroke-width: 1px; /* Border width for sections */
+            white-space: nowrap; /* Prevent text from wrapping to new line */
+            overflow: hidden; /* Hide overflow */
+            text-overflow: ellipsis; /* Add an ellipsis if the text is too long */
+            max-width: 50px; /* Set a max-width for section titles */
+        }
+        /* Section title styles */
+        .sectionTitle, .sectionTitle0, .sectionTitle1 {
+            fill: none; /* Change section title color; THIS IS THE TEXT THAT WOULD SHOW UP ON THE LEFT SIDE OF CHART */
+            font-weight: bold; /* Make section titles bold */
+        }
+        /* Grid and tick lines */
+        .grid .tick line {
+            stroke: #adb5bd; /* Softer color for grid lines */
+        }
+        /* Current date line */
+        .today {
+            stroke: #e63946; /* A distinct color for 'today' line */
+            stroke-dasharray: 4; /* Dashed style for 'today' line */
+            stroke-width: 2px; /* Make the 'today' line thicker */
+        }
+        /* Title text for overall Gantt chart */
+        .titleText {
+            fill: #eeeeee; /* Title color */
+            font-size: 20px; /* Increase title font size */
+            font-weight: bold; /* Bold title text */
+        }
+
+        /* END GANTT CSS */
+
+        /* START ERD CSS */
+
+        /* Remove any fill opacity or haze from entity and attribute boxes */
+        .entityBox, .attributeBoxOdd, .attributeBoxEven {
+            fill: none; 
+            fill-opacity: 1; /* Ensure fill is fully opaque */
+            stroke-opacity: 1; /* Ensure stroke is fully opaque */
+        }
+
+        /* Add styles to remove highlight from relationship labels */
+        .relationshipLabelBox {
+            fill: none; /* Remove the fill style if it's causing the haze */
+            background-color: none; /* Remove the background color */
+            opacity: 1; /* Set the opacity to full to remove any transparency */
+        }
+
+        .relationshipLabelBox rect {
+            opacity: 1; /* Ensure there's no transparency on the label boxes */
+        }
+
+        /* END ERD CSS */
+
+        /* START QUADRANT CSS */
+
+        /* Ensure solid background for quadrants with no opacity to avoid "haze" */
+        .quadrant rect {
+            opacity: 1; /* Ensure there's no transparency on the quadrant backgrounds */
+            /* fill: none;  Remove background fill */
+        }
+
+        /* Quadrant background colors */
+        .quadrant:nth-child(1) rect {
+            fill: #8ecae6; /* Color for 'top left' quadrant */
+        }
+
+        .quadrant:nth-child(2) rect {
+            fill: #219ebc; /* Color for 'top right' quadrant */
+        }
+
+        .quadrant:nth-child(3) rect {
+            fill: #8e9091; /* Color for 'bottom left' quadrant */
+        }
+
+        .quadrant:nth-child(4) rect {
+            fill: #f5f7f7; /* Color for 'bottom right' quadrant */
+        }
+
+        /* Quadrant text label color */
+        .quadrant text {
+            fill: #333333; /* Dark Grey */
+        }
+
+        /* Point color */
+        .data-point circle {
+            fill: #004aad; /* Deep Blue */
+        }
+
+        /* Point label color */
+        .data-point text {
+            fill: #111111; /* Almost Black */
+            /* Optional: Add a subtle white text-shadow for readability on all backgrounds */
+            /* text-shadow: 1px 1px 2px #ffffff; */
+        }
+
+        /* END QUADRANT CSS */
+    `,
 };
 
 mermaid.initialize(mermaidConfig);
@@ -89,14 +157,14 @@ interface MermaidProps {
 }
 
 
-const Mermaid: React.FC<MermaidProps> = ({chart, currentMessage}) => {
+const Mermaid: React.FC<MermaidProps> = ({ chart, currentMessage }) => {
     const [svgDataUrl, setSvgDataUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [height, setHeight] = useState<number>(500);
 
 
     const {
-        state: {messageIsStreaming},
+        state: { messageIsStreaming },
     } = useContext(HomeContext);
 
 
@@ -147,28 +215,27 @@ const Mermaid: React.FC<MermaidProps> = ({chart, currentMessage}) => {
     // @ts-ignore
     return error ?
         <div>{error}</div> :
-        <div style={{maxHeight:"450px"}}>
+        <div style={{ maxHeight: "450px" }}>
             <div className="flex items-center space-x-4">
-                <IconZoomIn/>
+                <IconZoomIn />
                 <input
                     type="range"
                     min="250"
                     max="4000"
                     value={height}
-                    onChange={(e)=>{ // @ts-ignore
-                        setHeight(e.target.value)}}
+                    onChange={(e) => { // @ts-ignore
+                        setHeight(e.target.value)
+                    }}
                 />
             </div>
-            <div style={{height: `${height + 20}px`, width: `${2 * height}px`, overflow:"auto"}}>
-                {messageIsStreaming && currentMessage ? <div><LoadingIcon/> Loading...</div> :
-                    <img style={{height: `${height}px`}}
-                         src={svgDataUrl || "data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"80\"><text x=\"0\" y=\"30\" font-size=\"18\" font-family='sans-serif' font-weight=\"bold\" fill=\"white\">Loading...</text></svg>"}
-                         alt="Loading"/>
+            <div style={{ height: `${height + 20}px`, width: `${2 * height}px`, overflow: "auto" }}>
+                {messageIsStreaming && currentMessage ? <div><LoadingIcon /> Loading...</div> :
+                    <img style={{ height: `${height}px` }}
+                        src={svgDataUrl || "data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"80\"><text x=\"0\" y=\"30\" font-size=\"18\" font-family='sans-serif' font-weight=\"bold\" fill=\"white\">Loading...</text></svg>"}
+                        alt="Loading" />
                 }
             </div>
         </div>;
 };
 
 export default Mermaid;
-
-
