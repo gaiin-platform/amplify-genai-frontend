@@ -144,12 +144,36 @@ export const ChatInput = ({
             return;
         }
 
+        const maxLength = selectedConversation?.model.maxLength;
+
+        if (maxLength && content.length > maxLength) {
+            alert(
+                t(
+                    `Message limit is {{maxLength}} characters. You have entered {{valueLength}} characters.`,
+                    {maxLength, valueLength: content.length},
+                ),
+            );
+            return;
+        }
+
         const type = (isWorkflowOn) ? MessageType.AUTOMATION : MessageType.PROMPT;
         let msg = newMessage({role: 'user', content: content, type: type});
 
         if (documents && documents?.length > 0) {
             if (!isWorkflowOn) {
                 msg.content = handleAppendDocumentsToContent(content, documents);
+
+                const maxLength = selectedConversation?.model.maxLength;
+
+                if (maxLength && msg.content.length > maxLength) {
+                    alert(
+                        t(
+                            `Message limit is {{maxLength}} characters. Your prompt and attached documents are {{valueLength}} characters. Please remove the attached documents or choose smaller excerpts.`,
+                            {maxLength, valueLength: msg.content.length},
+                        ),
+                    );
+                    return;
+                }
             }
         }
 
