@@ -5,6 +5,15 @@ export const DEFAULT_SYSTEM_PROMPT =
 
 export const MIXPANEL_TOKEN = process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || '';
 
+export const COMMON_DISALLOWED_FILE_EXTENSIONS = [
+    "jpg","png","gif","pptx",
+    "mp3","wav","mp4","mov","avi","mkv",
+    "rar","7z","tar","gz","tgz","bz2","xz",
+    "jpeg","mkv","tif","tiff","bmp","svg","eps","ps","ai",
+    "psd","heic","heif","webp","ico","ps",
+];
+
+
 export const OPENAI_API_HOST =
   process.env.OPENAI_API_HOST || 'https://api.openai.com';
 

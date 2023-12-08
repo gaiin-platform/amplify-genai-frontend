@@ -38,6 +38,7 @@ import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 import {ActiveAssistantsList} from "@/components/Assistants/ActiveAssistantsList";
 import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
+import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -465,6 +466,7 @@ export const ChatInput = ({
                         )}
 
                         <AttachFile id="__attachFile"
+                                    disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                     onAttach={addDocument}
                                     onSetKey={handleSetKey}
                                     onSetAbortController={handleDocumentAbortController}

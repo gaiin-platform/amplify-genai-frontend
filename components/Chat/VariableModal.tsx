@@ -9,6 +9,7 @@ import HomeContext from "@/pages/api/home/home.context";
 import JSON5 from 'json5'
 import {getType, parsePromptVariableValues, variableTypeOptions} from "@/utils/app/prompts";
 import {FileList} from "@/components/Chat/FileList";
+import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 
 interface Props {
     models: OpenAIModel[];
@@ -422,6 +423,7 @@ export const VariableModal: FC<Props> = ({
                         {isFile(variable.key) && ( //use AttachFile component
                             <div>
                                 <AttachFile id={"__idVarFile" + index}
+                                            disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                             onSetKey={handleSetKey}
                                             onSetAbortController={handleDocumentAbortController}
                                             onUploadProgress={handleDocumentState}
@@ -442,6 +444,7 @@ export const VariableModal: FC<Props> = ({
                         {isFiles(variable.key) && ( //use AttachFile component
                             <div>
                                 <AttachFile id={"__idVarFile" + index}
+                                            disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                             onSetKey={handleSetKey}
                                             onSetAbortController={handleDocumentAbortController}
                                             onUploadProgress={handleDocumentState}

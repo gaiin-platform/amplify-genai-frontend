@@ -18,6 +18,8 @@ interface Props {
     onSetKey?: (data:AttachedDocument, key:string) => void;
     onSetAbortController?: (data:AttachedDocument, abortController:AbortController) => void;
     id:string;
+    disallowedFileExtensions?:string[];
+    allowedFileExtensions?:string[];
 }
 
 const handleAsZip = (file: File): Promise<any[]> => {
@@ -244,7 +246,7 @@ const handleFile = async (file:any,
     }
 }
 
-export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetKey , onSetAbortController}) => {
+export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetKey , onSetAbortController, allowedFileExtensions, disallowedFileExtensions}) => {
     const { t } = useTranslation('sidebar');
 
     const {state: { featureFlags } } = useContext(HomeContext);
@@ -265,6 +267,24 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetKey ,
                 onChange={(e) => {
                     if (!e.target.files?.length) return;
                     const file = e.target.files[0];
+
+                    const fileName = file.name;
+                    const extension = fileName.split('.').pop() || '';
+
+                    if(extension === ''){
+                        alert("This file type is not supported.");
+                        return;
+                    }
+
+                    if(disallowedFileExtensions && disallowedFileExtensions.includes(extension)) {
+                        alert("This file type is not supported.");
+                        return;
+                    }
+
+                    if(allowedFileExtensions && !allowedFileExtensions.includes(extension)) {
+                        alert("This file type is not supported.");
+                        return;
+                    }
 
                     statsService.attachFileEvent(file, uploadDocuments, extractDocumentsLocally);
 
