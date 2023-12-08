@@ -25,6 +25,7 @@ import {Style} from "css-to-react-native";
 import { Prompt } from "@/types/prompt";
 import { Stars } from "@/components/Chat/Stars";
 import {DownloadModal} from "@/components/Download/DownloadModal";
+import Loader from "@/components/Loader/Loader";
 
 
 
@@ -578,7 +579,9 @@ export const ChatMessage: FC<Props> = memo(({
                                 }} />
                             )}
                             {(messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1) ?
-                                <LoadingIcon /> : null}
+                                // <LoadingIcon />
+                                <Loader type="ping" size="48"/>
+                                : null}
                         </div>
                     )}
                 </div>

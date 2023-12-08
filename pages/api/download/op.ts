@@ -1,9 +1,19 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getAccessToken, withApiAuthRequired } from "@auth0/nextjs-auth0";
+import {getServerSession} from "next-auth/next";
+import {authOptions} from "@/pages/api/auth/[...nextauth]";
 
 
-const downloadOp = withApiAuthRequired(
+const downloadOp =
     async (req: NextApiRequest, res: NextApiResponse) => {
+
+        const session = await getServerSession(req, res, authOptions);
+
+        if (!session) {
+            // Unauthorized access, no session found
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const { accessToken } = session;
 
         let apiUrl = process.env.CONVERT_API_URL || "";
 
@@ -15,7 +25,6 @@ const downloadOp = withApiAuthRequired(
         apiUrl = apiUrl + op;
 
         try {
-            const { accessToken } = await getAccessToken(req, res);
 
             const response = await fetch(apiUrl, {
                 method: "POST",
@@ -35,7 +44,6 @@ const downloadOp = withApiAuthRequired(
             console.error("Error calling download: ", error);
             res.status(500).json({ error: `Could not perform download op:${op}` });
         }
-    }
-);
+    };
 
 export default downloadOp;

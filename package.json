@@ -12,7 +12,6 @@
     "coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@auth0/nextjs-auth0": "^3.1.0",
     "@dqbd/tiktoken": "^1.0.2",
     "@tabler/icons-react": "^2.9.0",
     "@types/mixpanel-browser": "^2.47.5",
@@ -25,11 +24,13 @@
     "i18next": "^22.4.13",
     "json5": "^2.2.3",
     "jszip": "^3.10.1",
+    "ldrs": "^1.0.1",
     "mammoth": "^1.6.0",
     "mermaid": "^10.5.0",
     "mixpanel-browser": "^2.48.1",
     "multer": "^1.4.5-lts.1",
     "next": "13.2.4",
+    "next-auth": "^4.24.5",
     "next-i18next": "^13.2.2",
     "openai": "^4.19.0",
     "react": "^18.2.0",

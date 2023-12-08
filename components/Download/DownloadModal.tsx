@@ -5,7 +5,7 @@ import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";
 import {TagsList} from "@/components/Chat/TagsList";
 import {createExport, exportData} from "@/utils/app/importExport";
-import {useUser} from '@auth0/nextjs-auth0/client';
+import { useSession } from "next-auth/react"
 import {shareItems} from "@/services/shareService";
 import {IconDownload} from '@tabler/icons-react';
 import styled, {keyframes} from "styled-components";
@@ -62,7 +62,8 @@ export const DownloadModal: FC<DownloadModalProps> = (
 
     const statsService = useStatsService();
 
-    const {user} = useUser();
+    const { data: session } = useSession();
+    const user = session?.user;
 
     // Individual states for selected prompts, conversations, and folders
     const [isSharing, setIsDownloading] = useState(false);

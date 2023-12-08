@@ -1,9 +1,19 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getAccessToken, withApiAuthRequired } from "@auth0/nextjs-auth0";
+import {getServerSession} from "next-auth/next";
+import {authOptions} from "@/pages/api/auth/[...nextauth]";
 
 
-const marketOp = withApiAuthRequired(
+const marketOp =
     async (req: NextApiRequest, res: NextApiResponse) => {
+
+        const session = await getServerSession(req, res, authOptions);
+
+        if (!session) {
+            // Unauthorized access, no session found
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const { accessToken } = session;
 
         let apiUrl = process.env.MARKET_API_URL || "";
 
@@ -17,7 +27,6 @@ const marketOp = withApiAuthRequired(
         console.log("apiUrl: ", apiUrl, " op: ", op, " payload: ", payload);
 
         try {
-            const { accessToken } = await getAccessToken(req, res);
 
             const response = await fetch(apiUrl, {
                 method: "POST",
@@ -37,7 +46,6 @@ const marketOp = withApiAuthRequired(
             console.error("Error calling assistant: ", error);
             res.status(500).json({ error: `Could not perform market op:${op}` });
         }
-    }
-);
+    };
 
 export default marketOp;

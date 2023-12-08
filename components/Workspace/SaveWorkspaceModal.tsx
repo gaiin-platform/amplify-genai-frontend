@@ -5,10 +5,10 @@ import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";
 import {TagsList} from "@/components/Chat/TagsList";
 import {createExport, exportData} from "@/utils/app/importExport";
-import {useUser} from '@auth0/nextjs-auth0/client';
 import {shareItems} from "@/services/shareService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
+import {useSession} from "next-auth/react";
 
 export interface SharingModalProps {
     open: boolean;
@@ -72,7 +72,8 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
     }
 
 
-    const {user} = useUser();
+    const { data: session } = useSession();
+    const user = session?.user;
 
     // Individual states for selected prompts, conversations, and folders
     const [isSharing, setIsSharing] = useState(false);

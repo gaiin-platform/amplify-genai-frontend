@@ -14,7 +14,6 @@ import {
     IconX, IconPlus,
 } from '@tabler/icons-react';
 import {getSharedItems, loadSharedItem} from "@/services/shareService";
-import {useUser} from '@auth0/nextjs-auth0/client';
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
@@ -23,6 +22,7 @@ import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
 import HomeContext from "@/pages/api/home/home.context";
 import {ShareAnythingToMarketModal} from "@/components/Share/ShareAnythingToMarketModal";
 import useStatsService from "@/services/eventService";
+import {useSession} from "next-auth/react";
 
 type SharedItemsListProps = {};
 
@@ -61,7 +61,8 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
     const [selectedNote, setSelectedNote] = useState<string>("");
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [groupedItems, setGroupedItems] = useState<{ [key: string]: ShareItem[] }>({});
-    const {user} = useUser();
+    const { data: session } = useSession();
+    const user = session?.user;
 
     useEffect(() => {
         const name = user?.name;

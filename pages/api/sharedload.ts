@@ -1,15 +1,23 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getAccessToken, withApiAuthRequired } from "@auth0/nextjs-auth0";
+import {getServerSession} from "next-auth/next";
+import {authOptions} from "@/pages/api/auth/[...nextauth]";
 
 
-
-export const loadSharedItem = withApiAuthRequired(
+export const loadSharedItem =
     async (req: NextApiRequest, res: NextApiResponse) => {
+
+        const session = await getServerSession(req, res, authOptions);
+
+        if (!session) {
+            // Unauthorized access, no session found
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const { accessToken } = session;
 
         const apiUrl = process.env.SHARE_API_URL + "/load"; // API Gateway URL from environment variables
 
         try {
-            const { accessToken } = await getAccessToken(req, res);
 
             const response = await fetch(apiUrl, {
                 method: "POST",
@@ -29,7 +37,6 @@ export const loadSharedItem = withApiAuthRequired(
             console.error("Error calling API Gateway: ", error);
             res.status(500).json({ error: "Could not fetch item" });
         }
-    }
-);
+    };
 
 export default loadSharedItem;

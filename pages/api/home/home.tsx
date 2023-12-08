@@ -6,7 +6,6 @@ import {useTranslation} from 'next-i18next';
 import {serverSideTranslations} from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import {Tab, TabSidebar} from "@/components/TabSidebar/TabSidebar";
-
 import {useCreateReducer} from '@/hooks/useCreateReducer';
 import {SettingsBar} from "@/components/Settings/SettingsBar";
 import useErrorService from '@/services/errorService';
@@ -43,7 +42,7 @@ import HomeContext, {ClickContext, Processor} from './home.context';
 import {HomeInitialState, initialState} from './home.state';
 
 import {v4 as uuidv4} from 'uuid';
-import {useUser} from '@auth0/nextjs-auth0/client';
+
 
 import styled from "styled-components";
 import {WorkflowDefinition} from "@/types/workflow";
@@ -58,6 +57,8 @@ import useStatsService from "@/services/eventService";
 import {getBasePrompts} from "@/services/basePromptsService";
 import {LatestExportFormat} from "@/types/export";
 import {importData} from "@/utils/app/importExport";
+import { useSession, signIn, signOut } from "next-auth/react"
+import Loader from "@/components/Loader/Loader";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -81,8 +82,12 @@ const Home = ({
     const {getModels} = useApiService();
     const {getModelsError} = useErrorService();
     const [initialRender, setInitialRender] = useState<boolean>(true);
-    const {user, error: userError, isLoading} = useUser();
 
+    const { data: session, status } = useSession();
+    //const {user, error: userError, isLoading} = useUser();
+    const user = session?.user;
+    const isLoading = status === "loading";
+    const userError = null;
 
     const contextValue = useCreateReducer<HomeInitialState>({
         initialState,
@@ -701,6 +706,24 @@ const Home = ({
     const [preProcessingCallbacks, setPreProcessingCallbacks] = useState([]);
     const [postProcessingCallbacks, setPostProcessingCallbacks] = useState([]);
 
+
+    const federatedSignOut = async () => {
+        await signOut();
+        // signOut only signs out of Auth.js's session
+        // We need to log out of Cognito as well
+        // Federated signout is currently not supported.
+        // Therefore, we use a workaround: https://github.com/nextauthjs/next-auth/issues/836#issuecomment-1007630849
+        const signoutRedirectUrl = `${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ''}/api/auth/callback/cognito`;
+        const cognitoClientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+        const congitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
+
+        window.location.replace(
+            //`https://cognito-idp.us-east-1.amazonaws.com/us-east-1_aeCY16Uey/logout?client_id=${cognitoClientId}&redirect_uri=${encodeURIComponent(signoutRedirectUrl)}`
+            `${congitoDomain}/logout?client_id=${cognitoClientId}&response_type=code&redirect_uri=${encodeURIComponent(signoutRedirectUrl)}`
+            //`https://cognito-idp.us-east-1.amazonaws.com/us-east-1_aeCY16Uey/logout?client_id=${cognitoClientId}&logout_uri=http%3A%2F%2Flocalhost%3A3000`
+        );
+    };
+
     const addPreProcessingCallback = useCallback((callback: Processor) => {
         console.log("Proc added");
         //setPreProcessingCallbacks(prev => [...prev, callback]);
@@ -718,7 +741,7 @@ const Home = ({
         setPostProcessingCallbacks(prev => prev.filter(c => c !== callback));
     }, []);
 
-    if (user) {
+    if (session) {
         // @ts-ignore
         return (
             <HomeContext.Provider
@@ -768,7 +791,10 @@ const Home = ({
                                 footerComponent={
                                     <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
                                         <button className="dark:text-white" onClick={() => {
-                                            window.location.href = '/api/auth/logout'
+                                            const goLogout = async () => {
+                                                await federatedSignOut();
+                                            };
+                                            goLogout();
                                         }}>
 
                                             <div className="flex items-center">
@@ -777,6 +803,7 @@ const Home = ({
                                             </div>
 
                                         </button>
+
                                     </div>
                                 }
                             >
@@ -811,20 +838,24 @@ const Home = ({
 
             </HomeContext.Provider>
         );
-    } else if (isLoading) {
+    }
+    else if (isLoading) {
         return (
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
             >
                 <div
                     className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                    <Loader/>
                     <h1 className="mb-4 text-2xl font-bold">
                         Loading...
                     </h1>
-                    <progress className="w-64"/>
+
+                    {/*<progress className="w-64"/>*/}
                 </div>
             </main>);
-    } else {
+    }
+    else {
         return (
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
@@ -835,7 +866,7 @@ const Home = ({
                         <LoadingIcon/>
                     </h1>
                     <button
-                        onClick={() => window.location.href = '/api/auth/login'}
+                        onClick={() => signIn('cognito')}
                         style={{
                             backgroundColor: 'white',
                             color: 'black',
