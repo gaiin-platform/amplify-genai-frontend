@@ -252,7 +252,7 @@ export const VariableModal: FC<Props> = ({
     const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
 
         if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
+            //e.preventDefault();
             //handleSubmit();
         } else if (e.key === 'Escape') {
             onClose(true);
