@@ -85,7 +85,7 @@ export const initialState: HomeInitialState = {
     uploadDocuments:false,
     extractDocumentsLocally:true,
     workflowRun:true,
-    workflowCreate:false,
+    workflowCreate:true,
     rootPromptCreate:true,
     pluginsOnInput:false,
     followUpCreate:true,

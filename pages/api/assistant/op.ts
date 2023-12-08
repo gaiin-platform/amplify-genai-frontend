@@ -1,13 +1,18 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getAccessToken, withApiAuthRequired } from "@auth0/nextjs-auth0";
+import {getServerSession} from "next-auth/next";
+import {authOptions} from "@/pages/api/auth/[...nextauth]";
 
-
-const assistantOp = withApiAuthRequired(
+const assistantOp =
     async (req: NextApiRequest, res: NextApiResponse) => {
 
-        let apiUrl = process.env.ASSISTANT_API_URL || "";
+        const session = await getServerSession(req, res, authOptions);
 
-        console.log(req.body);
+        if (!session) {
+            // Unauthorized access, no session found
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        let apiUrl = process.env.ASSISTANT_API_URL || "";
 
         // Accessing itemData parameters from the request
         const reqData = req.body;
@@ -17,7 +22,8 @@ const assistantOp = withApiAuthRequired(
         apiUrl = apiUrl + op;
 
         try {
-            const { accessToken } = await getAccessToken(req, res);
+            // @ts-ignore
+            const { accessToken } = session;
 
             console.log("Calling assistant: ", apiUrl, payload);
 
@@ -39,7 +45,6 @@ const assistantOp = withApiAuthRequired(
             console.error("Error calling assistant: ", error);
             res.status(500).json({ error: `Could not perform assistant op:${op}` });
         }
-    }
-);
+    };
 
 export default assistantOp;

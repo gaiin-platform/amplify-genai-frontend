@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getAccessToken, withApiAuthRequired } from "@auth0/nextjs-auth0";
+import {getServerSession} from "next-auth/next";
+import {authOptions} from "@/pages/api/auth/[...nextauth]";
 
 export const config = {
     api: {
@@ -9,8 +10,17 @@ export const config = {
     }
 }
 
-const saveState = withApiAuthRequired(
+const saveState =
     async (req: NextApiRequest, res: NextApiResponse) => {
+
+        const session = await getServerSession(req, res, authOptions);
+
+        if (!session) {
+            // Unauthorized access, no session found
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const { accessToken } = session;
 
         const apiUrl = process.env.STATE_API_URL || ""; // API Gateway URL from environment variables
 
@@ -18,7 +28,6 @@ const saveState = withApiAuthRequired(
         const itemData = req.body;
 
         try {
-            const { accessToken } = await getAccessToken(req, res);
 
             const response = await fetch(apiUrl, {
                 method: "POST",
@@ -38,11 +47,19 @@ const saveState = withApiAuthRequired(
             console.error("Error calling API Gateway: ", error);
             res.status(500).json({ error: "Could not create item" });
         }
-    }
-);
+    };
 
-export const getState = withApiAuthRequired(
+export const getState =
     async (req: NextApiRequest, res: NextApiResponse) => {
+
+        const session = await getServerSession(req, res, authOptions);
+
+        if (!session) {
+            // Unauthorized access, no session found
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const { accessToken } = session;
 
         const apiUrl = process.env.STATE_API_URL || ""; // API Gateway URL from environment variables
 
@@ -50,7 +67,6 @@ export const getState = withApiAuthRequired(
         const stateId = req.query.id;
 
         try {
-            const { accessToken } = await getAccessToken(req, res);
 
             const response = await fetch(apiUrl + "/" + stateId, {
                 method: "GET",
@@ -69,7 +85,6 @@ export const getState = withApiAuthRequired(
             console.error("Error calling API Gateway: ", error);
             res.status(500).json({ error: "Could not fetch item" });
         }
-    }
-);
+    };
 
 export default saveState;

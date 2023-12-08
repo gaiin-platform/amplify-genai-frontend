@@ -5,13 +5,13 @@ import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";
 import {TagsList} from "@/components/Chat/TagsList";
 import {createExport, exportData} from "@/utils/app/importExport";
-import {useUser} from '@auth0/nextjs-auth0/client';
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {getCategories, getCategory, publish} from "@/services/marketService";
 import {MarketCategory} from "@/types/market";
 import {v4} from "uuid";
 import useStatsService from "@/services/eventService";
+import {useSession} from "next-auth/react";
 
 export interface SharingModalProps {
     open: boolean;
@@ -56,7 +56,8 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
         state: {prompts, conversations, folders},
     } = useContext(HomeContext);
 
-    const {user} = useUser();
+    const { data: session } = useSession();
+    const user = session?.user;
     const statsService = useStatsService();
 
     // Individual states for selected prompts, conversations, and folders

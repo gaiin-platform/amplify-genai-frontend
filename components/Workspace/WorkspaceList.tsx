@@ -12,7 +12,6 @@ import {
     IconX, IconPlus,
 } from '@tabler/icons-react';
 import {getSharedItems, loadSharedItem} from "@/services/shareService";
-import {useUser} from '@auth0/nextjs-auth0/client';
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
@@ -25,6 +24,7 @@ import {saveWorkspaceMetadata} from "@/utils/app/settings";
 import {Workspace} from "@/types/workspace";
 import {v4} from "uuid";
 import useStatsService from "@/services/eventService";
+import {useSession} from "next-auth/react";
 
 type SharedItemsListProps = {};
 
@@ -58,7 +58,8 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
     const [selectedDate, setSelectedDate] = useState<string>("");
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [groupedItems, setGroupedItems] = useState<{ [key: string]: ShareItem[] }>({});
-    const {user} = useUser();
+    const { data: session } = useSession();
+    const user = session?.user;
 
     const {
         state: {workspaceMetadata, workspaceDirty},

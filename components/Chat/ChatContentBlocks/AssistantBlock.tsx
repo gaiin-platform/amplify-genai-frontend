@@ -5,7 +5,7 @@ import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {createAssistant} from "@/services/assistantService";
-import {UserContext} from "@auth0/nextjs-auth0/client";
+import { useSession } from "next-auth/react"
 import {Assistant, AssistantDefinition, AssistantProviderID} from "@/types/assistant";
 import {Prompt} from "@/types/prompt";
 import {MessageType} from "@/types/chat";
@@ -48,7 +48,8 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
     const [assistantDocuments, setAssistantDocuments] = useState<string[]>([]);
 
     const {state:{selectedConversation, conversations, prompts}, dispatch:homeDispatch} = useContext(HomeContext);
-    const {user} = useContext(UserContext);
+    const { data: session } = useSession();
+    const user = session?.user;
 
     const parseAssistant = (definitionStr: string) => {
 

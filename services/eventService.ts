@@ -1,5 +1,4 @@
 import {Prompt} from "@/types/prompt";
-import {useUser} from '@auth0/nextjs-auth0/client';
 import mixpanel from 'mixpanel-browser';
 import {MIXPANEL_TOKEN} from "@/utils/app/const";
 import {OpenAIModel} from "@/types/openai";
@@ -7,12 +6,14 @@ import {MarketItem} from "@/types/market";
 import {ChatBody, Conversation, Message} from "@/types/chat";
 import {ExportFormatV4} from "@/types/export";
 import {ConversionOptions} from "@/services/downloadService";
+import {useSession} from "next-auth/react";
 
 mixpanel.init(MIXPANEL_TOKEN, {debug: true, track_pageview: true, persistence: 'localStorage'});
 
 const useStatsService = () => {
 
-    const {user} = useUser();
+    const { data: session } = useSession();
+    const user = session?.user;
 
     function camelToSentenceCase(input: string): string {
         const result = input.replace(/([A-Z])/g, " $1");

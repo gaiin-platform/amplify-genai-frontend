@@ -5,13 +5,13 @@ import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";
 import {TagsList} from "@/components/Chat/TagsList";
 import {createExport, exportData, importData} from "@/utils/app/importExport";
-import {useUser} from '@auth0/nextjs-auth0/client';
 import {loadSharedItem, shareItems} from "@/services/shareService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import Folder from "@/components/Folder";
 import {ExportFormatV4, LatestExportFormat} from "@/types/export";
 import {saveWorkspaceMetadata} from "@/utils/app/settings";
+import {useSession} from "next-auth/react";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -71,7 +71,8 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
         createdAt: date,
     };
 
-    const {user} = useUser();
+    const { data: session } = useSession();
+    const user = session?.user;
 
     // Individual states for selected prompts, conversations, and folders
     const [isImporting, setIsImporting] = useState(true);

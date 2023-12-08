@@ -1,33 +1,42 @@
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
 import { OpenAIError, OpenAIStream } from '@/utils/server';
-import { getAccessToken, withApiAuthRequired } from '@auth0/nextjs-auth0'
 import { ChatBody, Message } from '@/types/chat';
-
-// @ts-expect-error
-import wasm from '../../node_modules/@dqbd/tiktoken/lite/tiktoken_bg.wasm?module';
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "./auth/[...nextauth]"
+import {NextApiRequest, NextApiResponse} from "next";
 
 import tiktokenModel from '@dqbd/tiktoken/encoders/cl100k_base.json';
-import { Tiktoken, init } from '@dqbd/tiktoken/lite/init';
+import { Tiktoken } from '@dqbd/tiktoken/lite';
+import {Readable} from "stream";
+
 
 export const config = {
-  runtime: 'edge',
+  runtime: 'nodejs',
 };
 
-const handler = async (req: Request): Promise<Response> => {
-  try {
+
+
+const handler = async (req: NextApiRequest, res: NextApiResponse) => {
+  try{
+    const session = await getServerSession(req, res, authOptions);
+
+    if (!session) {
+      // Unauthorized access, no session found
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
 
     console.log("Chat request received",
     //current time
     new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
 
-    const { model, messages, key, prompt, temperature, functions, function_call } = (await req.json()) as ChatBody;
+    const { model, messages, key, prompt, temperature, functions, function_call } = req.body as ChatBody;
 
     console.log("Chat request unmarshalled",
         `Model Id: ${model.id}, Temperature: ${temperature}`,
         //current time
         new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
 
-    await init((imports) => WebAssembly.instantiate(wasm, imports));
+    //await init((imports) => WebAssembly.instantiate(wasm, imports));
     const encoding = new Tiktoken(
       tiktokenModel.bpe_ranks,
       tiktokenModel.special_tokens,
@@ -76,8 +85,10 @@ const handler = async (req: Request): Promise<Response> => {
         new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
 
     const stream = await OpenAIStream(model, promptToSend, temperatureToUse, key, messagesToSend, functions, function_call);
+    // @ts-ignore
+    const nodeStream = Readable.fromWeb(stream);
+    nodeStream.pipe(res);
 
-    return new Response(stream);
   } catch (error) {
     console.error(error);
     if (error instanceof OpenAIError) {

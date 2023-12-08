@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getAccessToken, withApiAuthRequired } from "@auth0/nextjs-auth0";
+import {getServerSession} from "next-auth/next";
+import {authOptions} from "@/pages/api/auth/[...nextauth]";
 
 export const config = {
     api: {
@@ -9,8 +10,16 @@ export const config = {
     },
 }
 
-const shareExport = withApiAuthRequired(
+const shareExport =
     async (req: NextApiRequest, res: NextApiResponse) => {
+        const session = await getServerSession(req, res, authOptions);
+
+        if (!session) {
+            // Unauthorized access, no session found
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const { accessToken } = session;
 
         const apiUrl = process.env.SHARE_API_URL || ""; // API Gateway URL from environment variables
 
@@ -18,7 +27,6 @@ const shareExport = withApiAuthRequired(
         const itemData = req.body;
 
         try {
-            const { accessToken } = await getAccessToken(req, res);
 
             const response = await fetch(apiUrl, {
                 method: "POST",
@@ -38,7 +46,6 @@ const shareExport = withApiAuthRequired(
             console.error("Error calling share: ", error);
             res.status(500).json({ error: "Could share the item(s)" });
         }
-    }
-);
+    };
 
 export default shareExport;

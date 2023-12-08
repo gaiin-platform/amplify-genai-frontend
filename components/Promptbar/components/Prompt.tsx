@@ -40,10 +40,10 @@ import {
 } from "@/utils/app/prompts";
 import {AttachedDocument} from "@/types/attacheddocument";
 import saveState from "@/services/stateService";
-import {useUser} from '@auth0/nextjs-auth0/client';
 import { createExport } from "@/utils/app/importExport";
 import {MessageType} from "@/types/chat";
 import useStatsService from "@/services/eventService";
+import {useSession} from "next-auth/react";
 
 interface Props {
     prompt: Prompt;
@@ -66,7 +66,8 @@ export const PromptComponent = ({prompt}: Props) => {
         handleNewConversation,
     } = useContext(HomeContext);
 
-    const {user, error: userError, isLoading} = useUser();
+    const { data: session } = useSession();
+    const user = session?.user;
 
     const [showShareModal, setShowShareModal] = useState(false);
 
