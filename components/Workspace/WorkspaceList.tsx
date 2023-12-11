@@ -184,6 +184,11 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
                             if(proceed) {
                                 clearWorkspace().then(()=> {
                                     let name = prompt("Please provide a name for the new workspace.");
+
+                                    if(name == null || name.length == 0) {
+                                        return;
+                                    }
+
                                     if(name) {
                                         const updatedWorkspace:Workspace = {
                                             description: "",
