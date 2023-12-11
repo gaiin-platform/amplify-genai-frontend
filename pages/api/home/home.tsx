@@ -59,6 +59,7 @@ import {LatestExportFormat} from "@/types/export";
 import {importData} from "@/utils/app/importExport";
 import { useSession, signIn, signOut } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
+import {useHomeReducer} from "@/hooks/useHomeReducer";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -71,6 +72,44 @@ interface Props {
     serverSidePluginKeysSet: boolean;
     defaultModelId: OpenAIModelID;
 }
+
+export type ConversationActionType =
+    | "addMessage"
+    | "deleteMessage"
+    | "updateMessage";
+
+
+export type DeleteMessageData = {
+    messsageId: string
+}
+
+export type UpdateMessageData = {
+    messsage: Message
+}
+
+export type ConversationAddMessageAction = {
+    type: "addMessages",
+    conversationId: string,
+    afterMessageId?: string,
+    messages: Message[],
+}
+
+export type ConversationDeleteMessageAction = {
+    type: "deleteMessages",
+    conversationId: string,
+    messages: Message[],
+}
+
+export type ConversationUpdateMessageAction = {
+    type: "updateMessages",
+    conversationId: string,
+    messages: Message[],
+}
+
+export type ConversationAction =
+    ConversationAddMessageAction |
+    ConversationDeleteMessageAction |
+    ConversationUpdateMessageAction;
 
 
 const Home = ({
@@ -89,7 +128,7 @@ const Home = ({
     const isLoading = status === "loading";
     const userError = null;
 
-    const contextValue = useCreateReducer<HomeInitialState>({
+    const contextValue = useHomeReducer({
         initialState,
     });
 
@@ -98,6 +137,7 @@ const Home = ({
 
     const {
         state: {
+            conversationStateId,
             apiKey,
             lightMode,
             folders,
@@ -534,40 +574,134 @@ const Home = ({
         await dispatch({field: 'selectedConversation', value: null});
     }
 
-    const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
+    const editConversationMessages = (conversation:Conversation, messages:Message[], editStart:number, editEnd:number) => {
+        if (editStart === -1) return conversation;
 
-        if (selectedConversation) {
+        let limit = editEnd > -1 ? editEnd : conversation.messages.length;
 
-            const updatedMessages = [
-                ...selectedConversation.messages,
-                ...messages
-            ];
+        const updatedMessages = [
+            ...conversation.messages.slice(0, editStart),
+            ...messages,
+            ...conversation.messages.slice(editEnd)];
 
-            let updatedConversation = {
-                ...selectedConversation,
-                messages: updatedMessages,
-            };
+        return {
+            ...conversation,
+            messages: updatedMessages,
+        };
+    }
 
-            await dispatch({
-                field: 'selectedConversation',
-                value: updatedConversation
-            });
+    const updateMessage = (conversation:Conversation, message:Message) => {
+        // Find the index of the message with the given id in the conversation
+        const insertIndex = conversation.messages.findIndex(
+            (m) => message.id === m.id,
+        );
 
-            saveConversation(updatedConversation);
-            const updatedConversations = conversations.map(
-                (conversation) => {
-                    if (conversation.id === selectedConversation.id) {
-                        return updatedConversation;
-                    }
-                    return conversation;
-                },
-            );
-            if (updatedConversations.length === 0) {
-                updatedConversations.push(updatedConversation);
+        return editConversationMessages(conversation, [message], insertIndex, insertIndex + 1);
+    }
+
+    const addMessage = (conversation:Conversation, message:Message, afterMessageId?:string) => {
+        // Find the index of the message with the given id in the conversation
+        const messageIndex = afterMessageId ? conversation.messages.findIndex(
+            (message) => message.id === afterMessageId,
+        ) : -1;
+
+        // If the message is not found, append the message to the end of the conversation
+        const insertIndex = messageIndex === -1 ? conversation.messages.length : messageIndex;
+        return editConversationMessages(conversation, [message], insertIndex, insertIndex);
+    }
+
+    const deleteMessage = (conversation:Conversation, messageId:string) => {
+        // Find the index of the message with the given id in the conversation
+        const messageIndex = conversation.messages.findIndex(
+            (message) => message.id === messageId,
+        );
+
+        if (messageIndex === -1) return conversation;
+
+        return editConversationMessages(conversation, [], messageIndex, messageIndex);
+    }
+
+    const handleConversationAction = (conversations:Conversation[],
+                                      action: ConversationAction,
+                                      selectedConversation?:Conversation,) => {
+
+        // Find the conversation with the given id
+        const conversation = conversations.find(
+            (conversation) => conversation.id === action.conversationId,
+        );
+
+        if(!conversation) return {conversations: conversations, selectedConversation: selectedConversation};
+
+        const doUpdate = (action:ConversationAction) => {
+            switch (action.type) {
+                case "addMessages":
+                    return action.messages.reduce(
+                        (conversation, message) => addMessage(conversation, message, action.afterMessageId),
+                        conversation,
+                    );
+                case "deleteMessages":
+                    return action.messages.reduce(
+                        (conversation, message) => deleteMessage(conversation, message.id),
+                        conversation,
+                    );
+                case "updateMessages":
+                    return action.messages.reduce(
+                        (conversation, message) => updateMessage(conversation, message),
+                        conversation,
+                    );
             }
-            await dispatch({field: 'conversations', value: updatedConversations});
+        };
+
+        const updatedConversation = doUpdate(action);
+
+        const updatedConversations = conversations.map(
+            (c) => {
+                if (c.id === updatedConversation.id) {
+                    return updatedConversation;
+                }
+                return c;
+            },
+        );
+        if (updatedConversations.length === 0) {
+            updatedConversations.push(updatedConversation);
         }
 
+        const updatedSelectedConversation =
+            selectedConversation && selectedConversation.id === conversation.id ? updatedConversation : selectedConversation;
+
+        return {
+            conversations: updatedConversations,
+            selectedConversation: updatedSelectedConversation,
+        }
+    }
+
+
+    const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
+        if (selectedConversation) {
+
+            console.log("Starting conversations", conversations);
+
+            const {conversations:updatedConversations, selectedConversation:updatedSelectedConversation}
+                = handleConversationAction(
+                    conversations,
+                    {
+                            type: 'addMessages',
+                            conversationId: selectedConversation.id,
+                            messages: messages
+                    },
+                    selectedConversation
+                );
+
+            console.log("Updated conversations", updatedConversations);
+
+            dispatch({field: 'selectedConversation', value: updatedSelectedConversation});
+            dispatch({field: 'conversations', value: updatedConversations});
+
+            if(updatedSelectedConversation) {
+                saveConversation(updatedSelectedConversation);
+            }
+            saveConversations(updatedConversations);
+        }
     };
 
     // EFFECTS  --------------------------------------------

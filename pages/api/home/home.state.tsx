@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 
 export interface HomeInitialState {
+  conversationStateId: string;
   apiKey: string;
   pluginKeys: PluginKey[];
   loading: boolean;
@@ -42,6 +43,7 @@ export interface HomeInitialState {
 }
 
 export const initialState: HomeInitialState = {
+  conversationStateId: uuidv4(),
   apiKey: '',
   loading: false,
   pluginKeys: [],
