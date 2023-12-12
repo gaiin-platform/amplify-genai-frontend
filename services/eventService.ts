@@ -6,6 +6,7 @@ import {ChatBody, Conversation, Message} from "@/types/chat";
 import {ExportFormatV4} from "@/types/export";
 import {ConversionOptions} from "@/services/downloadService";
 import {useSession} from "next-auth/react";
+import {getType, parsePromptVariables} from "@/utils/app/prompts";
 
 try {
     mixpanel.init(MIXPANEL_TOKEN, {debug: true, track_pageview: true, persistence: 'localStorage'});
@@ -46,9 +47,21 @@ const useStatsService = () => {
     }
 
     const promptStats = (prompt: Prompt) => {
+
+        let varCount = 0;
+        let varTypes:string[] = [];
+        try {
+            const pvars = parsePromptVariables(prompt.content);
+            varCount = pvars.length;
+
+            varTypes = pvars.map(p => getType(p));
+        }
+        catch (e){}
+
         return {
-            ...toEventData("Prompt", prompt, ["id", "name", "description", "folderId"]),
-            "Prompt Root Prompt ID": prompt.data?.rootPromptId,
+            "Prompt Variable Types": varTypes,
+            "Prompt Variable Count": varCount,
+            "Prompt Size": prompt.content.length,
         };
     }
 
@@ -154,7 +167,7 @@ const useStatsService = () => {
         searchConversationsEvent: async (searchTerm: string) => {
             try {
                 mixpanel.track('Conversations Searched',
-                    {...toEventData("Search", {term: searchTerm})})
+                    {})
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
@@ -162,7 +175,7 @@ const useStatsService = () => {
         searchPromptsEvent: async (searchTerm: string) => {
             try {
                 mixpanel.track('Prompts Searched',
-                    {...toEventData("Search", {term: searchTerm})})
+                    {})
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
@@ -248,16 +261,8 @@ const useStatsService = () => {
             try {
                 const data = {
                     messageCount: conversation.messages.length,
-                    modelId: conversation.model.id,
                     messagesCharacters: conversation.messages.reduce((acc, m) => acc + m.content.length, 0),
-                    name: conversation.name,
-                    tags: conversation.tags,
-                    folderId: conversation.folderId,
-                    promptTemplateId: conversation.promptTemplate?.id,
-                    workflowDefinitionId: conversation.workflowDefinition?.id,
-                    id: conversation.id,
-                    temperature: conversation.temperature,
-                    dataKeys: Object.keys(conversation.data || {}),
+                    temperature: conversation.temperature
                 }
 
                 mixpanel.track('Conversation Deleted', {
@@ -273,14 +278,7 @@ const useStatsService = () => {
                     messageCount: conversation.messages.length,
                     modelId: conversation.model.id,
                     messagesCharacters: conversation.messages.reduce((acc, m) => acc + m.content.length, 0),
-                    name: conversation.name,
-                    tags: conversation.tags,
-                    folderId: conversation.folderId,
-                    promptTemplateId: conversation.promptTemplate?.id,
-                    workflowDefinitionId: conversation.workflowDefinition?.id,
-                    id: conversation.id,
-                    temperature: conversation.temperature,
-                    dataKeys: Object.keys(conversation.data || {}),
+                    temperature: conversation.temperature
                 }
 
                 mixpanel.track('Conversation Created', {
@@ -334,7 +332,7 @@ const useStatsService = () => {
             try {
                 mixpanel.track('Custom Link Click', {
                     ...toEventData("Message",
-                        {...message, href: href},
+                        {href: href},
                         ["id", "type", "promptId"]),
                 });
             } catch (e) {
