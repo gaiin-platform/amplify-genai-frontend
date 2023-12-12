@@ -30,6 +30,71 @@ export const abortResult = {
     result: null
 };
 
+type DataType = 'string' | 'number' | 'integer' | 'boolean';
+
+interface ColumnTypes {
+    [columnName: string]: DataType;
+}
+
+interface JSONSchema {
+    type: string;
+    items: {
+        type: string;
+        properties: {
+            [key: string]: {
+                type: DataType;
+            };
+        };
+        required: string[];
+    };
+}
+
+const breakIntoChunksByLineCount = (input: string, maxLines: number): string[] => {
+    const lines: string[] = input.split('\n');
+    const chunks: string[] = [];
+
+    for (let i = 0; i < lines.length; i += maxLines) {
+        const chunk: string = lines.slice(i, i + maxLines).join('\n');
+        chunks.push(chunk);
+    }
+
+    return chunks;
+}
+
+const breakIntoChunksByCharacterCount = (input: string, maxCharacters: number): string[] => {
+    const chunks: string[] = [];
+
+    for (let i = 0; i < input.length; i += maxCharacters) {
+        const chunk: string = input.slice(i, i + maxCharacters);
+        chunks.push(chunk);
+    }
+
+    return chunks;
+}
+
+const generateSchema = (columnNames: string[], columnTypes: ColumnTypes):JSONSchema => {
+    const properties = columnNames.reduce<Record<string, { type: DataType }>>(
+        (props, columnName) => {
+            // Get the type of the column or default to 'string' if not specified
+            const type: DataType = columnTypes[columnName] || 'string';
+            props[columnName] = { type };
+            return props;
+        },
+        {}
+    );
+
+    const schema: JSONSchema = {
+        type: 'array',
+        items: {
+            type: 'object',
+            properties: properties,
+            required: columnNames
+        }
+    };
+
+    return schema;
+}
+
 const doPrompt = async (apiKey:string, stopper:Stopper, persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
 
     if (functions) {
@@ -522,6 +587,12 @@ export const getToolMetadata = ({apiKey, stopper, context, requestedParameters, 
         getParameter: {
             description: "(name:string, type:\"string|options\")=>string // Get a parameter from the workflow settings. Options can be specified as a string like \"options(value=['option1','option2',....])\"",
         },
+        breakIntoChunksByLineCount: {
+            description:"(input: string, maxLines: number): string[]"
+        },
+        breakIntoChunksByCharacterCount: {
+            description:"(input: string, maxCharacters: number): string[]"
+        },
         getConversations: {
             description:"()=>Conversation[] // Get all conversations in my workspace in the format " +
                 "Conversation { id: string; name: string; messages: Message[]; model: OpenAIModel; prompt: string; temperature: number; folderId: string | null; promptTemplate: Prompt | null; tags?: string[]; }, export interface Message { role: Role; content: string; id: string; type: string | undefined; data: any | undefined; }.",
@@ -540,6 +611,9 @@ export const getToolMetadata = ({apiKey, stopper, context, requestedParameters, 
         },
         tellUser: {
             description: "(msg:string)//output a message to the user",
+        },
+        generateSchema: {
+            description: "(columnNames: string[], columnTypes: string[]):string // Generate a JSON schema from a list of column names and types. Types are one of the strings 'string', 'number', 'integer', or 'boolean'.",
         },
         promptLLMForJson: {
             description: "(persona: string, prompt: string, desiredSchema: JsonSchema)=>Promise<any> // Prompt the LLM to generate JSON that matches a specified schema." +
@@ -645,6 +719,18 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
                    return getParameter(name, type);
                 }
         },
+        breakIntoChunksByLineCount: {
+            description:"(input: string, maxLines: number): string[]",
+            exec: (input: string, maxLines: number) => {
+                return breakIntoChunksByLineCount(input, maxLines);
+            }
+        },
+        breakIntoChunksByCharacterCount: {
+            description:"(input: string, maxCharacters: number): string[]",
+            exec: (input: string, maxCharacters: number) => {
+                return breakIntoChunksByCharacterCount(input, maxCharacters);
+            }
+        },
         getConversations: {
             description:"getConversations()=>Conversation[] // Get all conversations in my workspace in the format " +
                 "Conversation { id: string; name: string; messages: Message[]; model: OpenAIModel; prompt: string; temperature: number; folderId: string | null; promptTemplate: Prompt | null; tags?: string[]; }, export interface Message { role: Role; content: string; id: string; type: string | undefined; data: any | undefined; }.",
@@ -664,6 +750,12 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
                 "export interface Prompt { id: string; name: string; description: string; content: string; folderId: string | null; type: string | undefined;  }",
             exec: () => {
                 return prompts;
+            }
+        },
+        generateSchema: {
+            description: "(columnNames: string[], columnTypes: string[]):string // Generate a JSON schema from a list of column names and types. Types are one of the strings 'string', 'number', 'integer', or 'boolean'.",
+            exec: (columnNames: string[], columnTypes: ColumnTypes) => {
+                return generateSchema(columnNames, columnTypes);
             }
         },
         promptLLMForJson: {

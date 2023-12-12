@@ -10,9 +10,48 @@ export type FieldNames<T> = {
 }[keyof T];
 
 
+export type ConversationActionType =
+    | "addMessage"
+    | "deleteMessage"
+    | "updateMessage";
+
+
+export type DeleteMessageData = {
+  messsageId: string
+}
+
+export type UpdateMessageData = {
+  messsage: Message
+}
+
+export type ConversationAddMessageAction = {
+  type: "addMessages",
+  conversationId: string,
+  afterMessageId?: string,
+  messages: Message[],
+}
+
+export type ConversationDeleteMessageAction = {
+  type: "deleteMessages",
+  conversationId: string,
+  messages: Message[],
+}
+
+export type ConversationUpdateMessageAction = {
+  type: "updateMessages",
+  conversationId: string,
+  messages: Message[],
+}
+
+export type ConversationAction =
+    ConversationAddMessageAction |
+    ConversationDeleteMessageAction |
+    ConversationUpdateMessageAction;
+
 // Returns the Action Type for the dispatch object to be used for typing in things like context
 export type ActionType<T> =
     | { type: 'reset' }
+    | { type: 'conversation', action: ConversationAction }
     | { type: 'append'; field: FieldNames<T>; value: any  }
     | { type?: 'change'; field: FieldNames<T>; value: any };
 
@@ -20,20 +59,125 @@ export type ActionType<T> =
 export const useHomeReducer = ({ initialState }: { initialState: HomeInitialState }) => {
   type Action =
       | { type: 'reset' }
+      | { type: 'conversation', action: ConversationAction }
       | { type: 'append'; field: FieldNames<HomeInitialState>; value: any  }
       | { type?: 'change'; field: FieldNames<HomeInitialState>; value: any };
 
+  const updateConversation = (conversation:Conversation, messages:Message[], editStart:number, editEnd:number) => {
+    if (editStart === -1) return conversation;
+
+    let limit = editEnd > -1 ? editEnd : conversation.messages.length;
+
+    const updatedMessages = [
+      ...conversation.messages.slice(0, editStart),
+      ...messages,
+      ...conversation.messages.slice(editEnd)];
+
+    return {
+      ...conversation,
+      messages: updatedMessages,
+    };
+  }
+
+  const updateMessage = (conversation:Conversation, message:Message) => {
+    // Find the index of the message with the given id in the conversation
+    const insertIndex = conversation.messages.findIndex(
+        (m) => message.id === m.id,
+    );
+
+    return updateConversation(conversation, [message], insertIndex, insertIndex + 1);
+  }
+
+  const addMessage = (conversation:Conversation, message:Message, afterMessageId?:string) => {
+    // Find the index of the message with the given id in the conversation
+    const messageIndex = afterMessageId ? conversation.messages.findIndex(
+        (message) => message.id === afterMessageId,
+    ) : -1;
+
+    // If the message is not found, append the message to the end of the conversation
+    const insertIndex = messageIndex === -1 ? conversation.messages.length : messageIndex;
+    return updateConversation(conversation, [message], insertIndex, insertIndex);
+  }
+
+  const deleteMessage = (conversation:Conversation, messageId:string) => {
+    // Find the index of the message with the given id in the conversation
+    const messageIndex = conversation.messages.findIndex(
+        (message) => message.id === messageId,
+    );
+
+    if (messageIndex === -1) return conversation;
+
+    return updateConversation(conversation, [], messageIndex, messageIndex);
+  }
+
+  const handleConversationAction = (state: HomeInitialState,
+                          action: ConversationAction) => {
+
+    const {conversations, selectedConversation} = state;
+
+    // Find the conversation with the given id
+    const conversation = conversations.find(
+        (conversation) => conversation.id === action.conversationId,
+    );
+
+    if(!conversation) return state;
+
+    const doUpdate = (action:ConversationAction) => {
+      switch (action.type) {
+        case "addMessages":
+            return action.messages.reduce(
+                (conversation, message) => addMessage(conversation, message, action.afterMessageId),
+                conversation,
+            );
+        case "deleteMessages":
+          return action.messages.reduce(
+              (conversation, message) => deleteMessage(conversation, message.id),
+              conversation,
+          );
+        case "updateMessages":
+          return action.messages.reduce(
+              (conversation, message) => updateMessage(conversation, message),
+              conversation,
+          );
+      }
+    };
+
+    const updatedConversation = doUpdate(action);
+
+    const updatedConversations = conversations.map(
+        (c) => {
+          if (c.id === conversation.id) {
+            return updatedConversation;
+          }
+          return c;
+        },
+    );
+    if (updatedConversations.length === 0) {
+      updatedConversations.push(updatedConversation);
+    }
+
+    const updatedSelectedConversation =
+        selectedConversation && selectedConversation.id === conversation.id ? updatedConversation : selectedConversation;
+
+    return {
+        ...state,
+        conversationStateId: uuidv4(),
+        conversations: updatedConversations,
+        selectedConversation: updatedSelectedConversation,
+    }
+  }
 
   const reducer = (state: HomeInitialState, action: Action) => {
 
     let dirty = (action.type === 'reset') ||
+        (action.type === 'conversation') ||
         (action.field && action.field === 'prompts') ||
         (action.field && action.field === 'folders') ||
         (action.field && action.field === 'conversations');
 
     if (!action.type){
       let stateId = state.conversationStateId;
-      if(action.field === 'selectedConversation' || action.field === 'conversations') {
+      if(stateId !== 'init' && action.field === 'selectedConversation' || action.field === 'conversations') {
          stateId = uuidv4();
       }
       return { ...state, conversationStateId: stateId, [action.field]: action.value, workspaceDirty: dirty};
@@ -45,6 +189,8 @@ export const useHomeReducer = ({ initialState }: { initialState: HomeInitialStat
     }
 
     if (action.type === 'reset') return initialState;
+
+    if (action.type === 'conversation') return handleConversationAction(state, action.action);
 
     throw new Error();
   };

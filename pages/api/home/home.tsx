@@ -19,6 +19,8 @@ import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from '@/utils/app/const';
 import {
     saveConversation,
     saveConversations,
+    saveConversationDirect,
+    saveConversationsDirect,
     updateConversation,
 } from '@/utils/app/conversation';
 import {saveFolders} from '@/utils/app/folders';
@@ -57,7 +59,7 @@ import useStatsService from "@/services/eventService";
 import {getBasePrompts} from "@/services/basePromptsService";
 import {LatestExportFormat} from "@/types/export";
 import {importData} from "@/utils/app/importExport";
-import { useSession, signIn, signOut } from "next-auth/react"
+import {useSession, signIn, signOut, getSession} from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import {useHomeReducer} from "@/hooks/useHomeReducer";
 
@@ -72,44 +74,6 @@ interface Props {
     serverSidePluginKeysSet: boolean;
     defaultModelId: OpenAIModelID;
 }
-
-export type ConversationActionType =
-    | "addMessage"
-    | "deleteMessage"
-    | "updateMessage";
-
-
-export type DeleteMessageData = {
-    messsageId: string
-}
-
-export type UpdateMessageData = {
-    messsage: Message
-}
-
-export type ConversationAddMessageAction = {
-    type: "addMessages",
-    conversationId: string,
-    afterMessageId?: string,
-    messages: Message[],
-}
-
-export type ConversationDeleteMessageAction = {
-    type: "deleteMessages",
-    conversationId: string,
-    messages: Message[],
-}
-
-export type ConversationUpdateMessageAction = {
-    type: "updateMessages",
-    conversationId: string,
-    messages: Message[],
-}
-
-export type ConversationAction =
-    ConversationAddMessageAction |
-    ConversationDeleteMessageAction |
-    ConversationUpdateMessageAction;
 
 
 const Home = ({
@@ -137,8 +101,9 @@ const Home = ({
 
     const {
         state: {
-            conversationStateId,
             apiKey,
+            conversationStateId,
+            messageIsStreaming,
             lightMode,
             folders,
             workflows,
@@ -169,6 +134,15 @@ const Home = ({
         {enabled: true, refetchOnMount: false},
     );
 
+    useEffect(() => {
+        const secureSession = async () => {
+            const session = await getSession();
+            console.log(session); // Inspect the session object in the console
+        };
+
+        secureSession();
+    }, []);
+
 
     useEffect(() => {
         const fetchPrompts = async () => {
@@ -189,6 +163,42 @@ const Home = ({
 
         fetchPrompts();
     },[]);
+
+    // This is where tabs will be sync'd
+    useEffect(() => {
+        const handleStorageChange = (event: any) => {
+           // if(event.key === "selectedConversation") {
+           //     const conversation = JSON.parse(event.newValue);
+           //     dispatch({field: 'selectedConversation', value: conversation});
+           // }
+           if(event.key === "conversationHistory") {
+               const conversations = JSON.parse(event.newValue);
+               dispatch({field: 'conversations', value: conversations});
+           }
+           else if(event.key === "folders") {
+               const folders = JSON.parse(event.newValue);
+               dispatch({field: 'folders', value: folders});
+           }
+           else if(event.key === "prompts") {
+               const prompts = JSON.parse(event.newValue);
+               dispatch({field: 'prompts', value: prompts});
+           }
+            // Not syncing selectedConversation because it allows different conversations in different tabs
+            // else if(event.key === "selectedConversation") {
+            //     const conversation = JSON.parse(event.newValue);
+            //     dispatch({field: 'selectedConversation', value: conversation});
+            // }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+
+        // Remove the event listener on cleanup
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+        };
+    }, []);
+
+
 
     useEffect(() => {
         if (data) dispatch({field: 'models', value: data});
@@ -574,134 +584,64 @@ const Home = ({
         await dispatch({field: 'selectedConversation', value: null});
     }
 
-    const editConversationMessages = (conversation:Conversation, messages:Message[], editStart:number, editEnd:number) => {
-        if (editStart === -1) return conversation;
-
-        let limit = editEnd > -1 ? editEnd : conversation.messages.length;
-
-        const updatedMessages = [
-            ...conversation.messages.slice(0, editStart),
-            ...messages,
-            ...conversation.messages.slice(editEnd)];
-
-        return {
-            ...conversation,
-            messages: updatedMessages,
-        };
-    }
-
-    const updateMessage = (conversation:Conversation, message:Message) => {
-        // Find the index of the message with the given id in the conversation
-        const insertIndex = conversation.messages.findIndex(
-            (m) => message.id === m.id,
-        );
-
-        return editConversationMessages(conversation, [message], insertIndex, insertIndex + 1);
-    }
-
-    const addMessage = (conversation:Conversation, message:Message, afterMessageId?:string) => {
-        // Find the index of the message with the given id in the conversation
-        const messageIndex = afterMessageId ? conversation.messages.findIndex(
-            (message) => message.id === afterMessageId,
-        ) : -1;
-
-        // If the message is not found, append the message to the end of the conversation
-        const insertIndex = messageIndex === -1 ? conversation.messages.length : messageIndex;
-        return editConversationMessages(conversation, [message], insertIndex, insertIndex);
-    }
-
-    const deleteMessage = (conversation:Conversation, messageId:string) => {
-        // Find the index of the message with the given id in the conversation
-        const messageIndex = conversation.messages.findIndex(
-            (message) => message.id === messageId,
-        );
-
-        if (messageIndex === -1) return conversation;
-
-        return editConversationMessages(conversation, [], messageIndex, messageIndex);
-    }
-
-    const handleConversationAction = (conversations:Conversation[],
-                                      action: ConversationAction,
-                                      selectedConversation?:Conversation,) => {
-
-        // Find the conversation with the given id
-        const conversation = conversations.find(
-            (conversation) => conversation.id === action.conversationId,
-        );
-
-        if(!conversation) return {conversations: conversations, selectedConversation: selectedConversation};
-
-        const doUpdate = (action:ConversationAction) => {
-            switch (action.type) {
-                case "addMessages":
-                    return action.messages.reduce(
-                        (conversation, message) => addMessage(conversation, message, action.afterMessageId),
-                        conversation,
-                    );
-                case "deleteMessages":
-                    return action.messages.reduce(
-                        (conversation, message) => deleteMessage(conversation, message.id),
-                        conversation,
-                    );
-                case "updateMessages":
-                    return action.messages.reduce(
-                        (conversation, message) => updateMessage(conversation, message),
-                        conversation,
-                    );
+    useEffect(() => {
+        if(!messageIsStreaming &&
+            conversationStateId !== "init" &&
+            conversationStateId !== "post-init"
+        ) {
+            console.log("Sync conversations to disk", conversations);
+            if(selectedConversation) {
+                saveConversationDirect(selectedConversation);
             }
-        };
-
-        const updatedConversation = doUpdate(action);
-
-        const updatedConversations = conversations.map(
-            (c) => {
-                if (c.id === updatedConversation.id) {
-                    return updatedConversation;
-                }
-                return c;
-            },
-        );
-        if (updatedConversations.length === 0) {
-            updatedConversations.push(updatedConversation);
+            saveConversationsDirect(conversations);
         }
-
-        const updatedSelectedConversation =
-            selectedConversation && selectedConversation.id === conversation.id ? updatedConversation : selectedConversation;
-
-        return {
-            conversations: updatedConversations,
-            selectedConversation: updatedSelectedConversation,
-        }
-    }
-
+    }, [conversationStateId]);
 
     const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
         if (selectedConversation) {
-
-            console.log("Starting conversations", conversations);
-
-            const {conversations:updatedConversations, selectedConversation:updatedSelectedConversation}
-                = handleConversationAction(
-                    conversations,
-                    {
-                            type: 'addMessages',
-                            conversationId: selectedConversation.id,
-                            messages: messages
-                    },
-                    selectedConversation
-                );
-
-            console.log("Updated conversations", updatedConversations);
-
-            dispatch({field: 'selectedConversation', value: updatedSelectedConversation});
-            dispatch({field: 'conversations', value: updatedConversations});
-
-            if(updatedSelectedConversation) {
-                saveConversation(updatedSelectedConversation);
-            }
-            saveConversations(updatedConversations);
+            dispatch(
+                {
+                    type: 'conversation',
+                    action: {
+                        type: 'addMessages',
+                        conversationId: selectedConversation.id,
+                        messages: messages
+                    }
+                }
+            )
         }
+        // if (selectedConversation) {
+        //
+        //     const updatedMessages = [
+        //         ...selectedConversation.messages,
+        //         ...messages
+        //     ];
+        //
+        //     let updatedConversation = {
+        //         ...selectedConversation,
+        //         messages: updatedMessages,
+        //     };
+        //
+        //     await dispatch({
+        //         field: 'selectedConversation',
+        //         value: updatedConversation
+        //     });
+        //
+        //     saveConversation(updatedConversation);
+        //     const updatedConversations = conversations.map(
+        //         (conversation) => {
+        //             if (conversation.id === selectedConversation.id) {
+        //                 return updatedConversation;
+        //             }
+        //             return conversation;
+        //         },
+        //     );
+        //     if (updatedConversations.length === 0) {
+        //         updatedConversations.push(updatedConversation);
+        //     }
+        //     await dispatch({field: 'conversations', value: updatedConversations});
+        // }
+
     };
 
     // EFFECTS  --------------------------------------------
@@ -830,6 +770,11 @@ const Home = ({
                 },
             });
         }
+
+        dispatch({
+            field: 'conversationStateId',
+            value: 'post-init',
+        });
     }, [
         defaultModelId,
         dispatch,

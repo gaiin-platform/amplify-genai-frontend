@@ -183,7 +183,6 @@ export const defaultVariableFillOptions:VariableFillOptions = {
     "tools": {
       isEditable: false,
       filler: (name: string) => {
-        console.log("Filling in tools information...");
 
         const context:WorkflowContext = {
             inputs: {
@@ -248,29 +247,20 @@ export const parseEditableVariables = (content: string) => {
 }
 
 export const fillInTemplate = (template:string, variables:string[], variableValues: string[], documents: AttachedDocument[] | null, insertDocuments:boolean, fillOptions?:VariableFillOptions) => {
-  // console.log("Fill in Template");
-  const names = variables.map(v => parseVariableName(v));
 
-  console.log("Insert?", insertDocuments);
-  console.log("Variables", variables);
-  console.log("Names", names);
-  console.log("Variable Values", variableValues);
+  const names = variables.map(v => parseVariableName(v));
 
   const newContent = template.replace(/{{\s*(.*?)\s*}}/g, (match, variable) => {
     const name = parseVariableName(variable);
     const index = names.indexOf(name);
     const type = getType(variable);
     const options = parsePromptVariableValues(variable);
-    // @ts-ignore
-    //const typeData:any = variableTypeOptions[type as keyof typeof variableTypeOptions];
 
-    console.log("Variable", variable, "Name", name, "Index", index);
 
     const filler = getFillHelp(fillOptions || defaultVariableFillOptions, variable);
 
     if(filler) {
       let filled = filler(variable);
-      console.log("Filled", name, filled);
       return filled;
     }
 
@@ -283,7 +273,6 @@ export const fillInTemplate = (template:string, variables:string[], variableValu
       if (document) {
         let text = document.raw;
         if(text && text.length > 0){
-          console.log("Document Options", options);
 
           if(options.includeMetadata) {
             text = "Document Name: "+document.name+"\nDocument Type: "+document.type+"\n"+text;
@@ -308,8 +297,6 @@ export const fillInTemplate = (template:string, variables:string[], variableValu
         return "" + ((text)? text : "");
       }
     }
-
-    console.log("-->", variable, "Index", index, "Value", variableValues[index]);
 
     return (variableValues[index])? variableValues[index] : "";
   });

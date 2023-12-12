@@ -739,8 +739,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         statusHistory = [];
                     }
 
-                    console.log("statusHistory", statusHistory);
-
                     homeDispatch({field: 'status', value: statusHistory});
                 }
 
@@ -797,15 +795,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 let code = message.data?.templateData?.data?.code;
                 let isReplay = code != null;
 
-                console.log("isReplay", isReplay);
                 console.log(message.data);
 
                 let runner = (isReplay) ?
                     () => {
 
-                        console.log("Filling in variables...");
                         code = fillInTemplate(code, variables, updatedVariables, documents, false);
-                        console.log("Replaying workflow :: ", code);
 
                         return replayJSWorkflow(apiKey, code, tools, stopper, statusLogger, context, (responseText) => {
                             statusLogger(null);

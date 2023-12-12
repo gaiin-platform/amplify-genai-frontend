@@ -178,8 +178,6 @@ export const VariableModal: FC<Props> = ({
         setDocumentKeys((prevState) => {
            const newKeys = {...prevState, [document.id]: key};
 
-           console.log("Setting document key: ", newKeys);
-
            return newKeys;
         });
     }

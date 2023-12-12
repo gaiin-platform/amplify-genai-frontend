@@ -8,16 +8,31 @@ export const authOptions = {
             clientId: process.env.COGNITO_CLIENT_ID,
             clientSecret: process.env.COGNITO_CLIENT_SECRET,
             issuer: process.env.COGNITO_ISSUER,
-            // See: https://github.com/nextauthjs/next-auth/discussions/3551
             checks: 'nonce',
         })
     ],
     callbacks: {
         async jwt({ token, account }) {
             // Persist the OAuth access_token to the token right after signin
+
             if (account) {
-                token.accessToken = account.access_token
+                // New token
+                token.accessTokenExpiresAt = account.expires_at * 1000;
+                token.accessToken = account.access_token;
+                token.refreshToken = account.refresh_token;
             }
+            else if (Date.now() < token.accessTokenExpiresAt) {
+                // Valid token
+            }
+            else {
+                // Expired token
+                console.log("Token has expired. Refreshing...");
+                const newToken = await refreshAccessToken(token);
+                token.accessToken = newToken.accessToken;
+                token.accessTokenExpiresAt = newToken.accessTokenExpires;
+                token.refreshToken = newToken.refreshToken;
+            }
+
             return token
         },
         async session({ session, token, user }) {
@@ -28,5 +43,59 @@ export const authOptions = {
     },
     secret: process.env.NEXTAUTH_SECRET,
 }
+
+async function refreshAccessToken(token) {
+    try {
+
+        if(!token || !token.refreshToken){
+            return token;
+        }
+
+        const url = `${process.env.NEXT_PUBLIC_COGNITO_DOMAIN}/oauth2/token`
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': `Basic ${Buffer.from(`${process.env.COGNITO_CLIENT_ID}:${process.env.COGNITO_CLIENT_SECRET}`).toString('base64')}`,
+            },
+            body: new URLSearchParams({
+                grant_type: 'refresh_token',
+                'refresh_token': token.refreshToken,
+            }),
+        });
+
+        const refreshedTokens = await response.json()
+
+        if (!response.ok || !refreshedTokens || !('access_token' in refreshedTokens)) {
+            console.error('Failed to refresh access token.');
+            throw refreshedTokens
+        }
+
+        const newAccessToken = refreshedTokens['access_token'];
+        if(!newAccessToken){
+            console.error("Failed to get a new access token.");
+        }
+        else {
+            console.log("Got a new access token.");
+        }
+
+        let newRToken = refreshedTokens.refresh_token ? refreshedTokens.refresh_token : token.refreshToken;
+
+        return {
+            'accessToken': newAccessToken,
+            'accessTokenExpires': Date.now() + refreshedTokens.expires_in * 1000,
+            'refreshToken': newRToken, // Fall back to old refresh token
+        }
+    } catch (error) {
+        console.error('RefreshAccessTokenError', error)
+
+        return {
+            ...token,
+            error: 'RefreshAccessTokenError',
+        }
+    }
+}
+
 
 export default NextAuth(authOptions)

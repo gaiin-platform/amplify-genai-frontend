@@ -43,7 +43,7 @@ export interface HomeInitialState {
 }
 
 export const initialState: HomeInitialState = {
-  conversationStateId: uuidv4(),
+  conversationStateId: "init",
   apiKey: '',
   loading: false,
   pluginKeys: [],
