@@ -174,7 +174,7 @@ const promptUntil = async (
                 result: null
             };
             const raw = await promptLLMFull(persona, prompt, (m) => {
-            }, model || OpenAIModelID.GPT_3_5, functions, function_call);
+            }, model, functions, function_call);
 
             console.log("Raw result:", raw);
 
@@ -401,6 +401,8 @@ const promptLLMForJson = async (promptLLMFull: (persona: string, prompt: string,
                                 model?: OpenAIModelID) => {
     const prompt = instructions;
 
+    model = model || process.env.NEXT_PUBLIC_DEFAULT_FUNCTION_CALL_MODEL as OpenAIModelID;
+
     const systemPrompt = ""; //"You are ChatGPT, a large language model trained by OpenAI. " +
     // "Follow the user's instructions carefully. " +
     // "Respond using JSON. ";
@@ -436,7 +438,7 @@ const promptLLMForJson = async (promptLLMFull: (persona: string, prompt: string,
         // @ts-ignore
         feedbackInserter,
         errorInserter,
-        model || OpenAIModelID.GPT_3_5_FN,
+        model,
         functionsToCall,
         jsonFunction
     );

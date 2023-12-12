@@ -124,7 +124,7 @@ const promptLLMSelectOne = async (promptUntil:any,  options: {[key:string]:strin
         // @ts-ignore
         null,
         null,
-        model || OpenAIModelID.GPT_3_5_FN,
+        model,
         selectFunctions,
         selectFunction
     );
@@ -487,7 +487,7 @@ const promptLLMFull = async (apiKey:string, stopper:Stopper, persona: string, pr
         } else if (model === OpenAIModelID.GPT_4) {
             model = OpenAIModelID.GPT_4_FN;
         } else if (!model) {
-            model = OpenAIModelID.GPT_3_5_FN;
+            model = process.env.NEXT_PUBLIC_DEFAULT_FUNCTION_CALL_MODEL as OpenAIModelID;
         }
     }
 
@@ -620,6 +620,11 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         functions?: CustomFunction[],
         function_call?: string) => {
 
+        if(functions && !model){
+            model = process.env.NEXT_PUBLIC_DEFAULT_FUNCTION_CALL_MODEL as OpenAIModelID;
+        }
+
+
         while (tries > 0) {
             let cleaned = null;
             try {
@@ -628,7 +633,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
                     result: null
                 };
                 const raw = await promptLLMFull(apiKey, stopper, persona, prompt, (m) => {
-                }, model || OpenAIModelID.GPT_3_5, functions, function_call);
+                }, model, functions, function_call);
 
                 cleaned = extract(raw || "");
 
@@ -717,7 +722,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             // @ts-ignore
             feedbackInserter,
             errorInserter,
-            model || OpenAIModelID.GPT_3_5_FN,
+            model,
             functionsToCall,
             jsonFunction
         );
@@ -797,7 +802,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             // @ts-ignore
             null,
             null,
-            OpenAIModelID.GPT_3_5_FN,
+            null,
             selectFunctions,
             selectFunction
         );
