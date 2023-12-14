@@ -20,16 +20,12 @@ export function useChatService() {
         const schema = generateCSVSchema(columns);
         const resp = await sendJsonChatRequestWithSchema(chatBody, schema, plugin, abortSignal);
 
-        const tryParse = (chunk:string) => {
-            try {
-                return JSON.parse(chunk);
-            } catch(e) {
-                return null;
-            }
-        }
+        let inString = false;
+        let msg = '';
 
         const callback = stringChunkCallback((chunk) => {
             //console.log("Chunk received", chunk);
+            msg += chunk;
 
             return chunk;
         });
@@ -37,7 +33,7 @@ export function useChatService() {
         return wrapResponse(resp, callback);
     }
 
-    const sendJsonChatRequest = async (chatBody:ChatBody, jsonSchema:JsonSchema, plugin?:Plugin|null, abortSignal?:AbortSignal) => {
+    const sendJsonChatRequest = async (chatBody:ChatBody, plugin?:Plugin|null, abortSignal?:AbortSignal) => {
         const message = `
         Please generate JSON for the output.
         `
@@ -105,5 +101,5 @@ export function useChatService() {
         return response;
     };
 
-    return { sendChatRequest, sendCSVChatRequest, sendJsonChatRequest };
+    return { sendChatRequest, sendFunctionChatRequest, sendCSVChatRequest, sendJsonChatRequest, sendJsonChatRequestWithSchemaLoose, sendJsonChatRequestWithSchema };
 }
