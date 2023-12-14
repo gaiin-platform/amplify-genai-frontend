@@ -6,7 +6,6 @@ import {useTranslation} from 'next-i18next';
 import {serverSideTranslations} from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import {Tab, TabSidebar} from "@/components/TabSidebar/TabSidebar";
-
 import {useCreateReducer} from '@/hooks/useCreateReducer';
 import {SettingsBar} from "@/components/Settings/SettingsBar";
 import useErrorService from '@/services/errorService';
@@ -20,6 +19,8 @@ import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from '@/utils/app/const';
 import {
     saveConversation,
     saveConversations,
+    saveConversationDirect,
+    saveConversationsDirect,
     updateConversation,
 } from '@/utils/app/conversation';
 import {saveFolders} from '@/utils/app/folders';
@@ -37,20 +38,30 @@ import {Chat} from '@/components/Chat/Chat';
 import {Chatbar} from '@/components/Chatbar/Chatbar';
 import {Navbar} from '@/components/Mobile/Navbar';
 import Promptbar from '@/components/Promptbar';
-import {Icon3dCubeSphere, IconApiApp, IconMessage, IconSettings, IconBook2} from "@tabler/icons-react";
+import {Icon3dCubeSphere, IconTournament, IconShare, IconApiApp, IconMessage, IconSettings, IconBook2} from "@tabler/icons-react";
 import {IconUser, IconLogout} from "@tabler/icons-react";
 import HomeContext, {ClickContext, Processor} from './home.context';
 import {HomeInitialState, initialState} from './home.state';
 
 import {v4 as uuidv4} from 'uuid';
-import {useUser} from '@auth0/nextjs-auth0/client';
+
 
 import styled from "styled-components";
-import {Button} from "react-query/types/devtools/styledComponents";
-import WorkflowDefinitionBar from "@/components/Workflow/WorkflowDefinitionBar";
-import {WorkflowDefinition, WorkflowRun} from "@/types/workflow";
+import {WorkflowDefinition} from "@/types/workflow";
 import {saveWorkflowDefinitions} from "@/utils/app/workflows";
 import {findWorkflowPattern} from "@/utils/workflow/aiflow";
+import SharedItemsList from "@/components/Share/SharedItemList";
+import {saveFeatures} from "@/utils/app/features";
+import {findParametersInWorkflowCode} from "@/utils/workflow/workflow";
+import WorkspaceList from "@/components/Workspace/WorkspaceList";
+import {Market} from "@/components/Market/Market";
+import useStatsService from "@/services/eventService";
+import {getBasePrompts} from "@/services/basePromptsService";
+import {LatestExportFormat} from "@/types/export";
+import {importData} from "@/utils/app/importExport";
+import {useSession, signIn, signOut, getSession} from "next-auth/react"
+import Loader from "@/components/Loader/Loader";
+import {useHomeReducer} from "@/hooks/useHomeReducer";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -74,16 +85,25 @@ const Home = ({
     const {getModels} = useApiService();
     const {getModelsError} = useErrorService();
     const [initialRender, setInitialRender] = useState<boolean>(true);
-    const {user, error: userError, isLoading} = useUser();
 
-    const contextValue = useCreateReducer<HomeInitialState>({
+    const { data: session, status } = useSession();
+    //const {user, error: userError, isLoading} = useUser();
+    const user = session?.user;
+    const isLoading = status === "loading";
+    const userError = null;
+
+    const contextValue = useHomeReducer({
         initialState,
     });
 
 
+    const statsService = useStatsService();
+
     const {
         state: {
             apiKey,
+            conversationStateId,
+            messageIsStreaming,
             lightMode,
             folders,
             workflows,
@@ -91,6 +111,7 @@ const Home = ({
             selectedConversation,
             prompts,
             temperature,
+            page,
         },
         dispatch,
     } = contextValue;
@@ -101,7 +122,7 @@ const Home = ({
     const {data, error, refetch} = useQuery(
         ['GetModels', apiKey, serverSideApiKeyIsSet],
         ({signal}) => {
-            if (!apiKey && !serverSideApiKeyIsSet) return null;
+            if (!apiKey && !serverSideApiKeyIsSet && !user) return null;
 
             return getModels(
                 {
@@ -114,6 +135,72 @@ const Home = ({
     );
 
     useEffect(() => {
+        const secureSession = async () => {
+            const session = await getSession();
+            console.log(session); // Inspect the session object in the console
+        };
+
+        secureSession();
+    }, []);
+
+
+    useEffect(() => {
+        const fetchPrompts = async () => {
+            const basePrompts = await getBasePrompts();
+            if(basePrompts.success) {
+                const {history, folders, prompts}: LatestExportFormat = importData(basePrompts.data);
+
+                console.log("Imported base prompts, conversations, and folders: ", prompts, history, folders);
+
+                dispatch({field: 'conversations', value: history});
+                dispatch({field: 'folders', value: folders});
+                dispatch({field: 'prompts', value: prompts});
+            }
+            else {
+                console.log("Failed to import base prompts.");
+            }
+        }
+
+        fetchPrompts();
+    },[]);
+
+    // This is where tabs will be sync'd
+    useEffect(() => {
+        const handleStorageChange = (event: any) => {
+           // if(event.key === "selectedConversation") {
+           //     const conversation = JSON.parse(event.newValue);
+           //     dispatch({field: 'selectedConversation', value: conversation});
+           // }
+           if(event.key === "conversationHistory") {
+               const conversations = JSON.parse(event.newValue);
+               dispatch({field: 'conversations', value: conversations});
+           }
+           else if(event.key === "folders") {
+               const folders = JSON.parse(event.newValue);
+               dispatch({field: 'folders', value: folders});
+           }
+           else if(event.key === "prompts") {
+               const prompts = JSON.parse(event.newValue);
+               dispatch({field: 'prompts', value: prompts});
+           }
+            // Not syncing selectedConversation because it allows different conversations in different tabs
+            // else if(event.key === "selectedConversation") {
+            //     const conversation = JSON.parse(event.newValue);
+            //     dispatch({field: 'selectedConversation', value: conversation});
+            // }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+
+        // Remove the event listener on cleanup
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+        };
+    }, []);
+
+
+
+    useEffect(() => {
         if (data) dispatch({field: 'models', value: data});
     }, [data, dispatch]);
 
@@ -124,12 +211,26 @@ const Home = ({
     // FETCH MODELS ----------------------------------------------
 
     const handleSelectConversation = (conversation: Conversation) => {
+        dispatch({field: 'page', value: 'chat'})
+
         dispatch({
             field: 'selectedConversation',
             value: conversation,
         });
 
         saveConversation(conversation);
+    };
+
+    // Feature OPERATIONS  --------------------------------------------
+
+    const handleToggleFeature = (name: string) => {
+        const features = {...contextValue.state.featureFlags};
+        features[name] = !features[name];
+
+        dispatch({field: 'featureFlags', value: features});
+        saveFeatures(features);
+
+        return features;
     };
 
     // FOLDER OPERATIONS  --------------------------------------------
@@ -219,6 +320,8 @@ const Home = ({
     // CONVERSATION OPERATIONS  --------------------------------------------
 
     const handleNewConversation = (params = {}) => {
+        dispatch({field: 'page', value: 'chat'})
+
         const lastConversation = conversations[conversations.length - 1];
 
         // Create a string for the current date like Oct-18-2021
@@ -253,6 +356,8 @@ const Home = ({
             promptTemplate: null,
             ...params
         };
+
+        statsService.createConversationEvent(newConversation);
 
         const updatedConversations = [...conversations, newConversation];
 
@@ -381,7 +486,9 @@ const Home = ({
                             }
 
                             const documentStrings = workflowDefinition.inputs.documents.map((doc) => `{{${doc.name}:file}}`).join('\n');
-                            const parameterStrings = Object.keys(workflowDefinition.inputs.parameters).map((key) => `{{${key}}}`).join('\n');
+                            let parameterStrings = Object.keys(workflowDefinition.inputs.parameters).map((key) => `{{${key}}}`).join('\n');
+                            parameterStrings += findParametersInWorkflowCode(code);
+
                             const formattedString =
                                 `${documentStrings}${parameterStrings}${prompt}`;
 
@@ -455,39 +562,85 @@ const Home = ({
         dispatch({field: 'conversations', value: all});
     };
 
-    const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
+    const clearWorkspace = async () => {
+        await dispatch({field: 'conversations', value: []});
+        await dispatch({field: 'prompts', value: []});
+        await dispatch({field: 'folders', value: []});
 
-        if (selectedConversation) {
+        saveConversation({
+            id: uuidv4(),
+            name: t('New Conversation'),
+            messages: [],
+            model: OpenAIModels[defaultModelId],
+            prompt: DEFAULT_SYSTEM_PROMPT,
+            temperature: DEFAULT_TEMPERATURE,
+            folderId: null,
+            promptTemplate: null
+        });
+        saveConversations([]);
+        saveFolders([]);
+        savePrompts([]);
 
-            const updatedMessages = [
-                ...selectedConversation.messages,
-                ...messages
-            ];
+        await dispatch({field: 'selectedConversation', value: null});
+    }
 
-            let updatedConversation = {
-                ...selectedConversation,
-                messages: updatedMessages,
-            };
-
-            await dispatch({
-                field: 'selectedConversation',
-                value: updatedConversation
-            });
-
-            saveConversation(updatedConversation);
-            const updatedConversations = conversations.map(
-                (conversation) => {
-                    if (conversation.id === selectedConversation.id) {
-                        return updatedConversation;
-                    }
-                    return conversation;
-                },
-            );
-            if (updatedConversations.length === 0) {
-                updatedConversations.push(updatedConversation);
+    useEffect(() => {
+        if(!messageIsStreaming &&
+            conversationStateId !== "init" &&
+            conversationStateId !== "post-init"
+        ) {
+            console.log("Sync conversations to disk", conversations);
+            if(selectedConversation) {
+                saveConversationDirect(selectedConversation);
             }
-            await dispatch({field: 'conversations', value: updatedConversations});
+            saveConversationsDirect(conversations);
         }
+    }, [conversationStateId]);
+
+    const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
+        if (selectedConversation) {
+            dispatch(
+                {
+                    type: 'conversation',
+                    action: {
+                        type: 'addMessages',
+                        conversationId: selectedConversation.id,
+                        messages: messages
+                    }
+                }
+            )
+        }
+        // if (selectedConversation) {
+        //
+        //     const updatedMessages = [
+        //         ...selectedConversation.messages,
+        //         ...messages
+        //     ];
+        //
+        //     let updatedConversation = {
+        //         ...selectedConversation,
+        //         messages: updatedMessages,
+        //     };
+        //
+        //     await dispatch({
+        //         field: 'selectedConversation',
+        //         value: updatedConversation
+        //     });
+        //
+        //     saveConversation(updatedConversation);
+        //     const updatedConversations = conversations.map(
+        //         (conversation) => {
+        //             if (conversation.id === selectedConversation.id) {
+        //                 return updatedConversation;
+        //             }
+        //             return conversation;
+        //         },
+        //     );
+        //     if (updatedConversations.length === 0) {
+        //         updatedConversations.push(updatedConversation);
+        //     }
+        //     await dispatch({field: 'conversations', value: updatedConversations});
+        // }
 
     };
 
@@ -496,6 +649,7 @@ const Home = ({
     useEffect(() => {
         if (window.innerWidth < 640) {
             dispatch({field: 'showChatbar', value: false});
+            dispatch({field: 'showPromptbar', value: false});
         }
     }, [selectedConversation]);
 
@@ -526,6 +680,11 @@ const Home = ({
         }
 
         const apiKey = localStorage.getItem('apiKey');
+
+        const workspaceMetadataStr = localStorage.getItem('workspaceMetadata');
+        if(workspaceMetadataStr){
+            dispatch({field: 'workspaceMetadata', value: JSON.parse(workspaceMetadataStr)});
+        }
 
         if (serverSideApiKeyIsSet) {
             dispatch({field: 'apiKey', value: ''});
@@ -611,6 +770,11 @@ const Home = ({
                 },
             });
         }
+
+        dispatch({
+            field: 'conversationStateId',
+            value: 'post-init',
+        });
     }, [
         defaultModelId,
         dispatch,
@@ -620,6 +784,24 @@ const Home = ({
 
     const [preProcessingCallbacks, setPreProcessingCallbacks] = useState([]);
     const [postProcessingCallbacks, setPostProcessingCallbacks] = useState([]);
+
+
+    const federatedSignOut = async () => {
+        await signOut();
+        // signOut only signs out of Auth.js's session
+        // We need to log out of Cognito as well
+        // Federated signout is currently not supported.
+        // Therefore, we use a workaround: https://github.com/nextauthjs/next-auth/issues/836#issuecomment-1007630849
+        const signoutRedirectUrl = `${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ''}/api/auth/callback/cognito`;
+        const cognitoClientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+        const congitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
+
+        window.location.replace(
+            //`https://cognito-idp.us-east-1.amazonaws.com/us-east-1_aeCY16Uey/logout?client_id=${cognitoClientId}&redirect_uri=${encodeURIComponent(signoutRedirectUrl)}`
+            `${congitoDomain}/logout?client_id=${cognitoClientId}&response_type=code&redirect_uri=${encodeURIComponent(signoutRedirectUrl)}`
+            //`https://cognito-idp.us-east-1.amazonaws.com/us-east-1_aeCY16Uey/logout?client_id=${cognitoClientId}&logout_uri=http%3A%2F%2Flocalhost%3A3000`
+        );
+    };
 
     const addPreProcessingCallback = useCallback((callback: Processor) => {
         console.log("Proc added");
@@ -638,7 +820,7 @@ const Home = ({
         setPostProcessingCallbacks(prev => prev.filter(c => c !== callback));
     }, []);
 
-    if (user) {
+    if (session) {
         // @ts-ignore
         return (
             <HomeContext.Provider
@@ -657,6 +839,7 @@ const Home = ({
                     removePreProcessingCallback,
                     addPostProcessingCallback,
                     removePostProcessingCallback,
+                    clearWorkspace,
                     handleAddMessages,
                 }}
             >
@@ -685,9 +868,12 @@ const Home = ({
                             <TabSidebar
                                 side={"left"}
                                 footerComponent={
-                                    <div className="m-0 p-0 border-t border-white/20 pt-1 text-sm">
-                                        <button className="text-white" onClick={() => {
-                                            window.location.href = '/api/auth/logout'
+                                    <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
+                                        <button className="dark:text-white" onClick={() => {
+                                            const goLogout = async () => {
+                                                await federatedSignOut();
+                                            };
+                                            goLogout();
                                         }}>
 
                                             <div className="flex items-center">
@@ -696,15 +882,25 @@ const Home = ({
                                             </div>
 
                                         </button>
+
                                     </div>
                                 }
                             >
                                 <Tab icon={<IconMessage/>}><Chatbar/></Tab>
+                                <Tab icon={<IconShare/>}><SharedItemsList/></Tab>
+                                <Tab icon={<IconTournament/>}><WorkspaceList/></Tab>
                                 <Tab icon={<IconSettings/>}><SettingsBar/></Tab>
                             </TabSidebar>
 
                             <div className="flex flex-1">
-                                <Chat stopConversationRef={stopConversationRef}/>
+                                {page === 'chat' && (
+                                    <Chat stopConversationRef={stopConversationRef}/>
+                                )}
+                                {page === 'market' && (
+                                    <Market items={[
+                                        // {id: "1", name: "Item 1"},
+                                    ]}/>
+                                )}
                             </div>
 
 
@@ -721,20 +917,24 @@ const Home = ({
 
             </HomeContext.Provider>
         );
-    } else if (isLoading) {
+    }
+    else if (isLoading) {
         return (
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
             >
                 <div
                     className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                    <Loader/>
                     <h1 className="mb-4 text-2xl font-bold">
                         Loading...
                     </h1>
-                    <progress className="w-64"/>
+
+                    {/*<progress className="w-64"/>*/}
                 </div>
             </main>);
-    } else {
+    }
+    else {
         return (
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
@@ -745,7 +945,7 @@ const Home = ({
                         <LoadingIcon/>
                     </h1>
                     <button
-                        onClick={() => window.location.href = '/api/auth/login'}
+                        onClick={() => signIn('cognito')}
                         style={{
                             backgroundColor: 'white',
                             color: 'black',

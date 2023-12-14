@@ -315,6 +315,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               </div>
             ))}
 
+            <div className="mt-6">
             <ExpansionComponent title={"Conversation Tags"} content={
                 <div className="mt-2 mb-6 text-sm font-bold text-black dark:text-neutral-200">
                   <input
@@ -328,6 +329,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                   />
                 </div>
             }/>
+            </div>
 
             {featureFlags.workflowCreate && selectedTemplate === MessageType.AUTOMATION && (
                 <>
@@ -445,7 +447,16 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
 
             </div>
 
-
+          <div className="flex flex-row items-center">
+            <button
+                type="button"
+                className="mr-2 w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                onClick={() => {
+                  onCancel();
+                }}
+            >
+              {t('Cancel')}
+            </button>
             <button
               type="button"
               className="w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
@@ -456,6 +467,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             >
               {t('Save')}
             </button>
+          </div>
           </div>
         </div>
       </div>

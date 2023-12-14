@@ -124,7 +124,7 @@ const promptLLMSelectOne = async (promptUntil:any,  options: {[key:string]:strin
         // @ts-ignore
         null,
         null,
-        model || OpenAIModelID.GPT_3_5_FN,
+        model,
         selectFunctions,
         selectFunction
     );
@@ -423,7 +423,9 @@ async function executeWorkflow(tools: { [p: string]: AiTool }, code: string) {
 
     } catch (e) {
         console.log(e);
-        tools.tellUser.exec("I am going to fix some errors in the workflow...");
+        success = false;
+        result = "" + e;
+        //tools.tellUser.exec("I am going to fix some errors in the workflow...");
     }
     return {success, result, javascriptFn};
 }
@@ -433,6 +435,7 @@ function createWorkflowParams(context: WorkflowContext, apiKey: string, stopper:
         context: context,
         requestedParameters: {},
         requestedDocuments: [],
+        debugOutput: [],
         apiKey: apiKey,
         stopper: stopper,
         statusLogger: statusLogger,
@@ -484,7 +487,7 @@ const promptLLMFull = async (apiKey:string, stopper:Stopper, persona: string, pr
         } else if (model === OpenAIModelID.GPT_4) {
             model = OpenAIModelID.GPT_4_FN;
         } else if (!model) {
-            model = OpenAIModelID.GPT_3_5_FN;
+            model = process.env.NEXT_PUBLIC_DEFAULT_FUNCTION_CALL_MODEL as OpenAIModelID;
         }
     }
 
@@ -532,6 +535,33 @@ const promptLLMFull = async (apiKey:string, stopper:Stopper, persona: string, pr
     }
 
     return charsReceived;
+}
+
+export function stripComments(code: string) {
+    let codeStrippedOfComments = code.replace(/\/\/.*/g, "");
+    codeStrippedOfComments = codeStrippedOfComments.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, "");
+    // String \/\/ to the end of lines
+    return codeStrippedOfComments.replace(/\/\/.*/g, "");
+}
+
+export const findParametersInWorkflowCode = (code: string) => {
+    // see if getDocument appears in code
+    let codeStrippedOfComments = stripComments(code);
+
+    let paramNamesStr = "";
+    try {
+        // Find all instances of getParameter("NAME", ....) and extract the NAMEs as a list
+        //getParameter('prompt1','text')
+        const paramNames = codeStrippedOfComments.match(/getParameter\(\s*[\"\']([^\"\']*)[\"\']/g);
+
+        // Transform all the paramNames into the format {{NAME}} and join them with a space
+        paramNamesStr = (paramNames) ?
+            paramNames.map((name) => "{{" + name.substring(14, name.length - 1).trim() + "}}").join(" ") : "";
+    } catch (e) {
+
+    }
+
+    return paramNamesStr;
 }
 
 export const replayJSWorkflow = async (apiKey: string, code:string, customTools: { [p: string]: AiTool }, stopper: Stopper, statusLogger:(status:Status)=>void, context:WorkflowContext, incrementalPromptResultCallback: (responseText: string) => void) => {
@@ -590,6 +620,11 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         functions?: CustomFunction[],
         function_call?: string) => {
 
+        if(functions && !model){
+            model = process.env.NEXT_PUBLIC_DEFAULT_FUNCTION_CALL_MODEL as OpenAIModelID;
+        }
+
+
         while (tries > 0) {
             let cleaned = null;
             try {
@@ -598,7 +633,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
                     result: null
                 };
                 const raw = await promptLLMFull(apiKey, stopper, persona, prompt, (m) => {
-                }, model || OpenAIModelID.GPT_3_5, functions, function_call);
+                }, model, functions, function_call);
 
                 cleaned = extract(raw || "");
 
@@ -687,7 +722,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             // @ts-ignore
             feedbackInserter,
             errorInserter,
-            model || OpenAIModelID.GPT_3_5_FN,
+            model,
             functionsToCall,
             jsonFunction
         );
@@ -767,7 +802,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             // @ts-ignore
             null,
             null,
-            OpenAIModelID.GPT_3_5_FN,
+            null,
             selectFunctions,
             selectFunction
         );

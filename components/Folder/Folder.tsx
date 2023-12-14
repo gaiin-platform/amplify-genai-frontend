@@ -4,6 +4,7 @@ import {
   IconCheck,
   IconPencil,
   IconTrash,
+  IconShare,
   IconX,
 } from '@tabler/icons-react';
 import {
@@ -99,14 +100,14 @@ const Folder = ({
            onMouseLeave={() => setIsHovered(false)}
       >
         {isRenaming ? (
-          <div className="flex w-full items-center gap-3 bg-[#343541]/90 p-3">
+          <div className="flex w-full items-center gap-3 bg-neutral-200 dark:bg-[#343541]/90 p-3">
             {isOpen ? (
               <IconCaretDown size={18} />
             ) : (
               <IconCaretRight size={18} />
             )}
             <input
-              className="mr-12 flex-1 overflow-hidden overflow-ellipsis border-neutral-400 bg-transparent text-left text-[12.5px] leading-3 text-white outline-none focus:border-neutral-100"
+              className="mr-12 flex-1 overflow-hidden overflow-ellipsis border-neutral-400 bg-transparent text-left text-[12.5px] leading-3 dark:text-white outline-none focus:border-neutral-100"
               type="text"
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
@@ -116,7 +117,7 @@ const Folder = ({
           </div>
         ) : (
           <button
-            className={`flex w-full cursor-pointer items-center gap-3 rounded-lg p-3 text-sm transition-colors duration-200 hover:bg-[#343541]/90`}
+            className={`flex w-full cursor-pointer items-center gap-3 rounded-lg p-3 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90`}
             onClick={() => setIsOpen(!isOpen)}
             onDrop={(e) => dropHandler(e)}
             onDragOver={allowDrop}
@@ -176,6 +177,7 @@ const Folder = ({
             >
               <IconPencil size={18} />
             </SidebarActionButton>
+
             <SidebarActionButton
               handleClick={(e) => {
                 e.stopPropagation();

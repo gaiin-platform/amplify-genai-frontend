@@ -2,14 +2,20 @@
 
 import { useContext } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
-import { sendChatRequest as send } from '../services/chatService';
+import {sendChatRequest as send} from '../services/chatService';
+import useStatsService from "@/services/eventService";
+
 
 export function useChatService() {
     const { state: { apiKey },
         preProcessingCallbacks,
         postProcessingCallbacks, } = useContext(HomeContext);
 
+    const statsService = useStatsService();
+
     const sendChatRequest = (chatBody, plugin, abortSignal) => {
+
+        statsService.sendChatEvent(chatBody);
 
         preProcessingCallbacks.forEach(callback => callback({plugin: plugin, chatBody: chatBody}));
         let response = send(apiKey, chatBody, plugin, abortSignal);

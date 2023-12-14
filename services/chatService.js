@@ -1,6 +1,6 @@
 // chatService.js
 import { getEndpoint } from '@/utils/app/api';
-import {OpenAIModelID, OpenAIModels} from "@/types/openai";
+
 
 export async function sendChatRequest(apiKey, chatBody, plugin = null, abortSignal= null) {
 

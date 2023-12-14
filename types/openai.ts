@@ -9,6 +9,8 @@ export interface OpenAIModel {
 }
 
 export enum OpenAIModelID {
+  GPT_4_TURBO = 'gpt-4-1106-preview',
+  GPT_4_TURBO_AZ = 'gpt-4-1106-Preview',
   GPT_3_5 = 'gpt-3.5-turbo',
   GPT_3_5_FN = 'gpt-3.5-turbo-0613',
   GPT_3_5_AZ = 'gpt-35-turbo',
@@ -22,6 +24,21 @@ export enum OpenAIModelID {
 export const fallbackModelID = OpenAIModelID.GPT_3_5;
 
 export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
+
+  [OpenAIModelID.GPT_4_TURBO_AZ]: {
+    id: OpenAIModelID.GPT_4_TURBO,
+    name: 'GPT-4-Turbo (Azure)',
+    maxLength: 24000,
+    tokenLimit: 8000,
+    visible: true,
+  },
+  [OpenAIModelID.GPT_4_TURBO]: {
+      id: OpenAIModelID.GPT_4_TURBO,
+      name: 'GPT-4-Turbo',
+      maxLength: 24000,
+      tokenLimit: 8000,
+      visible: true,
+  },
   [OpenAIModelID.GPT_3_5]: {
     id: OpenAIModelID.GPT_3_5,
     name: 'GPT-3.5',
@@ -45,7 +62,7 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
   },
   [OpenAIModelID.GPT_3_5_AZ]: {
     id: OpenAIModelID.GPT_3_5_AZ,
-    name: 'GPT-3.5',
+    name: 'GPT-3.5 (Azure)',
     maxLength: 12000,
     tokenLimit: 4000,
     visible: false,

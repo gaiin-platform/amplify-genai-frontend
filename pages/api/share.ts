@@ -1,18 +1,51 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getAccessToken, withApiAuthRequired } from "@auth0/nextjs-auth0";
+import {getServerSession} from "next-auth/next";
+import {authOptions} from "@/pages/api/auth/[...nextauth]";
 
-const share = withApiAuthRequired(
+export const config = {
+    api: {
+        bodyParser: {
+            sizeLimit: '20mb',
+        },
+    },
+}
+
+const shareExport =
     async (req: NextApiRequest, res: NextApiResponse) => {
+        const session = await getServerSession(req, res, authOptions);
+
+        if (!session) {
+            // Unauthorized access, no session found
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const { accessToken } = session;
+
+        const apiUrl = process.env.SHARE_API_URL || ""; // API Gateway URL from environment variables
+
+        // Accessing itemData parameters from the request
+        const itemData = req.body;
 
         try {
-            const { accessToken } = await getAccessToken(req, res);
-            return res.status(200).json({ success:true });
-        } catch (error) {
-            console.error(error);
-            // @ts-ignore
-            return res.status(error.status || 500).end(error.message);
-        }
-    }
-);
 
-export default share;
+            const response = await fetch(apiUrl, {
+                method: "POST",
+                body: JSON.stringify(itemData),
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${accessToken}` // Assuming the API Gateway/Lambda expects a Bearer token
+                },
+            });
+
+            if (!response.ok) throw new Error(`Share failed with status: ${response.status}`);
+
+            const data = await response.json();
+
+            res.status(200).json({ item: data });
+        } catch (error) {
+            console.error("Error calling share: ", error);
+            res.status(500).json({ error: "Could share the item(s)" });
+        }
+    };
+
+export default shareExport;

@@ -1,295 +1,340 @@
 import {
-  IconBulbFilled,
-  IconEdit,
+    IconBulbFilled,
+    IconEdit,
     IconCopy,
-  IconCheck,
-  IconApiApp,
-  IconMessage2,
-  IconMessageChatbot,
-  IconTrash,
-  IconX,
-  IconDots,
-  IconShare,
+    IconCheck,
+    IconApiApp,
+    IconMessage2,
+    IconMessageChatbot,
+    IconTrash,
+    IconX,
+    IconDots,
+    IconRobot,
+    IconShare,
 } from '@tabler/icons-react';
 import {
-  DragEvent,
-  MouseEventHandler,
-  useContext,
-  useEffect,
-  useState,
+    DragEvent,
+    MouseEventHandler,
+    useContext,
+    useEffect,
+    useState,
 } from 'react';
 
 import HomeContext from '@/pages/api/home/home.context';
 
-import { Prompt } from '@/types/prompt';
+import {Prompt} from '@/types/prompt';
 
 import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 
 import PromptbarContext from '../PromptBar.context';
-import { PromptModal } from './PromptModal';
-import { ShareModal } from './ShareModal';
-import { useChatService } from '@/hooks/useChatService';
-import { shareItems } from "@/services/shareService";
+import {PromptModal} from './PromptModal';
+import {ShareModal} from './ShareModal';
+import {useChatService} from '@/hooks/useChatService';
+import {shareItems} from "@/services/shareService";
 import {v4 as uuidv4} from "uuid";
-import {fillInTemplate, parsePromptVariables, VariableFillOptions} from "@/utils/app/prompts";
+import {
+    fillInTemplate,
+    handleStartConversationWithPrompt,
+    parsePromptVariables,
+    VariableFillOptions
+} from "@/utils/app/prompts";
 import {AttachedDocument} from "@/types/attacheddocument";
-
+import saveState from "@/services/stateService";
+import { createExport } from "@/utils/app/importExport";
+import {MessageType} from "@/types/chat";
+import useStatsService from "@/services/eventService";
+import {useSession} from "next-auth/react";
 
 interface Props {
-  prompt: Prompt;
+    prompt: Prompt;
 }
 
-export const PromptComponent = ({ prompt }: Props) => {
-  const {
-    dispatch: promptDispatch,
-      handleAddPrompt,
-    handleUpdatePrompt,
-    handleDeletePrompt,
-  } = useContext(PromptbarContext);
+export const PromptComponent = ({prompt}: Props) => {
+    const {
+        dispatch: promptDispatch,
+        handleAddPrompt,
+        handleUpdatePrompt,
+        handleDeletePrompt,
+        handleSharePrompt,
+    } = useContext(PromptbarContext);
 
-  const {
-    state: { prompts, defaultModelId, showPromptbar, apiKey },
-    dispatch: homeDispatch,
-    handleCreateFolder,
-    handleNewConversation,
-    handleSelectConversation,
-    addPreProcessingCallback,
-    removePreProcessingCallback,
-    addPostProcessingCallback,
-    removePostProcessingCallback,
-  } = useContext(HomeContext);
+    const { startConversationEvent } = useStatsService();
 
-  const [showShareModal, setShowShareModal] = useState(false);
+    const {
+        state: {prompts, defaultModelId, showPromptbar, apiKey},
+        dispatch: homeDispatch,
+        handleNewConversation,
+    } = useContext(HomeContext);
 
-  const { sendChatRequest } = useChatService();
+    const { data: session } = useSession();
+    const user = session?.user;
+
+    const [showShareModal, setShowShareModal] = useState(false);
 
 
-  const handleSharePrompt = async () => {
-    setShowShareModal(true);
-  };
+    const closeModal = () => {
+        setShowShareModal(false);
+    };
 
-  const closeModal = () => {
-    setShowShareModal(false);
-  };
+    const [showModal, setShowModal] = useState<boolean>(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isRenaming, setIsRenaming] = useState(false);
+    const [renameValue, setRenameValue] = useState('');
+    const [isHovered, setIsHovered] = useState(false);
 
-  const [showModal, setShowModal] = useState<boolean>(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [renameValue, setRenameValue] = useState('');
-  const [isHovered, setIsHovered] = useState(false);
-
-  const handleStartPromptBuilder = () => {
-    handleNewConversation(
-        {
-          name: "AI Prompt Helper",
-          prompt:"You are a prompt engineering expert. " +
-              "You help users write amazing prompts for GPT-4. " +
-              "I will tell you what I am trying to do and you will write an amazing prompt for me" +
-              "that includes chain of thought reasoning, step by step breakdown of the task, enriched" +
-              "details from the domain, and any other helpful wording. You will then ask me if I like the prompt " +
-              "and want to add it as an app that I can reuse later. At any point, if I indicate that I like the " +
-              "prompt and want to use it in the future, you will output the special marker: " +
-              "" +
-              //"http://localhost?add_prompt=\"THE PROMPT YOU CREATED\"" +
-              "<<DONE>>",
-          messages: [
-            {role: "assistant", content:"Tell me what you want the prompt to do and I will write it for you."}
-          ],
-          processors: [],
-          tools:[],
-        })
-  }
-
-  const dateTimeString = () => {
-    let date = new Date();
-
-    let month = ('0' + (date.getMonth() + 1)).slice(-2); // getMonth() starts from 0, so add 1
-    let day = ('0' + date.getDate()).slice(-2);
-    let year = date.getFullYear().toString().substr(-2); // take the last 2 digit of the year
-
-    let hours = ('0' + date.getHours()).slice(-2);
-    let minutes = ('0' + date.getMinutes()).slice(-2);
-
-    let formattedDate = `${month}/${day}/${year} ${hours}:${minutes}`;
-    return formattedDate;
-  }
-
-  const handleStartConversation = (prompt: Prompt) => {
-
-    let rootPromptObj = (prompt.data?.rootPromptId)?
-        prompts.find((p) => p.id == prompt.data?.rootPromptId) : null;
-
-    let rootPrompt = null;
-    if(rootPromptObj != null && rootPromptObj?.content){
-       let variables = parsePromptVariables(rootPromptObj?.content);
-       let variableValues = variables.map((v) => "");
-       rootPrompt = fillInTemplate(rootPromptObj?.content , variables, variableValues, [], true);
+    const handleStartPromptBuilder = () => {
+        handleNewConversation(
+            {
+                name: "AI Prompt Helper",
+                prompt: "You are a prompt engineering expert. " +
+                    "You help users write amazing prompts for GPT-4. " +
+                    "I will tell you what I am trying to do and you will write an amazing prompt for me" +
+                    "that includes chain of thought reasoning, step by step breakdown of the task, enriched" +
+                    "details from the domain, and any other helpful wording. You will then ask me if I like the prompt " +
+                    "and want to add it as an app that I can reuse later. At any point, if I indicate that I like the " +
+                    "prompt and want to use it in the future, you will output the special marker: " +
+                    "" +
+                    //"http://localhost?add_prompt=\"THE PROMPT YOU CREATED\"" +
+                    "<<DONE>>",
+                messages: [
+                    {role: "assistant", content: "Tell me what you want the prompt to do and I will write it for you."}
+                ],
+                processors: [],
+                tools: [],
+            })
     }
 
-    const getPromptTags = (prompt:Prompt|null|undefined) => {
-      return (prompt && prompt.data && prompt.data.conversationTags) ? prompt.data.conversationTags : [];
+    // const dateTimeString = () => {
+    //     let date = new Date();
+    //
+    //     let month = ('0' + (date.getMonth() + 1)).slice(-2); // getMonth() starts from 0, so add 1
+    //     let day = ('0' + date.getDate()).slice(-2);
+    //     let year = date.getFullYear().toString().substr(-2); // take the last 2 digit of the year
+    //
+    //     let hours = ('0' + date.getHours()).slice(-2);
+    //     let minutes = ('0' + date.getMinutes()).slice(-2);
+    //
+    //     let formattedDate = `${month}/${day}/${year} ${hours}:${minutes}`;
+    //     return formattedDate;
+    // }
+
+    const handleStartConversation = (startPrompt: Prompt) => {
+
+
+        startConversationEvent(startPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, prompts, startPrompt);
+
+        // let prompt = startPrompt;
+        //
+        // let rootPromptObj = (prompt.data?.rootPromptId) ?
+        //     prompts.find((p) => p.id == prompt.data?.rootPromptId) : null;
+        //
+        // if(rootPromptObj == null && prompt.type === MessageType.ROOT){
+        //     rootPromptObj = prompt;
+        //     prompt = {
+        //         description: rootPromptObj.description,
+        //         folderId: null,
+        //         id: uuidv4(),
+        //         name: "Conversation Started with "+rootPromptObj.name,
+        //         type: MessageType.PROMPT,
+        //         content: "Tell me about what you can help me with.",
+        //         data: {
+        //             rootPromptId: rootPromptObj.id
+        //         }
+        //     }
+        // }
+        //
+        // let rootPrompt = null;
+        // if (rootPromptObj != null && rootPromptObj?.content) {
+        //     let variables = parsePromptVariables(rootPromptObj?.content);
+        //     let variableValues = variables.map((v) => "");
+        //     rootPrompt = fillInTemplate(rootPromptObj?.content, variables, variableValues, [], true);
+        // }
+        //
+        // const getPromptTags = (prompt: Prompt | null | undefined) => {
+        //     return (prompt && prompt.data && prompt.data.conversationTags) ? prompt.data.conversationTags : [];
+        // }
+        //
+        // let tags: string[] = [...getPromptTags(rootPromptObj), ...getPromptTags(prompt)]
+        // if (prompt.type == "automation") {
+        //     tags.push("automation");
+        // }
+        //
+        //
+        // handleNewConversation(
+        //     {
+        //         name: prompt.name + " " + dateTimeString(),
+        //         messages: [],
+        //         promptTemplate: prompt,
+        //         processors: [],
+        //         tools: [],
+        //         tags: tags,
+        //         ...(rootPrompt != null && {prompt: rootPrompt}),
+        //     })
     }
 
-    let tags:string[] = [...getPromptTags(rootPromptObj), ...getPromptTags(prompt)]
-    if(prompt.type == "automation"){
-        tags.push("automation");
+    const handleUpdate = (prompt: Prompt) => {
+        handleUpdatePrompt(prompt);
+        promptDispatch({field: 'searchTerm', value: ''});
+    };
+
+    const handleDelete: MouseEventHandler<HTMLButtonElement> = (e) => {
+        e.stopPropagation();
+
+        if (isDeleting) {
+            handleDeletePrompt(prompt);
+            promptDispatch({field: 'searchTerm', value: ''});
+        }
+
+        setIsDeleting(false);
+    };
+
+    const handleCancelDelete: MouseEventHandler<HTMLButtonElement> = (e) => {
+        e.stopPropagation();
+        setIsDeleting(false);
+    };
+
+    const handleOpenDeleteModal: MouseEventHandler<HTMLButtonElement> = (e) => {
+        e.stopPropagation();
+        setIsDeleting(true);
+    };
+
+    const handleDragStart = (e: DragEvent<HTMLButtonElement>, prompt: Prompt) => {
+        if (e.dataTransfer) {
+            e.dataTransfer.setData('prompt', JSON.stringify(prompt));
+        }
+    };
+
+    const handleCopy = () => {
+        const newPrompt = {...prompt, id: uuidv4(), name: prompt.name + ' (copy)'};
+        handleAddPrompt(newPrompt);
+    }
+
+    const getIcon = (prompt: Prompt) => {
+        if(prompt.data && prompt.data.assistant){
+            return (<IconRobot size={18}/>);
+        }
+        else if(prompt.type === "automation"){
+            return (<IconApiApp size={18}/>);
+        }
+        else {
+            return (<IconMessage2 size={18}/>);
+        }
     }
 
 
-    handleNewConversation(
-        {
-          name: prompt.name + " " +dateTimeString(),
-          messages: [],
-          promptTemplate: prompt,
-          processors: [],
-          tools:[],
-          tags: tags,
-          ...(rootPrompt != null && { prompt: rootPrompt }),
-        })
-  }
+    useEffect(() => {
+        if (isRenaming) {
+            setIsDeleting(false);
+        } else if (isDeleting) {
+            setIsRenaming(false);
+        }
+    }, [isRenaming, isDeleting]);
 
-  const handleUpdate = (prompt: Prompt) => {
-    handleUpdatePrompt(prompt);
-    promptDispatch({ field: 'searchTerm', value: '' });
-  };
+    // @ts-ignore
+    // @ts-ignore
+    return (
+        <div className="relative flex items-center"
+             onMouseEnter={() => setIsHovered(true)}
+             onMouseLeave={() => {
+                 setIsDeleting(false);
+                 setIsRenaming(false);
+                 setRenameValue('');
+                 setIsHovered(false)
+             }
+             }
+        >
 
-  const handleDelete: MouseEventHandler<HTMLButtonElement> = (e) => {
-    e.stopPropagation();
+            <div className="relative flex w-full">
+                <button
+                    className="w-full  cursor-pointer p-1 items-center gap-1 rounded-lg p-2 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
+                    draggable="true"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        //setShowModal(true);
+                        handleStartConversation(prompt)
+                    }}
+                    onDragStart={(e) => handleDragStart(e, prompt)}
+                >
+                    {/*<IconEdit size={18} />*/}
 
-    if (isDeleting) {
-      handleDeletePrompt(prompt);
-      promptDispatch({ field: 'searchTerm', value: '' });
-    }
+                    <div className="relative flex items-center overflow-hidden text-left text-[12.5px] leading-3">
+                        <div className="pr-2">
+                            {getIcon(prompt)}
+                        </div>
+                        <div
+                            className="overflow-hidden flex-1 text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">
+                            {prompt.name}
+                        </div>
+                    </div>
 
-    setIsDeleting(false);
-  };
+                </button>
 
-  const handleCancelDelete: MouseEventHandler<HTMLButtonElement> = (e) => {
-    e.stopPropagation();
-    setIsDeleting(false);
-  };
+                {isHovered &&
+                    <div
+                        className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-gray-900 rounded">
 
-  const handleOpenDeleteModal: MouseEventHandler<HTMLButtonElement> = (e) => {
-    e.stopPropagation();
-    setIsDeleting(true);
-  };
+                        {!isDeleting && !isRenaming && (
+                            <SidebarActionButton handleClick={handleCopy}>
+                                <IconCopy size={18}/>
+                            </SidebarActionButton>
+                        )}
 
-  const handleDragStart = (e: DragEvent<HTMLButtonElement>, prompt: Prompt) => {
-    if (e.dataTransfer) {
-      e.dataTransfer.setData('prompt', JSON.stringify(prompt));
-    }
-  };
+                        {!isDeleting && !isRenaming && (
+                            <SidebarActionButton handleClick={() => setShowModal(true)}>
+                                <IconEdit size={18}/>
+                            </SidebarActionButton>
+                        )}
 
-  const handleCopy = () => {
-    const newPrompt = { ...prompt, id: uuidv4(), name: prompt.name + ' (copy)' };
-    handleAddPrompt(newPrompt);
-  }
+                        {!isDeleting && !isRenaming && (
+                            <SidebarActionButton handleClick={() => {
+                                handleSharePrompt(prompt);
+                            }}>
+                                <IconShare size={18}/>
+                            </SidebarActionButton>
+                        )}
 
+                        {!isDeleting && !isRenaming && (
+                            <SidebarActionButton handleClick={handleOpenDeleteModal}>
+                                <IconTrash size={18}/>
+                            </SidebarActionButton>
+                        )}
 
-  useEffect(() => {
-    if (isRenaming) {
-      setIsDeleting(false);
-    } else if (isDeleting) {
-      setIsRenaming(false);
-    }
-  }, [isRenaming, isDeleting]);
+                        {(isDeleting || isRenaming) && (
+                            <>
+                                <SidebarActionButton handleClick={handleDelete}>
+                                    <IconCheck size={18}/>
+                                </SidebarActionButton>
 
-  // @ts-ignore
-  // @ts-ignore
-  return (
-      <div className="relative flex items-center"
-           onMouseEnter={() => setIsHovered(true)}
-           onMouseLeave={() => {
-             setIsDeleting(false);
-             setIsRenaming(false);
-             setRenameValue('');
-             setIsHovered(false)}
-           }
-      >
-        <div className="relative flex w-full">
-          <button
-              className="w-full  cursor-pointer p-1 items-center gap-1 rounded-lg p-2 text-sm transition-colors duration-200 hover:bg-[#343541]/90"
-              draggable="true"
-              onClick={(e) => {
-                e.stopPropagation();
-                //setShowModal(true);
-                handleStartConversation(prompt)
-              }}
-              onDragStart={(e) => handleDragStart(e, prompt)}
-          >
-            {/*<IconEdit size={18} />*/}
+                                <SidebarActionButton handleClick={handleCancelDelete}>
+                                    <IconX size={18}/>
+                                </SidebarActionButton>
+                            </>
+                        )}
 
-            <div className="relative flex items-center overflow-hidden text-left text-[12.5px] leading-3">
-              <div className="pr-2">
-                { (prompt.type === "automation") ? <IconApiApp/> : <IconMessage2/>}
-              </div>
-              <div className="overflow-hidden flex-1 text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">
-                {prompt.name}
-              </div>
+                    </div>
+                }
+
             </div>
 
-          </button>
+            {showModal && (
+                <PromptModal
+                    prompt={prompt}
+                    onCancel={() => setShowModal(false)}
+                    onSave={() => setShowModal(false)}
+                    onUpdatePrompt={handleUpdate}
+                />
+            )}
 
-          {isHovered &&
-              <div className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-gray-900 rounded">
-
-                {!isDeleting && !isRenaming && (
-                    <SidebarActionButton handleClick={handleCopy}>
-                      <IconCopy size={18}/>
-                    </SidebarActionButton>
-                )}
-
-                {!isDeleting && !isRenaming && (
-                    <SidebarActionButton handleClick={() => setShowModal(true)}>
-                      <IconEdit size={18}/>
-                    </SidebarActionButton>
-                )}
-
-                {/*{!isDeleting && !isRenaming && (*/}
-                {/*    <SidebarActionButton handleClick={()=>shareItems("",null)}>*/}
-                {/*      <IconShare size={18}/>*/}
-                {/*    </SidebarActionButton>*/}
-                {/*)}*/}
-
-                {!isDeleting && !isRenaming && (
-                    <SidebarActionButton handleClick={handleOpenDeleteModal}>
-                      <IconTrash size={18}/>
-                    </SidebarActionButton>
-                )}
-
-                {(isDeleting || isRenaming) && (
-                    <>
-                      <SidebarActionButton handleClick={handleDelete}>
-                        <IconCheck size={18}/>
-                      </SidebarActionButton>
-
-                      <SidebarActionButton handleClick={handleCancelDelete}>
-                        <IconX size={18}/>
-                      </SidebarActionButton>
-                    </>
-                )}
-
-              </div>
-          }
-
+            {showShareModal && (
+                <ShareModal
+                    prompt={prompt}
+                    onClose={() => setShowShareModal(false)}
+                    onSharePrompt={(p) => {
+                        alert("Share" + p.name)
+                    }}
+                />
+            )}
         </div>
-
-        {showModal && (
-            <PromptModal
-                prompt={prompt}
-                onCancel={() => setShowModal(false)}
-                onSave={() => setShowModal(false)}
-                onUpdatePrompt={handleUpdate}
-            />
-        )}
-
-        {showShareModal && (
-            <ShareModal
-                prompt={prompt}
-                onClose={() => setShowShareModal(false)}
-                onSharePrompt={(p)=>{alert("Share"+p.name)}}
-            />
-        )}
-      </div>
-  );
+    );
 };

@@ -101,4 +101,5 @@ export interface Conversation {
   promptTemplate: Prompt | null;
   tags?: string[]
   workflowDefinition?: WorkflowDefinition;
+  data?: {[key:string]:any}
 }

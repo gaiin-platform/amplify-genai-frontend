@@ -25,6 +25,8 @@ import ChatbarContext from './Chatbar.context';
 import { ChatbarInitialState, initialState } from './Chatbar.state';
 
 import { v4 as uuidv4 } from 'uuid';
+import {FolderInterface} from "@/types/folder";
+import useStatsService from "@/services/eventService";
 
 export const Chatbar = () => {
   const { t } = useTranslation('sidebar');
@@ -41,10 +43,13 @@ export const Chatbar = () => {
     handleUpdateConversation,
   } = useContext(HomeContext);
 
+  const statsService = useStatsService();
+
   const {
     state: { searchTerm, filteredConversations },
     dispatch: chatDispatch,
   } = chatBarContextValue;
+
 
   const handleApiKeyChange = useCallback(
     (apiKey: string) => {
@@ -52,6 +57,10 @@ export const Chatbar = () => {
     },
     [homeDispatch],
   );
+
+  const handleShareFolder = (folder: FolderInterface) => {
+
+  }
 
   const handlePluginKeyChange = (pluginKey: PluginKey) => {
 
@@ -77,6 +86,8 @@ export const Chatbar = () => {
     const updatedConversations = conversations.filter(
       (c) => c.id !== conversation.id,
     );
+
+    statsService.deleteConversationEvent(conversation);
 
     homeDispatch({ field: 'conversations', value: updatedConversations });
     chatDispatch({ field: 'searchTerm', value: '' });
@@ -123,18 +134,27 @@ export const Chatbar = () => {
   };
 
   useEffect(() => {
+
+    statsService.openConversationsEvent();
+
     if (searchTerm) {
-      chatDispatch({
-        field: 'filteredConversations',
-        value: conversations.filter((conversation) => {
-          const searchable =
+
+      statsService.searchConversationsEvent(searchTerm);
+
+      const results = conversations.filter((conversation) => {
+        const searchable =
             conversation.name.toLocaleLowerCase() +
             ' ' +
             conversation.messages.map((message) => message.content).join(' ');
-          return searchable.toLowerCase().includes(searchTerm.toLowerCase());
-        }),
+        return searchable.toLowerCase().includes(searchTerm.toLowerCase());
       });
+
+      chatDispatch({
+        field: 'filteredConversations',
+        value: results,}
+      );
     } else {
+
       chatDispatch({
         field: 'filteredConversations',
         value: conversations,
@@ -153,21 +173,23 @@ export const Chatbar = () => {
         handlePluginKeyChange,
         handleClearPluginKey,
         handleApiKeyChange,
+        handleShareFolder,
       }}
     >
       <Sidebar<Conversation>
         side={'left'}
         isOpen={showChatbar}
-        addItemButtonTitle={t('New chat')}
+        addItemButtonTitle={t('New Chat')}
         itemComponent={<Conversations conversations={filteredConversations} />}
-        folderComponent={<ChatFolders searchTerm={searchTerm} />}
+        folderComponent={<ChatFolders searchTerm={searchTerm} conversations={filteredConversations}/>}
         items={filteredConversations}
         searchTerm={searchTerm}
         handleSearchTerm={(searchTerm: string) =>
           chatDispatch({ field: 'searchTerm', value: searchTerm })
         }
         toggleOpen={handleToggleChatbar}
-        handleCreateItem={() => handleNewConversation({})}
+        handleCreateItem={() => {
+          handleNewConversation({})}}
         handleCreateFolder={() => {
           const name = window.prompt("Folder name:");
           handleCreateFolder(name || "New Folder", 'chat')

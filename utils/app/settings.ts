@@ -1,4 +1,5 @@
 import { Settings } from '@/types/settings';
+import {Workspace} from "@/types/workspace";
 
 const STORAGE_KEY = 'settings';
 
@@ -16,6 +17,10 @@ export const getSettings = (): Settings => {
     }
   }
   return settings;
+};
+
+export const saveWorkspaceMetadata = (workspaceMetadata: Workspace) => {
+  localStorage.setItem('workspaceMetadata', JSON.stringify(workspaceMetadata));
 };
 
 export const saveSettings = (settings: Settings) => {
