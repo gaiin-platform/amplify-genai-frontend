@@ -71,17 +71,17 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
 
     const fetchData = async () => {
         try {
-            if (user?.name) {
+            if (user?.email) {
 
                 statsService.openWorkspacesEvent();
 
                 try {
-                    const result = await getSharedItems(user.name);
+                    const result = await getSharedItems(user.email);
 
                     if (result.ok) {
                         const items = await result.json();
                         const mine = items.item.filter((item: { sharedBy: string; }) => {
-                            return item.sharedBy === user.name;
+                            return item.sharedBy === user.email;
                         });
                         const grouped = groupBy('note', items.item);
                         setGroupedItems(grouped);
@@ -97,7 +97,7 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
     };
 
     useEffect(() => {
-        const name = user?.name;
+        const name = user?.email;
 
         fetchData();
 

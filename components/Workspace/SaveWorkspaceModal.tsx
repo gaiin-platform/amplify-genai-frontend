@@ -160,7 +160,7 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
 
     const handleShare = async () => {
 
-        if(user?.name) {
+        if(user?.email) {
             //onSave(selectedItems);
             setIsSharing(true);
 
@@ -186,8 +186,8 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
                 selectedFoldersState,
                 [...selectedPromptsState, ...rootPromptsToAdd]);
 
-            const sharedWith = [user?.name];
-            const sharedBy = user?.name;
+            const sharedWith = [user?.email];
+            const sharedBy = user?.email;
 
             if (sharedBy && sharingNote) {
                 try {

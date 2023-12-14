@@ -285,9 +285,9 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
         const fetchData = async () => {
 
 
-            if (user && user.name) {
+            if (user && user.email) {
 
-                const result = await loadSharedItem(user?.name, importKey);
+                const result = await loadSharedItem(user?.email, importKey);
 
                 if (result.ok) {
                     const item = await result.json();

@@ -803,6 +803,20 @@ const Home = ({
         );
     };
 
+    const getName = (email?: string|null) => {
+        if(!email) return "Anonymous";
+
+        const name = email.split("@")[0];
+
+        // Split by dots and capitalize each word
+        const nameParts = name.split(".");
+        const capitalizedParts = nameParts.map((part) => {
+            return part.charAt(0).toUpperCase() + part.slice(1);
+        });
+
+        return capitalizedParts.join(" ").slice(0, 28);
+    }
+
     const addPreProcessingCallback = useCallback((callback: Processor) => {
         console.log("Proc added");
         //setPreProcessingCallbacks(prev => [...prev, callback]);
@@ -878,7 +892,7 @@ const Home = ({
 
                                             <div className="flex items-center">
                                                 <IconLogout className="m-2"/>
-                                                <span>{isLoading ? 'Loading...' : user?.name ?? 'Unnamed user'}</span>
+                                                <span>{isLoading ? 'Loading...' : getName(user?.email) ?? 'Unnamed user'}</span>
                                             </div>
 
                                         </button>

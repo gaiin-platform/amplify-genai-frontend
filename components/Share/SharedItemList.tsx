@@ -65,7 +65,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
     const user = session?.user;
 
     useEffect(() => {
-        const name = user?.name;
+        const name = user?.email;
 
         statsService.openSharedItemsEvent();
 

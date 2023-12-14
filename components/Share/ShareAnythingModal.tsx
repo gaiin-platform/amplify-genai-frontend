@@ -162,7 +162,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
             [...selectedPromptsState, ...rootPromptsToAdd]);
 
         const sharedWith = selectedPeople;
-        const sharedBy = user?.name;
+        const sharedBy = user?.email;
 
         if (sharedBy && sharingNote) {
             try {

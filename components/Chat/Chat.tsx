@@ -99,7 +99,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         } = useContext(HomeContext);
 
 
-        const {sendChatRequest} = useChatService();
+        const {sendChatRequest, sendJsonChatRequest, sendCSVChatRequest} = useChatService();
 
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
@@ -394,7 +394,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                         const controller = new AbortController();
                         try {
-                            const response = (existingResponse) ? existingResponse : await sendChatRequest(chatBody, plugin, controller.signal);
+                            const response = (existingResponse) ?
+                                existingResponse :
+                                //await sendCSVChatRequest(chatBody, {message:'string',reasoning:'string', keywords:'string'}, plugin, controller.signal);
+                                await sendChatRequest(chatBody, plugin, controller.signal);
 
                             if (!response.ok) {
                                 homeDispatch({field: 'loading', value: false});

@@ -4,7 +4,7 @@ import {sendChatRequest} from "@/services/chatService";
 import {describeAsJsonSchema} from "@/utils/app/data";
 import {InputDocument} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
-
+// import {generateCSVSchema} from "@/utils/app/csv";
 
 export interface Prompt {
     rootPrompt?: string;
@@ -30,25 +30,6 @@ export const abortResult = {
     result: null
 };
 
-type DataType = 'string' | 'number' | 'integer' | 'boolean';
-
-interface ColumnTypes {
-    [columnName: string]: DataType;
-}
-
-interface JSONSchema {
-    type: string;
-    items: {
-        type: string;
-        properties: {
-            [key: string]: {
-                type: DataType;
-            };
-        };
-        required: string[];
-    };
-}
-
 const breakIntoChunksByLineCount = (input: string, maxLines: number): string[] => {
     const lines: string[] = input.split('\n');
     const chunks: string[] = [];
@@ -72,28 +53,6 @@ const breakIntoChunksByCharacterCount = (input: string, maxCharacters: number): 
     return chunks;
 }
 
-const generateSchema = (columnNames: string[], columnTypes: ColumnTypes):JSONSchema => {
-    const properties = columnNames.reduce<Record<string, { type: DataType }>>(
-        (props, columnName) => {
-            // Get the type of the column or default to 'string' if not specified
-            const type: DataType = columnTypes[columnName] || 'string';
-            props[columnName] = { type };
-            return props;
-        },
-        {}
-    );
-
-    const schema: JSONSchema = {
-        type: 'array',
-        items: {
-            type: 'object',
-            properties: properties,
-            required: columnNames
-        }
-    };
-
-    return schema;
-}
 
 const doPrompt = async (apiKey:string, stopper:Stopper, persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
 
@@ -614,9 +573,9 @@ export const getToolMetadata = ({apiKey, stopper, context, requestedParameters, 
         tellUser: {
             description: "(msg:string)//output a message to the user",
         },
-        generateSchema: {
-            description: "(columnNames: string[], columnTypes: string[]):string // Generate a JSON schema from a list of column names and types. Types are one of the strings 'string', 'number', 'integer', or 'boolean'.",
-        },
+        // generateSchema: {
+        //     description: "(columnNames: string[], columnTypes: string[]):string // Generate a JSON schema from a list of column names and types. Types are one of the strings 'string', 'number', 'integer', or 'boolean'.",
+        // },
         promptLLMForJson: {
             description: "(persona: string, prompt: string, desiredSchema: JsonSchema)=>Promise<any> // Prompt the LLM to generate JSON that matches a specified schema." +
                 " This is useful for generating JSON for APIs, databases, or other systems that require a specific JSON schema.",
@@ -754,12 +713,12 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
                 return prompts;
             }
         },
-        generateSchema: {
-            description: "(columnNames: string[], columnTypes: string[]):string // Generate a JSON schema from a list of column names and types. Types are one of the strings 'string', 'number', 'integer', or 'boolean'.",
-            exec: (columnNames: string[], columnTypes: ColumnTypes) => {
-                return generateSchema(columnNames, columnTypes);
-            }
-        },
+        // generateSchema: {
+        //     description: "(columnNames: string[], columnTypes: string[]):string // Generate a JSON schema from a list of column names and types. Types are one of the strings 'string', 'number', 'integer', or 'boolean'.",
+        //     exec: (columnNames: string[], columnTypes: ColumnTypes) => {
+        //         return generateCSVSchema(columnNames, columnTypes);
+        //     }
+        // },
         promptLLMForJson: {
             description: "(persona: string, prompt: string, desiredSchema: JsonSchema)=>Promise<any> // Prompt the LLM to generate JSON that matches a specified schema." +
                 " This is useful for generating JSON for APIs, databases, or other systems that require a specific JSON schema.",
