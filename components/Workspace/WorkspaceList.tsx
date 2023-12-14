@@ -83,7 +83,7 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
                         const mine = items.item.filter((item: { sharedBy: string; }) => {
                             return item.sharedBy === user.email;
                         });
-                        const grouped = groupBy('note', items.item);
+                        const grouped = groupBy('note', mine);
                         setGroupedItems(grouped);
                     }
 
