@@ -404,6 +404,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                             const match = message.trim().match(regex);
 
+                            // @ts-ignore
+                            //console.log("Match",match[0],match[1],match[2]);
+
                             if (match &&
                                 match.length === 3 &&
                                 match[1] &&

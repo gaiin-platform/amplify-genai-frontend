@@ -1,5 +1,5 @@
 // src/hooks/useChatService.js
-
+import { incrementalJSONtoCSV } from "@/utils/app/incrementalCsvParser";
 import { useContext } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
 import {sendChatRequest as send} from '../services/chatService';
@@ -20,14 +20,15 @@ export function useChatService() {
         const schema = generateCSVSchema(columns);
         const resp = await sendJsonChatRequestWithSchema(chatBody, schema, plugin, abortSignal);
 
-        let inString = false;
-        let msg = '';
+        const keys = Object.keys(columns).join(',');
+
+        const parser = incrementalJSONtoCSV();
+        let first = true;
 
         const callback = stringChunkCallback((chunk) => {
-            //console.log("Chunk received", chunk);
-            msg += chunk;
-
-            return chunk;
+            const result = (first ? "```csv\n"+keys+"\n" : "") + parser(chunk);
+            first = false;
+            return result;
         });
 
         return wrapResponse(resp, callback);
