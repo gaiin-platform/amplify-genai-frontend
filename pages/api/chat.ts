@@ -29,7 +29,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     //current time
     new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
 
-    const { model, messages, key, prompt, temperature, functions, function_call } = req.body as ChatBody;
+    const { model, messages, key, prompt, temperature, functions, function_call, response_format } = req.body as ChatBody;
 
     console.log("Chat request unmarshalled",
         `Model Id: ${model.id}, Temperature: ${temperature}`,
@@ -84,7 +84,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         //current time
         new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
 
-    const stream = await OpenAIStream(model, promptToSend, temperatureToUse, key, messagesToSend, functions, function_call);
+    const stream = await OpenAIStream(model, promptToSend, temperatureToUse, key, messagesToSend, functions, function_call, response_format);
     // @ts-ignore
     const nodeStream = Readable.fromWeb(stream);
     nodeStream.pipe(res);

@@ -135,13 +135,13 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
 
     const handleCreateAssistant = async () => {
 
-        if(user?.name && assistantDefinition) {
+        if(user?.email && assistantDefinition) {
 
             setLoadingMessage("Creating assistant...");
             setIsLoading(true);
 
             try {
-                const {assistantId,provider} = await createAssistant(user.name, assistantDefinition);
+                const {assistantId,provider} = await createAssistant(user.email, assistantDefinition);
 
                 console.log("assistantId", assistantId);
                 console.log("provider", provider);

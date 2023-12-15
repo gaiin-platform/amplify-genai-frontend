@@ -22,7 +22,7 @@ import {
 } from '@/utils/app/conversation';
 import {throttle} from '@/utils/data/throttle';
 
-import {ChatBody, Conversation, Message, MessageType, newMessage} from '@/types/chat';
+import {ChatBody, Conversation, CustomFunction, JsonSchema, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -60,6 +60,8 @@ import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import { sendChat as assistantChat } from "@/services/assistantService";
 import {DownloadModal} from "@/components/Download/DownloadModal";
 import useStatsService from "@/services/eventService";
+import {ColumnsSpec} from "@/utils/app/csv";
+import json5 from "json5";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -99,7 +101,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         } = useContext(HomeContext);
 
 
-        const {sendChatRequest} = useChatService();
+        const {sendChatRequest, sendJsonChatRequestWithSchemaLoose, sendFunctionChatRequest, sendJsonChatRequest, sendJsonChatRequestWithSchema, sendCSVChatRequest} = useChatService();
 
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
@@ -392,9 +394,72 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             temperature: updatedConversation.temperature,
                         };
 
+                        const parseMessageType = (message: string): {
+                            prefix: "chat"|"json"|"json!"|"csv"|"fn";
+                            body: string;
+                            options: any|null } => {
+                            // This regular expression will match 'someXYZ' as a prefix and capture
+                            // the contents inside the parentheses.
+                            const regex = /^(\w+[\!]?)\(([^)]*)\).*/;
+
+                            const match = message.trim().match(regex);
+
+                            // @ts-ignore
+                            //console.log("Match",match[0],match[1],match[2]);
+
+                            if (match &&
+                                match.length === 3 &&
+                                match[1] &&
+                                (match[1] === "json"
+                                    || match[1] === "json!"
+                                    || match[1] === "csv"
+                                    || match[1] === "fn") &&
+                                match[2]) {
+                                try {
+                                    return {
+                                        prefix: match[1],
+                                        body: message.trim().slice(match[1].length),
+                                        options: match[2].length > 0 ? json5.parse(match[2]) : {}
+                                    };
+                                }catch (e){
+
+                                }
+                            }
+
+                            return {prefix:"chat", body:message, options:{}}; // Return null if the message does not match the expected format
+                        }
+
                         const controller = new AbortController();
                         try {
-                            const response = (existingResponse) ? existingResponse : await sendChatRequest(chatBody, plugin, controller.signal);
+
+                            const {prefix, body, options} = parseMessageType(message.content);
+                            let updated = {...message, content:body};
+                            chatBody.messages = [...chatBody.messages.slice(0, -1), updated];
+
+                            console.log(`Prompt:`, {prefix, options, message});
+
+                            const generateJsonLoose = ():Promise<Response> => {
+                                if(options.length === 0){
+                                    return sendJsonChatRequest(chatBody, plugin, controller.signal);
+                                }
+                                else {
+                                    return sendJsonChatRequestWithSchemaLoose(chatBody, options as JsonSchema, plugin, controller.signal)
+                                }
+                            }
+
+                            const invokers = {
+                                "fn":()=>sendFunctionChatRequest(chatBody, options.functions as CustomFunction[], options.call, plugin, controller.signal),
+                                "chat":()=>sendChatRequest(chatBody, plugin, controller.signal),
+                                "csv":()=>sendCSVChatRequest(chatBody, options as ColumnsSpec, plugin, controller.signal),
+                                "json":()=>generateJsonLoose(),
+                                "json!":()=>sendJsonChatRequestWithSchema(chatBody, options as JsonSchema, plugin, controller.signal)
+                            }
+
+                            const response = (existingResponse) ?
+                                existingResponse :
+                                await invokers[prefix]();
+                                //await sendCSVChatRequest(chatBody, {message:'string',reasoning:'string', keywords:'string'}, plugin, controller.signal);
+                                //await sendChatRequest(chatBody, plugin, controller.signal);
 
                             if (!response.ok) {
                                 homeDispatch({field: 'loading', value: false});

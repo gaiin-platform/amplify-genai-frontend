@@ -79,6 +79,9 @@ export interface JsonSchema {
   not?: JsonSchema;
 }
 
+export interface ChatResponseFormat {
+    type: string;
+}
 
 export interface ChatBody {
   model: OpenAIModel;
@@ -88,6 +91,7 @@ export interface ChatBody {
   temperature: number;
   functions?: CustomFunction[];
   function_call?: string;
+  response_format?: ChatResponseFormat;
 }
 
 export interface Conversation {

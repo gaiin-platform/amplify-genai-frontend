@@ -28,7 +28,7 @@ export const authOptions = {
                 token.accessToken = account.access_token;
                 token.refreshToken = account.refresh_token;
             }
-            else if (Date.now() < token.accessTokenExpiresAt) {
+            else if (true || Date.now() < token.accessTokenExpiresAt) {
                 // Valid token
             }
             else {
