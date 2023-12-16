@@ -1,14 +1,13 @@
-import {ChatBody, Conversation, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
+import {CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {sendChatRequest} from "@/services/chatService";
-import {findWorkflowPattern, generateWorkflowPrompt, describeTools} from "@/utils/workflow/aiflow";
+import {findWorkflowPattern, generateWorkflowPrompt} from "@/utils/workflow/aiflow";
 import {OpenAIModelID, OpenAIModels} from "@/types/openai";
-import {InputDocument, Status, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
-import {describeAsJsonSchema, extractFirstCodeBlock, extractSection} from "@/utils/app/data";
+import {Status, WorkflowContext} from "@/types/workflow";
+import {extractFirstCodeBlock, extractSection} from "@/utils/app/data";
 import {parameterizeTools as coreTools} from "@/utils/app/tools";
 import {AttachedDocument} from "@/types/attacheddocument";
-import {parseVariableName} from "@/components/Chat/VariableModal";
 import {Prompt} from "@/types/prompt";
-import { fillInTemplate } from "@/utils/app/prompts";
+import {fillInTemplate} from "@/utils/app/prompts";
 
 interface AiTool {
     description: string,
@@ -487,7 +486,7 @@ const promptLLMFull = async (apiKey:string, stopper:Stopper, persona: string, pr
         } else if (model === OpenAIModelID.GPT_4) {
             model = OpenAIModelID.GPT_4_FN;
         } else if (!model) {
-            model = process.env.NEXT_PUBLIC_DEFAULT_FUNCTION_CALL_MODEL as OpenAIModelID;
+            model = OpenAIModelID.GPT_4_TURBO_AZ
         }
     }
 
@@ -621,7 +620,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         function_call?: string) => {
 
         if(functions && !model){
-            model = process.env.NEXT_PUBLIC_DEFAULT_FUNCTION_CALL_MODEL as OpenAIModelID;
+            model = OpenAIModelID.GPT_4_TURBO_AZ;
         }
 
 

@@ -360,7 +360,7 @@ const promptLLMForJson = async (promptLLMFull: (persona: string, prompt: string,
                                 model?: OpenAIModelID) => {
     const prompt = instructions;
 
-    model = model || process.env.NEXT_PUBLIC_DEFAULT_FUNCTION_CALL_MODEL as OpenAIModelID;
+    model = model || OpenAIModelID.GPT_4_TURBO_AZ;
 
     const systemPrompt = ""; //"You are ChatGPT, a large language model trained by OpenAI. " +
     // "Follow the user's instructions carefully. " +
