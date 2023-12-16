@@ -8,9 +8,7 @@ import {createExport, exportData} from "@/utils/app/importExport";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {getCategories, getCategory, publish} from "@/services/marketService";
-import {MarketCategory} from "@/types/market";
 import {v4} from "uuid";
-import useStatsService from "@/services/eventService";
 import {useSession} from "next-auth/react";
 
 export interface SharingModalProps {
@@ -53,12 +51,11 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
         selectedFolders = []
     }) => {
     const {
-        state: {prompts, conversations, folders},
+        state: {prompts, conversations, folders, statsService},
     } = useContext(HomeContext);
 
     const { data: session } = useSession();
     const user = session?.user;
-    const statsService = useStatsService();
 
     // Individual states for selected prompts, conversations, and folders
     const [isPublishing, setIsPublishing] = useState(false);

@@ -9,7 +9,6 @@ import { getSettings, saveSettings } from '@/utils/app/settings';
 import { Settings } from '@/types/settings';
 
 import HomeContext from '@/pages/api/home/home.context';
-import useStatsService from "@/services/eventService";
 
 interface Props {
   open: boolean;
@@ -22,10 +21,8 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
   const { state, dispatch } = useCreateReducer<Settings>({
     initialState: settings,
   });
-  const { dispatch: homeDispatch } = useContext(HomeContext);
+  const { dispatch: homeDispatch, state:{statsService} } = useContext(HomeContext);
   const modalRef = useRef<HTMLDivElement>(null);
-
-  const statsService = useStatsService();
 
 
   useEffect(() => {

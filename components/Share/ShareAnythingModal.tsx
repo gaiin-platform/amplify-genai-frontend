@@ -8,7 +8,6 @@ import {createExport, exportData} from "@/utils/app/importExport";
 import {shareItems} from "@/services/shareService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
-import useStatsService from "@/services/eventService";
 import {useSession} from "next-auth/react";
 
 export interface SharingModalProps {
@@ -51,12 +50,11 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
         selectedFolders = []
     }) => {
     const {
-        state: {prompts, conversations, folders},
+        state: {prompts, conversations, folders, statsService},
     } = useContext(HomeContext);
 
     const { data: session } = useSession();
     const user = session?.user;
-    const statsService = useStatsService();
 
     // Individual states for selected prompts, conversations, and folders
     const [isSharing, setIsSharing] = useState(false);

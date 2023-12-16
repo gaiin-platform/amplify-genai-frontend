@@ -1,29 +1,19 @@
 import React, {FC, useContext, useEffect, useState} from 'react';
 import {ExportFormatV4, ShareItem} from "@/types/export";
 import {
-    IconCaretDown,
-    IconCaretRight,
-    IconCheck,
-    IconPencil,
-    IconTrash,
     IconCloudComputing,
     IconRocket,
-    IconShare,
-    IconX, IconPlus,
 } from '@tabler/icons-react';
-import {getSharedItems, loadSharedItem} from "@/services/shareService";
+import {getSharedItems} from "@/services/shareService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
-import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
-import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
 import {SaveWorkspaceModal} from "@/components/Workspace/SaveWorkspaceModal";
 import {ImportWorkspaceModal} from "@/components/Workspace/ImportWorkspaceModal";
 import HomeContext from "@/pages/api/home/home.context";
 import {saveWorkspaceMetadata} from "@/utils/app/settings";
 import {Workspace} from "@/types/workspace";
 import {v4} from "uuid";
-import useStatsService from "@/services/eventService";
 import {useSession} from "next-auth/react";
 
 type SharedItemsListProps = {};
@@ -62,12 +52,11 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
     const user = session?.user;
 
     const {
-        state: {workspaceMetadata, workspaceDirty},
+        state: {workspaceMetadata, workspaceDirty, statsService},
         dispatch: homeDispatch,
         clearWorkspace
     } = useContext(HomeContext);
 
-    const statsService = useStatsService();
 
     const fetchData = async () => {
         try {

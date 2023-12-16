@@ -59,7 +59,6 @@ import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import { sendChat as assistantChat } from "@/services/assistantService";
 import {DownloadModal} from "@/components/Download/DownloadModal";
-import useStatsService from "@/services/eventService";
 import {ColumnsSpec} from "@/utils/app/csv";
 import json5 from "json5";
 
@@ -69,11 +68,6 @@ interface Props {
 
 export const Chat = memo(({stopConversationRef}: Props) => {
         const {t} = useTranslation('chat');
-
-        const statsService = useStatsService();
-        const { runPromptEvent,
-            sendChatRewriteEvent,
-            customLinkClickEvent } = statsService;
 
         const {
             state: {
@@ -91,7 +85,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 prompts,
                 defaultModelId,
                 featureFlags,
-                workspaceMetadata
+                workspaceMetadata,
+                statsService,
             },
             handleUpdateConversation,
             handleCustomLinkClick,
@@ -263,7 +258,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     temperature: selectedConversation.temperature,
                 };
 
-                sendChatRewriteEvent(chatBody, updateIndex);
+                statsService.sendChatRewriteEvent(chatBody, updateIndex);
 
                 const controller = new AbortController();
 
@@ -675,7 +670,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         function runPrompt(prompt: Prompt) {
 
-            runPromptEvent(prompt);
+            statsService.runPromptEvent(prompt);
 
             const variables = parseEditableVariables(prompt.content);
 
@@ -692,7 +687,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             // This should all be refactored into a separate module at some point
             // ...should really be looking up the handler by category/action and passing
 
-            customLinkClickEvent(message, href);
+            statsService.customLinkClickEvent(message, href);
 
             // it some sort of context
             if (selectedConversation) {

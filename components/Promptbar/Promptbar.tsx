@@ -23,7 +23,6 @@ import {MessageType} from "@/types/chat";
 import {PromptModal} from "@/components/Promptbar/components/PromptModal";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {FolderInterface} from "@/types/folder";
-import useStatsService from "@/services/eventService";
 
 const Promptbar = () => {
   const { t } = useTranslation('promptbar');
@@ -36,10 +35,8 @@ const Promptbar = () => {
   const [sharedPrompts, setSharedPrompts] = useState<Prompt[]>([])
   const [sharedFolders, setSharedFolders] = useState<FolderInterface[]>([])
 
-  const statsService = useStatsService();
-
   const {
-    state: { prompts, defaultModelId, showPromptbar },
+    state: { prompts, defaultModelId, showPromptbar, statsService },
     dispatch: homeDispatch,
     handleCreateFolder,
   } = useContext(HomeContext);

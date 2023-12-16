@@ -26,7 +26,7 @@ import { ChatbarInitialState, initialState } from './Chatbar.state';
 
 import { v4 as uuidv4 } from 'uuid';
 import {FolderInterface} from "@/types/folder";
-import useStatsService from "@/services/eventService";
+
 
 export const Chatbar = () => {
   const { t } = useTranslation('sidebar');
@@ -36,14 +36,12 @@ export const Chatbar = () => {
   });
 
   const {
-    state: { conversations, showChatbar, defaultModelId, folders, pluginKeys },
+    state: { conversations, showChatbar, defaultModelId, folders, pluginKeys, statsService},
     dispatch: homeDispatch,
     handleCreateFolder,
     handleNewConversation,
     handleUpdateConversation,
   } = useContext(HomeContext);
-
-  const statsService = useStatsService();
 
   const {
     state: { searchTerm, filteredConversations },

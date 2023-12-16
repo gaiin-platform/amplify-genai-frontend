@@ -1,14 +1,11 @@
 import {
-    IconBulbFilled,
     IconEdit,
     IconCopy,
     IconCheck,
     IconApiApp,
     IconMessage2,
-    IconMessageChatbot,
     IconTrash,
     IconX,
-    IconDots,
     IconRobot,
     IconShare,
 } from '@tabler/icons-react';
@@ -29,20 +26,10 @@ import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import PromptbarContext from '../PromptBar.context';
 import {PromptModal} from './PromptModal';
 import {ShareModal} from './ShareModal';
-import {useChatService} from '@/hooks/useChatService';
-import {shareItems} from "@/services/shareService";
 import {v4 as uuidv4} from "uuid";
 import {
-    fillInTemplate,
     handleStartConversationWithPrompt,
-    parsePromptVariables,
-    VariableFillOptions
 } from "@/utils/app/prompts";
-import {AttachedDocument} from "@/types/attacheddocument";
-import saveState from "@/services/stateService";
-import { createExport } from "@/utils/app/importExport";
-import {MessageType} from "@/types/chat";
-import useStatsService from "@/services/eventService";
 import {useSession} from "next-auth/react";
 
 interface Props {
@@ -58,10 +45,8 @@ export const PromptComponent = ({prompt}: Props) => {
         handleSharePrompt,
     } = useContext(PromptbarContext);
 
-    const { startConversationEvent } = useStatsService();
-
     const {
-        state: {prompts, defaultModelId, showPromptbar, apiKey},
+        state: {prompts, defaultModelId, showPromptbar, apiKey, statsService},
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -121,7 +106,7 @@ export const PromptComponent = ({prompt}: Props) => {
     const handleStartConversation = (startPrompt: Prompt) => {
 
 
-        startConversationEvent(startPrompt);
+        statsService.startConversationEvent(startPrompt);
         handleStartConversationWithPrompt(handleNewConversation, prompts, startPrompt);
 
         // let prompt = startPrompt;

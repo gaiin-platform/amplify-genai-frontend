@@ -3,18 +3,16 @@ import { incrementalJSONtoCSV } from "@/utils/app/incrementalCsvParser";
 import { useContext } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
 import {sendChatRequest as send} from '../services/chatService';
-import useStatsService from "@/services/eventService";
 import {ChatBody, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
 import { Plugin } from '@/types/plugin';
 import { wrapResponse, stringChunkCallback } from "@/utils/app/responseWrapper";
 
 export function useChatService() {
-    const { state: { apiKey },
+    const { state: { apiKey , statsService},
         preProcessingCallbacks,
         postProcessingCallbacks, } = useContext(HomeContext);
 
-    const statsService = useStatsService();
 
     const sendCSVChatRequest = async (chatBody:ChatBody, columns:ColumnsSpec, plugin?:Plugin|null, abortSignal?:AbortSignal) => {
         const schema = generateCSVSchema(columns);

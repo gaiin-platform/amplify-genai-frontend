@@ -10,7 +10,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { addFile } from "@/services/fileService";
 import HomeContext from "@/pages/api/home/home.context";
-import useStatsService from "@/services/eventService";
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;
@@ -249,12 +248,11 @@ const handleFile = async (file:any,
 export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetKey , onSetAbortController, allowedFileExtensions, disallowedFileExtensions}) => {
     const { t } = useTranslation('sidebar');
 
-    const {state: { featureFlags } } = useContext(HomeContext);
+    const {state: { featureFlags, statsService } } = useContext(HomeContext);
 
     const uploadDocuments = featureFlags.uploadDocuments
     const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
 
-    const statsService = useStatsService();
 
     return (
         <>

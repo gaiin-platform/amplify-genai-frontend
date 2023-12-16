@@ -21,7 +21,6 @@ import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
 import HomeContext from "@/pages/api/home/home.context";
 import {ShareAnythingToMarketModal} from "@/components/Share/ShareAnythingToMarketModal";
-import useStatsService from "@/services/eventService";
 import {useSession} from "next-auth/react";
 
 type SharedItemsListProps = {};
@@ -50,8 +49,7 @@ const LoadingIcon = styled(FiCommand)`
 
 const SharedItemsList: FC<SharedItemsListProps> = () => {
 
-    const {dispatch: homeDispatch} = useContext(HomeContext);
-    const statsService = useStatsService();
+    const {dispatch: homeDispatch, state:{statsService}} = useContext(HomeContext);
 
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
     const [isMarketModalOpen, setIsMarketModalOpen] = useState<boolean>(false);

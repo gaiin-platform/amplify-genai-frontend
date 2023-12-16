@@ -38,11 +38,19 @@ import {Chat} from '@/components/Chat/Chat';
 import {Chatbar} from '@/components/Chatbar/Chatbar';
 import {Navbar} from '@/components/Mobile/Navbar';
 import Promptbar from '@/components/Promptbar';
-import {Icon3dCubeSphere, IconTournament, IconShare, IconApiApp, IconMessage, IconSettings, IconBook2} from "@tabler/icons-react";
+import {
+    Icon3dCubeSphere,
+    IconTournament,
+    IconShare,
+    IconApiApp,
+    IconMessage,
+    IconSettings,
+    IconBook2
+} from "@tabler/icons-react";
 import {IconUser, IconLogout} from "@tabler/icons-react";
 import HomeContext, {ClickContext, Processor} from './home.context';
 import {HomeInitialState, initialState} from './home.state';
-
+import useEventService from "@/hooks/useEventService";
 import {v4 as uuidv4} from 'uuid';
 
 
@@ -55,13 +63,13 @@ import {saveFeatures} from "@/utils/app/features";
 import {findParametersInWorkflowCode} from "@/utils/workflow/workflow";
 import WorkspaceList from "@/components/Workspace/WorkspaceList";
 import {Market} from "@/components/Market/Market";
-import useStatsService from "@/services/eventService";
 import {getBasePrompts} from "@/services/basePromptsService";
 import {LatestExportFormat} from "@/types/export";
 import {importData} from "@/utils/app/importExport";
 import {useSession, signIn, signOut, getSession} from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import {useHomeReducer} from "@/hooks/useHomeReducer";
+import stateService from "@/services/stateService";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -73,6 +81,9 @@ interface Props {
     serverSideApiKeyIsSet: boolean;
     serverSidePluginKeysSet: boolean;
     defaultModelId: OpenAIModelID;
+    cognitoClientId: string|null;
+    cognitoDomain: string|null;
+    mixPanelToken: string;
 }
 
 
@@ -80,24 +91,24 @@ const Home = ({
                   serverSideApiKeyIsSet,
                   serverSidePluginKeysSet,
                   defaultModelId,
+                  cognitoClientId,
+                  cognitoDomain,
+                  mixPanelToken,
               }: Props) => {
     const {t} = useTranslation('chat');
     const {getModels} = useApiService();
     const {getModelsError} = useErrorService();
     const [initialRender, setInitialRender] = useState<boolean>(true);
 
-    const { data: session, status } = useSession();
+    const {data: session, status} = useSession();
     //const {user, error: userError, isLoading} = useUser();
     const user = session?.user;
     const isLoading = status === "loading";
     const userError = null;
 
     const contextValue = useHomeReducer({
-        initialState,
+        initialState:{...initialState, statsService: useEventService(mixPanelToken)},
     });
-
-
-    const statsService = useStatsService();
 
     const {
         state: {
@@ -112,6 +123,7 @@ const Home = ({
             prompts,
             temperature,
             page,
+            statsService
         },
         dispatch,
     } = contextValue;
@@ -137,52 +149,48 @@ const Home = ({
     useEffect(() => {
         const secureSession = async () => {
             const session = await getSession();
-            console.log(session); // Inspect the session object in the console
         };
 
         secureSession();
     }, []);
 
-
     useEffect(() => {
         const fetchPrompts = async () => {
             const basePrompts = await getBasePrompts();
-            if(basePrompts.success) {
+            if (basePrompts.success) {
                 const {history, folders, prompts}: LatestExportFormat = importData(basePrompts.data);
-
-                console.log("Imported base prompts, conversations, and folders: ", prompts, history, folders);
 
                 dispatch({field: 'conversations', value: history});
                 dispatch({field: 'folders', value: folders});
                 dispatch({field: 'prompts', value: prompts});
-            }
-            else {
+
+            } else {
                 console.log("Failed to import base prompts.");
             }
         }
 
-        fetchPrompts();
-    },[]);
+        if(session?.user) {
+            fetchPrompts();
+        }
+    }, [session]);
 
     // This is where tabs will be sync'd
     useEffect(() => {
         const handleStorageChange = (event: any) => {
-           // if(event.key === "selectedConversation") {
-           //     const conversation = JSON.parse(event.newValue);
-           //     dispatch({field: 'selectedConversation', value: conversation});
-           // }
-           if(event.key === "conversationHistory") {
-               const conversations = JSON.parse(event.newValue);
-               dispatch({field: 'conversations', value: conversations});
-           }
-           else if(event.key === "folders") {
-               const folders = JSON.parse(event.newValue);
-               dispatch({field: 'folders', value: folders});
-           }
-           else if(event.key === "prompts") {
-               const prompts = JSON.parse(event.newValue);
-               dispatch({field: 'prompts', value: prompts});
-           }
+            // if(event.key === "selectedConversation") {
+            //     const conversation = JSON.parse(event.newValue);
+            //     dispatch({field: 'selectedConversation', value: conversation});
+            // }
+            if (event.key === "conversationHistory") {
+                const conversations = JSON.parse(event.newValue);
+                dispatch({field: 'conversations', value: conversations});
+            } else if (event.key === "folders") {
+                const folders = JSON.parse(event.newValue);
+                dispatch({field: 'folders', value: folders});
+            } else if (event.key === "prompts") {
+                const prompts = JSON.parse(event.newValue);
+                dispatch({field: 'prompts', value: prompts});
+            }
             // Not syncing selectedConversation because it allows different conversations in different tabs
             // else if(event.key === "selectedConversation") {
             //     const conversation = JSON.parse(event.newValue);
@@ -197,7 +205,6 @@ const Home = ({
             window.removeEventListener('storage', handleStorageChange);
         };
     }, []);
-
 
 
     useEffect(() => {
@@ -336,7 +343,7 @@ const Home = ({
 
         console.log("handleNewConversation", {date, folder});
 
-        if(!folder){
+        if (!folder) {
             folder = handleCreateFolder(date, "chat");
         }
 
@@ -357,7 +364,7 @@ const Home = ({
             ...params
         };
 
-        statsService.createConversationEvent(newConversation);
+        statsService.newConversationEvent();
 
         const updatedConversations = [...conversations, newConversation];
 
@@ -371,7 +378,7 @@ const Home = ({
         dispatch({field: 'loading', value: false});
     };
 
-    const handleCustomLinkClick = (conversation: Conversation, href:string, context:ClickContext) => {
+    const handleCustomLinkClick = (conversation: Conversation, href: string, context: ClickContext) => {
 
         try {
 
@@ -403,7 +410,11 @@ const Home = ({
                     let result = conversation.messages.filter(workflowFilter(workflowId, "workflow:result")).pop();
 
                     console.log("Workflow Result", result);
-                    console.log("Workflow", {code: result?.data.workflowCode, prompt: prompt, inputs:result?.data.inputs});
+                    console.log("Workflow", {
+                        code: result?.data.workflowCode,
+                        prompt: prompt,
+                        inputs: result?.data.inputs
+                    });
 
                     if (prompt && result && result?.data.workflowCode) {
                         let workflowDefinition: WorkflowDefinition = {
@@ -425,7 +436,7 @@ const Home = ({
                         const formattedString =
                             `${documentStrings}${parameterStrings}${prompt.content}`;
 
-                        let promptTemplate:Prompt = {
+                        let promptTemplate: Prompt = {
                             content: formattedString,
                             data: {
                                 code: result?.data.workflowCode
@@ -439,7 +450,7 @@ const Home = ({
 
                         const updatedPrompts = [...prompts, promptTemplate];
 
-                        dispatch({ field: 'prompts', value: updatedPrompts });
+                        dispatch({field: 'prompts', value: updatedPrompts});
 
                         savePrompts(updatedPrompts);
 
@@ -455,8 +466,7 @@ const Home = ({
                     } else {
                         console.log("Workflow not saved, missing code or prompt.");
                     }
-                }
-                else if (category === "workflow" && action === "save-workflow" && context.message && context.conversation) {
+                } else if (category === "workflow" && action === "save-workflow" && context.message && context.conversation) {
 
                     let code = findWorkflowPattern(context.message.content);
                     let codeMessageIndex = context.conversation.messages.indexOf(context.message);
@@ -464,7 +474,7 @@ const Home = ({
                     console.log("Workflow Code", code);
                     console.log("Workflow Message Index", codeMessageIndex);
 
-                    if(codeMessageIndex > 0) {
+                    if (codeMessageIndex > 0) {
                         let msgBefore = context.conversation.messages[codeMessageIndex - 1];
                         let prompt = msgBefore.content;
 
@@ -539,9 +549,9 @@ const Home = ({
             console.log("Error handling custom link", e);
         }
 
-    //let msgs = conversation.messages.filter(workflowFilter())
+        //let msgs = conversation.messages.filter(workflowFilter())
 
-    //console.log("Workflow msgs:", msgs);
+        //console.log("Workflow msgs:", msgs);
     }
 
     const handleUpdateConversation = (
@@ -585,12 +595,12 @@ const Home = ({
     }
 
     useEffect(() => {
-        if(!messageIsStreaming &&
+        if (!messageIsStreaming &&
             conversationStateId !== "init" &&
             conversationStateId !== "post-init"
         ) {
-            console.log("Sync conversations to disk", conversations);
-            if(selectedConversation) {
+
+            if (selectedConversation) {
                 saveConversationDirect(selectedConversation);
             }
             saveConversationsDirect(conversations);
@@ -682,7 +692,7 @@ const Home = ({
         const apiKey = localStorage.getItem('apiKey');
 
         const workspaceMetadataStr = localStorage.getItem('workspaceMetadata');
-        if(workspaceMetadataStr){
+        if (workspaceMetadataStr) {
             dispatch({field: 'workspaceMetadata', value: JSON.parse(workspaceMetadataStr)});
         }
 
@@ -785,26 +795,24 @@ const Home = ({
     const [preProcessingCallbacks, setPreProcessingCallbacks] = useState([]);
     const [postProcessingCallbacks, setPostProcessingCallbacks] = useState([]);
 
-
     const federatedSignOut = async () => {
+
         await signOut();
         // signOut only signs out of Auth.js's session
         // We need to log out of Cognito as well
         // Federated signout is currently not supported.
         // Therefore, we use a workaround: https://github.com/nextauthjs/next-auth/issues/836#issuecomment-1007630849
         const signoutRedirectUrl = `${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ''}/api/auth/callback/cognito`;
-        const cognitoClientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
-        const congitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
 
         window.location.replace(
             //`https://cognito-idp.us-east-1.amazonaws.com/us-east-1_aeCY16Uey/logout?client_id=${cognitoClientId}&redirect_uri=${encodeURIComponent(signoutRedirectUrl)}`
-            `${congitoDomain}/logout?client_id=${cognitoClientId}&response_type=code&redirect_uri=${encodeURIComponent(signoutRedirectUrl)}`
+            `${cognitoDomain}/logout?client_id=${cognitoClientId}&response_type=code&redirect_uri=${encodeURIComponent(signoutRedirectUrl)}`
             //`https://cognito-idp.us-east-1.amazonaws.com/us-east-1_aeCY16Uey/logout?client_id=${cognitoClientId}&logout_uri=http%3A%2F%2Flocalhost%3A3000`
         );
     };
 
-    const getName = (email?: string|null) => {
-        if(!email) return "Anonymous";
+    const getName = (email?: string | null) => {
+        if (!email) return "Anonymous";
 
         const name = email.split("@")[0];
 
@@ -931,8 +939,7 @@ const Home = ({
 
             </HomeContext.Provider>
         );
-    }
-    else if (isLoading) {
+    } else if (isLoading) {
         return (
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
@@ -947,8 +954,7 @@ const Home = ({
                     {/*<progress className="w-64"/>*/}
                 </div>
             </main>);
-    }
-    else {
+    } else {
         return (
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
@@ -990,6 +996,12 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
             process.env.DEFAULT_MODEL) ||
         fallbackModelID;
 
+
+    const mixPanelToken = process.env.MIXPANEL_TOKEN;
+    const cognitoClientId = process.env.COGNITO_CLIENT_ID;
+    const cognitoDomain = process.env.COGNITO_DOMAIN;
+    const defaultFunctionCallModel = process.env.DEFAULT_FUNCTION_CALL_MODEL;
+
     //console.log("Default Model Id:", defaultModelId);
 
     let serverSidePluginKeysSet = false;
@@ -1006,6 +1018,10 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
             serverSideApiKeyIsSet: !!process.env.OPENAI_API_KEY,
             defaultModelId,
             serverSidePluginKeysSet,
+            mixPanelToken,
+            cognitoClientId,
+            cognitoDomain,
+            defaultFunctionCallModel,
             ...(await serverSideTranslations(locale ?? 'en', [
                 'common',
                 'chat',

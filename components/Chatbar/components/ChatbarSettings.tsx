@@ -11,11 +11,7 @@ import { Import } from '../../Settings/Import';
 import { Key } from '../../Settings/Key';
 import { SidebarButton } from '../../Sidebar/SidebarButton';
 import ChatbarContext from '../Chatbar.context';
-import { ClearConversations } from './ClearConversations';
-import { PluginKeys } from './PluginKeys';
-import { ImportFromUrl } from "@/components/Settings/ImportFromUrl";
-import { ShareAnythingModal } from "@/components/Share/ShareAnythingModal";
-import useStatsService from "@/services/eventService";
+
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');

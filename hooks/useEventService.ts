@@ -1,23 +1,30 @@
 import {Prompt} from "@/types/prompt";
 import mixpanel from 'mixpanel-browser';
-import {MIXPANEL_TOKEN} from "@/utils/app/const";
 import {MarketItem} from "@/types/market";
 import {ChatBody, Conversation, Message} from "@/types/chat";
 import {ExportFormatV4} from "@/types/export";
 import {ConversionOptions} from "@/services/downloadService";
-import {useSession} from "next-auth/react";
 import {getType, parsePromptVariables} from "@/utils/app/prompts";
+import {useSession} from "next-auth/react";
 
-try {
-    mixpanel.init(MIXPANEL_TOKEN, {debug: true, track_pageview: true, persistence: 'localStorage'});
-} catch (e) {
-    console.error("Error initializing mixpanel", e);
-}
+let eventServiceReady = false;
 
-const useStatsService = () => {
+const useEventService = (mixPanelToken:string) => {
 
     const {data: session} = useSession();
+
     const user = session?.user;
+
+    if(!eventServiceReady && mixPanelToken && user?.email) {
+        try {
+            mixpanel.init(mixPanelToken, {debug: false, track_pageview: true, persistence: 'localStorage'});
+            mixpanel.identify(user.email);
+            eventServiceReady = true;
+        } catch (e) {
+            console.error("Error initializing mixpanel", e);
+        }
+    }
+
 
     function camelToSentenceCase(input: string): string {
         const result = input.replace(/([A-Z])/g, " $1");
@@ -49,29 +56,20 @@ const useStatsService = () => {
     const promptStats = (prompt: Prompt) => {
 
         let varCount = 0;
-        let varTypes:string[] = [];
+        let varTypes: string[] = [];
         try {
             const pvars = parsePromptVariables(prompt.content);
             varCount = pvars.length;
 
             varTypes = pvars.map(p => getType(p));
+        } catch (e) {
         }
-        catch (e){}
 
         return {
             "Prompt Variable Types": varTypes,
             "Prompt Variable Count": varCount,
-            "Prompt Size": prompt.content.length,
+            "Prompt Size": prompt.content ? prompt.content.length : 0,
         };
-    }
-
-    if (user?.email) {
-        // @ts-ignore
-        try{
-            mixpanel.identify(user.email);
-        }catch (e){
-            console.error("Error identifying user", e);
-        }
     }
 
     const getExportData = (sharedData: ExportFormatV4) => {
@@ -89,9 +87,17 @@ const useStatsService = () => {
         };
     }
 
+    const ifReady = (fn: any) => {
+        return async (...args: any[]) => {
+            if (eventServiceReady) {
+                fn(...args);
+            }
+        }
+    }
+
     return {
 
-        marketItemPublishEvent: async (publishingName: string,
+        marketItemPublishEvent: ifReady( (publishingName: string,
                                        publishedDescription: string,
                                        selectedCategory: string,
                                        selectedTags: string[],
@@ -107,8 +113,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        downloadItemEvent: async (conversionOptions: ConversionOptions, sharedData: ExportFormatV4) => {
+        }),
+        downloadItemEvent: ifReady( (conversionOptions: ConversionOptions, sharedData: ExportFormatV4) => {
             try {
                 mixpanel.track('Export Downloaded', {
                     ...toEventData("Item", getExportData(sharedData)),
@@ -117,8 +123,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        sharedItemEvent: async (sharedBy: string, sharedWith: string[], sharingNote: string, sharedData: ExportFormatV4) => {
+        }),
+        sharedItemEvent: ifReady( (sharedBy: string, sharedWith: string[], sharingNote: string, sharedData: ExportFormatV4) => {
             try {
                 mixpanel.track('Item Shared', {
                     ...toEventData("Item", getExportData(sharedData)),
@@ -129,8 +135,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        sharedItemAcceptedEvent: async (sharedBy: string, sharingNote: string, sharedData: ExportFormatV4) => {
+        }),
+        sharedItemAcceptedEvent: ifReady( (sharedBy: string, sharingNote: string, sharedData: ExportFormatV4) => {
             try {
                 mixpanel.track('Shared Item Imported', {
                     ...toEventData("Item", getExportData(sharedData)),
@@ -140,16 +146,16 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        setThemeEvent: async (theme: string) => {
+        }),
+        setThemeEvent: ifReady( (theme: string) => {
             try {
                 mixpanel.track('Theme Set',
                     {...toEventData("Theme", {name: theme})});
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        attachFileEvent: async (file: File, maxFileSizeEnforced: boolean, uploadDocuments: boolean) => {
+        }),
+        attachFileEvent: ifReady( (file: File, maxFileSizeEnforced: boolean, uploadDocuments: boolean) => {
             try {
                 const data = {
                     name: file.name,
@@ -163,24 +169,24 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        searchConversationsEvent: async (searchTerm: string) => {
+        }),
+        searchConversationsEvent: ifReady( (searchTerm: string) => {
             try {
                 mixpanel.track('Conversations Searched',
                     {})
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        searchPromptsEvent: async (searchTerm: string) => {
+        }),
+        searchPromptsEvent: ifReady( (searchTerm: string) => {
             try {
                 mixpanel.track('Prompts Searched',
                     {})
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        tryMarketItemEvent: async (item: MarketItem) => {
+        }),
+        tryMarketItemEvent: ifReady( (item: MarketItem) => {
             try {
                 mixpanel.track('Market Item Tried', {
                     ...toEventData("Market Item", item,
@@ -190,8 +196,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        installMarketItemEvent: async (item: MarketItem) => {
+        }),
+        installMarketItemEvent: ifReady( (item: MarketItem) => {
             try {
                 mixpanel.track('Market Item Installed', {
                     ...toEventData("Market Item", item,
@@ -201,8 +207,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        viewMarketItemEvent: async (item: MarketItem) => {
+        }),
+        viewMarketItemEvent: ifReady( (item: MarketItem) => {
             try {
                 mixpanel.track('Market Item View', {
                     ...toEventData("Market Item", item,
@@ -212,43 +218,50 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        openMarketEvent: async () => {
+        }),
+        openMarketEvent: ifReady( () => {
             try {
                 mixpanel.track('Market Opened', {});
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        openSharedItemsEvent: async () => {
+        }),
+        openSharedItemsEvent: ifReady( () => {
             try {
                 mixpanel.track('Shared Items Opened', {});
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        openSettingsEvent: async () => {
+        }),
+        openSettingsEvent: ifReady( () => {
             try {
                 mixpanel.track('Settings Opened', {});
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        openWorkspacesEvent: async () => {
+        }),
+        openWorkspacesEvent: ifReady( () => {
             try {
                 mixpanel.track('Workspaces Opened', {});
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        openConversationsEvent: async () => {
+        }),
+        openConversationsEvent: ifReady( () => {
             try {
                 mixpanel.track('Conversations Opened', {});
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        startConversationEvent: async (prompt: Prompt) => {
+        }),
+        newConversationEvent: ifReady( () => {
+            try {
+                mixpanel.track('Conversation Started', {});
+            } catch (e) {
+                console.error("Error tracking conversation started", e);
+            }
+        }),
+        startConversationEvent: ifReady( (prompt: Prompt) => {
             try {
                 mixpanel.track('Conversation with Prompt Started', {
                     ...promptStats(prompt)
@@ -256,8 +269,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        deleteConversationEvent: async (conversation: Conversation) => {
+        }),
+        deleteConversationEvent: ifReady( (conversation: Conversation) => {
             try {
                 const data = {
                     messageCount: conversation.messages.length,
@@ -271,8 +284,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        createConversationEvent: async (conversation: Conversation) => {
+        }),
+        createConversationEvent: ifReady( (conversation: Conversation) => {
             try {
                 const data = {
                     messageCount: conversation.messages.length,
@@ -287,8 +300,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        sendChatEvent: async (chatBody: ChatBody) => {
+        }),
+        sendChatEvent: ifReady( (chatBody: ChatBody) => {
             try {
                 const data = {
                     messageCount: chatBody.messages.length,
@@ -302,8 +315,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        sendChatRewriteEvent: async (chatBody: ChatBody, updateIndex: number) => {
+        }),
+        sendChatRewriteEvent: ifReady( (chatBody: ChatBody, updateIndex: number) => {
             try {
                 const data = {
                     messageCount: chatBody.messages.length,
@@ -318,8 +331,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        runPromptEvent: async (prompt: Prompt) => {
+        }),
+        runPromptEvent: ifReady( (prompt: Prompt) => {
             try {
                 mixpanel.track('Prompt Run', {
                     ...promptStats(prompt),
@@ -327,8 +340,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        customLinkClickEvent: async (message: Message, href: string) => {
+        }),
+        customLinkClickEvent: ifReady( (message: Message, href: string) => {
             try {
                 mixpanel.track('Custom Link Click', {
                     ...toEventData("Message",
@@ -338,8 +351,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        createPromptEvent: async (prompt: Prompt) => {
+        }),
+        createPromptEvent: ifReady( (prompt: Prompt) => {
             try {
                 mixpanel.track('Prompt Created', {
                     ...promptStats(prompt),
@@ -347,8 +360,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        editPromptStartedEvent: async (prompt: Prompt) => {
+        }),
+        editPromptStartedEvent: ifReady( (prompt: Prompt) => {
             try {
                 mixpanel.track('Prompt Edit Started', {
                     ...promptStats(prompt),
@@ -356,8 +369,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        deletePromptEvent: async (prompt: Prompt) => {
+        }),
+        deletePromptEvent: ifReady( (prompt: Prompt) => {
             try {
                 mixpanel.track('Prompt Deleted', {
                     ...promptStats(prompt),
@@ -365,8 +378,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        editPromptCanceledEvent: async (prompt: Prompt) => {
+        }),
+        editPromptCanceledEvent: ifReady( (prompt: Prompt) => {
             try {
                 mixpanel.track('Prompt Edit Canceled', {
                     ...promptStats(prompt),
@@ -374,8 +387,8 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
-        editPromptCompletedEvent: async (prompt: Prompt) => {
+        }),
+        editPromptCompletedEvent: ifReady( (prompt: Prompt) => {
             try {
                 mixpanel.track('Prompt Edit Done', {
                     ...promptStats(prompt),
@@ -383,8 +396,9 @@ const useStatsService = () => {
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
             }
-        },
+        }),
     }
 }
 
-export default useStatsService;
+
+export default useEventService;

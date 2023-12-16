@@ -29,14 +29,7 @@ import {
 } from 'react';
 
 import HomeContext from '@/pages/api/home/home.context';
-
-import Spinner from '../Spinner';
-import {v4 as uuidv4} from 'uuid';
-import {AttachedDocument} from "@/types/attacheddocument";
-import {TagsList} from "@/components/Chat/TagsList";
-import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {MarketCategory, MarketItem, MarketItemType} from "@/types/market";
-import {ShareItem} from "@/types/export";
 import {deleteItem, getCategory, getItem, getItemExamples} from "@/services/marketService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
@@ -46,7 +39,6 @@ import {FolderInterface} from "@/types/folder";
 import {Prompt} from "@/types/prompt";
 import {ExampleChat} from "@/components/Market/components/ExampleChat";
 import {saveFolders} from "@/utils/app/folders";
-import useStatsService from "@/services/eventService";
 
 interface Props {
     items: MarketItem[];
@@ -105,13 +97,13 @@ export const Market = ({items}: Props) => {
             defaultModelId,
             featureFlags,
             workspaceMetadata,
+            statsService,
             featureFlags: {marketItemDelete},
         },
         handleNewConversation,
         dispatch: homeDispatch,
     } = useContext(HomeContext);
 
-    const statsService = useStatsService();
     const { startConversationEvent, tryMarketItemEvent } = statsService;
 
     const noOpImportFetcher: ImportFetcher = async () => {

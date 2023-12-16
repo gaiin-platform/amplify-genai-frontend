@@ -9,6 +9,7 @@ import { Status } from "@/types/workflow";
 import {Workspace} from "@/types/workspace";
 import { v4 as uuidv4 } from 'uuid';
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
+import {noOpStatsServices, StatsServices} from "@/types/stats";
 
 export interface HomeInitialState {
   conversationStateId: string;
@@ -40,6 +41,8 @@ export interface HomeInitialState {
   workspaceMetadata: Workspace;
   selectedAssistant: Assistant | null;
   page: string;
+  defaultFunctionCallModel: string | null;
+  statsService: StatsServices;
 }
 
 export const initialState: HomeInitialState = {
@@ -93,4 +96,6 @@ export const initialState: HomeInitialState = {
     followUpCreate:true,
     marketItemDelete:true,
   },
+  statsService: noOpStatsServices,
+  defaultFunctionCallModel: null,
 };
