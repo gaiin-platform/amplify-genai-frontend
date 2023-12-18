@@ -28,7 +28,7 @@ export const authOptions = {
                 token.accessToken = account.access_token;
                 token.refreshToken = account.refresh_token;
             }
-            else if (true || Date.now() < token.accessTokenExpiresAt) {
+            else if (Date.now() < token.accessTokenExpiresAt) {
                 // Valid token
             }
             else {
@@ -58,7 +58,7 @@ async function refreshAccessToken(token) {
             return token;
         }
 
-        const url = `${process.env.NEXT_PUBLIC_COGNITO_DOMAIN}/oauth2/token`
+        const url = `${process.env.COGNITO_DOMAIN}/oauth2/token`
 
         const response = await fetch(url, {
             method: 'POST',
