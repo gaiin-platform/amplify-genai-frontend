@@ -807,9 +807,15 @@ If people need help with prompt engineering, which is how you converse effective
                             <section className="bg-gray-50 dark:bg-gray-900">
                                 <div
                                     className="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 grid lg:grid-cols-2 gap-8 lg:gap-16">
-                                    <div className="flex flex-col justify-center">
-                                        <h1 ref={scrollRef}  className="mb-4 text-4xl font-extrabold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl dark:text-white text-center">
-                                            <IconRocket size={89}/>Generative AI Market</h1>
+                                    <div className="flex flex-col items-center">
+                                        <div className="mb-4 flex items-center justify-center text-4xl font-extrabold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl dark:text-white text-center">
+                                          <IconRocket size={89} />
+                                        </div>
+                                        <h1 ref={scrollRef} className="text-4xl font-extrabold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl dark:text-white text-center">
+                                          Generative AI Market
+                                        </h1>
+                                        <br />
+
                                         <p className="mb-6 text-lg font-normal text-gray-500 lg:text-xl dark:text-gray-400">
                                             Discover and share prompts, assistants, and automations with the community.
                                             Build
