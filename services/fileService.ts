@@ -61,7 +61,16 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({type:metadata.type, name:metadata.name}),
+        body: JSON.stringify({
+            data:{
+                actions:[],
+                type:metadata.type,
+                name:metadata.name,
+                knowledgeBase:"default",
+                tags:[],
+                data:{}
+            }
+        }),
         signal: abortSignal,
     });
 

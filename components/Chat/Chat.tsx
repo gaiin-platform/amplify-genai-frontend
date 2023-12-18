@@ -61,6 +61,7 @@ import { sendChat as assistantChat } from "@/services/assistantService";
 import {DownloadModal} from "@/components/Download/DownloadModal";
 import {ColumnsSpec} from "@/utils/app/csv";
 import json5 from "json5";
+import {MemoizedRemoteMessages} from "@/components/Chat/MemoizedRemoteMessages";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -1540,6 +1541,37 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
 
                                     {selectedConversation?.messages.map((message, index) => (
+                                          (message.type === MessageType.REMOTE) ?
+                                            <MemoizedRemoteMessages
+                                                key={index}
+                                                message={message}
+                                                messageIndex={index}
+                                                onChatRewrite={handleChatRewrite}
+                                                onSend={(message) => {
+                                                    setCurrentMessage(message[0]);
+                                                    //handleSend(message[0], 0, null);
+                                                    routeMessage(message[0], 0, null, []);
+                                                }}
+                                                onSendPrompt={runPrompt}
+                                                handleCustomLinkClick={onLinkClick}
+                                                onEdit={(editedMessage) => {
+                                                    console.log("Editing message", editedMessage);
+
+                                                    setCurrentMessage(editedMessage);
+                                                    // discard edited message and the ones that come after then resend
+                                                    // handleSend(
+                                                    //     editedMessage,
+                                                    //     selectedConversation?.messages.length - index,
+                                                    // );
+                                                    if (editedMessage.role != "assistant") {
+                                                        routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
+                                                    } else {
+                                                        console.log("updateMessage");
+                                                        updateMessage(selectedConversation, editedMessage, index);
+                                                    }
+                                                }}
+                                            />
+                                            :
                                         <MemoizedChatMessage
                                             key={index}
                                             message={message}
@@ -1569,7 +1601,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 }
                                             }}
                                         />
-                                    ))}
+                                      ))}
 
                                     {loading && <ChatLoader/>}
 

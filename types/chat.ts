@@ -16,6 +16,7 @@ export enum MessageType {
   AUTOMATION = 'automation',
   ROOT = 'root_prompt',
   FOLLOW_UP = 'follow_up',
+  REMOTE = 'remote',
 }
 
 export const newMessage = (data: any) => {

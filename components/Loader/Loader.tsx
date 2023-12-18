@@ -1,4 +1,5 @@
-import { useEffect, createElement } from 'react';
+import {useEffect, createElement, useContext} from 'react';
+import HomeContext from "@/pages/api/home/home.context";
 
 export interface LoaderProps {
     size?: string;
@@ -6,14 +7,35 @@ export interface LoaderProps {
     color?: string;
 }
 
-export default function Loader({ color= '#FEEEB6', size = '160', type = 'quantum' }: LoaderProps) {
+export default function Loader({ color, size = '160', type = 'quantum' }: LoaderProps) {
+
+    const state = useContext(HomeContext);
+
+    let lightMode = 'dark';
+    if(state) {
+        lightMode = state.state.lightMode;
+    }
+
+    const isDarkMode = lightMode === 'dark';
+    const lightAdjustedColor = color ? color : isDarkMode ? '#FEEEB6' : '#8BA18E';
+
     useEffect(() => {
         async function getLoader() {
-            const { quantum, dotStream, helix, infinity, grid, mirage, ripples, ping } = await import('ldrs')
+            const { quantum, dotStream, helix, infinity, grid, mirage, tailChase, tailspin, ring, ring2, lineSpinner,
+                ripples, ping, jelly, dotPulse, spiral, squircle } = await import('ldrs')
             quantum.register()
             dotStream.register()
+            ring.register()
+            ring2.register()
+            lineSpinner.register()
+            tailChase.register()
+            tailspin.register()
             helix.register()
             infinity.register()
+            spiral.register()
+            dotPulse.register()
+            squircle.register()
+            jelly.register()
             grid.register()
             mirage.register()
             ripples.register()
@@ -28,7 +50,7 @@ export default function Loader({ color= '#FEEEB6', size = '160', type = 'quantum
     // The tag name is constructed by prepending "l-" to the loader type.
     // This assumes that the custom elements have tag names that match the pattern: "l-{type}".
     const DynamicLoaderComponent = createElement(`l-${loaderType}`, {
-        color: color,
+        color: lightAdjustedColor,
         size: size,
     });
 

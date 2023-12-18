@@ -87,8 +87,8 @@ export const initialState: HomeInitialState = {
   selectedAssistant: null,
   page: 'chat',
   featureFlags: {
-    uploadDocuments:false,
-    extractDocumentsLocally:true,
+    uploadDocuments:true,
+    extractDocumentsLocally:false,
     workflowRun:true,
     workflowCreate:false,
     rootPromptCreate:true,

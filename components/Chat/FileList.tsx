@@ -30,17 +30,19 @@ const LoadingIcon = styled(FiCommand)`
 `;
 
 export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, onCancelUpload}) => {
-    //console.log("Document list: ", documents)
 
     const isComplete = (document:AttachedDocument) => {
         return !documentStates || (documentStates && documentStates[document.id] == 100);
     }
 
     const getProgress = (document:AttachedDocument) => {
+
         if (documentStates && documentStates[document.id]) {
             const percentage = documentStates[document.id];
+            //const percentage = 50;
+
             return (
-                <div className="mr-1 flex items-center justify-center w-6">
+                <div className="mr-1 flex items-center justify-center w-6 dark:text-black" style={{minWidth:"20px"}}>
                 <CircularProgressbar
                     styles={buildStyles({
                         // Text size
@@ -70,7 +72,7 @@ export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, 
             {documents?.map((document, i) => (
                 <div
                     key={i}
-                    className="flex items-center justify-between bg-white rounded-md px-1 py-1 mr-1 shadow-lg"
+                    className="flex flex-row items-center justify-between bg-white rounded-md px-1 py-1 mr-1 shadow-lg"
                     style={{ maxWidth: '200px' }}
                 >
                     {!isComplete(document) ?
