@@ -808,7 +808,7 @@ If people need help with prompt engineering, which is how you converse effective
                                 <div
                                     className="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 grid lg:grid-cols-2 gap-8 lg:gap-16">
                                     <div className="flex flex-col justify-center">
-                                        <h1 ref={scrollRef}  className="mb-4 text-4xl font-extrabold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl dark:text-white">
+                                        <h1 ref={scrollRef}  className="mb-4 text-4xl font-extrabold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl dark:text-white text-center">
                                             <IconRocket size={89}/>Generative AI Market</h1>
                                         <p className="mb-6 text-lg font-normal text-gray-500 lg:text-xl dark:text-gray-400">
                                             Discover and share prompts, assistants, and automations with the community.
@@ -844,17 +844,19 @@ If people need help with prompt engineering, which is how you converse effective
                                     <div>
                                         <div
                                             className="w-full lg:max-w-xl p-6 space-y-8 sm:p-8 bg-white rounded-lg shadow-xl dark:bg-gray-800">
-                                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white text-center">
                                                 AI-Generated Prompts & Tools for Vanderbilt
                                             </h2>
                                             <div>
-                                                <h4>We asked GPT-4 to think of prompts that would be helpful to Vanderbilt
+                                                <h4 className="mb-6 text-lg font-normal text-gray-500 lg:text-xl dark:text-gray-400">
+                                                    We asked GPT-4 to think of prompts that would be helpful to Vanderbilt
                                                     faculty and staff.</h4>
                                             </div>
                                             <div>
+                                            <h4 className="mb-6 text-lg font-normal text-gray-500 lg:text-xl dark:text-gray-400">
                                                 We then taught GPT-4 how to write reusable prompt
                                                 templates for Amplify. Most of what you see in the market is GPT-4&apos;s
-                                                prompts to help you. We hope you find them useful.
+                                                prompts to help you. We hope you find them useful.</h4>
                                             </div>
                                             {/*<h2 className="text-2xl font-bold text-gray-900 dark:text-white">*/}
                                             {/*    Search this Category*/}
