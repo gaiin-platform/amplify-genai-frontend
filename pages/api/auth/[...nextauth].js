@@ -93,8 +93,6 @@ async function refreshAccessToken(token) {
 
         let newRToken = refreshedTokens.refresh_token ? refreshedTokens.refresh_token : token.refreshToken;
 
-        console.log("New refresh token: ", refreshedTokens.refresh_token);
-
         return {
             'accessToken': newAccessToken,
             'accessTokenExpires': Date.now() + refreshedTokens.expires_in * 1000,
