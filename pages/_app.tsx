@@ -13,7 +13,11 @@ function App({ Component, pageProps }: AppProps) {
     const queryClient = new QueryClient();
 
     return (
-        <SessionProvider>
+        <SessionProvider
+            refetchInterval={60}
+            refetchOnWindowFocus={true}
+            refetchWhenOffline={false}
+        >
             <div className={inter.className}>
                 <Toaster/>
                 <QueryClientProvider client={queryClient}>

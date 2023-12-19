@@ -147,12 +147,11 @@ const Home = ({
     );
 
     useEffect(() => {
-        const secureSession = async () => {
-            const session = await getSession();
-        };
-
-        secureSession();
-    }, []);
+        // @ts-ignore
+        if (session?.error === "RefreshAccessTokenError") {
+            signOut();
+        }
+    }, [session]);
 
     useEffect(() => {
         const fetchPrompts = async () => {

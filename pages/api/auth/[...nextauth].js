@@ -3,6 +3,9 @@ import CognitoProvider from "next-auth/providers/cognito"
 
 export const authOptions = {
     // Configure one or more authentication providers
+    session: {
+        maxAge: 59 * 60
+    },
     providers: [
         CognitoProvider({
             clientId: process.env.COGNITO_CLIENT_ID,
@@ -33,11 +36,11 @@ export const authOptions = {
             }
             else {
                 // Expired token
-                console.log("Token has expired. Refreshing...");
                 const newToken = await refreshAccessToken(token);
                 token.accessToken = newToken.accessToken;
                 token.accessTokenExpiresAt = newToken.accessTokenExpires;
                 token.refreshToken = newToken.refreshToken;
+                token.error = newToken.error;
             }
 
             return token
@@ -45,6 +48,7 @@ export const authOptions = {
         async session({ session, token, user }) {
             // Send properties to the client, like an access_token from a provider.
             session.accessToken = token.accessToken
+            session.error = token.error
             return session
         }
     },
@@ -75,7 +79,7 @@ async function refreshAccessToken(token) {
         const refreshedTokens = await response.json()
 
         if (!response.ok || !refreshedTokens || !('access_token' in refreshedTokens)) {
-            console.error('Failed to refresh access token.');
+            console.error('Failed to refresh access token.', refreshedTokens);
             throw refreshedTokens
         }
 
@@ -88,6 +92,8 @@ async function refreshAccessToken(token) {
         }
 
         let newRToken = refreshedTokens.refresh_token ? refreshedTokens.refresh_token : token.refreshToken;
+
+        console.log("New refresh token: ", refreshedTokens.refresh_token);
 
         return {
             'accessToken': newAccessToken,
