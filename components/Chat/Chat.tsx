@@ -390,6 +390,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             temperature: updatedConversation.temperature,
                         };
 
+                        if(documents && documents.length > 0){
+                            const dataSources = documents.map((doc)=>{
+                               return {id:"s3://" + doc.key};
+                            });
+                            chatBody.dataSources = dataSources;
+                        }
+
                         const parseMessageType = (message: string): {
                             prefix: "chat"|"json"|"json!"|"csv"|"fn";
                             body: string;
@@ -1079,6 +1086,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 || message.type == "chat" //Unfortunate hack to support old messages
             ) {
 
+                console.log("Building data sources");
+                const dataSources = documents?.filter((doc) => doc.key).map((doc) => {
+                    return {id: "s3://" + doc.key, name: doc.name, type: doc.type};
+                });
+                if(dataSources && dataSources.length > 0){
+                    console.log("Attaching datasource's to message");
+                    message.data.dataSources = dataSources;
+                }
+
                 if(selectedAssistant && selectedAssistant?.id !== DEFAULT_ASSISTANT.id) {
                     if (selectedConversation) {
 
@@ -1095,7 +1111,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     }
                 }
                 else{
-                    handleSend(message, deleteCount, plugin);
+                    handleSend(message, deleteCount, plugin, null, null, documents);
                 }
             } else if (message.type == MessageType.AUTOMATION) {
                 handleJsWorkflow(message, [], {}, documents);
@@ -1117,11 +1133,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 const doWorkflow = templateData.type === "automation";
 
+                const fillInDocuments = !(doWorkflow ||
+                    (documents && documents?.some((doc) => doc.key)));
+
                 // console.log("Do Workflow", doWorkflow);
+                console.log("Fill In Documents", fillInDocuments);
 
                 setWorkflowMode(doWorkflow);
 
-                const newContent = fillInTemplate(template || "", variables, updatedVariables, documents, !doWorkflow);
+                const newContent = fillInTemplate(template || "", variables, updatedVariables, documents, fillInDocuments);
 
                 // Create a map with variable mapped to updatedVariables
                 const variablesByName:{[key:string]:any} = {};
@@ -1130,12 +1150,22 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 });
 
 
+                console.log("Building data sources");
+                const dataSources = documents?.filter((doc) => doc.key).map((doc) => {
+                    return {id: "s3://" + doc.key, name: doc.name, type: doc.type};
+                });
+
                 let message = newMessage({
                     role: 'user',
                     content: newContent,
                     data: {templateData: templateData},
                     type: templateData?.type || MessageType.PROMPT
                 });
+
+                if(dataSources && dataSources.length > 0){
+                    console.log("Attaching datasources to message");
+                    message.data.dataSources = dataSources;
+                }
 
                 // @ts-ignore
                 setCurrentMessage(message);

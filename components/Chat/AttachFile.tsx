@@ -208,7 +208,7 @@ const handleFile = async (file:any,
         if(uploadDocuments) {
             try {
 
-                const {key, response, statusUrl, abortController} = await addFile({id: uuidv4(), name: file.name, raw: "", type: file.type, data: ""}, file,
+                const {key, response, statusUrl, contentUrl, abortController} = await addFile({id: uuidv4(), name: file.name, raw: "", type: file.type, data: ""}, file,
                     (progress: number) => {
                         if (onUploadProgress && progress < 95) {
                             onUploadProgress(document, progress);

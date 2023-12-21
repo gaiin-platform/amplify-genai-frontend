@@ -25,6 +25,7 @@ export async function sendChatRequestWithDocuments(accessToken:string, chatBody:
         temperature: chatBody.temperature,
         max_tokens: 1000,
         stream: true,
+        dataSources: chatBody.dataSources,
         messages: [
             {
                 // @ts-ignore
@@ -42,7 +43,10 @@ export async function sendChatRequestWithDocuments(accessToken:string, chatBody:
     const body = JSON.stringify(chatBody);
     const endpoint = getEndpoint(plugin);
 
-    const res = await fetch('https://jl3kwdj5shtwqxuqe3nj6qcxdy0wtwuy.lambda-url.us-east-1.on.aws', {
+    const devUrl = 'https://nfx2wq2pdijoexbtaxyocxahbi0kyoyh.lambda-url.us-east-1.on.aws';
+    const prodUrl = 'https://jl3kwdj5shtwqxuqe3nj6qcxdy0wtwuy.lambda-url.us-east-1.on.aws';
+
+    const res = await fetch(devUrl, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -58,20 +62,24 @@ export async function sendChatRequestWithDocuments(accessToken:string, chatBody:
 
     if (res.status !== 200) {
         const result = await res.json();
+        let error = null;
         if (result.error) {
-            throw new OpenAIError(
-                result.error.message,
-                result.error.type,
-                result.error.param,
-                result.error.code,
-            );
+            error = result.error;
         } else {
-            throw new Error(
-                `OpenAI API returned an error: ${
-                    decoder.decode(result?.value) || result.statusText
-                }`,
-            );
+            error = decoder.decode(result?.value) || result.statusText;
         }
+
+        const string = 'Error communicating with the server. Please try again in a minute.';
+        const blob = new Blob([string], { type: 'text/plain' });
+        const stream = blob.stream();
+
+        return new Response(stream, {
+            status: res.status,
+            statusText: res.statusText,
+            headers: {
+                'Content-Type': 'text/plain'
+            }
+        });
     }
 
     let nameDone = false;

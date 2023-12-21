@@ -1,5 +1,59 @@
 # Amplify
 
+# Prompting Language Documentation
+
+This documentation provides examples of how to format prompts for different output structures and validation schemas. The examples illustrate requests for information about the first four presidents of the United States and their ages when they assumed office. Below are different prompting formats along with their descriptions.
+
+## CSV Format
+
+To request data in CSV format, use the `csv` command followed by the desired data schema enclosed in curly braces `{}`. Each property in the schema is represented by a key-value pair, where the key is the column name and the value is the data type as a string.
+
+### Example
+```plaintext
+csv({name:"string", age:"string"}): Who were the first four presidents of the US and how old were they when they became president
+```
+This prompt would generate a CSV output with two columns: `name` and `age`, both expected to contain string values.
+
+## JSON Object Format
+
+To request data in a simple JSON format, use the `json` command with a similar data schema as used for the CSV format.
+
+### Example
+```plaintext
+json({name:"string", age:"string"}): Who were the first four presidents of the US and how old were they when they became president
+```
+This prompt would result in a JSON object output where the `name` and `age` keys are expected to have string values.
+
+## JSON Schema Validation Format
+
+For a more advanced JSON format with validation, use the `json!` keyword. The JSON schema provided should adhere to standards such as the JSON Schema Draft 07 or other relevant drafts.
+
+### Example
+```plaintext
+json!({
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "age": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": ["name", "age"]
+}) Who were the first presidents of the US and the age they became president?
+```
+In this example, the JSON schema ensures that the output will be an object with the `name` as a string and the `age` as a non-negative integer. Additionally, both `name` and `age` fields are required in the output.
+
+### Notes
+- The structure of the command and schema should match the intended output format.
+- When using the `json!` format for schema validation, ensure that the schema provided is compatible with the relevant JSON Schema draft specification.
+- The data types and constraints within the schema, such as `type`, `minimum`, or `required`, can be customized to fit the needs of the user's request.
+
+# Building
+
 **Docker**
 
 Build locally:

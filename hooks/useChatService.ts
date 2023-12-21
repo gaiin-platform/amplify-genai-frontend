@@ -99,7 +99,7 @@ export function useChatService() {
 
         let response = null;
         if(chatBody.dataSources && chatBody.dataSources.length > 0) {
-            console.log("Log with data sources")
+
             response = getSession().then((session) => {
                 // @ts-ignore
                 return sendChatRequestWithDocuments(session.accessToken, chatBody, plugin, abortSignal);

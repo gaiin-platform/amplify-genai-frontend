@@ -68,12 +68,14 @@ export function checkContentReady(url: string, maxSeconds: number): Promise<any>
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4) {
                     if (xhr.status === 200) {
+                        console.log("File ready for chat");
                         clearInterval(intervalId);
                         resolve({success: true});
-                    } else if (xhr.status !== 404) {
-                        clearInterval(intervalId);
-                        reject(new Error(`Unexpected status code: ${xhr.status}`));
                     }
+                    // else if (xhr.status !== 404) {
+                    //     clearInterval(intervalId);
+                    //     reject(new Error(`Unexpected status code: ${xhr.status}`));
+                    // }
                 }
             };
             xhr.send();

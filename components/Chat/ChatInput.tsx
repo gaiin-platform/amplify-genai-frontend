@@ -125,12 +125,16 @@ export const ChatInput = ({
     }
 
     const handleAppendDocumentsToContent = (content: string, documents: AttachedDocument[]) => {
-        content =
-            documents.map((d, i) => {
-                return "---------------Document " + (i + 1) + "--------------\n" + d.raw
-            }).join("\n") +
-            "\n-----------------------------\n\n" +
-            content;
+
+        const toInsert = documents.filter(doc => !doc.key);
+        if(toInsert.length > 0) {
+            content =
+                toInsert.map((d, i) => {
+                    return "---------------Document " + (i + 1) + "--------------\n" + d.raw
+                }).join("\n") +
+                "\n-----------------------------\n\n" +
+                content;
+        }
 
         return content;
     }

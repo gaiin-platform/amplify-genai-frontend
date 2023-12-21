@@ -67,12 +67,16 @@ export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, 
         return <LoadingIcon/>;
     }
 
+    const getLabel = (document:AttachedDocument) => {
+        return document.name.length > 12 ? document.name.slice(0, 12) + '...' : document.name;
+    }
+
     return (
         <div className="flex overflow-x-auto pb-2 mt-2">
             {documents?.map((document, i) => (
                 <div
                     key={i}
-                    className="flex flex-row items-center justify-between bg-white rounded-md px-1 py-1 mr-1 shadow-lg"
+                    className={`${isComplete(document) ? 'bg-white' : 'bg-yellow-400'} flex flex-row items-center justify-between bg-white rounded-md px-1 py-1 mr-1 shadow-lg`}
                     style={{ maxWidth: '200px' }}
                 >
                     {!isComplete(document) ?
@@ -96,9 +100,9 @@ export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, 
                    </button>
 
                     <div className="ml-1">
-                        <p className={`truncate font-medium text-sm ${isComplete(document) ? 'text-gray-800' : 'text-gray-400'}`}
+                        <p className={`truncate font-medium text-sm ${isComplete(document) ? 'text-gray-800' : 'text-gray-800'}`}
                             style={{ maxWidth: '160px' }}>
-                            {i+1}. {document.name}
+                            {i+1}. {getLabel(document)}
                         </p>
                     </div>
                 </div>
