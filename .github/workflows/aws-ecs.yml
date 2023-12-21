@@ -67,8 +67,8 @@ jobs:
     
     - name: Decode ECS task definition and write to file
       run: |
-        echo "${{ secrets.ECS_TASK_DEFINITION }}" | base64 -d > ./task-definition.json
-        shell: bash
+        echo "${{ secrets.ECS_TASK_DEFINITION }}" | base64 -d > task-definition.json
+      shell: bash
 
     - name: Login to Amazon ECR
       id: login-ecr
