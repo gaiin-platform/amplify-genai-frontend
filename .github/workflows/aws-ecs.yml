@@ -35,13 +35,13 @@ on:
       - main  
 
 env:
-  AWS_REGION: ${{ secrets.MY_AWS_REGION }}                   # set this to your preferred AWS region, e.g. us-west-1
-  ECR_REPOSITORY: ${{ secrets.MY_ECR_REPOSITORY }}        # set this to your Amazon ECR repository name
-  ECS_SERVICE: ${{ secrets.MY_ECS_SERVICE }}                 # set this to your Amazon ECS service name
-  ECS_CLUSTER: ${{ secrets.MY_ECS_CLUSTER }}                # set this to your Amazon ECS cluster name
-  ECS_TASK_DEFINITION_BASE64: ${{ secrets.MY_ECS_TASK_DEFINITION }} # set this to the path to your Amazon ECS task definition
+  AWS_REGION: ${{ secrets.AWS_REGION }}                   # set this to your preferred AWS region, e.g. us-west-1
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}        # set this to your Amazon ECR repository name
+  ECS_SERVICE: ${{ secrets.ECS_SERVICE }}                 # set this to your Amazon ECS service name
+  ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}                # set this to your Amazon ECS cluster name
+  ECS_TASK_DEFINITION: ${{ secrets.ECS_TASK_DEFINITION }} # set this to the path to your Amazon ECS task definition
                                                # file, e.g. .aws/task-definition.json
-  CONTAINER_NAME: ${{ secrets.MY_CONTAINER_NAME }}           # set this to the name of the container in the
+  CONTAINER_NAME: ${{ secrets.CONTAINER_NAME }}           # set this to the name of the container in the
                                                # containerDefinitions section of your task definition
 
 permissions:
@@ -66,7 +66,7 @@ jobs:
     
     - name: Decode ECS task definition and write to file
       run: |
-        echo "${{ secrets.MY_ECS_TASK_DEFINITION }}" | base64 -d > ./task-definition.json
+        echo "${{ secrets.ECS_TASK_DEFINITION }}" | base64 -d > ./task-definition.json
         shell: bash
 
     - name: Login to Amazon ECR
