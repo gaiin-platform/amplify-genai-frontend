@@ -6,15 +6,16 @@ import {
     IconTrash,
     IconWriting,
     IconDownload,
+    IconFileCheck,
     IconUser,
 } from '@tabler/icons-react';
-import { FiCommand } from "react-icons/fi";
-import styled, { keyframes } from 'styled-components';
-import { FC, memo, useContext, useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'next-i18next';
-import { updateConversation } from '@/utils/app/conversation';
-import { Message } from '@/types/chat';
-import { useChatService } from "@/hooks/useChatService";
+import {FiCommand} from "react-icons/fi";
+import styled, {keyframes} from 'styled-components';
+import React, {FC, memo, useContext, useEffect, useRef, useState} from 'react';
+import {useTranslation} from 'next-i18next';
+import {updateConversation} from '@/utils/app/conversation';
+import {DataSource, Message} from '@/types/chat';
+import {useChatService} from "@/hooks/useChatService";
 import HomeContext from '@/pages/api/home/home.context';
 import ChatFollowups from './ChatFollowups';
 import {VariableModal} from "@/components/Chat/VariableModal";
@@ -22,11 +23,11 @@ import ChatContentBlock from "@/components/Chat/ChatContentBlocks/ChatContentBlo
 import UserMessageEditor from "@/components/Chat/ChatContentBlocks/UserMessageEditor";
 import AssistantMessageEditor from "@/components/Chat/ChatContentBlocks/AssistantMessageEditor";
 import {Style} from "css-to-react-native";
-import { Prompt } from "@/types/prompt";
-import { Stars } from "@/components/Chat/Stars";
+import {Prompt} from "@/types/prompt";
+import {Stars} from "@/components/Chat/Stars";
 import {DownloadModal} from "@/components/Download/DownloadModal";
 import Loader from "@/components/Loader/Loader";
-
+import {FileList} from "@/components/Chat/FileList";
 
 
 export interface Props {
@@ -66,7 +67,7 @@ export const ChatMessage: FC<Props> = memo(({
     const {t} = useTranslation('chat');
 
     const {
-        state: { selectedConversation, conversations, currentMessage, messageIsStreaming },
+        state: {selectedConversation, conversations, currentMessage, messageIsStreaming},
         dispatch: homeDispatch,
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
@@ -136,7 +137,7 @@ export const ChatMessage: FC<Props> = memo(({
 
         if (message.content != messageContent) {
             if (selectedConversation && onEdit) {
-                onEdit({ ...message, content: messageContent });
+                onEdit({...message, content: messageContent});
             }
         }
         setIsEditing(false);
@@ -145,7 +146,7 @@ export const ChatMessage: FC<Props> = memo(({
     const handleDeleteMessage = () => {
         if (!selectedConversation) return;
 
-        const { messages } = selectedConversation;
+        const {messages} = selectedConversation;
         const findIndex = messages.findIndex((elm) => elm === message);
 
         if (findIndex < 0) return;
@@ -181,12 +182,12 @@ export const ChatMessage: FC<Props> = memo(({
             messages,
         };
 
-        const { single, all } = updateConversation(
+        const {single, all} = updateConversation(
             updatedConversation,
             conversations,
         );
-        homeDispatch({ field: 'selectedConversation', value: single });
-        homeDispatch({ field: 'conversations', value: all });
+        homeDispatch({field: 'selectedConversation', value: single});
+        homeDispatch({field: 'conversations', value: all});
     };
 
     const handlePressEnter = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -217,7 +218,7 @@ export const ChatMessage: FC<Props> = memo(({
 
     const checkTextHighlight = () => {
         const selection = document.getSelection();
-        if (!selection || selection.toString().length === 0){
+        if (!selection || selection.toString().length === 0) {
             setEditSelection("");
             return false;
         }
@@ -237,13 +238,13 @@ export const ChatMessage: FC<Props> = memo(({
         // Fires whenever the document's selection changes
         document.onselectionchange = handleSelectionChange;
 
-        if(markdownComponentRef.current) {
+        if (markdownComponentRef.current) {
             markdownComponentRef.current.onmouseup = handleSelectionChange;
         }
 
         return () => {
             // Cleanup
-            if(markdownComponentRef.current) {
+            if (markdownComponentRef.current) {
                 markdownComponentRef.current.onmouseup = null;
             }
             document.onselectionchange = null;
@@ -334,8 +335,8 @@ export const ChatMessage: FC<Props> = memo(({
             className={`group md:px-4 ${message.role === 'assistant'
                 ? 'border-b border-black/10 bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100'
                 : 'border-b border-black/10 bg-white text-gray-800 dark:border-gray-900/50 dark:bg-[#343541] dark:text-gray-100'
-                }`}
-            style={{ overflowWrap: 'anywhere' }}
+            }`}
+            style={{overflowWrap: 'anywhere'}}
         >
 
             {isDownloadDialogVisible && (
@@ -378,9 +379,9 @@ export const ChatMessage: FC<Props> = memo(({
                 className="relative m-auto flex p-4 text-base md:max-w-2xl md:gap-6 md:py-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
                 <div className="min-w-[40px] text-right font-bold">
                     {message.role === 'assistant' ? (
-                        <IconRobot size={30} />
+                        <IconRobot size={30}/>
                     ) : (
-                        <IconUser size={30} />
+                        <IconUser size={30}/>
                     )}
                 </div>
 
@@ -402,10 +403,32 @@ export const ChatMessage: FC<Props> = memo(({
 
                             ) : (
                                 <div className="flex flex-grow flex-col">
-                                    <div className="flex flex-row">
+                                    <div className="flex flex-col">
                                         <div className="prose whitespace-pre-wrap dark:prose-invert flex-1">
                                             {message.content}
                                         </div>
+                                        {message.data && message.data.dataSources && message.data.dataSources.length > 0 && (
+                                            <div className="flex flex-col w-full mt-5 text-gray-800">
+                                                <div className="mr-3 dark:text-white">Included documents:</div>
+                                                <div className="flex flex-col">
+                                                {message.data && message.data.dataSources && message.data.dataSources.map((d: any, i: any) => (
+                                                    <div
+                                                        key={i}
+                                                        className="bg-gray-200 dark:bg-white rounded-md shadow-lg h-12 m-3 p-3"
+                                                    >
+                                                        <div className="flex flex-row">
+                                                            <div>
+                                                                <IconFileCheck/>
+                                                            </div>
+                                                        <div className="ml-1 p-0 truncate">
+                                                            {i + 1}. {d.name}
+                                                        </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="flex flex-row">
                                         {(isEditing || messageIsStreaming) ? null : (
@@ -420,40 +443,41 @@ export const ChatMessage: FC<Props> = memo(({
                             )}
 
                             {!isEditing && (
-                                <div className="md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">
-                                {/*<div*/}
-                                {/*    className="md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-row gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">*/}
+                                <div
+                                    className="md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">
+                                    {/*<div*/}
+                                    {/*    className="md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-row gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">*/}
                                     <div>
-                                    <button
-                                        className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                        onClick={copyOnClick}
-                                    >
-                                        <IconCopy size={20} />
-                                    </button>
+                                        <button
+                                            className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                            onClick={copyOnClick}
+                                        >
+                                            <IconCopy size={20}/>
+                                        </button>
                                     </div>
                                     <div>
-                                    <button
-                                        className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                        onClick={()=>setIsDownloadDialogVisible(true)}
-                                    >
-                                        <IconDownload size={20} />
-                                    </button>
+                                        <button
+                                            className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                            onClick={() => setIsDownloadDialogVisible(true)}
+                                        >
+                                            <IconDownload size={20}/>
+                                        </button>
                                     </div>
                                     <div>
-                                    <button
-                                        className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                        onClick={toggleEditing}
-                                    >
-                                        <IconEdit size={20} />
-                                    </button>
+                                        <button
+                                            className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                            onClick={toggleEditing}
+                                        >
+                                            <IconEdit size={20}/>
+                                        </button>
                                     </div>
                                     <div>
-                                    <button
-                                        className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                        onClick={handleDeleteMessage}
-                                    >
-                                        <IconTrash size={20} />
-                                    </button>
+                                        <button
+                                            className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                            onClick={handleDeleteMessage}
+                                        >
+                                            <IconTrash size={20}/>
+                                        </button>
                                     </div>
                                 </div>
                             )}
@@ -463,27 +487,27 @@ export const ChatMessage: FC<Props> = memo(({
                             <div className="flex flex-row w-full">
                                 {!isEditing && (
                                     <div className="flex flex-grow"
-                                            ref={divRef}
-                                            onMouseMove={event => {
-                                                const rect = divRef.current?.getBoundingClientRect();
+                                         ref={divRef}
+                                         onMouseMove={event => {
+                                             const rect = divRef.current?.getBoundingClientRect();
 
-                                                const valid = checkTextHighlight();
-                                                // Calculate mouse position relative to the div
-                                                const x = event.clientX - (rect?.left ?? 0);
-                                                const y = event.clientY - (rect?.top ?? 0);
+                                             const valid = checkTextHighlight();
+                                             // Calculate mouse position relative to the div
+                                             const x = event.clientX - (rect?.left ?? 0);
+                                             const y = event.clientY - (rect?.top ?? 0);
 
-                                                setPopupStyle({
-                                                    cursor: 'pointer',
-                                                    display: (valid)? 'block' : 'none',
-                                                    position: 'absolute',
-                                                    marginLeft: `-30px`,
-                                                    marginTop: `${y - 25}px`,
-                                                });
-                                            }}
-                                            onMouseOut={() => {
-                                                setPopupStyle({marginTop: '0px', marginLeft: '-25px', display: 'none'});
-                                            }}
-                                        >
+                                             setPopupStyle({
+                                                 cursor: 'pointer',
+                                                 display: (valid) ? 'block' : 'none',
+                                                 position: 'absolute',
+                                                 marginLeft: `-30px`,
+                                                 marginTop: `${y - 25}px`,
+                                             });
+                                         }}
+                                         onMouseOut={() => {
+                                             setPopupStyle({marginTop: '0px', marginLeft: '-25px', display: 'none'});
+                                         }}
+                                    >
 
                                         <ChatContentBlock
                                             messageIsStreaming={messageIsStreaming}
@@ -491,9 +515,11 @@ export const ChatMessage: FC<Props> = memo(({
                                             message={message}
                                             selectedConversation={selectedConversation}
                                             handleCustomLinkClick={handleCustomLinkClick}
-                                            handleTextHighlight={()=>{}}/>
+                                            handleTextHighlight={() => {
+                                            }}/>
                                         {editSelection.length > 0 && (
-                                            <div style={popupStyle} className="bg-neutral-200 dark:bg-neutral-600 dark:text-white rounded">
+                                            <div style={popupStyle}
+                                                 className="bg-neutral-200 dark:bg-neutral-600 dark:text-white rounded">
                                                 <button
                                                     className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                                     onClick={(e) => {
@@ -534,20 +560,20 @@ export const ChatMessage: FC<Props> = memo(({
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={copyOnClick}
                                         >
-                                            <IconCopy size={20} />
+                                            <IconCopy size={20}/>
                                         </button>
                                     )}
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                        onClick={()=>setIsDownloadDialogVisible(true)}
+                                        onClick={() => setIsDownloadDialogVisible(true)}
                                     >
-                                        <IconDownload size={20} />
+                                        <IconDownload size={20}/>
                                     </button>
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={toggleEditing}
                                     >
-                                        <IconEdit size={20} />
+                                        <IconEdit size={20}/>
                                     </button>
 
 
@@ -576,7 +602,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     if (onEdit) {
                                         onEdit({...message, data: {...message.data, rating: r}});
                                     }
-                                }} />
+                                }}/>
                             )}
                             {(messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1) ?
                                 // <LoadingIcon />
