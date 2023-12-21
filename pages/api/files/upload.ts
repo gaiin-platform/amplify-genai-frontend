@@ -33,7 +33,11 @@ const getPresignedUrl =
 
             const data = await response.json();
 
-            res.status(200).json({ url: data.presigned_url, key: data.key });
+            res.status(200).json({
+                url: data.uploadUrl,
+                statusUrl: data.statusUrl,
+                contentUrl: data.contentUrl,
+                key: data.key });
         } catch (error) {
             console.error("Error calling share: ", error);
             res.status(500).json({ error: "Could share the item(s)" });

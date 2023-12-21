@@ -53,6 +53,33 @@ const uploadFileToS3 = (
     return {response:result, abort:()=>xhr.abort()};
 }
 
+export function checkContentReady(url: string, maxSeconds: number): Promise<any> {
+    const startTime = Date.now();
+
+    return new Promise((resolve, reject) => {
+        const intervalId = setInterval(() => {
+            if (Date.now() - startTime >= maxSeconds * 1000) {
+                clearInterval(intervalId);
+                reject(new Error('Timeout reached'));
+            }
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('HEAD', url);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        clearInterval(intervalId);
+                        resolve({success: true});
+                    } else if (xhr.status !== 404) {
+                        clearInterval(intervalId);
+                        reject(new Error(`Unexpected status code: ${xhr.status}`));
+                    }
+                }
+            };
+            xhr.send();
+        }, 500);
+    });
+}
 
 export const addFile = async (metadata:AttachedDocument, file: File, onProgress?: (progress: number) => void, abortSignal:AbortSignal|null= null) => {
 
@@ -81,7 +108,11 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
     const result = await response.json();
     const key = result.key;
     const uploadUrl = result.url;
+    const contentUrl = result.contentUrl;
+    const statusUrl = result.statusUrl;
 
+    console.log("contentUrl", contentUrl);
+    console.log("statusUrl", statusUrl);
 
     const {response:uploadResponse, abort:abort} = uploadFileToS3(file, uploadUrl, (progress: number) => {
         if (onProgress) {
@@ -89,7 +120,11 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
         }
     });
 
-    return {key:key, response:uploadResponse, abortController:abort};
+    return {key:key,
+            contentUrl:contentUrl,
+            statusUrl:statusUrl,
+            response:uploadResponse,
+            abortController:abort};
 };
 
 

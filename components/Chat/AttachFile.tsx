@@ -8,7 +8,7 @@ import { useTranslation } from 'next-i18next';
 import JSZip from "jszip";
 import { v4 as uuidv4 } from 'uuid';
 import { AttachedDocument } from '@/types/attacheddocument';
-import { addFile } from "@/services/fileService";
+import {addFile, checkContentReady} from "@/services/fileService";
 import HomeContext from "@/pages/api/home/home.context";
 
 interface Props {
@@ -208,10 +208,13 @@ const handleFile = async (file:any,
         if(uploadDocuments) {
             try {
 
-                const {key, response, abortController} = await addFile({id: uuidv4(), name: file.name, raw: "", type: file.type, data: ""}, file,
+                const {key, response, statusUrl, abortController} = await addFile({id: uuidv4(), name: file.name, raw: "", type: file.type, data: ""}, file,
                     (progress: number) => {
-                        if (onUploadProgress) {
+                        if (onUploadProgress && progress < 95) {
                             onUploadProgress(document, progress);
+                        }
+                        else if (onUploadProgress && progress >= 95) {
+                            onUploadProgress(document, 95);
                         }
                     });
 
@@ -225,6 +228,14 @@ const handleFile = async (file:any,
                 }
 
                 await response;
+
+                const readyStatus = await checkContentReady(statusUrl, 30);
+                if(readyStatus && readyStatus.success){
+                    onUploadProgress(document, 100);
+                }
+                else {
+                    alert("upload failed");
+                }
             }
             catch (e) {
                 // @ts-ignore
@@ -271,6 +282,16 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetKey ,
 
                     if(extension === ''){
                         alert("This file type is not supported.");
+                        return;
+                    }
+
+                    if(extension === 'xls' || extension === 'xlsm'){
+                        alert("This file type is not supported. Please save the file as xlsx.");
+                        return;
+                    }
+
+                    if(extension === 'ppt' || extension === 'potx'){
+                        alert("This file type is not supported. Please save the file as pptx.");
                         return;
                     }
 

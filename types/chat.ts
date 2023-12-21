@@ -84,6 +84,10 @@ export interface ChatResponseFormat {
     type: string;
 }
 
+export interface DataSource {
+    id: string;
+}
+
 export interface ChatBody {
   model: OpenAIModel;
   messages: Message[];
@@ -93,6 +97,7 @@ export interface ChatBody {
   functions?: CustomFunction[];
   function_call?: string;
   response_format?: ChatResponseFormat;
+  dataSources?: DataSource[];
 }
 
 export interface Conversation {

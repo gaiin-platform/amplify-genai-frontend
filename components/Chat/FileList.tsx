@@ -1,5 +1,5 @@
 import React, {FC} from 'react';
-import { IconTrashX, IconCircleX } from '@tabler/icons-react';
+import { IconTrashX, IconCircleX, IconCheck } from '@tabler/icons-react';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
@@ -78,6 +78,9 @@ export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, 
                     {!isComplete(document) ?
                         getProgress(document) : ''
                     }
+                    {isComplete(document) ?
+                        <IconCheck className="text-green-500" /> : ''
+                    }
                    <button
                             className="text-gray-400 hover:text-gray-600 transition-all"
                             onClick={(e) =>{
@@ -93,7 +96,8 @@ export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, 
                    </button>
 
                     <div className="ml-1">
-                        <p className="truncate font-medium text-sm text-gray-800" style={{ maxWidth: '160px' }}>
+                        <p className={`truncate font-medium text-sm ${isComplete(document) ? 'text-gray-800' : 'text-gray-400'}`}
+                            style={{ maxWidth: '160px' }}>
                             {i+1}. {document.name}
                         </p>
                     </div>

@@ -2,11 +2,13 @@
 import { incrementalJSONtoCSV } from "@/utils/app/incrementalCsvParser";
 import { useContext } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
-import {sendChatRequest as send} from '../services/chatService';
+import {sendChatRequest as send, sendChatRequestWithDocuments} from '../services/chatService';
 import {ChatBody, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
 import { Plugin } from '@/types/plugin';
 import { wrapResponse, stringChunkCallback } from "@/utils/app/responseWrapper";
+
+import {getSession} from "next-auth/react"
 
 export function useChatService() {
     const { state: { apiKey , statsService},
@@ -92,7 +94,22 @@ export function useChatService() {
         statsService.sendChatEvent(chatBody);
 
         preProcessingCallbacks.forEach(callback => callback({plugin: plugin, chatBody: chatBody}));
-        let response = send(apiKey, chatBody, plugin, abortSignal);
+        //let response = send(apiKey, chatBody, plugin, abortSignal);
+
+
+        let response = null;
+        if(chatBody.dataSources && chatBody.dataSources.length > 0) {
+            console.log("Log with data sources")
+            response = getSession().then((session) => {
+                // @ts-ignore
+                return sendChatRequestWithDocuments(session.accessToken, chatBody, plugin, abortSignal);
+            });
+        }
+        else {
+            console.log("Log without data sources")
+            response = send(apiKey, chatBody, plugin, abortSignal);
+        }
+
         // It would be ideal to do this here, but then the streaming response
         // can't be done for reading into the chat... This is dispatched in the
         // Chat.

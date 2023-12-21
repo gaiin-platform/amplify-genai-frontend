@@ -354,7 +354,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, []);
 
         const handleSend = useCallback(
-            async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt:string|null = null) => {
+            async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt:string|null = null, documents?:AttachedDocument[] | null) => {
                 return new Promise(async (resolve, reject) => {
                     if (selectedConversation) {
 
@@ -1090,7 +1090,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             }
                         }
                         else {
-                            handleSend(message, deleteCount, plugin, null, selectedAssistant.definition.instructions);
+                            handleSend(message, deleteCount, plugin, null, selectedAssistant.definition.instructions, documents);
                         }
                     }
                 }
