@@ -51,7 +51,8 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    environment: production
+    if: github.ref == 'refs/heads/dev'
+    environment: dev
 
     steps:
     - name: Checkout
