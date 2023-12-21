@@ -34,15 +34,6 @@ on:
     branches:
       - main  
 
-env:
-  AWS_REGION: ${{ secrets.AWS_REGION }}                   # set this to your preferred AWS region, e.g. us-west-1
-  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}        # set this to your Amazon ECR repository name
-  ECS_SERVICE: ${{ secrets.ECS_SERVICE }}                 # set this to your Amazon ECS service name
-  ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}                # set this to your Amazon ECS cluster name
-  ECS_TASK_DEFINITION: ${{ secrets.ECS_TASK_DEFINITION }} # set this to the path to your Amazon ECS task definition
-                                               # file, e.g. .aws/task-definition.json
-  CONTAINER_NAME: ${{ secrets.CONTAINER_NAME }}           # set this to the name of the container in the
-                                               # containerDefinitions section of your task definition
 
 permissions:
   contents: read
@@ -68,7 +59,7 @@ jobs:
     - name: Decode ECS task definition and write to file
       run: |
         echo "${{ secrets.ECS_TASK_DEFINITION }}" | base64 -d > task-definition.json
-      shell: bash
+  
 
     - name: Login to Amazon ECR
       id: login-ecr
@@ -78,6 +69,7 @@ jobs:
       id: build-image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
         # Build a docker container and
@@ -92,13 +84,13 @@ jobs:
       uses: aws-actions/amazon-ecs-render-task-definition@v1
       with:
         task-definition: ./task-definition.json
-        container-name: ${{ env.CONTAINER_NAME }}
+        container-name: ${{ secrets.CONTAINER_NAME }}
         image: ${{ steps.build-image.outputs.image }}
 
     - name: Deploy Amazon ECS task definition
       uses: aws-actions/amazon-ecs-deploy-task-definition@v1
       with:
         task-definition: ${{ steps.task-def.outputs.task-definition }}
-        service: ${{ env.ECS_SERVICE }}
-        cluster: ${{ env.ECS_CLUSTER }}
+        service: ${{ secrets.ECS_SERVICE }}
+        cluster: ${{ secrets.ECS_CLUSTER }}
         wait-for-service-stability: true
