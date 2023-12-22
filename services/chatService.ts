@@ -13,14 +13,6 @@ export async function sendChatRequestWithDocuments(accessToken:string, chatBody:
         }
     }
 
-    // chatBody = {
-    //     ...chatBody,
-    //     // @ts-ignore
-    //     messages: [...chatBody.messages.map(m => {
-    //         return {role: m.role, content: m.content}
-    //     })],
-    // }
-
     chatBody = {
         temperature: chatBody.temperature,
         max_tokens: 1000,
@@ -128,6 +120,9 @@ export async function sendChatRequestWithDocuments(accessToken:string, chatBody:
         first = false;
     }
 
+    let sourceMapping = [];
+    let lastSource:string|null = null;
+
     const stream = new ReadableStream({
         async start(controller) {
             const onParse = (event: ParsedEvent | ReconnectInterval) => {
@@ -137,6 +132,26 @@ export async function sendChatRequestWithDocuments(accessToken:string, chatBody:
 
                     try {
                         const json = JSON.parse(data);
+
+                        if(json.s && json.s === 'meta') {
+                            console.log("Meta Event:",json);
+                            if(json.d && json.d.sources){
+                                sourceMapping = json.d.sources;
+                            }
+                            return;
+                        }
+                        else if(json.d){
+                            console.log("Event:",json);
+                            const prefix = lastSource != null && lastSource != json.s ? "\n\n" : "";
+                            // Fake it right now!
+                            json.choices = [{delta: {content: prefix + json.d}}];
+
+                            lastSource = json.s;
+                        }
+                        else {
+                            console.log("Event:",json);
+                            return;
+                        }
 
                         if(functions){
                             fnCallHandler(controller, json);
