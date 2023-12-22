@@ -94,6 +94,14 @@ export const ChatInput = ({
         setWorkflowOn(!isWorkflowOn);
     };
 
+    const allDocumentsDoneUploading = () => {
+        const isComplete = (document:AttachedDocument) => {
+            return !documentState || (documentState && documentState[document.id] == 100);
+        }
+
+        return documents?.every(isComplete);
+    }
+
     const onAssistantChange = (assistant: Assistant) => {
 
     }
@@ -146,6 +154,11 @@ export const ChatInput = ({
 
         if (!content) {
             alert(t('Please enter a message'));
+            return;
+        }
+
+        if(!allDocumentsDoneUploading()){
+            alert(t('Please wait for all documents to finish uploading or remove them from the prompt.'));
             return;
         }
 
