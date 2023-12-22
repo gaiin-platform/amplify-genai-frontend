@@ -35,11 +35,13 @@ on:
       - main  
 
 env:
-  AWS_REGION: us-east-1                  # set this to your preferred AWS region, e.g. us-west-1
-  ECR_REPOSITORY: dev-gen-ai-image       # set this to your ECR repository name
-  ECS_CLUSTER: dev-gen-ai-cluster        # set this to your ECS cluster name
-  ECS_SERVICE: dev-gen-ai-service        # set this to your ECS service name
-  CONTAINER_NAME: dev-amplifyApp     # set this to your ECS container name
+  AWS_REGION: us-east-1                           # set this to your preferred AWS region, e.g. us-west-1
+  ECR_REPOSITORY: dev-gen-ai-image                # set this to your ECR repository name
+  ECS_CLUSTER: dev-gen-ai-cluster                 # set this to your ECS cluster name
+  ECS_SERVICE: dev-gen-ai-service                 # set this to your ECS service name
+  CONTAINER_NAME: dev-amplifyApp                  # set this to your ECS container name
+  ECS_TASK_DEFINITION: .aws/task-definition.json  # set this to the path to your Amazon ECS task definition
+                                                  # file, e.g. .aws/task-definition.json
 
 permissions:
   contents: read
@@ -61,10 +63,6 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Decode ECS task definition and write to file
-      run: |
-        echo "${{ secrets.ECS_TASK_DEFINITION }}" | base64 -d > task-definition.json
   
 
     - name: Login to Amazon ECR
@@ -91,7 +89,7 @@ jobs:
       id: task-def
       uses: aws-actions/amazon-ecs-render-task-definition@v1
       with:
-        task-definition: ./task-definition.json
+        task-definition: ${{ env.ECS_TASK_DEFINITION }}
         container-name: ${{ env.CONTAINER_NAME }}
         image: ${{ steps.build-image.outputs.image }}
 
