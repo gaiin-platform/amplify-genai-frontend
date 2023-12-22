@@ -95,6 +95,10 @@ export const ChatInput = ({
     };
 
     const allDocumentsDoneUploading = () => {
+        if(!documents || documents.length == 0){
+            return true;
+        }
+
         const isComplete = (document:AttachedDocument) => {
             return !documentState || (documentState && documentState[document.id] == 100);
         }
