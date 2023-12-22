@@ -5,7 +5,7 @@ import { Plugin } from '@/types/plugin';
 import {createParser, ParsedEvent, ReconnectInterval} from "eventsource-parser";
 import {OpenAIError} from "@/utils/server";
 
-export async function sendChatRequestWithDocuments(accessToken:string, chatBody:ChatBody, plugin?:Plugin|null, abortSignal?:AbortSignal) {
+export async function sendChatRequestWithDocuments(endpoint:string, accessToken:string, chatBody:ChatBody, plugin?:Plugin|null, abortSignal?:AbortSignal) {
 
     if(chatBody.response_format && chatBody.response_format.type === 'json_object') {
         if(!chatBody.messages.some(m => m.content.indexOf('json') > -1)) {
@@ -33,12 +33,8 @@ export async function sendChatRequestWithDocuments(accessToken:string, chatBody:
     console.log('sending chat request with documents', chatBody);
 
     const body = JSON.stringify(chatBody);
-    const endpoint = getEndpoint(plugin);
 
-    const devUrl = 'https://nfx2wq2pdijoexbtaxyocxahbi0kyoyh.lambda-url.us-east-1.on.aws';
-    const prodUrl = 'https://jl3kwdj5shtwqxuqe3nj6qcxdy0wtwuy.lambda-url.us-east-1.on.aws';
-
-    const res = await fetch(devUrl, {
+    const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

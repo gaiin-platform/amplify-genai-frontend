@@ -12,6 +12,7 @@ import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {noOpStatsServices, StatsServices} from "@/types/stats";
 
 export interface HomeInitialState {
+  chatEndpoint: string|null;
   conversationStateId: string;
   apiKey: string;
   pluginKeys: PluginKey[];
@@ -46,6 +47,7 @@ export interface HomeInitialState {
 }
 
 export const initialState: HomeInitialState = {
+  chatEndpoint: null,
   conversationStateId: "init",
   apiKey: '',
   loading: false,

@@ -11,7 +11,7 @@ import { wrapResponse, stringChunkCallback } from "@/utils/app/responseWrapper";
 import {getSession} from "next-auth/react"
 
 export function useChatService() {
-    const { state: { apiKey , statsService},
+    const { state: { apiKey , statsService, chatEndpoint},
         preProcessingCallbacks,
         postProcessingCallbacks, } = useContext(HomeContext);
 
@@ -100,9 +100,13 @@ export function useChatService() {
         let response = null;
         if(chatBody.dataSources && chatBody.dataSources.length > 0) {
 
+            if(!chatEndpoint) {
+                throw new Error("Chat endpoint not set");
+            }
+
             response = getSession().then((session) => {
                 // @ts-ignore
-                return sendChatRequestWithDocuments(session.accessToken, chatBody, plugin, abortSignal);
+                return sendChatRequestWithDocuments(chatEndpoint, session.accessToken, chatBody, plugin, abortSignal);
             });
         }
         else {

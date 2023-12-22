@@ -84,6 +84,7 @@ interface Props {
     cognitoClientId: string|null;
     cognitoDomain: string|null;
     mixPanelToken: string;
+    chatEndpoint: string|null;
 }
 
 
@@ -94,6 +95,7 @@ const Home = ({
                   cognitoClientId,
                   cognitoDomain,
                   mixPanelToken,
+                  chatEndpoint
               }: Props) => {
     const {t} = useTranslation('chat');
     const {getModels} = useApiService();
@@ -209,6 +211,10 @@ const Home = ({
     useEffect(() => {
         if (data) dispatch({field: 'models', value: data});
     }, [data, dispatch]);
+
+    useEffect(() => {
+        if(chatEndpoint) dispatch({field: 'chatEndpoint', value: chatEndpoint});
+    }, [chatEndpoint]);
 
     useEffect(() => {
         dispatch({field: 'modelError', value: getModelsError(error)});
@@ -995,7 +1001,7 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
             process.env.DEFAULT_MODEL) ||
         fallbackModelID;
 
-
+    const chatEndpoint = process.env.CHAT_ENDPOINT;
     const mixPanelToken = process.env.MIXPANEL_TOKEN;
     const cognitoClientId = process.env.COGNITO_CLIENT_ID;
     const cognitoDomain = process.env.COGNITO_DOMAIN;
@@ -1014,6 +1020,7 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
 
     return {
         props: {
+            chatEndpoint,
             serverSideApiKeyIsSet: !!process.env.OPENAI_API_KEY,
             defaultModelId,
             serverSidePluginKeysSet,
