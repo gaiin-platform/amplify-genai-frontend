@@ -1,9 +1,10 @@
 // chatService.js
 import { getEndpoint } from '@/utils/app/api';
-import {ChatBody, JsonSchema, newMessage} from "@/types/chat";
+import {ChatBody, ChatResponseFormat, CustomFunction, JsonSchema, Message, newMessage} from "@/types/chat";
 import { Plugin } from '@/types/plugin';
 import {createParser, ParsedEvent, ReconnectInterval} from "eventsource-parser";
 import {OpenAIError} from "@/utils/server";
+import {OpenAIModel} from "@/types/openai";
 
 export async function sendChatRequestWithDocuments(endpoint:string, accessToken:string, chatBody:ChatBody, plugin?:Plugin|null, abortSignal?:AbortSignal) {
 
@@ -13,7 +14,13 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
         }
     }
 
-    chatBody = {
+    const keysToExclude = ['messages', 'temperature', 'max_tokens', 'stream', 'dataSources'];
+    const vendorProps = Object.fromEntries(
+        Object.entries(chatBody).filter(([key, _]) => !keysToExclude.includes(key))
+    );
+
+    let requestBody = {
+        model: chatBody.model.id,
         temperature: chatBody.temperature,
         max_tokens: 1000,
         stream: true,
@@ -28,11 +35,14 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
             ...chatBody.messages.map(m => {
                 return {role: m.role, content: m.content}
         })],
+        options: {
+            ...vendorProps
+        }
     }
 
-    console.log('sending chat request with documents', chatBody);
+    console.log('sending chat request with dataSources', requestBody);
 
-    const body = JSON.stringify(chatBody);
+    const body = JSON.stringify(requestBody);
 
     const res = await fetch(endpoint, {
         method: 'POST',

@@ -101,7 +101,7 @@ export function useChatService() {
         if(chatBody.dataSources && chatBody.dataSources.length > 0) {
 
             if(!chatEndpoint) {
-                throw new Error("Chat endpoint not set");
+                throw new Error("Chat endpoint not set. Please tell the system administrator to set the CHAT_ENDPOINT environment variable.");
             }
 
             response = getSession().then((session) => {
@@ -110,7 +110,6 @@ export function useChatService() {
             });
         }
         else {
-            console.log("Log without data sources")
             response = send(apiKey, chatBody, plugin, abortSignal);
         }
 
