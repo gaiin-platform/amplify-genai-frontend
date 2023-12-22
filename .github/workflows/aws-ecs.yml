@@ -35,14 +35,13 @@ on:
       - main  
 
 env:
-  AWS_REGION: ${{ secrets.MY_AWS_REGION }}                   # set this to your preferred AWS region, e.g. us-west-1
-  ECR_REPOSITORY: ${{ secrets.MY_ECR_REPOSITORY }}        # set this to your Amazon ECR repository name
-  ECS_SERVICE: ${{ secrets.MY_ECS_SERVICE }}                 # set this to your Amazon ECS service name
-  ECS_CLUSTER: ${{ secrets.MY_ECS_CLUSTER }}                # set this to your Amazon ECS cluster name
-  ECS_TASK_DEFINITION_BASE64: ${{ secrets.MY_ECS_TASK_DEFINITION }} # set this to the path to your Amazon ECS task definition
-                                               # file, e.g. .aws/task-definition.json
-  CONTAINER_NAME: ${{ secrets.MY_CONTAINER_NAME }}           # set this to the name of the container in the
-                                               # containerDefinitions section of your task definition
+  AWS_REGION: us-east-1                           # set this to your preferred AWS region, e.g. us-west-1
+  ECR_REPOSITORY: dev-gen-ai-image                # set this to your ECR repository name
+  ECS_CLUSTER: dev-gen-ai-cluster                 # set this to your ECS cluster name
+  ECS_SERVICE: dev-gen-ai-service                 # set this to your ECS service name
+  CONTAINER_NAME: dev-amplifyApp                  # set this to your ECS container name
+  ECS_TASK_DEFINITION: .aws/task-definition.json  # set this to the path to your Amazon ECS task definition
+                                                  # file, e.g. .aws/task-definition.json
 
 permissions:
   contents: read
@@ -51,7 +50,8 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    environment: production
+    if: github.ref == 'refs/heads/dev'
+    environment: dev
 
     steps:
     - name: Checkout
@@ -63,11 +63,7 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Decode ECS task definition and write to file
-      run: |
-        echo "${{ secrets.MY_ECS_TASK_DEFINITION }}" | base64 -d > ./task-definition.json
-        shell: bash
+  
 
     - name: Login to Amazon ECR
       id: login-ecr
@@ -78,10 +74,13 @@ jobs:
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: ${{ github.sha }}
+        ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
       run: |
         # Build a docker container and
         # push it to ECR so that it can
         # be deployed to ECS.
+
+
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
@@ -90,7 +89,7 @@ jobs:
       id: task-def
       uses: aws-actions/amazon-ecs-render-task-definition@v1
       with:
-        task-definition: ./task-definition.json
+        task-definition: ${{ env.ECS_TASK_DEFINITION }}
         container-name: ${{ env.CONTAINER_NAME }}
         image: ${{ steps.build-image.outputs.image }}
 
