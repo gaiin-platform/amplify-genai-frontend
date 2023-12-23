@@ -54,7 +54,8 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
         body,
     });
 
-    const functions = null;
+    const functions = requestBody.options && requestBody.options.functions;
+
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
 
@@ -84,6 +85,7 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
     let first = true;
 
     const fnCallHandler = (controller:any, json:any) => {
+
         const base = json.choices[0].delta.function_call
         let text = "";
 
@@ -147,15 +149,27 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
                             return;
                         }
                         else if(json.d){
-                            console.log("Event:",json);
-                            const prefix = lastSource != null && lastSource != json.s ? "\n\n" : "";
-                            // Fake it right now!
-                            json.choices = [{delta: {content: prefix + json.d}}];
+
+                            if(typeof json.d === 'string') {
+                                console.log("Message Event:",json);
+                                const prefix = lastSource != null && lastSource != json.s ? "\n\n" : "";
+                                // Fake it right now for compatibility!
+                                json.choices = [{delta: {content: prefix + json.d}}];
+                                console.log("Translated Event:",json);
+                            }
+                            else if(json.d.tool_calls && json.d.tool_calls.length > 0){
+                                console.log("Function Event:",json);
+                                // Fake it right now for compatibility!
+                                if(json.d.tool_calls[0].function) {
+                                    json.choices = [{delta: {function_call:json.d.tool_calls[0].function}}];
+                                }
+                                console.log("Translated Event:",json);
+                            }
 
                             lastSource = json.s;
                         }
                         else {
-                            console.log("Event:",json);
+                            console.log("Unknown Event:",json);
                             return;
                         }
 
