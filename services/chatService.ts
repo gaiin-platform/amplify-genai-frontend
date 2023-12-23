@@ -151,19 +151,19 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
                         else if(json.d){
 
                             if(typeof json.d === 'string') {
-                                console.log("Message Event:",json);
+                                //console.log("Message Event:",json);
                                 const prefix = lastSource != null && lastSource != json.s ? "\n\n" : "";
                                 // Fake it right now for compatibility!
                                 json.choices = [{delta: {content: prefix + json.d}}];
-                                console.log("Translated Event:",json);
+                                //console.log("Translated Event:",json);
                             }
                             else if(json.d.tool_calls && json.d.tool_calls.length > 0){
-                                console.log("Function Event:",json);
+                                //console.log("Function Event:",json);
                                 // Fake it right now for compatibility!
                                 if(json.d.tool_calls[0].function) {
                                     json.choices = [{delta: {function_call:json.d.tool_calls[0].function}}];
                                 }
-                                console.log("Translated Event:",json);
+                                //console.log("Translated Event:",json);
                             }
 
                             lastSource = json.s;
