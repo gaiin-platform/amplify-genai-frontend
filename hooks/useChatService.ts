@@ -96,7 +96,6 @@ export function useChatService() {
         preProcessingCallbacks.forEach(callback => callback({plugin: plugin, chatBody: chatBody}));
         //let response = send(apiKey, chatBody, plugin, abortSignal);
 
-
         let response = null;
         if(chatBody.dataSources && chatBody.dataSources.length > 0) {
 

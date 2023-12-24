@@ -24,7 +24,7 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
         temperature: chatBody.temperature,
         max_tokens: 1000,
         stream: true,
-        dataSources: chatBody.dataSources,
+        dataSources: chatBody.dataSources || [],
         messages: [
             {
                 // @ts-ignore
