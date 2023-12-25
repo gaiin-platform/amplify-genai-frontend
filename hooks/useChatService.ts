@@ -11,7 +11,7 @@ import { wrapResponse, stringChunkCallback } from "@/utils/app/responseWrapper";
 import {getSession} from "next-auth/react"
 
 export function useChatService() {
-    const { state: { apiKey , statsService, chatEndpoint},
+    const { state: { apiKey , statsService, chatEndpoint, defaultAccount},
         preProcessingCallbacks,
         postProcessingCallbacks, } = useContext(HomeContext);
 
@@ -101,6 +101,10 @@ export function useChatService() {
 
             if(!chatEndpoint) {
                 throw new Error("Chat endpoint not set. Please tell the system administrator to set the CHAT_ENDPOINT environment variable.");
+            }
+
+            if(defaultAccount && defaultAccount.id){
+                chatBody.accountId = defaultAccount.id;
             }
 
             response = getSession().then((session) => {

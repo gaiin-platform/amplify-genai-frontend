@@ -98,6 +98,7 @@ export interface ChatBody {
   function_call?: string;
   response_format?: ChatResponseFormat;
   dataSources?: DataSource[];
+  accountId?: string;
 }
 
 export interface Conversation {
