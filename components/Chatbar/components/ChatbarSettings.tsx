@@ -11,11 +11,13 @@ import { Import } from '../../Settings/Import';
 import { Key } from '../../Settings/Key';
 import { SidebarButton } from '../../Sidebar/SidebarButton';
 import ChatbarContext from '../Chatbar.context';
+import {AccountDialog} from "@/components/Settings/AccountDialog";
 
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
     const [isSettingDialogOpen, setIsSettingDialog] = useState<boolean>(false);
+    const [isAccountDialogVisible, setIsAccountDialogVisible] = useState<boolean>(false);
 
     const {
         state: {
@@ -40,6 +42,15 @@ export const ChatbarSettings = () => {
             {/*{conversations.length > 0 ? (*/}
             {/*    <ClearConversations onClearConversations={handleClearConversations}/>*/}
             {/*) : null}*/}
+
+            <SidebarButton
+                text={t('Manage Accounts')}
+                icon={<IconSettings size={18} />}
+                onClick={() => {
+                    //statsService.setThemeEvent();
+                    setIsAccountDialogVisible(true)
+                }}
+            />
 
             <Import onImport={handleImportConversations} />
 
@@ -77,6 +88,13 @@ export const ChatbarSettings = () => {
                 open={isSettingDialogOpen}
                 onClose={() => {
                     setIsSettingDialog(false);
+                }}
+            />
+
+            <AccountDialog
+                open={isAccountDialogVisible}
+                onClose={() => {
+                    setIsAccountDialogVisible(false);
                 }}
             />
 
