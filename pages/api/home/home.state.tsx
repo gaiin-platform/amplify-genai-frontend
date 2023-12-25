@@ -10,8 +10,10 @@ import {Workspace} from "@/types/workspace";
 import { v4 as uuidv4 } from 'uuid';
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {noOpStatsServices, StatsServices} from "@/types/stats";
+import {Account} from "@/types/accounts";
 
 export interface HomeInitialState {
+  defaultAccount: Account|undefined;
   chatEndpoint: string|null;
   conversationStateId: string;
   apiKey: string;
@@ -47,6 +49,7 @@ export interface HomeInitialState {
 }
 
 export const initialState: HomeInitialState = {
+  defaultAccount: undefined,
   chatEndpoint: null,
   conversationStateId: "init",
   apiKey: '',

@@ -26,6 +26,7 @@ import {
 import {saveFolders} from '@/utils/app/folders';
 import {savePrompts} from '@/utils/app/prompts';
 import {getSettings} from '@/utils/app/settings';
+import {getAccounts} from "@/services/accountService";
 
 import {Conversation, Message, MessageType} from '@/types/chat';
 import {KeyValuePair} from '@/types/data';
@@ -152,6 +153,18 @@ const Home = ({
         // @ts-ignore
         if (session?.error === "RefreshAccessTokenError") {
             signOut();
+        }
+        else {
+            const fetchAccounts = async () => {
+                const response = await getAccounts();
+                if(response.success){
+                    const defaultAccount = response.data.find((account:any) => account.isDefault);
+                    if(defaultAccount){
+                        dispatch({field: 'defaultAccount', value: defaultAccount});
+                    }
+                }
+            };
+            fetchAccounts();
         }
     }, [session]);
 

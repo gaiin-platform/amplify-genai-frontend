@@ -7,6 +7,7 @@ import { KeyValuePair } from '@/types/data';
 import { FolderType } from '@/types/folder';
 
 import { HomeInitialState } from './home.state';
+import {Account} from "@/types/accounts";
 
 export type Processor = (data:any) => {};
 

@@ -33,11 +33,10 @@ export const AccountDialog: FC<Props> = ({open, onClose}) => {
             } else {
                 setAccounts(result.data);
 
-                const defaultAccount = result.data.filter((account: any) => account.isDefault)[0] ||
-                (result.data.length > 0) ? result.data[0] : null;
+                const updatedDefaultAccount = result.data.find((account: any) => account.isDefault) || result.data[0];
 
-                if (defaultAccount) {
-                    setDefaultAccount(defaultAccount.id);
+                if (updatedDefaultAccount) {
+                    setDefaultAccount(updatedDefaultAccount.id);
                 }
 
                 setIsLoading(false);
@@ -75,6 +74,12 @@ export const AccountDialog: FC<Props> = ({open, onClose}) => {
     };
 
     const handleSave = async () => {
+
+        if(accounts.length === 0) {
+            alert("You must have at least one account.");
+            return;
+        }
+
         setLoadingMessage('Saving...');
         setIsLoading(true);
 
@@ -82,12 +87,15 @@ export const AccountDialog: FC<Props> = ({open, onClose}) => {
             return {...account, isDefault: account.id === defaultAccount};
         });
 
+        let updatedDefaultAccount = updatedAccounts.find((account: any) => account.isDefault);
+
         const result = await saveAccounts(updatedAccounts);
 
         if (!result.success) {
             alert("Unable to save accounts. Please try again.");
             setIsLoading(false);
         } else {
+            homeDispatch({field: 'defaultAccount', value: updatedDefaultAccount || accounts[0]});
             setIsLoading(false);
             onClose();
         }
@@ -135,7 +143,7 @@ export const AccountDialog: FC<Props> = ({open, onClose}) => {
                                 <li key={"header"} className="flex flex-row items-center py-3">
                                     <div className="text-left">Add account:</div>
                                 </li>
-                                <li key={"header"} className="flex flex-row items-center py-3">
+                                <li key={"header2"} className="flex flex-row items-center py-3">
                                     <div className="text-left"><input
                                         ref={accountNameRef}
                                         type="text"
