@@ -45,7 +45,7 @@ import Workflow, {
     executeJSWorkflow, findParametersInWorkflowCode, replayJSWorkflow, stripComments
 } from "@/utils/workflow/workflow";
 import {fillInTemplate} from "@/utils/app/prompts";
-import {OpenAIModel, OpenAIModels} from "@/types/openai";
+import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
 import {Prompt} from "@/types/prompt";
 import {InputDocument, Status, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
@@ -358,6 +358,25 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 return new Promise(async (resolve, reject) => {
                     if (selectedConversation) {
 
+                        if(selectedConversation && selectedConversation?.model) {
+
+                            const {prompts, inputCost, inputTokens, outputCost, totalCost} =
+                                calculateTokenCost(selectedConversation.model, documents || []);
+
+                            if(totalCost === -1 && inputTokens > 4000){
+                                const go = confirm(`This request will require ${inputTokens} input tokens at an unknown cost.`);
+                                if(!go){
+                                    return;
+                                }
+                            }
+                            if(totalCost > 0.5){
+                                const go = confirm(`This request will cost an estimated $${totalCost} (the actual cost may be more) and require ${prompts} prompt(s).`);
+                                if(!go){
+                                    return;
+                                }
+                            }
+                        }
+
                         //console.log("Root Prompt ID", selectedConversation.prompt.)
 
                         let updatedConversation: Conversation;
@@ -391,6 +410,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         };
 
                         if(documents && documents.length > 0){
+
                             const dataSources = documents.map((doc)=>{
                                return {id:"s3://" + doc.key};
                             });
@@ -1082,6 +1102,45 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }
 
+        const calculateTokenCost = (chatModel:OpenAIModel, datasources:AttachedDocument[]) => {
+            let cost = 0;
+
+            datasources.forEach((doc)=>{
+                if(doc.metadata?.totalTokens){
+                    cost += doc.metadata.totalTokens;
+                }
+            });
+
+            const model = OpenAIModels[chatModel.id as OpenAIModelID];
+            if(!model){
+                return {prompts: -1,
+                        inputTokens: cost,
+                        inputCost: -1,
+                        outputCost: -1,
+                        totalCost: -1};
+            }
+
+
+
+            console.log("Model", model);
+            const contextWindow = model.actualTokenLimit;
+            // calculate cost / context window rounded up
+            const prompts = Math.ceil(cost / contextWindow);
+
+            console.log("Prompts", prompts, "Cost", cost, "Context Window", contextWindow);
+
+            const outputCost = prompts * model.outputCost;
+            const inputCost = (cost / 1000) * model.inputCost;
+
+            console.log("Input Cost", inputCost, "Output Cost", outputCost);
+
+            return {prompts: prompts,
+                inputCost: inputCost.toFixed(2),
+                inputTokens: cost,
+                outputCost: outputCost.toFixed(2),
+                totalCost: (inputCost + outputCost).toFixed(2)};
+        }
+
         const routeMessage = (message: Message, deleteCount: number | undefined, plugin: Plugin | null | undefined, documents: AttachedDocument[] | null) => {
 
             if (message.type == MessageType.PROMPT
@@ -1091,6 +1150,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 console.log("Building data sources");
                 const dataSources = documents?.filter((doc) => doc.key).map((doc) => {
+                    console.log("doc", doc);
                     return {id: "s3://" + doc.key, name: doc.name, type: doc.type};
                 });
                 if(dataSources && dataSources.length > 0){
@@ -1174,7 +1234,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 setCurrentMessage(message);
 
                 if (message.type === MessageType.PROMPT || message.type === MessageType.ROOT) {
-                    handleSend(message, 0, null);
+                    if(documents && documents.length > 0){
+                        handleSend(message, 0, null, null, null, documents);
+                    }
+                    else {
+                        handleSend(message, 0, null);
+                    }
                 } else {
                     console.log("Workflow", message);
                     handleJsWorkflow(message, updatedVariables, variablesByName, documents);

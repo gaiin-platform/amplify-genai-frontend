@@ -7,7 +7,7 @@ import mammoth from "mammoth";
 import { useTranslation } from 'next-i18next';
 import JSZip from "jszip";
 import { v4 as uuidv4 } from 'uuid';
-import { AttachedDocument } from '@/types/attacheddocument';
+import {AttachedDocument, AttachedDocumentMetadata} from '@/types/attacheddocument';
 import {addFile, checkContentReady} from "@/services/fileService";
 import HomeContext from "@/pages/api/home/home.context";
 
@@ -15,6 +15,7 @@ interface Props {
     onAttach: (data: AttachedDocument) => void;
     onUploadProgress?: (data: AttachedDocument, progress: number) => void;
     onSetKey?: (data:AttachedDocument, key:string) => void;
+    onSetMetadata?: (data:AttachedDocument, metadata:any) => void;
     onSetAbortController?: (data:AttachedDocument, abortController:AbortController) => void;
     id:string;
     disallowedFileExtensions?:string[];
@@ -173,6 +174,7 @@ const handleFile = async (file:any,
                           onAttach:any,
                           onUploadProgress:any,
                           onSetKey:any,
+                          onSetMetadata:any,
                           onSetAbortController:any,
                           uploadDocuments:boolean,
                           extractDocumentsLocally:boolean) => {
@@ -232,6 +234,15 @@ const handleFile = async (file:any,
                 const readyStatus = await checkContentReady(metadataUrl, 30);
                 console.log("readyStatus", readyStatus)
                 if(readyStatus && readyStatus.success){
+
+                    if(readyStatus.metadata) {
+                        document.metadata = readyStatus.metadata as AttachedDocumentMetadata;
+
+                        if(onSetMetadata) {
+                            onSetMetadata(document, readyStatus.metadata);
+                        }
+                    }
+
                     onUploadProgress(document, 100);
                 }
                 else {
@@ -257,7 +268,7 @@ const handleFile = async (file:any,
     }
 }
 
-export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetKey , onSetAbortController, allowedFileExtensions, disallowedFileExtensions}) => {
+export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetadata, onSetKey , onSetAbortController, allowedFileExtensions, disallowedFileExtensions}) => {
     const { t } = useTranslation('sidebar');
 
     const {state: { featureFlags, statsService } } = useContext(HomeContext);
@@ -308,7 +319,7 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetKey ,
 
                     statsService.attachFileEvent(file, uploadDocuments, extractDocumentsLocally);
 
-                    handleFile(file, onAttach, onUploadProgress, onSetKey, onSetAbortController, uploadDocuments, extractDocumentsLocally);
+                    handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, onSetAbortController, uploadDocuments, extractDocumentsLocally);
 
                     e.target.value = "";
                 }}

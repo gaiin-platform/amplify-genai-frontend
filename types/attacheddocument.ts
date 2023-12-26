@@ -1,6 +1,9 @@
 
 
-
+export interface AttachedDocumentMetadata {
+    totalTokens: number;
+    [key:string]:any;
+}
 
 export interface AttachedDocument {
     id:string;
@@ -9,4 +12,5 @@ export interface AttachedDocument {
     type:string;
     data:any|null;
     key?:string;
+    metadata?:AttachedDocumentMetadata;
 }

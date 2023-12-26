@@ -62,16 +62,17 @@ const handler = async (req: Request): Promise<Response> => {
     const models: OpenAIModel[] = json.data.reduce((result: OpenAIModel[], model: any) => {
       const model_name = model.id;
 
-
       for (const [key, value] of Object.entries(OpenAIModelID)) {
         if (value === model_name && modelIds.includes(model.id)) {
-
 
           result.push({
             id: model.id,
             name: OpenAIModels[value].name,
             maxLength: OpenAIModels[value].maxLength,
             tokenLimit: OpenAIModels[value].tokenLimit,
+            actualTokenLimit: OpenAIModels[value].actualTokenLimit,
+            inputCost: OpenAIModels[value].inputCost,
+            outputCost: OpenAIModels[value].outputCost,
           });
         }
       }
