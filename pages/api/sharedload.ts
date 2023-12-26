@@ -15,7 +15,7 @@ export const loadSharedItem =
 
         const { accessToken } = session;
 
-        const apiUrl = process.env.SHARE_API_URL + "/load"; // API Gateway URL from environment variables
+        const apiUrl = process.env.API_BASE_URL + "/state/share/load"; // API Gateway URL from environment variables
 
         try {
 

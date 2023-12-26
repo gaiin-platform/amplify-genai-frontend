@@ -16,7 +16,7 @@ export const getShares =
 
         const { accessToken } = session;
 
-        const apiUrl = process.env.SHARE_API_URL || ""; // API Gateway URL from environment variables
+        const apiUrl = process.env.API_BASE_URL + "/state/share" || ""; // API Gateway URL from environment variables
 
         try {
 
