@@ -208,7 +208,7 @@ const handleFile = async (file:any,
         if(uploadDocuments) {
             try {
 
-                const {key, response, statusUrl, contentUrl, abortController} = await addFile({id: uuidv4(), name: file.name, raw: "", type: file.type, data: ""}, file,
+                const {key, response, statusUrl, metadataUrl, contentUrl, abortController} = await addFile({id: uuidv4(), name: file.name, raw: "", type: file.type, data: ""}, file,
                     (progress: number) => {
                         if (onUploadProgress && progress < 95) {
                             onUploadProgress(document, progress);
@@ -229,7 +229,8 @@ const handleFile = async (file:any,
 
                 await response;
 
-                const readyStatus = await checkContentReady(statusUrl, 30);
+                const readyStatus = await checkContentReady(metadataUrl, 30);
+                console.log("readyStatus", readyStatus)
                 if(readyStatus && readyStatus.success){
                     onUploadProgress(document, 100);
                 }

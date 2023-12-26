@@ -107,6 +107,8 @@ export function useChatService() {
                 chatBody.accountId = defaultAccount.id;
             }
 
+            console.log("Sending chat request with documents")
+
             response = getSession().then((session) => {
                 // @ts-ignore
                 return sendChatRequestWithDocuments(chatEndpoint, session.accessToken, chatBody, plugin, abortSignal);

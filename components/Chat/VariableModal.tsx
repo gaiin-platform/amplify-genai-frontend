@@ -156,6 +156,21 @@ export const VariableModal: FC<Props> = ({
         }
     }
 
+    const allDocumentsDoneUploading = (documents:AttachedDocument[]) => {
+        console.log("Checking if all documents are done uploading");
+
+        if(!documents || documents.length == 0){
+            console.log("No files to check");
+            return true;
+        }
+
+        const isComplete = (document:AttachedDocument) => {
+            return !documentState || (documentState && documentState[document.id] == 100);
+        }
+
+        return documents?.every(isComplete);
+    }
+
     const handleDocumentAbortController = (document:AttachedDocument, abortController:any) => {
         setDocumentAborts((prevState) => {
             let newState = {...prevState, [document.id]: abortController};
@@ -234,6 +249,11 @@ export const VariableModal: FC<Props> = ({
 
 
         documents = [...documents, ...files];
+
+        if(!allDocumentsDoneUploading(documents)) {
+            alert('Please wait for all documents to finish uploading or remove them from the prompt.');
+            return;
+        }
 
         documents = documents.map((document) => {
             if(documentKeys[document.id]) {

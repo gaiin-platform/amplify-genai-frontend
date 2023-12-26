@@ -396,6 +396,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             });
                             chatBody.dataSources = dataSources;
                         }
+                        else if(message.data && message.data.dataSources && message.data.dataSources.length > 0){
+                            chatBody.dataSources = message.data.dataSources.map((doc:any)=>{return {id:doc.id}});
+                        }
 
                         const parseMessageType = (message: string): {
                             prefix: "chat"|"json"|"json!"|"csv"|"fn";
