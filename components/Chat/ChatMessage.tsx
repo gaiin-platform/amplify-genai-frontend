@@ -27,7 +27,9 @@ import {Prompt} from "@/types/prompt";
 import {Stars} from "@/components/Chat/Stars";
 import {DownloadModal} from "@/components/Download/DownloadModal";
 import Loader from "@/components/Loader/Loader";
+import {getFileDownloadUrl} from "@/services/fileService"
 import {FileList} from "@/components/Chat/FileList";
+import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 
 
 export interface Props {
@@ -117,6 +119,7 @@ export const ChatMessage: FC<Props> = memo(({
     // ];
 
     const [isDownloadDialogVisible, setIsDownloadDialogVisible] = useState<boolean>(false);
+    const [isFileDownloadDatasourceVisible, setIsFileDownloadDatasourceVisible] = useState<boolean>(false);
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [isTyping, setIsTyping] = useState<boolean>(false);
     const [messageContent, setMessageContent] = useState(message.content);
@@ -329,6 +332,21 @@ export const ChatMessage: FC<Props> = memo(({
     }, [message.content]);
 
 
+    const handleDownload = async (dataSource: DataSource) => {
+        //alert("Downloading " + dataSource.name + " from " + dataSource.id);
+        try{
+            setIsFileDownloadDatasourceVisible(true);
+            const response = await getFileDownloadUrl(dataSource.id);
+            setIsFileDownloadDatasourceVisible(false);
+            window.open(response.downloadUrl, "_blank");
+        }
+        catch (e) {
+            setIsFileDownloadDatasourceVisible(false);
+            console.log(e);
+            alert("Error downloading file. Please try again.");
+        }
+    }
+
     // @ts-ignore
     return (
         <div
@@ -338,6 +356,9 @@ export const ChatMessage: FC<Props> = memo(({
             }`}
             style={{overflowWrap: 'anywhere'}}
         >
+            {isFileDownloadDatasourceVisible && (
+                <LoadingDialog open={true} message={"Preparing to download..."}/>
+            )}
 
             {isDownloadDialogVisible && (
                 <DownloadModal
@@ -410,22 +431,38 @@ export const ChatMessage: FC<Props> = memo(({
                                         {message.data && message.data.dataSources && message.data.dataSources.length > 0 && (
                                             <div className="flex flex-col w-full mt-5 text-gray-800">
                                                 <div className="mr-3 dark:text-white">Included documents:</div>
+
                                                 <div className="flex flex-col">
-                                                {message.data && message.data.dataSources && message.data.dataSources.map((d: any, i: any) => (
-                                                    <div
-                                                        key={i}
-                                                        className="bg-gray-200 dark:bg-white rounded-md shadow-lg h-12 m-3 p-3"
-                                                    >
-                                                        <div className="flex flex-row">
-                                                            <div>
-                                                                <IconFileCheck/>
+                                                    {message.data && message.data.dataSources && message.data.dataSources.map((d: any, i: any) => (
+                                                        <div
+                                                            key={i}
+                                                            className="bg-yellow-400 dark:bg-[#B0BEC5] rounded-md shadow-lg h-12"
+                                                        >
+                                                            <div className="flex flex-row">
+                                                                <div
+                                                                    className="w-14 h-12 flex-none bg-cover rounded-l text-center overflow-hidden"
+                                                                    style={{backgroundImage: 'url("/sparc_apple.png")'}}
+                                                                    title={d.name}>
+                                                                </div>
+                                                                <div className="ml-3 mt-3">
+                                                                    <IconFileCheck/>
+                                                                </div>
+                                                                <div className="mt-3 ml-1 flex-grow p-0 truncate">
+                                                                    {i + 1}. {d.name}
+                                                                </div>
+                                                                {d.id && d.id.startsWith("s3://") && (
+                                                                    <div className="mt-3 mr-3 ml-1 p-0 truncate"
+                                                                    >
+                                                                        <button onClick={() => {
+                                                                            handleDownload(d);
+                                                                        }}>
+                                                                            <IconDownload/>
+                                                                        </button>
+                                                                    </div>
+                                                                )}
                                                             </div>
-                                                        <div className="ml-1 p-0 truncate">
-                                                            {i + 1}. {d.name}
                                                         </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                                    ))}
                                                 </div>
                                             </div>
                                         )}
