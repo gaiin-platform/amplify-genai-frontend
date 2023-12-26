@@ -15,7 +15,7 @@ const marketOp =
 
         const { accessToken } = session;
 
-        let apiUrl = process.env.MARKET_API_URL || "";
+        let apiUrl = process.env.API_BASE_URL + "/market" || "";
 
         // Accessing itemData parameters from the request
         const reqData = req.body;

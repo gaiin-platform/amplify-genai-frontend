@@ -14,7 +14,7 @@ const accountOp =
 
         const { accessToken } = session;
 
-        let apiUrl = process.env.STATE_API_URL || "";
+        let apiUrl = process.env.API_BASE_URL + "/state" || "";
 
         // Accessing itemData parameters from the request
         const reqData = req.body;
