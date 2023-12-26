@@ -25,7 +25,7 @@ import {Plugin} from '@/types/plugin';
 import {Prompt} from '@/types/prompt';
 import {AttachFile} from "@/components/Chat/AttachFile";
 import {FileList} from "@/components/Chat/FileList";
-import {AttachedDocument} from "@/types/attacheddocument";
+import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 
 import HomeContext from '@/pages/api/home/home.context';
 
@@ -81,6 +81,7 @@ export const ChatInput = ({
     const [showAssistantSelect, setShowAssistantSelect] = useState(false);
     const [documents, setDocuments] = useState<AttachedDocument[]>();
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>({});
+    const [documentMetadata, setDocumentMetadata] = useState<{[key:string]:AttachedDocumentMetadata}>({});
     const [documentAborts, setDocumentAborts] = useState<{ [key: string]: AbortController }>({});
 
     const promptListRef = useRef<HTMLUListElement | null>(null);
@@ -138,7 +139,9 @@ export const ChatInput = ({
 
     const handleAppendDocumentsToContent = (content: string, documents: AttachedDocument[]) => {
 
+        // This prevents documents that were uploaded from being jammed into the prompt here
         const toInsert = documents.filter(doc => !doc.key);
+
         if(toInsert.length > 0) {
             content =
                 toInsert.map((d, i) => {
@@ -183,6 +186,7 @@ export const ChatInput = ({
 
         if (documents && documents?.length > 0) {
             if (!isWorkflowOn) {
+
                 msg.content = handleAppendDocumentsToContent(content, documents);
 
                 const maxLength = selectedConversation?.model.maxLength;
@@ -199,10 +203,20 @@ export const ChatInput = ({
             }
         }
 
-        onSend(msg, plugin, documents || []);
+        const updatedDocuments = documents?.map((d) => {
+            const metadata = documentMetadata[d.id];
+            if(metadata){
+                return {...d, metadata: metadata};
+            }
+            return d;
+        });
+
+        onSend(msg, plugin, updatedDocuments || []);
         setContent('');
         setPlugin(null);
         setDocuments([]);
+        setDocumentState({});
+        setDocumentMetadata({});
 
         if (window.innerWidth < 640 && textareaRef && textareaRef.current) {
             textareaRef.current.blur();
@@ -396,6 +410,14 @@ export const ChatInput = ({
 
     }
 
+    const handleSetMetadata = (document:AttachedDocument, metadata:any) => {
+
+        setDocumentMetadata((prevState) => {
+            const newMetadata = {...prevState, [document.id]: metadata};
+            return newMetadata;
+        });
+    }
+
     const handleSetKey = (document: AttachedDocument, key: string) => {
         if (documents) {
             const newDocuments = documents?.map((d) => {
@@ -489,6 +511,7 @@ export const ChatInput = ({
                         <AttachFile id="__attachFile"
                                     disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                     onAttach={addDocument}
+                                    onSetMetadata={handleSetMetadata}
                                     onSetKey={handleSetKey}
                                     onSetAbortController={handleDocumentAbortController}
                                     onUploadProgress={handleDocumentState}

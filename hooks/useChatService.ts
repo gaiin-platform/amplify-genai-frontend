@@ -97,7 +97,11 @@ export function useChatService() {
         //let response = send(apiKey, chatBody, plugin, abortSignal);
 
         let response = null;
-        if(chatBody.dataSources && chatBody.dataSources.length > 0) {
+
+        if(!chatBody.dataSources){
+            chatBody.dataSources = [];
+        }
+        // if(chatBody.dataSources && chatBody.dataSources.length > 0) {
 
             if(!chatEndpoint) {
                 throw new Error("Chat endpoint not set. Please tell the system administrator to set the CHAT_ENDPOINT environment variable.");
@@ -107,14 +111,16 @@ export function useChatService() {
                 chatBody.accountId = defaultAccount.id;
             }
 
+            console.log("Sending chat request with documents")
+
             response = getSession().then((session) => {
                 // @ts-ignore
                 return sendChatRequestWithDocuments(chatEndpoint, session.accessToken, chatBody, plugin, abortSignal);
             });
-        }
-        else {
-            response = send(apiKey, chatBody, plugin, abortSignal);
-        }
+        // }
+        // else {
+        //     response = send(apiKey, chatBody, plugin, abortSignal);
+        // }
 
         // It would be ideal to do this here, but then the streaming response
         // can't be done for reading into the chat... This is dispatched in the

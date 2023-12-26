@@ -64,13 +64,20 @@ export function checkContentReady(url: string, maxSeconds: number): Promise<any>
             }
 
             const xhr = new XMLHttpRequest();
-            xhr.open('HEAD', url);
+            xhr.open('GET', url);
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4) {
                     if (xhr.status === 200) {
                         console.log("File ready for chat");
+                        let metadata = null;
+                        try{
+                            metadata = JSON.parse(xhr.responseText);
+                        }
+                        catch(e){
+                            console.log("Error parsing content metadata response", e);
+                        }
                         clearInterval(intervalId);
-                        resolve({success: true});
+                        resolve({success: true, metadata: metadata});
                     }
                     // else if (xhr.status !== 404) {
                     //     clearInterval(intervalId);
@@ -108,13 +115,18 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
     }
 
     const result = await response.json();
+
+    console.log("result", result);
+
     const key = result.key;
     const uploadUrl = result.url;
     const contentUrl = result.contentUrl;
     const statusUrl = result.statusUrl;
+    const metadataUrl = result.metadataUrl;
 
     console.log("contentUrl", contentUrl);
     console.log("statusUrl", statusUrl);
+    console.log("metadataUrl", metadataUrl);
 
     const {response:uploadResponse, abort:abort} = uploadFileToS3(file, uploadUrl, (progress: number) => {
         if (onProgress) {
@@ -124,6 +136,7 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
 
     return {key:key,
             contentUrl:contentUrl,
+            metadataUrl:metadataUrl,
             statusUrl:statusUrl,
             response:uploadResponse,
             abortController:abort};

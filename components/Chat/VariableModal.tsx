@@ -2,7 +2,7 @@ import {FC, KeyboardEvent, useContext, useEffect, useRef, useState} from 'react'
 
 import {Prompt} from '@/types/prompt';
 import {AttachFile} from "@/components/Chat/AttachFile";
-import {AttachedDocument} from "@/types/attacheddocument";
+import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 import {WorkflowDefinition} from "@/types/workflow";
 import {OpenAIModelID, OpenAIModel} from "@/types/openai";
 import HomeContext from "@/pages/api/home/home.context";
@@ -104,6 +104,7 @@ export const VariableModal: FC<Props> = ({
     const [isConversationDropdownOpen, setIsConversationDropdownOpen] = useState(false);
     const [files, setFiles] = useState<AttachedDocument[]>([]);
     const [documentKeys, setDocumentKeys] = useState<{[key:string]:string}>({});
+    const [documentMetadata, setDocumentMetadata] = useState<{[key:string]:AttachedDocumentMetadata}>({});
     const [updatedVariables, setUpdatedVariables] = useState<{ key: string; value: any }[]>(
         variables
             .map((variable) => {
@@ -156,6 +157,22 @@ export const VariableModal: FC<Props> = ({
         }
     }
 
+    const allDocumentsDoneUploading = (documents:AttachedDocument[]) => {
+        console.log("Checking if all documents are done uploading");
+        console.log(documents);
+
+        if(!documents || documents.length == 0){
+            console.log("No files to check");
+            return true;
+        }
+
+        const isComplete = (document:AttachedDocument) => {
+            return !documentState || (!document.key) || (documentState && documentState[document.id] == 100);
+        }
+
+        return documents?.every(isComplete);
+    }
+
     const handleDocumentAbortController = (document:AttachedDocument, abortController:any) => {
         setDocumentAborts((prevState) => {
             let newState = {...prevState, [document.id]: abortController};
@@ -172,6 +189,14 @@ export const VariableModal: FC<Props> = ({
             return newState;
         });
 
+    }
+
+    const handleSetMetadata = (document:AttachedDocument, metadata:any) => {
+
+        setDocumentMetadata((prevState) => {
+            const newMetadata = {...prevState, [document.id]: metadata};
+            return newMetadata;
+        });
     }
 
     const handleSetKey = (document:AttachedDocument, key:string) => {
@@ -210,12 +235,6 @@ export const VariableModal: FC<Props> = ({
 
     const handleSubmit = () => {
 
-        if (updatedVariables.some((variable) =>
-            variable.value === '' && !parsePromptVariableValues(variable.key).optional)) {
-
-            alert('Please fill out all variables');
-            return;
-        }
 
         // Final updates that shouldn't be visible / editable to the user
         // Transform all of the values of the updateVariables map with the getValue function
@@ -234,6 +253,39 @@ export const VariableModal: FC<Props> = ({
 
 
         documents = [...documents, ...files];
+
+        const fileVars = updatedVariables.filter((variable) =>
+            (getType(variable.key) === 'file')
+            && !parsePromptVariableValues(variable.key).optional);
+
+        const missingFiles = fileVars.filter((variable) =>
+            !variable.value || variable.value === '' || variable.value.length === 0);
+
+        if (missingFiles.length > 0) {
+            alert('Please provide all the required files marked with "*"');
+            return;
+        }
+
+        const filesVar = updatedVariables.filter((variable) =>
+            (getType(variable.key) === 'files')
+            && !parsePromptVariableValues(variable.key).optional);
+
+        if(filesVar.length > 0 && files.length === 0) {
+            alert('Please provide all the required files marked with "*"');
+            return;
+        }
+
+        if (updatedVariables.some((variable) =>
+            variable.value === '' && !parsePromptVariableValues(variable.key).optional)) {
+
+            alert('Please fill out all required variables marked with "*"');
+            return;
+        }
+
+        if(!allDocumentsDoneUploading(documents)) {
+            alert('Please wait for all documents to finish uploading or remove them from the prompt.');
+            return;
+        }
 
         documents = documents.map((document) => {
             if(documentKeys[document.id]) {
@@ -423,6 +475,7 @@ export const VariableModal: FC<Props> = ({
                                 <AttachFile id={"__idVarFile" + index}
                                             disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                             onSetKey={handleSetKey}
+                                            onSetMetadata={handleSetMetadata}
                                             onSetAbortController={handleDocumentAbortController}
                                             onUploadProgress={handleDocumentState}
                                             onAttach={(doc) => {
@@ -444,6 +497,7 @@ export const VariableModal: FC<Props> = ({
                                 <AttachFile id={"__idVarFile" + index}
                                             disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                             onSetKey={handleSetKey}
+                                            onSetMetadata={handleSetMetadata}
                                             onSetAbortController={handleDocumentAbortController}
                                             onUploadProgress={handleDocumentState}
                                             onAttach={(doc) => {
