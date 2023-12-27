@@ -90,6 +90,29 @@ export function checkContentReady(url: string, maxSeconds: number): Promise<any>
     });
 }
 
+export const getFileDownloadUrl = async (key:string) => {
+    const response = await fetch('/api/files/download', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            data:{
+                key:key
+            }
+        }),
+        signal: null,
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to get presigned download url: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    return {key:key, downloadUrl:result.downloadUrl};
+}
+
 export const addFile = async (metadata:AttachedDocument, file: File, onProgress?: (progress: number) => void, abortSignal:AbortSignal|null= null) => {
 
     const response = await fetch('/api/files/upload', {
