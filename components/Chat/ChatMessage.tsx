@@ -426,7 +426,7 @@ export const ChatMessage: FC<Props> = memo(({
                                 <div className="flex flex-grow flex-col">
                                     <div className="flex flex-col">
                                         <div className="prose whitespace-pre-wrap dark:prose-invert flex-1">
-                                            {message.content}
+                                            {message.label || message.content}
                                         </div>
                                         {message.data && message.data.dataSources && message.data.dataSources.length > 0 && (
                                             <div className="flex flex-col w-full mt-5 text-gray-800">

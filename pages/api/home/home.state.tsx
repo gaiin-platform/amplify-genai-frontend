@@ -93,7 +93,11 @@ export const initialState: HomeInitialState = {
   page: 'chat',
   featureFlags: {
     uploadDocuments:true,
+    overrideUneditablePrompts:false,
+    overrideInvisiblePrompts: false,
     extractDocumentsLocally:false,
+    promptPrefixCreate: false,
+    outputTransformerCreate: false,
     workflowRun:true,
     workflowCreate:false,
     rootPromptCreate:true,

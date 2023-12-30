@@ -9,14 +9,17 @@ export interface Message {
   id: string;
   type: string | undefined;
   data: any | undefined;
+  label?: string;
 }
 
 export enum MessageType {
   PROMPT = 'prompt',
   AUTOMATION = 'automation',
   ROOT = 'root_prompt',
+  PREFIX_PROMPT = 'prefix_prompt',
   FOLLOW_UP = 'follow_up',
   REMOTE = 'remote',
+  OUTPUT_TRANSFORMER = 'output_transformer',
 }
 
 export const newMessage = (data: any) => {

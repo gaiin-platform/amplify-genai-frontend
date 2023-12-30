@@ -9,9 +9,11 @@ import { Plugin } from '@/types/plugin';
 import { wrapResponse, stringChunkCallback } from "@/utils/app/responseWrapper";
 
 import {getSession} from "next-auth/react"
+import json5 from "json5";
+import {OpenAIModels} from "@/types/openai";
 
 export function useChatService() {
-    const { state: { apiKey , statsService, chatEndpoint, defaultAccount},
+    const { state: { apiKey , statsService, chatEndpoint, defaultAccount, defaultModelId },
         preProcessingCallbacks,
         postProcessingCallbacks, } = useContext(HomeContext);
 
@@ -129,5 +131,75 @@ export function useChatService() {
         return response;
     };
 
-    return { sendChatRequest, sendFunctionChatRequest, sendCSVChatRequest, sendJsonChatRequest, sendJsonChatRequestWithSchemaLoose, sendJsonChatRequestWithSchema };
+    const parseMessageType = (message: string): {
+        prefix: "chat"|"json"|"json!"|"csv"|"fn";
+        body: string;
+        options: any|null } => {
+        // This regular expression will match 'someXYZ' as a prefix and capture
+        // the contents inside the parentheses.
+        const regex = /^(\w+[\!]?)\(([^)]*)\).*/;
+
+        const match = message.trim().match(regex);
+
+        // @ts-ignore
+        //console.log("Match",match[0],match[1],match[2]);
+
+        if (match &&
+            match.length === 3 &&
+            match[1] &&
+            (match[1] === "json"
+                || match[1] === "json!"
+                || match[1] === "csv"
+                || match[1] === "fn") &&
+            match[2]) {
+            try {
+                return {
+                    prefix: match[1],
+                    body: message.trim().slice(match[1].length),
+                    options: match[2].length > 0 ? json5.parse(match[2]) : {}
+                };
+            }catch (e){
+
+            }
+        }
+
+        return {prefix:"chat", body:message, options:{}}; // Return null if the message does not match the expected format
+    }
+
+    const routeChatRequest = async (chatBody:ChatBody, plugin?:Plugin|null, abortSignal?:AbortSignal) => {
+        const message = chatBody.messages.slice(-1)[0];
+
+        chatBody.key = apiKey;
+        if(!chatBody.model && defaultModelId){
+            chatBody.model = OpenAIModels[defaultModelId];
+        }
+
+        const {prefix, body, options} = parseMessageType(message.content || "");
+
+        let updated = {...message, content:body};
+        chatBody.messages = [...chatBody.messages.slice(0, -1), updated];
+
+        console.log(`Prompt:`, {prefix, options, message});
+
+        const generateJsonLoose = ():Promise<Response> => {
+            if(options.length === 0){
+                return sendJsonChatRequest(chatBody, plugin, abortSignal);
+            }
+            else {
+                return sendJsonChatRequestWithSchemaLoose(chatBody, options as JsonSchema, plugin, abortSignal)
+            }
+        }
+
+        const invokers = {
+            "fn":()=>sendFunctionChatRequest(chatBody, options.functions as CustomFunction[], options.call, plugin, abortSignal),
+            "chat":()=>sendChatRequest(chatBody, plugin, abortSignal),
+            "csv":()=>sendCSVChatRequest(chatBody, options as ColumnsSpec, plugin, abortSignal),
+            "json":()=>generateJsonLoose(),
+            "json!":()=>sendJsonChatRequestWithSchema(chatBody, options as JsonSchema, plugin, abortSignal)
+        }
+
+        return await invokers[prefix]();
+    }
+
+    return { routeChatRequest, sendChatRequest, sendFunctionChatRequest, sendCSVChatRequest, sendJsonChatRequest, sendJsonChatRequestWithSchemaLoose, sendJsonChatRequestWithSchema };
 }

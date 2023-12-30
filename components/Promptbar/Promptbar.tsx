@@ -36,7 +36,7 @@ const Promptbar = () => {
   const [sharedFolders, setSharedFolders] = useState<FolderInterface[]>([])
 
   const {
-    state: { prompts, defaultModelId, showPromptbar, statsService },
+    state: { prompts, defaultModelId, showPromptbar, statsService, featureFlags },
     dispatch: homeDispatch,
     handleCreateFolder,
   } = useContext(HomeContext);
@@ -151,13 +151,17 @@ const Promptbar = () => {
   };
 
   useEffect(() => {
+
+    const visiblePrompts = (featureFlags.overrideInvisiblePrompts) ?
+        prompts : prompts.filter((prompt) => !prompt.data?.hidden);
+
     if (searchTerm) {
 
       statsService.searchPromptsEvent(searchTerm);
 
       promptDispatch({
         field: 'filteredPrompts',
-        value: prompts.filter((prompt) => {
+        value: visiblePrompts.filter((prompt) => {
           const searchable =
             prompt.name.toLowerCase() +
             ' ' +
@@ -168,7 +172,7 @@ const Promptbar = () => {
         }),
       });
     } else {
-      promptDispatch({ field: 'filteredPrompts', value: prompts });
+      promptDispatch({ field: 'filteredPrompts', value: visiblePrompts });
     }
   }, [searchTerm, prompts]);
 

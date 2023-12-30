@@ -8,7 +8,6 @@
 //     return strippedCode;
 // }
 //
-import JSON5 from "json5";
 
 function convertToMarkdown(obj, prefix = "") {
     let output = "";
@@ -619,3 +618,72 @@ const test6 = "const workflow = async (fnlibs) => {\n" +
 
 console.log(findWorkflowPattern(test6) != null);
 
+
+
+const describeAsJsonSchema = (obj, id = 'root') => {
+
+    try {
+        // Case: null
+        if (obj === null) {
+            return {type: 'null'};
+        }
+
+        // Case: undefined
+        if (typeof obj === 'undefined') {
+            return {type: 'undefined'};
+        }
+
+        // Case: Date
+        if (obj instanceof Date) {
+            return {type: 'string', format: 'date-time'};
+        }
+
+        // Case: Blob
+        // Please note, Blob is mainly used in browsers and might not available in all environments
+        if (typeof Blob !== 'undefined' && obj instanceof Blob) {
+            return {type: 'string', format: 'data-url'};
+        }
+
+        switch (typeof obj) {
+            // Case: string, number, boolean
+            case 'string':
+            case 'number':
+            case 'boolean':
+                return {
+                    type: typeof obj,
+                };
+            // Case: object
+            case 'object':
+                // Array handling
+                if (Array.isArray(obj)) {
+                    // @ts-ignore
+                    const items = obj.length > 0 ? describeAsJsonSchema(obj[0]) : {};
+                    return {type: 'array', items};
+                }
+                // Object Handling
+                else {
+                    // @ts-ignore
+                    const properties = Object.fromEntries(
+                        Object.entries(obj).map(([propertyName, value]) => [
+                            propertyName,
+                            describeAsJsonSchema(value),
+                        ])
+                    );
+                    return {type: 'object', properties};
+                }
+            // Case: other data types
+            default:
+                return {};
+        }
+    }catch(e){
+        return {};
+    }
+}
+
+const schema = describeAsJsonSchema({
+    name:"asdf",
+    children:[
+        {id:123, description:"asdfasdf"},
+    ]
+});
+console.log(schema);

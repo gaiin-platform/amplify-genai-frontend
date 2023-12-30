@@ -12,6 +12,8 @@ import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import EditableField from "@/components/Promptbar/components/EditableField";
 import { DEFAULT_SYSTEM_PROMPT } from "@/utils/app/const";
 import { v4 as uuidv4 } from 'uuid';
+import PromptTextArea from "@/components/PromptTextArea/PromptTextArea";
+import {promptForJsonPrefix} from "@/utils/app/data";
 
 interface Props {
   prompt: Prompt;
@@ -159,6 +161,17 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
       newPrompt.data = {...newPrompt.data, conversationTags: conversationTags.split(",").map((t: string) => t.trim())};
     }
 
+    if(selectedTemplate === MessageType.PREFIX_PROMPT) {
+      if(parsePromptVariables(content).length === 0){
+        newPrompt.content = content + "{{Please provide a chat message to start the conversation.}}";
+      }
+    }
+
+    if(selectedTemplate === MessageType.OUTPUT_TRANSFORMER ||
+       selectedTemplate === MessageType.PREFIX_PROMPT) {
+      newPrompt.data = {...newPrompt.data, hidden:true};
+    }
+
     if (featureFlags.workflowCreate
         && selectedTemplate === MessageType.AUTOMATION
         && code
@@ -234,7 +247,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             />
 
             {selectedTemplate !== MessageType.ROOT && selectedTemplate !== MessageType.AUTOMATION &&
-                selectedTemplate !== MessageType.FOLLOW_UP && (
+                selectedTemplate !== MessageType.FOLLOW_UP && selectedTemplate !== MessageType.PREFIX_PROMPT && (
                 <>
                 <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
                   {t('Custom Instructions')}
@@ -315,6 +328,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               </div>
             ))}
 
+            {!featureFlags.promptPrefixCreate && (
             <div className="mt-6">
             <ExpansionComponent title={"Conversation Tags"} content={
                 <div className="mt-2 mb-6 text-sm font-bold text-black dark:text-neutral-200">
@@ -330,6 +344,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                 </div>
             }/>
             </div>
+            )}
 
             {featureFlags.workflowCreate && selectedTemplate === MessageType.AUTOMATION && (
                 <>
@@ -364,7 +379,16 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                 </>
             )}
 
-            {featureFlags.followUpCreate && selectedTemplate === MessageType.FOLLOW_UP && (
+            {/*{(featureFlags.outputTransformerCreate && selectedTemplate === MessageType.OUTPUT_TRANSFORMER) && (*/}
+            {/*  <PromptTextArea*/}
+            {/*      promptTemplateString={`${promptForJsonPrefix({steps:[{id:1, description:""}]}, 'plan')} Generate a json schema for an object with description, size, and name properties.`}*/}
+            {/*      generateButtonText="Generate!"/>*/}
+            {/*)}*/}
+
+            {(featureFlags.followUpCreate && selectedTemplate === MessageType.FOLLOW_UP) ||
+                (featureFlags.promptPrefixCreate && selectedTemplate === MessageType.PREFIX_PROMPT) ||
+                (featureFlags.outputTransformerCreate && selectedTemplate === MessageType.OUTPUT_TRANSFORMER)
+                && (
                 <>
                 <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
                   {t('Required Tags')}
@@ -409,6 +433,38 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                       />
                       <label className="ml-2">
                         Custom instructions
+                      </label>
+                    </div>
+                )}
+
+                {featureFlags.promptPrefixCreate && (
+                    <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
+                      <input
+                          type="radio"
+                          name="template"
+                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
+                          value={MessageType.PREFIX_PROMPT}
+                          checked={selectedTemplate === MessageType.PREFIX_PROMPT}
+                          onChange={() => setSelectedTemplate(MessageType.PREFIX_PROMPT)}
+                      />
+                      <label className="ml-2">
+                        Prompt Prefix
+                      </label>
+                    </div>
+                )}
+
+                {featureFlags.outputTransformerCreate && (
+                    <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
+                      <input
+                          type="radio"
+                          name="template"
+                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
+                          value={MessageType.OUTPUT_TRANSFORMER}
+                          checked={selectedTemplate === MessageType.OUTPUT_TRANSFORMER}
+                          onChange={() => setSelectedTemplate(MessageType.OUTPUT_TRANSFORMER)}
+                      />
+                      <label className="ml-2">
+                        Output Transformer
                       </label>
                     </div>
                 )}

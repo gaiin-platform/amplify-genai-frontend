@@ -81,6 +81,13 @@ function addLineNumbers(str: string) {
     return lines.join('\n');
 }
 
+
+export const promptForJsonPrefix = (obj: any, id: string) => {
+    const jsonSchema = describeAsJsonSchema(obj, id);
+    const jsonSchemaString = JSON.stringify(jsonSchema, null, 2);
+    return `json!(${jsonSchemaString})\n`;
+}
+
 // @ts-ignore
 export const describeAsJsonSchema = (obj:any, id = 'root') => {
 

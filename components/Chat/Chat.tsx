@@ -36,6 +36,7 @@ import {SystemPrompt} from './SystemPrompt';
 import {TemperatureSlider} from './Temperature';
 import {MemoizedChatMessage} from './MemoizedChatMessage';
 
+import {usePrefixService} from '@/hooks/usePrefixService';
 import {useChatService} from '@/hooks/useChatService';
 import {VariableModal, parseVariableName} from "@/components/Chat/VariableModal";
 import {defaultVariableFillOptions, parseEditableVariables, parsePromptVariables} from "@/utils/app/prompts";
@@ -98,6 +99,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
 
         const {sendChatRequest, sendJsonChatRequestWithSchemaLoose, sendFunctionChatRequest, sendJsonChatRequest, sendJsonChatRequestWithSchema, sendCSVChatRequest} = useChatService();
+        const {getPrefix} = usePrefixService();
 
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
@@ -357,6 +359,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt:string|null = null, documents?:AttachedDocument[] | null) => {
                 return new Promise(async (resolve, reject) => {
                     if (selectedConversation) {
+
+                        const {prefix, label} = getPrefix(selectedConversation, message);
+                        if(prefix){
+                            message.content = prefix + " " + message.content;
+                            message.label = label;
+                        }
 
                         if(selectedConversation && selectedConversation?.model) {
 
@@ -1188,7 +1196,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             let templateData = promptTemplate || selectedConversation?.promptTemplate;
 
-            // console.log("Template Data", templateData);
+            console.log("Template Data", templateData);
 
             if (templateData) {
                 let template = templateData?.content;
@@ -1206,6 +1214,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 const newContent = fillInTemplate(template || "", variables, updatedVariables, documents, fillInDocuments);
 
+                let label = null;
+
+                if(templateData.type === MessageType.PREFIX_PROMPT){
+                    const labelPrefix = fillInTemplate(template || "", variables, [], [], false);
+                    label = newContent.substring(labelPrefix.length);
+                }
+
+
                 // Create a map with variable mapped to updatedVariables
                 const variablesByName:{[key:string]:any} = {};
                 const updatedVariablesMap = variables.forEach((v, index) => {
@@ -1222,7 +1238,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     role: 'user',
                     content: newContent,
                     data: {templateData: templateData},
-                    type: templateData?.type || MessageType.PROMPT
+                    type: templateData?.type || MessageType.PROMPT,
+                    label: label
                 });
 
                 if(dataSources && dataSources.length > 0){
@@ -1233,16 +1250,25 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 // @ts-ignore
                 setCurrentMessage(message);
 
-                if (message.type === MessageType.PROMPT || message.type === MessageType.ROOT) {
+                if (message.type === MessageType.PROMPT ||
+                    message.type === MessageType.ROOT ||
+                    message.type === MessageType.PREFIX_PROMPT) {
                     if(documents && documents.length > 0){
                         handleSend(message, 0, null, null, null, documents);
                     }
                     else {
                         handleSend(message, 0, null);
                     }
-                } else {
+                } else if(message.type === MessageType.AUTOMATION) {
                     console.log("Workflow", message);
                     handleJsWorkflow(message, updatedVariables, variablesByName, documents);
+                } else {
+                    if(documents && documents.length > 0){
+                        handleSend(message, 0, null, null, null, documents);
+                    }
+                    else {
+                        handleSend(message, 0, null);
+                    }
                 }
             }
 

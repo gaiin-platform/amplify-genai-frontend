@@ -67,7 +67,9 @@ export const handleStartConversationWithPrompt = (handleNewConversation:any, pro
   if (prompt.type == "automation") {
     tags.push("automation");
   }
-
+  if (prompt.type === MessageType.PREFIX_PROMPT) {
+    tags = [...tags, ...(prompt.data?.requiredTags || [])];
+  }
 
   handleNewConversation(
       {
