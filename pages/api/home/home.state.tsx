@@ -94,10 +94,10 @@ export const initialState: HomeInitialState = {
   featureFlags: {
     uploadDocuments:true,
     overrideUneditablePrompts:false,
-    overrideInvisiblePrompts: false,
+    overrideInvisiblePrompts: true,
     extractDocumentsLocally:false,
-    promptPrefixCreate: false,
-    outputTransformerCreate: false,
+    promptPrefixCreate: true,
+    outputTransformerCreate: true,
     workflowRun:true,
     workflowCreate:false,
     rootPromptCreate:true,

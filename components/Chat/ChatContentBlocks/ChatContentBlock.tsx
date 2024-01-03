@@ -7,7 +7,9 @@ import {Conversation, Message} from "@/types/chat";
 import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
 import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
 import AssistantBlock from "@/components/Chat/ChatContentBlocks/AssistantBlock";
-
+import {useChatService} from "@/hooks/useChatService";
+import {usePromptFinderService} from "@/hooks/usePromptFinderService";
+import {parsePartialJson} from "@/utils/app/data";
 
 interface Props {
     messageIsStreaming: boolean;
@@ -15,7 +17,6 @@ interface Props {
     message: Message;
     selectedConversation: Conversation|undefined;
     handleCustomLinkClick: (message:Message, href: string) => void,
-    handleTextHighlight: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void;
 }
 
 const ChatContentBlock: React.FC<Props> = (
@@ -24,13 +25,29 @@ const ChatContentBlock: React.FC<Props> = (
         messageIndex,
         messageIsStreaming,
         handleCustomLinkClick,
-        handleTextHighlight}) => {
+    }) => {
 
+    const {getOutputTransformers} = usePromptFinderService();
+
+    const transformMessageContent = (conversation:Conversation, message:Message) => {
+        try {
+            const {transformer} = getOutputTransformers(conversation, message);
+            return transformer(conversation, message, {parsePartialJson});
+        }catch(e){
+            console.log("Error transforming output.");
+            console.log(e);
+        }
+        return message.content;
+    }
+
+    const transformedMessageContent = selectedConversation ?
+        transformMessageContent(selectedConversation, message) :
+        message.content;
 
     return (<MemoizedReactMarkdown
     className="prose dark:prose-invert flex-1"
     remarkPlugins={[remarkGfm, remarkMath]}
-    onMouseUp={handleTextHighlight}
+    //onMouseUp={handleTextHighlight}
     // @ts-ignore
     //rehypePlugins={[rehypeRaw]}
     //rehypePlugins={[rehypeMathjax]}
@@ -130,7 +147,7 @@ const ChatContentBlock: React.FC<Props> = (
         },
     }}
 >
-    {`${message.content}${
+    {`${transformedMessageContent}${
         messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1 ? '`▍`' : ''
     }`}
 </MemoizedReactMarkdown>);

@@ -36,7 +36,7 @@ import {SystemPrompt} from './SystemPrompt';
 import {TemperatureSlider} from './Temperature';
 import {MemoizedChatMessage} from './MemoizedChatMessage';
 
-import {usePrefixService} from '@/hooks/usePrefixService';
+import {usePromptFinderService} from '@/hooks/usePromptFinderService';
 import {useChatService} from '@/hooks/useChatService';
 import {VariableModal, parseVariableName} from "@/components/Chat/VariableModal";
 import {defaultVariableFillOptions, parseEditableVariables, parsePromptVariables} from "@/utils/app/prompts";
@@ -99,7 +99,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
 
         const {sendChatRequest, sendJsonChatRequestWithSchemaLoose, sendFunctionChatRequest, sendJsonChatRequest, sendJsonChatRequestWithSchema, sendCSVChatRequest} = useChatService();
-        const {getPrefix} = usePrefixService();
+        const {getPrefix} = usePromptFinderService();
 
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
@@ -360,9 +360,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 return new Promise(async (resolve, reject) => {
                     if (selectedConversation) {
 
-                        const {prefix, label} = getPrefix(selectedConversation, message);
-                        if(prefix){
-                            message.content = prefix + " " + message.content;
+                        const {content, label} = getPrefix(selectedConversation, message);
+                        if(content){
+                            message.content = content + " " + message.content;
                             message.label = label;
                         }
 
@@ -470,7 +470,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             let updated = {...message, content:body};
                             chatBody.messages = [...chatBody.messages.slice(0, -1), updated];
 
-                            console.log(`Prompt:`, {prefix, options, message});
+                            console.log(`Prompt:`, {prefix: prefix, options, message});
 
                             const generateJsonLoose = ():Promise<Response> => {
                                 if(options.length === 0){

@@ -179,7 +179,7 @@ export function useChatService() {
         let updated = {...message, content:body};
         chatBody.messages = [...chatBody.messages.slice(0, -1), updated];
 
-        console.log(`Prompt:`, {prefix, options, message});
+        console.log(`Prompt:`, {prefix: prefix, options, message});
 
         const generateJsonLoose = ():Promise<Response> => {
             if(options.length === 0){

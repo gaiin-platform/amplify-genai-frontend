@@ -77,60 +77,14 @@ export const ChatMessage: FC<Props> = memo(({
 
     const markdownComponentRef = useRef<HTMLDivElement>(null);
 
-    // const userFollowupButtonsConfig = [
-    //     {
-    //         title: 'Suggest Prompt Improvements', handler: () => {
-    //             onSend([newMessage({
-    //                 role: "user", content: "Given the prompt: " +
-    //                     "---------------------------------\n" +
-    //                     "" + message.content +
-    //                     "\n---------------------------------\n" +
-    //                     "Suggest an enhanced version of it.\n" +
-    //                     "1. Start with clear, precise instructions placed at the beginning of the prompt.\n" +
-    //                     "2. Include specific details about the desired context, outcome, length, format, and style.\n" +
-    //                     "3. Provide examples of the desired output format, if possible.\n" +
-    //                     "4. Use appropriate leading words or phrases to guide the desired output, especially if code generation is involved.\n" +
-    //                     "5. Avoid any vague or imprecise language. \n" +
-    //                     "6. Rather than only stating what not to do, provide guidance on what should be done instead.\n" +
-    //                     "\n" +
-    //                     "Remember to ensure the revised prompt remains true to the user's original intent. At the end, ask me if you should respond to this prompt."
-    //             })])
-    //
-    //         }
-    //     },
-    // ];
-
-    // const followUpButtonsConfig = [
-    //     {
-    //         title: 'Follow-up Prompts',
-    //         handler: () => onSend([newMessage({
-    //             role: "user",
-    //             content: "Act as an expert prompt engineer. Suggest really five really innovative, creative, follow-up prompts that would generate concrete outputs or analyses that would help me do something related to this content. Be very very specific with the wording of your suggestions and all of them should include building a step by step plan as part of the prompt. All of them should include a persona."
-    //         })])
-    //     },
-    //     {
-    //         title: 'Follow-up Questions',
-    //         handler: () => onSend([newMessage({role: "user", content: "What are follow-up questions I should ask?"})])
-    //     },
-    //     {
-    //         title: 'Fact List',
-    //         handler: () => onSend([newMessage({role: "user", content: "Create a bulleted list of facts related to this content that should be checked to determine its veracity."})])
-    //     },
-    // ];
-
     const [isDownloadDialogVisible, setIsDownloadDialogVisible] = useState<boolean>(false);
     const [isFileDownloadDatasourceVisible, setIsFileDownloadDatasourceVisible] = useState<boolean>(false);
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [isTyping, setIsTyping] = useState<boolean>(false);
     const [messageContent, setMessageContent] = useState(message.content);
     const [messagedCopied, setMessageCopied] = useState(false);
-    const [rating, setRating] = useState<number>(message.data && message.data.rating || 0);
     const [editSelection, setEditSelection] = useState<string>("");
-    const [editBucket, setEditBucket] = useState<string>("");
-    const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
-    const [contentParts, setContentParts] = useState<string[]>([]);
-    const [popupStyle, setPopupStyle] = useState<Style>({marginTop: '0px', marginLeft: '0px', display: 'none'});
-    const divRef = useRef<HTMLDivElement>(null);
+   const divRef = useRef<HTMLDivElement>(null);
 
     const toggleEditing = () => {
         setIsEditing(!isEditing);
@@ -193,13 +147,6 @@ export const ChatMessage: FC<Props> = memo(({
         homeDispatch({field: 'conversations', value: all});
     };
 
-    const handlePressEnter = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === 'Enter' && !isTyping && !e.shiftKey) {
-            e.preventDefault();
-            handleEditMessage();
-        }
-    };
-
     const copyOnClick = () => {
         if (!navigator.clipboard) return;
 
@@ -211,125 +158,11 @@ export const ChatMessage: FC<Props> = memo(({
         });
     };
 
-    const handleTextHighlight = (selection: string) => {
-        if (selection && selection.toString().length > 0) {
-            setEditSelection(selection.toString());
-        } else {
-            setEditSelection("");
-        }
-    };
 
-    const checkTextHighlight = () => {
-        const selection = document.getSelection();
-        if (!selection || selection.toString().length === 0) {
-            setEditSelection("");
-            return false;
-        }
-
-        return true;
-    }
-
-    useEffect(() => {
-        function handleSelectionChange() {
-            const selection = document.getSelection();
-            if (selection && selection.rangeCount > 0) {
-                // process selection
-                handleTextHighlight(selection.toString());
-            }
-        }
-
-        // Fires whenever the document's selection changes
-        document.onselectionchange = handleSelectionChange;
-
-        if (markdownComponentRef.current) {
-            markdownComponentRef.current.onmouseup = handleSelectionChange;
-        }
-
-        return () => {
-            // Cleanup
-            if (markdownComponentRef.current) {
-                markdownComponentRef.current.onmouseup = null;
-            }
-            document.onselectionchange = null;
-        }
-
-    }, []);
-
-
-    const handleRightClick = (event: any) => {
-        // Implement your logic for right-click event handling
-    };
-
-    const handleDoChatEdit = (selection: string, feedback: string) => {
-        console.log("Do chat edit:", selection);
-
-        function findUniquePrefix(a: string, b: string) {
-            let prefix = '';
-            let matches = 0;
-
-            for (let i = 0; i < a.length; i++) {
-                prefix += a[i];
-                matches = b.split(prefix).length - 1; // Subtract 1 because split always returns at least one element
-
-                if (matches === 1) {
-                    return prefix;
-                }
-            }
-
-            // If a unique prefix wasn't found, return null
-            return null;
-        }
-
-        function findUniqueSuffix(a: string, b: string) {
-            let suffix = '';
-            let matches = 0;
-
-            for (let i = a.length - 1; i >= 0; i--) {
-                suffix = a[i] + suffix;
-                matches = b.split(suffix).length - 1; // Subtracting 1 because split always returns at least one element
-
-                if (matches === 1) {
-                    return suffix;
-                }
-            }
-
-            // If a unique suffix wasn't found, return null
-            return null;
-        }
-
-        // The selection may contain additional text from code block controls, etc.
-        // that make the selection hard to match against the message content. We have to
-        // try and figure out how the selection corresponds to the message in order to
-        // rewrite it. We do this by finding a unique prefix from the selection that
-        // matches the message content, and a unique suffix from the selection that
-        // matches the message content. We then rewrite the message content by
-        // identifying the seciton based on matching the prefix and suffix to the message content.
-        const matchPrefix = findUniquePrefix(selection, message.content);
-        const matchSuffix = findUniqueSuffix(selection, message.content);
-        if (!(matchPrefix && matchSuffix)) {
-            alert("Please select text that starts / ends outside of a code block, and is not empty.");
-            return;
-        }
-
-        const start = message.content.indexOf(matchPrefix);
-        const end = message.content.lastIndexOf(matchSuffix) + matchSuffix.length;
-
-        const toRewrite = message.content.substring(start, end);
-        const startPrefix = message.content.substring(0, start);
-        const endSuffix = message.content.substring(end);
-
-        if (start < 0 || end < 0 || start >= end) {
-            alert("Please select text that starts / ends outside of a code block, and is not empty.");
-        } else {
-            onChatRewrite(message, messageIndex, toRewrite, startPrefix, endSuffix, feedback);
-        }
-
-    }
-
-
-    useEffect(() => {
-        setMessageContent(message.content);
-    }, [message.content]);
+    //
+    // useEffect(() => {
+    //     setMessageContent(message.content);
+    // }, [message.content]);
 
 
     const handleDownload = async (dataSource: DataSource) => {
@@ -375,25 +208,6 @@ export const ChatMessage: FC<Props> = memo(({
                     onDownloadReady={function (url: string): void {
 
                     }}/>
-            )}
-
-            {editModalVisible && (
-                <VariableModal
-                    models={[]}
-                    variables={["How do you want to change this?"]}
-                    handleUpdateModel={() => {
-                    }}
-                    onSubmit={(variables) => {
-                        setEditModalVisible(false);
-                        const feedback = variables[0];
-                        handleDoChatEdit(editBucket, feedback);
-                    }}
-                    onClose={() => {
-                        setEditBucket("");
-                        setEditModalVisible(false);
-                    }}
-                    showModelSelector={false}
-                />
             )}
 
             <div
@@ -525,25 +339,6 @@ export const ChatMessage: FC<Props> = memo(({
                                 {!isEditing && (
                                     <div className="flex flex-grow"
                                          ref={divRef}
-                                         onMouseMove={event => {
-                                             const rect = divRef.current?.getBoundingClientRect();
-
-                                             const valid = checkTextHighlight();
-                                             // Calculate mouse position relative to the div
-                                             const x = event.clientX - (rect?.left ?? 0);
-                                             const y = event.clientY - (rect?.top ?? 0);
-
-                                             setPopupStyle({
-                                                 cursor: 'pointer',
-                                                 display: (valid) ? 'block' : 'none',
-                                                 position: 'absolute',
-                                                 marginLeft: `-30px`,
-                                                 marginTop: `${y - 25}px`,
-                                             });
-                                         }}
-                                         onMouseOut={() => {
-                                             setPopupStyle({marginTop: '0px', marginLeft: '-25px', display: 'none'});
-                                         }}
                                     >
 
                                         <ChatContentBlock
@@ -552,24 +347,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             message={message}
                                             selectedConversation={selectedConversation}
                                             handleCustomLinkClick={handleCustomLinkClick}
-                                            handleTextHighlight={() => {
-                                            }}/>
-                                        {editSelection.length > 0 && (
-                                            <div style={popupStyle}
-                                                 className="bg-neutral-200 dark:bg-neutral-600 dark:text-white rounded">
-                                                <button
-                                                    className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        setEditBucket(editSelection);
-                                                        setEditModalVisible(true);
-                                                    }}
-                                                >
-                                                    <IconWriting size={25}/>
-                                                </button>
-                                            </div>
-                                        )}
+                                        />
                                     </div>
                                 )}
                                 {isEditing && (
@@ -613,20 +391,6 @@ export const ChatMessage: FC<Props> = memo(({
                                         <IconEdit size={20}/>
                                     </button>
 
-
-                                    {/*{editSelection.length > 0 && (*/}
-                                    {/*    <button*/}
-                                    {/*        className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"*/}
-                                    {/*        onClick={(e) => {*/}
-                                    {/*            e.preventDefault();*/}
-                                    {/*            e.stopPropagation();*/}
-                                    {/*            setEditBucket(editSelection);*/}
-                                    {/*            setEditModalVisible(true);*/}
-                                    {/*        }}*/}
-                                    {/*    >*/}
-                                    {/*        <IconWriting size={20}/>*/}
-                                    {/*    </button>*/}
-                                    {/*)}*/}
                                 </div>
                             </div>
                             {(messageIsStreaming || isEditing) ? null : (
