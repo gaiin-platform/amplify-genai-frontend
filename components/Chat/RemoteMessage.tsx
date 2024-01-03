@@ -183,7 +183,7 @@ export const RemoteMessage: FC<Props> = memo(({
                                             message={message}
                                             selectedConversation={selectedConversation}
                                             handleCustomLinkClick={handleCustomLinkClick}
-                                            handleTextHighlight={()=>{}}/>
+                                            />
                                     </div>
 
 
