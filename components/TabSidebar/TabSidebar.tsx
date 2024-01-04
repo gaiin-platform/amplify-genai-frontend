@@ -1,4 +1,4 @@
-import React, { useState, ReactNode } from 'react';
+import React, { useState, useEffect, ReactNode } from 'react';
 import { CloseSidebarButton, OpenSidebarButton } from "@/components/Sidebar/components/OpenCloseButton";
 
 interface TabProps {
@@ -17,9 +17,18 @@ interface TabSidebarProps {
 }
 
 export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerComponent }) => {
+    const isMobile = () => window.innerWidth <= 768;
     const [activeTab, setActiveTab] = useState(0);
-    const [isOpen, setIsOpen] = useState(true);
-    const childrenArray = React.Children.toArray(children) as React.ReactElement<TabProps>[]; // here we assert that all children are ReactElements
+    const [isOpen, setIsOpen] = useState(!isMobile());
+    // const [isOpen, setIsOpen] = useState(true);
+
+    useEffect(() => {
+        const handleResize = () => setIsOpen(!isMobile());
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    const childrenArray = React.Children.toArray(children) as React.ReactElement<TabProps>[];
     const toggleOpen = () => setIsOpen(!isOpen);
 
     const isMultipleTabs = childrenArray.length > 1;
