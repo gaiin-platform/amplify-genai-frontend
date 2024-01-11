@@ -330,14 +330,14 @@ export const ChatMessage: FC<Props> = memo(({
                                             <IconTrash size={20} />
                                         </button>
                                     </div>
-                                    <div>
-                                        <button
-                                            className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                            onClick={() => { }}
-                                        >
-                                            <IconTemplate size={20} />
-                                        </button>
-                                    </div>
+                                    {/*<div>*/}
+                                    {/*    <button*/}
+                                    {/*        className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"*/}
+                                    {/*        onClick={() => { }}*/}
+                                    {/*    >*/}
+                                    {/*        <IconTemplate size={20} />*/}
+                                    {/*    </button>*/}
+                                    {/*</div>*/}
                                 </div>
                             )}
                         </div>
