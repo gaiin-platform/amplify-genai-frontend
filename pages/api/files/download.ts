@@ -16,7 +16,7 @@ const getPresignedDownloadUrl =
         const { accessToken } = session;
 
         const itemData = req.body;
-        const apiUrl = (process.env.FILES_API_URL || "") + '/download'; // API Gateway URL from environment variables
+        const apiUrl = (process.env.API_BASE_URL || "") + '/assistant/files/download'; // API Gateway URL from environment variables
 
         try {
 

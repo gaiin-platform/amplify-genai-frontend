@@ -232,7 +232,7 @@ const handleFile = async (file:any,
                 await response;
 
                 const readyStatus = await checkContentReady(metadataUrl, 30);
-                console.log("readyStatus", readyStatus)
+
                 if(readyStatus && readyStatus.success){
 
                     if(readyStatus.metadata) {
