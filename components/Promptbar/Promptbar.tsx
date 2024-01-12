@@ -190,7 +190,6 @@ const Promptbar = () => {
     >
       <Sidebar<Prompt>
         side={'right'}
-        isOpen={showPromptbar}
         addItemButtonTitle={t('Prompt Template')}
         itemComponent={
           <Prompts
@@ -203,7 +202,6 @@ const Promptbar = () => {
         handleSearchTerm={(searchTerm: string) =>
           promptDispatch({ field: 'searchTerm', value: searchTerm })
         }
-        toggleOpen={handleTogglePromptbar}
         handleCreateItem={handleCreatePrompt}
         handleCreateFolder={() => {
           const name = window.prompt("Folder name:");

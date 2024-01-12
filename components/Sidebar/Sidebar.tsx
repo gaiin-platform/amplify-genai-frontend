@@ -1,16 +1,11 @@
 import { IconFolderPlus, IconMistOff, IconPlus } from '@tabler/icons-react';
 import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-
-import {
-  CloseSidebarButton,
-  OpenSidebarButton,
-} from './components/OpenCloseButton';
+import { useSidebar } from './SidebarContext';
 
 import Search from '../Search';
 
 interface Props<T> {
-  isOpen: boolean;
   addItemButtonTitle: string;
   side: 'left' | 'right';
   items: T[];
@@ -19,14 +14,12 @@ interface Props<T> {
   footerComponent?: ReactNode;
   searchTerm: string;
   handleSearchTerm: (searchTerm: string) => void;
-  toggleOpen: () => void;
   handleCreateItem: () => void;
   handleCreateFolder: () => void;
   handleDrop: (e: any) => void;
 }
 
 const Sidebar = <T,>({
-  isOpen,
   addItemButtonTitle,
   side,
   items,
@@ -35,12 +28,15 @@ const Sidebar = <T,>({
   footerComponent,
   searchTerm,
   handleSearchTerm,
-  toggleOpen,
   handleCreateItem,
   handleCreateFolder,
   handleDrop,
 }: Props<T>) => {
   const { t } = useTranslation('promptbar');
+  const { leftSidebarOpen, setLeftSidebarOpen, rightSidebarOpen, setRightSidebarOpen } = useSidebar();
+
+  const isOpen = side === 'left' ? leftSidebarOpen : rightSidebarOpen;
+  const setIsOpen = side === 'left' ? setLeftSidebarOpen : setRightSidebarOpen;
 
   const allowDrop = (e: any) => {
     e.preventDefault();
@@ -53,6 +49,10 @@ const Sidebar = <T,>({
   const removeHighlight = (e: any) => {
     e.target.style.background = 'none';
   };
+
+  const toggleSidebar = () => setIsOpen(!isOpen);
+
+  if (!isOpen) return null;
 
   return (
     <div className={`border-t dark:border-white/20`}>
@@ -112,10 +112,8 @@ const Sidebar = <T,>({
         </div>
         {footerComponent}
       </div>
-
-
     </div>
-  );
+  )
 };
 
 export default Sidebar;
