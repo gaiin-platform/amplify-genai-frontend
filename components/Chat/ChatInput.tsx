@@ -185,7 +185,6 @@ export const ChatInput = ({
         let msg = newMessage({role: 'user', content: content, type: type});
 
         if (documents && documents?.length > 0) {
-
             if (!isWorkflowOn) {
 
                 msg.content = handleAppendDocumentsToContent(content, documents);
@@ -417,7 +416,6 @@ export const ChatInput = ({
             const newMetadata = {...prevState, [document.id]: metadata};
             return newMetadata;
         });
-
     }
 
     const handleSetKey = (document: AttachedDocument, key: string) => {

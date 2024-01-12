@@ -21,7 +21,6 @@ import { RAG } from './components/RAG';
 import { Conversations } from './components/Conversations';
 
 import Sidebar from '../Sidebar';
-import { useSidebar } from '@/components/Sidebar/SidebarContext';
 import ChatbarContext from './Chatbar.context';
 import { ChatbarInitialState, initialState } from './Chatbar.state';
 
@@ -118,13 +117,9 @@ export const Chatbar = () => {
     }
   };
 
-  const { leftSidebarOpen, setLeftSidebarOpen } = useSidebar();
-
   const handleToggleChatbar = () => {
-    const newShowChatbar = !leftSidebarOpen;
-    homeDispatch({ field: 'showChatbar', value: newShowChatbar });
-    localStorage.setItem('showChatbar', JSON.stringify(newShowChatbar));
-    setLeftSidebarOpen(newShowChatbar);
+    homeDispatch({ field: 'showChatbar', value: !showChatbar });
+    localStorage.setItem('showChatbar', JSON.stringify(!showChatbar));
   };
 
   const handleDrop = (e: any) => {
@@ -181,6 +176,7 @@ export const Chatbar = () => {
     >
       <Sidebar<Conversation>
         side={'left'}
+        isOpen={showChatbar}
         addItemButtonTitle={t('New Chat')}
         itemComponent={<Conversations conversations={filteredConversations} />}
         folderComponent={<ChatFolders searchTerm={searchTerm} conversations={filteredConversations}/>}
@@ -189,6 +185,7 @@ export const Chatbar = () => {
         handleSearchTerm={(searchTerm: string) =>
           chatDispatch({ field: 'searchTerm', value: searchTerm })
         }
+        toggleOpen={handleToggleChatbar}
         handleCreateItem={() => {
           handleNewConversation({})}}
         handleCreateFolder={() => {

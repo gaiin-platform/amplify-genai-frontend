@@ -64,8 +64,6 @@ import {ColumnsSpec} from "@/utils/app/csv";
 import json5 from "json5";
 import {MemoizedRemoteMessages} from "@/components/Chat/MemoizedRemoteMessages";
 
-import { Navbar } from '../Mobile/Navbar';
-
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
 }
@@ -122,8 +120,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [isWorkflowMode, setWorkflowMode] = useState<boolean>();
 
         const [messageQueue, setMessageQueue] = useState<Message[]>([]);
-        
-        const [isSticky, setIsSticky] = useState(false);
+
 
         const updateMessage = (selectedConversation: Conversation, updatedMessage: Message, updateIndex: number) => {
             let updatedConversation = {
@@ -1441,19 +1438,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             };
         }, [messagesEndRef]);
 
-        useEffect(() => {
-            const handleScroll = () => {
-                const sticky = window.pageYOffset > 50;
-                setIsSticky(sticky);
-            };
-
-            window.addEventListener('scroll', handleScroll);
-
-            return () => {
-                window.removeEventListener('scroll', handleScroll);
-            };
-        }, []);
-
 // @ts-ignore
         return (
             <div className="relative flex-1 overflow-hidden bg-white dark:bg-[#343541]">
@@ -1506,7 +1490,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 ) : (
                     <>
                         <div
-                            className={`max-h-full overflow-x-hidden ${isSticky ? 'stickyNavbar' : ''}`}
+                            className="max-h-full overflow-x-hidden"
                             ref={chatContainerRef}
                             onScroll={handleScroll}
                         >
@@ -1607,12 +1591,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                             }}/>
                                     )}
-                                    <Navbar
-                                        selectedConversation={selectedConversation}
-                                        onNewConversation={() => {/* handle new conversation logic */ }}
-                                    />
                                     <div
-                                        className="sticky top-50 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 py-2 text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
+                                        className="sticky top-0 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 py-2 text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
                                         {t('Workspace: ' + workspaceMetadata.name)} | {t('Model')}: {selectedConversation?.model.name} | {t('Temp')}
                                         : {selectedConversation?.temperature} |
                                         <button

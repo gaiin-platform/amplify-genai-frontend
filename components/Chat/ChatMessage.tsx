@@ -8,29 +8,29 @@ import {
     IconDownload,
     IconFileCheck,
     IconUser,
-    IconTemplate,
 } from '@tabler/icons-react';
-import { FiCommand } from "react-icons/fi";
-import styled, { keyframes } from 'styled-components';
-import React, { FC, memo, useContext, useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'next-i18next';
-import { updateConversation } from '@/utils/app/conversation';
-import { DataSource, Message } from '@/types/chat';
-import { useChatService } from "@/hooks/useChatService";
+import {FiCommand} from "react-icons/fi";
+import styled, {keyframes} from 'styled-components';
+import React, {FC, memo, useContext, useEffect, useRef, useState} from 'react';
+import {useTranslation} from 'next-i18next';
+import {updateConversation} from '@/utils/app/conversation';
+import {DataSource, Message} from '@/types/chat';
+import {useChatService} from "@/hooks/useChatService";
 import HomeContext from '@/pages/api/home/home.context';
 import ChatFollowups from './ChatFollowups';
-import { VariableModal } from "@/components/Chat/VariableModal";
+import {VariableModal} from "@/components/Chat/VariableModal";
 import ChatContentBlock from "@/components/Chat/ChatContentBlocks/ChatContentBlock";
 import UserMessageEditor from "@/components/Chat/ChatContentBlocks/UserMessageEditor";
 import AssistantMessageEditor from "@/components/Chat/ChatContentBlocks/AssistantMessageEditor";
-import { Style } from "css-to-react-native";
-import { Prompt } from "@/types/prompt";
-import { Stars } from "@/components/Chat/Stars";
-import { DownloadModal } from "@/components/Download/DownloadModal";
+import {Style} from "css-to-react-native";
+import {Prompt} from "@/types/prompt";
+import {Stars} from "@/components/Chat/Stars";
+import {DownloadModal} from "@/components/Download/DownloadModal";
 import Loader from "@/components/Loader/Loader";
-import { getFileDownloadUrl } from "@/services/fileService"
-import { FileList } from "@/components/Chat/FileList";
-import { LoadingDialog } from "@/components/Loader/LoadingDialog";
+import {getFileDownloadUrl} from "@/services/fileService"
+import {FileList} from "@/components/Chat/FileList";
+import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+
 
 export interface Props {
     message: Message;
@@ -58,18 +58,18 @@ const LoadingIcon = styled(FiCommand)`
 `;
 
 export const ChatMessage: FC<Props> = memo(({
-    message,
-    messageIndex,
-    onEdit,
-    onSend,
-    onSendPrompt,
-    handleCustomLinkClick,
-    onChatRewrite
-}) => {
-    const { t } = useTranslation('chat');
+                                                message,
+                                                messageIndex,
+                                                onEdit,
+                                                onSend,
+                                                onSendPrompt,
+                                                handleCustomLinkClick,
+                                                onChatRewrite
+                                            }) => {
+    const {t} = useTranslation('chat');
 
     const {
-        state: { selectedConversation, conversations, currentMessage, messageIsStreaming },
+        state: {selectedConversation, conversations, currentMessage, messageIsStreaming},
         dispatch: homeDispatch,
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
@@ -84,7 +84,7 @@ export const ChatMessage: FC<Props> = memo(({
     const [messageContent, setMessageContent] = useState(message.content);
     const [messagedCopied, setMessageCopied] = useState(false);
     const [editSelection, setEditSelection] = useState<string>("");
-    const divRef = useRef<HTMLDivElement>(null);
+   const divRef = useRef<HTMLDivElement>(null);
 
     const toggleEditing = () => {
         setIsEditing(!isEditing);
@@ -94,7 +94,7 @@ export const ChatMessage: FC<Props> = memo(({
 
         if (message.content != messageContent) {
             if (selectedConversation && onEdit) {
-                onEdit({ ...message, content: messageContent });
+                onEdit({...message, content: messageContent});
             }
         }
         setIsEditing(false);
@@ -103,7 +103,7 @@ export const ChatMessage: FC<Props> = memo(({
     const handleDeleteMessage = () => {
         if (!selectedConversation) return;
 
-        const { messages } = selectedConversation;
+        const {messages} = selectedConversation;
         const findIndex = messages.findIndex((elm) => elm === message);
 
         if (findIndex < 0) return;
@@ -139,12 +139,12 @@ export const ChatMessage: FC<Props> = memo(({
             messages,
         };
 
-        const { single, all } = updateConversation(
+        const {single, all} = updateConversation(
             updatedConversation,
             conversations,
         );
-        homeDispatch({ field: 'selectedConversation', value: single });
-        homeDispatch({ field: 'conversations', value: all });
+        homeDispatch({field: 'selectedConversation', value: single});
+        homeDispatch({field: 'conversations', value: all});
     };
 
     const copyOnClick = () => {
@@ -167,7 +167,7 @@ export const ChatMessage: FC<Props> = memo(({
 
     const handleDownload = async (dataSource: DataSource) => {
         //alert("Downloading " + dataSource.name + " from " + dataSource.id);
-        try {
+        try{
             setIsFileDownloadDatasourceVisible(true);
             const response = await getFileDownloadUrl(dataSource.id);
             setIsFileDownloadDatasourceVisible(false);
@@ -186,11 +186,11 @@ export const ChatMessage: FC<Props> = memo(({
             className={`group md:px-4 ${message.role === 'assistant'
                 ? 'border-b border-black/10 bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100'
                 : 'border-b border-black/10 bg-white text-gray-800 dark:border-gray-900/50 dark:bg-[#343541] dark:text-gray-100'
-                }`}
-            style={{ overflowWrap: 'anywhere' }}
+            }`}
+            style={{overflowWrap: 'anywhere'}}
         >
             {isFileDownloadDatasourceVisible && (
-                <LoadingDialog open={true} message={"Preparing to download..."} />
+                <LoadingDialog open={true} message={"Preparing to download..."}/>
             )}
 
             {isDownloadDialogVisible && (
@@ -207,16 +207,16 @@ export const ChatMessage: FC<Props> = memo(({
                     }}
                     onDownloadReady={function (url: string): void {
 
-                    }} />
+                    }}/>
             )}
 
             <div
                 className="relative m-auto flex p-4 text-base md:max-w-2xl md:gap-6 md:py-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
                 <div className="min-w-[40px] text-right font-bold">
                     {message.role === 'assistant' ? (
-                        <IconRobot size={30} />
+                        <IconRobot size={30}/>
                     ) : (
-                        <IconUser size={30} />
+                        <IconUser size={30}/>
                     )}
                 </div>
 
@@ -234,7 +234,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     setIsEditing={setIsEditing}
                                     isEditing={isEditing}
                                     messageContent={messageContent}
-                                    setMessageContent={setMessageContent} />
+                                    setMessageContent={setMessageContent}/>
 
                             ) : (
                                 <div className="flex flex-grow flex-col">
@@ -255,11 +255,11 @@ export const ChatMessage: FC<Props> = memo(({
                                                             <div className="flex flex-row">
                                                                 <div
                                                                     className="w-14 h-12 flex-none bg-cover rounded-l text-center overflow-hidden"
-                                                                    style={{ backgroundImage: 'url("/sparc_apple.png")' }}
+                                                                    style={{backgroundImage: 'url("/sparc_apple.png")'}}
                                                                     title={d.name}>
                                                                 </div>
                                                                 <div className="ml-3 mt-3">
-                                                                    <IconFileCheck />
+                                                                    <IconFileCheck/>
                                                                 </div>
                                                                 <div className="mt-3 ml-1 flex-grow p-0 truncate">
                                                                     {i + 1}. {d.name}
@@ -270,7 +270,7 @@ export const ChatMessage: FC<Props> = memo(({
                                                                         <button onClick={() => {
                                                                             handleDownload(d);
                                                                         }}>
-                                                                            <IconDownload />
+                                                                            <IconDownload/>
                                                                         </button>
                                                                     </div>
                                                                 )}
@@ -286,7 +286,7 @@ export const ChatMessage: FC<Props> = memo(({
 
                                             <ChatFollowups promptSelected={(p) => {
                                                 onSendPrompt(p)
-                                            }} />
+                                            }}/>
 
                                         )}
                                     </div>
@@ -303,7 +303,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={copyOnClick}
                                         >
-                                            <IconCopy size={20} />
+                                            <IconCopy size={20}/>
                                         </button>
                                     </div>
                                     <div>
@@ -311,7 +311,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={() => setIsDownloadDialogVisible(true)}
                                         >
-                                            <IconDownload size={20} />
+                                            <IconDownload size={20}/>
                                         </button>
                                     </div>
                                     <div>
@@ -319,7 +319,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={toggleEditing}
                                         >
-                                            <IconEdit size={20} />
+                                            <IconEdit size={20}/>
                                         </button>
                                     </div>
                                     <div>
@@ -327,17 +327,9 @@ export const ChatMessage: FC<Props> = memo(({
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={handleDeleteMessage}
                                         >
-                                            <IconTrash size={20} />
+                                            <IconTrash size={20}/>
                                         </button>
                                     </div>
-                                    {/*<div>*/}
-                                    {/*    <button*/}
-                                    {/*        className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"*/}
-                                    {/*        onClick={() => { }}*/}
-                                    {/*    >*/}
-                                    {/*        <IconTemplate size={20} />*/}
-                                    {/*    </button>*/}
-                                    {/*</div>*/}
                                 </div>
                             )}
                         </div>
@@ -346,7 +338,7 @@ export const ChatMessage: FC<Props> = memo(({
                             <div className="flex flex-row w-full">
                                 {!isEditing && (
                                     <div className="flex flex-grow"
-                                        ref={divRef}
+                                         ref={divRef}
                                     >
 
                                         <ChatContentBlock
@@ -368,7 +360,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         setIsEditing={setIsEditing}
                                         isEditing={isEditing}
                                         messageContent={messageContent}
-                                        setMessageContent={setMessageContent} />
+                                        setMessageContent={setMessageContent}/>
                                 )}
 
                                 <div
@@ -383,20 +375,20 @@ export const ChatMessage: FC<Props> = memo(({
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={copyOnClick}
                                         >
-                                            <IconCopy size={20} />
+                                            <IconCopy size={20}/>
                                         </button>
                                     )}
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={() => setIsDownloadDialogVisible(true)}
                                     >
-                                        <IconDownload size={20} />
+                                        <IconDownload size={20}/>
                                     </button>
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={toggleEditing}
                                     >
-                                        <IconEdit size={20} />
+                                        <IconEdit size={20}/>
                                     </button>
 
                                 </div>
@@ -404,18 +396,18 @@ export const ChatMessage: FC<Props> = memo(({
                             {(messageIsStreaming || isEditing) ? null : (
                                 <ChatFollowups promptSelected={(p) => {
                                     onSendPrompt(p)
-                                }} />
+                                }}/>
                             )}
                             {(messageIsStreaming || isEditing) ? null : (
                                 <Stars starRating={message.data && message.data.rating || 0} setStars={(r) => {
                                     if (onEdit) {
-                                        onEdit({ ...message, data: { ...message.data, rating: r } });
+                                        onEdit({...message, data: {...message.data, rating: r}});
                                     }
-                                }} />
+                                }}/>
                             )}
                             {(messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1) ?
                                 // <LoadingIcon />
-                                <Loader type="ping" size="48" />
+                                <Loader type="ping" size="48"/>
                                 : null}
                         </div>
                     )}

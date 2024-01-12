@@ -328,7 +328,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               </div>
             ))}
 
-            {selectedTemplate !== MessageType.PREFIX_PROMPT && (
+            {!featureFlags.promptPrefixCreate && (
             <div className="mt-6">
             <ExpansionComponent title={"Conversation Tags"} content={
                 <div className="mt-2 mb-6 text-sm font-bold text-black dark:text-neutral-200">
@@ -385,9 +385,9 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             {/*      generateButtonText="Generate!"/>*/}
             {/*)}*/}
 
-            {((featureFlags.followUpCreate && selectedTemplate === MessageType.FOLLOW_UP) ||
+            {(featureFlags.followUpCreate && selectedTemplate === MessageType.FOLLOW_UP) ||
                 (featureFlags.promptPrefixCreate && selectedTemplate === MessageType.PREFIX_PROMPT) ||
-                (featureFlags.outputTransformerCreate && selectedTemplate === MessageType.OUTPUT_TRANSFORMER))
+                (featureFlags.outputTransformerCreate && selectedTemplate === MessageType.OUTPUT_TRANSFORMER)
                 && (
                 <>
                 <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">

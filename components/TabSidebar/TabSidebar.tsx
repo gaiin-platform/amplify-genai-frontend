@@ -1,5 +1,5 @@
-import React, { useState, useEffect, ReactNode } from 'react';
-import { useSidebar } from '@/components/Sidebar/SidebarContext';
+import React, { useState, ReactNode } from 'react';
+import { CloseSidebarButton, OpenSidebarButton } from "@/components/Sidebar/components/OpenCloseButton";
 
 interface TabProps {
     icon: ReactNode;
@@ -17,42 +17,14 @@ interface TabSidebarProps {
 }
 
 export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerComponent }) => {
-    const { leftSidebarOpen, setLeftSidebarOpen, rightSidebarOpen, setRightSidebarOpen } = useSidebar();
     const [activeTab, setActiveTab] = useState(0);
+    const [isOpen, setIsOpen] = useState(true);
+    const childrenArray = React.Children.toArray(children) as React.ReactElement<TabProps>[]; // here we assert that all children are ReactElements
+    const toggleOpen = () => setIsOpen(!isOpen);
 
-    const isOpen = side === 'left' ? leftSidebarOpen : rightSidebarOpen;
-
-    const handleWindowSizeChange = () => {
-        if (window.innerWidth < 768) { // Assuming 768px as the breakpoint for mobile screens
-            setLeftSidebarOpen(false);
-            setRightSidebarOpen(false);
-        }
-    };
-
-    useEffect(() => {
-        handleWindowSizeChange(); // Check on mount
-        window.addEventListener('resize', handleWindowSizeChange); // Add resize listener
-
-        // Cleanup function to remove the event listener
-        return () => {
-            window.removeEventListener('resize', handleWindowSizeChange);
-        };
-    }, []);
-
-    const toggleOpen = () => {
-        if (side === 'left') {
-            setLeftSidebarOpen(!leftSidebarOpen);
-        } else {
-            setRightSidebarOpen(!rightSidebarOpen);
-        }
-    };
-
-    const childrenArray = React.Children.toArray(children) as React.ReactElement<TabProps>[];
     const isMultipleTabs = childrenArray.length > 1;
 
-    if (!isOpen) return null;
-
-    return (
+    return isOpen ? (
         <div className={`fixed top-0 ${side}-0 z-40 flex h-full w-[280px] flex-none ${side === 'left' ? 'border-r dark:border-r-[#202123]' : 'border-l dark:border-l-[#202123]'}
             flex-col space-y-0 bg-white text-black dark:text-white bg-neutral-100 dark:bg-[#202123] text-[14px] sm:relative sm:top-0`}>
             {isMultipleTabs && (
@@ -73,6 +45,25 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
             <div className="w-full mt-auto p-2 bg-neutral-100 dark:bg-[#202123]">
                 {footerComponent}
             </div>
+            <CloseSidebarButton onClick={toggleOpen} side={side} />
         </div>
-    )
+    ) : (
+        <OpenSidebarButton onClick={toggleOpen} side={side} />
+    );
 };
+
+
+/**
+ *
+ *
+
+
+
+ */
+
+
+// Usage:
+// <TabSidebar side='left' footerComponent={YourFooterComponent}>
+//   <Tab icon={<YourIcon1 />}>Content for Tab 1</Tab>
+//   <Tab icon={<YourIcon2 />}>Content for Tab 2</Tab>
+// </TabSidebar>

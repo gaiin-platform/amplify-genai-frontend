@@ -675,6 +675,13 @@ const Home = ({
     // EFFECTS  --------------------------------------------
 
     useEffect(() => {
+        if (window.innerWidth < 640) {
+            dispatch({field: 'showChatbar', value: false});
+            dispatch({field: 'showPromptbar', value: false});
+        }
+    }, [selectedConversation]);
+
+    useEffect(() => {
         defaultModelId &&
         dispatch({field: 'defaultModelId', value: defaultModelId});
         serverSideApiKeyIsSet &&
@@ -721,6 +728,11 @@ const Home = ({
             localStorage.removeItem('pluginKeys');
         } else if (pluginKeys) {
             dispatch({field: 'pluginKeys', value: pluginKeys});
+        }
+
+        if (window.innerWidth < 640) {
+            dispatch({field: 'showChatbar', value: false});
+            dispatch({field: 'showPromptbar', value: false});
         }
 
         const showChatbar = localStorage.getItem('showChatbar');
@@ -884,7 +896,15 @@ const Home = ({
                     <main
                         className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
                     >
-                        <div className="flex h-full w-full sm:pt-0">    
+                        <div className="fixed top-0 w-full sm:hidden">
+                            <Navbar
+                                selectedConversation={selectedConversation}
+                                onNewConversation={handleNewConversation}
+                            />
+                        </div>
+
+                        <div className="flex h-full w-full pt-[48px] sm:pt-0">
+
                             <TabSidebar
                                 side={"left"}
                                 footerComponent={
@@ -895,6 +915,7 @@ const Home = ({
                                             };
                                             goLogout();
                                         }}>
+
                                             <div className="flex items-center">
                                                 <IconLogout className="m-2"/>
                                                 <span>{isLoading ? 'Loading...' : getName(user?.email) ?? 'Unnamed user'}</span>
@@ -910,6 +931,7 @@ const Home = ({
                                 <Tab icon={<IconTournament/>}><WorkspaceList/></Tab>
                                 <Tab icon={<IconSettings/>}><SettingsBar/></Tab>
                             </TabSidebar>
+
                             <div className="flex flex-1">
                                 {page === 'chat' && (
                                     <Chat stopConversationRef={stopConversationRef}/>
@@ -920,12 +942,15 @@ const Home = ({
                                     ]}/>
                                 )}
                             </div>
+
+
                             <TabSidebar
                                 side={"right"}
                             >
                                 <Tab icon={<Icon3dCubeSphere/>}><Promptbar/></Tab>
                                 {/*<Tab icon={<IconBook2/>}><WorkflowDefinitionBar/></Tab>*/}
                             </TabSidebar>
+
                         </div>
                     </main>
                 )}

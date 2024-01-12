@@ -7,8 +7,6 @@ import {Inter} from 'next/font/google';
 
 import '@/styles/globals.css';
 
-import { SidebarProvider } from '@/components/Sidebar/SidebarContext';
-
 const inter = Inter({subsets: ['latin']});
 
 function App({ Component, pageProps }: AppProps) {
@@ -23,9 +21,7 @@ function App({ Component, pageProps }: AppProps) {
             <div className={inter.className}>
                 <Toaster/>
                 <QueryClientProvider client={queryClient}>
-                    <SidebarProvider>
-                        <Component {...pageProps} />
-                    </SidebarProvider>
+                    <Component {...pageProps} />
                 </QueryClientProvider>
             </div>
         </SessionProvider>
