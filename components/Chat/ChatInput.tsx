@@ -452,7 +452,7 @@ export const ChatInput = ({
                                 <IconPlayerStop size={16}/> {t('Stop Generating')}
                             </button>
 
-                            <StatusDisplay statusHistory={status}/>
+                            {/*<StatusDisplay statusHistory={status}/>*/}
                         </>
                     )}
                 </div>
