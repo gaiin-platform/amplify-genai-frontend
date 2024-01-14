@@ -76,7 +76,7 @@ export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, 
             {documents?.map((document, i) => (
                 <div
                     key={i}
-                    className={`${isComplete(document) ? 'bg-white' : 'bg-yellow-400'} flex flex-row items-center justify-between bg-white rounded-md px-1 py-1 mr-1 shadow-lg`}
+                    className={`${isComplete(document) ? 'bg-white' : 'bg-yellow-400'} flex flex-row items-center justify-between border bg-white rounded-md px-1 py-1 ml-1 mr-1 shadow-lg`}
                     style={{ maxWidth: '200px' }}
                 >
                     {!isComplete(document) ?

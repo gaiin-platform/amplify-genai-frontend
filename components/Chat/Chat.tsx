@@ -58,7 +58,7 @@ import {findWorkflowPattern} from "@/utils/workflow/aiflow";
 import {TagsList} from "@/components/Chat/TagsList";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
-import { sendChat as assistantChat } from "@/services/assistantService";
+import {sendChat as assistantChat} from "@/services/assistantService";
 import {DownloadModal} from "@/components/Download/DownloadModal";
 import {ColumnsSpec} from "@/utils/app/csv";
 import json5 from "json5";
@@ -98,7 +98,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         } = useContext(HomeContext);
 
 
-        const {sendChatRequest, sendJsonChatRequestWithSchemaLoose, sendFunctionChatRequest, sendJsonChatRequest, sendJsonChatRequestWithSchema, sendCSVChatRequest} = useChatService();
+        const {
+            sendChatRequest,
+            sendJsonChatRequestWithSchemaLoose,
+            sendFunctionChatRequest,
+            sendJsonChatRequest,
+            sendJsonChatRequestWithSchema,
+            sendCSVChatRequest
+        } = useChatService();
         const {getPrefix} = usePromptFinderService();
 
         const [currentMessage, setCurrentMessage] = useState<Message>();
@@ -195,7 +202,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, [selectedConversation]);
 
 
-        const handleChatRewrite = useCallback(async (message: Message, updateIndex: number, toRewrite:string, prefix:string, suffix:string, feedback:string) => {
+        const handleChatRewrite = useCallback(async (message: Message, updateIndex: number, toRewrite: string, prefix: string, suffix: string, feedback: string) => {
             if (selectedConversation) {
 
                 homeDispatch({field: 'loading', value: true});
@@ -221,29 +228,29 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 "ToEdit: Their sweet melodies filling the air like a symphony\n" +
                                 "Suffix: Their music was a constant reminder of the vibrant life that inhabited these woods." +
                                 "Feedback: Make the birdsong discordant and cacophonous." +
-                                "Edited: Their discordant, cacophonous cawing filled the air with unsettling noise.\n"+
+                                "Edited: Their discordant, cacophonous cawing filled the air with unsettling noise.\n" +
                                 "Prefix: The spaceship was hurtling towards the unknown\n" +
                                 "ToEdit: The team inside were excited to be the first to explore new planets\n" +
                                 "Suffix: It was a historic moment for mankind, a testament to human ingenuity and ambition." +
                                 "Feedback: Make the team feel fearful and uncertain." +
-                                "Edited: The team inside were gripped by a fearful uncertainty as they faced the alien expanse.\n"+
+                                "Edited: The team inside were gripped by a fearful uncertainty as they faced the alien expanse.\n" +
                                 "Prefix: Research Report on Technological Innovations\n" +
                                 "ToEdit: 1. AI and Machine Learning: A comprehensive study of the integration of AI and Machine Learning in different sectors.\n" +
                                 "Suffix: 2. Blockchain Technology: An examination of the groundbreaking changes Blockchain has brought to the financial industry." +
                                 "Feedback: Add sub-points under AI and Machine Learning detailing its applications in healthcare and automated driving." +
-                                "Edited: \\n1.1 Healthcare: Analyzing how AI is improving diagnostics, patient care, and hospital management. \\n1.2 Automated Driving: Studying the influence of Machine Learning on the development of autonomous vehicles.\n"+
+                                "Edited: \\n1.1 Healthcare: Analyzing how AI is improving diagnostics, patient care, and hospital management. \\n1.2 Automated Driving: Studying the influence of Machine Learning on the development of autonomous vehicles.\n" +
                                 "Prefix: function fibonacci(n){\\n   if(n<=0){\\n        return \"Input should be a positive integer.\";\\n    }else if(n==1){\\n        return [0, 1];\\n    }else{\n" +
                                 "ToEdit:  let seq = [0, 1];\\n        for(let i = 2; i < n; i++){\\n" +
                                 "Suffix:  seq[i] = seq[i-1] + seq[i-2];\\n        }\\n        return seq;\\n   }\\n}\n" +
                                 "Feedback: Instead of the Fibonacci sequence, make it generate a sequence of the form seq[i] = seq[i-1] * 2." +
                                 "Edited: let seq = [1];\\n        for(let i = 1; i < n; i++){\\n" +
                                 "Prefix: " +
-                                prefix.replaceAll("\n","\\n") +
+                                prefix.replaceAll("\n", "\\n") +
                                 "\nToEdit: " +
-                                toRewrite.replaceAll("\n","\\n") +
+                                toRewrite.replaceAll("\n", "\\n") +
                                 "\nSuffix: " +
-                                suffix.replaceAll("\n","\\n") +
-                                "Feedback: " + feedback.replaceAll("\n","\\n") +
+                                suffix.replaceAll("\n", "\\n") +
+                                "Feedback: " + feedback.replaceAll("\n", "\\n") +
                                 "\nEdited: "
                         }
                     ],
@@ -299,16 +306,16 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         const chunkValue = decoder.decode(value);
                         text += chunkValue;
 
-                        while (text.trim().startsWith("-")){
+                        while (text.trim().startsWith("-")) {
                             text = text.trim().substring(text.indexOf("-") + 1);
                         }
 
-                        while (text.trim().endsWith("-")){
-                            text = text.trim().substring(0,text.length - 1);
+                        while (text.trim().endsWith("-")) {
+                            text = text.trim().substring(0, text.length - 1);
                         }
 
                         updatedConversation = updateMessage(selectedConversation, newMessage(
-                            {...message, content: prefix + text + suffix}),
+                                {...message, content: prefix + text + suffix}),
                             updateIndex);
                     }
 
@@ -356,30 +363,30 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, []);
 
         const handleSend = useCallback(
-            async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt:string|null = null, documents?:AttachedDocument[] | null) => {
+            async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt: string | null = null, documents?: AttachedDocument[] | null) => {
                 return new Promise(async (resolve, reject) => {
                     if (selectedConversation) {
 
                         const {content, label} = getPrefix(selectedConversation, message);
-                        if(content){
+                        if (content) {
                             message.content = content + " " + message.content;
                             message.label = label;
                         }
 
-                        if(selectedConversation && selectedConversation?.model) {
+                        if (selectedConversation && selectedConversation?.model) {
 
                             const {prompts, inputCost, inputTokens, outputCost, totalCost} =
                                 calculateTokenCost(selectedConversation.model, documents || []);
 
-                            if(totalCost === -1 && inputTokens > 4000){
+                            if (totalCost === -1 && inputTokens > 4000) {
                                 const go = confirm(`This request will require ${inputTokens} input tokens at an unknown cost.`);
-                                if(!go){
+                                if (!go) {
                                     return;
                                 }
                             }
-                            if(totalCost > 0.5){
+                            if (totalCost > 0.5) {
                                 const go = confirm(`This request will cost an estimated $${totalCost} (the actual cost may be more) and require ${prompts} prompt(s).`);
-                                if(!go){
+                                if (!go) {
                                     return;
                                 }
                             }
@@ -417,21 +424,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             temperature: updatedConversation.temperature,
                         };
 
-                        if(documents && documents.length > 0){
+                        if (documents && documents.length > 0) {
 
-                            const dataSources = documents.map((doc)=>{
-                               return {id:"s3://" + doc.key};
+                            const dataSources = documents.map((doc) => {
+                                return {id: "s3://" + doc.key, type: doc.type};
                             });
                             chatBody.dataSources = dataSources;
-                        }
-                        else if(message.data && message.data.dataSources && message.data.dataSources.length > 0){
-                            chatBody.dataSources = message.data.dataSources.map((doc:any)=>{return {id:doc.id}});
+                        } else if (message.data && message.data.dataSources && message.data.dataSources.length > 0) {
+                            chatBody.dataSources = message.data.dataSources.map((doc: any) => {
+                                return {id: doc.id}
+                            });
                         }
 
                         const parseMessageType = (message: string): {
-                            prefix: "chat"|"json"|"json!"|"csv"|"fn";
+                            prefix: "chat" | "json" | "json!" | "csv" | "fn";
                             body: string;
-                            options: any|null } => {
+                            options: any | null
+                        } => {
                             // This regular expression will match 'someXYZ' as a prefix and capture
                             // the contents inside the parentheses.
                             const regex = /^(\w+[\!]?)\(([^)]*)\).*/;
@@ -455,45 +464,44 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         body: message.trim().slice(match[1].length),
                                         options: match[2].length > 0 ? json5.parse(match[2]) : {}
                                     };
-                                }catch (e){
+                                } catch (e) {
 
                                 }
                             }
 
-                            return {prefix:"chat", body:message, options:{}}; // Return null if the message does not match the expected format
+                            return {prefix: "chat", body: message, options: {}}; // Return null if the message does not match the expected format
                         }
 
                         const controller = new AbortController();
                         try {
 
                             const {prefix, body, options} = parseMessageType(message.content);
-                            let updated = {...message, content:body};
+                            let updated = {...message, content: body};
                             chatBody.messages = [...chatBody.messages.slice(0, -1), updated];
 
                             console.log(`Prompt:`, {prefix: prefix, options, message});
 
-                            const generateJsonLoose = ():Promise<Response> => {
-                                if(options.length === 0){
+                            const generateJsonLoose = (): Promise<Response> => {
+                                if (options.length === 0) {
                                     return sendJsonChatRequest(chatBody, plugin, controller.signal);
-                                }
-                                else {
+                                } else {
                                     return sendJsonChatRequestWithSchemaLoose(chatBody, options as JsonSchema, plugin, controller.signal)
                                 }
                             }
 
                             const invokers = {
-                                "fn":()=>sendFunctionChatRequest(chatBody, options.functions as CustomFunction[], options.call, plugin, controller.signal),
-                                "chat":()=>sendChatRequest(chatBody, plugin, controller.signal),
-                                "csv":()=>sendCSVChatRequest(chatBody, options as ColumnsSpec, plugin, controller.signal),
-                                "json":()=>generateJsonLoose(),
-                                "json!":()=>sendJsonChatRequestWithSchema(chatBody, options as JsonSchema, plugin, controller.signal)
+                                "fn": () => sendFunctionChatRequest(chatBody, options.functions as CustomFunction[], options.call, plugin, controller.signal),
+                                "chat": () => sendChatRequest(chatBody, plugin, controller.signal),
+                                "csv": () => sendCSVChatRequest(chatBody, options as ColumnsSpec, plugin, controller.signal),
+                                "json": () => generateJsonLoose(),
+                                "json!": () => sendJsonChatRequestWithSchema(chatBody, options as JsonSchema, plugin, controller.signal)
                             }
 
                             const response = (existingResponse) ?
                                 existingResponse :
                                 await invokers[prefix]();
-                                //await sendCSVChatRequest(chatBody, {message:'string',reasoning:'string', keywords:'string'}, plugin, controller.signal);
-                                //await sendChatRequest(chatBody, plugin, controller.signal);
+                            //await sendCSVChatRequest(chatBody, {message:'string',reasoning:'string', keywords:'string'}, plugin, controller.signal);
+                            //await sendChatRequest(chatBody, plugin, controller.signal);
 
                             if (!response.ok) {
                                 homeDispatch({field: 'loading', value: false});
@@ -523,6 +531,30 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 let done = false;
                                 let isFirst = true;
                                 let text = '';
+
+                                // Reset the status display
+                                homeDispatch({
+                                    field: 'status',
+                                    value: [],
+                                });
+
+                                const updatedMessages: Message[] = [
+                                    ...updatedConversation.messages,
+                                    newMessage({
+                                        role: 'assistant',
+                                        content: "",
+                                    }),
+                                ];
+                                updatedConversation = {
+                                    ...updatedConversation,
+                                    messages: updatedMessages,
+                                };
+                                homeDispatch({
+                                    field: 'selectedConversation',
+                                    value: updatedConversation,
+                                });
+
+
                                 while (!done) {
                                     if (stopConversationRef.current === true) {
                                         controller.abort();
@@ -533,44 +565,27 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     done = doneReading;
                                     const chunkValue = decoder.decode(value);
                                     text += chunkValue;
-                                    if (isFirst) {
-                                        isFirst = false;
-                                        const updatedMessages: Message[] = [
-                                            ...updatedConversation.messages,
-                                            newMessage({
-                                                role: 'assistant',
-                                                content: chunkValue,
-                                            }),
-                                        ];
-                                        updatedConversation = {
-                                            ...updatedConversation,
-                                            messages: updatedMessages,
-                                        };
-                                        homeDispatch({
-                                            field: 'selectedConversation',
-                                            value: updatedConversation,
+
+                                    const updatedMessages: Message[] =
+                                        updatedConversation.messages.map((message, index) => {
+                                            if (index === updatedConversation.messages.length - 1) {
+                                                return {
+                                                    ...message,
+                                                    content: text,
+                                                };
+                                            }
+                                            return message;
                                         });
-                                    } else {
-                                        const updatedMessages: Message[] =
-                                            updatedConversation.messages.map((message, index) => {
-                                                if (index === updatedConversation.messages.length - 1) {
-                                                    return {
-                                                        ...message,
-                                                        content: text,
-                                                    };
-                                                }
-                                                return message;
-                                            });
-                                        updatedConversation = {
-                                            ...updatedConversation,
-                                            messages: updatedMessages,
-                                        };
-                                        homeDispatch({
-                                            field: 'selectedConversation',
-                                            value: updatedConversation,
-                                        });
-                                    }
+                                    updatedConversation = {
+                                        ...updatedConversation,
+                                        messages: updatedMessages,
+                                    };
+                                    homeDispatch({
+                                        field: 'selectedConversation',
+                                        value: updatedConversation,
+                                    });
                                 }
+                                // }
 
                                 //console.log("Dispatching post procs: " + postProcessingCallbacks.length);
                                 postProcessingCallbacks.forEach(callback => callback({
@@ -664,6 +679,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             reject(error);
                             // Handle any other errors, as required.
                         }
+
+                        //Reset the status display
+                        homeDispatch({
+                            field: 'status',
+                            value: [],
+                        });
                     }
                 });
             },
@@ -741,7 +762,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         //console.log("paramNamesStr", paramNamesStr);
 
                         const usesDocuments = stripComments(code).includes("getDocument");
-                        const content = usesDocuments?
+                        const content = usesDocuments ?
                             paramNamesStr +
                             "{{Document 1:file(optional:true)}}" +
                             "{{Document 2:file(optional:true)}}" +
@@ -810,7 +831,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     return stopConversationRef.current === true;
                 },
                 signal: controller.signal,
-                isCanceled: ()=>{
+                isCanceled: () => {
                     return canceled;
                 }
             };
@@ -818,7 +839,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             return stopper;
         }
 
-        const handleJsWorkflow = useCallback(async (message: Message, updatedVariables: string[], variablesByName:{[key:string]:any}, documents: AttachedDocument[] | null) => {
+        const handleJsWorkflow = useCallback(async (message: Message, updatedVariables: string[], variablesByName: { [key: string]: any }, documents: AttachedDocument[] | null) => {
 
             if (!featureFlags.workflowRun) {
                 alert("Running workflows is currently disabled.");
@@ -1037,8 +1058,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         };
 
-        const handleOpenAiAssistant = async (selectedAssistant:Assistant, message:Message, deleteCount:number) => {
-            if(selectedConversation) {
+        const handleOpenAiAssistant = async (selectedAssistant: Assistant, message: Message, deleteCount: number) => {
+            if (selectedConversation) {
                 const stopper = getStopper();
 
                 const updatedMessages = [...selectedConversation.messages];
@@ -1048,7 +1069,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     }
                 }
 
-               updatedMessages.push(message);
+                updatedMessages.push(message);
 
                 let updatedConversation = {
                     ...selectedConversation,
@@ -1079,12 +1100,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         try {
                             const {success, messages} = r;
 
-                            if(!success || !messages || messages.length === 0 && !success){
+                            if (!success || !messages || messages.length === 0 && !success) {
                                 alert("The assistant failed to respond. Please try again.");
                                 return;
                             }
 
-                            const newMessages = messages.map((m:any[]) => {
+                            const newMessages = messages.map((m: any[]) => {
                                 return {...m, id: uuidv4()}
                             });
 
@@ -1110,24 +1131,25 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }
 
-        const calculateTokenCost = (chatModel:OpenAIModel, datasources:AttachedDocument[]) => {
+        const calculateTokenCost = (chatModel: OpenAIModel, datasources: AttachedDocument[]) => {
             let cost = 0;
 
-            datasources.forEach((doc)=>{
-                if(doc.metadata?.totalTokens){
+            datasources.forEach((doc) => {
+                if (doc.metadata?.totalTokens) {
                     cost += doc.metadata.totalTokens;
                 }
             });
 
             const model = OpenAIModels[chatModel.id as OpenAIModelID];
-            if(!model){
-                return {prompts: -1,
-                        inputTokens: cost,
-                        inputCost: -1,
-                        outputCost: -1,
-                        totalCost: -1};
+            if (!model) {
+                return {
+                    prompts: -1,
+                    inputTokens: cost,
+                    inputCost: -1,
+                    outputCost: -1,
+                    totalCost: -1
+                };
             }
-
 
 
             console.log("Model", model);
@@ -1142,11 +1164,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             console.log("Input Cost", inputCost, "Output Cost", outputCost);
 
-            return {prompts: prompts,
+            return {
+                prompts: prompts,
                 inputCost: inputCost.toFixed(2),
                 inputTokens: cost,
                 outputCost: outputCost.toFixed(2),
-                totalCost: (inputCost + outputCost).toFixed(2)};
+                totalCost: (inputCost + outputCost).toFixed(2)
+            };
         }
 
         const routeMessage = (message: Message, deleteCount: number | undefined, plugin: Plugin | null | undefined, documents: AttachedDocument[] | null) => {
@@ -1161,27 +1185,25 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     console.log("doc", doc);
                     return {id: "s3://" + doc.key, name: doc.name, type: doc.type};
                 });
-                if(dataSources && dataSources.length > 0){
+                if (dataSources && dataSources.length > 0) {
                     console.log("Attaching datasource's to message");
                     message.data.dataSources = dataSources;
                 }
 
-                if(selectedAssistant && selectedAssistant?.id !== DEFAULT_ASSISTANT.id) {
+                if (selectedAssistant && selectedAssistant?.id !== DEFAULT_ASSISTANT.id) {
                     if (selectedConversation) {
 
-                        if(selectedAssistant.definition.provider === "openai") {
+                        if (selectedAssistant.definition.provider === "openai") {
                             try {
                                 handleOpenAiAssistant(selectedAssistant, message, deleteCount || 0);
                             } catch (e) {
-                               alert("Error reaching OpenAI. Please retry your request.");
+                                alert("Error reaching OpenAI. Please retry your request.");
                             }
-                        }
-                        else {
+                        } else {
                             handleSend(message, deleteCount, plugin, null, selectedAssistant.definition.instructions, documents);
                         }
                     }
-                }
-                else{
+                } else {
                     handleSend(message, deleteCount, plugin, null, null, documents);
                 }
             } else if (message.type == MessageType.AUTOMATION) {
@@ -1216,14 +1238,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 let label = null;
 
-                if(templateData.type === MessageType.PREFIX_PROMPT){
+                if (templateData.type === MessageType.PREFIX_PROMPT) {
                     const labelPrefix = fillInTemplate(template || "", variables, [], [], false);
                     label = newContent.substring(labelPrefix.length);
                 }
 
 
                 // Create a map with variable mapped to updatedVariables
-                const variablesByName:{[key:string]:any} = {};
+                const variablesByName: { [key: string]: any } = {};
                 const updatedVariablesMap = variables.forEach((v, index) => {
                     variablesByName[v] = updatedVariables[index];
                 });
@@ -1242,7 +1264,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     label: label
                 });
 
-                if(dataSources && dataSources.length > 0){
+                if (dataSources && dataSources.length > 0) {
                     console.log("Attaching datasources to message");
                     message.data.dataSources = dataSources;
                 }
@@ -1253,20 +1275,18 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (message.type === MessageType.PROMPT ||
                     message.type === MessageType.ROOT ||
                     message.type === MessageType.PREFIX_PROMPT) {
-                    if(documents && documents.length > 0){
+                    if (documents && documents.length > 0) {
                         handleSend(message, 0, null, null, null, documents);
-                    }
-                    else {
+                    } else {
                         handleSend(message, 0, null);
                     }
-                } else if(message.type === MessageType.AUTOMATION) {
+                } else if (message.type === MessageType.AUTOMATION) {
                     console.log("Workflow", message);
                     handleJsWorkflow(message, updatedVariables, variablesByName, documents);
                 } else {
-                    if(documents && documents.length > 0){
+                    if (documents && documents.length > 0) {
                         handleSend(message, 0, null, null, null, documents);
-                    }
-                    else {
+                    } else {
                         handleSend(message, 0, null);
                     }
                 }
@@ -1597,7 +1617,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
-                                            onClick={(e)=>{
+                                            onClick={(e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
                                                 scrollToModelSelect();
@@ -1665,7 +1685,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
 
                                     {selectedConversation?.messages.map((message, index) => (
-                                          (message.type === MessageType.REMOTE) ?
+                                        (message.type === MessageType.REMOTE) ?
                                             <MemoizedRemoteMessages
                                                 key={index}
                                                 message={message}
@@ -1696,36 +1716,36 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 }}
                                             />
                                             :
-                                        <MemoizedChatMessage
-                                            key={index}
-                                            message={message}
-                                            messageIndex={index}
-                                            onChatRewrite={handleChatRewrite}
-                                            onSend={(message) => {
-                                                setCurrentMessage(message[0]);
-                                                //handleSend(message[0], 0, null);
-                                                routeMessage(message[0], 0, null, []);
-                                            }}
-                                            onSendPrompt={runPrompt}
-                                            handleCustomLinkClick={onLinkClick}
-                                            onEdit={(editedMessage) => {
-                                                console.log("Editing message", editedMessage);
+                                            <MemoizedChatMessage
+                                                key={index}
+                                                message={message}
+                                                messageIndex={index}
+                                                onChatRewrite={handleChatRewrite}
+                                                onSend={(message) => {
+                                                    setCurrentMessage(message[0]);
+                                                    //handleSend(message[0], 0, null);
+                                                    routeMessage(message[0], 0, null, []);
+                                                }}
+                                                onSendPrompt={runPrompt}
+                                                handleCustomLinkClick={onLinkClick}
+                                                onEdit={(editedMessage) => {
+                                                    console.log("Editing message", editedMessage);
 
-                                                setCurrentMessage(editedMessage);
-                                                // discard edited message and the ones that come after then resend
-                                                // handleSend(
-                                                //     editedMessage,
-                                                //     selectedConversation?.messages.length - index,
-                                                // );
-                                                if (editedMessage.role != "assistant") {
-                                                    routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
-                                                } else {
-                                                    console.log("updateMessage");
-                                                    updateMessage(selectedConversation, editedMessage, index);
-                                                }
-                                            }}
-                                        />
-                                      ))}
+                                                    setCurrentMessage(editedMessage);
+                                                    // discard edited message and the ones that come after then resend
+                                                    // handleSend(
+                                                    //     editedMessage,
+                                                    //     selectedConversation?.messages.length - index,
+                                                    // );
+                                                    if (editedMessage.role != "assistant") {
+                                                        routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
+                                                    } else {
+                                                        console.log("updateMessage");
+                                                        updateMessage(selectedConversation, editedMessage, index);
+                                                    }
+                                                }}
+                                            />
+                                    ))}
 
                                     {loading && <ChatLoader/>}
 

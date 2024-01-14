@@ -6,7 +6,11 @@ import {createParser, ParsedEvent, ReconnectInterval} from "eventsource-parser";
 import {OpenAIError} from "@/utils/server";
 import {OpenAIModel} from "@/types/openai";
 
-export async function sendChatRequestWithDocuments(endpoint:string, accessToken:string, chatBody:ChatBody, plugin?:Plugin|null, abortSignal?:AbortSignal) {
+export interface MetaHandler {
+    (meta:any): void;
+}
+
+export async function sendChatRequestWithDocuments(endpoint:string, accessToken:string, chatBody:ChatBody, plugin?:Plugin|null, abortSignal?:AbortSignal, metaHandler?:MetaHandler) {
 
     if(chatBody.response_format && chatBody.response_format.type === 'json_object') {
         if(!chatBody.messages.some(m => m.content.indexOf('json') > -1)) {
@@ -145,6 +149,12 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
                             console.log("Meta Event:",json);
                             if(json.d && json.d.sources){
                                 sourceMapping = json.d.sources;
+                            }
+                            else if(json.s && json.s === 'meta' && json.st) {
+                                //console.log("Status Event:",json.st);
+                                if(metaHandler){
+                                    metaHandler(json.st);
+                                }
                             }
                             return;
                         }

@@ -11,11 +11,14 @@ import { wrapResponse, stringChunkCallback } from "@/utils/app/responseWrapper";
 import {getSession} from "next-auth/react"
 import json5 from "json5";
 import {OpenAIModels} from "@/types/openai";
+import {newStatus} from "@/types/workflow";
 
 export function useChatService() {
     const { state: { apiKey , statsService, chatEndpoint, defaultAccount, defaultModelId },
         preProcessingCallbacks,
-        postProcessingCallbacks, } = useContext(HomeContext);
+        postProcessingCallbacks,
+        dispatch,
+    } = useContext(HomeContext);
 
 
     const sendCSVChatRequest = async (chatBody:ChatBody, columns:ColumnsSpec, plugin?:Plugin|null, abortSignal?:AbortSignal) => {
@@ -115,9 +118,14 @@ export function useChatService() {
 
             console.log("Sending chat request with documents")
 
+            const metaHandler = (meta:any) => {
+                console.log("Status: ", meta);
+                dispatch({type:"append", field:"status", value:newStatus(meta)})
+            }
+
             response = getSession().then((session) => {
                 // @ts-ignore
-                return sendChatRequestWithDocuments(chatEndpoint, session.accessToken, chatBody, plugin, abortSignal);
+                return sendChatRequestWithDocuments(chatEndpoint, session.accessToken, chatBody, plugin, abortSignal, metaHandler);
             });
         // }
         // else {
