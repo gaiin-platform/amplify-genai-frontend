@@ -79,7 +79,7 @@ const PromptingStatusDisplay: React.FC<PromptingStatusDisplayProps> = ({ statusH
             {activeStatuses.filter(s => s.inProgress || s.sticky).map((status, i) => (
                     <div
                         key={i}
-                        className="rounded-xl text-neutral-500 hover:opacity-50 dark:text-white border border-neutral-200 dark:border-neutral-600 dark:bg-[#343541] rounded-md shadow-lg h-12 mb-2 mr-2"
+                        className="rounded-xl text-neutral-500 hover:opacity-50 dark:text-white bg-neutral-200 dark:bg-[#343541] rounded-md shadow-lg h-12 mb-2 mr-2"
                     >
                         <div className="flex flex-row">
                             <div
