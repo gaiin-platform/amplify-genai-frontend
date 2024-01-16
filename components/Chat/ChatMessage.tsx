@@ -252,7 +252,7 @@ export const ChatMessage: FC<Props> = memo(({
                                                     {message.data && message.data.dataSources && message.data.dataSources.map((d: any, i: any) => (
                                                         <div
                                                             key={i}
-                                                            className="bg-yellow-400 dark:bg-[#B0BEC5] rounded-xl shadow-lg h-12"
+                                                            className="bg-yellow-400 dark:bg-[#B0BEC5] rounded-xl shadow-lg h-12 mr-2 mb-2"
                                                         >
                                                             <div className="flex flex-row">
                                                                 <div

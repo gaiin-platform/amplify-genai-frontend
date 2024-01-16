@@ -4,6 +4,7 @@ import {
     IconRobot,
     IconCheck,
     IconAperture,
+    IconInfoHexagon,
     IconAssembly,
     IconBlockquote,
     IconAlignBoxBottomRight,
@@ -30,6 +31,8 @@ const PromptingStatusDisplay: React.FC<PromptingStatusDisplayProps> = ({ statusH
         switch (status.icon) {
             case 'bolt':
                 return <IconBolt/>;
+            case 'info':
+                return <IconInfoHexagon/>;
             case 'assistant':
                 return <></>;
             case 'check':
