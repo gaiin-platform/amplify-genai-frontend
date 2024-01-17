@@ -14,7 +14,7 @@ import {useTranslation} from 'next-i18next';
 
 import {getHook} from "@/utils/app/chathooks";
 import {getEndpoint} from '@/utils/app/api';
-
+import {OutOfOrderResults} from "@/utils/app/outoforder";
 import {
     saveConversation,
     saveConversations,
@@ -48,7 +48,7 @@ import Workflow, {
 import {fillInTemplate} from "@/utils/app/prompts";
 import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
 import {Prompt} from "@/types/prompt";
-import {InputDocument, Status, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
+import {InputDocument, newStatus, Status, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {Key} from "@/components/Settings/Key";
 import {describeAsJsonSchema} from "@/utils/app/data";
@@ -63,6 +63,7 @@ import {DownloadModal} from "@/components/Download/DownloadModal";
 import {ColumnsSpec} from "@/utils/app/csv";
 import json5 from "json5";
 import {MemoizedRemoteMessages} from "@/components/Chat/MemoizedRemoteMessages";
+import {MetaHandler} from "@/services/chatService";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -489,12 +490,26 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 }
                             }
 
+                            let outOfOrder = false;
+                            let outOfOrderBuffer = [];
+
+                            const metaHandler:MetaHandler = {
+                                status:(meta:any) => {
+                                    console.log("Chat-Status: ", meta);
+                                    homeDispatch({type:"append", field:"status", value:newStatus(meta)})
+                                },
+                                mode:(modeName:string) => {
+                                    console.log("Chat-Mode: "+modeName);
+                                    outOfOrder = (modeName === "out_of_order");
+                                }
+                            };
+
                             const invokers = {
-                                "fn": () => sendFunctionChatRequest(chatBody, options.functions as CustomFunction[], options.call, plugin, controller.signal),
-                                "chat": () => sendChatRequest(chatBody, plugin, controller.signal),
-                                "csv": () => sendCSVChatRequest(chatBody, options as ColumnsSpec, plugin, controller.signal),
+                                "fn": () => sendFunctionChatRequest(chatBody, options.functions as CustomFunction[], options.call, plugin, controller.signal, metaHandler),
+                                "chat": () => sendChatRequest(chatBody, plugin, controller.signal, metaHandler),
+                                "csv": () => sendCSVChatRequest(chatBody, options as ColumnsSpec, plugin, controller.signal, metaHandler),
                                 "json": () => generateJsonLoose(),
-                                "json!": () => sendJsonChatRequestWithSchema(chatBody, options as JsonSchema, plugin, controller.signal)
+                                "json!": () => sendJsonChatRequestWithSchema(chatBody, options as JsonSchema, plugin, controller.signal, metaHandler)
                             }
 
                             const response = (existingResponse) ?
@@ -555,35 +570,81 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 });
 
 
-                                while (!done) {
-                                    if (stopConversationRef.current === true) {
-                                        controller.abort();
-                                        done = true;
-                                        break;
-                                    }
-                                    const {value, done: doneReading} = await reader.read();
-                                    done = doneReading;
-                                    const chunkValue = decoder.decode(value);
-                                    text += chunkValue;
+                                const eventOrderingMgr = new OutOfOrderResults();
 
-                                    const updatedMessages: Message[] =
-                                        updatedConversation.messages.map((message, index) => {
-                                            if (index === updatedConversation.messages.length - 1) {
-                                                return {
-                                                    ...message,
-                                                    content: text,
-                                                };
+                                while (!done) {
+                                    try {
+                                        if (stopConversationRef.current === true) {
+                                            controller.abort();
+                                            done = true;
+                                            break;
+                                        }
+                                        const {value, done: doneReading} = await reader.read();
+                                        done = doneReading;
+                                        const chunkValue = decoder.decode(value);
+
+                                        if(!outOfOrder) {
+                                            text += chunkValue;
+                                        }
+                                        else {
+                                            let event = {s:"0", d:chunkValue};
+                                            try{
+                                                event = JSON.parse(chunkValue);
+                                            }catch (e) {
+                                                console.log("Error parsing event", e);
                                             }
-                                            return message;
+                                            // outOfOrderBuffer.push(event);
+                                            // // Sort alphabetically by .s
+                                            // outOfOrderBuffer.sort((a,b) => {
+                                            //     if(a.s < b.s) return -1;
+                                            //     if(a.s > b.s) return 1;
+                                            //     return 0;
+                                            // });
+                                            eventOrderingMgr.addEvent(event);
+
+                                            //text = outOfOrderBuffer.map((item) => item.d).join("");
+                                            text = eventOrderingMgr.getText();
+                                        }
+
+                                        const updatedMessages: Message[] =
+                                            updatedConversation.messages.map((message, index) => {
+                                                if (index === updatedConversation.messages.length - 1) {
+                                                    return {
+                                                        ...message,
+                                                        content: text,
+                                                    };
+                                                }
+                                                return message;
+                                            });
+                                        updatedConversation = {
+                                            ...updatedConversation,
+                                            messages: updatedMessages,
+                                        };
+                                        homeDispatch({
+                                            field: 'selectedConversation',
+                                            value: updatedConversation,
                                         });
-                                    updatedConversation = {
-                                        ...updatedConversation,
-                                        messages: updatedMessages,
-                                    };
-                                    homeDispatch({
-                                        field: 'selectedConversation',
-                                        value: updatedConversation,
-                                    });
+                                    } catch (error: any) {
+                                        saveConversation(updatedConversation);
+                                        const updatedConversations: Conversation[] = conversations.map(
+                                            (conversation) => {
+                                                if (conversation.id === selectedConversation.id) {
+                                                    return updatedConversation;
+                                                }
+                                                return conversation;
+                                            },
+                                        );
+                                        if (updatedConversations.length === 0) {
+                                            updatedConversations.push(updatedConversation);
+                                        }
+                                        homeDispatch({field: 'conversations', value: updatedConversations});
+                                        saveConversations(updatedConversations);
+                                        homeDispatch({field: 'messageIsStreaming', value: false});
+                                        homeDispatch({field: 'loading', value: false});
+                                        homeDispatch({field: 'status', value: []});
+                                        reject(error);
+                                        return;
+                                    }
                                 }
                                 // }
 

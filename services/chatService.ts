@@ -7,7 +7,8 @@ import {OpenAIError} from "@/utils/server";
 import {OpenAIModel} from "@/types/openai";
 
 export interface MetaHandler {
-    (meta:any): void;
+    status: (meta:any)=> void;
+    mode: (mode:string)=> void;
 }
 
 export async function sendChatRequestWithDocuments(endpoint:string, accessToken:string, chatBody:ChatBody, plugin?:Plugin|null, abortSignal?:AbortSignal, metaHandler?:MetaHandler) {
@@ -134,6 +135,7 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
 
     let sourceMapping = [];
     let lastSource:string|null = null;
+    let outOfOrderMode = false;
 
     const stream = new ReadableStream({
         async start(controller) {
@@ -153,14 +155,24 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
                             else if(json.s && json.s === 'meta' && json.st) {
                                 //console.log("Status Event:",json.st);
                                 if(metaHandler){
-                                    metaHandler(json.st);
+                                    metaHandler.status(json.st);
+                                }
+                            }
+                            else if(json.s && json.s === 'meta' && json.m === 'out_of_order'){
+                                outOfOrderMode = true;
+                                if(metaHandler) {
+                                    metaHandler.mode('out_of_order');
                                 }
                             }
                             return;
                         }
                         else if(json.d){
 
-                            if(typeof json.d === 'string') {
+                            if(outOfOrderMode && typeof json.d === 'string') {
+                                json.choices = [{delta: {content: data}}];
+                                //console.log("Translated Event:",json);
+                            }
+                            else if(typeof json.d === 'string') {
                                 //console.log("Message Event:",json);
                                 const prefix = lastSource != null && lastSource != json.s ? "\n\n" : "";
                                 // Fake it right now for compatibility!
