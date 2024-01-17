@@ -1,12 +1,14 @@
 
 
 export class OutOfOrderResults {
+
+    private sources: { [p: string]: any[] };
+
     constructor() {
         this.sources = {};
     }
 
-
-    getSourceQueue(src){
+    getSourceQueue(src:string){
         if(!this.sources[src]){
             this.sources[src] = [];
         }
@@ -14,14 +16,14 @@ export class OutOfOrderResults {
         return this.sources[src];
     }
 
-    addEvent(event) {
+    addEvent(event:any) {
         this.getSourceQueue(event.s).push(event);
     }
 
     getText() {
         const sortedKeys =  Object.keys(this.sources).sort((a,b) => {
-            if(a.s < b.s) return -1;
-            if(a.s > b.s) return 1;
+            if(a < b) return -1;
+            if(a > b) return 1;
             return 0;
         });
 

@@ -14,7 +14,8 @@ import {useTranslation} from 'next-i18next';
 
 import {getHook} from "@/utils/app/chathooks";
 import {getEndpoint} from '@/utils/app/api';
-import {OutOfOrderResults} from "@/utils/app/outoforder";
+import {OutOfOrderResults} from "@/utils/app/outOfOrder";
+
 import {
     saveConversation,
     saveConversations,
