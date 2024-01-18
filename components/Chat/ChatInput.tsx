@@ -228,6 +228,10 @@ export const ChatInput = ({
         stopConversationRef.current = true;
         setTimeout(() => {
             stopConversationRef.current = false;
+
+            homeDispatch({field: 'loading', value: false});
+            homeDispatch({field: 'messageIsStreaming', value: false});
+            homeDispatch({field: 'status', value: []});
         }, 1000);
     };
 

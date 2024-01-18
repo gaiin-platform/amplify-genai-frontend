@@ -49,7 +49,7 @@ const LoadingIcon = styled(FiCommand)`
 
 const SharedItemsList: FC<SharedItemsListProps> = () => {
 
-    const {dispatch: homeDispatch, state:{statsService}} = useContext(HomeContext);
+    const {dispatch: homeDispatch, state:{statsService, featureFlags}} = useContext(HomeContext);
 
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
     const [isMarketModalOpen, setIsMarketModalOpen] = useState<boolean>(false);
@@ -134,18 +134,21 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                 includePrompts={true}
                 includeFolders={true}/>
 
-            <ShareAnythingToMarketModal
-                open={isMarketModalOpen}
-                onShare={() => {
-                    setIsMarketModalOpen(false);
-                }}
-                onCancel={() => {
-                    setIsMarketModalOpen(false);
-                }}
-                includeConversations={true}
-                includePrompts={true}
-                includeFolders={true}/>
+            {featureFlags.enableMarket && (
+                <ShareAnythingToMarketModal
+                    open={isMarketModalOpen}
+                    onShare={() => {
+                        setIsMarketModalOpen(false);
+                    }}
+                    onCancel={() => {
+                        setIsMarketModalOpen(false);
+                    }}
+                    includeConversations={true}
+                    includePrompts={true}
+                    includeFolders={true}/>
+            )}
 
+            {featureFlags.enableMarket && (
             <div className="flex flex-row items-center pt-3 pl-3 pr-3">
                 <div className="flex w-full items-center">
                     <button
@@ -160,6 +163,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                     </button>
                 </div>
             </div>
+            )}
 
             <div className="flex flex-row items-center pt-3 pl-3 pr-3">
                 <div className="flex items-center">
@@ -170,9 +174,10 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                         }}
                     >
                         <IconShare size={16}/>
-                        Share to Users
+                        Share with Other Users
                     </button>
                 </div>
+                {featureFlags.enableMarket && (
                 <div className="flex items-center pl-2">
                     <button
                         className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
@@ -184,6 +189,8 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                         Publish to Market
                     </button>
                 </div>
+                )}
+
             </div>
 
             <h3 className="text-lg border-b p-3 ml-3 mr-3">Shared with You</h3>
