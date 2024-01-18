@@ -434,7 +434,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             chatBody.dataSources = dataSources;
                         } else if (message.data && message.data.dataSources && message.data.dataSources.length > 0) {
                             chatBody.dataSources = message.data.dataSources.map((doc: any) => {
-                                return {id: doc.id}
+                                return {id: doc.id, type: doc.type, metadata: doc.metadata || {}};
                             });
                         }
 
@@ -1242,11 +1242,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 || message.type == "chat" //Unfortunate hack to support old messages
             ) {
 
-                console.log("Building data sources");
-                const dataSources = documents?.filter((doc) => doc.key).map((doc) => {
+                const existingDatasources = message.data?.dataSources || [];
+                const newDatasources = documents?.filter((doc) => doc.key).map((doc) => {
                     console.log("doc", doc);
-                    return {id: "s3://" + doc.key, name: doc.name, type: doc.type};
-                });
+                    return {id: "s3://" + doc.key, name: doc.name, type: doc.type, metadata: doc.metadata || {}};
+                }) || [];
+
+                console.log("Building data sources");
+                const dataSources = [...existingDatasources, ...newDatasources];
+
                 if (dataSources && dataSources.length > 0) {
                     console.log("Attaching datasource's to message");
                     message.data.dataSources = dataSources;
