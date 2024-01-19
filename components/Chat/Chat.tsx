@@ -594,16 +594,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             }catch (e) {
                                                 console.log("Error parsing event", e);
                                             }
-                                            // outOfOrderBuffer.push(event);
-                                            // // Sort alphabetically by .s
-                                            // outOfOrderBuffer.sort((a,b) => {
-                                            //     if(a.s < b.s) return -1;
-                                            //     if(a.s > b.s) return 1;
-                                            //     return 0;
-                                            // });
                                             eventOrderingMgr.addEvent(event);
-
-                                            //text = outOfOrderBuffer.map((item) => item.d).join("");
                                             text = eventOrderingMgr.getText();
                                         }
 
