@@ -5,6 +5,7 @@ import { Plugin } from '@/types/plugin';
 import {createParser, ParsedEvent, ReconnectInterval} from "eventsource-parser";
 import {OpenAIError} from "@/utils/server";
 import {OpenAIModel} from "@/types/openai";
+import {v4 as uuidv4} from 'uuid';
 
 export interface MetaHandler {
     status: (meta:any)=> void;
@@ -41,7 +42,8 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
                 return {role: m.role, content: m.content}
         })],
         options: {
-            ...vendorProps
+            ...vendorProps,
+            requestId: uuidv4(),
         }
     }
 
@@ -59,6 +61,7 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
         body,
     });
 
+    // @ts-ignore
     const functions = requestBody.options && requestBody.options.functions;
 
     const encoder = new TextEncoder();

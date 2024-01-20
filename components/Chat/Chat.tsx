@@ -516,10 +516,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             const response = (existingResponse) ?
                                 existingResponse :
                                 await invokers[prefix]();
-                            //await sendCSVChatRequest(chatBody, {message:'string',reasoning:'string', keywords:'string'}, plugin, controller.signal);
-                            //await sendChatRequest(chatBody, plugin, controller.signal);
 
-                            if (!response.ok) {
+
+                            if (!response || !response.ok) {
                                 homeDispatch({field: 'loading', value: false});
                                 homeDispatch({field: 'messageIsStreaming', value: false});
                                 toast.error(response.statusText);
@@ -634,7 +633,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         homeDispatch({field: 'messageIsStreaming', value: false});
                                         homeDispatch({field: 'loading', value: false});
                                         homeDispatch({field: 'status', value: []});
-                                        reject(error);
                                         return;
                                     }
                                 }
@@ -729,7 +727,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 // The request has been aborted. Clear out the queue.
                                 setMessageQueue([]);
                             }
-                            reject(error);
+
+                            homeDispatch({field: 'loading', value: false});
+                            homeDispatch({field: 'messageIsStreaming', value: false});
+                            homeDispatch({
+                                field: 'status',
+                                value: [],
+                            });
+                            return;
+                            //reject(error);
                             // Handle any other errors, as required.
                         }
 
