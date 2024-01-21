@@ -102,6 +102,7 @@ export interface ChatBody {
   response_format?: ChatResponseFormat;
   dataSources?: DataSource[];
   accountId?: string;
+  requestId?: string;
 }
 
 export interface Conversation {

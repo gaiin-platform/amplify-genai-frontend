@@ -492,15 +492,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             }
 
                             let outOfOrder = false;
-                            let outOfOrderBuffer = [];
 
                             const metaHandler:MetaHandler = {
                                 status:(meta:any) => {
-                                    console.log("Chat-Status: ", meta);
+                                    //console.log("Chat-Status: ", meta);
                                     homeDispatch({type:"append", field:"status", value:newStatus(meta)})
                                 },
                                 mode:(modeName:string) => {
-                                    console.log("Chat-Mode: "+modeName);
+                                    //console.log("Chat-Mode: "+modeName);
                                     outOfOrder = (modeName === "out_of_order");
                                 }
                             };
@@ -591,7 +590,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             try{
                                                 event = JSON.parse(chunkValue);
                                             }catch (e) {
-                                                console.log("Error parsing event", e);
+                                                //console.log("Error parsing event", e);
                                             }
                                             eventOrderingMgr.addEvent(event);
                                             text = eventOrderingMgr.getText();
@@ -1241,7 +1240,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 const existingDatasources = message.data?.dataSources || [];
                 const newDatasources = documents?.filter((doc) => doc.key).map((doc) => {
-                    console.log("doc", doc);
                     return {id: "s3://" + doc.key, name: doc.name, type: doc.type, metadata: doc.metadata || {}};
                 }) || [];
 

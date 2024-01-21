@@ -2,7 +2,7 @@
 import {incrementalJSONtoCSV} from "@/utils/app/incrementalCsvParser";
 import {useContext} from 'react';
 import HomeContext from '@/pages/api/home/home.context';
-import {MetaHandler, sendChatRequest as send, sendChatRequestWithDocuments} from '../services/chatService';
+import {killRequest as killReq, MetaHandler, sendChatRequest as send, sendChatRequestWithDocuments} from '../services/chatService';
 import {ChatBody, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
 import {Plugin} from '@/types/plugin';
@@ -21,6 +21,19 @@ export function useChatService() {
         dispatch,
     } = useContext(HomeContext);
 
+    const killRequest = async (requestId:string) => {
+        const session = await getSession();
+
+        // @ts-ignore
+        if(!session || !session.accessToken || !chatEndpoint){
+            return false;
+        }
+
+        // @ts-ignore
+        const result = await killReq(chatEndpoint, session.accessToken, requestId);
+
+        return result;
+    }
 
     const sendCSVChatRequest = async (chatBody: ChatBody, columns: ColumnsSpec, plugin?: Plugin | null, abortSignal?: AbortSignal, metaHandler?: MetaHandler) => {
         const schema = generateCSVSchema(columns);
@@ -126,6 +139,8 @@ export function useChatService() {
             }
         }
 
+        chatBody.requestId = Math.random().toString(36).substring(7);
+        dispatch({field: "currentRequestId", value: chatBody.requestId});
 
         response = getSession().then((session) => {
             // @ts-ignore
@@ -207,6 +222,7 @@ export function useChatService() {
     }
 
     return {
+        killRequest,
         routeChatRequest,
         sendChatRequest,
         sendFunctionChatRequest,

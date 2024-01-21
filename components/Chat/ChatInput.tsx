@@ -39,6 +39,7 @@ import {ActiveAssistantsList} from "@/components/Assistants/ActiveAssistantsList
 import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
+import {useChatService} from "@/hooks/useChatService";
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -61,8 +62,10 @@ export const ChatInput = ({
                           }: Props) => {
     const {t} = useTranslation('chat');
 
+    const {killRequest} = useChatService();
+
     const {
-        state: {selectedConversation, messageIsStreaming, prompts, models, status, featureFlags},
+        state: {selectedConversation, messageIsStreaming, prompts, models, status, featureFlags, currentRequestId},
 
         dispatch: homeDispatch,
     } = useContext(HomeContext);
@@ -226,6 +229,11 @@ export const ChatInput = ({
 
     const handleStopConversation = () => {
         stopConversationRef.current = true;
+
+        if(currentRequestId) {
+            killRequest(currentRequestId);
+        }
+
         setTimeout(() => {
             stopConversationRef.current = false;
 
