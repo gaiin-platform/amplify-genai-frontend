@@ -161,10 +161,10 @@ export const ChatMessage: FC<Props> = memo(({
     };
 
 
-    //
-    // useEffect(() => {
-    //     setMessageContent(message.content);
-    // }, [message.content]);
+    // needed to avoid editing bug when switching between conversations
+    useEffect(() => {
+        setMessageContent(message.content);
+    }, [message.content]);
 
 
     const handleDownload = async (dataSource: DataSource) => {
