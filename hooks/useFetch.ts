@@ -32,6 +32,7 @@ export const useFetch = () => {
 
     return fetch(requestUrl, { ...requestBody, headers, signal })
       .then((response) => {
+
         if (!response.ok) throw response;
 
         const contentType = response.headers.get('content-type');

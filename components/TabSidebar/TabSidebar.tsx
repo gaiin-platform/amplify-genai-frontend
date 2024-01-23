@@ -25,24 +25,24 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
     const isMultipleTabs = childrenArray.length > 1;
 
     return isOpen ? (
-        <div className={`fixed top-0 ${side}-0 z-40 flex h-full w-[280px] flex-none 
-            flex-col space-y-0 bg-[#202123] text-[14px] sm:relative sm:top-0`}>
+        <div className={`fixed top-0 ${side}-0 z-40 flex h-full w-[280px] flex-none ${side === 'left' ? 'border-r dark:border-r-[#202123]' : 'border-l dark:border-l-[#202123]'}
+            flex-col space-y-0 bg-white text-black dark:text-white bg-neutral-100 dark:bg-[#202123] text-[14px] sm:relative sm:top-0`}>
             {isMultipleTabs && (
-                <div className="flex flex-row gap-1 bg-[#202123] rounded-t">
+                <div className="flex flex-row gap-1 bg-neutral-100 dark:bg-[#202123] rounded-t">
                     {childrenArray.map((child, index) => (
                         <button
                             key={index}
                             onClick={() => setActiveTab(index)}
-                            className={`px-3 py-2 rounded-t ${activeTab === index ? 'border-l-2 border-t-2 border-r-2 border-gray-500 text-white' : 'text-gray-600'}`}>
+                            className={`px-3 py-2 rounded-t ${activeTab === index ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
                             {child.props.icon}
                         </button>
                     ))}
                 </div>
             )}
-            <div className="overflow-auto bg-[#202123] p-0 m-0 flex-grow">
+            <div className="overflow-auto bg-neutral-100 dark:bg-[#202123] p-0 m-0 flex-grow">
                 {childrenArray[activeTab].props.children}
             </div>
-            <div className="w-full mt-auto p-2 bg-[#202123]">
+            <div className="w-full mt-auto p-2 bg-neutral-100 dark:bg-[#202123]">
                 {footerComponent}
             </div>
             <CloseSidebarButton onClick={toggleOpen} side={side} />

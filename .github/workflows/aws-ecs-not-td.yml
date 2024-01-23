@@ -1,0 +1,90 @@
+name: Deploy to Amazon ECS
+
+on:
+  push:
+    branches: [ "dev", "staging" ]
+  
+  pull_request:
+    branches:
+      - main  
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - env_name: dev
+            branch: dev
+            ecr_repository: dev-gen-ai-image
+            ecs_cluster: dev-gen-ai-cluster
+            ecs_service: dev-gen-ai-service
+            container_name: dev-amplifyApp
+            AWS_REGION: us-east-1
+          - env_name: staging
+            branch: staging
+            ecr_repository: staging-gen-ai-image
+            ecs_cluster: staging-gen-ai-cluster
+            ecs_service: staging-gen-ai-service
+            container_name: staging-amplifyApp 
+            AWS_REGION: us-east-1
+          - env_name: prod
+            branch: main
+            ecr_repository: prod-gen-ai-image
+            ecs_cluster: prod-gen-ai-cluster
+            ecs_service: prod-gen-ai-service
+            container_name: prod-amplifyApp
+            AWS_REGION: us-east-1
+    
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      if: contains(matrix.branch, github.ref_name)
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+  
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build, tag, and push image to Amazon ECR
+      if: contains(matrix.branch, github.ref_name)
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        LATEST_TAG: latest
+        ECR_REPOSITORY: ${{ matrix.ecr_repository }}
+        ECS_CLUSTER: ${{ matrix.ecs_cluster }}
+        ECS_SERVICE: ${{ matrix.ecs_service }}
+        CONTAINER_NAME: ${{ matrix.container_name }}
+        
+      run: |
+        # Set the current date in YYYY-MM-DD format and concatenate it with the SHA
+        DATE_SHA=$(date +%F)-${{ github.sha }}
+        echo "DATE_SHA=${DATE_SHA}" >> $GITHUB_ENV
+
+        # Build a docker container and push it to ECR
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$DATE_SHA .
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$DATE_SHA $ECR_REGISTRY/$ECR_REPOSITORY:$LATEST_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$DATE_SHA
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$LATEST_TAG
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$DATE_SHA" >> $GITHUB_ENV
+
+    - name: Force new deployment to Amazon ECS
+      if: contains(matrix.branch, github.ref_name)
+      env:
+        AWS_REGION: ${{env.AWS_REGION}} # set this to your preferred AWS region, e.g. us-west-1
+        ECS_CLUSTER: ${{ matrix.ecs_cluster }}  # Your ECS cluster name
+        ECS_SERVICE: ${{ matrix.ecs_service }}  # Your ECS service name
+      run: |
+        aws ecs update-service --cluster $ECS_CLUSTER --service $ECS_SERVICE --force-new-deployment --wait-for-service-stability

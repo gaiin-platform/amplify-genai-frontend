@@ -2,13 +2,14 @@ import {FC, KeyboardEvent, useContext, useEffect, useRef, useState} from 'react'
 
 import {Prompt} from '@/types/prompt';
 import {AttachFile} from "@/components/Chat/AttachFile";
-import {AttachedDocument} from "@/types/attacheddocument";
+import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 import {WorkflowDefinition} from "@/types/workflow";
 import {OpenAIModelID, OpenAIModel} from "@/types/openai";
 import HomeContext from "@/pages/api/home/home.context";
 import JSON5 from 'json5'
 import {getType, parsePromptVariableValues, variableTypeOptions} from "@/utils/app/prompts";
 import {FileList} from "@/components/Chat/FileList";
+import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 
 interface Props {
     models: OpenAIModel[];
@@ -18,6 +19,7 @@ interface Props {
     handleUpdateModel: (model: OpenAIModel) => void;
     onSubmit: (updatedVariables: string[], documents: AttachedDocument[] | null, prompt?:Prompt) => void;
     onClose: (canceled:boolean) => void;
+    showModelSelector?: boolean;
 }
 
 const isRequired = (variable: string) => {
@@ -90,6 +92,7 @@ export const VariableModal: FC<Props> = ({
                                              variables,
                                              onSubmit,
                                              onClose,
+                                             showModelSelector = true,
                                          }) => {
 
     const {
@@ -100,6 +103,8 @@ export const VariableModal: FC<Props> = ({
     const [selectedModel, setSelectedModel] = useState<OpenAIModel>((models.length>0)? models[0] : null);
     const [isConversationDropdownOpen, setIsConversationDropdownOpen] = useState(false);
     const [files, setFiles] = useState<AttachedDocument[]>([]);
+    const [documentKeys, setDocumentKeys] = useState<{[key:string]:string}>({});
+    const [documentMetadata, setDocumentMetadata] = useState<{[key:string]:AttachedDocumentMetadata}>({});
     const [updatedVariables, setUpdatedVariables] = useState<{ key: string; value: any }[]>(
         variables
             .map((variable) => {
@@ -128,8 +133,79 @@ export const VariableModal: FC<Props> = ({
 
     const modalRef = useRef<HTMLDivElement>(null);
     const nameInputRef = useRef<HTMLTextAreaElement>(null);
+    const [documentState, setDocumentState] = useState<{[key:string]:number}>({});
+    const [documentAborts, setDocumentAborts] = useState<{[key:string]:()=>void}>({});
 
+    useEffect(() => {
+        if(models.length > 0) {
+            setSelectedModel(models[0]);
+            handleUpdateModel(models[0]);
+        }
+    },[])
 
+    const onCancelUpload = (document:AttachedDocument) => {
+        try {
+            
+            if (documentAborts && documentAborts[document.id]) {
+                documentAborts[document.id]();
+            }
+            else if (documentState && documentState[document.id]) {
+                // Needt to delete from server
+            }
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+    const allDocumentsDoneUploading = (documents:AttachedDocument[]) => {
+        console.log("Checking if all documents are done uploading");
+        console.log(documents);
+
+        if(!documents || documents.length == 0){
+            console.log("No files to check");
+            return true;
+        }
+
+        const isComplete = (document:AttachedDocument) => {
+            return !documentState || (!document.key) || (documentState && documentState[document.id] == 100);
+        }
+
+        return documents?.every(isComplete);
+    }
+
+    const handleDocumentAbortController = (document:AttachedDocument, abortController:any) => {
+        setDocumentAborts((prevState) => {
+            let newState = {...prevState, [document.id]: abortController};
+            newState[document.id] = abortController;
+            return newState;
+        });
+    }
+
+    const handleDocumentState = (document:AttachedDocument, progress:number) => {
+
+        setDocumentState((prevState) => {
+            let newState = {...prevState, [document.id]: progress};
+            newState[document.id] = progress;
+            return newState;
+        });
+
+    }
+
+    const handleSetMetadata = (document:AttachedDocument, metadata:any) => {
+
+        setDocumentMetadata((prevState) => {
+            const newMetadata = {...prevState, [document.id]: metadata};
+            return newMetadata;
+        });
+    }
+
+    const handleSetKey = (document:AttachedDocument, key:string) => {
+        setDocumentKeys((prevState) => {
+           const newKeys = {...prevState, [document.id]: key};
+
+           return newKeys;
+        });
+    }
 
     const handleChange = (index: number, value: any) => {
         setUpdatedVariables((prev) => {
@@ -159,12 +235,6 @@ export const VariableModal: FC<Props> = ({
 
     const handleSubmit = () => {
 
-        if (updatedVariables.some((variable) =>
-            variable.value === '' && !parsePromptVariableValues(variable.key).optional)) {
-
-            alert('Please fill out all variables');
-            return;
-        }
 
         // Final updates that shouldn't be visible / editable to the user
         // Transform all of the values of the updateVariables map with the getValue function
@@ -184,7 +254,46 @@ export const VariableModal: FC<Props> = ({
 
         documents = [...documents, ...files];
 
-        console.log("Submitting prompt :", prompt);
+        const fileVars = updatedVariables.filter((variable) =>
+            (getType(variable.key) === 'file')
+            && !parsePromptVariableValues(variable.key).optional);
+
+        const missingFiles = fileVars.filter((variable) =>
+            !variable.value || variable.value === '' || variable.value.length === 0);
+
+        if (missingFiles.length > 0) {
+            alert('Please provide all the required files marked with "*"');
+            return;
+        }
+
+        const filesVar = updatedVariables.filter((variable) =>
+            (getType(variable.key) === 'files')
+            && !parsePromptVariableValues(variable.key).optional);
+
+        if(filesVar.length > 0 && files.length === 0) {
+            alert('Please provide all the required files marked with "*"');
+            return;
+        }
+
+        if (updatedVariables.some((variable) =>
+            variable.value === '' && !parsePromptVariableValues(variable.key).optional)) {
+
+            alert('Please fill out all required variables marked with "*"');
+            return;
+        }
+
+        if(!allDocumentsDoneUploading(documents)) {
+            alert('Please wait for all documents to finish uploading or remove them from the prompt.');
+            return;
+        }
+
+        documents = documents.map((document) => {
+            if(documentKeys[document.id]) {
+                document.key = documentKeys[document.id];
+            }
+            return document;
+        });
+
         onSubmit(justVariables, documents, prompt);
         onClose(false);
     };
@@ -193,7 +302,7 @@ export const VariableModal: FC<Props> = ({
     const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
 
         if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
+            //e.preventDefault();
             //handleSubmit();
         } else if (e.key === 'Escape') {
             onClose(true);
@@ -227,7 +336,6 @@ export const VariableModal: FC<Props> = ({
 
         let filtered = conversations.filter((conversation) => {
            if(options.startsWith){
-               console.log(conversation.name + " .startsWith " + options.startsWith + " = " + conversation.name.startsWith(options.startsWith));
                return conversation.name.startsWith(options.startsWith);
            }
            else if(options.options) {
@@ -271,8 +379,6 @@ export const VariableModal: FC<Props> = ({
 
     const getTextValue = (variable:string, text: string) => {
         let options = parsePromptVariableValues(variable);
-
-        console.log("Text Options:", options);
 
         // Append a line number to the start of every line of text
         text = (options.lineNumbers) ? text.split("\n")
@@ -357,7 +463,7 @@ export const VariableModal: FC<Props> = ({
                                 ref={index === 0 ? nameInputRef : undefined}
                                 className="mt-1 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                 style={{resize: 'none'}}
-                                placeholder={`Enter a value for ${parseVariableName(variable.key)}...`}
+                                placeholder={`Enter a value...`}
                                 value={variable.value}
                                 onChange={(e) => handleChange(index, e.target.value)}
                                 rows={3}
@@ -366,23 +472,42 @@ export const VariableModal: FC<Props> = ({
 
                         {isFile(variable.key) && ( //use AttachFile component
                             <div>
-                                <AttachFile id={"__idVarFile" + index} onAttach={(doc) => {
+                                <AttachFile id={"__idVarFile" + index}
+                                            disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
+                                            onSetKey={handleSetKey}
+                                            onSetMetadata={handleSetMetadata}
+                                            onSetAbortController={handleDocumentAbortController}
+                                            onUploadProgress={handleDocumentState}
+                                            onAttach={(doc) => {
                                     handleChange(index, doc);
                                 }}/>
                                 {variable.value &&
                                     // @ts-ignore
-                                    <span>{variable.value.name}</span>
+                                    <FileList documents={[variable.value]}
+                                              onCancelUpload={onCancelUpload}
+                                              documentStates={documentState}
+                                              setDocuments={()=>handleChange(index, '')}/>
+                                    // <span>{variable.value.name}</span>
                                 }
                             </div>
                         )}
 
                         {isFiles(variable.key) && ( //use AttachFile component
                             <div>
-                                <AttachFile id={"__idVarFile" + index} onAttach={(doc) => {
+                                <AttachFile id={"__idVarFile" + index}
+                                            disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
+                                            onSetKey={handleSetKey}
+                                            onSetMetadata={handleSetMetadata}
+                                            onSetAbortController={handleDocumentAbortController}
+                                            onUploadProgress={handleDocumentState}
+                                            onAttach={(doc) => {
                                     // handleChange(index, doc);
                                     handleAddFile(index, doc);
                                 }}/>
-                                <FileList documents={files} setDocuments={setFiles}/>
+                                <FileList documents={files}
+                                          onCancelUpload={onCancelUpload}
+                                          documentStates={documentState}
+                                          setDocuments={setFiles}/>
                             </div>
                         )}
 
@@ -471,15 +596,17 @@ export const VariableModal: FC<Props> = ({
                     </div>
                 ))}
 
+                {showModelSelector && models && (
                 <div className="mb-2 text-sm font-bold text-neutral-200">
                     Model
                 </div>
+                )}
 
-                {models && (
+                {showModelSelector && models && (
                     <div className="flex items-center">
                         <select
                             className="rounded border-gray-300 text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
-                            value={selectedModel.id}
+                            value={selectedModel && selectedModel.id || ""}
                             onChange={(e) => handleModelChange(e.target.value)}
                         >
                             {models.map((model) => (
@@ -495,13 +622,20 @@ export const VariableModal: FC<Props> = ({
                 <div className="mb-2 mt-6 text-sm font-bold text-neutral-200">
                     Required fields are marked with *
                 </div>
-
-                <button
-                    className="mt-6 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                    onClick={handleSubmit}
-                >
-                    Submit
-                </button>
+                <div className="flex flex-row justify-end space-x-4">
+                    <button
+                        className="mt-6 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                        onClick={()=>onClose(false)}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        className="mt-6 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                        onClick={handleSubmit}
+                    >
+                        Submit
+                    </button>
+                </div>
             </div>
         </div>
     );

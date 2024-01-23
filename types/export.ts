@@ -43,3 +43,11 @@ export interface ExportFormatV4 {
   folders: FolderInterface[];
   prompts: Prompt[];
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////
+export interface ShareItem {
+  sharedBy: string;
+  sharedAt: number;
+  key: string;
+  note: string;
+}

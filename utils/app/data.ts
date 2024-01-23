@@ -81,6 +81,178 @@ function addLineNumbers(str: string) {
     return lines.join('\n');
 }
 
+
+export const promptForJsonPrefix = (obj: any, id: string) => {
+    const jsonSchema = describeAsJsonSchema(obj, id);
+    const jsonSchemaString = JSON.stringify(jsonSchema, null, 2);
+    return `json!(${jsonSchemaString})\n`;
+}
+
+export const parsePartialJson = (str:string) => {
+    const {value} = parseValue(str);
+    return value;
+}
+
+const parseObject = (str:string) => {
+    str = str.trim();
+
+    if(!str.startsWith("{")){
+        throw "Objects must start with {.";
+    }
+
+    str = str.substring(1).trim();
+
+    let obj:any = {};
+    let newTail = str;
+
+    while(newTail && !newTail.startsWith("}")){
+        let {value:key, tail:keyTail} = parseValue(newTail);
+        if(!keyTail){
+            return {value: obj, tail: null};
+        }
+        if(keyTail && keyTail.trim().length > 0){
+            keyTail = keyTail.trim();
+            if(keyTail.startsWith("}")){
+                return {value: obj, tail: keyTail.substring(1)};
+            }
+            else if(keyTail.startsWith(":")){
+                keyTail = keyTail.substring(1);
+            }
+            else if(keyTail.trim().length === 0) {
+                return {value: obj, tail: keyTail};
+            }
+
+            keyTail = keyTail.trim();
+
+            let {value, tail} = parseValue(keyTail);
+
+            obj[key] = value;
+
+            if(tail && tail.trim().startsWith(",")){
+                tail = tail.trim().substring(1);
+            }
+            if(!tail || tail.trim().length === 0){
+                return {value: obj, tail: tail};
+            }
+
+            newTail = tail.trim();
+        }
+    }
+
+    if(newTail && newTail.trim().startsWith("}")){
+        newTail = newTail.trim().substring(1);
+    }
+
+    return {value: obj, tail: newTail};
+}
+
+const parseValue = (str:string):any => {
+    str = str.trim();
+    if(str.startsWith("[")){
+        return parseArray(str);
+    }
+    else if(str.startsWith("{")){
+        return parseObject(str);
+    }
+    else if(str.startsWith("\"")){
+        return parseString(str);
+    }
+    else if(str.startsWith("f") || str.startsWith("t")){
+        return parseBoolean(str);
+    }
+    else {
+        return parseNumber(str);
+    }
+}
+
+const parseArray = (str:string):any => {
+    str = str.trim();
+
+    if(!str.startsWith("[")){
+        throw "Arrays must start with [.";
+    }
+
+    let newTail = str.slice(1).trim();
+    const arr = [];
+    while(!newTail.startsWith("]")){
+        if(newTail.startsWith(",")){
+            newTail = newTail.substring(1);
+        }
+        if(!newTail.startsWith("]")) {
+            const {value, tail} = parseValue(newTail);
+            arr.push(value);
+
+            if (!tail || tail.trim().length === 0) {
+                return {value: arr, tail: null};
+            }
+
+            newTail = tail.trim();
+        } else{
+            return {value: arr, tail: newTail.substring(1).trim()};
+        }
+    }
+
+    return {value: arr, tail: newTail.substring(1)};
+}
+
+const parseNumber = (str:string) => {
+    const {value, tail} = parseToken(str,c => "-0123456789.".indexOf(c) < 0);
+    let ival = 0;
+    try {
+        ival = Number.parseFloat(str);
+    }catch(e){}
+    return {value: ival, tail}
+}
+
+const parseBoolean = (str:string) => {
+    const {value, tail} = parseToken(str,(c) => " }],:".indexOf(c) > -1);
+    return {value: value === 'true', tail}
+}
+
+const parseToken = (str:string, breaks:(s:string)=>boolean) => {
+    let value = '';
+    let index = 0;
+    for(let i = 0; i < str.length; i++){
+        index = i;
+        const c = str.charAt(i);
+        if(breaks(c)){
+            return {value: value, tail: str.substr(index)};
+        }
+        value += c;
+    }
+    return {value: value, tail: null};
+}
+
+
+const parseString = (str:string) => {
+    let value = "";
+
+    str = str.trim();
+
+    if(!str.startsWith("\"")){
+        throw "Strings must start with quotes.";
+    }
+
+    str = str.slice(1);
+
+    let lastChar = null;
+    let index = 0;
+
+    for(let i = 0; i < str.length; i++){
+        index = i;
+        const c = str.charAt(i);
+        if(c === '"' && lastChar !== '\\'){
+            break;
+        }
+        else {
+            value += c;
+            lastChar = c;
+        }
+    }
+
+    return {value: value, tail: str.slice(index + 1)};
+}
+
 // @ts-ignore
 export const describeAsJsonSchema = (obj:any, id = 'root') => {
 

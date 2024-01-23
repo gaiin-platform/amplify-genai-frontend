@@ -7,6 +7,7 @@ import { KeyValuePair } from '@/types/data';
 import { FolderType } from '@/types/folder';
 
 import { HomeInitialState } from './home.state';
+import {Account} from "@/types/accounts";
 
 export type Processor = (data:any) => {};
 
@@ -36,6 +37,7 @@ export interface HomeContextProps {
   removePreProcessingCallback: (callback: Processor) => void;
   addPostProcessingCallback: (callback: Processor) => void;
   removePostProcessingCallback: (callback: Processor) => void;
+  clearWorkspace: () => Promise<void>;
   handleAddMessages: (selectedConversation: Conversation | undefined, messages: any[]) => void;
 }
 

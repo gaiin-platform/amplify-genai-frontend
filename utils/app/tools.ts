@@ -4,7 +4,7 @@ import {sendChatRequest} from "@/services/chatService";
 import {describeAsJsonSchema} from "@/utils/app/data";
 import {InputDocument} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
-
+// import {generateCSVSchema} from "@/utils/app/csv";
 
 export interface Prompt {
     rootPrompt?: string;
@@ -29,6 +29,30 @@ export const abortResult = {
     uncleanCode: null,
     result: null
 };
+
+const breakIntoChunksByLineCount = (input: string, maxLines: number): string[] => {
+    const lines: string[] = input.split('\n');
+    const chunks: string[] = [];
+
+    for (let i = 0; i < lines.length; i += maxLines) {
+        const chunk: string = lines.slice(i, i + maxLines).join('\n');
+        chunks.push(chunk);
+    }
+
+    return chunks;
+}
+
+const breakIntoChunksByCharacterCount = (input: string, maxCharacters: number): string[] => {
+    const chunks: string[] = [];
+
+    for (let i = 0; i < input.length; i += maxCharacters) {
+        const chunk: string = input.slice(i, i + maxCharacters);
+        chunks.push(chunk);
+    }
+
+    return chunks;
+}
+
 
 const doPrompt = async (apiKey:string, stopper:Stopper, persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
 
@@ -109,7 +133,7 @@ const promptUntil = async (
                 result: null
             };
             const raw = await promptLLMFull(persona, prompt, (m) => {
-            }, model || OpenAIModelID.GPT_3_5, functions, function_call);
+            }, model, functions, function_call);
 
             console.log("Raw result:", raw);
 
@@ -336,6 +360,8 @@ const promptLLMForJson = async (promptLLMFull: (persona: string, prompt: string,
                                 model?: OpenAIModelID) => {
     const prompt = instructions;
 
+    model = model || OpenAIModelID.GPT_4_TURBO_AZ;
+
     const systemPrompt = ""; //"You are ChatGPT, a large language model trained by OpenAI. " +
     // "Follow the user's instructions carefully. " +
     // "Respond using JSON. ";
@@ -371,7 +397,7 @@ const promptLLMForJson = async (promptLLMFull: (persona: string, prompt: string,
         // @ts-ignore
         feedbackInserter,
         errorInserter,
-        model || OpenAIModelID.GPT_3_5_FN,
+        model,
         functionsToCall,
         jsonFunction
     );
@@ -516,6 +542,30 @@ const generateOutline = async (promptLLMFull:any, topic:string, maxDepth:number,
 // @ts-ignore
 export const getToolMetadata = ({apiKey, stopper, context, requestedParameters, requestedDocuments, statusLogger}) => {
     return {
+        log: {
+            description: "(...args:any)=>void // Saves debug information for later inspection.",
+        },
+        getParameter: {
+            description: "(name:string, type:\"string|options\")=>string // Get a parameter from the workflow settings. Options can be specified as a string like \"options(value=['option1','option2',....])\"",
+        },
+        breakIntoChunksByLineCount: {
+            description:"(input: string, maxLines: number): string[]"
+        },
+        breakIntoChunksByCharacterCount: {
+            description:"(input: string, maxCharacters: number): string[]"
+        },
+        getConversations: {
+            description:"()=>Conversation[] // Get all conversations in my workspace in the format " +
+                "Conversation { id: string; name: string; messages: Message[]; model: OpenAIModel; prompt: string; temperature: number; folderId: string | null; promptTemplate: Prompt | null; tags?: string[]; }, export interface Message { role: Role; content: string; id: string; type: string | undefined; data: any | undefined; }.",
+        },
+        getFolders: {
+            description:"()=>FolderInterface[] // Get all folders in my workspace in the format " +
+                "interface FolderInterface { id: string; name: string; type: FolderType; }",
+        },
+        getPromptTemplates: {
+            description:"()=>PromptTemplate[] // Get all prompt templates in my workspace in the format " +
+                "export interface Prompt { id: string; name: string; description: string; content: string; folderId: string | null; type: string | undefined;  }",
+        },
         promptLLM: {
             description: "(personaString,promptString)=>Promise<String> // persona should be an empty string, promptString must include detailed instructions for the " +
                 "LLM and any data that the prompt operates on as a string and MUST NOT EXCEED 25,000 characters.",
@@ -523,12 +573,15 @@ export const getToolMetadata = ({apiKey, stopper, context, requestedParameters, 
         tellUser: {
             description: "(msg:string)//output a message to the user",
         },
+        // generateSchema: {
+        //     description: "(columnNames: string[], columnTypes: string[]):string // Generate a JSON schema from a list of column names and types. Types are one of the strings 'string', 'number', 'integer', or 'boolean'.",
+        // },
         promptLLMForJson: {
             description: "(persona: string, prompt: string, desiredSchema: JsonSchema)=>Promise<any> // Prompt the LLM to generate JSON that matches a specified schema." +
                 " This is useful for generating JSON for APIs, databases, or other systems that require a specific JSON schema.",
         },
         promptLLMInParallel: {
-            description: "(prompts: string[])=>Promise<string>[] // Execute a promptLLM function in parallel on a list of prompts." +
+            description: "(prompts: string[])=>Promise<string[]> // Execute a promptLLM function in parallel on a list of prompts." +
                 " This is useful if you need to do something to chunks or pages of a document and can prepare the prompts in advance them " +
                 " send the work off in parallel.",
         },
@@ -550,7 +603,7 @@ export const getToolMetadata = ({apiKey, stopper, context, requestedParameters, 
 };
 
 // @ts-ignore
-export const parameterizeTools = ({apiKey, stopper, context, requestedParameters, requestedDocuments, statusLogger}:params) => {
+export const parameterizeTools = ({apiKey, stopper, context, requestedParameters, requestedDocuments, debugOutput, statusLogger}:params) => {
 
     console.log("parameterizeTools", context, requestedParameters, requestedDocuments);
 
@@ -559,6 +612,13 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
     const conversations = [...context.inputs.conversations];
     const prompts = [...context.inputs.prompts];
     const folders = [...context.inputs.folders];
+
+    console.log(parameters);
+
+    const getParameter = (name:string, type:string) => {
+        console.log("Fetch workflow param:", name, parameters[name]);
+        return parameters[name];
+    };
 
     const promptLLMFull: (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => any = (persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
         // Grab the first 30 characters of the prompt
@@ -606,13 +666,66 @@ export const parameterizeTools = ({apiKey, stopper, context, requestedParameters
         //         return defaultValue;
         //     }
         // },
+        log: {
+            description: "log(...args:any)=>void // Saves debug information for later inspection.",
+            exec: (...args: any[]) => {
+                // Stringify the arguments and combine them into a single string.
+                const message = args.map(arg => JSON.stringify(arg)).join(" ");
+                debugOutput.push(message);
+            }
+        },
+        getParameter: {
+               description: "getParameter(name:string, type:\"string|options\")=>string // Get a parameter from the workflow settings. Options can be specified as a string like \"options(value=['option1','option2',....])\"",
+                exec: (name: string, type: string) => {
+                   return getParameter(name, type);
+                }
+        },
+        breakIntoChunksByLineCount: {
+            description:"(input: string, maxLines: number): string[]",
+            exec: (input: string, maxLines: number) => {
+                return breakIntoChunksByLineCount(input, maxLines);
+            }
+        },
+        breakIntoChunksByCharacterCount: {
+            description:"(input: string, maxCharacters: number): string[]",
+            exec: (input: string, maxCharacters: number) => {
+                return breakIntoChunksByCharacterCount(input, maxCharacters);
+            }
+        },
+        getConversations: {
+            description:"getConversations()=>Conversation[] // Get all conversations in my workspace in the format " +
+                "Conversation { id: string; name: string; messages: Message[]; model: OpenAIModel; prompt: string; temperature: number; folderId: string | null; promptTemplate: Prompt | null; tags?: string[]; }, export interface Message { role: Role; content: string; id: string; type: string | undefined; data: any | undefined; }.",
+            exec: () => {
+                return conversations;
+            }
+        },
+        getFolders: {
+            description:"getFolders()=>FolderInterface[] // Get all folders in my workspace in the format " +
+                "interface FolderInterface { id: string; name: string; type: FolderType; }",
+            exec: () => {
+                return folders;
+            }
+        },
+        getPromptTemplates: {
+            description:"getPromptTemplates()=>PromptTemplate[] // Get all prompt templates in my workspace in the format " +
+                "export interface Prompt { id: string; name: string; description: string; content: string; folderId: string | null; type: string | undefined;  }",
+            exec: () => {
+                return prompts;
+            }
+        },
+        // generateSchema: {
+        //     description: "(columnNames: string[], columnTypes: string[]):string // Generate a JSON schema from a list of column names and types. Types are one of the strings 'string', 'number', 'integer', or 'boolean'.",
+        //     exec: (columnNames: string[], columnTypes: ColumnTypes) => {
+        //         return generateCSVSchema(columnNames, columnTypes);
+        //     }
+        // },
         promptLLMForJson: {
             description: "(persona: string, prompt: string, desiredSchema: JsonSchema)=>Promise<any> // Prompt the LLM to generate JSON that matches a specified schema." +
                 " This is useful for generating JSON for APIs, databases, or other systems that require a specific JSON schema.",
             exec: promptForJson
         },
         promptLLMInParallel: {
-            description: "(prompts: string[])=>Promise<string>[] // Execute a promptLLM function in parallel on a list of prompts." +
+            description: "(prompts: string[])=>Promise<string[]> // Execute a promptLLM function in parallel on a list of prompts." +
                 " This is useful if you need to do something to chunks or pages of a document and can prepare the prompts in advance them " +
                 " send the work off in parallel.",
             exec: (prompts: string[]) => {

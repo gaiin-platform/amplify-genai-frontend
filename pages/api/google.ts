@@ -6,7 +6,6 @@ import { cleanSourceText } from '@/utils/server/google';
 import { Message, newMessage } from '@/types/chat';
 import { GoogleBody, GoogleSource } from '@/types/google';
 
-import { Readability } from '@mozilla/readability';
 import endent from 'endent';
 
 const handler = async (req: NextApiRequest, res: NextApiResponse<any>) => {

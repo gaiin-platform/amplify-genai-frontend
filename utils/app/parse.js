@@ -8,7 +8,6 @@
 //     return strippedCode;
 // }
 //
-import JSON5 from "json5";
 
 function convertToMarkdown(obj, prefix = "") {
     let output = "";
@@ -619,3 +618,315 @@ const test6 = "const workflow = async (fnlibs) => {\n" +
 
 console.log(findWorkflowPattern(test6) != null);
 
+
+
+const parsePartialJson = (str) => {
+    let stack = [];
+    let lastChar = '';
+    let inString = false;
+    let inValue = false;
+    let firstValChar = false;
+
+    const checkMatchAny = () => {
+        if(stack.length > 0 &&
+            (stack.slice(-1)[0].missing === ':' ||
+            stack.slice(-1)[0].missing === ',')){
+            stack.pop();
+        }
+    }
+
+    const inArray = () => {
+        return stack.findLastIndex((item) => item.missing === '[')
+            > stack.findLastIndex((item) => item.missing === '{');
+    }
+
+    const incrementKeys = () => {
+        const obj = stack.find((item) => item.missing === '{');
+        obj['keys'] = (obj['keys'] || 0) + 1;
+    }
+
+    const incrementValues = () => {
+        const obj = stack.find((item) => item.missing === '{');
+        obj['values'] = (obj['values'] || 0) + 1;
+    }
+
+    for(let i = 0; i < str.length; i++){
+        const c = str.charAt(i);
+
+        if(!inString && c.trim().length > 0) {
+            checkMatchAny();
+        }
+
+        if(!inString && c === '{'){
+            inValue = false;
+            stack.push({missing:"{", index: i, keys: 0, values: 0});
+        }
+        else if(!inString && c === '['){
+            if(inValue){
+                incrementValues();
+            }
+            inValue = true;
+            stack.push({missing:"[", index: i});
+        }
+        else if(!inString && c === '"'){
+            if(inValue){
+                incrementValues();
+            }
+            inString = true;
+            stack.push({missing:"\"", index: i, inValue: inValue});
+        }
+        else if(!inString && c === ':'){
+            inValue = true;
+            incrementKeys();
+            stack.push({missing:":", index: i});
+        }
+        else if(!inString && c === ','){
+            inValue = inArray();
+            stack.push({missing:",", index: i});
+        }
+        else if(!inString && c === '}'){
+            inValue = false;
+            stack.pop();
+        }
+        else if(!inString && c === ']'){
+            inValue = false;
+            stack.pop();
+        }
+        else if(inString && c === '"' && lastChar !== '\\'){
+            inString = false;
+            stack.pop();
+        }
+
+        lastChar = c;
+    }
+
+    return {stack,str};
+}
+
+const fixJson = ({stack, str}) => {
+
+    while(stack.length > 0){
+        const match = stack.pop();
+
+        if(match.missing === '{'){
+            if(match.keys !== match.values){
+                str += ":\"\"";
+            }
+            str += "}";
+        }
+        else if(match.missing === '['){
+            str += "]";
+        }
+        else if(match.missing === '"'){
+            str += "\"";
+
+            // if (!match.inValue) {
+            //     str += ":\"\""
+            // }
+        }
+        else if(match.missing === ':'){
+            str += "\"\"";
+        }
+        else if(match.missing === ','){
+            str = str.trim().slice(0,-1);
+        }
+    }
+
+    return JSON.parse(str);
+}
+
+const parseObject = (str) => {
+    str = str.trim();
+
+    if(!str.startsWith("{")){
+        throw new Exception("Objects must start with {.");
+    }
+
+    str = str.substring(1).trim();
+
+    let obj = {};
+    let newTail = str;
+
+    while(newTail && !newTail.startsWith("}")){
+        let {value:key, tail:keyTail} = parseValue(newTail);
+        if(!keyTail){
+            return {value: obj, tail: null};
+        }
+        if(keyTail && keyTail.trim().length > 0){
+            keyTail = keyTail.trim();
+            if(keyTail.startsWith("}")){
+                return {value: obj, tail: keyTail.substring(1)};
+            }
+            else if(keyTail.startsWith(":")){
+                keyTail = keyTail.substring(1);
+            }
+            else if(keyTail.trim().length === 0) {
+                return {value: obj, tail: keyTail};
+            }
+
+            keyTail = keyTail.trim();
+
+            let {value, tail} = parseValue(keyTail);
+
+            obj[key] = value;
+
+            if(tail && tail.trim().startsWith(",")){
+                tail = tail.trim().substring(1);
+            }
+            if(!tail || tail.trim().length === 0){
+                return {value: obj, tail: tail};
+            }
+
+            newTail = tail.trim();
+        }
+    }
+
+    if(newTail && newTail.trim().startsWith("}")){
+        newTail = newTail.trim().substring(1);
+    }
+
+    return {value: obj, tail: newTail};
+}
+
+const parseValue = (str) => {
+    str = str.trim();
+    if(str.startsWith("[")){
+        return parseArray(str);
+    }
+    else if(str.startsWith("{")){
+        return parseObject(str);
+    }
+    else if(str.startsWith("\"")){
+        return parseString(str);
+    }
+    else if(str.startsWith("f") || str.startsWith("t")){
+        return parseBoolean(str);
+    }
+    else {
+        return parseNumber(str);
+    }
+}
+
+const parseArray = (str) => {
+    str = str.trim();
+
+    if(!str.startsWith("[")){
+        throw new Exception("Arrays must start with [.");
+    }
+
+    let newTail = str.slice(1).trim();
+    const arr = [];
+    while(!newTail.startsWith("]")){
+        if(newTail.startsWith(",")){
+            newTail = newTail.substring(1);
+        }
+        if(!newTail.startsWith("]")) {
+            const {value, tail} = parseValue(newTail);
+            arr.push(value);
+
+            if (!tail || tail.trim().length === 0) {
+                return {value: arr, tail: null};
+            }
+
+            newTail = tail.trim();
+        } else{
+            return {value: arr, tail: newTail.substring(1).trim()};
+        }
+    }
+
+    return {value: arr, tail: newTail.substring(1)};
+}
+
+const parseNumber = (str) => {
+    const {value, tail} = parseToken(str,c => "-0123456789.".indexOf(c) < 0);
+    let ival = 0;
+    try {
+        ival = Number.parseFloat(str);
+    }catch(e){}
+    return {value: ival, tail}
+}
+
+const parseBoolean = (str) => {
+    const {value, tail} = parseToken(str,(c) => " }],:".indexOf(c) > -1);
+    return {value: value === 'true', tail}
+}
+
+const parseToken = (str, breaks) => {
+    let value = '';
+    let index = 0;
+    for(let i = 0; i < str.length; i++){
+        index = i;
+        const c = str.charAt(i);
+        if(breaks(c)){
+            return {value: value, tail: str.substr(index)};
+        }
+        value += c;
+    }
+    return {value: value, tail: null};
+}
+
+
+const parseString = (str) => {
+    let value = "";
+
+    str = str.trim();
+
+    if(!str.startsWith("\"")){
+        throw new Exception("Strings must start with quotes.");
+    }
+
+    str = str.slice(1);
+
+    let lastChar = null;
+    let index = 0;
+
+    for(let i = 0; i < str.length; i++){
+        index = i;
+        const c = str.charAt(i);
+        if(c === '"' && lastChar !== '\\'){
+            break;
+        }
+        else {
+            value += c;
+            lastChar = c;
+        }
+    }
+
+    return {value: value, tail: str.slice(index + 1)};
+}
+
+console.log(parseString("\"a b c\""))
+console.log(parseString("\"a b \\\" \\\" c\""))
+console.log(parseString("\"a b \\\" \\\" c\" aa"))
+console.log(parseString("\"a b c"))
+console.log(parseBoolean("true ,"));
+console.log(parseBoolean("true ,"))
+console.log(parseBoolean("true}"))
+console.log(parseBoolean("tru}"))
+console.log(parseBoolean("tru"))
+console.log(parseBoolean("true }"))
+console.log(parseBoolean("true]"))
+console.log(parseBoolean("true,false }"))
+console.log(parseNumber("1,"))
+console.log(parseNumber("1}"))
+console.log(parseNumber("12.3]"))
+console.log(parseNumber("-190112.3]"))
+console.log(parseValue("-12323.3,"))
+console.log(parseValue("[-12323.3,3,true]"))
+console.log(parseValue("[-12323.3,3,true, [\"a\",1,true, [\"a"))
+console.log(parseValue("{\"args\":[-12323.3,3,{\"strip\":true, \"off\":{{\"name\":false}:1}, [\"a\",1,true, [\"a"))
+// console.log(fixJson(parsePartialJson('{"name":"xyz", "age":2, "children')));
+// console.log(fixJson(parsePartialJson('{"name":"xyz", "age":2, "children":[')));
+// console.log(fixJson(parsePartialJson('{"name":"xyz", "age":2, "children":[{"id":1')));
+// console.log(fixJson(parsePartialJson('{"name":"xyz", "age":2, "children":[{"id":1},{"name":"asdf","size":4}, ')));
+// console.log(fixJson(parsePartialJson('{"name":"xyz", "age":2, "children":[{"id":1},{"name":"asdf","size": ')));
+// console.log(fixJson(parsePartialJson('{"name":"xyz", "age":2, "children":[{"id":1},{"name":"asdf","')));
+// console.log(fixJson(parsePartialJson('{"name":"xyz", "age":2, "children":[{"id":1},{"name":"asdf","size')));
+// console.log(fixJson(parsePartialJson('{"name":"answer", "arguments":{ "problemSolvingSteps": [ { "reasoning": "Understand the task", "description": "To bake a cake, we need to understand the recipe, the ingredients we need, and the equipment necessary for baking." }, { "reasoning": "Gather materials", "description": "We will collect the required ingredients, such as flour, sugar, eggs'
+// )));
+// console.log(fixJson(parsePartialJson('{"name":"answer", "arguments":{ "problemSolvingSteps": [ { "reasoning": "Understand the task", "description": "To bake a cake, we need to understand the recipe, the ingredients we need, and the equipment necessary for baking." }, { "reasoning": "Gather materials", "description": "'
+// )));
+// console.log(fixJson(parsePartialJson('{"name":"answer", "arguments":{ "problemSolvingSteps": [ { "reasoning": "Understand the task", "description": "To bake a cake, we need to understand the recipe, the ingredients we need, and the equipment necessary for baking." }, { "reasoning": "Gather materials", "description":'
+// )));
+// console.log(parsePartialJson('{"name":"answer", "arguments":{ "problemSolvingSteps": [ { "reasoning": "Understand the task", "description": "To bake a cake, we need to understand the recipe, the ingredients we need, and the equipment necessary for baking." }, { "reasoning": "Gather materials", "description"'
+// ));

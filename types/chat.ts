@@ -9,13 +9,17 @@ export interface Message {
   id: string;
   type: string | undefined;
   data: any | undefined;
+  label?: string;
 }
 
 export enum MessageType {
   PROMPT = 'prompt',
   AUTOMATION = 'automation',
   ROOT = 'root_prompt',
+  PREFIX_PROMPT = 'prefix_prompt',
   FOLLOW_UP = 'follow_up',
+  REMOTE = 'remote',
+  OUTPUT_TRANSFORMER = 'output_transformer',
 }
 
 export const newMessage = (data: any) => {
@@ -79,6 +83,13 @@ export interface JsonSchema {
   not?: JsonSchema;
 }
 
+export interface ChatResponseFormat {
+    type: string;
+}
+
+export interface DataSource {
+    id: string;
+}
 
 export interface ChatBody {
   model: OpenAIModel;
@@ -88,6 +99,10 @@ export interface ChatBody {
   temperature: number;
   functions?: CustomFunction[];
   function_call?: string;
+  response_format?: ChatResponseFormat;
+  dataSources?: DataSource[];
+  accountId?: string;
+  requestId?: string;
 }
 
 export interface Conversation {
@@ -101,4 +116,5 @@ export interface Conversation {
   promptTemplate: Prompt | null;
   tags?: string[]
   workflowDefinition?: WorkflowDefinition;
+  data?: {[key:string]:any}
 }

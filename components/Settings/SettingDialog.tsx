@@ -21,9 +21,8 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
   const { state, dispatch } = useCreateReducer<Settings>({
     initialState: settings,
   });
-  const { dispatch: homeDispatch } = useContext(HomeContext);
+  const { dispatch: homeDispatch, state:{statsService} } = useContext(HomeContext);
   const modalRef = useRef<HTMLDivElement>(null);
-
 
 
   useEffect(() => {
@@ -81,8 +80,10 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
             <select
               className="w-full cursor-pointer bg-transparent p-2 text-neutral-700 dark:text-neutral-200"
               value={state.theme}
-              onChange={(event) =>
-                dispatch({ field: 'theme', value: event.target.value })
+              onChange={(event) => {
+                statsService.setThemeEvent(event.target.value);
+                dispatch({field: 'theme', value: event.target.value});
+              }
               }
             >
               <option value="dark">{t('Dark mode')}</option>

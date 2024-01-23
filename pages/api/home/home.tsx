@@ -6,7 +6,6 @@ import {useTranslation} from 'next-i18next';
 import {serverSideTranslations} from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import {Tab, TabSidebar} from "@/components/TabSidebar/TabSidebar";
-
 import {useCreateReducer} from '@/hooks/useCreateReducer';
 import {SettingsBar} from "@/components/Settings/SettingsBar";
 import useErrorService from '@/services/errorService';
@@ -20,11 +19,14 @@ import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from '@/utils/app/const';
 import {
     saveConversation,
     saveConversations,
+    saveConversationDirect,
+    saveConversationsDirect,
     updateConversation,
 } from '@/utils/app/conversation';
 import {saveFolders} from '@/utils/app/folders';
 import {savePrompts} from '@/utils/app/prompts';
 import {getSettings} from '@/utils/app/settings';
+import {getAccounts} from "@/services/accountService";
 
 import {Conversation, Message, MessageType} from '@/types/chat';
 import {KeyValuePair} from '@/types/data';
@@ -37,20 +39,38 @@ import {Chat} from '@/components/Chat/Chat';
 import {Chatbar} from '@/components/Chatbar/Chatbar';
 import {Navbar} from '@/components/Mobile/Navbar';
 import Promptbar from '@/components/Promptbar';
-import {Icon3dCubeSphere, IconApiApp, IconMessage, IconSettings, IconBook2} from "@tabler/icons-react";
+import {
+    Icon3dCubeSphere,
+    IconTournament,
+    IconShare,
+    IconApiApp,
+    IconMessage,
+    IconSettings,
+    IconBook2
+} from "@tabler/icons-react";
 import {IconUser, IconLogout} from "@tabler/icons-react";
 import HomeContext, {ClickContext, Processor} from './home.context';
 import {HomeInitialState, initialState} from './home.state';
-
+import useEventService from "@/hooks/useEventService";
 import {v4 as uuidv4} from 'uuid';
-import {useUser} from '@auth0/nextjs-auth0/client';
+
 
 import styled from "styled-components";
-import {Button} from "react-query/types/devtools/styledComponents";
-import WorkflowDefinitionBar from "@/components/Workflow/WorkflowDefinitionBar";
-import {WorkflowDefinition, WorkflowRun} from "@/types/workflow";
+import {WorkflowDefinition} from "@/types/workflow";
 import {saveWorkflowDefinitions} from "@/utils/app/workflows";
 import {findWorkflowPattern} from "@/utils/workflow/aiflow";
+import SharedItemsList from "@/components/Share/SharedItemList";
+import {saveFeatures} from "@/utils/app/features";
+import {findParametersInWorkflowCode} from "@/utils/workflow/workflow";
+import WorkspaceList from "@/components/Workspace/WorkspaceList";
+import {Market} from "@/components/Market/Market";
+import {getBasePrompts} from "@/services/basePromptsService";
+import {LatestExportFormat} from "@/types/export";
+import {importData} from "@/utils/app/importExport";
+import {useSession, signIn, signOut, getSession} from "next-auth/react"
+import Loader from "@/components/Loader/Loader";
+import {useHomeReducer} from "@/hooks/useHomeReducer";
+import stateService from "@/services/stateService";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -62,6 +82,10 @@ interface Props {
     serverSideApiKeyIsSet: boolean;
     serverSidePluginKeysSet: boolean;
     defaultModelId: OpenAIModelID;
+    cognitoClientId: string|null;
+    cognitoDomain: string|null;
+    mixPanelToken: string;
+    chatEndpoint: string|null;
 }
 
 
@@ -69,21 +93,31 @@ const Home = ({
                   serverSideApiKeyIsSet,
                   serverSidePluginKeysSet,
                   defaultModelId,
+                  cognitoClientId,
+                  cognitoDomain,
+                  mixPanelToken,
+                  chatEndpoint
               }: Props) => {
     const {t} = useTranslation('chat');
     const {getModels} = useApiService();
     const {getModelsError} = useErrorService();
     const [initialRender, setInitialRender] = useState<boolean>(true);
-    const {user, error: userError, isLoading} = useUser();
 
-    const contextValue = useCreateReducer<HomeInitialState>({
-        initialState,
+    const {data: session, status} = useSession();
+    //const {user, error: userError, isLoading} = useUser();
+    const user = session?.user;
+    const isLoading = status === "loading";
+    const userError = null;
+
+    const contextValue = useHomeReducer({
+        initialState:{...initialState, statsService: useEventService(mixPanelToken)},
     });
-
 
     const {
         state: {
             apiKey,
+            conversationStateId,
+            messageIsStreaming,
             lightMode,
             folders,
             workflows,
@@ -91,6 +125,8 @@ const Home = ({
             selectedConversation,
             prompts,
             temperature,
+            page,
+            statsService
         },
         dispatch,
     } = contextValue;
@@ -101,7 +137,7 @@ const Home = ({
     const {data, error, refetch} = useQuery(
         ['GetModels', apiKey, serverSideApiKeyIsSet],
         ({signal}) => {
-            if (!apiKey && !serverSideApiKeyIsSet) return null;
+            if (!apiKey && !serverSideApiKeyIsSet && !user) return null;
 
             return getModels(
                 {
@@ -114,8 +150,84 @@ const Home = ({
     );
 
     useEffect(() => {
+        // @ts-ignore
+        if (session?.error === "RefreshAccessTokenError") {
+            signOut();
+        }
+        else {
+            const fetchAccounts = async () => {
+                const response = await getAccounts();
+                if(response.success){
+                    const defaultAccount = response.data.find((account:any) => account.isDefault);
+                    if(defaultAccount){
+                        dispatch({field: 'defaultAccount', value: defaultAccount});
+                    }
+                }
+            };
+            fetchAccounts();
+        }
+    }, [session]);
+
+    useEffect(() => {
+        const fetchPrompts = async () => {
+            const basePrompts = await getBasePrompts();
+            if (basePrompts.success) {
+                const {history, folders, prompts}: LatestExportFormat = importData(basePrompts.data);
+
+                dispatch({field: 'conversations', value: history});
+                dispatch({field: 'folders', value: folders});
+                dispatch({field: 'prompts', value: prompts});
+
+            } else {
+                console.log("Failed to import base prompts.");
+            }
+        }
+
+        if(session?.user) {
+            fetchPrompts();
+        }
+    }, [session]);
+
+    // This is where tabs will be sync'd
+    useEffect(() => {
+        const handleStorageChange = (event: any) => {
+            // if(event.key === "selectedConversation") {
+            //     const conversation = JSON.parse(event.newValue);
+            //     dispatch({field: 'selectedConversation', value: conversation});
+            // }
+            if (event.key === "conversationHistory") {
+                const conversations = JSON.parse(event.newValue);
+                dispatch({field: 'conversations', value: conversations});
+            } else if (event.key === "folders") {
+                const folders = JSON.parse(event.newValue);
+                dispatch({field: 'folders', value: folders});
+            } else if (event.key === "prompts") {
+                const prompts = JSON.parse(event.newValue);
+                dispatch({field: 'prompts', value: prompts});
+            }
+            // Not syncing selectedConversation because it allows different conversations in different tabs
+            // else if(event.key === "selectedConversation") {
+            //     const conversation = JSON.parse(event.newValue);
+            //     dispatch({field: 'selectedConversation', value: conversation});
+            // }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+
+        // Remove the event listener on cleanup
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+        };
+    }, []);
+
+
+    useEffect(() => {
         if (data) dispatch({field: 'models', value: data});
     }, [data, dispatch]);
+
+    useEffect(() => {
+        if(chatEndpoint) dispatch({field: 'chatEndpoint', value: chatEndpoint});
+    }, [chatEndpoint]);
 
     useEffect(() => {
         dispatch({field: 'modelError', value: getModelsError(error)});
@@ -124,12 +236,26 @@ const Home = ({
     // FETCH MODELS ----------------------------------------------
 
     const handleSelectConversation = (conversation: Conversation) => {
+        dispatch({field: 'page', value: 'chat'})
+
         dispatch({
             field: 'selectedConversation',
             value: conversation,
         });
 
         saveConversation(conversation);
+    };
+
+    // Feature OPERATIONS  --------------------------------------------
+
+    const handleToggleFeature = (name: string) => {
+        const features = {...contextValue.state.featureFlags};
+        features[name] = !features[name];
+
+        dispatch({field: 'featureFlags', value: features});
+        saveFeatures(features);
+
+        return features;
     };
 
     // FOLDER OPERATIONS  --------------------------------------------
@@ -219,6 +345,8 @@ const Home = ({
     // CONVERSATION OPERATIONS  --------------------------------------------
 
     const handleNewConversation = (params = {}) => {
+        dispatch({field: 'page', value: 'chat'})
+
         const lastConversation = conversations[conversations.length - 1];
 
         // Create a string for the current date like Oct-18-2021
@@ -233,7 +361,7 @@ const Home = ({
 
         console.log("handleNewConversation", {date, folder});
 
-        if(!folder){
+        if (!folder) {
             folder = handleCreateFolder(date, "chat");
         }
 
@@ -254,6 +382,8 @@ const Home = ({
             ...params
         };
 
+        statsService.newConversationEvent();
+
         const updatedConversations = [...conversations, newConversation];
 
         dispatch({field: 'selectedConversation', value: newConversation});
@@ -266,7 +396,7 @@ const Home = ({
         dispatch({field: 'loading', value: false});
     };
 
-    const handleCustomLinkClick = (conversation: Conversation, href:string, context:ClickContext) => {
+    const handleCustomLinkClick = (conversation: Conversation, href: string, context: ClickContext) => {
 
         try {
 
@@ -298,7 +428,11 @@ const Home = ({
                     let result = conversation.messages.filter(workflowFilter(workflowId, "workflow:result")).pop();
 
                     console.log("Workflow Result", result);
-                    console.log("Workflow", {code: result?.data.workflowCode, prompt: prompt, inputs:result?.data.inputs});
+                    console.log("Workflow", {
+                        code: result?.data.workflowCode,
+                        prompt: prompt,
+                        inputs: result?.data.inputs
+                    });
 
                     if (prompt && result && result?.data.workflowCode) {
                         let workflowDefinition: WorkflowDefinition = {
@@ -320,7 +454,7 @@ const Home = ({
                         const formattedString =
                             `${documentStrings}${parameterStrings}${prompt.content}`;
 
-                        let promptTemplate:Prompt = {
+                        let promptTemplate: Prompt = {
                             content: formattedString,
                             data: {
                                 code: result?.data.workflowCode
@@ -334,7 +468,7 @@ const Home = ({
 
                         const updatedPrompts = [...prompts, promptTemplate];
 
-                        dispatch({ field: 'prompts', value: updatedPrompts });
+                        dispatch({field: 'prompts', value: updatedPrompts});
 
                         savePrompts(updatedPrompts);
 
@@ -350,8 +484,7 @@ const Home = ({
                     } else {
                         console.log("Workflow not saved, missing code or prompt.");
                     }
-                }
-                else if (category === "workflow" && action === "save-workflow" && context.message && context.conversation) {
+                } else if (category === "workflow" && action === "save-workflow" && context.message && context.conversation) {
 
                     let code = findWorkflowPattern(context.message.content);
                     let codeMessageIndex = context.conversation.messages.indexOf(context.message);
@@ -359,7 +492,7 @@ const Home = ({
                     console.log("Workflow Code", code);
                     console.log("Workflow Message Index", codeMessageIndex);
 
-                    if(codeMessageIndex > 0) {
+                    if (codeMessageIndex > 0) {
                         let msgBefore = context.conversation.messages[codeMessageIndex - 1];
                         let prompt = msgBefore.content;
 
@@ -381,7 +514,9 @@ const Home = ({
                             }
 
                             const documentStrings = workflowDefinition.inputs.documents.map((doc) => `{{${doc.name}:file}}`).join('\n');
-                            const parameterStrings = Object.keys(workflowDefinition.inputs.parameters).map((key) => `{{${key}}}`).join('\n');
+                            let parameterStrings = Object.keys(workflowDefinition.inputs.parameters).map((key) => `{{${key}}}`).join('\n');
+                            parameterStrings += findParametersInWorkflowCode(code);
+
                             const formattedString =
                                 `${documentStrings}${parameterStrings}${prompt}`;
 
@@ -432,9 +567,9 @@ const Home = ({
             console.log("Error handling custom link", e);
         }
 
-    //let msgs = conversation.messages.filter(workflowFilter())
+        //let msgs = conversation.messages.filter(workflowFilter())
 
-    //console.log("Workflow msgs:", msgs);
+        //console.log("Workflow msgs:", msgs);
     }
 
     const handleUpdateConversation = (
@@ -455,39 +590,85 @@ const Home = ({
         dispatch({field: 'conversations', value: all});
     };
 
-    const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
+    const clearWorkspace = async () => {
+        await dispatch({field: 'conversations', value: []});
+        await dispatch({field: 'prompts', value: []});
+        await dispatch({field: 'folders', value: []});
 
-        if (selectedConversation) {
+        saveConversation({
+            id: uuidv4(),
+            name: t('New Conversation'),
+            messages: [],
+            model: OpenAIModels[defaultModelId],
+            prompt: DEFAULT_SYSTEM_PROMPT,
+            temperature: DEFAULT_TEMPERATURE,
+            folderId: null,
+            promptTemplate: null
+        });
+        saveConversations([]);
+        saveFolders([]);
+        savePrompts([]);
 
-            const updatedMessages = [
-                ...selectedConversation.messages,
-                ...messages
-            ];
+        await dispatch({field: 'selectedConversation', value: null});
+    }
 
-            let updatedConversation = {
-                ...selectedConversation,
-                messages: updatedMessages,
-            };
+    useEffect(() => {
+        if (!messageIsStreaming &&
+            conversationStateId !== "init" &&
+            conversationStateId !== "post-init"
+        ) {
 
-            await dispatch({
-                field: 'selectedConversation',
-                value: updatedConversation
-            });
-
-            saveConversation(updatedConversation);
-            const updatedConversations = conversations.map(
-                (conversation) => {
-                    if (conversation.id === selectedConversation.id) {
-                        return updatedConversation;
-                    }
-                    return conversation;
-                },
-            );
-            if (updatedConversations.length === 0) {
-                updatedConversations.push(updatedConversation);
+            if (selectedConversation) {
+                saveConversationDirect(selectedConversation);
             }
-            await dispatch({field: 'conversations', value: updatedConversations});
+            saveConversationsDirect(conversations);
         }
+    }, [conversationStateId]);
+
+    const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
+        if (selectedConversation) {
+            dispatch(
+                {
+                    type: 'conversation',
+                    action: {
+                        type: 'addMessages',
+                        conversationId: selectedConversation.id,
+                        messages: messages
+                    }
+                }
+            )
+        }
+        // if (selectedConversation) {
+        //
+        //     const updatedMessages = [
+        //         ...selectedConversation.messages,
+        //         ...messages
+        //     ];
+        //
+        //     let updatedConversation = {
+        //         ...selectedConversation,
+        //         messages: updatedMessages,
+        //     };
+        //
+        //     await dispatch({
+        //         field: 'selectedConversation',
+        //         value: updatedConversation
+        //     });
+        //
+        //     saveConversation(updatedConversation);
+        //     const updatedConversations = conversations.map(
+        //         (conversation) => {
+        //             if (conversation.id === selectedConversation.id) {
+        //                 return updatedConversation;
+        //             }
+        //             return conversation;
+        //         },
+        //     );
+        //     if (updatedConversations.length === 0) {
+        //         updatedConversations.push(updatedConversation);
+        //     }
+        //     await dispatch({field: 'conversations', value: updatedConversations});
+        // }
 
     };
 
@@ -496,6 +677,7 @@ const Home = ({
     useEffect(() => {
         if (window.innerWidth < 640) {
             dispatch({field: 'showChatbar', value: false});
+            dispatch({field: 'showPromptbar', value: false});
         }
     }, [selectedConversation]);
 
@@ -526,6 +708,11 @@ const Home = ({
         }
 
         const apiKey = localStorage.getItem('apiKey');
+
+        const workspaceMetadataStr = localStorage.getItem('workspaceMetadata');
+        if (workspaceMetadataStr) {
+            dispatch({field: 'workspaceMetadata', value: JSON.parse(workspaceMetadataStr)});
+        }
 
         if (serverSideApiKeyIsSet) {
             dispatch({field: 'apiKey', value: ''});
@@ -611,6 +798,11 @@ const Home = ({
                 },
             });
         }
+
+        dispatch({
+            field: 'conversationStateId',
+            value: 'post-init',
+        });
     }, [
         defaultModelId,
         dispatch,
@@ -620,6 +812,36 @@ const Home = ({
 
     const [preProcessingCallbacks, setPreProcessingCallbacks] = useState([]);
     const [postProcessingCallbacks, setPostProcessingCallbacks] = useState([]);
+
+    const federatedSignOut = async () => {
+
+        await signOut();
+        // signOut only signs out of Auth.js's session
+        // We need to log out of Cognito as well
+        // Federated signout is currently not supported.
+        // Therefore, we use a workaround: https://github.com/nextauthjs/next-auth/issues/836#issuecomment-1007630849
+        const signoutRedirectUrl = `${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ''}`;
+
+        window.location.replace(
+            //`https://cognito-idp.us-east-1.amazonaws.com/us-east-1_aeCY16Uey/logout?client_id=${cognitoClientId}&redirect_uri=${encodeURIComponent(signoutRedirectUrl)}`
+            `${cognitoDomain}/logout?client_id=${cognitoClientId}&logout_uri=${encodeURIComponent(signoutRedirectUrl)}`
+            //`https://cognito-idp.us-east-1.amazonaws.com/us-east-1_aeCY16Uey/logout?client_id=${cognitoClientId}&logout_uri=http%3A%2F%2Flocalhost%3A3000`
+        );
+    };
+
+    const getName = (email?: string | null) => {
+        if (!email) return "Anonymous";
+
+        const name = email.split("@")[0];
+
+        // Split by dots and capitalize each word
+        const nameParts = name.split(".");
+        const capitalizedParts = nameParts.map((part) => {
+            return part.charAt(0).toUpperCase() + part.slice(1);
+        });
+
+        return capitalizedParts.join(" ").slice(0, 28);
+    }
 
     const addPreProcessingCallback = useCallback((callback: Processor) => {
         console.log("Proc added");
@@ -638,7 +860,7 @@ const Home = ({
         setPostProcessingCallbacks(prev => prev.filter(c => c !== callback));
     }, []);
 
-    if (user) {
+    if (session) {
         // @ts-ignore
         return (
             <HomeContext.Provider
@@ -657,6 +879,7 @@ const Home = ({
                     removePreProcessingCallback,
                     addPostProcessingCallback,
                     removePostProcessingCallback,
+                    clearWorkspace,
                     handleAddMessages,
                 }}
             >
@@ -685,26 +908,39 @@ const Home = ({
                             <TabSidebar
                                 side={"left"}
                                 footerComponent={
-                                    <div className="m-0 p-0 border-t border-white/20 pt-1 text-sm">
-                                        <button className="text-white" onClick={() => {
-                                            window.location.href = '/api/auth/logout'
+                                    <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
+                                        <button className="dark:text-white" onClick={() => {
+                                            const goLogout = async () => {
+                                                await federatedSignOut();
+                                            };
+                                            goLogout();
                                         }}>
 
                                             <div className="flex items-center">
                                                 <IconLogout className="m-2"/>
-                                                <span>{isLoading ? 'Loading...' : user?.name ?? 'Unnamed user'}</span>
+                                                <span>{isLoading ? 'Loading...' : getName(user?.email) ?? 'Unnamed user'}</span>
                                             </div>
 
                                         </button>
+
                                     </div>
                                 }
                             >
                                 <Tab icon={<IconMessage/>}><Chatbar/></Tab>
+                                <Tab icon={<IconShare/>}><SharedItemsList/></Tab>
+                                <Tab icon={<IconTournament/>}><WorkspaceList/></Tab>
                                 <Tab icon={<IconSettings/>}><SettingsBar/></Tab>
                             </TabSidebar>
 
                             <div className="flex flex-1">
-                                <Chat stopConversationRef={stopConversationRef}/>
+                                {page === 'chat' && (
+                                    <Chat stopConversationRef={stopConversationRef}/>
+                                )}
+                                {page === 'market' && (
+                                    <Market items={[
+                                        // {id: "1", name: "Item 1"},
+                                    ]}/>
+                                )}
                             </div>
 
 
@@ -728,10 +964,12 @@ const Home = ({
             >
                 <div
                     className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                    <Loader/>
                     <h1 className="mb-4 text-2xl font-bold">
                         Loading...
                     </h1>
-                    <progress className="w-64"/>
+
+                    {/*<progress className="w-64"/>*/}
                 </div>
             </main>);
     } else {
@@ -745,7 +983,7 @@ const Home = ({
                         <LoadingIcon/>
                     </h1>
                     <button
-                        onClick={() => window.location.href = '/api/auth/login'}
+                        onClick={() => signIn('cognito')}
                         style={{
                             backgroundColor: 'white',
                             color: 'black',
@@ -776,6 +1014,12 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
             process.env.DEFAULT_MODEL) ||
         fallbackModelID;
 
+    const chatEndpoint = process.env.CHAT_ENDPOINT;
+    const mixPanelToken = process.env.MIXPANEL_TOKEN;
+    const cognitoClientId = process.env.COGNITO_CLIENT_ID;
+    const cognitoDomain = process.env.COGNITO_DOMAIN;
+    const defaultFunctionCallModel = process.env.DEFAULT_FUNCTION_CALL_MODEL;
+
     //console.log("Default Model Id:", defaultModelId);
 
     let serverSidePluginKeysSet = false;
@@ -789,9 +1033,14 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
 
     return {
         props: {
+            chatEndpoint,
             serverSideApiKeyIsSet: !!process.env.OPENAI_API_KEY,
             defaultModelId,
             serverSidePluginKeysSet,
+            mixPanelToken,
+            cognitoClientId,
+            cognitoDomain,
+            defaultFunctionCallModel,
             ...(await serverSideTranslations(locale ?? 'en', [
                 'common',
                 'chat',

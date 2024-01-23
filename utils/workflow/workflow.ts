@@ -1,14 +1,14 @@
-import {ChatBody, Conversation, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
+import {CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {sendChatRequest} from "@/services/chatService";
-import {findWorkflowPattern, generateWorkflowPrompt, describeTools} from "@/utils/workflow/aiflow";
+import {findWorkflowPattern, generateWorkflowPrompt} from "@/utils/workflow/aiflow";
 import {OpenAIModelID, OpenAIModels} from "@/types/openai";
-import {InputDocument, Status, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
-import {describeAsJsonSchema, extractFirstCodeBlock, extractSection} from "@/utils/app/data";
+import {newStatus, Status, WorkflowContext} from "@/types/workflow";
+import {extractFirstCodeBlock, extractSection} from "@/utils/app/data";
 import {parameterizeTools as coreTools} from "@/utils/app/tools";
 import {AttachedDocument} from "@/types/attacheddocument";
-import {parseVariableName} from "@/components/Chat/VariableModal";
 import {Prompt} from "@/types/prompt";
-import { fillInTemplate } from "@/utils/app/prompts";
+import {fillInTemplate} from "@/utils/app/prompts";
+import {randomUUID} from "crypto";
 
 interface AiTool {
     description: string,
@@ -67,18 +67,18 @@ const abortResult = {success: false, code: null, exec: null, uncleanCode: null, 
 //     return newContent;
 // }
 
-const promptLLMSelectOne = async (promptUntil:any,  options: {[key:string]:string}, instructions?: string, rootPrompt?: string, model?: OpenAIModelID) => {
+const promptLLMSelectOne = async (promptUntil: any, options: { [key: string]: string }, instructions?: string, rootPrompt?: string, model?: OpenAIModelID) => {
 
-    const prompt = (instructions)? instructions : `
+    const prompt = (instructions) ? instructions : `
         Select the correct options answer the question. "${instructions}":
                 
-        Please choose from the following options:
-        ------------------ 
-        ${Object.entries(options).map(([option,description]) => {
-        return "\t\t" + option + ". " + description.replaceAll("\n", " ");
-    }).join("\n")}
+        Please choose
+        from the following options:
+        ------------------  ${Object.entries(options).map(([option, description]) => {
+            return "\t\t" + option + ". " + description.replaceAll("\n", " ");
+        }).join("\n")}
         ------------------
-        `;
+    `;
 
     const optionsKeys = Object.keys(options);
 
@@ -107,7 +107,7 @@ const promptLLMSelectOne = async (promptUntil:any,  options: {[key:string]:strin
                         description: "the correct answer to the question",
                     },
                 },
-                "required": ["thought",selectedOptionsProperty]
+                "required": ["thought", selectedOptionsProperty]
             }
         },
     ];
@@ -115,23 +115,23 @@ const promptLLMSelectOne = async (promptUntil:any,  options: {[key:string]:strin
     //console.log("Select One Functions:", selectFunctions);
 
     return promptUntil(rootPrompt, prompt,
-        (rslt:any) => {
+        (rslt: any) => {
             let json = JSON.parse(rslt);
             return json.arguments[selectedOptionsProperty];
         },
-        (selectedOption:any) => selectedOption,
+        (selectedOption: any) => selectedOption,
         3,
         // @ts-ignore
         null,
         null,
-        model || OpenAIModelID.GPT_3_5_FN,
+        model,
         selectFunctions,
         selectFunction
     );
 }
 
 
-async function generateReusableFunctionDescription(promptLLMForJson:any, promptUntil:any, javascriptPersona: string, task: string, prompt: string, context:WorkflowContext):Promise<ReusableDescription|null> {
+async function generateReusableFunctionDescription(promptLLMForJson: any, promptUntil: any, javascriptPersona: string, task: string, prompt: string, context: WorkflowContext): Promise<ReusableDescription | null> {
 
     let reusableDescription = null;
 
@@ -176,7 +176,7 @@ async function generateReusableFunctionDescription(promptLLMForJson:any, promptU
     let reuseParams = [];
     try {
 
-        let documentParams:string[] = [];
+        let documentParams: string[] = [];
         if (documents.length > 0) {
             try {
                 //console.log("Prompting to determine if documents are snowflakes...");
@@ -218,15 +218,14 @@ Thought:`
                         return `// ${doc.name} is a document attached to the request of type ${doc.type}
                                 let ${safeName}String = fnlibs.getDocument("${doc.name}").raw;`;
                     });
-                } else if(documents.length > 0){
+                } else if (documents.length > 0) {
                     documentParams = [
                         `
                       // Get all of the documents needed.
                       let documents = fnlibs.getDocuments(); 
                       `
                     ];
-                }
-                else {
+                } else {
                     documentParams = [
                         `
                       // Get the document to process as a string
@@ -234,7 +233,7 @@ Thought:`
                       `
                     ];
                 }
-            }catch (e){
+            } catch (e) {
                 console.log("Error:", e);
             }
         }
@@ -250,7 +249,7 @@ Thought:`
                 
                 IGNORE DOCUMENTS FOR NOW.`;
 
-        fnPrompt += (documents.length>0)? `There are ${documents.length} included with the request. 
+        fnPrompt += (documents.length > 0) ? `There are ${documents.length} included with the request. 
         Focus on other possible parameters. All documents are already provided and you should not
         create parameters for them.
         
@@ -373,7 +372,7 @@ async function executeWorkflow(tools: { [p: string]: AiTool }, code: string) {
 
         tools.executeWorkflow = {
             description: "",
-            exec: async (workflow:Prompt, params:{[key:string]:any}) => {
+            exec: async (workflow: Prompt, params: { [key: string]: any }) => {
                 console.log("--> Sub Workflow:", workflow);
                 let workflowCode = workflow.data?.code || "";
                 console.log("--> Sub Workflow Code:", workflowCode);
@@ -423,16 +422,19 @@ async function executeWorkflow(tools: { [p: string]: AiTool }, code: string) {
 
     } catch (e) {
         console.log(e);
-        tools.tellUser.exec("I am going to fix some errors in the workflow...");
+        success = false;
+        result = "" + e;
+        //tools.tellUser.exec("I am going to fix some errors in the workflow...");
     }
     return {success, result, javascriptFn};
 }
 
-function createWorkflowParams(context: WorkflowContext, apiKey: string, stopper: Stopper, statusLogger:(status:Status)=>void) {
+function createWorkflowParams(context: WorkflowContext, apiKey: string, stopper: Stopper, statusLogger: (status: Status) => void) {
     const workflowGlobalParams = {
         context: context,
         requestedParameters: {},
         requestedDocuments: [],
+        debugOutput: [],
         apiKey: apiKey,
         stopper: stopper,
         statusLogger: statusLogger,
@@ -440,7 +442,7 @@ function createWorkflowParams(context: WorkflowContext, apiKey: string, stopper:
     return workflowGlobalParams;
 }
 
-function createWorkflowTools(workflowGlobalParams: {requestedDocuments: any[]; requestedParameters: {}; apiKey: string; stopper: Stopper; statusLogger:(status:Status)=>void; context: WorkflowContext }, promptLLM: (persona: string, prompt: string) => Promise<null | string>, customTools: { [p: string]: AiTool }) {
+function createWorkflowTools(workflowGlobalParams: { requestedDocuments: any[]; requestedParameters: {}; apiKey: string; stopper: Stopper; statusLogger: (status: Status) => void; context: WorkflowContext }, promptLLM: (persona: string, prompt: string) => Promise<null | string>, customTools: { [p: string]: AiTool }) {
     const parameterizedTools = coreTools(workflowGlobalParams);
 
     const tools: { [name: string]: AiTool } = {
@@ -476,7 +478,7 @@ function extractCodeBlocks(str: string) {
     return blocks;
 }
 
-const promptLLMFull = async (apiKey:string, stopper:Stopper, persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
+const promptLLMFull = async (apiKey: string, stopper: Stopper, persona: string, prompt: string, messageCallback?: (msg: string) => void, model?: OpenAIModelID, functions?: CustomFunction[], function_call?: string) => {
 
     if (functions) {
         if (model === OpenAIModelID.GPT_3_5) {
@@ -484,7 +486,7 @@ const promptLLMFull = async (apiKey:string, stopper:Stopper, persona: string, pr
         } else if (model === OpenAIModelID.GPT_4) {
             model = OpenAIModelID.GPT_4_FN;
         } else if (!model) {
-            model = OpenAIModelID.GPT_3_5_FN;
+            model = OpenAIModelID.GPT_4_TURBO_AZ
         }
     }
 
@@ -534,13 +536,46 @@ const promptLLMFull = async (apiKey:string, stopper:Stopper, persona: string, pr
     return charsReceived;
 }
 
-export const replayJSWorkflow = async (apiKey: string, code:string, customTools: { [p: string]: AiTool }, stopper: Stopper, statusLogger:(status:Status)=>void, context:WorkflowContext, incrementalPromptResultCallback: (responseText: string) => void) => {
-    if(stopper.shouldStop()){
+export function stripComments(code: string) {
+    let codeStrippedOfComments = code.replace(/\/\/.*/g, "");
+    codeStrippedOfComments = codeStrippedOfComments.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, "");
+    // String \/\/ to the end of lines
+    return codeStrippedOfComments.replace(/\/\/.*/g, "");
+}
+
+export const findParametersInWorkflowCode = (code: string) => {
+    // see if getDocument appears in code
+    let codeStrippedOfComments = stripComments(code);
+
+    let paramNamesStr = "";
+    try {
+        // Find all instances of getParameter("NAME", ....) and extract the NAMEs as a list
+        //getParameter('prompt1','text')
+        const paramNames = codeStrippedOfComments.match(/getParameter\(\s*[\"\']([^\"\']*)[\"\']/g);
+
+        // Transform all the paramNames into the format {{NAME}} and join them with a space
+        paramNamesStr = (paramNames) ?
+            paramNames.map((name) => "{{" + name.substring(14, name.length - 1).trim() + "}}").join(" ") : "";
+    } catch (e) {
+
+    }
+
+    return paramNamesStr;
+}
+
+export const replayJSWorkflow = async (apiKey: string, code: string, customTools: { [p: string]: AiTool }, stopper: Stopper, statusLogger: (status: Status) => void, context: WorkflowContext, incrementalPromptResultCallback: (responseText: string) => void) => {
+    if (stopper.shouldStop()) {
         return abortResult;
     }
 
     const promptLLM = (persona: string, prompt: string) => {
-        statusLogger({summary: `Prompting: ${prompt}`, message: prompt, type: "info"});
+        statusLogger(newStatus(
+            {
+                summary: `Prompting: ${prompt}`,
+                message: prompt,
+                type: "info",
+                inProgress: true,
+            }));
         return promptLLMFull(apiKey, stopper, persona, prompt);
     }
 
@@ -557,14 +592,15 @@ export const replayJSWorkflow = async (apiKey: string, code:string, customTools:
         success: success,
         code: code,
         exec: __ret.javascriptFn,
-        result: result};
+        result: result
+    };
 
     console.log("Workflow Result Data:", workflowResultData);
 
     return workflowResultData;
 }
 
-export const executeJSWorkflow = async (apiKey: string, task: string, customTools: { [p: string]: AiTool }, stopper: Stopper, statusLogger:(status:Status)=>void, context:WorkflowContext, incrementalPromptResultCallback: (responseText: string) => void) => {
+export const executeJSWorkflow = async (apiKey: string, task: string, customTools: { [p: string]: AiTool }, stopper: Stopper, statusLogger: (status: Status) => void, context: WorkflowContext, incrementalPromptResultCallback: (responseText: string) => void) => {
 
     const promptLLMCode = (persona: string, prompt: string) => {
         return promptLLMFull(apiKey, stopper, persona, prompt, incrementalPromptResultCallback);
@@ -590,6 +626,11 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         functions?: CustomFunction[],
         function_call?: string) => {
 
+        if (functions && !model) {
+            model = OpenAIModelID.GPT_4_TURBO_AZ;
+        }
+
+
         while (tries > 0) {
             let cleaned = null;
             try {
@@ -598,7 +639,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
                     result: null
                 };
                 const raw = await promptLLMFull(apiKey, stopper, persona, prompt, (m) => {
-                }, model || OpenAIModelID.GPT_3_5, functions, function_call);
+                }, model, functions, function_call);
 
                 cleaned = extract(raw || "");
 
@@ -687,7 +728,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             // @ts-ignore
             feedbackInserter,
             errorInserter,
-            model || OpenAIModelID.GPT_3_5_FN,
+            model,
             functionsToCall,
             jsonFunction
         );
@@ -737,9 +778,9 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         Please choose
             from the following options:
         ------------------ ${options.map((option: Option, index: number) => {
-            return "\t\t" + index + ". " + option.id +
-                " : " + option.description.replaceAll("\n", " ")
-        }).join("\n")}
+                return "\t\t" + index + ". " + option.id +
+                        " : " + option.description.replaceAll("\n", " ")
+            }).join("\n")}
                  ------------------
                 You may also answer
             with an empty selection.ONLY CHOOSE OPTIONS
@@ -767,7 +808,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             // @ts-ignore
             null,
             null,
-            OpenAIModelID.GPT_3_5_FN,
+            null,
             selectFunctions,
             selectFunction
         );
@@ -884,7 +925,7 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
         //console.log(cleanedFn);
         if (cleanedFn != null) {
 
-            if(stopper.shouldStop()){
+            if (stopper.shouldStop()) {
                 return abortResult;
             }
             const __ret = await executeWorkflow(tools, cleanedFn);
@@ -921,7 +962,8 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
             });
 
         if (success) {
-            let workflowResultData = {success: success,
+            let workflowResultData = {
+                success: success,
                 reusableDescription: reuseDesc,
                 inputs: {
                     parameters: {...workflowGlobalParams.requestedParameters},
@@ -930,18 +972,18 @@ export const executeJSWorkflow = async (apiKey: string, task: string, customTool
                 code: cleanedFn,
                 exec: finalFn,
                 uncleanCode: uncleanedCode,
-                result: fnResult};
+                result: fnResult
+            };
 
             console.log("Workflow Result Data:", workflowResultData);
 
             return workflowResultData;
-        }
-        else {
+        } else {
             workflowGlobalParams.requestedParameters = {};
             workflowGlobalParams.requestedDocuments = [];
         }
     }
-    return {success: false, inputs:{}, code: cleanedFn, exec: finalFn, uncleanCode: uncleanedCode, result: fnResult};
+    return {success: false, inputs: {}, code: cleanedFn, exec: finalFn, uncleanCode: uncleanedCode, result: fnResult};
 };
 
 

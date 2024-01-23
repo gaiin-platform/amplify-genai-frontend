@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect } from 'react';
+import {useCallback, useContext, useEffect, useState} from 'react';
 
 import { useTranslation } from 'next-i18next';
 
@@ -24,6 +24,9 @@ import { ChatbarInitialState, initialState } from "@/components/Chatbar/Chatbar.
 
 import { v4 as uuidv4 } from 'uuid';
 import {RAG} from "@/components/Chatbar/components/RAG";
+import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
+import {Prompt} from "@/types/prompt";
+import {FolderInterface} from "@/types/folder";
 
 export const SettingsBar = () => {
     const { t } = useTranslation('sidebar');
@@ -32,14 +35,23 @@ export const SettingsBar = () => {
         initialState,
     });
 
+
+    const [isShareDialogVisible, setIsShareDialogVisible] = useState(false);
+    const [sharedConversations, setSharedConversations] = useState<Conversation[]>([])
+    const [sharedFolders, setSharedFolders] = useState<FolderInterface[]>([])
+
     const {
-        state: {  defaultModelId, folders, pluginKeys },
+        state: {  defaultModelId, folders, pluginKeys, statsService },
         dispatch: homeDispatch,
     } = useContext(HomeContext);
 
     const {
         dispatch: chatDispatch,
     } = chatBarContextValue;
+
+    useEffect(() => {
+        statsService.openSettingsEvent();
+    },[]);
 
     const handleApiKeyChange = useCallback(
         (apiKey: string) => {
@@ -136,6 +148,11 @@ export const SettingsBar = () => {
 
     }
 
+    const handleShareFolder = (folder: any) => {
+        setSharedFolders([folder]);
+        setIsShareDialogVisible(true);
+    }
+
     return (
         <ChatbarContext.Provider
             value={{
@@ -147,10 +164,24 @@ export const SettingsBar = () => {
                 handlePluginKeyChange,
                 handleClearPluginKey,
                 handleApiKeyChange,
+                handleShareFolder
             }}
         >
+            <ShareAnythingModal
+                open={isShareDialogVisible}
+                onCancel={()=>{setIsShareDialogVisible(false)}}
+                onShare={()=>{
+                    setIsShareDialogVisible(false);
+                }}
+                includePrompts={true}
+                includeConversations={true}
+                includeFolders={true}
+                selectedConversations={sharedConversations}
+                selectedFolders={sharedFolders}
+            />
+
             <ChatbarSettings />
-            <RAG />
+            {/*<RAG />*/}
         </ChatbarContext.Provider>
     );
 };

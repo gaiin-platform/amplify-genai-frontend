@@ -1,4 +1,4 @@
-import { Message } from '@/types/chat';
+import {ChatResponseFormat, Message} from '@/types/chat';
 import { OpenAIModel } from '@/types/openai';
 import { CustomFunction } from '@/types/chat';
 import { AZURE_DEPLOYMENT_ID, OPENAI_API_HOST, OPENAI_API_TYPE, OPENAI_API_VERSION, OPENAI_ORGANIZATION, AZURE_API_NAME } from '../app/const';
@@ -30,7 +30,8 @@ export const OpenAIStream = async (
   key: string,
   messages: Message[],
   functions?: CustomFunction[],
-  function_call?: string
+  function_call?: string,
+  response_format?: ChatResponseFormat,
 ) => {
 
   let function_call_obj = null;
@@ -71,6 +72,7 @@ export const OpenAIStream = async (
       stream: true,
       ...(functions && {functions: functions}),
       ...(function_call_obj && {function_call: function_call_obj}),
+      ...(response_format && {response_format: response_format}),
     }),
   });
 

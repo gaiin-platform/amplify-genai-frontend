@@ -21,6 +21,8 @@ import { PromptbarInitialState, initialState } from './Promptbar.state';
 import { v4 as uuidv4 } from 'uuid';
 import {MessageType} from "@/types/chat";
 import {PromptModal} from "@/components/Promptbar/components/PromptModal";
+import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
+import {FolderInterface} from "@/types/folder";
 
 const Promptbar = () => {
   const { t } = useTranslation('promptbar');
@@ -29,8 +31,12 @@ const Promptbar = () => {
     initialState,
   });
 
+  const [isShareDialogVisible, setIsShareDialogVisible] = useState(false);
+  const [sharedPrompts, setSharedPrompts] = useState<Prompt[]>([])
+  const [sharedFolders, setSharedFolders] = useState<FolderInterface[]>([])
+
   const {
-    state: { prompts, defaultModelId, showPromptbar },
+    state: { prompts, defaultModelId, showPromptbar, statsService, featureFlags },
     dispatch: homeDispatch,
     handleCreateFolder,
   } = useContext(HomeContext);
@@ -44,6 +50,16 @@ const Promptbar = () => {
     homeDispatch({ field: 'showPromptbar', value: !showPromptbar });
     localStorage.setItem('showPromptbar', JSON.stringify(!showPromptbar));
   };
+
+  const handleSharePrompt = (prompt: Prompt) => {
+    setSharedPrompts([prompt]);
+    setIsShareDialogVisible(true);
+  }
+
+  const handleShareFolder = (folder: FolderInterface) => {
+    setSharedFolders([folder]);
+    setIsShareDialogVisible(true);
+  }
 
   const createPrompt = ():Prompt => {
     return {
@@ -71,7 +87,10 @@ const Promptbar = () => {
 
   const handleCreatePrompt = () => {
     if (defaultModelId) {
+
       const newPrompt = createPrompt();
+
+      statsService.createPromptEvent(newPrompt);
 
       const updatedPrompts = [...prompts, newPrompt];
 
@@ -85,6 +104,8 @@ const Promptbar = () => {
   };
 
   const handleDeletePrompt = (prompt: Prompt) => {
+    statsService.deletePromptEvent(prompt);
+
     const updatedPrompts = prompts.filter((p) => p.id !== prompt.id);
 
     homeDispatch({ field: 'prompts', value: updatedPrompts });
@@ -92,11 +113,15 @@ const Promptbar = () => {
   };
 
   const handleCancelNewPrompt = () => {
+    statsService.editPromptCanceledEvent(prompt);
+
     handleDeletePrompt(prompt);
     setShowModal(false);
   }
 
   const handleUpdatePrompt = (prompt: Prompt) => {
+
+    statsService.editPromptCompletedEvent(prompt);
 
     const updatedPrompts = prompts.map((p) => {
       if (p.id === prompt.id) {
@@ -126,10 +151,17 @@ const Promptbar = () => {
   };
 
   useEffect(() => {
+
+    const visiblePrompts = (featureFlags.overrideInvisiblePrompts) ?
+        prompts : prompts.filter((prompt) => !prompt.data?.hidden);
+
     if (searchTerm) {
+
+      statsService.searchPromptsEvent(searchTerm);
+
       promptDispatch({
         field: 'filteredPrompts',
-        value: prompts.filter((prompt) => {
+        value: visiblePrompts.filter((prompt) => {
           const searchable =
             prompt.name.toLowerCase() +
             ' ' +
@@ -140,7 +172,7 @@ const Promptbar = () => {
         }),
       });
     } else {
-      promptDispatch({ field: 'filteredPrompts', value: prompts });
+      promptDispatch({ field: 'filteredPrompts', value: visiblePrompts });
     }
   }, [searchTerm, prompts]);
 
@@ -152,6 +184,8 @@ const Promptbar = () => {
         handleDeletePrompt,
         handleUpdatePrompt,
         handleAddPrompt,
+        handleSharePrompt,
+        handleShareFolder
       }}
     >
       <Sidebar<Prompt>
@@ -176,6 +210,19 @@ const Promptbar = () => {
           handleCreateFolder(name || "New Folder", 'prompt')
         }}
         handleDrop={handleDrop}
+      />
+
+      <ShareAnythingModal
+          open={isShareDialogVisible}
+          onCancel={()=>{setIsShareDialogVisible(false)}}
+          onShare={()=>{
+            setIsShareDialogVisible(false);
+          }}
+          includePrompts={true}
+          includeConversations={false}
+          includeFolders={false}
+          selectedPrompts={sharedPrompts}
+          selectedFolders={sharedFolders}
       />
 
       {showModal && (
