@@ -46,6 +46,7 @@ export interface HomeInitialState {
   page: string;
   defaultFunctionCallModel: string | null;
   statsService: StatsServices;
+  currentRequestId: string | null;
 }
 
 export const initialState: HomeInitialState = {
@@ -91,19 +92,21 @@ export const initialState: HomeInitialState = {
   serverSidePluginKeysSet: false,
   selectedAssistant: null,
   page: 'chat',
+  currentRequestId: null,
   featureFlags: {
     uploadDocuments:true,
     overrideUneditablePrompts:false,
-    overrideInvisiblePrompts: true,
+    overrideInvisiblePrompts: false,
     extractDocumentsLocally:false,
-    promptPrefixCreate: true,
-    outputTransformerCreate: true,
+    enableMarket:false,
+    promptPrefixCreate: false,
+    outputTransformerCreate: false,
     workflowRun:true,
     workflowCreate:false,
     rootPromptCreate:true,
     pluginsOnInput:false,
     followUpCreate:true,
-    marketItemDelete:true,
+    marketItemDelete:false,
   },
   statsService: noOpStatsServices,
   defaultFunctionCallModel: null,

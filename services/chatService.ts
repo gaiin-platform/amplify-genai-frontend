@@ -1,15 +1,34 @@
 // chatService.js
-import { getEndpoint } from '@/utils/app/api';
+import {getEndpoint} from '@/utils/app/api';
 import {ChatBody, ChatResponseFormat, CustomFunction, JsonSchema, Message, newMessage} from "@/types/chat";
-import { Plugin } from '@/types/plugin';
+import {Plugin} from '@/types/plugin';
 import {createParser, ParsedEvent, ReconnectInterval} from "eventsource-parser";
 import {OpenAIError} from "@/utils/server";
 import {OpenAIModel} from "@/types/openai";
+import {v4 as uuidv4} from 'uuid';
 
-export async function sendChatRequestWithDocuments(endpoint:string, accessToken:string, chatBody:ChatBody, plugin?:Plugin|null, abortSignal?:AbortSignal) {
+export interface MetaHandler {
+    status: (meta: any) => void;
+    mode: (mode: string) => void;
+}
 
-    if(chatBody.response_format && chatBody.response_format.type === 'json_object') {
-        if(!chatBody.messages.some(m => m.content.indexOf('json') > -1)) {
+export async function killRequest(endpoint: string, accessToken: string, requestId: string) {
+    const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + accessToken,
+        },
+        body:JSON.stringify({killSwitch:{requestId, value:true}}),
+    });
+
+    return res.status === 200;
+}
+
+export async function sendChatRequestWithDocuments(endpoint: string, accessToken: string, chatBody: ChatBody, plugin?: Plugin | null, abortSignal?: AbortSignal, metaHandler?: MetaHandler) {
+
+    if (chatBody.response_format && chatBody.response_format.type === 'json_object') {
+        if (!chatBody.messages.some(m => m.content.indexOf('json') > -1)) {
             chatBody.messages.push(newMessage({role: 'user', content: 'Please provide a json object as output.'}))
         }
     }
@@ -34,9 +53,10 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
             // @ts-ignore
             ...chatBody.messages.map(m => {
                 return {role: m.role, content: m.content}
-        })],
+            })],
         options: {
-            ...vendorProps
+            requestId: uuidv4(),
+            ...vendorProps,
         }
     }
 
@@ -54,6 +74,7 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
         body,
     });
 
+    // @ts-ignore
     const functions = requestBody.options && requestBody.options.functions;
 
     const encoder = new TextEncoder();
@@ -69,7 +90,7 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
         }
 
         const string = 'Error communicating with the server. Please try again in a minute.';
-        const blob = new Blob([string], { type: 'text/plain' });
+        const blob = new Blob([string], {type: 'text/plain'});
         const stream = blob.stream();
 
         return new Response(stream, {
@@ -84,30 +105,26 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
     let nameDone = false;
     let first = true;
 
-    const fnCallHandler = (controller:any, json:any) => {
+    const fnCallHandler = (controller: any, json: any) => {
 
         const base = json.choices[0].delta.function_call
         let text = "";
 
-        if(base && base.name){
-            if(first){
+        if (base && base.name) {
+            if (first) {
                 text = "{\"name\":\"";
                 first = false;
             }
             text += base.name;
         }
-        if(base && base.arguments){
-            if(!nameDone){
+        if (base && base.arguments) {
+            if (!nameDone) {
                 text += "\", \"arguments\":";
                 nameDone = true;
             }
             text += (base.arguments) ? base.arguments : "";
         }
         if (json.choices[0].finish_reason != null) {
-
-            // console.log("------------- Completing------------")
-            // console.log(json.choices)
-            // console.log("------------------------------------")
 
             text += "}";
 
@@ -116,7 +133,7 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
 
             console.log("Chat request completed",
                 //current time
-                new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+                new Date().toLocaleString('en-US', {timeZone: 'America/Chicago'}));
 
             controller.close();
             return;
@@ -129,7 +146,8 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
     }
 
     let sourceMapping = [];
-    let lastSource:string|null = null;
+    let lastSource: string | null = null;
+    let outOfOrderMode = false;
 
     const stream = new ReadableStream({
         async start(controller) {
@@ -141,47 +159,55 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
                     try {
                         const json = JSON.parse(data);
 
-                        if(json.s && json.s === 'meta') {
-                            console.log("Meta Event:",json);
-                            if(json.d && json.d.sources){
+                        if (json.s && json.s === 'meta') {
+                            //console.log("Meta Event:", json);
+                            if (json.d && json.d.sources) {
                                 sourceMapping = json.d.sources;
+                            } else if (json.s && json.s === 'meta' && json.st) {
+                                //console.log("Status Event:",json.st);
+                                if (metaHandler) {
+                                    metaHandler.status(json.st);
+                                }
+                            } else if (json.s && json.s === 'meta' && json.m === 'out_of_order') {
+                                outOfOrderMode = true;
+                                if (metaHandler) {
+                                    metaHandler.mode('out_of_order');
+                                }
                             }
                             return;
-                        }
-                        else if(json.d){
+                        } else if (json.d) {
 
-                            if(typeof json.d === 'string') {
+                            if (outOfOrderMode && typeof json.d === 'string') {
+                                json.choices = [{delta: {content: data}}];
+                                //console.log("Translated Event:",json);
+                            } else if (typeof json.d === 'string') {
                                 //console.log("Message Event:",json);
                                 const prefix = lastSource != null && lastSource != json.s ? "\n\n" : "";
                                 // Fake it right now for compatibility!
                                 json.choices = [{delta: {content: prefix + json.d}}];
                                 //console.log("Translated Event:",json);
-                            }
-                            else if(json.d.tool_calls && json.d.tool_calls.length > 0){
+                            } else if (json.d.tool_calls && json.d.tool_calls.length > 0) {
                                 //console.log("Function Event:",json);
                                 // Fake it right now for compatibility!
-                                if(json.d.tool_calls[0].function) {
-                                    json.choices = [{delta: {function_call:json.d.tool_calls[0].function}}];
+                                if (json.d.tool_calls[0].function) {
+                                    json.choices = [{delta: {function_call: json.d.tool_calls[0].function}}];
                                 }
                                 //console.log("Translated Event:",json);
                             }
 
                             lastSource = json.s;
-                        }
-                        else {
-                            console.log("Unknown Event:",json);
+                        } else {
                             return;
                         }
 
-                        if(functions){
+                        if (functions) {
                             fnCallHandler(controller, json);
-                        }
-                        else {
+                        } else {
                             if (json.choices[0].finish_reason != null) {
 
                                 console.log("Chat request completed",
                                     //current time
-                                    new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+                                    new Date().toLocaleString('en-US', {timeZone: 'America/Chicago'}));
 
                                 controller.close();
                                 return;
@@ -209,7 +235,7 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
 
             try {
                 while (true) {
-                    const { value: chunk, done } = await reader.read();
+                    const {value: chunk, done} = await reader.read();
                     if (done) {
                         // Ensure the end of the parser is dealt with
                         //parser.finish();
@@ -233,12 +259,14 @@ export async function sendChatRequestWithDocuments(endpoint:string, accessToken:
         statusText: res.statusText,
         headers: res.headers,
     });
+
+
 }
 
-export async function sendChatRequest(apiKey:string, chatBody:ChatBody, plugin?:Plugin|null, abortSignal?:AbortSignal) {
+export async function sendChatRequest(apiKey: string, chatBody: ChatBody, plugin?: Plugin | null, abortSignal?: AbortSignal) {
 
-    if(chatBody.response_format && chatBody.response_format.type === 'json_object') {
-        if(!chatBody.messages.some(m => m.content.indexOf('json') > -1)) {
+    if (chatBody.response_format && chatBody.response_format.type === 'json_object') {
+        if (!chatBody.messages.some(m => m.content.indexOf('json') > -1)) {
             chatBody.messages.push(newMessage({role: 'user', content: 'Please provide a json object as output.'}))
         }
     }

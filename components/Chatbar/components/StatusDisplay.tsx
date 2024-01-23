@@ -21,7 +21,7 @@ const StatusDisplay: React.FC<StatusDisplayProps> = ({ statusHistory }) => {
     const [isOpen, setIsOpen] = useState(false);
 
     // If statusHistory is empty, use a default {summary: ''}
-    const lastStatus = statusHistory.length > 0 ? statusHistory[statusHistory.length - 1] : {summary: ''};
+    const lastStatus = statusHistory.length > 0 ? statusHistory[statusHistory.length - 1] : {summary: '', message: ''};
 
     const toggleDropdown = () => {
         setIsOpen(!isOpen);
@@ -38,7 +38,7 @@ const StatusDisplay: React.FC<StatusDisplayProps> = ({ statusHistory }) => {
                         <button key={index}
                         className="mt-3 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:text-white dark:border-neutral-600 dark:bg-[#343541] md:mb-2 md:mt-2"
                         >
-                        <IconRobot size={16} /> {status.summary.slice(0, 100) + "..."}
+                        <IconRobot size={16} /> {(status.summary || status.message).slice(0, 100) + "..."}
                         </button>
                     ))}
                 </div>
@@ -48,7 +48,7 @@ const StatusDisplay: React.FC<StatusDisplayProps> = ({ statusHistory }) => {
                     className="mt-6 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:text-white dark:border-neutral-600 dark:bg-[#343541] md:mb-0 md:mt-2"
                     onClick={toggleDropdown}
                 >
-                    <IconAperture size={16} /> {lastStatus.summary.slice(0, 35) + "..."}
+                    <IconAperture size={16} /> {(lastStatus.summary || lastStatus.message).slice(0, 35) + "..."}
                 </button>
             )}
         </div>

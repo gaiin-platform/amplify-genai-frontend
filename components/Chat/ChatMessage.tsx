@@ -30,6 +30,8 @@ import Loader from "@/components/Loader/Loader";
 import {getFileDownloadUrl} from "@/services/fileService"
 import {FileList} from "@/components/Chat/FileList";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
+import PromptingStatusDisplay from "@/components/Status/PromptingStatusDisplay";
 
 
 export interface Props {
@@ -69,7 +71,7 @@ export const ChatMessage: FC<Props> = memo(({
     const {t} = useTranslation('chat');
 
     const {
-        state: {selectedConversation, conversations, currentMessage, messageIsStreaming},
+        state: {selectedConversation, conversations, currentMessage, messageIsStreaming, status},
         dispatch: homeDispatch,
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
@@ -159,10 +161,10 @@ export const ChatMessage: FC<Props> = memo(({
     };
 
 
-    //
-    // useEffect(() => {
-    //     setMessageContent(message.content);
-    // }, [message.content]);
+    // needed to avoid editing bug when switching between conversations
+    useEffect(() => {
+        setMessageContent(message.content);
+    }, [message.content]);
 
 
     const handleDownload = async (dataSource: DataSource) => {
@@ -250,11 +252,11 @@ export const ChatMessage: FC<Props> = memo(({
                                                     {message.data && message.data.dataSources && message.data.dataSources.map((d: any, i: any) => (
                                                         <div
                                                             key={i}
-                                                            className="bg-yellow-400 dark:bg-[#B0BEC5] rounded-md shadow-lg h-12"
+                                                            className="bg-yellow-400 dark:bg-[#B0BEC5] rounded-xl shadow-lg h-12 mr-2 mb-2"
                                                         >
                                                             <div className="flex flex-row">
                                                                 <div
-                                                                    className="w-14 h-12 flex-none bg-cover rounded-l text-center overflow-hidden"
+                                                                    className="w-14 h-12 flex-none bg-cover rounded-l-xl text-center overflow-hidden"
                                                                     style={{backgroundImage: 'url("/sparc_apple.png")'}}
                                                                     title={d.name}>
                                                                 </div>
@@ -336,11 +338,14 @@ export const ChatMessage: FC<Props> = memo(({
                     ) : (
                         <div className="flex flex-col w-full" ref={markdownComponentRef}>
                             <div className="flex flex-row w-full">
+                                <div className="flex flex-col w-full">
+                                {(selectedConversation?.messages.length === messageIndex + 1) && (
+                                    <PromptingStatusDisplay statusHistory={status}/>
+                                )}
                                 {!isEditing && (
                                     <div className="flex flex-grow"
                                          ref={divRef}
                                     >
-
                                         <ChatContentBlock
                                             messageIsStreaming={messageIsStreaming}
                                             messageIndex={messageIndex}
@@ -362,6 +367,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         messageContent={messageContent}
                                         setMessageContent={setMessageContent}/>
                                 )}
+                                </div>
 
                                 <div
                                     className="md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">

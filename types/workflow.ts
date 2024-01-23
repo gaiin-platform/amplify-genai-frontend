@@ -2,11 +2,27 @@ import {AttachedDocument} from "@/types/attacheddocument";
 import {Conversation} from "@/types/chat";
 import {Prompt} from "@/types/prompt";
 import {FolderInterface} from "@/types/folder";
+import { v4 as uuidv4 } from 'uuid';
 
 export interface Status {
+    id:string;
     summary:string;
     message:string;
     type:string
+    inProgress:boolean;
+    sticky?:boolean;
+    icon?:string;
+}
+
+export const newStatus = (data:any) => {
+    return {
+        id: uuidv4(),
+        summary: '',
+        message: '',
+        type: 'info',
+        inProgress: false,
+        ...data
+    };
 }
 
 export interface InputsContext {
