@@ -75,6 +75,7 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
           <button
             className="flex items-center rounded bg-none p-1 text-xs text-white"
             onClick={downloadAsFile}
+            title="Download Block"
           >
             <IconDownload size={18} />
           </button>

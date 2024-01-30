@@ -1684,18 +1684,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 scrollToModelSelect();
                                                 handleSettings();
                                             }}
+                                            title="Chat Settings"
                                         >
                                             <IconSettings size={18}/>
                                         </button>
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={onClearAll}
+                                            title="Clear Messages"
                                         >
                                             <IconClearAll size={18}/>
                                         </button>
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={() => setIsShareDialogVisible(true)}
+                                            title="Share"
                                         >
                                             <IconShare size={18}/>
                                         </button>
@@ -1707,6 +1710,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 setIsDownloadDialogVisible(true)
 
                                             }}
+                                            title="Download"
                                         >
                                             <IconDownload size={18}/>
                                         </button>

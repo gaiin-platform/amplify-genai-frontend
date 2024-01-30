@@ -4,6 +4,7 @@ import { CloseSidebarButton, OpenSidebarButton } from "@/components/Sidebar/comp
 interface TabProps {
     icon: ReactNode;
     children: ReactNode;
+    title?: string;
 }
 
 export const Tab: React.FC<TabProps> = ({ icon, children }) => (
@@ -33,6 +34,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                         <button
                             key={index}
                             onClick={() => setActiveTab(index)}
+                            title={child.props.title}
                             className={`px-3 py-2 rounded-t ${activeTab === index ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
                             {child.props.icon}
                         </button>

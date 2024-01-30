@@ -127,6 +127,7 @@ export const ConversationComponent = ({ conversation }: Props) => {
           disabled={messageIsStreaming}
           draggable="true"
           onDragStart={(e) => handleDragStart(e, conversation)}
+          title="View Conversation"
         >
           <IconMessage size={18} />
           <div
@@ -155,10 +156,10 @@ export const ConversationComponent = ({ conversation }: Props) => {
         !isDeleting &&
         !isRenaming && (
           <div className="absolute right-1 z-10 flex text-gray-300">
-            <SidebarActionButton handleClick={handleOpenRenameModal}>
+            <SidebarActionButton handleClick={handleOpenRenameModal} title="Rename Conversation">
               <IconPencil size={18} />
             </SidebarActionButton>
-            <SidebarActionButton handleClick={handleOpenDeleteModal}>
+            <SidebarActionButton handleClick={handleOpenDeleteModal} title="Delete Conversation">
               <IconTrash size={18} />
             </SidebarActionButton>
           </div>

@@ -909,7 +909,7 @@ const Home = ({
                                 side={"left"}
                                 footerComponent={
                                     <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-                                        <button className="dark:text-white" onClick={() => {
+                                        <button className="dark:text-white" title="Sign Out" onClick={() => {
                                             const goLogout = async () => {
                                                 await federatedSignOut();
                                             };
@@ -926,10 +926,10 @@ const Home = ({
                                     </div>
                                 }
                             >
-                                <Tab icon={<IconMessage/>}><Chatbar/></Tab>
-                                <Tab icon={<IconShare/>}><SharedItemsList/></Tab>
-                                <Tab icon={<IconTournament/>}><WorkspaceList/></Tab>
-                                <Tab icon={<IconSettings/>}><SettingsBar/></Tab>
+                                <Tab icon={<IconMessage/>} title="Chats"><Chatbar/></Tab>
+                                <Tab icon={<IconShare/>} title="Share"><SharedItemsList/></Tab>
+                                <Tab icon={<IconTournament/>} title="Workspaces"><WorkspaceList/></Tab>
+                                <Tab icon={<IconSettings/>} title="Settings"><SettingsBar/></Tab>
                             </TabSidebar>
 
                             <div className="flex flex-1">

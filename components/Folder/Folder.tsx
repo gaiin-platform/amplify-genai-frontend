@@ -123,6 +123,7 @@ const Folder = ({
             onDragOver={allowDrop}
             onDragEnter={highlightDrop}
             onDragLeave={removeHighlight}
+            title={isOpen ? "Collapse folder" : "Expand folder"}
           >
             {isOpen ? (
               <IconCaretDown size={18} />
@@ -174,6 +175,7 @@ const Folder = ({
                 setIsRenaming(true);
                 setRenameValue(currentFolder.name);
               }}
+              title="Rename Folder"
             >
               <IconPencil size={18} />
             </SidebarActionButton>
@@ -183,6 +185,7 @@ const Folder = ({
                 e.stopPropagation();
                 setIsDeleting(true);
               }}
+              title="Delete Folder"
             >
               <IconTrash size={18} />
             </SidebarActionButton>

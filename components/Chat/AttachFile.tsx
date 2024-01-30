@@ -336,6 +336,7 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
                     }
                 }}
                 onKeyDown={(e) => {}}
+                title="Upload File"
             >
                 <IconPlus size={20} />
             </button>

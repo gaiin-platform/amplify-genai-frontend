@@ -30,6 +30,7 @@ export const TagsList: FC<Props> = (
                             setTags([...tags, ...parsedTags]);
                         }
                     }}
+                    title="Add Tag"
                 >
                     <IconPlus/>
                 </button>
@@ -53,6 +54,7 @@ export const TagsList: FC<Props> = (
                                 e.stopPropagation();
                                 setTags(tags?.filter(x => x != tag));
                             }}
+                            title="Remove Tag"
                         >
                             <IconCircleX/>
                         </button>

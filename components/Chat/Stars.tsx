@@ -38,6 +38,7 @@ export const Stars: FC<Props> = ({ starRating, setStars }) => {
                         setCurrentStars(star);
                         handleStarClick(star)
                     }}
+                    title="Rate Response"
                 >
                     {star <= currentStars ? <FilledStar/> : <Star/>}
                 </button>

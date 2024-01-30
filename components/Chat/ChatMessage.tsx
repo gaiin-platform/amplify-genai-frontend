@@ -271,7 +271,8 @@ export const ChatMessage: FC<Props> = memo(({
                                                                     >
                                                                         <button onClick={() => {
                                                                             handleDownload(d);
-                                                                        }}>
+                                                                        }}
+                                                                        >
                                                                             <IconDownload/>
                                                                         </button>
                                                                     </div>
@@ -301,17 +302,26 @@ export const ChatMessage: FC<Props> = memo(({
                                     {/*<div*/}
                                     {/*    className="md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-row gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">*/}
                                     <div>
-                                        <button
-                                            className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                            onClick={copyOnClick}
-                                        >
-                                            <IconCopy size={20}/>
-                                        </button>
+                                        {messagedCopied ? (
+                                            <IconCheck
+                                                size={20}
+                                                className="text-green-500 dark:text-green-400"
+                                            />
+                                        ) : (
+                                            <button
+                                                className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                                onClick={copyOnClick}
+                                                title="Copy Prompt"
+                                            >
+                                                <IconCopy size={20} />
+                                            </button>
+                                        )}
                                     </div>
                                     <div>
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={() => setIsDownloadDialogVisible(true)}
+                                            title="Download Prompt"
                                         >
                                             <IconDownload size={20}/>
                                         </button>
@@ -320,6 +330,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={toggleEditing}
+                                            title="Edit Prompt"
                                         >
                                             <IconEdit size={20}/>
                                         </button>
@@ -328,6 +339,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={handleDeleteMessage}
+                                            title="Delete Prompt"
                                         >
                                             <IconTrash size={20}/>
                                         </button>
@@ -380,6 +392,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={copyOnClick}
+                                            title="Copy Response"
                                         >
                                             <IconCopy size={20}/>
                                         </button>
@@ -387,12 +400,14 @@ export const ChatMessage: FC<Props> = memo(({
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={() => setIsDownloadDialogVisible(true)}
+                                        title="Download Response"
                                     >
                                         <IconDownload size={20}/>
                                     </button>
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={toggleEditing}
+                                        title="Edit Response"
                                     >
                                         <IconEdit size={20}/>
                                     </button>
