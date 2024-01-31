@@ -1,4 +1,4 @@
-import React, { useState, ReactNode } from 'react';
+import React, { useState, useEffect, ReactNode } from 'react';
 import { CloseSidebarButton, OpenSidebarButton } from "@/components/Sidebar/components/OpenCloseButton";
 
 interface TabProps {
@@ -17,9 +17,16 @@ interface TabSidebarProps {
     footerComponent?: ReactNode;
 }
 
+// detect mobile browser
+const isMobileBrowser = () => {
+    const userAgent = typeof window.navigator === "undefined" ? "" : navigator.userAgent;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+};
+
 export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerComponent }) => {
     const [activeTab, setActiveTab] = useState(0);
-    const [isOpen, setIsOpen] = useState(true);
+    // Set the initial state based on whether the user is on a mobile browser
+    const [isOpen, setIsOpen] = useState(!isMobileBrowser());
     const childrenArray = React.Children.toArray(children) as React.ReactElement<TabProps>[]; // here we assert that all children are ReactElements
     const toggleOpen = () => setIsOpen(!isOpen);
 
@@ -53,15 +60,6 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
         <OpenSidebarButton onClick={toggleOpen} side={side} />
     );
 };
-
-
-/**
- *
- *
-
-
-
- */
 
 
 // Usage:
