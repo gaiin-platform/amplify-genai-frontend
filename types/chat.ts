@@ -103,6 +103,7 @@ export interface ChatBody {
   dataSources?: DataSource[];
   accountId?: string;
   requestId?: string;
+  endpoint?: string;
 }
 
 export interface Conversation {

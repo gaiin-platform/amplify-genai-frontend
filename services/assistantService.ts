@@ -89,13 +89,13 @@ export const sendChat = async (apikey:string, stopper:Stopper, assistant:Assista
 
 export const createAssistant = async (user:string, assistantDefinition:AssistantDefinition, abortSignal= null)=> {
 
-    // if((!assistantDefinition.fileKeys || assistantDefinition.fileKeys.length === 0) &&
-    //     (!assistantDefinition.tools || assistantDefinition.tools.length === 0)){
-    //     return {
-    //         assistantId: uuidv4(),
-    //         provider: 'amplify'
-    //     }
-    // }
+    if((!assistantDefinition.fileKeys || assistantDefinition.fileKeys.length === 0) &&
+        (!assistantDefinition.tools || assistantDefinition.tools.length === 0)){
+        return {
+            assistantId: uuidv4(),
+            provider: 'amplify'
+        }
+    }
 
     const response = await fetch('/api/assistant/op', {
         method: 'POST',

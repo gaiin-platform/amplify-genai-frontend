@@ -142,9 +142,11 @@ export function useChatService() {
         chatBody.requestId = Math.random().toString(36).substring(7);
         dispatch({field: "currentRequestId", value: chatBody.requestId});
 
+        const targetEndpoint = chatBody.endpoint || chatEndpoint;
+
         response = getSession().then((session) => {
             // @ts-ignore
-            return sendChatRequestWithDocuments(chatEndpoint, session.accessToken, chatBody, plugin, abortSignal, metaHandler);
+            return sendChatRequestWithDocuments(targetEndpoint, session.accessToken, chatBody, plugin, abortSignal, metaHandler);
         }).catch((e) => {
             alert("The chat service is currently unavailable. Please try again in a minute.");
             console.error(e);

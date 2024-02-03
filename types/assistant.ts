@@ -23,6 +23,7 @@ export interface AssistantDefinition {
     tags:string[],
     fileKeys:string[];
     provider:string;
+    uri?:string;
 }
 
 export const DEFAULT_ASSISTANT: Assistant = {
