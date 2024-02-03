@@ -496,6 +496,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             }
 
                             let outOfOrder = false;
+                            let currentState = {};
 
                             const metaHandler:MetaHandler = {
                                 status:(meta:any) => {
@@ -505,6 +506,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 mode:(modeName:string) => {
                                     //console.log("Chat-Mode: "+modeName);
                                     outOfOrder = (modeName === "out_of_order");
+                                },
+                                state: (state:any) => {
+                                    currentState = {...currentState, ...state};
+                                    console.log("Updated state:", currentState);
                                 }
                             };
 
@@ -561,6 +566,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     newMessage({
                                         role: 'assistant',
                                         content: "",
+                                        data: {state: currentState}
                                     }),
                                 ];
                                 updatedConversation = {
@@ -606,6 +612,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     return {
                                                         ...message,
                                                         content: text,
+                                                        data: {...(message.data || {}), state: currentState}
                                                     };
                                                 }
                                                 return message;

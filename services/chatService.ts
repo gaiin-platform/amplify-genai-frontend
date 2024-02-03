@@ -10,6 +10,7 @@ import {v4 as uuidv4} from 'uuid';
 export interface MetaHandler {
     status: (meta: any) => void;
     mode: (mode: string) => void;
+    state: (state: any) => void;
 }
 
 export async function killRequest(endpoint: string, accessToken: string, requestId: string) {
@@ -46,15 +47,9 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
         dataSources: chatBody.dataSources || [],
         messages: [
             {
-                // @ts-ignore
                 role: 'system',
                 content: chatBody.prompt,
             },
-            // @ts-ignore
-            // ...chatBody.messages.map(m => {
-            //     return {role: m.role, content: m.content}
-            // }
-            // )
             ...chatBody.messages
         ],
         options: {
@@ -175,6 +170,14 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
                                 outOfOrderMode = true;
                                 if (metaHandler) {
                                     metaHandler.mode('out_of_order');
+                                }
+                            } else if (json.s && json.s === 'meta' && json.state) {
+                                if (metaHandler) {
+                                    metaHandler.state(json.state);
+                                }
+                            } else if (json.s && json.s === 'meta' && json.stateReset) {
+                                if (metaHandler) {
+                                    metaHandler.state({});
                                 }
                             }
                             return;
