@@ -51,9 +51,12 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
                 content: chatBody.prompt,
             },
             // @ts-ignore
-            ...chatBody.messages.map(m => {
-                return {role: m.role, content: m.content}
-            })],
+            // ...chatBody.messages.map(m => {
+            //     return {role: m.role, content: m.content}
+            // }
+            // )
+            ...chatBody.messages
+        ],
         options: {
             requestId: uuidv4(),
             ...vendorProps,

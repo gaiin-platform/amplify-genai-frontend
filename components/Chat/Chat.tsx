@@ -365,7 +365,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, []);
 
         const handleSend = useCallback(
-            async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt: string | null = null, documents?: AttachedDocument[] | null) => {
+            async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt: string | null = null, documents?: AttachedDocument[] | null, uri?:string) => {
                 return new Promise(async (resolve, reject) => {
                     if (selectedConversation) {
 
@@ -425,6 +425,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             prompt: rootPrompt || updatedConversation.prompt,
                             temperature: updatedConversation.temperature,
                         };
+
+                        if(uri) {
+                            chatBody.endpoint = uri;
+                        }
 
                         if (documents && documents.length > 0) {
 
