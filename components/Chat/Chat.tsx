@@ -14,6 +14,7 @@ import {useTranslation} from 'next-i18next';
 
 import {getHook} from "@/utils/app/chathooks";
 import {getEndpoint} from '@/utils/app/api';
+import {deepMerge} from "@/utils/app/state";
 import {OutOfOrderResults} from "@/utils/app/outOfOrder";
 
 import {
@@ -508,7 +509,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     outOfOrder = (modeName === "out_of_order");
                                 },
                                 state: (state:any) => {
-                                    currentState = {...currentState, ...state};
+                                    currentState = deepMerge(currentState, state);
                                     console.log("Updated state:", currentState);
                                 }
                             };
