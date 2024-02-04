@@ -124,7 +124,7 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
                     className="flex flex-row items-center text-black hover:opacity-50 mt-6 dark:text-white dark:border-neutral-600 py-3 px-4 dark:bg-[#343541] md:mb-0 md:mt-2 rounded border border-neutral-200 bg-white">
                 <IconRobot size={20}/>
                 <button
-                    className="overflow-hidden text-overflow-ellipsis white-space-nowrap truncate flex w-full items-center"
+                    className="ml-2 overflow-hidden text-overflow-ellipsis white-space-nowrap truncate flex w-full items-center"
                 >
                     {activeAssistant.definition.name}
                 </button>
