@@ -80,30 +80,33 @@ function groupArrayValuesByKeys(array: Array<any>) {
                 }
                 ranges.push(start === end ? start.toString() : `${start}-${end}`);
 
-                label += (ranges.length > 1) ? 's' : '';
-
                 return <div key={index}>
                     <div className="text-sm flex flex-row items-center">
                         <div className="text-sm dark:text-neutral-300 font-bold">{label}:</div>
-                        {ranges.map((range,y) =>
-                            <div key={y} className="p-1 m-1 text-center dark:text-neutral-400">
-                                {range}
-                            </div>
-                        )}
+                        <div className="p-1 m-1 text-center dark:text-neutral-400">
+                        {ranges.join(', ')}
+                        </div>
                     </div>
                 </div>;
             }
 
-            label += (array.length > 1) ? 's' : '';
+            if(array.every(item => item[propertyKey] === '' || item[propertyKey] === null)) {
+                return <></>
+            }
 
             return <div key={index}>
                 <div className="text-sm grid grid-cols-8">
                     <div className="text-sm font-bold">{label}:</div>
-                    {array.map((item,y) =>
-                        <div key={y} className="bg-neutral-300 dark:bg-neutral-600 rounded-md p-1 m-1 text-center">
-                            {item[propertyKey]}
-                        </div>
-                    )}
+                    <div className="p-1 m-1 text-center">
+                    {array
+                        .filter( (item) => {
+                            return item[propertyKey] !== '' && item[propertyKey] !== null
+                        })
+                        .map((item,y) =>{
+                            return "" +item[propertyKey];
+                        }
+                    ).join(', ')}
+                    </div>
                 </div>
             </div>;
         });
