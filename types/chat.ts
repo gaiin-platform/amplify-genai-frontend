@@ -104,6 +104,7 @@ export interface ChatBody {
   accountId?: string;
   requestId?: string;
   endpoint?: string;
+  [key: string]: any;
 }
 
 export interface Conversation {

@@ -8,7 +8,7 @@ import {createAssistant} from "@/services/assistantService";
 import { useSession } from "next-auth/react"
 import {Assistant, AssistantDefinition, AssistantProviderID} from "@/types/assistant";
 import {Prompt} from "@/types/prompt";
-import {MessageType} from "@/types/chat";
+import {Conversation, MessageType} from "@/types/chat";
 import {OpenAIModel} from "@/types/openai";
 import {savePrompts} from "@/utils/app/prompts";
 
@@ -51,18 +51,39 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
     const { data: session } = useSession();
     const user = session?.user;
 
+    const getDocumentsInConversation = (conversation?:Conversation) => {
+        if(conversation){
+            // Go through every message in the conversation and collect all of the
+            // data sources that are in the data field of the messages
+            return conversation.messages.filter( m => {
+                return m.data && m.data.dataSources
+            })
+                .flatMap(m => m.data.dataSources);
+        }
+
+        return [];
+    }
+
     const parseAssistant = (definitionStr: string) => {
 
         try {
             const definition = JSON.parse(definitionStr);
+
+            if(!definition.instructions && definition.description) {
+                definition.instructions = definition.description;
+            }
+            else if(!definition.instructions) {
+                definition.instructions = definitionStr;
+            }
+
             if(typeof definition.instructions !== "string") {
                 definition.instructions = JSON.stringify(definition.instructions);
             }
 
-            definition.provider = AssistantProviderID.OPENAI;
+            definition.provider = AssistantProviderID.AMPLIFY;
             definition.tags = [];
             definition.tools = [];
-            definition.fileKeys = [];
+            definition.dataSources = getDocumentsInConversation(selectedConversation);
 
             return definition;
         } catch (e) {
@@ -184,6 +205,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
         }
     }, [messageIsStreaming]);
 
+    let dataSources = getDocumentsInConversation(selectedConversation);
 
     // @ts-ignore
     return error ?
@@ -205,6 +227,15 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
                         <ExpansionComponent title={"Instructions"} content={
                             <div className="mb-4">
                                 <div className="text-sm text-gray-500">{assistantInstructions}</div>
+                            </div>
+                        }/>
+                        <ExpansionComponent title={"Data Sources"} content={
+                            <div className="mb-4">
+                                <div className="text-sm text-gray-500">
+                                    {dataSources.map((source, index) => {
+                                        return <div key={index}>{source.name}</div>
+                                    })}
+                                </div>
                             </div>
                         }/>
                         <button className="mt-4 w-full px-4 py-2 text-white bg-blue-500 rounded hover:bg-green-600"

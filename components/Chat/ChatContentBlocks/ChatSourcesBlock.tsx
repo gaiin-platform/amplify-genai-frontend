@@ -24,7 +24,7 @@ const ChatSourceBlock: React.FC<Props> = (
     {message, messageIsStreaming
     }) => {
 
-    const sources = message.data?.state.sources || {};
+    const sources = (message.data?.state && message.data?.state.sources) ? message.data.state.sources : {};
 
     if(Object.keys(sources).length === 0 || messageIsStreaming){
         return <></>;

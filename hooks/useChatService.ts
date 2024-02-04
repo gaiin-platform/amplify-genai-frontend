@@ -136,6 +136,9 @@ export function useChatService() {
             },
             mode: (modeName: string) => {
                 console.log("Mode: " + modeName);
+            },
+            state: (state: any) => {
+
             }
         }
 

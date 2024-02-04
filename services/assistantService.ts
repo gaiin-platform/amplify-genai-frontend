@@ -89,24 +89,31 @@ export const sendChat = async (apikey:string, stopper:Stopper, assistant:Assista
 
 export const createAssistant = async (user:string, assistantDefinition:AssistantDefinition, abortSignal= null)=> {
 
-    if((!assistantDefinition.fileKeys || assistantDefinition.fileKeys.length === 0) &&
-        (!assistantDefinition.tools || assistantDefinition.tools.length === 0)){
-        return {
-            assistantId: uuidv4(),
-            provider: 'amplify'
+    if(assistantDefinition.provider === 'openai') {
+        if(assistantDefinition.dataSources){
+            assistantDefinition.fileKeys = assistantDefinition.dataSources.map((ds) => ds.id);
         }
+
+        const response = await fetch('/api/assistant/op', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({op: "/create", data: assistantDefinition}),
+            signal: abortSignal,
+        });
+
+        const result = await response.json();
+        const id = result.data.assistantId;
+        return {assistantId: id, provider: 'openai'};
     }
 
-    const response = await fetch('/api/assistant/op', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({op:"/create", data:assistantDefinition }),
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-    const id = result.data.assistantId;
-    return {assistantId:id, provider:'openai'};
+    return {
+        assistantId: uuidv4(),
+        provider: 'amplify',
+        dataSources: assistantDefinition.fileKeys || [],
+        name: assistantDefinition.name || "Unnamed Assistant",
+        description: assistantDefinition.description || "No description provided",
+        instructions: assistantDefinition.instructions || assistantDefinition.description,
+    }
 };

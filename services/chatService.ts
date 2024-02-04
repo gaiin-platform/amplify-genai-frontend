@@ -54,7 +54,7 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
         ],
         options: {
             requestId: uuidv4(),
-            ...vendorProps,
+            ...vendorProps
         }
     }
 

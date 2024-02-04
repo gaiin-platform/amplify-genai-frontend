@@ -43,7 +43,8 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
                 instructions: selectedConversation?.prompt || DEFAULT_SYSTEM_PROMPT,
                 tools: [],
                 tags: [],
-                fileKeys: []
+                fileKeys: [],
+                dataSources: []
             }
     };
 

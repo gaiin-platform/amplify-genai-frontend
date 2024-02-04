@@ -366,7 +366,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, []);
 
         const handleSend = useCallback(
-            async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt: string | null = null, documents?: AttachedDocument[] | null, uri?:string) => {
+            async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt: string | null = null, documents?: AttachedDocument[] | null, uri?:string|null, options?:{[key:string]:any}) => {
                 return new Promise(async (resolve, reject) => {
                     if (selectedConversation) {
 
@@ -376,7 +376,22 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             message.label = label;
                         }
 
-                        if (selectedConversation && selectedConversation?.model) {
+                        if(selectedConversation && selectedConversation.tags && selectedConversation.tags.includes("assistant-builder")) {
+                            if(options){
+                                options.skipRag = true;
+                                options.ragOnly = true;
+                            }
+                           else {
+                               options = {
+                                      skipRag: true,
+                                      ragOnly: true
+                               }
+                            }
+                        }
+
+                        if (selectedConversation
+                            && selectedConversation?.model
+                            && !options?.ragOnly) {
 
                             const {prompts, inputCost, inputTokens, outputCost, totalCost} =
                                 calculateTokenCost(selectedConversation.model, documents || []);
@@ -434,13 +449,24 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         if (documents && documents.length > 0) {
 
                             const dataSources = documents.map((doc) => {
-                                return {id: "s3://" + doc.key, type: doc.type};
+                                if(doc.key){
+                                    return {id: "s3://" + doc.key, type: doc.type};
+                                }
+                                else {
+                                    return doc;
+                                }
                             });
                             chatBody.dataSources = dataSources;
                         } else if (message.data && message.data.dataSources && message.data.dataSources.length > 0) {
                             chatBody.dataSources = message.data.dataSources.map((doc: any) => {
                                 return {id: doc.id, type: doc.type, metadata: doc.metadata || {}};
                             });
+                        }
+
+
+
+                        if(options) {
+                            Object.assign(chatBody, options);
                         }
 
                         const parseMessageType = (message: string): {
@@ -1273,7 +1299,32 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 alert("Error reaching OpenAI. Please retry your request.");
                             }
                         } else {
-                            handleSend(message, deleteCount, plugin, null, selectedAssistant.definition.instructions, documents);
+
+                            if(selectedAssistant.definition.dataSources){
+
+                                const formattedDatasources =
+                                    selectedAssistant.definition.dataSources;
+
+                                if(!documents){
+                                    documents = formattedDatasources;
+                                }
+                                else if(!Array.isArray(documents)){
+                                    documents = [documents, ...formattedDatasources];
+                                }
+                                else {
+                                    documents = [...documents, ...formattedDatasources];
+                                }
+                            }
+
+                            handleSend(
+                                message,
+                                deleteCount,
+                                plugin,
+                                null,
+                                selectedAssistant.definition.instructions,
+                                documents,
+                                null,
+                                {ragOnly:true});
                         }
                     }
                 } else {
