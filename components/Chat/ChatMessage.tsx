@@ -32,6 +32,7 @@ import {FileList} from "@/components/Chat/FileList";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 import PromptingStatusDisplay from "@/components/Status/PromptingStatusDisplay";
+import ChatSourceBlock from "@/components/Chat/ChatContentBlocks/ChatSourcesBlock";
 
 
 export interface Props {
@@ -86,7 +87,7 @@ export const ChatMessage: FC<Props> = memo(({
     const [messageContent, setMessageContent] = useState(message.content);
     const [messagedCopied, setMessageCopied] = useState(false);
     const [editSelection, setEditSelection] = useState<string>("");
-   const divRef = useRef<HTMLDivElement>(null);
+    const divRef = useRef<HTMLDivElement>(null);
 
     const toggleEditing = () => {
         setIsEditing(!isEditing);
@@ -169,13 +170,12 @@ export const ChatMessage: FC<Props> = memo(({
 
     const handleDownload = async (dataSource: DataSource) => {
         //alert("Downloading " + dataSource.name + " from " + dataSource.id);
-        try{
+        try {
             setIsFileDownloadDatasourceVisible(true);
             const response = await getFileDownloadUrl(dataSource.id);
             setIsFileDownloadDatasourceVisible(false);
             window.open(response.downloadUrl, "_blank");
-        }
-        catch (e) {
+        } catch (e) {
             setIsFileDownloadDatasourceVisible(false);
             console.log(e);
             alert("Error downloading file. Please try again.");
@@ -313,7 +313,7 @@ export const ChatMessage: FC<Props> = memo(({
                                                 onClick={copyOnClick}
                                                 title="Copy Prompt"
                                             >
-                                                <IconCopy size={20} />
+                                                <IconCopy size={20}/>
                                             </button>
                                         )}
                                     </div>
@@ -347,38 +347,47 @@ export const ChatMessage: FC<Props> = memo(({
                                 </div>
                             )}
                         </div>
-                    ) : (
+                    ) : ( // Assistant message
                         <div className="flex flex-col w-full" ref={markdownComponentRef}>
                             <div className="flex flex-row w-full">
                                 <div className="flex flex-col w-full">
-                                {(selectedConversation?.messages.length === messageIndex + 1) && (
-                                    <PromptingStatusDisplay statusHistory={status}/>
-                                )}
-                                {!isEditing && (
-                                    <div className="flex flex-grow"
-                                         ref={divRef}
-                                    >
-                                        <ChatContentBlock
+                                    {(selectedConversation?.messages.length === messageIndex + 1) && (
+                                        <PromptingStatusDisplay statusHistory={status}/>
+                                    )}
+                                    {!isEditing && (
+                                        <div className="flex flex-grow"
+                                             ref={divRef}
+                                        >
+                                            <ChatContentBlock
+                                                messageIsStreaming={messageIsStreaming}
+                                                messageIndex={messageIndex}
+                                                message={message}
+                                                selectedConversation={selectedConversation}
+                                                handleCustomLinkClick={handleCustomLinkClick}
+                                            />
+                                        </div>
+                                    )}
+                                    {!isEditing && (
+                                        <ChatSourceBlock
                                             messageIsStreaming={messageIsStreaming}
                                             messageIndex={messageIndex}
                                             message={message}
                                             selectedConversation={selectedConversation}
                                             handleCustomLinkClick={handleCustomLinkClick}
                                         />
-                                    </div>
-                                )}
-                                {isEditing && (
-                                    <AssistantMessageEditor
-                                        messageIsStreaming={messageIsStreaming}
-                                        messageIndex={messageIndex}
-                                        message={message}
-                                        handleEditMessage={handleEditMessage}
-                                        selectedConversation={selectedConversation}
-                                        setIsEditing={setIsEditing}
-                                        isEditing={isEditing}
-                                        messageContent={messageContent}
-                                        setMessageContent={setMessageContent}/>
-                                )}
+                                    )}
+                                    {isEditing && (
+                                        <AssistantMessageEditor
+                                            messageIsStreaming={messageIsStreaming}
+                                            messageIndex={messageIndex}
+                                            message={message}
+                                            handleEditMessage={handleEditMessage}
+                                            selectedConversation={selectedConversation}
+                                            setIsEditing={setIsEditing}
+                                            isEditing={isEditing}
+                                            messageContent={messageContent}
+                                            setMessageContent={setMessageContent}/>
+                                    )}
                                 </div>
 
                                 <div
