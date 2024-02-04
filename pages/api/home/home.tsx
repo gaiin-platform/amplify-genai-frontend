@@ -15,7 +15,7 @@ import {
     cleanConversationHistory,
     cleanSelectedConversation,
 } from '@/utils/app/clean';
-import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from '@/utils/app/const';
+import {AVAILABLE_MODELS, DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from '@/utils/app/const';
 import {
     saveConversation,
     saveConversations,
@@ -31,7 +31,7 @@ import {getAccounts} from "@/services/accountService";
 import {Conversation, Message, MessageType} from '@/types/chat';
 import {KeyValuePair} from '@/types/data';
 import {FolderInterface, FolderType} from '@/types/folder';
-import {OpenAIModelID, OpenAIModels, fallbackModelID} from '@/types/openai';
+import {OpenAIModelID, OpenAIModels, fallbackModelID, OpenAIModel} from '@/types/openai';
 import {Prompt} from '@/types/prompt';
 
 
@@ -86,6 +86,7 @@ interface Props {
     cognitoDomain: string|null;
     mixPanelToken: string;
     chatEndpoint: string|null;
+    availableModels: string|null;
 }
 
 
@@ -96,7 +97,8 @@ const Home = ({
                   cognitoClientId,
                   cognitoDomain,
                   mixPanelToken,
-                  chatEndpoint
+                  chatEndpoint,
+                  availableModels
               }: Props) => {
     const {t} = useTranslation('chat');
     const {getModels} = useApiService();
@@ -134,20 +136,7 @@ const Home = ({
 
     const stopConversationRef = useRef<boolean>(false);
 
-    const {data, error, refetch} = useQuery(
-        ['GetModels', apiKey, serverSideApiKeyIsSet],
-        ({signal}) => {
-            if (!apiKey && !serverSideApiKeyIsSet && !user) return null;
 
-            return getModels(
-                {
-                    key: apiKey,
-                },
-                signal,
-            );
-        },
-        {enabled: true, refetchOnMount: false},
-    );
 
     useEffect(() => {
         // @ts-ignore
@@ -222,18 +211,35 @@ const Home = ({
 
 
     useEffect(() => {
-        if (data) dispatch({field: 'models', value: data});
-    }, [data, dispatch]);
+        if (availableModels) {
+            const modelList = availableModels.split(",");
+
+            const models: OpenAIModel[] = modelList.reduce((result: OpenAIModel[], model: string) => {
+                const model_name = model;
+
+                for (const [key, value] of Object.entries(OpenAIModelID)) {
+                    if (value === model_name && modelList.includes(model_name)) {
+                        result.push({
+                            id: model_name,
+                            name: OpenAIModels[value].name,
+                            maxLength: OpenAIModels[value].maxLength,
+                            tokenLimit: OpenAIModels[value].tokenLimit,
+                            actualTokenLimit: OpenAIModels[value].actualTokenLimit,
+                            inputCost: OpenAIModels[value].inputCost,
+                            outputCost: OpenAIModels[value].outputCost,
+                        });
+                    }
+                }
+                return result;
+            }, []);
+
+            dispatch({field: 'models', value: models});
+        }
+    }, [availableModels, dispatch]);
 
     useEffect(() => {
         if(chatEndpoint) dispatch({field: 'chatEndpoint', value: chatEndpoint});
     }, [chatEndpoint]);
-
-    useEffect(() => {
-        dispatch({field: 'modelError', value: getModelsError(error)});
-    }, [dispatch, error, getModelsError]);
-
-    // FETCH MODELS ----------------------------------------------
 
     const handleSelectConversation = (conversation: Conversation) => {
         dispatch({field: 'page', value: 'chat'})
@@ -1019,6 +1025,7 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
     const cognitoClientId = process.env.COGNITO_CLIENT_ID;
     const cognitoDomain = process.env.COGNITO_DOMAIN;
     const defaultFunctionCallModel = process.env.DEFAULT_FUNCTION_CALL_MODEL;
+    const availableModels = process.env.AVAILABLE_MODELS;
 
     //console.log("Default Model Id:", defaultModelId);
 
@@ -1033,6 +1040,7 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
 
     return {
         props: {
+            availableModels,
             chatEndpoint,
             serverSideApiKeyIsSet: !!process.env.OPENAI_API_KEY,
             defaultModelId,
