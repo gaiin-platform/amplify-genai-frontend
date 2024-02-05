@@ -377,16 +377,18 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         }
 
                         if(selectedConversation && selectedConversation.tags && selectedConversation.tags.includes("assistant-builder")) {
-                            if(options){
-                                options.skipRag = true;
-                                options.ragOnly = true;
-                            }
-                           else {
-                               options = {
-                                      skipRag: true,
-                                      ragOnly: true
-                               }
-                            }
+                            // In assistants, this has the effect of
+                            // disabling the use of documents so that we
+                            // can just add the document to the list of documents
+                            // the assistant is using.
+                            options =  {...(options || {}),
+                                skipRag: true,
+                                ragOnly: true
+                           };
+                        }
+
+                        if(!featureFlags.ragEnabled) {
+                            options =  {...(options || {}), skipRag: true};
                         }
 
                         if (selectedConversation

@@ -1,48 +1,14 @@
 import {
-    IconCheck,
-    IconCopy,
-    IconEdit,
-    IconRobot,
-    IconTrash,
-    IconWriting,
-    IconDownload,
     IconFileCheck,
-    IconUser,
 } from '@tabler/icons-react';
 import React from "react";
 
 interface Props {
     source: any;
+    index: number;
 }
 
 
-function format(json: Record<string, unknown>): any {
-    let result: any[] = [];
-
-    // Loop through each key-value pair in the JSON object
-    for (const [key, value] of Object.entries(json)) {
-        let formattedValue: any;
-
-        if (Array.isArray(value) && value.some(v => typeof v === 'object')) {
-            // Group and format the values if they are objects
-            const groupedValues = groupArrayValuesByKeys(value);
-            formattedValue = groupedValues;
-        } else {
-            // If value is not an array of objects, convert it to a string
-            formattedValue =
-                <div className="flex flex-row mb-2">
-                    <div><IconFileCheck/></div>
-                    <div className="text-md ml-2 font-bold">{"" + value}</div>
-                </div>;
-        }
-
-        // Add the formatted string for this key-value pair to the results array
-        result.push(<div><div>{formattedValue}</div></div>);
-    }
-
-    // Combine all parts into the final string
-    return <div className="ml-3 py-3">{result}</div>;
-}
 
 // Helper function to capitalize the first letter of each word and handle underscores
 function formatPropertyName(propertyName: string): string {
@@ -119,21 +85,17 @@ function capitalizeFirstLetter(string: string): string {
 
 
 const ChatSourceBlock: React.FC<Props> = (
-    {source}) => {
+    {source, index}) => {
 
-    const keysToExclude = ['key', 'charIndex', 'indexes', 'user', 'type'];
-    const filteredSource = Object.fromEntries(Object.entries(source).filter(([key]) => !keysToExclude.includes(key)));
-
-    const props = Object.keys(filteredSource);
-
-    console.log("source.locations", source.locations);
+    console.log("source", source);
 
     return <div>
-        {props.map((prop, index) => (
             <div
-                key={index}
                 className="rounded-xl text-neutral-600 border-2 dark:border-none dark:text-white bg-neutral-100 dark:bg-[#343541] rounded-md shadow-lg mb-2 mr-2"
             >
+                <div className="text-xl text-right p-4 -mb-10">
+                    <div className="text-gray-400 dark:text-gray-600">{index}.</div>
+                </div>
                 <div className="flex flex-col p-3">
                     {source.content && (
                         <div>
@@ -159,7 +121,6 @@ const ChatSourceBlock: React.FC<Props> = (
                     )}
                 </div>
             </div>
-        ))}
     </div>;
 };
 

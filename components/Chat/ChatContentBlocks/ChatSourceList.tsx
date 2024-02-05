@@ -10,6 +10,7 @@ interface Props {
 const ChatSourceBlock: React.FC<Props> = (
     {sources, name}) => {
 
+
     const getDisplayName = (name: string) => {
         if(name === "rag"){
             return "Document Search Results (RAG)";
@@ -29,7 +30,7 @@ const ChatSourceBlock: React.FC<Props> = (
         <ExpansionComponent title={getDisplayName(name)}
             content={sources.map((source, index) => (
             <div key={index}>
-                <ChatSource source={source}/>
+                <ChatSource source={source} index={index + 1}/>
             </div>
         ))}/>
     </div>;
