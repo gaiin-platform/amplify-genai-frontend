@@ -105,6 +105,10 @@ export const PromptComponent = ({ prompt }: Props) => {
 
     const handleStartConversation = (startPrompt: Prompt) => {
 
+        if(startPrompt.data && startPrompt.data.assistant){
+            homeDispatch({field: 'selectedAssistant', value: startPrompt.data.assistant});
+        }
+
 
         statsService.startConversationEvent(startPrompt);
         handleStartConversationWithPrompt(handleNewConversation, prompts, startPrompt);

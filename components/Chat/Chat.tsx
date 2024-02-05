@@ -1547,6 +1547,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         useEffect(() => {
 
             if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
+
+                if(selectedConversation.promptTemplate.data && selectedConversation.promptTemplate.data.assistant){
+                    homeDispatch({field: 'selectedAssistant', value: selectedConversation.promptTemplate.data.assistant});
+                }
+
                 //alert("Prompt Template");
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
                 setIsPromptTemplateDialogVisible(true);

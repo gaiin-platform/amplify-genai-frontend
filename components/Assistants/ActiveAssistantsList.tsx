@@ -31,7 +31,7 @@ const LoadingIcon = styled(FiCommand)`
 
 
 export const ActiveAssistantsList: FC<Props> = ({}) => {
-    const {state: {selectedConversation,prompts}, dispatch: homeDispatch} = useContext(HomeContext);
+    const {state: {selectedConversation,prompts,selectedAssistant}, dispatch: homeDispatch} = useContext(HomeContext);
 
     const baseAssistant: Assistant = {
         id: 'chat',
@@ -66,6 +66,12 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
             setAvailableAssistants(assistants);
         }
     }, [prompts]);
+
+    useEffect(() => {
+        if(selectedAssistant){
+            setActiveAssistant(selectedAssistant);
+        }
+    }, [selectedAssistant]);
 
     useEffect(() => {
         function handleClickOutside(event: { target: any; }) {
