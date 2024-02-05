@@ -180,10 +180,6 @@ const Home = ({
     // This is where tabs will be sync'd
     useEffect(() => {
         const handleStorageChange = (event: any) => {
-            // if(event.key === "selectedConversation") {
-            //     const conversation = JSON.parse(event.newValue);
-            //     dispatch({field: 'selectedConversation', value: conversation});
-            // }
             if (event.key === "conversationHistory") {
                 const conversations = JSON.parse(event.newValue);
                 dispatch({field: 'conversations', value: conversations});
@@ -194,11 +190,6 @@ const Home = ({
                 const prompts = JSON.parse(event.newValue);
                 dispatch({field: 'prompts', value: prompts});
             }
-            // Not syncing selectedConversation because it allows different conversations in different tabs
-            // else if(event.key === "selectedConversation") {
-            //     const conversation = JSON.parse(event.newValue);
-            //     dispatch({field: 'selectedConversation', value: conversation});
-            // }
         };
 
         window.addEventListener('storage', handleStorageChange);
