@@ -10,6 +10,9 @@ import AssistantBlock from "@/components/Chat/ChatContentBlocks/AssistantBlock";
 import {useChatService} from "@/hooks/useChatService";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {parsePartialJson} from "@/utils/app/data";
+import { DataTable } from "@/components/Markdown/DataTable";
+
+// TODO: IMPLEMENT DATA TABLE COMPONENT INTO THIS FILE
 
 interface Props {
     messageIsStreaming: boolean;
