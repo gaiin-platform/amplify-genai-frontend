@@ -386,6 +386,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 ragOnly: true
                            };
                         }
+                        else if(documents && documents.length > 0) {
+                            options =  {...(options || {}), skipRag: true};
+                        }
 
                         if(!featureFlags.ragEnabled) {
                             options =  {...(options || {}), skipRag: true};
