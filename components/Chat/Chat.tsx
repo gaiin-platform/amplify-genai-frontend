@@ -66,6 +66,7 @@ import {ColumnsSpec} from "@/utils/app/csv";
 import json5 from "json5";
 import {MemoizedRemoteMessages} from "@/components/Chat/MemoizedRemoteMessages";
 import {MetaHandler} from "@/services/chatService";
+import callRenameChatApi from './RenameChat';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -572,6 +573,26 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             }
                             if (!plugin) {
                                 if (updatedConversation.messages.length === 1) {
+                                    const { content } = message;
+                                    callRenameChatApi(content).then(customName => {
+                                        updatedConversation = {
+                                            ...updatedConversation,
+                                            name: customName, // Use the name returned by Lambda
+                                        };
+                                    }).catch(error => {
+                                        console.error('Failed to rename conversation:', error);
+                                        // fallback to default naming convention
+                                        const { content } = message;
+                                        const customName =
+                                            content.length > 30 ? content.substring(0, 30) + '...' : content;
+                                        updatedConversation = {
+                                            ...updatedConversation,
+                                            name: customName,
+                                        };
+                                    });
+                                }
+                                /*
+                                if (updatedConversation.messages.length === 1) {
                                     const {content} = message;
                                     const customName =
                                         content.length > 30 ? content.substring(0, 30) + '...' : content;
@@ -580,6 +601,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         name: customName,
                                     };
                                 }
+                                */
                                 homeDispatch({field: 'loading', value: false});
                                 const reader = data.getReader();
                                 const decoder = new TextDecoder();
