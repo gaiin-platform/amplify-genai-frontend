@@ -238,6 +238,15 @@ const handleFile = async (file:any,
                     if(readyStatus.metadata) {
                         document.metadata = readyStatus.metadata as AttachedDocumentMetadata;
 
+                        // Check if document.metadata exists and has the key "totalItems"
+                        if(document.metadata) {
+                            if(!(document.metadata.totalItems) || document.metadata.totalItems < 1) {
+                                alert("I was unable to extract any text from the provided document. If this is a PDF, please " +
+                                    "OCR the PDF before uploading it.");
+                            }
+                        }
+
+
                         if(onSetMetadata) {
                             onSetMetadata(document, readyStatus.metadata);
                         }
