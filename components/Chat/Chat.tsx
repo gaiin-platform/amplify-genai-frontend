@@ -456,7 +456,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                             const dataSources = documents.map((doc) => {
                                 if(doc.key){
-                                    return {id: "s3://" + doc.key, type: doc.type};
+                                    return {id: "s3://" + doc.key, type: doc.type, metadata: doc.metadata || {}};
                                 }
                                 else {
                                     return doc;
