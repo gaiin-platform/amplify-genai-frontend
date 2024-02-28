@@ -99,6 +99,10 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
         setIsOpen(false);
     }
 
+    if(availableAssistants.length < 2){
+        return <></>;
+    }
+
     return (
         <div ref={ref} className="relative" style={{width:'220px'}}>
             {isOpen && (
