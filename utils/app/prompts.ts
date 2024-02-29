@@ -47,7 +47,8 @@ export const handleStartConversationWithPrompt = (handleNewConversation:any, pro
       type: MessageType.PROMPT,
       content: "Tell me about what you can help me with.",
       data: {
-        rootPromptId: rootPromptObj.id
+        rootPromptId: rootPromptObj.id,
+        ...(prompt.data || {}),
       }
     }
   }

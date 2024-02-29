@@ -1,4 +1,5 @@
 import {DEFAULT_SYSTEM_PROMPT} from "@/utils/app/const";
+import {AttachedDocument} from "@/types/attacheddocument";
 
 
 export enum AssistantProviderID {
@@ -22,8 +23,10 @@ export interface AssistantDefinition {
     tools:AssistantTool[];
     tags:string[],
     fileKeys:string[];
+    dataSources:AttachedDocument[];
     provider:string;
     uri?:string;
+    options?:{[key:string]:any};
 }
 
 export const DEFAULT_ASSISTANT: Assistant = {
@@ -36,6 +39,7 @@ export const DEFAULT_ASSISTANT: Assistant = {
             instructions: DEFAULT_SYSTEM_PROMPT,
             tools: [],
             tags: [],
-            fileKeys: []
+            fileKeys: [],
+            dataSources: [],
         }
 };

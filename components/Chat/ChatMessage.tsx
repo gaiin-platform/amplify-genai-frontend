@@ -32,6 +32,7 @@ import {FileList} from "@/components/Chat/FileList";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 import PromptingStatusDisplay from "@/components/Status/PromptingStatusDisplay";
+import ChatSourceBlock from "@/components/Chat/ChatContentBlocks/ChatSourcesBlock";
 
 
 export interface Props {
@@ -86,7 +87,7 @@ export const ChatMessage: FC<Props> = memo(({
     const [messageContent, setMessageContent] = useState(message.content);
     const [messagedCopied, setMessageCopied] = useState(false);
     const [editSelection, setEditSelection] = useState<string>("");
-   const divRef = useRef<HTMLDivElement>(null);
+    const divRef = useRef<HTMLDivElement>(null);
 
     const toggleEditing = () => {
         setIsEditing(!isEditing);
@@ -169,13 +170,12 @@ export const ChatMessage: FC<Props> = memo(({
 
     const handleDownload = async (dataSource: DataSource) => {
         //alert("Downloading " + dataSource.name + " from " + dataSource.id);
-        try{
+        try {
             setIsFileDownloadDatasourceVisible(true);
             const response = await getFileDownloadUrl(dataSource.id);
             setIsFileDownloadDatasourceVisible(false);
             window.open(response.downloadUrl, "_blank");
-        }
-        catch (e) {
+        } catch (e) {
             setIsFileDownloadDatasourceVisible(false);
             console.log(e);
             alert("Error downloading file. Please try again.");
@@ -271,7 +271,8 @@ export const ChatMessage: FC<Props> = memo(({
                                                                     >
                                                                         <button onClick={() => {
                                                                             handleDownload(d);
-                                                                        }}>
+                                                                        }}
+                                                                        >
                                                                             <IconDownload/>
                                                                         </button>
                                                                     </div>
@@ -301,17 +302,26 @@ export const ChatMessage: FC<Props> = memo(({
                                     {/*<div*/}
                                     {/*    className="md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-row gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">*/}
                                     <div>
-                                        <button
-                                            className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                            onClick={copyOnClick}
-                                        >
-                                            <IconCopy size={20}/>
-                                        </button>
+                                        {messagedCopied ? (
+                                            <IconCheck
+                                                size={20}
+                                                className="text-green-500 dark:text-green-400"
+                                            />
+                                        ) : (
+                                            <button
+                                                className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                                onClick={copyOnClick}
+                                                title="Copy Prompt"
+                                            >
+                                                <IconCopy size={20}/>
+                                            </button>
+                                        )}
                                     </div>
                                     <div>
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={() => setIsDownloadDialogVisible(true)}
+                                            title="Download Prompt"
                                         >
                                             <IconDownload size={20}/>
                                         </button>
@@ -320,6 +330,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={toggleEditing}
+                                            title="Edit Prompt"
                                         >
                                             <IconEdit size={20}/>
                                         </button>
@@ -328,6 +339,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={handleDeleteMessage}
+                                            title="Delete Prompt"
                                         >
                                             <IconTrash size={20}/>
                                         </button>
@@ -335,38 +347,47 @@ export const ChatMessage: FC<Props> = memo(({
                                 </div>
                             )}
                         </div>
-                    ) : (
+                    ) : ( // Assistant message
                         <div className="flex flex-col w-full" ref={markdownComponentRef}>
                             <div className="flex flex-row w-full">
                                 <div className="flex flex-col w-full">
-                                {(selectedConversation?.messages.length === messageIndex + 1) && (
-                                    <PromptingStatusDisplay statusHistory={status}/>
-                                )}
-                                {!isEditing && (
-                                    <div className="flex flex-grow"
-                                         ref={divRef}
-                                    >
-                                        <ChatContentBlock
+                                    {(selectedConversation?.messages.length === messageIndex + 1) && (
+                                        <PromptingStatusDisplay statusHistory={status}/>
+                                    )}
+                                    {!isEditing && (
+                                        <div className="flex flex-grow"
+                                             ref={divRef}
+                                        >
+                                            <ChatContentBlock
+                                                messageIsStreaming={messageIsStreaming}
+                                                messageIndex={messageIndex}
+                                                message={message}
+                                                selectedConversation={selectedConversation}
+                                                handleCustomLinkClick={handleCustomLinkClick}
+                                            />
+                                        </div>
+                                    )}
+                                    {!isEditing && (
+                                        <ChatSourceBlock
                                             messageIsStreaming={messageIsStreaming}
                                             messageIndex={messageIndex}
                                             message={message}
                                             selectedConversation={selectedConversation}
                                             handleCustomLinkClick={handleCustomLinkClick}
                                         />
-                                    </div>
-                                )}
-                                {isEditing && (
-                                    <AssistantMessageEditor
-                                        messageIsStreaming={messageIsStreaming}
-                                        messageIndex={messageIndex}
-                                        message={message}
-                                        handleEditMessage={handleEditMessage}
-                                        selectedConversation={selectedConversation}
-                                        setIsEditing={setIsEditing}
-                                        isEditing={isEditing}
-                                        messageContent={messageContent}
-                                        setMessageContent={setMessageContent}/>
-                                )}
+                                    )}
+                                    {isEditing && (
+                                        <AssistantMessageEditor
+                                            messageIsStreaming={messageIsStreaming}
+                                            messageIndex={messageIndex}
+                                            message={message}
+                                            handleEditMessage={handleEditMessage}
+                                            selectedConversation={selectedConversation}
+                                            setIsEditing={setIsEditing}
+                                            isEditing={isEditing}
+                                            messageContent={messageContent}
+                                            setMessageContent={setMessageContent}/>
+                                    )}
                                 </div>
 
                                 <div
@@ -380,6 +401,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={copyOnClick}
+                                            title="Copy Response"
                                         >
                                             <IconCopy size={20}/>
                                         </button>
@@ -387,12 +409,14 @@ export const ChatMessage: FC<Props> = memo(({
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={() => setIsDownloadDialogVisible(true)}
+                                        title="Download Response"
                                     >
                                         <IconDownload size={20}/>
                                     </button>
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={toggleEditing}
+                                        title="Edit Response"
                                     >
                                         <IconEdit size={20}/>
                                     </button>

@@ -20,7 +20,9 @@ const ExpansionComponent: React.FC<ExpansionProps> = ({ title, content, openWidg
 
     return (
         <>
-            <button onClick={handleToggle} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+            <button onClick={handleToggle} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+            title={isOpen ? "Collapse folder" : "Expand folder"}
+            >
                 {isOpen ?
                     ((openWidget) ? openWidget : <IconCaretDown size={18} />) :
                     ((closedWidget) ? closedWidget : <IconCaretRight size={18} />)
@@ -31,7 +33,7 @@ const ExpansionComponent: React.FC<ExpansionProps> = ({ title, content, openWidg
             </button>
 
             {isOpen && (
-                <div style={{marginTop: '10px'}} className="border-l ml-2 pl-4">
+                <div style={{marginTop: '10px'}} className="border-l ml-2 pl-4" title="View Item">
                     {content}
                 </div>
             )}

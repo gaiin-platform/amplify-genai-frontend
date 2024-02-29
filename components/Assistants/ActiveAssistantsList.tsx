@@ -31,7 +31,7 @@ const LoadingIcon = styled(FiCommand)`
 
 
 export const ActiveAssistantsList: FC<Props> = ({}) => {
-    const {state: {selectedConversation,prompts}, dispatch: homeDispatch} = useContext(HomeContext);
+    const {state: {selectedConversation,prompts,selectedAssistant}, dispatch: homeDispatch} = useContext(HomeContext);
 
     const baseAssistant: Assistant = {
         id: 'chat',
@@ -43,7 +43,8 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
                 instructions: selectedConversation?.prompt || DEFAULT_SYSTEM_PROMPT,
                 tools: [],
                 tags: [],
-                fileKeys: []
+                fileKeys: [],
+                dataSources: []
             }
     };
 
@@ -65,6 +66,12 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
             setAvailableAssistants(assistants);
         }
     }, [prompts]);
+
+    useEffect(() => {
+        if(selectedAssistant){
+            setActiveAssistant(selectedAssistant);
+        }
+    }, [selectedAssistant]);
 
     useEffect(() => {
         function handleClickOutside(event: { target: any; }) {
@@ -90,6 +97,10 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
         setActiveAssistant(assistant);
         homeDispatch({field: 'selectedAssistant', value: assistant});
         setIsOpen(false);
+    }
+
+    if(availableAssistants.length < 2){
+        return <></>;
     }
 
     return (
@@ -123,7 +134,7 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
                     className="flex flex-row items-center text-black hover:opacity-50 mt-6 dark:text-white dark:border-neutral-600 py-3 px-4 dark:bg-[#343541] md:mb-0 md:mt-2 rounded border border-neutral-200 bg-white">
                 <IconRobot size={20}/>
                 <button
-                    className="overflow-hidden text-overflow-ellipsis white-space-nowrap truncate flex w-full items-center"
+                    className="ml-2 overflow-hidden text-overflow-ellipsis white-space-nowrap truncate flex w-full items-center"
                 >
                     {activeAssistant.definition.name}
                 </button>

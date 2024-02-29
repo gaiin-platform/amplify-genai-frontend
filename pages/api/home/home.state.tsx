@@ -94,6 +94,9 @@ export const initialState: HomeInitialState = {
   page: 'chat',
   currentRequestId: null,
   featureFlags: {
+    assistantsEnabled: true,
+    ragEnabled: true,
+    sourcesEnabled: true,
     uploadDocuments:true,
     overrideUneditablePrompts:false,
     overrideInvisiblePrompts: false,

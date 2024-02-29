@@ -19,24 +19,24 @@ import {
 
 import HomeContext from '@/pages/api/home/home.context';
 
-import {Prompt} from '@/types/prompt';
+import { Prompt } from '@/types/prompt';
 
 import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 
 import PromptbarContext from '../PromptBar.context';
-import {PromptModal} from './PromptModal';
-import {ShareModal} from './ShareModal';
-import {v4 as uuidv4} from "uuid";
+import { PromptModal } from './PromptModal';
+import { ShareModal } from './ShareModal';
+import { v4 as uuidv4 } from "uuid";
 import {
     handleStartConversationWithPrompt,
 } from "@/utils/app/prompts";
-import {useSession} from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 interface Props {
     prompt: Prompt;
 }
 
-export const PromptComponent = ({prompt}: Props) => {
+export const PromptComponent = ({ prompt }: Props) => {
     const {
         dispatch: promptDispatch,
         handleAddPrompt,
@@ -46,7 +46,7 @@ export const PromptComponent = ({prompt}: Props) => {
     } = useContext(PromptbarContext);
 
     const {
-        state: {prompts, defaultModelId, showPromptbar, apiKey, statsService},
+        state: { prompts, defaultModelId, showPromptbar, apiKey, statsService },
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -82,7 +82,7 @@ export const PromptComponent = ({prompt}: Props) => {
                     //"http://localhost?add_prompt=\"THE PROMPT YOU CREATED\"" +
                     "<<DONE>>",
                 messages: [
-                    {role: "assistant", content: "Tell me what you want the prompt to do and I will write it for you."}
+                    { role: "assistant", content: "Tell me what you want the prompt to do and I will write it for you." }
                 ],
                 processors: [],
                 tools: [],
@@ -104,6 +104,10 @@ export const PromptComponent = ({prompt}: Props) => {
     // }
 
     const handleStartConversation = (startPrompt: Prompt) => {
+
+        if(startPrompt.data && startPrompt.data.assistant){
+            homeDispatch({field: 'selectedAssistant', value: startPrompt.data.assistant});
+        }
 
 
         statsService.startConversationEvent(startPrompt);
@@ -160,7 +164,7 @@ export const PromptComponent = ({prompt}: Props) => {
 
     const handleUpdate = (prompt: Prompt) => {
         handleUpdatePrompt(prompt);
-        promptDispatch({field: 'searchTerm', value: ''});
+        promptDispatch({ field: 'searchTerm', value: '' });
     };
 
     const handleDelete: MouseEventHandler<HTMLButtonElement> = (e) => {
@@ -168,7 +172,7 @@ export const PromptComponent = ({prompt}: Props) => {
 
         if (isDeleting) {
             handleDeletePrompt(prompt);
-            promptDispatch({field: 'searchTerm', value: ''});
+            promptDispatch({ field: 'searchTerm', value: '' });
         }
 
         setIsDeleting(false);
@@ -191,19 +195,19 @@ export const PromptComponent = ({prompt}: Props) => {
     };
 
     const handleCopy = () => {
-        const newPrompt = {...prompt, id: uuidv4(), name: prompt.name + ' (copy)'};
+        const newPrompt = { ...prompt, id: uuidv4(), name: prompt.name + ' (copy)' };
         handleAddPrompt(newPrompt);
     }
 
     const getIcon = (prompt: Prompt) => {
-        if(prompt.data && prompt.data.assistant){
-            return (<IconRobot size={18}/>);
+        if (prompt.data && prompt.data.assistant) {
+            return (<IconRobot size={18} />);
         }
-        else if(prompt.type === "automation"){
-            return (<IconApiApp size={18}/>);
+        else if (prompt.type === "automation") {
+            return (<IconApiApp size={18} />);
         }
         else {
-            return (<IconMessage2 size={18}/>);
+            return (<IconMessage2 size={18} />);
         }
     }
 
@@ -220,14 +224,14 @@ export const PromptComponent = ({prompt}: Props) => {
     // @ts-ignore
     return (
         <div className="relative flex items-center"
-             onMouseEnter={() => setIsHovered(true)}
-             onMouseLeave={() => {
-                 setIsDeleting(false);
-                 setIsRenaming(false);
-                 setRenameValue('');
-                 setIsHovered(false)
-             }
-             }
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => {
+                setIsDeleting(false);
+                setIsRenaming(false);
+                setRenameValue('');
+                setIsHovered(false)
+            }
+            }
         >
 
             <div className="relative flex w-full">
@@ -240,6 +244,7 @@ export const PromptComponent = ({prompt}: Props) => {
                         handleStartConversation(prompt)
                     }}
                     onDragStart={(e) => handleDragStart(e, prompt)}
+                    title="Use Template"
                 >
                     {/*<IconEdit size={18} />*/}
 
@@ -260,39 +265,39 @@ export const PromptComponent = ({prompt}: Props) => {
                         className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-gray-900 rounded">
 
                         {!isDeleting && !isRenaming && (
-                            <SidebarActionButton handleClick={handleCopy}>
-                                <IconCopy size={18}/>
+                            <SidebarActionButton handleClick={handleCopy} title="Duplicate Template">
+                                <IconCopy size={18} />
                             </SidebarActionButton>
                         )}
 
                         {!isDeleting && !isRenaming && (
-                            <SidebarActionButton handleClick={() => setShowModal(true)}>
-                                <IconEdit size={18}/>
+                            <SidebarActionButton handleClick={() => setShowModal(true)} title="Edit Template">
+                                <IconEdit size={18} />
                             </SidebarActionButton>
                         )}
 
                         {!isDeleting && !isRenaming && (
                             <SidebarActionButton handleClick={() => {
                                 handleSharePrompt(prompt);
-                            }}>
-                                <IconShare size={18}/>
+                            }} title="Share">
+                                <IconShare size={18} />
                             </SidebarActionButton>
                         )}
 
                         {!isDeleting && !isRenaming && (
-                            <SidebarActionButton handleClick={handleOpenDeleteModal}>
-                                <IconTrash size={18}/>
+                            <SidebarActionButton handleClick={handleOpenDeleteModal} title="Delete Template">
+                                <IconTrash size={18} />
                             </SidebarActionButton>
                         )}
 
                         {(isDeleting || isRenaming) && (
                             <>
-                                <SidebarActionButton handleClick={handleDelete}>
-                                    <IconCheck size={18}/>
+                                <SidebarActionButton handleClick={handleDelete} title="Confirm">
+                                    <IconCheck size={18} />
                                 </SidebarActionButton>
 
-                                <SidebarActionButton handleClick={handleCancelDelete}>
-                                    <IconX size={18}/>
+                                <SidebarActionButton handleClick={handleCancelDelete} title="Cancel">
+                                    <IconX size={18} />
                                 </SidebarActionButton>
                             </>
                         )}

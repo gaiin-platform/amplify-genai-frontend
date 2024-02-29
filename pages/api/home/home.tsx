@@ -15,7 +15,7 @@ import {
     cleanConversationHistory,
     cleanSelectedConversation,
 } from '@/utils/app/clean';
-import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from '@/utils/app/const';
+import {AVAILABLE_MODELS, DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from '@/utils/app/const';
 import {
     saveConversation,
     saveConversations,
@@ -31,7 +31,7 @@ import {getAccounts} from "@/services/accountService";
 import {Conversation, Message, MessageType} from '@/types/chat';
 import {KeyValuePair} from '@/types/data';
 import {FolderInterface, FolderType} from '@/types/folder';
-import {OpenAIModelID, OpenAIModels, fallbackModelID} from '@/types/openai';
+import {OpenAIModelID, OpenAIModels, fallbackModelID, OpenAIModel} from '@/types/openai';
 import {Prompt} from '@/types/prompt';
 
 
@@ -86,6 +86,7 @@ interface Props {
     cognitoDomain: string|null;
     mixPanelToken: string;
     chatEndpoint: string|null;
+    availableModels: string|null;
 }
 
 
@@ -96,7 +97,8 @@ const Home = ({
                   cognitoClientId,
                   cognitoDomain,
                   mixPanelToken,
-                  chatEndpoint
+                  chatEndpoint,
+                  availableModels
               }: Props) => {
     const {t} = useTranslation('chat');
     const {getModels} = useApiService();
@@ -134,20 +136,7 @@ const Home = ({
 
     const stopConversationRef = useRef<boolean>(false);
 
-    const {data, error, refetch} = useQuery(
-        ['GetModels', apiKey, serverSideApiKeyIsSet],
-        ({signal}) => {
-            if (!apiKey && !serverSideApiKeyIsSet && !user) return null;
 
-            return getModels(
-                {
-                    key: apiKey,
-                },
-                signal,
-            );
-        },
-        {enabled: true, refetchOnMount: false},
-    );
 
     useEffect(() => {
         // @ts-ignore
@@ -191,10 +180,6 @@ const Home = ({
     // This is where tabs will be sync'd
     useEffect(() => {
         const handleStorageChange = (event: any) => {
-            // if(event.key === "selectedConversation") {
-            //     const conversation = JSON.parse(event.newValue);
-            //     dispatch({field: 'selectedConversation', value: conversation});
-            // }
             if (event.key === "conversationHistory") {
                 const conversations = JSON.parse(event.newValue);
                 dispatch({field: 'conversations', value: conversations});
@@ -205,11 +190,6 @@ const Home = ({
                 const prompts = JSON.parse(event.newValue);
                 dispatch({field: 'prompts', value: prompts});
             }
-            // Not syncing selectedConversation because it allows different conversations in different tabs
-            // else if(event.key === "selectedConversation") {
-            //     const conversation = JSON.parse(event.newValue);
-            //     dispatch({field: 'selectedConversation', value: conversation});
-            // }
         };
 
         window.addEventListener('storage', handleStorageChange);
@@ -222,18 +202,35 @@ const Home = ({
 
 
     useEffect(() => {
-        if (data) dispatch({field: 'models', value: data});
-    }, [data, dispatch]);
+        if (availableModels) {
+            const modelList = availableModels.split(",");
+
+            const models: OpenAIModel[] = modelList.reduce((result: OpenAIModel[], model: string) => {
+                const model_name = model;
+
+                for (const [key, value] of Object.entries(OpenAIModelID)) {
+                    if (value === model_name && modelList.includes(model_name)) {
+                        result.push({
+                            id: model_name,
+                            name: OpenAIModels[value].name,
+                            maxLength: OpenAIModels[value].maxLength,
+                            tokenLimit: OpenAIModels[value].tokenLimit,
+                            actualTokenLimit: OpenAIModels[value].actualTokenLimit,
+                            inputCost: OpenAIModels[value].inputCost,
+                            outputCost: OpenAIModels[value].outputCost,
+                        });
+                    }
+                }
+                return result;
+            }, []);
+
+            dispatch({field: 'models', value: models});
+        }
+    }, [availableModels, dispatch]);
 
     useEffect(() => {
         if(chatEndpoint) dispatch({field: 'chatEndpoint', value: chatEndpoint});
     }, [chatEndpoint]);
-
-    useEffect(() => {
-        dispatch({field: 'modelError', value: getModelsError(error)});
-    }, [dispatch, error, getModelsError]);
-
-    // FETCH MODELS ----------------------------------------------
 
     const handleSelectConversation = (conversation: Conversation) => {
         dispatch({field: 'page', value: 'chat'})
@@ -909,7 +906,7 @@ const Home = ({
                                 side={"left"}
                                 footerComponent={
                                     <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-                                        <button className="dark:text-white" onClick={() => {
+                                        <button className="dark:text-white" title="Sign Out" onClick={() => {
                                             const goLogout = async () => {
                                                 await federatedSignOut();
                                             };
@@ -926,10 +923,10 @@ const Home = ({
                                     </div>
                                 }
                             >
-                                <Tab icon={<IconMessage/>}><Chatbar/></Tab>
-                                <Tab icon={<IconShare/>}><SharedItemsList/></Tab>
-                                <Tab icon={<IconTournament/>}><WorkspaceList/></Tab>
-                                <Tab icon={<IconSettings/>}><SettingsBar/></Tab>
+                                <Tab icon={<IconMessage/>} title="Chats"><Chatbar/></Tab>
+                                <Tab icon={<IconShare/>} title="Share"><SharedItemsList/></Tab>
+                                <Tab icon={<IconTournament/>} title="Workspaces"><WorkspaceList/></Tab>
+                                <Tab icon={<IconSettings/>} title="Settings"><SettingsBar/></Tab>
                             </TabSidebar>
 
                             <div className="flex flex-1">
@@ -1019,6 +1016,7 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
     const cognitoClientId = process.env.COGNITO_CLIENT_ID;
     const cognitoDomain = process.env.COGNITO_DOMAIN;
     const defaultFunctionCallModel = process.env.DEFAULT_FUNCTION_CALL_MODEL;
+    const availableModels = process.env.AVAILABLE_MODELS;
 
     //console.log("Default Model Id:", defaultModelId);
 
@@ -1033,6 +1031,7 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
 
     return {
         props: {
+            availableModels,
             chatEndpoint,
             serverSideApiKeyIsSet: !!process.env.OPENAI_API_KEY,
             defaultModelId,

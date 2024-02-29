@@ -14,6 +14,7 @@ import {useTranslation} from 'next-i18next';
 
 import {getHook} from "@/utils/app/chathooks";
 import {getEndpoint} from '@/utils/app/api';
+import {deepMerge} from "@/utils/app/state";
 import {OutOfOrderResults} from "@/utils/app/outOfOrder";
 
 import {
@@ -65,6 +66,7 @@ import {ColumnsSpec} from "@/utils/app/csv";
 import json5 from "json5";
 import {MemoizedRemoteMessages} from "@/components/Chat/MemoizedRemoteMessages";
 import {MetaHandler} from "@/services/chatService";
+import callRenameChatApi from './RenameChat';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -365,7 +367,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, []);
 
         const handleSend = useCallback(
-            async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt: string | null = null, documents?: AttachedDocument[] | null, uri?:string) => {
+            async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt: string | null = null, documents?: AttachedDocument[] | null, uri?:string|null, options?:{[key:string]:any}) => {
                 return new Promise(async (resolve, reject) => {
                     if (selectedConversation) {
 
@@ -375,7 +377,27 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             message.label = label;
                         }
 
-                        if (selectedConversation && selectedConversation?.model) {
+                        if(selectedConversation && selectedConversation.tags && selectedConversation.tags.includes("assistant-builder")) {
+                            // In assistants, this has the effect of
+                            // disabling the use of documents so that we
+                            // can just add the document to the list of documents
+                            // the assistant is using.
+                            options =  {...(options || {}),
+                                skipRag: true,
+                                ragOnly: true
+                           };
+                        }
+                        // else if(documents && documents.length > 0) {
+                        //     options =  {...(options || {}), skipRag: true};
+                        // }
+
+                        if(!featureFlags.ragEnabled) {
+                            options =  {...(options || {}), skipRag: true};
+                        }
+
+                        if (selectedConversation
+                            && selectedConversation?.model
+                            && !options?.ragOnly) {
 
                             const {prompts, inputCost, inputTokens, outputCost, totalCost} =
                                 calculateTokenCost(selectedConversation.model, documents || []);
@@ -433,13 +455,24 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         if (documents && documents.length > 0) {
 
                             const dataSources = documents.map((doc) => {
-                                return {id: "s3://" + doc.key, type: doc.type};
+                                if(doc.key){
+                                    return {id: "s3://" + doc.key, type: doc.type, metadata: doc.metadata || {}};
+                                }
+                                else {
+                                    return doc;
+                                }
                             });
                             chatBody.dataSources = dataSources;
                         } else if (message.data && message.data.dataSources && message.data.dataSources.length > 0) {
                             chatBody.dataSources = message.data.dataSources.map((doc: any) => {
                                 return {id: doc.id, type: doc.type, metadata: doc.metadata || {}};
                             });
+                        }
+
+
+
+                        if(options) {
+                            Object.assign(chatBody, options);
                         }
 
                         const parseMessageType = (message: string): {
@@ -496,6 +529,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             }
 
                             let outOfOrder = false;
+                            let currentState = {};
 
                             const metaHandler:MetaHandler = {
                                 status:(meta:any) => {
@@ -505,6 +539,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 mode:(modeName:string) => {
                                     //console.log("Chat-Mode: "+modeName);
                                     outOfOrder = (modeName === "out_of_order");
+                                },
+                                state: (state:any) => {
+                                    currentState = deepMerge(currentState, state);
+                                    console.log("Updated state:", currentState);
                                 }
                             };
 
@@ -535,6 +573,26 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             }
                             if (!plugin) {
                                 if (updatedConversation.messages.length === 1) {
+                                    const { content } = message;
+                                    callRenameChatApi(content).then(customName => {
+                                        updatedConversation = {
+                                            ...updatedConversation,
+                                            name: customName, // Use the name returned by Lambda
+                                        };
+                                    }).catch(error => {
+                                        console.error('Failed to rename conversation:', error);
+                                        // fallback to default naming convention
+                                        const { content } = message;
+                                        const customName =
+                                            content.length > 30 ? content.substring(0, 30) + '...' : content;
+                                        updatedConversation = {
+                                            ...updatedConversation,
+                                            name: customName,
+                                        };
+                                    });
+                                }
+                                /*
+                                if (updatedConversation.messages.length === 1) {
                                     const {content} = message;
                                     const customName =
                                         content.length > 30 ? content.substring(0, 30) + '...' : content;
@@ -543,6 +601,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         name: customName,
                                     };
                                 }
+                                */
                                 homeDispatch({field: 'loading', value: false});
                                 const reader = data.getReader();
                                 const decoder = new TextDecoder();
@@ -561,6 +620,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     newMessage({
                                         role: 'assistant',
                                         content: "",
+                                        data: {state: currentState}
                                     }),
                                 ];
                                 updatedConversation = {
@@ -606,6 +666,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     return {
                                                         ...message,
                                                         content: text,
+                                                        data: {...(message.data || {}), state: currentState}
                                                     };
                                                 }
                                                 return message;
@@ -1265,7 +1326,32 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 alert("Error reaching OpenAI. Please retry your request.");
                             }
                         } else {
-                            handleSend(message, deleteCount, plugin, null, selectedAssistant.definition.instructions, documents);
+
+                            if(selectedAssistant.definition.dataSources){
+
+                                const formattedDatasources =
+                                    selectedAssistant.definition.dataSources;
+
+                                if(!documents){
+                                    documents = formattedDatasources;
+                                }
+                                else if(!Array.isArray(documents)){
+                                    documents = [documents, ...formattedDatasources];
+                                }
+                                else {
+                                    documents = [...documents, ...formattedDatasources];
+                                }
+                            }
+
+                            handleSend(
+                                message,
+                                deleteCount,
+                                plugin,
+                                null,
+                                selectedAssistant.definition.instructions,
+                                documents,
+                                null,
+                                {ragOnly:true});
                         }
                     }
                 } else {
@@ -1486,6 +1572,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         useEffect(() => {
 
             if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
+
+                if(selectedConversation.promptTemplate.data && selectedConversation.promptTemplate.data.assistant){
+                    homeDispatch({field: 'selectedAssistant', value: selectedConversation.promptTemplate.data.assistant});
+                }
+
                 //alert("Prompt Template");
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
                 setIsPromptTemplateDialogVisible(true);
@@ -1688,18 +1779,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 scrollToModelSelect();
                                                 handleSettings();
                                             }}
+                                            title="Chat Settings"
                                         >
                                             <IconSettings size={18}/>
                                         </button>
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={onClearAll}
+                                            title="Clear Messages"
                                         >
                                             <IconClearAll size={18}/>
                                         </button>
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={() => setIsShareDialogVisible(true)}
+                                            title="Share"
                                         >
                                             <IconShare size={18}/>
                                         </button>
@@ -1711,6 +1805,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 setIsDownloadDialogVisible(true)
 
                                             }}
+                                            title="Download"
                                         >
                                             <IconDownload size={18}/>
                                         </button>
