@@ -1,4 +1,3 @@
-import { OPENAI_API_TYPE } from '../utils/app/const';
 
 export interface OpenAIModel {
   id: string;
@@ -19,6 +18,8 @@ export enum OpenAIModelID {
   GPT_3_5_AZ = 'gpt-35-turbo',
   GPT_4 = 'gpt-4',
   GPT_4_FN = 'gpt-4-0613',
+  CLAUDE_INSTANT_1_2 = 'anthropic.claude-instant-v1',
+  CLAUDE_2_1 = 'anthropic.claude-v2:1'
 }
 
 // in case the `DEFAULT_MODEL` environment variable is not set or set to an unsupported model
@@ -95,5 +96,25 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
     visible: false,
     outputCost: .06,
     inputCost: .03,
+  },
+  [OpenAIModelID.CLAUDE_INSTANT_1_2]: {
+    id: OpenAIModelID.CLAUDE_INSTANT_1_2,
+    name: 'Claude-Instant-1.2 (bedrock)',
+    maxLength: 24000,
+    tokenLimit: 4096,
+    actualTokenLimit: 4096,
+    visible: false,
+    outputCost: .0024,
+    inputCost: .0008,
+  },
+  [OpenAIModelID.CLAUDE_2_1]: {
+    id: OpenAIModelID.CLAUDE_2_1,
+    name: 'Claude-2.1 (bedrock)',
+    maxLength: 24000,
+    tokenLimit: 4096,
+    actualTokenLimit: 4096,
+    visible: false,
+    outputCost: .024,
+    inputCost: .008,
   },
 };
