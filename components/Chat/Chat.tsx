@@ -67,6 +67,7 @@ import json5 from "json5";
 import {MemoizedRemoteMessages} from "@/components/Chat/MemoizedRemoteMessages";
 import {MetaHandler} from "@/services/chatService";
 import callRenameChatApi from './RenameChat';
+import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -446,6 +447,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             key: apiKey,
                             prompt: rootPrompt || updatedConversation.prompt,
                             temperature: updatedConversation.temperature,
+                            maxTokens: updatedConversation.maxTokens || 1000
                         };
 
                         if(uri) {
@@ -1720,6 +1722,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                             value: temperature,
                                                         })
                                                     }
+                                                />
+
+                                                <ResponseTokensSlider
+                                                    label={t('Response Length')}
+                                                    onResponseTokenRatioChange={(r) => {
+                                                        if(selectedConversation && selectedConversation.model){
+
+                                                            const tokens = Math.floor(1000 * ( r/3.0 )) + 1;
+
+                                                            handleUpdateConversation(selectedConversation, {
+                                                                key: 'maxTokens',
+                                                                value: tokens,
+                                                            })
+                                                        }
+                                                    }}
                                                 />
 
                                                 {isPromptTemplateDialogVisible && selectedConversation.promptTemplate && (

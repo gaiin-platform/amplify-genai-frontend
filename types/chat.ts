@@ -104,6 +104,7 @@ export interface ChatBody {
   accountId?: string;
   requestId?: string;
   endpoint?: string;
+  maxTokens?: number;
   [key: string]: any;
 }
 
@@ -117,6 +118,7 @@ export interface Conversation {
   folderId: string | null;
   promptTemplate: Prompt | null;
   tags?: string[]
+  maxTokens?: number;
   workflowDefinition?: WorkflowDefinition;
   data?: {[key:string]:any}
 }

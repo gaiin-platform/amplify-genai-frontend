@@ -42,7 +42,7 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
     let requestBody = {
         model: chatBody.model.id,
         temperature: chatBody.temperature,
-        max_tokens: 1000,
+        max_tokens: chatBody.maxTokens || 1000,
         stream: true,
         dataSources: chatBody.dataSources || [],
         messages: [
