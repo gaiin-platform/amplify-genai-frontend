@@ -1343,6 +1343,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 }
                             }
 
+                            let options = {
+                                ragOnly:true,
+                                assistantName: selectedAssistant.definition.name
+                            };
+
+                            if (selectedAssistant.definition.options){
+                                options = {...options, ...selectedAssistant.definition.options};
+                            }
+
                             handleSend(
                                 message,
                                 deleteCount,
@@ -1351,7 +1360,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 selectedAssistant.definition.instructions,
                                 documents,
                                 null,
-                                {ragOnly:true});
+                                options);
                         }
                     }
                 } else {
