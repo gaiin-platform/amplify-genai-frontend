@@ -68,6 +68,7 @@ import {MemoizedRemoteMessages} from "@/components/Chat/MemoizedRemoteMessages";
 import {MetaHandler} from "@/services/chatService";
 import callRenameChatApi from './RenameChat';
 import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
+import DataSourcesTable from "@/components/DataSources/DataSourcesTable";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;

@@ -7,10 +7,11 @@ interface Props {
     setTags: (tags: string[]) => void;
     tagParser?: (tag: string) => string[];
     addMessage?: string;
+    maxWidth?: string;
 }
 
 export const TagsList: FC<Props> = (
-    { tags, setTags , label="Tags", tagParser=(t:string)=>t.split(","), addMessage="Tag names separated by commas:"}) => {
+    { tags, setTags , maxWidth="200px", label="Tags", tagParser=(t:string)=>t.split(","), addMessage="Tag names separated by commas:"}) => {
 
     return (
         <div className="flex w-full">
@@ -36,7 +37,7 @@ export const TagsList: FC<Props> = (
                 </button>
                 <div>
                     <p className="text-black dark:text-white truncate font-medium text-sm pl-2 " style={{ maxWidth: '160px' }}>
-                        {label}:
+                        {label}{label ? ":" : ""}
                     </p>
                 </div>
             </div>
@@ -45,7 +46,7 @@ export const TagsList: FC<Props> = (
                     <div
                         key={i}
                         className="flex items-center justify-between border bg-white dark:bg-neutral-200 rounded-md px-1 py-1 mr-2 shadow-lg"
-                        style={{ maxWidth: '200px' }}
+                        style={{ maxWidth: maxWidth }}
                     >
                         <button
                             className="text-gray-400 hover:text-gray-600 transition-all"

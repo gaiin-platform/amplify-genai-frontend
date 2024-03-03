@@ -71,6 +71,7 @@ import {useSession, signIn, signOut, getSession} from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import {useHomeReducer} from "@/hooks/useHomeReducer";
 import stateService from "@/services/stateService";
+import {MyHome} from "@/components/My/MyHome";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -937,6 +938,9 @@ const Home = ({
                                     <Market items={[
                                         // {id: "1", name: "Item 1"},
                                     ]}/>
+                                )}
+                                {page === 'home' && (
+                                    <MyHome/>
                                 )}
                             </div>
 

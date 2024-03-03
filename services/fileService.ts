@@ -165,4 +165,34 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
             abortController:abort};
 };
 
+type FileQuery = {
+    startDate?: string;
+    pageSize?: number;
+    sort?: string;
+}
 
+export const queryUserFiles = async (query:FileQuery, abortSignal:AbortSignal|null= null) => {
+
+    const response = await fetch('/api/files/query', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            data: {
+                ...query
+            }
+        }),
+        signal: abortSignal,
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to query user files: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    console.log("result", result);
+
+    return result;
+}
