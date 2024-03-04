@@ -6,7 +6,7 @@ import {
 } from 'mantine-react-table';
 import {MantineProvider} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
-import {queryUserFiles} from "@/services/fileService";
+import {FileRecord, queryUserFiles} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
 
 type FileSchema = {
@@ -63,7 +63,7 @@ const DataSourcesTable = () => {
         state: {lightMode},
     } = useContext(HomeContext);
 
-    const [data, setData] = useState(
+    const [data, setData] = useState<FileRecord[]>(
         []
     );
 
@@ -71,6 +71,8 @@ const DataSourcesTable = () => {
         pageIndex: 0,
         pageSize: 5, //customize the default page size
     });
+
+    const [lastPageIndex, setLastPageIndex] = useState(0);
 
     const [isError, setIsError] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -94,6 +96,22 @@ const DataSourcesTable = () => {
             const fetchFiles = async () => {
                 try {
 
+                    let pageKey = null;
+                    let forwardScan = true;
+
+                    if(data && data.length> 0) {
+                        if (lastPageIndex === pagination.pageIndex) {
+                            pageKey = data.slice(-1)[0].id;
+                        } else if (lastPageIndex < pagination.pageIndex) {
+                            pageKey = data.slice(-1)[0].id;
+                        } else if (lastPageIndex > pagination.pageIndex) {
+                            pageKey = data[0].id;
+                            forwardScan = false;
+                        }
+                    }
+
+                    setLastPageIndex(pagination.pageIndex);
+
                     let startDate = "2000-01-25T14:48:23.544796";
                     if(data && data.length> 0){
                         const curr = pagination.pageIndex - 1;
@@ -102,7 +120,11 @@ const DataSourcesTable = () => {
                     }
 
                     const result = await queryUserFiles(
-                        {pageSize: pagination.pageSize, startDate}, null);
+                        {
+                            pageSize: pagination.pageSize,
+                            pageKey,
+                            forwardScan,
+                            startDate}, null);
 
                     if(!result.success){
                         setIsError(true);
@@ -192,15 +214,15 @@ const DataSourcesTable = () => {
             {
                 accessorKey: 'tags', //normal accessorKey
                 header: 'Tags',
-                Cell: ({ cell}) => {
-                    const tags = cell.getValue<string[]>();
-
-                    return <TagsList
-                        tags={tags}
-                        label={""}
-                        maxWidth={"50px"}
-                        setTags={(tags)=>handleSaveCell(cell, tags)}/>
-                }
+                // Cell: ({ cell}) => {
+                //     const tags = cell.getValue<string[]>();
+                //
+                //     return <TagsList
+                //         tags={tags}
+                //         label={""}
+                //         maxWidth={"50px"}
+                //         setTags={(tags)=>handleSaveCell(cell, tags)}/>
+                // }
 
             },
             {

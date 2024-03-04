@@ -165,13 +165,40 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
             abortController:abort};
 };
 
-type FileQuery = {
+export type FileQuery = {
     startDate?: string;
     pageSize?: number;
-    sort?: string;
+    pageKey?: string|null;
+    namePrefix?: string|null;
+    createdAtPrefix?: string|null;
+    typePrefix?: string|null;
+    tags?: string[];
+    pageIndex?: number;
+    forwardScan?: boolean;
+    tagFilterList?: string[];
 }
 
-export const queryUserFiles = async (query:FileQuery, abortSignal:AbortSignal|null= null) => {
+export type FileRecord = {
+    knowledgeBase: string;
+    data: Record<string, any>; // or a more specific type if the structure of `data` is known
+    updatedAt: string; // can also be represented as `Date` depending on how you want to use it
+    createdAt: string; // can also be represented as `Date` depending on how you want to use it
+    updatedBy: string;
+    id: string;
+    createdBy: string;
+    name: string;
+    tags: string[];
+    type: string;
+};
+
+export type FileQueryResult = {
+    success: boolean;
+    data: {
+        items: FileRecord[];
+    };
+};
+
+export const queryUserFiles = async (query:FileQuery, abortSignal:AbortSignal|null= null):Promise<FileQueryResult> => {
 
     const response = await fetch('/api/files/query', {
         method: 'POST',
