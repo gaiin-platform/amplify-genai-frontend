@@ -165,10 +165,16 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
             abortController:abort};
 };
 
+export type PageKey = {
+    createdAt: string;
+    id: string;
+}
+
 export type FileQuery = {
     startDate?: string;
+    sortIndex?: string;
     pageSize?: number;
-    pageKey?: string|null;
+    pageKey?: PageKey|null;
     namePrefix?: string|null;
     createdAtPrefix?: string|null;
     typePrefix?: string|null;
@@ -195,6 +201,7 @@ export type FileQueryResult = {
     success: boolean;
     data: {
         items: FileRecord[];
+        pageKey?: PageKey;
     };
 };
 

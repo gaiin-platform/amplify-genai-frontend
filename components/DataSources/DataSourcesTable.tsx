@@ -1,27 +1,22 @@
 import {useContext, useEffect, useMemo, useState} from 'react';
+import {IconDownload} from "@tabler/icons-react";
 import {
     MantineReactTable,
     useMantineReactTable,
-    type MRT_ColumnDef, MRT_SortingState, MRT_ColumnFiltersState, MRT_Cell,
+    type MRT_ColumnDef, MRT_SortingState, MRT_ColumnFiltersState, MRT_Cell, MRT_TableInstance,
 } from 'mantine-react-table';
 import {MantineProvider} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
-import {FileRecord, queryUserFiles} from "@/services/fileService";
+import {FileQuery, FileRecord, PageKey, queryUserFiles} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
 
-type FileSchema = {
-    name: string;
-    createdAt: string;
-    tags: string[];
-    type: string;
-
-}
 
 type MimeTypeMapping = {
     [mimeType: string]: string;
 };
 
 const mimeTypeToCommonName: MimeTypeMapping = {
+    "text/vtt": "Voice Transcript",
     "application/vnd.ms-excel": "Excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel",
     "application/vnd.ms-powerpoint": "PowerPoint",
@@ -69,11 +64,12 @@ const DataSourcesTable = () => {
 
     const [pagination, setPagination] = useState({
         pageIndex: 0,
-        pageSize: 5, //customize the default page size
+        pageSize: 100, //customize the default page size
     });
 
     const [lastPageIndex, setLastPageIndex] = useState(0);
 
+    const [pageKeys, setPageKeys] = useState<PageKey[]>([]);
     const [isError, setIsError] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isRefetching, setIsRefetching] = useState(false);
@@ -81,8 +77,20 @@ const DataSourcesTable = () => {
     const [columnFilters, setColumnFilters] = useState<MRT_ColumnFiltersState>(
         [],
     );
+    const [previousColumnFilters, setPreviousColumnFilters] = useState<MRT_ColumnFiltersState>(
+        [],
+    );
     const [globalFilter, setGlobalFilter] = useState('');
     const [sorting, setSorting] = useState<MRT_SortingState>([]);
+    const [currentMaxItems, setCurrentMaxItems] = useState(100);
+    const [currentMaxPageIndex, setCurrentMaxPageIndex] = useState(0);
+    const [prevSorting, setPrevSorting] = useState<MRT_SortingState>([]);
+
+    const getTypeFromCommonName = (commonName: string) => {
+        const foundType = Object.entries(mimeTypeToCommonName)
+            .find(([key, value]) => value === commonName)?.[0];
+        return foundType ? foundType : commonName;
+    }
 
     //if you want to avoid useEffect, look at the React Query example instead
     useEffect(() => {
@@ -96,35 +104,77 @@ const DataSourcesTable = () => {
             const fetchFiles = async () => {
                 try {
 
-                    let pageKey = null;
-                    let forwardScan = true;
+                    const globalFilterQuery = globalFilter ? globalFilter : null;
+                    const sortStrategy = sorting;
 
-                    if(data && data.length> 0) {
-                        if (lastPageIndex === pagination.pageIndex) {
-                            pageKey = data.slice(-1)[0].id;
-                        } else if (lastPageIndex < pagination.pageIndex) {
-                            pageKey = data.slice(-1)[0].id;
-                        } else if (lastPageIndex > pagination.pageIndex) {
-                            pageKey = data[0].id;
-                            forwardScan = false;
-                        }
+                    if(globalFilterQuery){
+                        setPageKeys([]); //reset page keys if global filter is set
+                        setLastPageIndex(0);
                     }
+
+                    if(sorting !== prevSorting){
+                        setPageKeys([]); //reset page keys if sorting changes
+                        setLastPageIndex(0);
+                        setPrevSorting(sorting);
+                    }
+
+                    if(columnFilters !== previousColumnFilters){
+                        setPageKeys([]); //reset page keys if column filters change
+                        setLastPageIndex(0);
+                        setPreviousColumnFilters(columnFilters);
+                    }
+
+                    let sortIndex = 'createdAt'
+                    let desc = false;
+                    if(sortStrategy.length > 0){
+                        const sort = sortStrategy[0];
+
+                        if(sort.id === 'commonType'){
+                            sortIndex = 'type';
+                        }
+                        else {
+                            sortIndex = sort.id;
+                        }
+                        desc = sort.desc;
+                    }
+
+                    const pageKeyIndex = pagination.pageIndex - 1;
+                    const pageKey = pageKeyIndex >= 0 ? pageKeys[pageKeyIndex] : null;
+                    const forwardScan =
+                        ((lastPageIndex < pagination.pageIndex) || !pageKey) ? desc : !desc;
 
                     setLastPageIndex(pagination.pageIndex);
 
-                    let startDate = "2000-01-25T14:48:23.544796";
-                    if(data && data.length> 0){
-                        const curr = pagination.pageIndex - 1;
-                        // @ts-ignore
-                        startDate = data.slice(-1)[0].createdAt;
+                    const query:FileQuery = {
+                        pageSize: pagination.pageSize,
+                        sortIndex,
+                        forwardScan};
+                    if(pageKey){
+                        query.pageKey = pageKey;
+                    }
+                    if(globalFilterQuery){
+                        query.namePrefix = globalFilterQuery;
+                    }
+
+                    if(columnFilters.length > 0){
+                        for(const filter of columnFilters){
+                            if(filter.id === 'name'){
+                                query.namePrefix = "" + filter.value;
+                            }
+                            else if(filter.id === 'tags'){
+                                query.tags = ("" + filter.value)
+                                    .split(',')
+                                    .map((tag: string) => tag.trim());
+                            }
+                            else if(filter.id === 'commonType'){
+                                const mimeType = getTypeFromCommonName("" + filter.value);
+                                query.typePrefix = mimeType;
+                            }
+                        }
                     }
 
                     const result = await queryUserFiles(
-                        {
-                            pageSize: pagination.pageSize,
-                            pageKey,
-                            forwardScan,
-                            startDate}, null);
+                        query, null);
 
                     if(!result.success){
                         setIsError(true);
@@ -138,9 +188,32 @@ const DataSourcesTable = () => {
                         };
                     });
 
+                    if((pageKeyIndex >= pageKeys.length - 1 || pageKeys.length === 0) && result.data.pageKey) {
+                        setPageKeys([...pageKeys, result.data.pageKey]);
+                    }
+
                     setData(updatedWithCommonNames);
 
-                    setRowCount(1000);
+                    const additional = result.data.items.length === pagination.pageSize ?
+                        pagination.pageSize - 1 : 0;
+
+                    const total = pagination.pageIndex * pagination.pageSize
+                        + result.data.items.length
+                        + additional;
+
+                    if(pageKeyIndex >= currentMaxPageIndex){
+                        setCurrentMaxPageIndex(pageKeyIndex);
+                    }
+
+                    if(total > currentMaxItems && pageKeyIndex >= currentMaxPageIndex){
+                        setCurrentMaxItems(total);
+                    }
+
+                    if(total >= currentMaxItems) {
+                        setRowCount(total);
+                    }
+
+
                 } catch (error) {
                     setIsError(true);
                     console.error(error);
@@ -179,33 +252,52 @@ const DataSourcesTable = () => {
         // @ts-ignore
         return date.toLocaleString('en-US', options).toLowerCase();
     }
-    const handleSaveCell = (cell: MRT_Cell, value: any) => {
+    const handleSaveCell = (table:MRT_TableInstance<FileRecord>, cell: MRT_Cell<FileRecord>, value: any) => {
         //if using flat data and simple accessorKeys/ids, you can just do a simple assignment here
-        const row = data[cell.row.index];
+        const index = cell.row.index;
         const columnId = cell.column.id;
 
-        console.log("col:", columnId);
+        const existing:FileRecord[] = table.getRowModel().rows.map(row => row.original);
+        const newRow = {...existing[index], [columnId]: value};
 
         const newData = [
-            ...data.slice(0, cell.row.index),
-            // @ts-ignore
-            {...data.slice(cell.row.index, cell.row.index + 1)[0], [columnId]: value},
-            ...data.slice(cell.row.index + 1),
+            ...existing.slice(0, cell.row.index),
+            newRow,
+            ...existing.slice(cell.row.index + 1),
             ];
 
-         setData(newData); //re-render with new data
+        setData(newData); //re-render with new data
     };
 
     //should be memoized or stable
-    const columns = useMemo<MRT_ColumnDef<FileSchema>[]>(
+    const columns = useMemo<MRT_ColumnDef<FileRecord>[]>(
         () => [
+            {
+                accessorKey: 'id', //access nested data with dot notation
+                header: ' ',
+                width: 20,
+                size: 20,
+                maxSize: 20,
+                enableSorting: false,
+                enableColumnActions: false,
+                enableColumnFilter: false,
+                Cell: ({cell}) => (
+                    <span><IconDownload/></span>
+                ),
+            },
             {
                 accessorKey: 'name', //access nested data with dot notation
                 header: 'Name',
+                width: 100,
+                size: 100,
+                enableSorting: false,
+                maxSize: 300,
             },
             {
                 accessorKey: 'createdAt',
                 header: 'Created',
+                enableSorting: false,
+                enableColumnFilter: false,
                 Cell: ({cell}) => (
                     <span>{formatIsoString(cell.getValue<string>())}</span>
                 ),
@@ -214,20 +306,26 @@ const DataSourcesTable = () => {
             {
                 accessorKey: 'tags', //normal accessorKey
                 header: 'Tags',
-                // Cell: ({ cell}) => {
-                //     const tags = cell.getValue<string[]>();
-                //
-                //     return <TagsList
-                //         tags={tags}
-                //         label={""}
-                //         maxWidth={"50px"}
-                //         setTags={(tags)=>handleSaveCell(cell, tags)}/>
-                // }
+                enableColumnActions: false,
+                enableSorting: false,
+                Cell: ({ cell, table}) => {
+                    const tags = cell.getValue<string[]>();
+
+                    return <TagsList
+                        tags={tags}
+                        label={""}
+                        maxWidth={"50px"}
+                        setTags={(tags)=>handleSaveCell(table, cell, tags)}/>
+                }
 
             },
             {
                 accessorKey: 'commonType',
                 header: 'Type',
+                enableSorting: false,
+                width: 100,
+                size: 100,
+                maxSize: 100,
                 Edit: ({ cell, column, table }) => <>{cell.getValue<string>()}</>,
             },
         ],
@@ -243,36 +341,6 @@ const DataSourcesTable = () => {
         // Add other colors you want to include from Tailwind
     };
 
-    // const table = useMantineReactTable({
-    //         columns,
-    //         data, //must be memoized or stable (useState, useMemo, defined outside of this component, etc.)
-    //         onPaginationChange: setPagination, //hoist pagination state to your state when it changes internally
-    //         state: { pagination }, //pass the pagination state to the table
-    //         enablePagination: true,
-    //         enableBottomToolbar: true,
-    //         enableStickyHeader: true,
-    //         mantinePaperProps:{
-    //             shadow: 'lg',
-    //             sx: {
-    //                 //stripe the rows, make odd rows a darker color
-    //                 '*': {
-    //                     //backgroundColor: '#444654',
-    //                 },
-    //                 //borderRadius: '20',
-    //                 //border: '3px dashed #ffffff',
-    //             },
-    //         },
-    //         mantineTableProps:{
-    //             //striped: true,
-    //         },
-    //         mantineTableContainerProps: { sx: { maxHeight: '400px' } },
-    //         mantinePaginationProps: {
-    //             rowsPerPageOptions: ['20', '50', '100'],
-    //             withEdges: true, //note: changed from `showFirstLastButtons` in v1.0
-    //         }
-    //     });
-
-
     const table = useMantineReactTable({
         columns,
         data,
@@ -280,6 +348,7 @@ const DataSourcesTable = () => {
             closeOnClickOutside: true,
             withCloseButton: true,
         },
+        enableColumnResizing: true,
         editDisplayMode: 'cell',
         enableRowSelection: true,
         // @ts-ignore
