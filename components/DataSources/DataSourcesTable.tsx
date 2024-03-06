@@ -1,4 +1,4 @@
-import {useContext, useEffect, useMemo, useState} from 'react';
+import React, {useContext, useEffect, useMemo, useState} from 'react';
 import {IconDownload} from "@tabler/icons-react";
 import {
     MantineReactTable,
@@ -7,8 +7,9 @@ import {
 } from 'mantine-react-table';
 import {MantineProvider} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
-import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags} from "@/services/fileService";
+import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
+import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 
 
 type MimeTypeMapping = {
@@ -85,6 +86,7 @@ const DataSourcesTable = () => {
     const [currentMaxItems, setCurrentMaxItems] = useState(100);
     const [currentMaxPageIndex, setCurrentMaxPageIndex] = useState(0);
     const [prevSorting, setPrevSorting] = useState<MRT_SortingState>([]);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     const getTypeFromCommonName = (commonName: string) => {
         const foundType = Object.entries(mimeTypeToCommonName)
@@ -107,18 +109,18 @@ const DataSourcesTable = () => {
                     const globalFilterQuery = globalFilter ? globalFilter : null;
                     const sortStrategy = sorting;
 
-                    if(globalFilterQuery){
+                    if (globalFilterQuery) {
                         setPageKeys([]); //reset page keys if global filter is set
                         setLastPageIndex(0);
                     }
 
-                    if(sorting !== prevSorting){
+                    if (sorting !== prevSorting) {
                         setPageKeys([]); //reset page keys if sorting changes
                         setLastPageIndex(0);
                         setPrevSorting(sorting);
                     }
 
-                    if(columnFilters !== previousColumnFilters){
+                    if (columnFilters !== previousColumnFilters) {
                         setPageKeys([]); //reset page keys if column filters change
                         setLastPageIndex(0);
                         setPreviousColumnFilters(columnFilters);
@@ -126,13 +128,12 @@ const DataSourcesTable = () => {
 
                     let sortIndex = 'createdAt'
                     let desc = false;
-                    if(sortStrategy.length > 0){
+                    if (sortStrategy.length > 0) {
                         const sort = sortStrategy[0];
 
-                        if(sort.id === 'commonType'){
+                        if (sort.id === 'commonType') {
                             sortIndex = 'type';
-                        }
-                        else {
+                        } else {
                             sortIndex = sort.id;
                         }
                         desc = sort.desc;
@@ -145,28 +146,27 @@ const DataSourcesTable = () => {
 
                     setLastPageIndex(pagination.pageIndex);
 
-                    const query:FileQuery = {
+                    const query: FileQuery = {
                         pageSize: pagination.pageSize,
                         sortIndex,
-                        forwardScan};
-                    if(pageKey){
+                        forwardScan
+                    };
+                    if (pageKey) {
                         query.pageKey = pageKey;
                     }
-                    if(globalFilterQuery){
+                    if (globalFilterQuery) {
                         query.namePrefix = globalFilterQuery;
                     }
 
-                    if(columnFilters.length > 0){
-                        for(const filter of columnFilters){
-                            if(filter.id === 'name'){
+                    if (columnFilters.length > 0) {
+                        for (const filter of columnFilters) {
+                            if (filter.id === 'name') {
                                 query.namePrefix = "" + filter.value;
-                            }
-                            else if(filter.id === 'tags'){
+                            } else if (filter.id === 'tags') {
                                 query.tags = ("" + filter.value)
                                     .split(',')
                                     .map((tag: string) => tag.trim());
-                            }
-                            else if(filter.id === 'commonType'){
+                            } else if (filter.id === 'commonType') {
                                 const mimeType = getTypeFromCommonName("" + filter.value);
                                 query.typePrefix = mimeType;
                             }
@@ -176,7 +176,7 @@ const DataSourcesTable = () => {
                     const result = await queryUserFiles(
                         query, null);
 
-                    if(!result.success){
+                    if (!result.success) {
                         setIsError(true);
                     }
 
@@ -188,7 +188,7 @@ const DataSourcesTable = () => {
                         };
                     });
 
-                    if((pageKeyIndex >= pageKeys.length - 1 || pageKeys.length === 0) && result.data.pageKey) {
+                    if ((pageKeyIndex >= pageKeys.length - 1 || pageKeys.length === 0) && result.data.pageKey) {
                         setPageKeys([...pageKeys, result.data.pageKey]);
                     }
 
@@ -201,15 +201,15 @@ const DataSourcesTable = () => {
                         + result.data.items.length
                         + additional;
 
-                    if(pageKeyIndex >= currentMaxPageIndex){
+                    if (pageKeyIndex >= currentMaxPageIndex) {
                         setCurrentMaxPageIndex(pageKeyIndex);
                     }
 
-                    if(total > currentMaxItems && pageKeyIndex >= currentMaxPageIndex){
+                    if (total > currentMaxItems && pageKeyIndex >= currentMaxPageIndex) {
                         setCurrentMaxItems(total);
                     }
 
-                    if(total >= currentMaxItems) {
+                    if (total >= currentMaxItems) {
                         setRowCount(total);
                     }
 
@@ -252,12 +252,31 @@ const DataSourcesTable = () => {
         // @ts-ignore
         return date.toLocaleString('en-US', options).toLowerCase();
     }
-    const handleSaveCell = (table:MRT_TableInstance<FileRecord>, cell: MRT_Cell<FileRecord>, value: any) => {
+
+    const downloadFile = async (id: string) => {
+
+        setIsDownloading(true);
+        try {
+            // /assistant/files/download
+            const response = await getFileDownloadUrl(id);
+
+            if (response.downloadUrl) {
+                // Download the file at the specified url
+                window
+                    .open(response.downloadUrl, '_blank')
+                    ?.focus();
+            }
+        } finally {
+            setIsDownloading(false);
+        }
+    }
+
+    const handleSaveCell = (table: MRT_TableInstance<FileRecord>, cell: MRT_Cell<FileRecord>, value: any) => {
         //if using flat data and simple accessorKeys/ids, you can just do a simple assignment here
         const index = cell.row.index;
         const columnId = cell.column.id;
 
-        const existing:FileRecord[] = table.getRowModel().rows.map(row => row.original);
+        const existing: FileRecord[] = table.getRowModel().rows.map(row => row.original);
         const newRow = {...existing[index], [columnId]: value};
 
         setTags(newRow);
@@ -266,7 +285,7 @@ const DataSourcesTable = () => {
             ...existing.slice(0, cell.row.index),
             newRow,
             ...existing.slice(cell.row.index + 1),
-            ];
+        ];
 
         setData(newData); //re-render with new data
     };
@@ -284,7 +303,11 @@ const DataSourcesTable = () => {
                 enableColumnActions: false,
                 enableColumnFilter: false,
                 Cell: ({cell}) => (
-                    <span><IconDownload/></span>
+                    <span onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        downloadFile(cell.getValue<string>())
+                    }}><IconDownload/></span>
                 ),
             },
             {
@@ -303,21 +326,21 @@ const DataSourcesTable = () => {
                 Cell: ({cell}) => (
                     <span>{formatIsoString(cell.getValue<string>())}</span>
                 ),
-                Edit: ({ cell, column, table }) => <>{formatIsoString(cell.getValue<string>())}</>,
+                Edit: ({cell, column, table}) => <>{formatIsoString(cell.getValue<string>())}</>,
             },
             {
                 accessorKey: 'tags', //normal accessorKey
                 header: 'Tags',
                 enableColumnActions: false,
                 enableSorting: false,
-                Cell: ({ cell, table}) => {
+                Cell: ({cell, table}) => {
                     const tags = cell.getValue<string[]>();
 
                     return <TagsList
                         tags={tags}
                         label={""}
                         maxWidth={"50px"}
-                        setTags={(tags)=>handleSaveCell(table, cell, tags)}/>
+                        setTags={(tags) => handleSaveCell(table, cell, tags)}/>
                 }
 
             },
@@ -328,7 +351,7 @@ const DataSourcesTable = () => {
                 width: 100,
                 size: 100,
                 maxSize: 100,
-                Edit: ({ cell, column, table }) => <>{cell.getValue<string>()}</>,
+                Edit: ({cell, column, table}) => <>{cell.getValue<string>()}</>,
             },
         ],
         [],
@@ -352,6 +375,7 @@ const DataSourcesTable = () => {
         },
         enableColumnResizing: true,
         editDisplayMode: 'cell',
+        enableFullScreenToggle: false,
         //enableRowSelection: true,
         // @ts-ignore
         getRowId: (row) => row.id,
@@ -375,27 +399,35 @@ const DataSourcesTable = () => {
             showProgressBars: isRefetching,
             sorting,
         },
-        mantineTableContainerProps: { sx: { maxHeight: '400px' } },
+        mantineTableContainerProps: {sx: {maxHeight: '400px'}},
         mantineToolbarAlertBannerProps: isError
             ? {color: 'red', children: 'Error loading data'}
             : undefined,
     });
 
-    return (<MantineProvider
-        theme={{
-            colorScheme: lightMode, // or 'light', depending on your preference or state
-            colors: {
-                gray: [myTailwindColors.gray],
-                blue: [myTailwindColors.blue], // Example color for 'blue' palette
-                red: [myTailwindColors.red],   // Example color for 'red' palette
-                green: [myTailwindColors.green] // Example color for 'green' palette
-            },
-            // You can also map Mantine's theme colors to match Tailwind's classes as needed
-            primaryColor: 'blue', // Use the name of the key from the 'colors' object
-        }}
-    >
-        <MantineReactTable table={table}/>
-    </MantineProvider>)
+    return (
+        <div>
+            {isDownloading && (
+                <LoadingDialog
+                    open={true} message={"Preparing to download..."}/>
+            )}
+
+            <MantineProvider
+                theme={{
+                    colorScheme: lightMode, // or 'light', depending on your preference or state
+                    colors: {
+                        gray: [myTailwindColors.gray],
+                        blue: [myTailwindColors.blue], // Example color for 'blue' palette
+                        red: [myTailwindColors.red],   // Example color for 'red' palette
+                        green: [myTailwindColors.green] // Example color for 'green' palette
+                    },
+                    // You can also map Mantine's theme colors to match Tailwind's classes as needed
+                    primaryColor: 'blue', // Use the name of the key from the 'colors' object
+                }}
+            >
+                <MantineReactTable table={table}/>
+            </MantineProvider>
+        </div>)
 };
 
 export default DataSourcesTable;
