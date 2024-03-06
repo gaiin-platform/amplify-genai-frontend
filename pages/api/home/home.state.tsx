@@ -91,7 +91,7 @@ export const initialState: HomeInitialState = {
   serverSideApiKeyIsSet: false,
   serverSidePluginKeysSet: false,
   selectedAssistant: null,
-  page: 'home',
+  page: 'chat',
   currentRequestId: null,
   featureFlags: {
     assistantsEnabled: true,

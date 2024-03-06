@@ -1,4 +1,4 @@
-import {IconClearAll, IconSettings, IconShare, IconDownload} from '@tabler/icons-react';
+import {IconClearAll, IconSettings, IconShare, IconDownload, IconHome2, IconHome, IconRocket} from '@tabler/icons-react';
 import {
     MutableRefObject,
     memo,
@@ -1795,8 +1795,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             }}/>
                                     )}
                                     <div
-                                        className="sticky top-0 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 py-2 text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
-                                        {t('Workspace: ' + workspaceMetadata.name)} | {t('Model')}: {selectedConversation?.model.name} | {t('Temp')}
+                                        className="items-center sticky top-0 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 py-2 text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
+
+                                        {t('Workspace: ' + workspaceMetadata.name)} | {selectedConversation?.model.name} | {t('Temp')}
                                         : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
@@ -1835,6 +1836,22 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             title="Download"
                                         >
                                             <IconDownload size={18}/>
+                                        </button>
+                                        |
+                                        <button
+                                            className="ml-2 mr-2 cursor-pointer hover:opacity-50"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                homeDispatch({field: 'page', value: 'home'});
+                                            }}
+                                            title="Home"
+                                        >
+                                            <div className="flex flex-row items-center ml-2
+                                            bg-[#fdbd39] rounded-lg text-gray-600 p-1">
+                                                <div><IconRocket size={18}/></div>
+                                                <div className="ml-1">Home</div>
+                                            </div>
                                         </button>
                                     </div>
                                     <div ref={modelSelectRef}></div>
