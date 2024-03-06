@@ -197,6 +197,11 @@ export type FileRecord = {
     type: string;
 };
 
+export type FileUpdateTagsResult = {
+    success: boolean;
+    message: string;
+};
+
 export type FileQueryResult = {
     success: boolean;
     data: {
@@ -204,6 +209,31 @@ export type FileQueryResult = {
         pageKey?: PageKey;
     };
 };
+
+export const setTags = async (file:FileRecord, abortSignal:AbortSignal|null= null):Promise<FileUpdateTagsResult> => {
+
+    const response = await fetch('/api/files/setTags', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            data: {
+                id: file.id,
+                tags: file.tags
+            }
+        }),
+        signal: abortSignal,
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to update tags user file: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    return result;
+}
 
 export const queryUserFiles = async (query:FileQuery, abortSignal:AbortSignal|null= null):Promise<FileQueryResult> => {
 

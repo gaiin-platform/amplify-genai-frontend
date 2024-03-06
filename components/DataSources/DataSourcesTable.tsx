@@ -7,7 +7,7 @@ import {
 } from 'mantine-react-table';
 import {MantineProvider} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
-import {FileQuery, FileRecord, PageKey, queryUserFiles} from "@/services/fileService";
+import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
 
 
@@ -260,6 +260,8 @@ const DataSourcesTable = () => {
         const existing:FileRecord[] = table.getRowModel().rows.map(row => row.original);
         const newRow = {...existing[index], [columnId]: value};
 
+        setTags(newRow);
+
         const newData = [
             ...existing.slice(0, cell.row.index),
             newRow,
@@ -350,7 +352,7 @@ const DataSourcesTable = () => {
         },
         enableColumnResizing: true,
         editDisplayMode: 'cell',
-        enableRowSelection: true,
+        //enableRowSelection: true,
         // @ts-ignore
         getRowId: (row) => row.id,
         initialState: {showColumnFilters: true},
