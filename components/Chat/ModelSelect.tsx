@@ -27,7 +27,7 @@ export const ModelSelect = () => {
         ) as OpenAIModel,
       });
   };
-
+  
   return (
     <div className="flex flex-col">
       <label className="mb-2 text-left text-neutral-700 dark:text-neutral-400">
@@ -45,6 +45,7 @@ export const ModelSelect = () => {
               key={model.id}
               value={model.id}
               className="dark:bg-[#343541] dark:text-white"
+              title={model.description}
             >
               {model.id === defaultModelId
                 ? `Default (${model.name})`
