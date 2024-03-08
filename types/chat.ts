@@ -89,6 +89,9 @@ export interface ChatResponseFormat {
 
 export interface DataSource {
     id: string;
+    type?: string;
+    metadata?: any;
+    name?: string;
 }
 
 export interface ChatBody {

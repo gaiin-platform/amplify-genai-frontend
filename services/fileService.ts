@@ -195,6 +195,9 @@ export type FileRecord = {
     name: string;
     tags: string[];
     type: string;
+    totalTokens?: number;
+    totalItems?: number;
+    hash?: string;
 };
 
 export type FileUpdateTagsResult = {

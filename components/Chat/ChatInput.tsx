@@ -5,6 +5,7 @@ import {
     IconPlayerStop,
     IconRepeat,
     IconRobot,
+    IconFiles,
     IconApiApp,
     IconSend,
 } from '@tabler/icons-react';
@@ -40,6 +41,7 @@ import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
+import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -78,6 +80,7 @@ export const ChatInput = ({
     const [variables, setVariables] = useState<string[]>([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [showPluginSelect, setShowPluginSelect] = useState(false);
+    const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const [plugin, setPlugin] = useState<Plugin | null>(null);
     const [assistant, setAssistant] = useState<Assistant>(DEFAULT_ASSISTANT);
     const [availableAssistants, setAvailableAssistants] = useState<Assistant[]>([DEFAULT_ASSISTANT]);
@@ -158,6 +161,8 @@ export const ChatInput = ({
     }
 
     const handleSend = () => {
+        setShowDataSourceSelector(false);
+
         if (messageIsStreaming) {
             return;
         }
@@ -329,6 +334,7 @@ export const ChatInput = ({
     };
 
     const handleSubmit = (updatedVariables: string[]) => {
+
         const newContent = content?.replace(/{{(.*?)}}/g, (match, variable) => {
             const index = variables.indexOf(variable);
             return updatedVariables[index];
@@ -502,6 +508,17 @@ export const ChatInput = ({
                             </button>
                         )}
 
+                        {featureFlags.dataSourceSelectorOnInput && (
+                            <button
+                                className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                                onClick={() => setShowDataSourceSelector(!showDataSourceSelector)}
+                                onKeyDown={(e) => {
+                                }}
+                            >
+                                <IconFiles size={20}/>
+                            </button>
+                        )}
+
                         {/*<button*/}
                         {/*    className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"*/}
                         {/*    onClick={() => setShowAssistantSelect(!showAssistantSelect)}*/}
@@ -573,6 +590,30 @@ export const ChatInput = ({
                                         if (textareaRef && textareaRef.current) {
                                             textareaRef.current.focus();
                                         }
+                                    }}
+                                />
+                            </div>
+                        )}
+
+                        {showDataSourceSelector && (
+                            <div className="absolute left-0 bottom-16 mb-6 rounded bg-white dark:bg-[#343541]">
+                                <DataSourceSelector
+                                    onDataSourceSelected={(d)=>{
+
+                                        const doc = {
+                                            id:d.id,
+                                            name:d.name||"",
+                                            raw:null,
+                                            type:d.type||"",
+                                            data:"",
+                                            metadata:d.metadata
+                                        };
+                                        addDocument(
+                                            doc
+                                        );
+                                        handleDocumentState(doc, 100);
+                                        handleSetKey(doc, doc.id);
+                                        handleSetMetadata(doc, d.metadata);
                                     }}
                                 />
                             </div>
