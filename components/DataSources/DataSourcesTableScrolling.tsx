@@ -57,11 +57,12 @@ const mimeTypeToCommonName: MimeTypeMapping = {
 interface Props {
     onDataSourceSelected?: (dataSource: DataSource) => void;
     visibleColumns?: string[];
+    visibleTypes?: string[];
     tableParams?: { [key: string]: any };
-
 }
 
 const DataSourcesTableScrolling: FC<Props> = ({
+                                                  visibleTypes,
                                                   onDataSourceSelected,
                                                   visibleColumns,
                                                   tableParams
@@ -104,6 +105,13 @@ const DataSourcesTableScrolling: FC<Props> = ({
         const foundType = Object.entries(mimeTypeToCommonName)
             .find(([key, value]) => value === commonName)?.[0];
         return foundType ? foundType : commonName;
+    }
+
+    const getTypesFromCommonName = (commonName: string) => {
+        const foundTypes = Object.entries(mimeTypeToCommonName)
+            .filter(([key, value]) => value === commonName)
+            .map(([key, value]) => key);
+        return foundTypes.length > 0 ? foundTypes : [commonName];
     }
 
     //if you want to avoid useEffect, look at the React Query example instead
@@ -183,6 +191,11 @@ const DataSourcesTableScrolling: FC<Props> = ({
                                 query.typePrefix = mimeType;
                             }
                         }
+                    }
+
+                    if(visibleTypes && visibleTypes.length > 0){
+                        query.types =
+                            visibleTypes.flatMap(t => getTypesFromCommonName(t));
                     }
 
                     const result = await queryUserFiles(
@@ -396,6 +409,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
         enableColumnResizing: true,
         editDisplayMode: 'cell',
         enableFullScreenToggle: false,
+        enableTableFooter: false,
         //enableRowSelection: true,
         // @ts-ignore
         getRowId: (row) => row.id,

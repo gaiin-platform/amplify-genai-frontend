@@ -178,6 +178,7 @@ export type FileQuery = {
     namePrefix?: string|null;
     createdAtPrefix?: string|null;
     typePrefix?: string|null;
+    types?: string[];
     tags?: string[];
     pageIndex?: number;
     forwardScan?: boolean;

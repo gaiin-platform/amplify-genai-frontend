@@ -108,7 +108,7 @@ export const initialState: HomeInitialState = {
     workflowCreate:false,
     rootPromptCreate:true,
     pluginsOnInput:false,
-    dataSourceSelectorOnInput:false,
+    dataSourceSelectorOnInput:true,
     followUpCreate:true,
     marketItemDelete:false,
   },
