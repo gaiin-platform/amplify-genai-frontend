@@ -11,6 +11,7 @@ export interface MetaHandler {
     status: (meta: any) => void;
     mode: (mode: string) => void;
     state: (state: any) => void;
+    shouldAbort: () => boolean;
 }
 
 export async function killRequest(endpoint: string, accessToken: string, requestId: string) {
@@ -150,6 +151,12 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
     const stream = new ReadableStream({
         async start(controller) {
             const onParse = (event: ParsedEvent | ReconnectInterval) => {
+
+                if(abortSignal?.aborted || metaHandler?.shouldAbort()){
+                    controller.close();
+                    return;
+                }
+
                 if (event.type === 'event') {
 
                     const data = event.data;

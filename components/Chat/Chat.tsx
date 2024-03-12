@@ -458,8 +458,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         if (documents && documents.length > 0) {
 
                             const dataSources = documents.map((doc) => {
-                                if(doc.key){
+                                if(doc.key && doc.key.indexOf("://") === -1){
                                     return {id: "s3://" + doc.key, type: doc.type, metadata: doc.metadata || {}};
+                                }
+                                else if(doc.key && doc.key.indexOf("://") > -1){
+                                    return {id: doc.key, type: doc.type, metadata: doc.metadata || {}};
                                 }
                                 else {
                                     return doc;
@@ -546,6 +549,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 state: (state:any) => {
                                     currentState = deepMerge(currentState, state);
                                     console.log("Updated state:", currentState);
+                                },
+                                shouldAbort: () => {
+                                    if (stopConversationRef.current === true) {
+                                        controller.abort();
+                                        return true;
+                                    }
+                                    return false;
                                 }
                             };
 
@@ -1308,7 +1318,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 const existingDatasources = message.data?.dataSources || [];
                 const newDatasources = documents?.filter((doc) => doc.key).map((doc) => {
-                    return {id: "s3://" + doc.key, name: doc.name, type: doc.type, metadata: doc.metadata || {}};
+                    if(doc.key && doc.key.indexOf("://") === -1) {
+                        return {id: "s3://" + doc.key, name: doc.name, type: doc.type, metadata: doc.metadata || {}};
+                    }
+                    else {
+                        return {id: doc.key, name: doc.name, type: doc.type, metadata: doc.metadata || {}};
+                    }
                 }) || [];
 
                 console.log("Building data sources");
@@ -1416,7 +1431,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 console.log("Building data sources");
                 const dataSources = documents?.filter((doc) => doc.key).map((doc) => {
-                    return {id: "s3://" + doc.key, name: doc.name, type: doc.type};
+                    if(doc.key && doc.key.indexOf("://") === -1) {
+                        return {id: "s3://" + doc.key, name: doc.name, type: doc.type};
+                    }
+                    else {
+                        return {id: doc.key, name: doc.name, type: doc.type};
+                    }
                 });
 
                 let message = newMessage({

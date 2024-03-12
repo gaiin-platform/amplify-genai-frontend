@@ -93,6 +93,8 @@ export const ChatInput = ({
     const promptListRef = useRef<HTMLUListElement | null>(null);
     const [isWorkflowOn, setWorkflowOn] = useState(false);
 
+    const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
+
     const filteredPrompts = prompts.filter((prompt) =>
         prompt.name.toLowerCase().includes(promptInputValue.toLowerCase()),
     );
@@ -145,8 +147,12 @@ export const ChatInput = ({
 
     const handleAppendDocumentsToContent = (content: string, documents: AttachedDocument[]) => {
 
+        if(!extractDocumentsLocally){
+            return content;
+        }
+
         // This prevents documents that were uploaded from being jammed into the prompt here
-        const toInsert = documents.filter(doc => !doc.key);
+        const toInsert = documents.filter(doc => !doc.key && doc.raw && doc.raw.length > 0);
 
         if(toInsert.length > 0) {
             content =
@@ -196,7 +202,8 @@ export const ChatInput = ({
 
             if (!isWorkflowOn) {
 
-                msg.content = handleAppendDocumentsToContent(content, documents);
+                msg.content = extractDocumentsLocally ?
+                    handleAppendDocumentsToContent(content, documents) : content;
 
                 const maxLength = selectedConversation?.model.maxLength;
 

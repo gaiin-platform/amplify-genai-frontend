@@ -6,6 +6,7 @@ import {Plugin, PluginList} from '@/types/plugin';
 import {DataSource} from "@/types/chat";
 import DataSourcesTable from "@/components/DataSources/DataSourcesTable";
 import DataSourcesTableScrolling from "@/components/DataSources/DataSourcesTableScrolling";
+import {UserTagsList} from "@/components/UserTags/UserTagsList";
 
 interface Props {
     onDataSourceSelected: (dataSource: DataSource) => void;
@@ -97,24 +98,24 @@ export const DataSourceSelector: FC<Props> = ({
                         </div>
                     </a>
                 </li>
-                <li>
-                    <a href="#"
-                       className={pageClasses("data")}
-                       onClick={swapPage("data")}
-                    >
-                        <div>
-                            <IconDatabase/>
-                        </div>
-                        <div className="ml-1">
-                            Data
-                        </div>
-                    </a>
-                </li>
+                {/*<li>*/}
+                {/*    <a href="#"*/}
+                {/*       className={pageClasses("data")}*/}
+                {/*       onClick={swapPage("data")}*/}
+                {/*    >*/}
+                {/*        <div>*/}
+                {/*            <IconDatabase/>*/}
+                {/*        </div>*/}
+                {/*        <div className="ml-1">*/}
+                {/*            Data*/}
+                {/*        </div>*/}
+                {/*    </a>*/}
+                {/*</li>*/}
             </ul>
 
             <div
                 className="p-0 bg-[#ffffff] text-medium text-gray-500 dark:text-gray-400 dark:bg-[#343541] rounded-lg w-full"
-                style={{minHeight: "400px", minWidth: "400px"}}
+                style={{minHeight: "400px", minWidth: "620px"}}
                 >
                 {selectedPage === "files" && (
                     <DataSourcesTableScrolling
@@ -133,20 +134,16 @@ export const DataSourceSelector: FC<Props> = ({
                     />
                 )}
                 {selectedPage === "tags" && (
-                    <DataSourcesTableScrolling
-                        visibleColumns={["tags"]}
-                        onDataSourceSelected={onDataSourceSelected}
-                        tableParams={{
-                            enableGlobalFilter: false,
-                            //enableColumnActions:false,
-                            enableColumnDragging: false,
-                            enableColumnFilters: true,
-                            enableDensityToggle: false,
-                            enableTopToolbar: false,
-                            enableEditing: false,
-                            enableHiding: false,
-                        }}
-                    />
+                    <UserTagsList onTagSelected={(t)=>{
+                        const dataSource: DataSource = {
+                            id: "tag://"+t,
+                            name: "tag:"+t,
+                            metadata: {},
+                            type: "amplify/tag"
+                        }
+
+                        onDataSourceSelected(dataSource);
+                    }}/>
                 )}
                 {selectedPage === "docs" && (
                     <DataSourcesTableScrolling

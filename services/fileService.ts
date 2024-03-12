@@ -201,6 +201,18 @@ export type FileRecord = {
     hash?: string;
 };
 
+export type DeleteTagsResult = {
+    success: boolean;
+    message: string;
+}
+
+export type ListTagsResult = {
+    success: boolean;
+    data: {
+        tags: string[];
+    };
+}
+
 export type FileUpdateTagsResult = {
     success: boolean;
     message: string;
@@ -213,6 +225,52 @@ export type FileQueryResult = {
         pageKey?: PageKey;
     };
 };
+
+export const deleteTags = async (tags:string[], abortSignal:AbortSignal|null= null):Promise<DeleteTagsResult> => {
+
+        const response = await fetch('/api/files/deleteTag', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                data: {
+                    tags: tags
+                }
+            }),
+            signal: abortSignal,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to delete tags: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        return result;
+}
+
+export const listTags = async (abortSignal:AbortSignal|null= null):Promise<ListTagsResult> => {
+
+        const response = await fetch('/api/files/listTags', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                data: {}
+            }),
+            signal: abortSignal,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to list tags: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        return result;
+}
 
 export const setTags = async (file:FileRecord, abortSignal:AbortSignal|null= null):Promise<FileUpdateTagsResult> => {
 
