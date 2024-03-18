@@ -75,7 +75,7 @@ docker run -e OPENAI_API_KEY=xxxxxxxx -p 3000:3000 ghcr.io/mckaywrigley/chatbot-
 **1. Clone Repo**
 
 ```bash
-git clone https://github.com/mckaywrigley/chatbot-ui.git
+git clone https://github.com/gaiin-platform/amplify-genai-frontend.git
 ```
 
 **2. Install Dependencies**
@@ -84,17 +84,7 @@ git clone https://github.com/mckaywrigley/chatbot-ui.git
 npm i
 ```
 
-**3. Provide OpenAI API Key**
 
-Create a .env.local file in the root of the repo with your OpenAI API Key:
-
-```bash
-OPENAI_API_KEY=YOUR_KEY
-```
-
-> You can set `OPENAI_API_HOST` where access to the official OpenAI host is restricted or unavailable, allowing users to configure an alternative host for their specific needs.
-
-> Additionally, if you have multiple OpenAI Organizations, you can set `OPENAI_ORGANIZATION` to specify one.
 
 **4. Run App**
 
@@ -130,6 +120,6 @@ If you don't have an OpenAI API key, you can get one [here](https://platform.ope
 
 ## Contact
 
-If you have any questions, feel free to reach out to Mckay on [Twitter](https://twitter.com/mckaywrigley).
+The front end was originally forked from the legacy branch of Chatbot-UI at https://github.com/mckaywrigley/chatbot-ui.git. 
 
-[GCSE]: https://developers.google.com/custom-search/v1/overview
+
