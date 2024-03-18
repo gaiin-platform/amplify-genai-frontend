@@ -2,16 +2,17 @@ import React, {FC, useEffect, useState} from "react";
 import {IconCircleX, IconPlus, IconTag} from "@tabler/icons-react";
 import {listTags} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
+import {Loader} from "@mantine/core";
 
 export type Props = {
     onTagSelected: (tag: string) => void;
 }
 
 export const UserTagsList: FC<Props> = ({
-                                           onTagSelected
-                                       }) => {
+                                            onTagSelected
+                                        }) => {
 
-    function stringToColor(str:string) {
+    function stringToColor(str: string) {
         // Array of the color options provided
         const colors = [
             "#fbfbfb", // snowman
@@ -66,11 +67,16 @@ export const UserTagsList: FC<Props> = ({
     // possible in the given width and then expands its height up to 400px and
     // scrolls if there are more. The tags have
     return (
-        <div className="overflow-y-auto flex w-full">
-            {loading && <div>Loading...</div>}
+        <div className={`overflow-y-auto flex w-full h-full ${loading? "items-center" : ""}`} >
+            {loading &&
+                <div className="mt-6 flex flex-col items-center w-full p-6" style={{ minWidth: '95%', overflow:"none"}}>
+                    <div style={{ width: '95%', display: 'flex', justifyContent: 'center' }}><Loader/></div>
+                    <div className="text-md p-3" style={{ textAlign: 'center' }}>Loading...</div>
+                </div>
+            }
             {error && <div>Error loading tags</div>}
 
-            <div className="flex w-full p-2">
+            <div className="p-2">
                 {/* Parent container for tags with full width */}
                 <div className="flex w-full flex-wrap pb-2 mt-2">
                     {tags?.map((tag, i) => (

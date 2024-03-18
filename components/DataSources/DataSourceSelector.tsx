@@ -115,7 +115,7 @@ export const DataSourceSelector: FC<Props> = ({
 
             <div
                 className="p-0 bg-[#ffffff] text-medium text-gray-500 dark:text-gray-400 dark:bg-[#343541] rounded-lg w-full"
-                style={{minHeight: "400px", minWidth: "620px"}}
+                style={{minHeight: "460px", minWidth: "620px"}}
                 >
                 {selectedPage === "files" && (
                     <DataSourcesTableScrolling
