@@ -1,0 +1,37 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - nvm install 20    # Install Node.js version 18
+        - nvm use 20        # Use Node.js version 18
+        - env | grep -e  OPENAI_API_KEY >> .env.production
+        - env | grep -e  OPENAI_API_HOST >> .env.production
+        - env | grep -e  OPENAI_API_TYPE >> .env.production
+        - env | grep -e  OPENAI_API_VERSION >> .env.production
+        - env | grep -e  AZURE_DEPLOYMENT_ID >> .env. 
+        - env | grep -e  AZURE_API_NAME >> .env.production
+        - env | grep -e  AUTH0_AUDIENCE >> .env.production
+        - env | grep -e  AUTH0_SCOPE >> .env.production
+        - env | grep -e  STATE_API_URL >> .env.production
+        - env | grep -e  SHARE_API_URL >> .env.production
+        - env | grep -e  AVAILABLE_MODELS >> .env.production
+        - env | grep -e  DEFAULT_MODEL >> .env.production
+        - env | grep -e  AUTH0_SECRET >> .env.production
+        - env | grep -e  AUTH0_BASE_URL >> .env.production
+        - env | grep -e  AUTH0_ISSUER_BASE_URL >> .env.production
+        - env | grep -e  AUTH0_CLIENT_ID >> .env.production
+        - env | grep -e  AUTH0_CLIENT_SECRET >> .env.production
+        - env | grep -e  NEXT_PUBLIC_ >> .env.production
+        - npm ci
+
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*

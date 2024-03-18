@@ -1,0 +1,75 @@
+.stickyNavbar {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background-color: #202123;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 1rem;
+    height: 40px;
+}
+
+.lightMode {
+    background-color: #f0f0f0;
+    /* Light background for light mode */
+    color: #333;
+    /* Dark text for light mode */
+}
+
+.lightMode .icon {
+    color: #333;
+    /* Dark icon color for light mode */
+}
+
+.rename-input {
+    background-color: #f0f0f0;
+    /* Lighter background for better readability */
+    color: #333;
+    /* Dark text for contrast */
+    border: 1px solid #ccc;
+    outline: none;
+    padding: 2px 5px;
+    /* Add some padding for better text visibility */
+    border-radius: 4px;
+    /* Optional: rounded corners for aesthetics */
+}
+
+.rename-input:focus {
+    box-shadow: 0 0 5px rgba(81, 203, 238, 1);
+    border: 1px solid rgba(81, 203, 238, 1);
+    background-color: #fff;
+    /* Even lighter or different color on focus for distinction */
+    color: #333;
+    /* Ensure text color remains the same for consistency */
+}
+
+/* Dark mode styles */
+.darkModeInput {
+    background-color: #333;
+    /* Darker background for dark mode */
+    color: #f0f0f0;
+    /* Lighter text for contrast in dark mode */
+    border: 1px solid #555;
+    /* Suitable border color for dark mode */
+}
+
+/* Focus styles for dark mode */
+.darkModeInput:focus {
+    box-shadow: 0 0 5px rgba(255, 255, 255, 0.6);
+    /* Lighter box-shadow for dark mode */
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    /* Lighter border on focus in dark mode */
+    background-color: #444;
+    /* Slightly lighter background on focus in dark mode */
+    color: #f0f0f0;
+    /* Keeping text color consistent */
+}
+
+/* Dark mode text selection styles */
+.darkModeInput::selection {
+    background-color: #80bfff;
+    /* A lighter selection color for dark mode */
+    color: #202123;
+    /* Dark text color for selection */
+}
