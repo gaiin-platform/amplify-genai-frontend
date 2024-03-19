@@ -22,6 +22,7 @@ export enum OpenAIModelID {
   CLAUDE_INSTANT_1_2 = 'anthropic.claude-instant-v1',
   CLAUDE_2_1 = 'anthropic.claude-v2:1',
   CLAUDE_3_SONNET = 'anthropic.claude-3-sonnet-20240229-v1:0',
+  CLAUDE_3_HAIKU = 'anthropic.claude-3-haiku-20240307-v1:0',
   MISTRAL_7B = 'mistral.mistral-7b-instruct-v0:2',
   MIXTRAL_8X7B =  'mistral.mixtral-8x7b-instruct-v0:1'
 }
@@ -117,7 +118,7 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
     visible: false,
     outputCost: .0024,
     inputCost: .0008,
-    description: "Consider for immediate, responsive interaction without the need for deep, complex reasoning.\nRapid and cost-effective option compared to Claude 2.1.\nOffers lightweight dialogue, text analysis, document summarization, classification, and writing assistance.\nTrained on information available through August 2023."
+    description: "Consider for immediate, responsive interaction without the need for deep, complex reasoning.\nRapid and cost-effective option compared to Claude 2.1.\nOffers lightweight dialogue, text analysis, document summarization, classification, and writing assistance.\nTrained on information available through Early 2023."
   },
   [OpenAIModelID.CLAUDE_2_1]: {
     id: OpenAIModelID.CLAUDE_2_1,
@@ -128,7 +129,7 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
     visible: false,
     outputCost: .024,
     inputCost: .008,
-    description: "Consider for complex tasks with an emphasis on ethical reasoning, prioritized nuanced comprehension, and safety.\nIs more advanced than Claude-Instant, aiming for higher accuracy and deeper understanding.\nEngages in sophisticated dialogue, complex reasoning, code assistance, data analysis, and generates creative and detailed content.\nTrained on information available through August 2023."
+    description: "Consider for complex tasks with an emphasis on ethical reasoning, prioritized nuanced comprehension, and safety.\nIs more advanced than Claude-Instant, aiming for higher accuracy and deeper understanding.\nEngages in sophisticated dialogue, complex reasoning, code assistance, data analysis, and generates creative and detailed content.\nTrained on information available through Early 2023."
    },
    [OpenAIModelID.CLAUDE_3_SONNET]: {
     id: OpenAIModelID.CLAUDE_3_SONNET,
@@ -140,6 +141,17 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
     outputCost: 0.01500,
     inputCost: 0.00300,
     description: "Consider for complex tasks requiring advanced understanding and intelligence, while keeping cost low.\nOffers a better balance between cost, speed, and performance compared to Claude 2.1.\nCan perform complex mathematical computations, statistical analyses, coding assistance, think critically, maintain context understanding.\nTrained on information available through August 2023."
+   },
+   [OpenAIModelID.CLAUDE_3_HAIKU]: {
+    id: OpenAIModelID.CLAUDE_3_HAIKU,
+    name: 'Claude-3-Haiku (bedrock)',
+    maxLength: 24000,
+    tokenLimit: 4000,
+    actualTokenLimit: 4096,
+    visible: false,
+    outputCost: 0.00125,
+    inputCost: 0.00025,
+    description: "Consider for high-velocity tasks with near-instant responsiveness and emphasis on security and robustness through minimized risk of harmful outputs.\nFeatures speeds 3 times faster than its Claude peer models while being the most economical choice.\nBest for simple queries, lightweight conversation, rapid analysis of large volumes of data, and handling of much longer prompts.\nTrained on information available through August 2023."
    },
    [OpenAIModelID.MISTRAL_7B]: {
     id: OpenAIModelID.MISTRAL_7B,
