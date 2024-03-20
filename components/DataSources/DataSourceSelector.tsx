@@ -136,7 +136,7 @@ export const DataSourceSelector: FC<Props> = ({
                 {selectedPage === "tags" && (
                     <UserTagsList onTagSelected={(t)=>{
                         const dataSource: DataSource = {
-                            id: "tag://"+t,
+                            id: "tag://"+t+"?ragOnly=true",
                             name: "tag:"+t,
                             metadata: {},
                             type: "amplify/tag"
