@@ -87,7 +87,7 @@ export const ChatInput = ({
     const [showAssistantSelect, setShowAssistantSelect] = useState(false);
     const [documents, setDocuments] = useState<AttachedDocument[]>();
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>({});
-    const [documentMetadata, setDocumentMetadata] = useState<{[key:string]:AttachedDocumentMetadata}>({});
+    const [documentMetadata, setDocumentMetadata] = useState<{ [key: string]: AttachedDocumentMetadata }>({});
     const [documentAborts, setDocumentAborts] = useState<{ [key: string]: AbortController }>({});
 
     const promptListRef = useRef<HTMLUListElement | null>(null);
@@ -104,11 +104,11 @@ export const ChatInput = ({
     };
 
     const allDocumentsDoneUploading = () => {
-        if(!documents || documents.length == 0){
+        if (!documents || documents.length == 0) {
             return true;
         }
 
-        const isComplete = (document:AttachedDocument) => {
+        const isComplete = (document: AttachedDocument) => {
             return !documentState || (documentState && documentState[document.id] == 100);
         }
 
@@ -147,14 +147,14 @@ export const ChatInput = ({
 
     const handleAppendDocumentsToContent = (content: string, documents: AttachedDocument[]) => {
 
-        if(!extractDocumentsLocally){
+        if (!extractDocumentsLocally) {
             return content;
         }
 
         // This prevents documents that were uploaded from being jammed into the prompt here
         const toInsert = documents.filter(doc => !doc.key && doc.raw && doc.raw.length > 0);
 
-        if(toInsert.length > 0) {
+        if (toInsert.length > 0) {
             content =
                 toInsert.map((d, i) => {
                     return "---------------Document " + (i + 1) + "--------------\n" + d.raw
@@ -178,7 +178,7 @@ export const ChatInput = ({
             return;
         }
 
-        if(!allDocumentsDoneUploading()){
+        if (!allDocumentsDoneUploading()) {
             alert(t('Please wait for all documents to finish uploading or remove them from the prompt.'));
             return;
         }
@@ -221,7 +221,7 @@ export const ChatInput = ({
 
         const updatedDocuments = documents?.map((d) => {
             const metadata = documentMetadata[d.id];
-            if(metadata){
+            if (metadata) {
                 return {...d, metadata: metadata};
             }
             return d;
@@ -242,7 +242,7 @@ export const ChatInput = ({
     const handleStopConversation = () => {
         stopConversationRef.current = true;
 
-        if(currentRequestId) {
+        if (currentRequestId) {
             killRequest(currentRequestId);
         }
 
@@ -436,7 +436,7 @@ export const ChatInput = ({
 
     }
 
-    const handleSetMetadata = (document:AttachedDocument, metadata:any) => {
+    const handleSetMetadata = (document: AttachedDocument, metadata: any) => {
 
         setDocumentMetadata((prevState) => {
             const newMetadata = {...prevState, [document.id]: metadata};
@@ -446,16 +446,16 @@ export const ChatInput = ({
     }
 
     const handleSetKey = (document: AttachedDocument, key: string) => {
-        if (documents) {
-            const newDocuments = documents?.map((d) => {
-                if (d.id === document.id) {
-                    return {...d, key: key};
-                }
-                return d;
-            });
 
-            setDocuments(newDocuments);
-        }
+        const newDocuments = documents ? documents?.map((d) => {
+            if (d.id === document.id) {
+                return {...d, key: key};
+            }
+            return d;
+        }) : [{...document, key: key}];
+
+        setDocuments(newDocuments);
+
     }
 
     return (
@@ -605,22 +605,22 @@ export const ChatInput = ({
                         {showDataSourceSelector && (
                             <div className="absolute left-0 bottom-16 mb-6 rounded bg-white dark:bg-[#343541]">
                                 <DataSourceSelector
-                                    onDataSourceSelected={(d)=>{
+                                    onDataSourceSelected={(d) => {
 
                                         const doc = {
-                                            id:d.id,
-                                            name:d.name||"",
-                                            raw:null,
-                                            type:d.type||"",
-                                            data:"",
-                                            metadata:d.metadata
+                                            id: d.id,
+                                            name: d.name || "",
+                                            raw: null,
+                                            type: d.type || "",
+                                            data: "",
+                                            metadata: d.metadata
                                         };
                                         addDocument(
                                             doc
                                         );
-                                        handleDocumentState(doc, 100);
                                         handleSetKey(doc, doc.id);
                                         handleSetMetadata(doc, d.metadata);
+                                        handleDocumentState(doc, 100);
                                     }}
                                 />
                             </div>

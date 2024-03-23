@@ -11,7 +11,8 @@ import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownload
 import {TagsList} from "@/components/Chat/TagsList";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import {DataSource} from "@/types/chat";
-
+import {randomUUID} from "crypto";
+import { v4 as uuidv4 } from 'uuid';
 
 type MimeTypeMapping = {
     [mimeType: string]: string;
@@ -219,7 +220,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 const commonName = mimeTypeToCommonName[file.type];
                 return {
                     ...file,
-                    id: Math.random() + "#" +file.id,
+                    "__id":  uuidv4() + file.id,
                     commonType: commonName || (file.type && file.type.slice(0, 15)) || 'Unknown',
                 };
             });
@@ -371,7 +372,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
     const allColumns = useMemo<MRT_ColumnDef<FileRecord>[]>(
         () => [
             {
-                accessorKey: 'id', //access nested data with dot notation
+                accessorKey: '__id', //access nested data with dot notation
                 header: ' ',
                 width: 20,
                 size: 20,
@@ -384,6 +385,23 @@ const DataSourcesTableScrolling: FC<Props> = ({
                         e.preventDefault();
                         e.stopPropagation();
                         downloadFile(cell.getValue<string>().split("#")[1]);
+                    }}><IconDownload/></span>
+                ),
+            },
+            {
+                accessorKey: 'id', //access nested data with dot notation
+                header: ' ',
+                width: 20,
+                size: 20,
+                maxSize: 20,
+                enableSorting: false,
+                enableColumnActions: false,
+                enableColumnFilter: false,
+                Cell: ({cell}) => (
+                    <span onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        downloadFile(cell.getValue<string>());
                     }}><IconDownload/></span>
                 ),
             },
@@ -464,7 +482,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
         enableTableFooter: false,
         //enableRowSelection: true,
         // @ts-ignore
-        getRowId: (row) => row.id,
+        getRowId: (row) => row["__id"],
         initialState: {showColumnFilters: true},
         manualFiltering: true,
         manualPagination: true,
