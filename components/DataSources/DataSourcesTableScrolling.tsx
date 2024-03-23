@@ -1,11 +1,11 @@
-import React, {FC, useContext, useEffect, useMemo, useState} from 'react';
+import React, {FC, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import {IconDownload} from "@tabler/icons-react";
 import {
     MantineReactTable,
     useMantineReactTable,
     type MRT_ColumnDef, MRT_SortingState, MRT_ColumnFiltersState, MRT_Cell, MRT_TableInstance,
 } from 'mantine-react-table';
-import {MantineProvider} from "@mantine/core";
+import {MantineProvider, ScrollArea} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
 import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
@@ -87,7 +87,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
     const [isError, setIsError] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isRefetching, setIsRefetching] = useState(false);
-    const [rowCount, setRowCount] = useState(0);
+
     const [columnFilters, setColumnFilters] = useState<MRT_ColumnFiltersState>(
         [],
     );
@@ -96,10 +96,12 @@ const DataSourcesTableScrolling: FC<Props> = ({
     );
     const [globalFilter, setGlobalFilter] = useState('');
     const [sorting, setSorting] = useState<MRT_SortingState>([]);
-    const [currentMaxItems, setCurrentMaxItems] = useState(100);
     const [currentMaxPageIndex, setCurrentMaxPageIndex] = useState(0);
-    const [prevSorting, setPrevSorting] = useState<MRT_SortingState>([]);
+    const [hasMoreData, setHasMoreData] = useState(true);
+    const [prevSorting, setPrevSorting] = useState<string>('createdAt#desc');
     const [isDownloading, setIsDownloading] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const tableContainerRef = useRef<HTMLDivElement>(null);
 
     const getTypeFromCommonName = (commonName: string) => {
         const foundType = Object.entries(mimeTypeToCommonName)
@@ -114,151 +116,201 @@ const DataSourcesTableScrolling: FC<Props> = ({
         return foundTypes.length > 0 ? foundTypes : [commonName];
     }
 
+    const fetchFiles = async () => {
+        try {
+            if(isLoading){
+                return;
+            }
+            setIsLoading(true);
+
+            let existingData = data;
+
+            const globalFilterQuery = globalFilter ? globalFilter : null;
+
+            if (globalFilterQuery) {
+                setPageKeys([]); //reset page keys if global filter is set
+                setLastPageIndex(0);
+                existingData = [];
+            }
+
+            const sortingKey = sorting.length > 0 ? sorting[0].id + "#" + sorting[0].desc
+                : 'createdAt#desc';
+
+            if (sortingKey !== prevSorting) {
+                setPageKeys([]); //reset page keys if sorting changes
+                setLastPageIndex(0);
+                setPrevSorting(sortingKey);
+                existingData = [];
+            }
+
+            if (columnFilters !== previousColumnFilters) {
+                setPageKeys([]); //reset page keys if column filters change
+                setLastPageIndex(0);
+                setPreviousColumnFilters(columnFilters);
+                existingData = [];
+            }
+
+            let sortIndex = 'createdAt'
+
+            const pageKeyIndex = pagination.pageIndex - 1;
+            const pageKey = pageKeyIndex >= 0 ? pageKeys[pageKeyIndex] : null;
+            let forwardScan =
+                ((lastPageIndex < pagination.pageIndex) || !pageKey) ? false : true;
+
+            if (sorting.length > 0) {
+                const sort = sorting[0];
+
+                console.log("Sort", sort);
+
+                if (sort.id === 'commonType') {
+                    sortIndex = 'type';
+                } else {
+                    sortIndex = sort.id;
+                }
+
+                forwardScan = sort.desc;
+            }
+
+            console.log("Sort Index", sortIndex, forwardScan);
+
+
+            setLastPageIndex(pagination.pageIndex);
+
+            const query: FileQuery = {
+                pageSize: pagination.pageSize,
+                sortIndex,
+                forwardScan
+            };
+            if (pageKey) {
+                query.pageKey = pageKey;
+            }
+            if (globalFilterQuery) {
+                query.namePrefix = globalFilterQuery;
+            }
+
+            if (columnFilters.length > 0) {
+                for (const filter of columnFilters) {
+                    if (filter.id === 'name') {
+                        query.namePrefix = "" + filter.value;
+                    } else if (filter.id === 'tags') {
+                        query.tags = ("" + filter.value)
+                            .split(',')
+                            .map((tag: string) => tag.trim());
+                    } else if (filter.id === 'commonType') {
+                        const mimeType = getTypeFromCommonName("" + filter.value);
+                        query.typePrefix = mimeType;
+                    }
+                }
+            }
+
+            if(visibleTypes && visibleTypes.length > 0){
+                query.types =
+                    visibleTypes.flatMap(t => getTypesFromCommonName(t));
+            }
+
+            const result = await queryUserFiles(
+                query, null);
+
+            if (!result.success) {
+                setIsError(true);
+            }
+
+            const updatedWithCommonNames = result.data.items.map((file: any) => {
+                const commonName = mimeTypeToCommonName[file.type];
+                return {
+                    ...file,
+                    id: Math.random() + "#" +file.id,
+                    commonType: commonName || (file.type && file.type.slice(0, 15)) || 'Unknown',
+                };
+            });
+
+            if ((pageKeyIndex >= pageKeys.length - 1 || pageKeys.length === 0) && result.data.pageKey) {
+                setPageKeys([...pageKeys, result.data.pageKey]);
+                setHasMoreData(true);
+            }
+
+            setHasMoreData(result.data.pageKey !== null && result.data.items.length === pagination.pageSize);
+
+            setData([...existingData, ...updatedWithCommonNames]);
+
+            if (pageKeyIndex >= currentMaxPageIndex) {
+                setCurrentMaxPageIndex(pageKeyIndex);
+            }
+
+        } catch (error) {
+            setIsError(true);
+            console.error(error);
+            return;
+        }
+        setIsError(false);
+        setIsLoading(false);
+        setIsRefetching(false);
+    };
+
+    const fetchMoreData = useCallback(async () => {
+        if (loadingMore || !hasMoreData) {
+            return;
+        }
+        setLoadingMore(true);
+
+        setPagination((prevPagination) => ({
+            ...prevPagination,
+            pageIndex: prevPagination.pageIndex + 1,
+        }));
+
+        await fetchFiles();
+        //console.log(pagination.pageIndex);
+
+        setLoadingMore(false);
+    }, [loadingMore, hasMoreData, data.length]);
+
+    const handleScroll = useCallback(() => {
+        console.log("Scrolling...");
+
+        if (tableContainerRef.current) {
+            const { scrollTop, scrollHeight, clientHeight } = tableContainerRef.current;
+            // Check if we've scrolled to the bottom
+            if ((scrollHeight - scrollTop - clientHeight < 400) &&
+                !isLoading &&
+                !loadingMore &&
+                hasMoreData) {
+                fetchMoreData();
+            }
+        }
+    }, [fetchMoreData, isLoading, loadingMore, hasMoreData]);
+
+    useEffect(() => {
+        const scrollElement = tableContainerRef.current;
+        if (scrollElement) {
+            scrollElement.addEventListener('scroll', handleScroll);
+        }
+        return () => {
+            if (scrollElement) {
+                scrollElement.removeEventListener('scroll', handleScroll);
+            }
+        };
+    }, [handleScroll]);
+
+
     //if you want to avoid useEffect, look at the React Query example instead
     useEffect(() => {
+        setData([]); //clear data when filters change
+        setPageKeys([]); //clear page keys when filters change
+
         const fetchData = async () => {
             if (!data.length) {
                 setIsLoading(true);
             } else {
                 setIsRefetching(true);
             }
-
-            const fetchFiles = async () => {
-                try {
-
-                    const globalFilterQuery = globalFilter ? globalFilter : null;
-                    const sortStrategy = sorting;
-
-                    if (globalFilterQuery) {
-                        setPageKeys([]); //reset page keys if global filter is set
-                        setLastPageIndex(0);
-                    }
-
-                    if (sorting !== prevSorting) {
-                        setPageKeys([]); //reset page keys if sorting changes
-                        setLastPageIndex(0);
-                        setPrevSorting(sorting);
-                    }
-
-                    if (columnFilters !== previousColumnFilters) {
-                        setPageKeys([]); //reset page keys if column filters change
-                        setLastPageIndex(0);
-                        setPreviousColumnFilters(columnFilters);
-                    }
-
-                    let sortIndex = 'createdAt'
-                    let desc = false;
-                    if (sortStrategy.length > 0) {
-                        const sort = sortStrategy[0];
-
-                        if (sort.id === 'commonType') {
-                            sortIndex = 'type';
-                        } else {
-                            sortIndex = sort.id;
-                        }
-                        desc = sort.desc;
-                    }
-
-                    const pageKeyIndex = pagination.pageIndex - 1;
-                    const pageKey = pageKeyIndex >= 0 ? pageKeys[pageKeyIndex] : null;
-                    const forwardScan =
-                        ((lastPageIndex < pagination.pageIndex) || !pageKey) ? desc : !desc;
-
-                    setLastPageIndex(pagination.pageIndex);
-
-                    const query: FileQuery = {
-                        pageSize: pagination.pageSize,
-                        sortIndex,
-                        forwardScan
-                    };
-                    if (pageKey) {
-                        query.pageKey = pageKey;
-                    }
-                    if (globalFilterQuery) {
-                        query.namePrefix = globalFilterQuery;
-                    }
-
-                    if (columnFilters.length > 0) {
-                        for (const filter of columnFilters) {
-                            if (filter.id === 'name') {
-                                query.namePrefix = "" + filter.value;
-                            } else if (filter.id === 'tags') {
-                                query.tags = ("" + filter.value)
-                                    .split(',')
-                                    .map((tag: string) => tag.trim());
-                            } else if (filter.id === 'commonType') {
-                                const mimeType = getTypeFromCommonName("" + filter.value);
-                                query.typePrefix = mimeType;
-                            }
-                        }
-                    }
-
-                    if(visibleTypes && visibleTypes.length > 0){
-                        query.types =
-                            visibleTypes.flatMap(t => getTypesFromCommonName(t));
-                    }
-
-                    const result = await queryUserFiles(
-                        query, null);
-
-                    if (!result.success) {
-                        setIsError(true);
-                    }
-
-                    const updatedWithCommonNames = result.data.items.map((file: any) => {
-                        const commonName = mimeTypeToCommonName[file.type];
-                        return {
-                            ...file,
-                            commonType: commonName || (file.type && file.type.slice(0, 15)) || 'Unknown',
-                        };
-                    });
-
-                    if ((pageKeyIndex >= pageKeys.length - 1 || pageKeys.length === 0) && result.data.pageKey) {
-                        setPageKeys([...pageKeys, result.data.pageKey]);
-                    }
-
-                    setData(updatedWithCommonNames);
-
-                    const additional = result.data.items.length === pagination.pageSize ?
-                        pagination.pageSize - 1 : 0;
-
-                    const total = pagination.pageIndex * pagination.pageSize
-                        + result.data.items.length
-                        + additional;
-
-                    if (pageKeyIndex >= currentMaxPageIndex) {
-                        setCurrentMaxPageIndex(pageKeyIndex);
-                    }
-
-                    if (total > currentMaxItems && pageKeyIndex >= currentMaxPageIndex) {
-                        setCurrentMaxItems(total);
-                    }
-
-                    if (total >= currentMaxItems) {
-                        setRowCount(total);
-                    }
-
-
-                } catch (error) {
-                    setIsError(true);
-                    console.error(error);
-                    return;
-                }
-                setIsError(false);
-                setIsLoading(false);
-                setIsRefetching(false);
-            }
-
             fetchFiles();
-
         };
+
         fetchData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         columnFilters, //refetch when column filters change
         globalFilter, //refetch when global filter changes
-        pagination.pageIndex, //refetch when page index changes
-        pagination.pageSize, //refetch when page size changes
         sorting, //refetch when sorting changes
     ]);
 
@@ -331,7 +383,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
                     <span onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        downloadFile(cell.getValue<string>())
+                        downloadFile(cell.getValue<string>().split("#")[1]);
                     }}><IconDownload/></span>
                 ),
             },
@@ -417,17 +469,16 @@ const DataSourcesTableScrolling: FC<Props> = ({
         manualFiltering: true,
         manualPagination: true,
         manualSorting: true,
-        rowCount,
         onColumnFiltersChange: setColumnFilters,
         onGlobalFilterChange: setGlobalFilter,
         onPaginationChange: setPagination,
         onSortingChange: setSorting,
         enableStickyHeader: true,
-        enableBottomToolbar: true,
+        enableBottomToolbar: false,
         state: {
             columnFilters,
             globalFilter,
-            isLoading,
+            isLoading: isLoading || loadingMore,
             pagination,
             showAlertBanner: isError,
             showProgressBars: isRefetching,
@@ -453,7 +504,10 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 cursor: 'pointer', //you might want to change the cursor too when adding an onClick
             },
         }),
-        mantineTableContainerProps: {sx: {maxHeight: '400px'}},
+        mantineTableContainerProps: {
+            ref: tableContainerRef,
+            sx: {maxHeight: '400px'}
+        },
         mantineToolbarAlertBannerProps: isError
             ? {color: 'red', children: 'Error loading data'}
             : undefined,
@@ -480,7 +534,9 @@ const DataSourcesTableScrolling: FC<Props> = ({
                     //primaryColor: 'blue', // Use the name of the key from the 'colors' object
                 }}
             >
-                <MantineReactTable table={table}/>
+                <ScrollArea onScroll={handleScroll}>
+                    <MantineReactTable table={table} />
+                </ScrollArea>
             </MantineProvider>
         </div>)
 };
