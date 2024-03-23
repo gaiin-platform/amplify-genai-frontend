@@ -136,7 +136,7 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
                 <button
                     className="ml-2 overflow-hidden text-overflow-ellipsis white-space-nowrap truncate flex w-full items-center"
                 >
-                    {activeAssistant.definition.name}
+                    {activeAssistant.definition?.name}
                 </button>
                 </div>
             )}

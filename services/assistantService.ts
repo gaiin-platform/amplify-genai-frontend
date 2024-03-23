@@ -107,6 +107,27 @@ export const createAssistant = async (user:string, assistantDefinition:Assistant
         const id = result.data.assistantId;
         return {assistantId: id, provider: 'openai'};
     }
+    else if(assistantDefinition.provider === 'amplify') {
+        const response = await fetch('/api/assistant/op', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({op: "/create", data: assistantDefinition}),
+            signal: abortSignal,
+        });
+
+        const result = await response.json();
+
+        return {
+            assistantId: uuidv4(),
+            provider: 'amplify',
+            dataSources: assistantDefinition.fileKeys || [],
+            name: assistantDefinition.name || "Unnamed Assistant",
+            description: assistantDefinition.description || "No description provided",
+            instructions: assistantDefinition.instructions || assistantDefinition.description,
+        }
+    }
 
     return {
         assistantId: uuidv4(),
@@ -115,5 +136,26 @@ export const createAssistant = async (user:string, assistantDefinition:Assistant
         name: assistantDefinition.name || "Unnamed Assistant",
         description: assistantDefinition.description || "No description provided",
         instructions: assistantDefinition.instructions || assistantDefinition.description,
+    }
+};
+
+
+export const listAssistants = async (user: string, abortSignal = null) => {
+    const response = await fetch('/api/assistant/op', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ op: "/list", data: {} }),
+        signal: abortSignal,
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+        return result.data;
+    } else {
+        console.error("Error listing assistants: ", result.message);
+        return [];
     }
 };

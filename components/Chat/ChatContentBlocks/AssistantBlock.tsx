@@ -124,33 +124,6 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
 
             savePrompts(updatedPrompts);
 
-            // const existingAssistants = selectedConversation.data?.assistants || [];
-            //
-            // const updatedConversation = {
-            //     ...selectedConversation,
-            //     data:{
-            //         ...selectedConversation.data,
-            //         assistants: [...existingAssistants, assistant],
-            //     }
-            // }
-            //
-            // homeDispatch({
-            //     field: 'selectedConversation',
-            //     value: updatedConversation,
-            // });
-            //
-            // const updatedConversations = conversations.map((conversation) => {
-            //     if(conversation.id === selectedConversation.id) {
-            //         return updatedConversation;
-            //     } else {
-            //         return conversation;
-            //     }
-            // });
-            // homeDispatch({
-            //     field: 'conversations',
-            //     value: updatedConversations,
-            // });
-
         }
     }
 

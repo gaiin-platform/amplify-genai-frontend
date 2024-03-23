@@ -6,7 +6,9 @@ import {useTranslation} from 'next-i18next';
 import {serverSideTranslations} from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import {Tab, TabSidebar} from "@/components/TabSidebar/TabSidebar";
+import {syncAssistants} from "@/utils/app/assistants";
 import {useCreateReducer} from '@/hooks/useCreateReducer';
+import {listAssistants} from "@/services/assistantService";
 import {SettingsBar} from "@/components/Settings/SettingsBar";
 import useErrorService from '@/services/errorService';
 import useApiService from '@/services/useApiService';
@@ -72,6 +74,7 @@ import Loader from "@/components/Loader/Loader";
 import {useHomeReducer} from "@/hooks/useHomeReducer";
 import stateService from "@/services/stateService";
 import {MyHome} from "@/components/My/MyHome";
+import {Assistant, AssistantDefinition} from "@/types/assistant";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -160,16 +163,31 @@ const Home = ({
 
     useEffect(() => {
         const fetchPrompts = async () => {
-            const basePrompts = await getBasePrompts();
-            if (basePrompts.success) {
-                const {history, folders, prompts}: LatestExportFormat = importData(basePrompts.data);
+            try {
+                const basePrompts = await getBasePrompts();
+                if (basePrompts.success) {
+                    const {history, folders, prompts}: LatestExportFormat = importData(basePrompts.data);
 
-                dispatch({field: 'conversations', value: history});
-                dispatch({field: 'folders', value: folders});
-                dispatch({field: 'prompts', value: prompts});
+                    dispatch({field: 'conversations', value: history});
+                    dispatch({field: 'folders', value: folders});
+                    dispatch({field: 'prompts', value: prompts});
 
-            } else {
-                console.log("Failed to import base prompts.");
+                } else {
+                    console.log("Failed to import base prompts.");
+                }
+            }catch (e) {
+                console.log("Failed to import base prompts.", e);
+            }
+            fetchAssistants();
+        }
+
+        const fetchAssistants = async() => {
+            if(session?.user?.email) {
+                let assistants = await listAssistants(session?.user?.email);
+
+                if (assistants) {
+                    syncAssistants(assistants, folders, prompts, dispatch);
+                }
             }
         }
 
