@@ -1,4 +1,12 @@
-import {IconClearAll, IconSettings, IconShare, IconDownload, IconHome2, IconHome, IconRocket} from '@tabler/icons-react';
+import {
+    IconClearAll,
+    IconSettings,
+    IconShare,
+    IconDownload,
+    IconHome2,
+    IconHome,
+    IconRocket
+} from '@tabler/icons-react';
 import {
     MutableRefObject,
     memo,
@@ -40,27 +48,19 @@ import {MemoizedChatMessage} from './MemoizedChatMessage';
 
 import {usePromptFinderService} from '@/hooks/usePromptFinderService';
 import {useChatService} from '@/hooks/useChatService';
-import {VariableModal, parseVariableName} from "@/components/Chat/VariableModal";
-import {defaultVariableFillOptions, parseEditableVariables, parsePromptVariables} from "@/utils/app/prompts";
+import {VariableModal} from "@/components/Chat/VariableModal";
+import {parseEditableVariables} from "@/utils/app/prompts";
 import {v4 as uuidv4} from 'uuid';
-
-import Workflow, {
-    executeJSWorkflow, findParametersInWorkflowCode, replayJSWorkflow, stripComments
-} from "@/utils/workflow/workflow";
 import {fillInTemplate} from "@/utils/app/prompts";
 import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
 import {Prompt} from "@/types/prompt";
-import {InputDocument, newStatus, Status, WorkflowContext, WorkflowDefinition} from "@/types/workflow";
+import {newStatus, WorkflowDefinition} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {Key} from "@/components/Settings/Key";
-import {describeAsJsonSchema} from "@/utils/app/data";
 import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from "@/utils/app/const";
-import {getToolMetadata} from "@/utils/app/tools";
-import {findWorkflowPattern} from "@/utils/workflow/aiflow";
 import {TagsList} from "@/components/Chat/TagsList";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
-import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
-import {sendChat as assistantChat} from "@/services/assistantService";
+import {DEFAULT_ASSISTANT} from "@/types/assistant";
 import {DownloadModal} from "@/components/Download/DownloadModal";
 import {ColumnsSpec} from "@/utils/app/csv";
 import json5 from "json5";
@@ -369,7 +369,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, []);
 
         const handleSend = useCallback(
-            async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt: string | null = null, documents?: AttachedDocument[] | null, uri?:string|null, options?:{[key:string]:any}) => {
+            async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt: string | null = null, documents?: AttachedDocument[] | null, uri?: string | null, options?: { [key: string]: any }) => {
                 return new Promise(async (resolve, reject) => {
                     if (selectedConversation) {
 
@@ -379,22 +379,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             message.label = label;
                         }
 
-                        if(selectedConversation && selectedConversation.tags && selectedConversation.tags.includes("assistant-builder")) {
+                        if (selectedConversation && selectedConversation.tags && selectedConversation.tags.includes("assistant-builder")) {
                             // In assistants, this has the effect of
                             // disabling the use of documents so that we
                             // can just add the document to the list of documents
                             // the assistant is using.
-                            options =  {...(options || {}),
+                            options = {
+                                ...(options || {}),
                                 skipRag: true,
                                 ragOnly: true
-                           };
+                            };
                         }
                         // else if(documents && documents.length > 0) {
                         //     options =  {...(options || {}), skipRag: true};
                         // }
 
-                        if(!featureFlags.ragEnabled) {
-                            options =  {...(options || {}), skipRag: true};
+                        if (!featureFlags.ragEnabled) {
+                            options = {...(options || {}), skipRag: true};
                         }
 
                         if (selectedConversation
@@ -451,20 +452,18 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             maxTokens: updatedConversation.maxTokens || 1000
                         };
 
-                        if(uri) {
+                        if (uri) {
                             chatBody.endpoint = uri;
                         }
 
                         if (documents && documents.length > 0) {
 
                             const dataSources = documents.map((doc) => {
-                                if(doc.key && doc.key.indexOf("://") === -1){
+                                if (doc.key && doc.key.indexOf("://") === -1) {
                                     return {id: "s3://" + doc.key, type: doc.type, metadata: doc.metadata || {}};
-                                }
-                                else if(doc.key && doc.key.indexOf("://") > -1){
+                                } else if (doc.key && doc.key.indexOf("://") > -1) {
                                     return {id: doc.key, type: doc.type, metadata: doc.metadata || {}};
-                                }
-                                else {
+                                } else {
                                     return doc;
                                 }
                             });
@@ -476,8 +475,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         }
 
 
-
-                        if(options) {
+                        if (options) {
                             Object.assign(chatBody, options);
                         }
 
@@ -537,16 +535,16 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             let outOfOrder = false;
                             let currentState = {};
 
-                            const metaHandler:MetaHandler = {
-                                status:(meta:any) => {
+                            const metaHandler: MetaHandler = {
+                                status: (meta: any) => {
                                     //console.log("Chat-Status: ", meta);
-                                    homeDispatch({type:"append", field:"status", value:newStatus(meta)})
+                                    homeDispatch({type: "append", field: "status", value: newStatus(meta)})
                                 },
-                                mode:(modeName:string) => {
+                                mode: (modeName: string) => {
                                     //console.log("Chat-Mode: "+modeName);
                                     outOfOrder = (modeName === "out_of_order");
                                 },
-                                state: (state:any) => {
+                                state: (state: any) => {
                                     currentState = deepMerge(currentState, state);
                                     console.log("Updated state:", currentState);
                                 },
@@ -586,7 +584,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             }
                             if (!plugin) {
                                 if (updatedConversation.messages.length === 1) {
-                                    const { content } = message;
+                                    const {content} = message;
                                     callRenameChatApi(content).then(customName => {
                                         updatedConversation = {
                                             ...updatedConversation,
@@ -595,7 +593,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     }).catch(error => {
                                         console.error('Failed to rename conversation:', error);
                                         // fallback to default naming convention
-                                        const { content } = message;
+                                        const {content} = message;
                                         const customName =
                                             content.length > 30 ? content.substring(0, 30) + '...' : content;
                                         updatedConversation = {
@@ -659,14 +657,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         done = doneReading;
                                         const chunkValue = decoder.decode(value);
 
-                                        if(!outOfOrder) {
+                                        if (!outOfOrder) {
                                             text += chunkValue;
-                                        }
-                                        else {
-                                            let event = {s:"0", d:chunkValue};
-                                            try{
+                                        } else {
+                                            let event = {s: "0", d: chunkValue};
+                                            try {
                                                 event = JSON.parse(chunkValue);
-                                            }catch (e) {
+                                            } catch (e) {
                                                 //console.log("Error parsing event", e);
                                             }
                                             eventOrderingMgr.addEvent(event);
@@ -890,40 +887,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 let [category, action_path] = href.slice(1).split(":");
                 let [action, path] = action_path.split("/");
 
-                if (category === "workflow" && action === "run-workflow") {
-                    const code = findWorkflowPattern(message.content);
-                    if (code) {
-
-                        let paramNamesStr = findParametersInWorkflowCode(code);
-                        //console.log("paramNamesStr", paramNamesStr);
-
-                        const usesDocuments = stripComments(code).includes("getDocument");
-                        const content = usesDocuments ?
-                            paramNamesStr +
-                            "{{Document 1:file(optional:true)}}" +
-                            "{{Document 2:file(optional:true)}}" +
-                            "{{Document 3:file(optional:true)}}" +
-                            "Running your workflow..." :
-                            paramNamesStr + "Running your workflow...";
-
-                        const prompt: Prompt = {
-                            id: uuidv4(),
-                            folderId: null,
-                            name: "Run Workflow",
-                            content: content,
-                            type: "automation",
-                            description: "Please provide any needed documents for the workflow.",
-                            data: {
-                                code: code,
-                                inputs: {
-                                    parameters: {},
-                                    documents: []
-                                }
-                            }
-                        };
-                        runPrompt(prompt);
-                    }
-                } else if (category === "chat") {
+                if (category === "chat") {
                     if (action === "send") {
                         const content = path;
                         handleSend(newMessage({role: 'user', content: content}), 0, null);
@@ -973,298 +937,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             };
 
             return stopper;
-        }
-
-        const handleJsWorkflow = useCallback(async (message: Message, updatedVariables: string[], variablesByName: { [key: string]: any }, documents: AttachedDocument[] | null) => {
-
-            if (!featureFlags.workflowRun) {
-                alert("Running workflows is currently disabled.");
-                return;
-            }
-
-            if (selectedConversation) {
-
-                const workflowId = uuidv4();
-                let statusHistory: Status[] = [];
-
-                const statusLogger = (status: Status | null) => {
-
-                    if (status) {
-                        statusHistory.push(status);
-                    } else {
-                        statusHistory = [];
-                    }
-
-                    homeDispatch({field: 'status', value: statusHistory});
-                }
-
-                const telluser = async (msg: string) => {
-                    await asyncSafeHandleAddMessages([
-                        newMessage({role: "assistant", content: msg, data: {workflow: workflowId, type: "workflow:tell"}})])
-                };
-
-                let tools = {
-                    "tellUser": {
-                        description: "async (msg:string)=>Promise<void>//output a message to the user",
-                        exec: telluser
-                    }
-                }
-
-                message.data = (message.data) ?
-                    {...message.data, ...{workflow: workflowId, type: "workflow:prompt"}} :
-                    {workflow: workflowId, type: "workflow:prompt"};
-
-                await asyncSafeHandleAddMessages([message]);
-
-                let inputTypes: InputDocument[] = [];
-
-                if (documents && documents.length > 0) {
-
-                    let docs = documents;
-
-                    let documentsTypes = docs.map((doc) => {
-                        return {name: doc.name, type: doc.type};
-                    });
-
-                    await telluser(`Using documents: \n\n${formatter({type: 'table', data: documentsTypes})}`)
-                }
-
-                message.data.inputTypes = inputTypes;
-
-                const stopper = getStopper();
-
-                await telluser("Starting...");
-
-                await homeDispatch({field: 'loading', value: true});
-                await homeDispatch({field: 'messageIsStreaming', value: true});
-
-                const context: WorkflowContext = {
-                    inputs: {
-                        documents: documents || [],
-                        parameters: variablesByName,
-                        conversations: conversations,
-                        prompts: prompts,
-                        folders: folders,
-                    }
-                }
-
-                let code = message.data?.templateData?.data?.code;
-                let isReplay = code != null;
-
-                console.log(message.data);
-
-                let runner = (isReplay) ?
-                    () => {
-
-                        code = fillInTemplate(code, variables, updatedVariables, documents, false);
-
-                        return replayJSWorkflow(apiKey, code, tools, stopper, statusLogger, context, (responseText) => {
-                            statusLogger(null);
-
-                            updateCurrentMessage(responseText, {workflow: workflowId, type: "workflow:code"});
-                        });
-                    }
-                    :
-                    () => {
-                        return executeJSWorkflow(apiKey, message.content, tools, stopper, statusLogger, context, (responseText) => {
-                            responseText = "```javascript\n" + responseText;
-
-                            statusLogger(null);
-
-                            updateCurrentMessage(responseText, {workflow: workflowId, type: "workflow:code"});
-                        });
-                    };
-
-
-                // @ts-ignore
-                // executeJSWorkflow(apiKey, message.content, tools, stopper, context, (responseText) => {
-                //     responseText = "```javascript\n" + responseText;
-                //
-                //     updateCurrentMessage(responseText, {workflow: workflowId, type: "workflow:code"});
-                // })
-
-                runner().then((result) => {
-
-                    let workflowCode = result.code;
-
-                    let resultStr = (typeof result.result === "string") ? result.result :
-                        formatter(result.result);
-
-                    let resultMsg = (stopper.isCanceled()) ?
-                        "You stopped execution of this task." :
-                        "Result\n---------------------\n" + resultStr;
-
-                    let codeMsg = (stopper.isCanceled()) ? "" :
-                        "\n\nCode\n---------------------\n" +
-                        "```javascript \n" + result?.code + "```";
-
-                    const msg = resultMsg; //+ codeMsg;
-
-                    let resultMessages = [
-                        newMessage({
-                            role: "assistant", content: msg, data: {
-                                // @ts-ignore
-                                reusableDescription: result.reuseDesc,
-                                // @ts-ignore
-                                inputs: result.inputs,
-                                workflow: workflowId,
-                                workflowCode: workflowCode,
-                                type: "workflow:result"
-                            }
-                        }),
-                    ];
-
-                    if (!isReplay) {
-                        resultMessages.push(
-                            newMessage({
-                                role: "assistant",
-                                data: {
-                                    workflow: workflowId,
-                                    type: "workflow:data"
-                                },
-                                content: `Would you like to: [Save Workflow](#workflow:save-workflow/${workflowId})?`
-                            }));
-                    }
-
-                    asyncSafeHandleAddMessages(resultMessages)
-
-                }).finally(() => {
-                    statusLogger(null);
-
-                    homeDispatch({field: 'loading', value: false});
-                    homeDispatch({field: 'messageIsStreaming', value: false});
-                });
-            }
-
-        }, [
-            apiKey,
-            conversations,
-            pluginKeys,
-            selectedConversation,
-            stopConversationRef,
-        ]);
-
-        function generateMarkdownTable(data: Array<Record<string, any>>): string {
-            if (!data || !Array.isArray(data) || data.length === 0)
-                return '';
-
-            // Get all unique keys
-            const keys = Array.from(
-                new Set(data.flatMap(obj => Object.keys(obj)))
-            );
-
-            let markdown = `| ${keys.join(' | ')} |\n| ${keys.map(() => '---').join(' | ')} |\n`;
-
-            data.forEach(obj => {
-                const row = keys.map(key => {
-                    if (obj.hasOwnProperty(key)) {
-                        // Replace line breaks with `<br>` if they exist.
-                        return String(obj[key]).replace(/\n/g, ' <br> ');
-                    } else {
-                        return '';
-                    }
-                }).join(' | ');
-
-                markdown += `| ${row} |\n`;
-            });
-
-            return markdown;
-        }
-
-        const formatter = (result: { type: string; data: Record<string, any>[]; } | null) => {
-            console.log("formatter", result);
-            if (result == null) {
-                return "The workflow didn't produce any results.";
-            } else if (result.type && result.type == "text") {
-                if (typeof result.data === "string") {
-                    return result.data;
-                } else {
-                    return "```json\n" + JSON.stringify(result.data, null, 2) + "\n```";
-                }
-            } else if (result.type && result.type == "code" && typeof result.data === "string") {
-                return "```javascript\n\n" + result.data + "\n\n```";
-            } else if (result.type && result.type == "code") {
-                return "```javascript\n\n" + JSON.stringify(result.data) + "\n\n```";
-            } else if (result.type && result.type == "object") {
-                return "```json\n" + JSON.stringify(result.data, null, 2) + "\n```";
-            } else if (result.type && Array.isArray(result.data) && result.type == "table") {
-                return generateMarkdownTable(result.data);
-            } else {
-                return "```json\n" + JSON.stringify(result.data, null, 2) + "\n```";
-            }
-        };
-
-        const handleOpenAiAssistant = async (selectedAssistant: Assistant, message: Message, deleteCount: number) => {
-            if (selectedConversation) {
-                const stopper = getStopper();
-
-                const updatedMessages = [...selectedConversation.messages];
-                if (deleteCount) {
-                    for (let i = 0; i < deleteCount; i++) {
-                        updatedMessages.pop();
-                    }
-                }
-
-                updatedMessages.push(message);
-
-                let updatedConversation = {
-                    ...selectedConversation,
-                    messages: updatedMessages,
-                };
-
-                homeDispatch({
-                    field: 'selectedConversation',
-                    value: updatedConversation,
-                });
-
-                console.log("Assistant Chat: ", selectedConversation);
-
-                setCurrentMessage(message);
-
-                homeDispatch({field: 'loading', value: true});
-                homeDispatch({field: 'messageIsStreaming', value: true});
-
-                assistantChat(apiKey,
-                    stopper,
-                    selectedAssistant,
-                    selectedConversation.prompt,
-                    [...selectedConversation?.messages, message],
-                    () => {
-                    },
-                    selectedConversation?.model)
-                    .then((r) => {
-                        try {
-                            const {success, messages} = r;
-
-                            if (!success || !messages || messages.length === 0 && !success) {
-                                alert("The assistant failed to respond. Please try again.");
-                                return;
-                            }
-
-                            const newMessages = messages.map((m: any[]) => {
-                                return {...m, id: uuidv4()}
-                            });
-
-                            console.log("Assistant Chat Response", newMessages);
-
-                            const newUpdatedConversation = {
-                                ...updatedConversation,
-                                messages: [...updatedMessages, ...newMessages]
-                            }
-                            console.log("Updated Conversation", newUpdatedConversation);
-
-                            homeDispatch({field: 'selectedConversation', value: newUpdatedConversation});
-                            saveConversation(selectedConversation);
-                        } catch (e) {
-                            console.log("Error updating conversation", e);
-                            alert("Unable to reach the assistant. Please try again.");
-                        }
-                    })
-                    .finally(() => {
-                        homeDispatch({field: 'loading', value: false});
-                        homeDispatch({field: 'messageIsStreaming', value: false});
-                    });
-            }
         }
 
         const calculateTokenCost = (chatModel: OpenAIModel, datasources: AttachedDocument[]) => {
@@ -1318,10 +990,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 const existingDatasources = message.data?.dataSources || [];
                 const newDatasources = documents?.filter((doc) => doc.key).map((doc) => {
-                    if(doc.key && doc.key.indexOf("://") === -1) {
+                    if (doc.key && doc.key.indexOf("://") === -1) {
                         return {id: "s3://" + doc.key, name: doc.name, type: doc.type, metadata: doc.metadata || {}};
-                    }
-                    else {
+                    } else {
                         return {id: doc.key, name: doc.name, type: doc.type, metadata: doc.metadata || {}};
                     }
                 }) || [];
@@ -1337,55 +1008,42 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (selectedAssistant && selectedAssistant?.id !== DEFAULT_ASSISTANT.id) {
                     if (selectedConversation) {
 
-                        if (selectedAssistant.definition.provider === "openai") {
-                            try {
-                                handleOpenAiAssistant(selectedAssistant, message, deleteCount || 0);
-                            } catch (e) {
-                                alert("Error reaching OpenAI. Please retry your request.");
+                        if (selectedAssistant.definition.dataSources) {
+
+                            const formattedDatasources =
+                                selectedAssistant.definition.dataSources;
+
+                            if (!documents) {
+                                documents = formattedDatasources;
+                            } else if (!Array.isArray(documents)) {
+                                documents = [documents, ...formattedDatasources];
+                            } else {
+                                documents = [...documents, ...formattedDatasources];
                             }
-                        } else {
-
-                            if(selectedAssistant.definition.dataSources){
-
-                                const formattedDatasources =
-                                    selectedAssistant.definition.dataSources;
-
-                                if(!documents){
-                                    documents = formattedDatasources;
-                                }
-                                else if(!Array.isArray(documents)){
-                                    documents = [documents, ...formattedDatasources];
-                                }
-                                else {
-                                    documents = [...documents, ...formattedDatasources];
-                                }
-                            }
-
-                            let options = {
-                                ragOnly:true,
-                                assistantName: selectedAssistant.definition.name
-                            };
-
-                            if (selectedAssistant.definition.options){
-                                options = {...options, ...selectedAssistant.definition.options};
-                            }
-
-                            handleSend(
-                                message,
-                                deleteCount,
-                                plugin,
-                                null,
-                                selectedAssistant.definition.instructions,
-                                documents,
-                                null,
-                                options);
                         }
+
+                        let options = {
+                            ragOnly: true,
+                            assistantName: selectedAssistant.definition.name
+                        };
+
+                        if (selectedAssistant.definition.options) {
+                            options = {...options, ...selectedAssistant.definition.options};
+                        }
+
+                        handleSend(
+                            message,
+                            deleteCount,
+                            plugin,
+                            null,
+                            selectedAssistant.definition.instructions,
+                            documents,
+                            null,
+                            options);
                     }
                 } else {
                     handleSend(message, deleteCount, plugin, null, null, documents);
                 }
-            } else if (message.type == MessageType.AUTOMATION) {
-                handleJsWorkflow(message, [], {}, documents);
             } else {
                 console.log("Unknown message type", message.type);
             }
@@ -1431,10 +1089,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 console.log("Building data sources");
                 const dataSources = documents?.filter((doc) => doc.key).map((doc) => {
-                    if(doc.key && doc.key.indexOf("://") === -1) {
+                    if (doc.key && doc.key.indexOf("://") === -1) {
                         return {id: "s3://" + doc.key, name: doc.name, type: doc.type};
-                    }
-                    else {
+                    } else {
                         return {id: doc.key, name: doc.name, type: doc.type};
                     }
                 });
@@ -1463,9 +1120,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     } else {
                         handleSend(message, 0, null);
                     }
-                } else if (message.type === MessageType.AUTOMATION) {
-                    console.log("Workflow", message);
-                    handleJsWorkflow(message, updatedVariables, variablesByName, documents);
                 } else {
                     if (documents && documents.length > 0) {
                         handleSend(message, 0, null, null, null, documents);
@@ -1605,7 +1259,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
 
-                if(selectedConversation.promptTemplate.data && selectedConversation.promptTemplate.data.assistant){
+                if (selectedConversation.promptTemplate.data && selectedConversation.promptTemplate.data.assistant) {
                     homeDispatch({field: 'selectedAssistant', value: selectedConversation.promptTemplate.data.assistant});
                 }
 
@@ -1748,9 +1402,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 <ResponseTokensSlider
                                                     label={t('Response Length')}
                                                     onResponseTokenRatioChange={(r) => {
-                                                        if(selectedConversation && selectedConversation.model){
+                                                        if (selectedConversation && selectedConversation.model) {
 
-                                                            const tokens = Math.floor(1000 * ( r/3.0 )) + 1;
+                                                            const tokens = Math.floor(1000 * (r / 3.0)) + 1;
 
                                                             handleUpdateConversation(selectedConversation, {
                                                                 key: 'maxTokens',

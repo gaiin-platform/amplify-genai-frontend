@@ -6,6 +6,7 @@ import {
     IconTrash,
     IconWriting,
     IconDownload,
+    IconMail,
     IconFileCheck,
     IconUser,
 } from '@tabler/icons-react';
@@ -378,11 +379,21 @@ export const ChatMessage: FC<Props> = memo(({
                                     </button>
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                        title="Email Response"
+                                    >
+                                        <a className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                           href={`mailto:?body=${encodeURIComponent(messageContent)}`}>
+                                            <IconMail size={20}/>
+                                        </a>
+                                    </button>
+                                    <button
+                                        className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={toggleEditing}
                                         title="Edit Response"
                                     >
                                         <IconEdit size={20}/>
                                     </button>
+
 
                                 </div>
                             </div>

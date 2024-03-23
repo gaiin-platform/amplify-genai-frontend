@@ -19,7 +19,8 @@ const failureResponse = (messages: Message[], reason: string) => {
     }
 }
 
-const doAssistantOp = async (stopper:Stopper, opName:string, data:any, errorHandler=(e:any)=>{}) => {
+const doAssistantOp = async (stopper: Stopper, opName: string, data: any, errorHandler = (e: any) => {
+}) => {
     const op = {
         data: data,
         op: opName
@@ -38,59 +39,36 @@ const doAssistantOp = async (stopper:Stopper, opName:string, data:any, errorHand
 
     console.log("Assistant Op response:", response);
 
-    if (response.ok){
+    if (response.ok) {
         try {
             const result = await response.json();
             console.log("Assistant Op result:", result);
 
             return result;
-        } catch (e){
-            return {success:false, message:"Error parsing response."};
+        } catch (e) {
+            return {success: false, message: "Error parsing response."};
         }
-    }
-    else {
-        return {success:false, message:`Error calling assistant: ${response.statusText} .`}
+    } else {
+        return {success: false, message: `Error calling assistant: ${response.statusText} .`}
     }
 }
 
-const addData = (data:{[key:string]:any}) => {
-    return (m:Message) => {
+const addData = (data: { [key: string]: any }) => {
+    return (m: Message) => {
         return {...m, data: {...m.data, ...data}}
     };
 }
 
-const addDataToMessages = (messages:Message[], data:{[key:string]:any}) => {
+const addDataToMessages = (messages: Message[], data: { [key: string]: any }) => {
     return messages.map((m) => {
         return {...m, data: {...m.data, ...data}}
     });
 }
 
-export const sendChat = async (apikey:string, stopper:Stopper, assistant:Assistant, instructions:string, messages:Message[], messageCallback?: (msg: string) => void, model?: OpenAIModel) => {
+export const createAssistant = async (user: string, assistantDefinition: AssistantDefinition, abortSignal = null) => {
 
-    const {success, message, data} = await doAssistantOp(
-        stopper,
-        '/chat',
-        {id: assistant.id,
-            fileKeys:[],
-            messages: messages});
-
-    console.log("Chat response:", success, message, data);
-
-    if(!success){
-        return failureResponse([], message);
-    }
-
-    const newMessages:Message[] = data.map(addData({assistantId: assistant.id}));
-    console.log("New messages: ", newMessages);
-
-    return {success:true, messages:data};
-}
-
-
-export const createAssistant = async (user:string, assistantDefinition:AssistantDefinition, abortSignal= null)=> {
-
-    if(assistantDefinition.provider === 'openai') {
-        if(assistantDefinition.dataSources){
+    if (assistantDefinition.provider === 'openai') {
+        if (assistantDefinition.dataSources) {
             assistantDefinition.fileKeys = assistantDefinition.dataSources.map((ds) => ds.id);
         }
 
@@ -106,8 +84,7 @@ export const createAssistant = async (user:string, assistantDefinition:Assistant
         const result = await response.json();
         const id = result.data.assistantId;
         return {assistantId: id, provider: 'openai'};
-    }
-    else if(assistantDefinition.provider === 'amplify') {
+    } else if (assistantDefinition.provider === 'amplify') {
         const response = await fetch('/api/assistant/op', {
             method: 'POST',
             headers: {
@@ -146,7 +123,7 @@ export const listAssistants = async (user: string, abortSignal = null) => {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ op: "/list", data: {} }),
+        body: JSON.stringify({op: "/list", data: {}}),
         signal: abortSignal,
     });
 

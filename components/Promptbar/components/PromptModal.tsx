@@ -3,17 +3,13 @@ import {FC, KeyboardEvent, useContext, useEffect, useRef, useState} from 'react'
 import { useTranslation } from 'next-i18next';
 import JSON5 from 'json5'
 import { Prompt } from '@/types/prompt';
-import {boolean} from "property-information/lib/util/types";
 import {MessageType} from "@/types/chat";
 import HomeContext from "@/pages/api/home/home.context";
-import {findWorkflowPattern} from "@/utils/workflow/aiflow";
 import {variableTypeOptions, parsePromptVariableValues, parsePromptVariables, getType, getName} from "@/utils/app/prompts";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import EditableField from "@/components/Promptbar/components/EditableField";
 import { DEFAULT_SYSTEM_PROMPT } from "@/utils/app/const";
-import { v4 as uuidv4 } from 'uuid';
-import PromptTextArea from "@/components/PromptTextArea/PromptTextArea";
-import {promptForJsonPrefix} from "@/utils/app/data";
+
 
 interface Props {
   prompt: Prompt;
@@ -170,14 +166,6 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
     if(selectedTemplate === MessageType.OUTPUT_TRANSFORMER ||
        selectedTemplate === MessageType.PREFIX_PROMPT) {
       newPrompt.data = {...newPrompt.data, hidden:true};
-    }
-
-    if (featureFlags.workflowCreate
-        && selectedTemplate === MessageType.AUTOMATION
-        && code
-        && findWorkflowPattern(code)) {
-
-      newPrompt.data = {...newPrompt.data, code: findWorkflowPattern(code)};
     }
 
     onUpdatePrompt(newPrompt);
@@ -346,44 +334,6 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             </div>
             )}
 
-            {featureFlags.workflowCreate && selectedTemplate === MessageType.AUTOMATION && (
-                <>
-                <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
-                  {t('Code')}
-                </div>
-                <textarea
-                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                    style={{ resize: 'none' }}
-                    placeholder={
-                        t(
-                            '//@START_WORKFLOW\n' +
-                            'const workflow = async (fnlibs) => {\n' +
-                            '     \n' +
-                            '    try {\n' +
-                            '        fnlibs.tellUser("Executing the generated workflow...");\n' +
-                            '        let value = {type:"table", data:null}; // Initialize value\n' +
-                            '' +
-                            '        return value;\n' +
-                            '    }\n' +
-                            '    catch(e){\n' +
-                            '       throw e;\n' +
-                            '    }\n' +
-                            '};//@\n' +
-                            '\n',
-                        ) || ''
-                    }
-                    value={code||""}
-                    onChange={(e) => setCode(e.target.value)}
-                    rows={10}
-                />
-                </>
-            )}
-
-            {/*{(featureFlags.outputTransformerCreate && selectedTemplate === MessageType.OUTPUT_TRANSFORMER) && (*/}
-            {/*  <PromptTextArea*/}
-            {/*      promptTemplateString={`${promptForJsonPrefix({steps:[{id:1, description:""}]}, 'plan')} Generate a json schema for an object with description, size, and name properties.`}*/}
-            {/*      generateButtonText="Generate!"/>*/}
-            {/*)}*/}
 
             {((featureFlags.followUpCreate && selectedTemplate === MessageType.FOLLOW_UP) ||
                 (featureFlags.promptPrefixCreate && selectedTemplate === MessageType.PREFIX_PROMPT) ||
