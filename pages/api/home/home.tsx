@@ -219,6 +219,7 @@ const Home = ({
                             actualTokenLimit: OpenAIModels[value].actualTokenLimit,
                             inputCost: OpenAIModels[value].inputCost,
                             outputCost: OpenAIModels[value].outputCost,
+                            description: OpenAIModels[value].description
                         });
                     }
                 }
@@ -1021,6 +1022,7 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
     const cognitoDomain = process.env.COGNITO_DOMAIN;
     const defaultFunctionCallModel = process.env.DEFAULT_FUNCTION_CALL_MODEL;
     const availableModels = process.env.AVAILABLE_MODELS;
+            
 
     //console.log("Default Model Id:", defaultModelId);
 
