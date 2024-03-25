@@ -30,6 +30,7 @@ export interface AssistantDefinition {
     version?:number;
     id?:string;
     data?:{[key:string]:any};
+    assistantId?:string;
 }
 
 export const DEFAULT_ASSISTANT: Assistant = {

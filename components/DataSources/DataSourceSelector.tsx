@@ -10,10 +10,14 @@ import {UserTagsList} from "@/components/UserTags/UserTagsList";
 
 interface Props {
     onDataSourceSelected: (dataSource: DataSource) => void;
+    minWidth?: string;
+    minHeight?: string;
 }
 
 export const DataSourceSelector: FC<Props> = ({
-                                                  onDataSourceSelected
+                                                  onDataSourceSelected,
+                                                  minWidth = "620px",
+                                                  minHeight = "460px"
                                               }) => {
     const {t} = useTranslation('chat');
 
@@ -115,8 +119,8 @@ export const DataSourceSelector: FC<Props> = ({
 
             <div
                 className="p-0 bg-[#ffffff] text-medium text-gray-500 dark:text-gray-400 dark:bg-[#343541] rounded-lg w-full"
-                style={{minHeight: "460px", minWidth: "620px"}}
-                >
+                style={{minHeight: minHeight, minWidth: minWidth}}
+            >
                 {selectedPage === "files" && (
                     <DataSourcesTableScrolling
                         visibleColumns={["name", "createdAt", "commonType"]}
@@ -134,10 +138,10 @@ export const DataSourceSelector: FC<Props> = ({
                     />
                 )}
                 {selectedPage === "tags" && (
-                    <UserTagsList onTagSelected={(t)=>{
+                    <UserTagsList onTagSelected={(t) => {
                         const dataSource: DataSource = {
-                            id: "tag://"+t+"?ragOnly=true",
-                            name: "tag:"+t,
+                            id: "tag://" + t + "?ragOnly=true",
+                            name: "tag:" + t,
                             metadata: {},
                             type: "amplify/tag"
                         }
@@ -165,7 +169,7 @@ export const DataSourceSelector: FC<Props> = ({
                 {selectedPage === "slides" && (
                     <DataSourcesTableScrolling
                         visibleColumns={["name", "createdAt", "commonType"]}
-                        visibleTypes={["PowerPoint","Google Slides"]}
+                        visibleTypes={["PowerPoint", "Google Slides"]}
                         onDataSourceSelected={onDataSourceSelected}
                         tableParams={{
                             enableGlobalFilter: false,

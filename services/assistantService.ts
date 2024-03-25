@@ -65,7 +65,7 @@ const addDataToMessages = (messages: Message[], data: { [key: string]: any }) =>
     });
 }
 
-export const createAssistant = async (user: string, assistantDefinition: AssistantDefinition, abortSignal = null) => {
+export const createAssistant = async (assistantDefinition: AssistantDefinition, abortSignal = null) => {
 
     if (assistantDefinition.provider === 'openai') {
         if (assistantDefinition.dataSources) {
@@ -134,5 +134,25 @@ export const listAssistants = async (user: string, abortSignal = null) => {
     } else {
         console.error("Error listing assistants: ", result.message);
         return [];
+    }
+};
+
+export const deleteAssistant = async (assistantId: string, abortSignal = null) => {
+    const response = await fetch('/api/assistant/op', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({op: "/delete", data: {assistantId}}),
+        signal: abortSignal,
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+        return true;
+    } else {
+        console.error("Error deleting assistant: ", result.message);
+        return false;
     }
 };

@@ -31,6 +31,10 @@ import {
     handleStartConversationWithPrompt,
 } from "@/utils/app/prompts";
 import { useSession } from "next-auth/react";
+import {getAssistant, isAssistant} from "@/utils/app/assistants";
+import {AssistantModal} from "@/components/Promptbar/components/AssistantModal";
+import {deleteAssistant} from "@/services/assistantService";
+import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 
 interface Props {
     prompt: Prompt;
@@ -61,47 +65,18 @@ export const PromptComponent = ({ prompt }: Props) => {
         setShowShareModal(false);
     };
 
+    const canDelete = (!prompt.data || !prompt.data.noDelete)
+    const canEdit = (!prompt.data || !prompt.data.noEdit)
+    const canCopy = (!prompt.data || !prompt.data.noCopy)
+    const canShare = (!prompt.data || !prompt.data.noShare)
+
+    const [progressMessage, setProgressMessage] = useState<string|null>(null);
     const [showModal, setShowModal] = useState<boolean>(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isRenaming, setIsRenaming] = useState(false);
     const [renameValue, setRenameValue] = useState('');
     const [isHovered, setIsHovered] = useState(false);
 
-    const handleStartPromptBuilder = () => {
-        handleNewConversation(
-            {
-                name: "AI Prompt Helper",
-                prompt: "You are a prompt engineering expert. " +
-                    "You help users write amazing prompts for GPT-4. " +
-                    "I will tell you what I am trying to do and you will write an amazing prompt for me" +
-                    "that includes chain of thought reasoning, step by step breakdown of the task, enriched" +
-                    "details from the domain, and any other helpful wording. You will then ask me if I like the prompt " +
-                    "and want to add it as an app that I can reuse later. At any point, if I indicate that I like the " +
-                    "prompt and want to use it in the future, you will output the special marker: " +
-                    "" +
-                    //"http://localhost?add_prompt=\"THE PROMPT YOU CREATED\"" +
-                    "<<DONE>>",
-                messages: [
-                    { role: "assistant", content: "Tell me what you want the prompt to do and I will write it for you." }
-                ],
-                processors: [],
-                tools: [],
-            })
-    }
-
-    // const dateTimeString = () => {
-    //     let date = new Date();
-    //
-    //     let month = ('0' + (date.getMonth() + 1)).slice(-2); // getMonth() starts from 0, so add 1
-    //     let day = ('0' + date.getDate()).slice(-2);
-    //     let year = date.getFullYear().toString().substr(-2); // take the last 2 digit of the year
-    //
-    //     let hours = ('0' + date.getHours()).slice(-2);
-    //     let minutes = ('0' + date.getMinutes()).slice(-2);
-    //
-    //     let formattedDate = `${month}/${day}/${year} ${hours}:${minutes}`;
-    //     return formattedDate;
-    // }
 
     const handleStartConversation = (startPrompt: Prompt) => {
 
@@ -113,53 +88,6 @@ export const PromptComponent = ({ prompt }: Props) => {
         statsService.startConversationEvent(startPrompt);
         handleStartConversationWithPrompt(handleNewConversation, prompts, startPrompt);
 
-        // let prompt = startPrompt;
-        //
-        // let rootPromptObj = (prompt.data?.rootPromptId) ?
-        //     prompts.find((p) => p.id == prompt.data?.rootPromptId) : null;
-        //
-        // if(rootPromptObj == null && prompt.type === MessageType.ROOT){
-        //     rootPromptObj = prompt;
-        //     prompt = {
-        //         description: rootPromptObj.description,
-        //         folderId: null,
-        //         id: uuidv4(),
-        //         name: "Conversation Started with "+rootPromptObj.name,
-        //         type: MessageType.PROMPT,
-        //         content: "Tell me about what you can help me with.",
-        //         data: {
-        //             rootPromptId: rootPromptObj.id
-        //         }
-        //     }
-        // }
-        //
-        // let rootPrompt = null;
-        // if (rootPromptObj != null && rootPromptObj?.content) {
-        //     let variables = parsePromptVariables(rootPromptObj?.content);
-        //     let variableValues = variables.map((v) => "");
-        //     rootPrompt = fillInTemplate(rootPromptObj?.content, variables, variableValues, [], true);
-        // }
-        //
-        // const getPromptTags = (prompt: Prompt | null | undefined) => {
-        //     return (prompt && prompt.data && prompt.data.conversationTags) ? prompt.data.conversationTags : [];
-        // }
-        //
-        // let tags: string[] = [...getPromptTags(rootPromptObj), ...getPromptTags(prompt)]
-        // if (prompt.type == "automation") {
-        //     tags.push("automation");
-        // }
-        //
-        //
-        // handleNewConversation(
-        //     {
-        //         name: prompt.name + " " + dateTimeString(),
-        //         messages: [],
-        //         promptTemplate: prompt,
-        //         processors: [],
-        //         tools: [],
-        //         tags: tags,
-        //         ...(rootPrompt != null && {prompt: rootPrompt}),
-        //     })
     }
 
     const handleUpdate = (prompt: Prompt) => {
@@ -167,9 +95,28 @@ export const PromptComponent = ({ prompt }: Props) => {
         promptDispatch({ field: 'searchTerm', value: '' });
     };
 
-    const handleDelete: MouseEventHandler<HTMLButtonElement> = (e) => {
+    const handleDelete: MouseEventHandler<HTMLButtonElement> = async (e) => {
         e.stopPropagation();
 
+        if(isAssistant(prompt)){
+           const assistant = getAssistant(prompt);
+           if(assistant && assistant.assistantId){
+               setProgressMessage("Deleting assistant...");
+               try {
+                   const result = await deleteAssistant(assistant.assistantId);
+                   if(!result){
+                       setProgressMessage(null);
+                       alert("Failed to delete assistant. Please try again.");
+                       return;
+                   }
+               } catch (e) {
+                   setProgressMessage(null);
+                   alert("Failed to delete assistant. Please try again.");
+                   return;
+               }
+               setProgressMessage(null);
+           }
+        }
         if (isDeleting) {
             handleDeletePrompt(prompt);
             promptDispatch({ field: 'searchTerm', value: '' });
@@ -233,6 +180,9 @@ export const PromptComponent = ({ prompt }: Props) => {
             }
             }
         >
+            {progressMessage && (
+                <LoadingDialog open={progressMessage != null} message={progressMessage}/>
+            )}
 
             <div className="relative flex w-full">
                 <button
@@ -264,19 +214,19 @@ export const PromptComponent = ({ prompt }: Props) => {
                     <div
                         className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-gray-900 rounded">
 
-                        {!isDeleting && !isRenaming && (
+                        {!isDeleting && !isRenaming && canCopy && (
                             <SidebarActionButton handleClick={handleCopy} title="Duplicate Template">
                                 <IconCopy size={18} />
                             </SidebarActionButton>
                         )}
 
-                        {!isDeleting && !isRenaming && (
+                        {!isDeleting && !isRenaming && canEdit && (
                             <SidebarActionButton handleClick={() => setShowModal(true)} title="Edit Template">
                                 <IconEdit size={18} />
                             </SidebarActionButton>
                         )}
 
-                        {!isDeleting && !isRenaming && (
+                        {!isDeleting && !isRenaming && canShare && (
                             <SidebarActionButton handleClick={() => {
                                 handleSharePrompt(prompt);
                             }} title="Share">
@@ -284,7 +234,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                             </SidebarActionButton>
                         )}
 
-                        {!isDeleting && !isRenaming && (
+                        {!isDeleting && !isRenaming && canDelete && (
                             <SidebarActionButton handleClick={handleOpenDeleteModal} title="Delete Template">
                                 <IconTrash size={18} />
                             </SidebarActionButton>
@@ -307,12 +257,21 @@ export const PromptComponent = ({ prompt }: Props) => {
 
             </div>
 
-            {showModal && (
+            {showModal && !isAssistant(prompt) && (
                 <PromptModal
                     prompt={prompt}
                     onCancel={() => setShowModal(false)}
                     onSave={() => setShowModal(false)}
                     onUpdatePrompt={handleUpdate}
+                />
+            )}
+
+            {showModal && isAssistant(prompt) && (
+                <AssistantModal
+                    assistant={prompt}
+                    onCancel={() => setShowModal(false)}
+                    onSave={() => setShowModal(false)}
+                    onUpdateAssistant={handleUpdate}
                 />
             )}
 

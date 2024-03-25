@@ -2,7 +2,56 @@ import {AssistantDefinition} from "@/types/assistant";
 import {Prompt} from "@/types/prompt";
 import {MessageType} from "@/types/chat";
 import {FolderInterface} from "@/types/folder";
+import {ReservedTags} from "@/types/tags";
 
+export const isAssistant = (prompt:Prompt) => {
+    return prompt.type === MessageType.ROOT && prompt.data && prompt.data.assistant;
+}
+
+export const getAssistant = (prompt:Prompt):AssistantDefinition => {
+    return prompt.data?.assistant.definition;
+}
+
+export const createAssistantPrompt = (assistant:AssistantDefinition):Prompt => {
+
+    const access = (assistant.data && assistant.data.access) ?
+        assistant.data.access : {read: true, write:false};
+
+    const noEdit = (
+        !access.write ||
+        (assistant.tags &&
+            assistant.tags.includes(ReservedTags.SYSTEM))
+    )
+
+    const noDelete = (
+        !access.write ||
+        (assistant.tags &&
+            assistant.tags.includes(ReservedTags.SYSTEM))
+    )
+
+    const noShare = (
+        !access.write ||
+        (assistant.tags &&
+            assistant.tags.includes(ReservedTags.SYSTEM))
+    )
+
+    return {
+        id: assistant.id || "",
+        type: MessageType.ROOT,
+        name: assistant.name,
+        description: assistant.description,
+        content: assistant.instructions,
+        folderId: "assistants",
+        data: {
+            assistant: {id:assistant.id, definition:assistant},
+            ...(assistant.data || {}),
+            noCopy: true,
+            noEdit,
+            noDelete,
+            noShare,
+        }
+    };
+}
 
 export const syncAssistants = (assistants:AssistantDefinition[], folders:FolderInterface[], prompts:Prompt[], dispatch:any) => {
     // Match assistants by name and only take the one with the highest version number for each name
@@ -12,8 +61,8 @@ export const syncAssistants = (assistants:AssistantDefinition[], folders:FolderI
         }
 
         // @ts-ignore
-        if (!acc[assistant.name] || acc[assistant.name].version < assistant.version) {
-            acc[assistant.name] = assistant;
+        if (!acc[assistant.assistantId] || acc[assistant.assistantId].version < assistant.version) {
+            acc[assistant.assistantId || ""] = assistant;
         }
         return acc;
     },{});
@@ -32,26 +81,7 @@ export const syncAssistants = (assistants:AssistantDefinition[], folders:FolderI
         dispatch({field: 'folders', value: [...folders, newFolder]});
     }
 
-    const aPrompts:Prompt[] = [];
-    for(const assistant of assistants) {
-
-        console.log("Creating assistant prompt...", assistant)
-
-        const assistantPrompt: Prompt = {
-            id: assistant.id || "",
-            type: MessageType.ROOT,
-            name: assistant.name,
-            description: assistant.description,
-            content: assistant.instructions,
-            folderId: "assistants",
-            data: {
-                assistant: {id:assistant.id, definition:assistant},
-                ...(assistant.data || {})
-            }
-        };
-
-        aPrompts.push(assistantPrompt);
-    }
+    const aPrompts:Prompt[] = assistants.map(createAssistantPrompt);
 
     const withoutAssistants = prompts.filter((p) =>
         !(p.type === MessageType.ROOT && p.data && p.data.assistant)

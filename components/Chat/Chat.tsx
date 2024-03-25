@@ -69,6 +69,7 @@ import {MetaHandler} from "@/services/chatService";
 import callRenameChatApi from './RenameChat';
 import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import DataSourcesTable from "@/components/DataSources/DataSourcesTable";
+import {ReservedTags} from "@/types/tags";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -379,7 +380,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             message.label = label;
                         }
 
-                        if (selectedConversation && selectedConversation.tags && selectedConversation.tags.includes("assistant-builder")) {
+                        if (selectedConversation && selectedConversation.tags && selectedConversation.tags.includes(ReservedTags.ASSISTANT_BUILDER)) {
                             // In assistants, this has the effect of
                             // disabling the use of documents so that we
                             // can just add the document to the list of documents

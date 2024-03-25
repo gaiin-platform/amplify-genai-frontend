@@ -11,6 +11,7 @@ import {useChatService} from "@/hooks/useChatService";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {parsePartialJson} from "@/utils/app/data";
 import { DataTable } from "@/components/Markdown/DataTable";
+import AutonomousBlock from "@/components/Chat/ChatContentBlocks/AutonomousBlock";
 
 // TODO: IMPLEMENT DATA TABLE COMPONENT INTO THIS FILE
 
@@ -93,6 +94,12 @@ const ChatContentBlock: React.FC<Props> = (
                 //console.log("mermaid")
                 //@ts-ignore
                 return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1 }/>);
+            }
+
+            if (!inline && match && match[1] === 'auto') {
+                //console.log("mermaid")
+                //@ts-ignore
+                return (<AutonomousBlock action={String(children)} ready={!messageIsStreaming}/>);
             }
 
             if (!inline && match && match[1] === 'assistant') {
