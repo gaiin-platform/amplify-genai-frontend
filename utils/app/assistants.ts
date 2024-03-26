@@ -1,15 +1,20 @@
 import {AssistantDefinition} from "@/types/assistant";
 import {Prompt} from "@/types/prompt";
-import {MessageType} from "@/types/chat";
+import {Message, MessageType} from "@/types/chat";
 import {FolderInterface} from "@/types/folder";
 import {ReservedTags} from "@/types/tags";
 
 export const isAssistant = (prompt:Prompt) => {
-    return prompt.type === MessageType.ROOT && prompt.data && prompt.data.assistant;
+    return prompt.data && prompt.data.assistant;
 }
 
 export const getAssistant = (prompt:Prompt):AssistantDefinition => {
     return prompt.data?.assistant.definition;
+}
+
+export const getAssistantFromMessage = (message:Message):AssistantDefinition => {
+    return (message.data && message.data.assistant && message.data.assistant.definition) ?
+        message.data?.assistant.definition : null;
 }
 
 export const createAssistantPrompt = (assistant:AssistantDefinition):Prompt => {

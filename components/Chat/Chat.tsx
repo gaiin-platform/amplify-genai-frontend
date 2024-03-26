@@ -70,10 +70,24 @@ import callRenameChatApi from './RenameChat';
 import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import DataSourcesTable from "@/components/DataSources/DataSourcesTable";
 import {ReservedTags} from "@/types/tags";
+import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
 }
+
+type ChatRequest = {
+    message: Message;
+    deleteCount?: number;
+    plugin: Plugin | null;
+    existingResponse?: any;
+    rootPrompt: string | null;
+    documents?: AttachedDocument[] | null;
+    uri?: string | null;
+    options?: { [key: string]: any };
+    assistantId?: string;
+    prompt?: Prompt;
+};
 
 export const Chat = memo(({stopConversationRef}: Props) => {
         const {t} = useTranslation('chat');
@@ -130,11 +144,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const chatContainerRef = useRef<HTMLDivElement>(null);
         const textareaRef = useRef<HTMLTextAreaElement>(null);
         const modelSelectRef = useRef<HTMLDivElement>(null);
-
-        const [isWorkflowMode, setWorkflowMode] = useState<boolean>();
-
-        const [messageQueue, setMessageQueue] = useState<Message[]>([]);
-
 
         const updateMessage = (selectedConversation: Conversation, updatedMessage: Message, updateIndex: number) => {
             let updatedConversation = {
@@ -347,11 +356,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     return prefix + text + suffix;
 
                 } catch (error: any) {
-                    if (error.name === 'AbortError') {
-                        // The request has been aborted. Clear out the queue.
-                        setMessageQueue([]);
-                    }
-
                     homeDispatch({field: 'loading', value: false});
                     homeDispatch({field: 'messageIsStreaming', value: false});
 
@@ -369,10 +373,46 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }, []);
 
+        const createChatRequest =
+            (
+                message: Message,
+                deleteCount = 0,
+                plugin: Plugin | null = null,
+                existingResponse = null,
+                rootPrompt: string | null = null,
+                documents?: AttachedDocument[] | null,
+                uri?: string | null,
+                options?: { [key: string]: any }
+            ): ChatRequest => {
+                return {
+                    message,
+                    deleteCount,
+                    plugin,
+                    existingResponse,
+                    rootPrompt,
+                    documents,
+                    uri,
+                    options,
+                };
+        };
+
         const handleSend = useCallback(
-            async (message: Message, deleteCount = 0, plugin: Plugin | null = null, existingResponse = null, rootPrompt: string | null = null, documents?: AttachedDocument[] | null, uri?: string | null, options?: { [key: string]: any }) => {
+            async (request:ChatRequest) => {
                 return new Promise(async (resolve, reject) => {
                     if (selectedConversation) {
+
+                        let {
+                            message,
+                            deleteCount,
+                            plugin,
+                            existingResponse,
+                            rootPrompt,
+                            documents,
+                            uri,
+                            options,
+                        } = request;
+
+                        console.log("Sending msg:", message)
 
                         const {content, label} = getPrefix(selectedConversation, message);
                         if (content) {
@@ -798,11 +838,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 resolve(answer);
                             }
                         } catch (error: any) {
-                            if (error.name === 'AbortError') {
-                                // The request has been aborted. Clear out the queue.
-                                setMessageQueue([]);
-                            }
-
                             homeDispatch({field: 'loading', value: false});
                             homeDispatch({field: 'messageIsStreaming', value: false});
                             homeDispatch({
@@ -862,6 +897,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         };
 
+        // This function is primarily used by follow-up buttons and custom links to
+        // run a prompt template.
         function runPrompt(prompt: Prompt) {
 
             statsService.runPromptEvent(prompt);
@@ -891,7 +928,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (category === "chat") {
                     if (action === "send") {
                         const content = path;
-                        handleSend(newMessage({role: 'user', content: content}), 0, null);
+                        const request = createChatRequest(newMessage({role: 'user', content: content}), 0, null);
+                        handleSend(request);
                     } else if (action === "template") {
                         const name = path;
 
@@ -982,6 +1020,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             };
         }
 
+        // This is typically the entry point for messages where the user has typed something
+        // into ChatInput or is editing an existing message. Most interactions with chat that
+        // do not involve a prompt template start here.
         const routeMessage = (message: Message, deleteCount: number | undefined, plugin: Plugin | null | undefined, documents: AttachedDocument[] | null) => {
 
             if (message.type == MessageType.PROMPT
@@ -1006,51 +1047,44 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     message.data.dataSources = dataSources;
                 }
 
-                if (selectedAssistant && selectedAssistant?.id !== DEFAULT_ASSISTANT.id) {
-                    if (selectedConversation) {
+                const assistantInUse = getAssistantFromMessage(message) ||
+                    (selectedAssistant ? selectedAssistant?.definition : null);
 
-                        if (selectedAssistant.definition.dataSources) {
+                console.log("Assistant in use", assistantInUse);
 
-                            const formattedDatasources =
-                                selectedAssistant.definition.dataSources;
+                if (assistantInUse) {
+                    let options = {
+                        ragOnly: true,
+                        assistantName: assistantInUse.name,
+                        assistantId: assistantInUse.assistantId,
+                    };
 
-                            if (!documents) {
-                                documents = formattedDatasources;
-                            } else if (!Array.isArray(documents)) {
-                                documents = [documents, ...formattedDatasources];
-                            } else {
-                                documents = [...documents, ...formattedDatasources];
-                            }
-                        }
+                    message.data = {...message.data, assistant: {definition: {
+                        assistantId: assistantInUse.assistantId, name: assistantInUse.name
+                    }}};
 
-                        let options = {
-                            ragOnly: true,
-                            assistantName: selectedAssistant.definition.name
-                        };
+                    const request = createChatRequest(
+                        message,
+                        deleteCount,
+                        plugin,
+                        null,
+                        null,
+                        documents,
+                        null,
+                        options);
 
-                        if (selectedAssistant.definition.options) {
-                            options = {...options, ...selectedAssistant.definition.options};
-                        }
-
-                        handleSend(
-                            message,
-                            deleteCount,
-                            plugin,
-                            null,
-                            selectedAssistant.definition.instructions,
-                            documents,
-                            null,
-                            options);
-                    }
+                    handleSend(request);
                 } else {
-                    handleSend(message, deleteCount, plugin, null, null, documents);
+                    const request = createChatRequest(message, deleteCount, plugin, null, null, documents);
+                    handleSend(request);
                 }
             } else {
                 console.log("Unknown message type", message.type);
             }
         }
 
-
+        // Most (all?) interactions that start with a prompt template end up here. This
+        // function is typically called from the PromptDialog.
         const handleSubmit = (updatedVariables: string[], documents: AttachedDocument[] | null, promptTemplate?: Prompt) => {
 
             let templateData = promptTemplate || selectedConversation?.promptTemplate;
@@ -1066,11 +1100,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 const fillInDocuments = !(doWorkflow ||
                     (documents && documents?.some((doc) => doc.key)));
 
-                // console.log("Do Workflow", doWorkflow);
-                console.log("Fill In Documents", fillInDocuments);
-
-                setWorkflowMode(doWorkflow);
-
                 const newContent = fillInTemplate(template || "", variables, updatedVariables, documents, fillInDocuments);
 
                 let label = null;
@@ -1083,12 +1112,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 // Create a map with variable mapped to updatedVariables
                 const variablesByName: { [key: string]: any } = {};
-                const updatedVariablesMap = variables.forEach((v, index) => {
+                variables.forEach((v, index) => {
                     variablesByName[v] = updatedVariables[index];
                 });
 
-
-                console.log("Building data sources");
                 const dataSources = documents?.filter((doc) => doc.key).map((doc) => {
                     if (doc.key && doc.key.indexOf("://") === -1) {
                         return {id: "s3://" + doc.key, name: doc.name, type: doc.type};
@@ -1116,17 +1143,32 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (message.type === MessageType.PROMPT ||
                     message.type === MessageType.ROOT ||
                     message.type === MessageType.PREFIX_PROMPT) {
-                    if (documents && documents.length > 0) {
-                        handleSend(message, 0, null, null, null, documents);
-                    } else {
-                        handleSend(message, 0, null);
+
+                    const request = createChatRequest(message, 0, null, null, null, documents);
+                    request.prompt = templateData;
+
+                    let assistantId = null;
+                    let assistantName = null;
+
+                    if(isAssistant(templateData)){
+                        const assistant = getAssistant(templateData);
+                        console.log("Assistant from template", assistant);
+                        assistantId = assistant.assistantId;
+                        assistantName = assistant.name;
                     }
-                } else {
-                    if (documents && documents.length > 0) {
-                        handleSend(message, 0, null, null, null, documents);
-                    } else {
-                        handleSend(message, 0, null);
+                    else if(selectedAssistant){
+                        console.log("Selected Assistant", selectedAssistant);
+                        assistantName = selectedAssistant.definition.name;
+                        assistantId = selectedAssistant.definition.assistantId;
                     }
+
+                    if(assistantId) {
+                        request.assistantId = assistantId;
+                        request.options = {assistantName: assistantName, assistantId: assistantId};
+                        message.data = {...message.data, assistant: {definition: {assistantId: assistantId, name: assistantName}}};
+                    }
+
+                    handleSend(request);
                 }
             }
 
@@ -1581,11 +1623,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     console.log("Editing message", editedMessage);
 
                                                     setCurrentMessage(editedMessage);
-                                                    // discard edited message and the ones that come after then resend
-                                                    // handleSend(
-                                                    //     editedMessage,
-                                                    //     selectedConversation?.messages.length - index,
-                                                    // );
+
                                                     if (editedMessage.role != "assistant") {
                                                         routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
                                                     } else {
@@ -1611,11 +1649,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     console.log("Editing message", editedMessage);
 
                                                     setCurrentMessage(editedMessage);
-                                                    // discard edited message and the ones that come after then resend
-                                                    // handleSend(
-                                                    //     editedMessage,
-                                                    //     selectedConversation?.messages.length - index,
-                                                    // );
+
                                                     if (editedMessage.role != "assistant") {
                                                         routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
                                                     } else {

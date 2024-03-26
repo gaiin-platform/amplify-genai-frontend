@@ -91,6 +91,10 @@ export const ChatMessage: FC<Props> = memo(({
     const [editSelection, setEditSelection] = useState<string>("");
     const divRef = useRef<HTMLDivElement>(null);
 
+    const assistantRecipient = (message.role === "user" && message.data && message.data.assistant) ?
+        message.data.assistant : null;
+
+
     const toggleEditing = () => {
         setIsEditing(!isEditing);
     };
@@ -243,8 +247,21 @@ export const ChatMessage: FC<Props> = memo(({
                             ) : (
                                 <div className="flex flex-grow flex-col">
                                     <div className="flex flex-col">
-                                        <div className="prose whitespace-pre-wrap dark:prose-invert flex-1">
-                                            {message.label || message.content}
+                                        <div className="flex flex-row">
+                                            <div className="prose whitespace-pre-wrap dark:prose-invert flex-1">
+                                                {assistantRecipient &&
+                                                 assistantRecipient.definition &&
+                                                 assistantRecipient.definition.name &&
+                                                 assistantRecipient.definition.assistantId ?
+                                                    <span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
+                                                        {"@" + assistantRecipient.definition.name +":"}
+                                                    </span>
+                                                    :
+                                                    <span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
+                                                        @Amplify:
+                                                    </span>
+                                                } {message.label || message.content}
+                                            </div>
                                         </div>
                                         <DataSourcesBlock message={message} handleDownload={handleDownload}/>
                                     </div>

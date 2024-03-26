@@ -96,8 +96,10 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
 
         const result = await response.json();
 
+        console.log("Create Assistant result:", result);
+
         return {
-            assistantId: uuidv4(),
+            assistantId: result.data.assistantId,
             provider: 'amplify',
             dataSources: assistantDefinition.fileKeys || [],
             name: assistantDefinition.name || "Unnamed Assistant",
