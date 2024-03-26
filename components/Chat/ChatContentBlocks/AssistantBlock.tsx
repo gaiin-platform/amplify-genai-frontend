@@ -130,7 +130,21 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
             definition.provider = AssistantProviderID.AMPLIFY;
             definition.tags = [];
             definition.tools = [];
-            definition.dataSources = getDocumentsInConversation(selectedConversation);
+
+            const rawDS = getDocumentsInConversation(selectedConversation);
+            const knowledge = rawDS.map(ds => {
+                if(ds.key || (ds.id && ds.id.indexOf("://") > 0)){
+                    return ds;
+                }
+                else {
+                    return {
+                        ...ds,
+                        id: "s3://"+ds.id
+                    }
+                }
+            });
+
+            definition.dataSources = knowledge;
             definition.data = {};
             definition.data.access = {read: true, write:true};
 

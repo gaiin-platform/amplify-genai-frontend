@@ -73,7 +73,17 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         newAssistant.data = newAssistant.data || {provider: "amplify"};
         newAssistant.description = description;
         newAssistant.instructions = content;
-        newAssistant.dataSources = dataSources;
+        newAssistant.dataSources = dataSources.map(ds => {
+            if(ds.key || (ds.id && ds.id.indexOf("://") > 0)){
+                return ds;
+            }
+            else {
+                return {
+                    ...ds,
+                    id: "s3://"+ds.id
+                }
+            }
+        });
         newAssistant.tools = newAssistant.tools || [];
         newAssistant.data.conversationTags = conversationTags.split(",").map((x: string) => x.trim());
 
