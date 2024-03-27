@@ -587,7 +587,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 },
                                 state: (state: any) => {
                                     currentState = deepMerge(currentState, state);
-                                    console.log("Updated state:", currentState);
                                 },
                                 shouldAbort: () => {
                                     if (stopConversationRef.current === true) {
@@ -1050,7 +1049,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 const assistantInUse = getAssistantFromMessage(message) ||
                     (selectedAssistant ? selectedAssistant?.definition : null);
 
-                console.log("Assistant in use", assistantInUse);
+                console.log("Assistant in use", assistantInUse, message);
 
                 if (assistantInUse) {
                     let options = {
@@ -1300,13 +1299,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         useEffect(() => {
 
-            if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
+            if (selectedConversation
+                && selectedConversation.promptTemplate
+                && isAssistant(selectedConversation.promptTemplate)
+                && selectedConversation.messages.length == 0) {
 
-                if (selectedConversation.promptTemplate.data && selectedConversation.promptTemplate.data.assistant) {
+                if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
+                    homeDispatch({field: 'selectedAssistant', value: selectedConversation.promptTemplate.data.assistant});
+                }
+            }
+            else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
+
+                if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     homeDispatch({field: 'selectedAssistant', value: selectedConversation.promptTemplate.data.assistant});
                 }
 
-                //alert("Prompt Template");
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
                 setIsPromptTemplateDialogVisible(true);
             } else if (selectedConversation && selectedConversation.workflowDefinition && selectedConversation.messages.length == 0) {

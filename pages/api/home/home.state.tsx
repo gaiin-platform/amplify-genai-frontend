@@ -101,6 +101,7 @@ export const initialState: HomeInitialState = {
     sourcesEnabled: true,
     uploadDocuments:true,
     assistantCreator:true,
+    assistants:true,
     overrideUneditablePrompts:false,
     overrideInvisiblePrompts: false,
     extractDocumentsLocally:false,

@@ -3,6 +3,7 @@ import {
     IconBolt,
     IconBrandGoogle,
     IconPlayerStop,
+    IconAt,
     IconRepeat,
     IconRobot,
     IconFiles,
@@ -27,7 +28,7 @@ import {Prompt} from '@/types/prompt';
 import {AttachFile} from "@/components/Chat/AttachFile";
 import {FileList} from "@/components/Chat/FileList";
 import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
-
+import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
 import HomeContext from '@/pages/api/home/home.context';
 
 import {PluginSelect} from './PluginSelect';
@@ -38,10 +39,12 @@ import {OpenAIModel} from "@/types/openai";
 import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 import {ActiveAssistantsList} from "@/components/Assistants/ActiveAssistantsList";
 import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
-import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
+import {Assistant, AssistantDefinition, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
+import {getAssistants} from "@/utils/app/assistants";
+import AssistantsInUse from "@/components/Chat/AssistantsInUse";
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -67,7 +70,7 @@ export const ChatInput = ({
     const {killRequest} = useChatService();
 
     const {
-        state: {selectedConversation, messageIsStreaming, prompts, models, status, featureFlags, currentRequestId},
+        state: {selectedConversation, selectedAssistant, messageIsStreaming, prompts, models, status, featureFlags, currentRequestId},
 
         dispatch: homeDispatch,
     } = useContext(HomeContext);
@@ -82,7 +85,7 @@ export const ChatInput = ({
     const [showPluginSelect, setShowPluginSelect] = useState(false);
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const [plugin, setPlugin] = useState<Plugin | null>(null);
-    const [assistant, setAssistant] = useState<Assistant>(DEFAULT_ASSISTANT);
+    //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
     const [availableAssistants, setAvailableAssistants] = useState<Assistant[]>([DEFAULT_ASSISTANT]);
     const [showAssistantSelect, setShowAssistantSelect] = useState(false);
     const [documents, setDocuments] = useState<AttachedDocument[]>();
@@ -99,8 +102,8 @@ export const ChatInput = ({
         prompt.name.toLowerCase().includes(promptInputValue.toLowerCase()),
     );
 
-    const handleWorkflowClick = () => {
-        setWorkflowOn(!isWorkflowOn);
+    const handleShowAssistantSelector = () => {
+        setShowAssistantSelect(!showAssistantSelect);
     };
 
     const allDocumentsDoneUploading = () => {
@@ -197,6 +200,8 @@ export const ChatInput = ({
 
         const type = (isWorkflowOn) ? MessageType.AUTOMATION : MessageType.PROMPT;
         let msg = newMessage({role: 'user', content: content, type: type});
+
+        msg = setAssistantInMessage(msg, selectedAssistant || DEFAULT_ASSISTANT);
 
         if (documents && documents?.length > 0) {
 
@@ -355,11 +360,8 @@ export const ChatInput = ({
     };
 
     useEffect(() => {
-        if (selectedConversation) {
-
-            const data = selectedConversation?.data;
-            const assistants = [DEFAULT_ASSISTANT, ...(data?.assistants || [])];
-
+        if (prompts) {
+            const assistants = getAssistants(prompts);
             setAvailableAssistants(assistants);
         }
     }, [selectedConversation]);
@@ -466,7 +468,7 @@ export const ChatInput = ({
 
 
                 <div className='absolute top-0 left-0 right-0 mx-auto flex justify-center items-center gap-2'>
-                    <ActiveAssistantsList/>
+
 
                     {messageIsStreaming && (
                         <>
@@ -497,10 +499,23 @@ export const ChatInput = ({
                 <div
                     className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4">
 
-                    <FileList documents={documents}
-                              documentStates={documentState}
-                              onCancelUpload={onCancelUpload}
-                              setDocuments={setDocuments}/>
+                    <div className="flex flex-row items-center">
+                        <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
+                            if(asts.length === 0){
+                                //setAssistant(DEFAULT_ASSISTANT);
+                                homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+                            }
+                            else {
+                                //setAssistant(asts[0]);
+                                homeDispatch({field: 'selectedAssistant', value: asts[0]});
+                            }
+                        }}/>
+
+                        <FileList documents={documents}
+                                  documentStates={documentState}
+                                  onCancelUpload={onCancelUpload}
+                                  setDocuments={setDocuments}/>
+                    </div>
 
                     <div className="flex items-center">
 
@@ -535,17 +550,6 @@ export const ChatInput = ({
                         {/*    <IconRobot size={20}/>*/}
                         {/*</button>*/}
 
-                        {featureFlags.workflowCreate && (
-                            <button
-                                className={buttonClasses}
-                                onClick={handleWorkflowClick}
-                                onKeyDown={(e) => {
-                                }}
-                            >
-                                <IconApiApp size={20}/>
-                            </button>
-                        )}
-
                         <AttachFile id="__attachFile"
                                     disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                     onAttach={addDocument}
@@ -555,10 +559,21 @@ export const ChatInput = ({
                                     onUploadProgress={handleDocumentState}
                         />
 
+                        {featureFlags.assistants && (
+                            <button
+                                className={buttonClasses}
+                                onClick={handleShowAssistantSelector}
+                                onKeyDown={(e) => {
+                                }}
+                            >
+                                <IconAt size={20}/>
+                            </button>
+                        )}
+
                         {showAssistantSelect && (
                             <div className="absolute left-0 bottom-14 rounded bg-white dark:bg-[#343541]">
                                 <AssistantSelect
-                                    assistant={assistant}
+                                    assistant={selectedAssistant || DEFAULT_ASSISTANT}
                                     availableAssistants={availableAssistants}
                                     onKeyDown={(e: any) => {
                                         if (e.key === 'Escape') {
@@ -568,7 +583,7 @@ export const ChatInput = ({
                                         }
                                     }}
                                     onAssistantChange={(a: Assistant) => {
-                                        setAssistant(a);
+                                        homeDispatch({field: 'selectedAssistant', value: a});
                                         setShowAssistantSelect(false);
 
                                         if (textareaRef && textareaRef.current) {

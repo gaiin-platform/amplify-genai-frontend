@@ -80,7 +80,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
     const handleStartConversation = (startPrompt: Prompt) => {
 
-        if(startPrompt.data && startPrompt.data.assistant){
+        if(isAssistant(startPrompt) && startPrompt.data){
             homeDispatch({field: 'selectedAssistant', value: startPrompt.data.assistant});
         }
 
@@ -190,8 +190,19 @@ export const PromptComponent = ({ prompt }: Props) => {
                     draggable="true"
                     onClick={(e) => {
                         e.stopPropagation();
-                        //setShowModal(true);
-                        handleStartConversation(prompt)
+
+                        if(isAssistant(prompt)){
+                            console.log("Assistant selected", prompt);
+                        }
+
+                        if(isAssistant(prompt) && prompt.data && prompt.data.assistant){
+                            console.log("Updating assistant...")
+                            handleStartConversation(prompt);
+                        }
+                        else {
+                            //setShowModal(true);
+                            handleStartConversation(prompt);
+                        }
                     }}
                     onDragStart={(e) => handleDragStart(e, prompt)}
                     title="Use Template"
