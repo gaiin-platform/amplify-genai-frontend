@@ -161,6 +161,8 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
 
             const assistantPrompt:Prompt = createAssistantPrompt(definition);
 
+            console.log("Assistnat Prompt", assistantPrompt)
+
             homeDispatch({
                     type: 'append',
                     field: 'prompts',
@@ -181,16 +183,18 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
             setIsLoading(true);
 
             try {
-                const {assistantId,provider} = await createAssistant(assistantDefinition);
+                const {id,assistantId,provider} = await createAssistant(assistantDefinition);
 
                 console.log("assistantId", assistantId);
                 console.log("provider", provider);
 
+                assistantDefinition.id = id;
                 assistantDefinition.provider = provider;
+                assistantDefinition.assistantId = assistantId;
 
                 if(assistantId) {
                     alert("Assistant created successfully!");
-                    bindAssistantToConversation(assistantId, assistantDefinition);
+                    bindAssistantToConversation(id, assistantDefinition);
                 } else {
                     alert("Failed to create assistant. Please try again.");
                 }

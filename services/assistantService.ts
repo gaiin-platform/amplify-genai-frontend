@@ -83,7 +83,7 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
 
         const result = await response.json();
         const id = result.data.assistantId;
-        return {assistantId: id, provider: 'openai'};
+        return {assistantId: id, id, provider: 'openai'};
     } else if (assistantDefinition.provider === 'amplify') {
         const response = await fetch('/api/assistant/op', {
             method: 'POST',
@@ -99,6 +99,7 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
         console.log("Create Assistant result:", result);
 
         return {
+            id: result.data.id,
             assistantId: result.data.assistantId,
             provider: 'amplify',
             dataSources: assistantDefinition.fileKeys || [],
