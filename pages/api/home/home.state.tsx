@@ -12,6 +12,8 @@ import {Assistant, AssistantDefinition, DEFAULT_ASSISTANT} from "@/types/assista
 import {noOpStatsServices, StatsServices} from "@/types/stats";
 import {Account} from "@/types/accounts";
 
+type HandleSend = (request: any) => void;
+
 export interface HomeInitialState {
   defaultAccount: Account|undefined;
   chatEndpoint: string|null;
@@ -26,6 +28,7 @@ export interface HomeInitialState {
   models: OpenAIModel[];
   folders: FolderInterface[];
   conversations: Conversation[];
+  handleSend: HandleSend | null;
   workflows:WorkflowDefinition[];
   selectedConversation: Conversation | undefined;
   currentMessage: Message | undefined;
@@ -66,6 +69,7 @@ export const initialState: HomeInitialState = {
   models: [],
   folders: [],
   conversations: [],
+  handleSend: null,
   workflows:[
 
   ],

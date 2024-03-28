@@ -19,7 +19,6 @@ const AssistantsInUse: React.FC<Props> = ({assistants,assistantsChanged}) => {
     } = useContext(HomeContext);
 
     if(assistants.length === 0 || !assistants[0] || !assistants[0].id || assistants[0].id === DEFAULT_ASSISTANT.id){
-        console.log("Assistant is default", assistants);
         return <></>;
     }
 

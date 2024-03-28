@@ -1053,7 +1053,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 if (assistantInUse) {
                     let options = {
-                        ragOnly: true,
                         assistantName: assistantInUse.name,
                         assistantId: assistantInUse.assistantId,
                     };
@@ -1081,6 +1080,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 console.log("Unknown message type", message.type);
             }
         }
+
+        //homeDispatch({field: 'handleSend', value: handleSend});
 
         // Most (all?) interactions that start with a prompt template end up here. This
         // function is typically called from the PromptDialog.
