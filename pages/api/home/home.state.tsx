@@ -8,7 +8,7 @@ import { WorkflowDefinition } from "@/types/workflow";
 import { Status } from "@/types/workflow";
 import {Workspace} from "@/types/workspace";
 import { v4 as uuidv4 } from 'uuid';
-import {Assistant, AssistantDefinition, DEFAULT_ASSISTANT} from "@/types/assistant";
+import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {noOpStatsServices, StatsServices} from "@/types/stats";
 import {Account} from "@/types/accounts";
 
@@ -47,11 +47,11 @@ export interface HomeInitialState {
   defaultFunctionCallModel: string | null;
   statsService: StatsServices;
   currentRequestId: string | null;
-  assistants: AssistantDefinition[];
+assistants: AssistantDefinition[];
 }
 
 export const initialState: HomeInitialState = {
-  assistants: [],
+assistants: [],
   defaultAccount: undefined,
   chatEndpoint: null,
   conversationStateId: "init",
@@ -100,7 +100,7 @@ export const initialState: HomeInitialState = {
     ragEnabled: true,
     sourcesEnabled: true,
     uploadDocuments:true,
-    assistantCreator:true,
+assistantCreator:true,
     assistants:true,
     overrideUneditablePrompts:false,
     overrideInvisiblePrompts: false,
@@ -112,9 +112,10 @@ export const initialState: HomeInitialState = {
     workflowCreate:false,
     rootPromptCreate:true,
     pluginsOnInput:false,
-    dataSourceSelectorOnInput:true,
+    dataSourceSelectorOnInput:false,
     followUpCreate:true,
     marketItemDelete:false,
+    codeInterpreterEnabled:true
   },
   statsService: noOpStatsServices,
   defaultFunctionCallModel: null,

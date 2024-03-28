@@ -452,7 +452,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     return;
                                 }
                             }
-                            if (totalCost > 0.5) {
+                            if (+totalCost > 0.5) {
                                 const go = confirm(`This request will cost an estimated $${totalCost} (the actual cost may be more) and require ${prompts} prompt(s).`);
                                 if (!go) {
                                     return;
@@ -492,6 +492,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             temperature: updatedConversation.temperature,
                             maxTokens: updatedConversation.maxTokens || 1000
                         };
+
+                        if (!featureFlags.codeInterpreterEnabled) {
+                            //check if we need
+                            options =  {...(options || {}), skipCodeInterpreter: true};//skipCodeInterpreter isnt used rn 
+                        } else{
+                            if (updatedConversation.codeInterpreterAssistantId) {
+                                chatBody.codeInterpreterAssistantId = updatedConversation.codeInterpreterAssistantId;
+                            }
+                        }
 
                         if (uri) {
                             chatBody.endpoint = uri;
@@ -659,6 +668,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 let done = false;
                                 let isFirst = true;
                                 let text = '';
+                                let codeInterpreterData = {};
 
                                 // Reset the status display
                                 homeDispatch({
@@ -697,7 +707,34 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         done = doneReading;
                                         const chunkValue = decoder.decode(value);
 
-                                        if (!outOfOrder) {
+                                        if (!outOfOrder) { 
+                                            // check if codeInterpreterAssistantId
+                                            const assistantIdMatch = chunkValue.match(/codeInterpreterAssistantId=(.*)/);
+                                            const responseMatch = chunkValue.match(/codeInterpreterResponseData=(.*)/);
+                                            if (assistantIdMatch) {
+                                                const assistantIdExtracted = assistantIdMatch[1];
+                                                //update conversation 
+                                                updatedConversation = {
+                                                    ...updatedConversation,
+                                                    codeInterpreterAssistantId: assistantIdExtracted
+                                                };
+                                                //move onto the next iteration
+                                                continue;
+                                            } else if (responseMatch) {
+                                                //if we get a match we know its a json guaranteed 
+                                                const responseData = JSON.parse(responseMatch[1]);
+                                                if (responseData['success'] && responseData['data'] && 'textContent' in responseData['data'].data) {
+                                                    codeInterpreterData = responseData['data'].data;
+                                                    text += responseData['data'].data.textContent; //had to write this way to eliminate error
+
+                                                } else {
+                                                    console.log(responseData.error);
+                                                    text += "Something went wrong with code interpreter... please try again.";
+                                                }
+
+                                                continue;
+                                            }
+                                            
                                             text += chunkValue;
                                         } else {
                                             let event = {s: "0", d: chunkValue};
@@ -713,11 +750,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         const updatedMessages: Message[] =
                                             updatedConversation.messages.map((message, index) => {
                                                 if (index === updatedConversation.messages.length - 1) {
-                                                    return {
-                                                        ...message,
-                                                        content: text,
-                                                        data: {...(message.data || {}), state: currentState}
-                                                    };
+                                                    let assistantMessage = 
+                                                            { ...message,
+                                                                content: text,
+                                                                data: {...(message.data || {}), state: currentState}
+                                                            };
+                                                    if (Object.keys(codeInterpreterData).length !== 0) {
+                                                        assistantMessage['codeInterpreterMessageData'] = codeInterpreterData;
+                                                    }
+                                                    return assistantMessage
                                                 }
                                                 return message;
                                             });

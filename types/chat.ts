@@ -10,6 +10,7 @@ export interface Message {
   type: string | undefined;
   data: any | undefined;
   label?: string;
+  codeInterpreterMessageData?: any | undefined
 }
 
 export enum MessageType {
@@ -109,6 +110,8 @@ export interface ChatBody {
   endpoint?: string;
   maxTokens?: number;
   [key: string]: any;
+  codeInterpreterAssistantId?: string;
+
 }
 
 export interface Conversation {
@@ -124,4 +127,5 @@ export interface Conversation {
   maxTokens?: number;
   workflowDefinition?: WorkflowDefinition;
   data?: {[key:string]:any}
+  codeInterpreterAssistantId?: string;
 }
