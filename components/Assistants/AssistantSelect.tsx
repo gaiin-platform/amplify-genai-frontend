@@ -81,11 +81,11 @@ export const AssistantSelect: FC<Props> = ({
                     }}
                 >
                     <option
-                        key="chatgpt"
-                        value="chatgpt"
+                        key="amplify"
+                        value="amplify"
                         className="dark:bg-[#343541] dark:text-white"
                     >
-                        ChatGPT
+                        Standard Conversation
                     </option>
 
                     {availableAssistants.map((a) => (

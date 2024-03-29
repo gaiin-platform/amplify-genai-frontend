@@ -27,6 +27,10 @@ export interface AssistantDefinition {
     provider:string;
     uri?:string;
     options?:{[key:string]:any};
+    version?:number;
+    id?:string;
+    data?:{[key:string]:any};
+    assistantId?:string;
 }
 
 export const DEFAULT_ASSISTANT: Assistant = {

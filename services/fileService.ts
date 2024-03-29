@@ -165,4 +165,160 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
             abortController:abort};
 };
 
+export type PageKey = {
+    createdAt: string;
+    id: string;
+}
 
+export type FileQuery = {
+    startDate?: string;
+    sortIndex?: string;
+    pageSize?: number;
+    pageKey?: PageKey|null;
+    namePrefix?: string|null;
+    createdAtPrefix?: string|null;
+    typePrefix?: string|null;
+    types?: string[];
+    tags?: string[];
+    pageIndex?: number;
+    forwardScan?: boolean;
+    tagFilterList?: string[];
+}
+
+export type FileRecord = {
+    knowledgeBase: string;
+    data: Record<string, any>; // or a more specific type if the structure of `data` is known
+    updatedAt: string; // can also be represented as `Date` depending on how you want to use it
+    createdAt: string; // can also be represented as `Date` depending on how you want to use it
+    updatedBy: string;
+    id: string;
+    createdBy: string;
+    name: string;
+    tags: string[];
+    type: string;
+    totalTokens?: number;
+    totalItems?: number;
+    hash?: string;
+};
+
+export type DeleteTagsResult = {
+    success: boolean;
+    message: string;
+}
+
+export type ListTagsResult = {
+    success: boolean;
+    data: {
+        tags: string[];
+    };
+}
+
+export type FileUpdateTagsResult = {
+    success: boolean;
+    message: string;
+};
+
+export type FileQueryResult = {
+    success: boolean;
+    data: {
+        items: FileRecord[];
+        pageKey?: PageKey;
+    };
+};
+
+export const deleteTags = async (tags:string[], abortSignal:AbortSignal|null= null):Promise<DeleteTagsResult> => {
+
+        const response = await fetch('/api/files/deleteTag', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                data: {
+                    tags: tags
+                }
+            }),
+            signal: abortSignal,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to delete tags: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        return result;
+}
+
+export const listTags = async (abortSignal:AbortSignal|null= null):Promise<ListTagsResult> => {
+
+        const response = await fetch('/api/files/listTags', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                data: {}
+            }),
+            signal: abortSignal,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to list tags: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        return result;
+}
+
+export const setTags = async (file:FileRecord, abortSignal:AbortSignal|null= null):Promise<FileUpdateTagsResult> => {
+
+    const response = await fetch('/api/files/setTags', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            data: {
+                id: file.id,
+                tags: file.tags
+            }
+        }),
+        signal: abortSignal,
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to update tags user file: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    return result;
+}
+
+export const queryUserFiles = async (query:FileQuery, abortSignal:AbortSignal|null= null):Promise<FileQueryResult> => {
+
+    const response = await fetch('/api/files/query', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            data: {
+                ...query
+            }
+        }),
+        signal: abortSignal,
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to query user files: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    console.log("result", result);
+
+    return result;
+}

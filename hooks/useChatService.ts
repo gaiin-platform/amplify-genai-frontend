@@ -139,6 +139,9 @@ export function useChatService() {
             },
             state: (state: any) => {
 
+            },
+            shouldAbort: () => {
+                return false;
             }
         }
 

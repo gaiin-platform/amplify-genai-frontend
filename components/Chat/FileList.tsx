@@ -68,6 +68,7 @@ export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, 
     }
 
     const getLabel = (document:AttachedDocument) => {
+        if(!document.name) { return 'Untitled Document'; }
         return document.name.length > 12 ? document.name.slice(0, 12) + '...' : document.name;
     }
 

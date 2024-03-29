@@ -6,6 +6,7 @@ import {
     IconTrash,
     IconWriting,
     IconDownload,
+    IconMail,
     IconFileCheck,
     IconUser,
 } from '@tabler/icons-react';
@@ -33,6 +34,7 @@ import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 import PromptingStatusDisplay from "@/components/Status/PromptingStatusDisplay";
 import ChatSourceBlock from "@/components/Chat/ChatContentBlocks/ChatSourcesBlock";
+import DataSourcesBlock from "@/components/Chat/ChatContentBlocks/DataSourcesBlock";
 
 
 export interface Props {
@@ -88,6 +90,10 @@ export const ChatMessage: FC<Props> = memo(({
     const [messagedCopied, setMessageCopied] = useState(false);
     const [editSelection, setEditSelection] = useState<string>("");
     const divRef = useRef<HTMLDivElement>(null);
+
+    const assistantRecipient = (message.role === "user" && message.data && message.data.assistant) ?
+        message.data.assistant : null;
+
 
     const toggleEditing = () => {
         setIsEditing(!isEditing);
@@ -241,48 +247,23 @@ export const ChatMessage: FC<Props> = memo(({
                             ) : (
                                 <div className="flex flex-grow flex-col">
                                     <div className="flex flex-col">
-                                        <div className="prose whitespace-pre-wrap dark:prose-invert flex-1">
-                                            {message.label || message.content}
-                                        </div>
-                                        {message.data && message.data.dataSources && message.data.dataSources.length > 0 && (
-                                            <div className="flex flex-col w-full mt-5 text-gray-800">
-                                                <div className="mr-3 dark:text-white">Included documents:</div>
-
-                                                <div className="flex flex-col">
-                                                    {message.data && message.data.dataSources && message.data.dataSources.map((d: any, i: any) => (
-                                                        <div
-                                                            key={i}
-                                                            className="bg-yellow-400 dark:bg-[#B0BEC5] rounded-xl shadow-lg h-12 mr-2 mb-2"
-                                                        >
-                                                            <div className="flex flex-row">
-                                                                <div
-                                                                    className="w-14 h-12 flex-none bg-cover rounded-l-xl text-center overflow-hidden"
-                                                                    style={{backgroundImage: 'url("/sparc_apple.png")'}}
-                                                                    title={d.name}>
-                                                                </div>
-                                                                <div className="ml-3 mt-3">
-                                                                    <IconFileCheck/>
-                                                                </div>
-                                                                <div className="mt-3 ml-1 flex-grow p-0 truncate">
-                                                                    {i + 1}. {d.name}
-                                                                </div>
-                                                                {d.id && d.id.startsWith("s3://") && (
-                                                                    <div className="mt-3 mr-3 ml-1 p-0 truncate"
-                                                                    >
-                                                                        <button onClick={() => {
-                                                                            handleDownload(d);
-                                                                        }}
-                                                                        >
-                                                                            <IconDownload/>
-                                                                        </button>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                        <div className="flex flex-row">
+                                            <div className="prose whitespace-pre-wrap dark:prose-invert flex-1">
+                                                {assistantRecipient &&
+                                                 assistantRecipient.definition &&
+                                                 assistantRecipient.definition.name &&
+                                                 assistantRecipient.definition.assistantId ?
+                                                    <span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
+                                                        {"@" + assistantRecipient.definition.name +":"}
+                                                    </span>
+                                                    :
+                                                    <span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
+                                                        @Amplify:
+                                                    </span>
+                                                } {message.label || message.content}
                                             </div>
-                                        )}
+                                        </div>
+                                        <DataSourcesBlock message={message} handleDownload={handleDownload}/>
                                     </div>
                                     <div className="flex flex-row">
                                         {(isEditing || messageIsStreaming) ? null : (
@@ -415,11 +396,21 @@ export const ChatMessage: FC<Props> = memo(({
                                     </button>
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                        title="Email Response"
+                                    >
+                                        <a className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                           href={`mailto:?body=${encodeURIComponent(messageContent)}`}>
+                                            <IconMail size={20}/>
+                                        </a>
+                                    </button>
+                                    <button
+                                        className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={toggleEditing}
                                         title="Edit Response"
                                     >
                                         <IconEdit size={20}/>
                                     </button>
+
 
                                 </div>
                             </div>

@@ -3,8 +3,10 @@ import {
     IconBolt,
     IconBrandGoogle,
     IconPlayerStop,
+    IconAt,
     IconRepeat,
     IconRobot,
+    IconFiles,
     IconApiApp,
     IconSend,
 } from '@tabler/icons-react';
@@ -26,7 +28,7 @@ import {Prompt} from '@/types/prompt';
 import {AttachFile} from "@/components/Chat/AttachFile";
 import {FileList} from "@/components/Chat/FileList";
 import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
-
+import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
 import HomeContext from '@/pages/api/home/home.context';
 
 import {PluginSelect} from './PluginSelect';
@@ -37,9 +39,12 @@ import {OpenAIModel} from "@/types/openai";
 import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 import {ActiveAssistantsList} from "@/components/Assistants/ActiveAssistantsList";
 import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
-import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
+import {Assistant, AssistantDefinition, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
+import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
+import {getAssistants} from "@/utils/app/assistants";
+import AssistantsInUse from "@/components/Chat/AssistantsInUse";
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -65,7 +70,7 @@ export const ChatInput = ({
     const {killRequest} = useChatService();
 
     const {
-        state: {selectedConversation, messageIsStreaming, prompts, models, status, featureFlags, currentRequestId},
+        state: {selectedConversation, selectedAssistant, messageIsStreaming, prompts, models, status, featureFlags, currentRequestId},
 
         dispatch: homeDispatch,
     } = useContext(HomeContext);
@@ -78,32 +83,35 @@ export const ChatInput = ({
     const [variables, setVariables] = useState<string[]>([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [showPluginSelect, setShowPluginSelect] = useState(false);
+    const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const [plugin, setPlugin] = useState<Plugin | null>(null);
-    const [assistant, setAssistant] = useState<Assistant>(DEFAULT_ASSISTANT);
+    //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
     const [availableAssistants, setAvailableAssistants] = useState<Assistant[]>([DEFAULT_ASSISTANT]);
     const [showAssistantSelect, setShowAssistantSelect] = useState(false);
     const [documents, setDocuments] = useState<AttachedDocument[]>();
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>({});
-    const [documentMetadata, setDocumentMetadata] = useState<{[key:string]:AttachedDocumentMetadata}>({});
+    const [documentMetadata, setDocumentMetadata] = useState<{ [key: string]: AttachedDocumentMetadata }>({});
     const [documentAborts, setDocumentAborts] = useState<{ [key: string]: AbortController }>({});
 
     const promptListRef = useRef<HTMLUListElement | null>(null);
     const [isWorkflowOn, setWorkflowOn] = useState(false);
 
+    const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
+
     const filteredPrompts = prompts.filter((prompt) =>
         prompt.name.toLowerCase().includes(promptInputValue.toLowerCase()),
     );
 
-    const handleWorkflowClick = () => {
-        setWorkflowOn(!isWorkflowOn);
+    const handleShowAssistantSelector = () => {
+        setShowAssistantSelect(!showAssistantSelect);
     };
 
     const allDocumentsDoneUploading = () => {
-        if(!documents || documents.length == 0){
+        if (!documents || documents.length == 0) {
             return true;
         }
 
-        const isComplete = (document:AttachedDocument) => {
+        const isComplete = (document: AttachedDocument) => {
             return !documentState || (documentState && documentState[document.id] == 100);
         }
 
@@ -142,10 +150,14 @@ export const ChatInput = ({
 
     const handleAppendDocumentsToContent = (content: string, documents: AttachedDocument[]) => {
 
-        // This prevents documents that were uploaded from being jammed into the prompt here
-        const toInsert = documents.filter(doc => !doc.key);
+        if (!extractDocumentsLocally) {
+            return content;
+        }
 
-        if(toInsert.length > 0) {
+        // This prevents documents that were uploaded from being jammed into the prompt here
+        const toInsert = documents.filter(doc => !doc.key && doc.raw && doc.raw.length > 0);
+
+        if (toInsert.length > 0) {
             content =
                 toInsert.map((d, i) => {
                     return "---------------Document " + (i + 1) + "--------------\n" + d.raw
@@ -158,6 +170,8 @@ export const ChatInput = ({
     }
 
     const handleSend = () => {
+        setShowDataSourceSelector(false);
+
         if (messageIsStreaming) {
             return;
         }
@@ -167,7 +181,7 @@ export const ChatInput = ({
             return;
         }
 
-        if(!allDocumentsDoneUploading()){
+        if (!allDocumentsDoneUploading()) {
             alert(t('Please wait for all documents to finish uploading or remove them from the prompt.'));
             return;
         }
@@ -187,11 +201,14 @@ export const ChatInput = ({
         const type = (isWorkflowOn) ? MessageType.AUTOMATION : MessageType.PROMPT;
         let msg = newMessage({role: 'user', content: content, type: type});
 
+        msg = setAssistantInMessage(msg, selectedAssistant || DEFAULT_ASSISTANT);
+
         if (documents && documents?.length > 0) {
 
             if (!isWorkflowOn) {
 
-                msg.content = handleAppendDocumentsToContent(content, documents);
+                msg.content = extractDocumentsLocally ?
+                    handleAppendDocumentsToContent(content, documents) : content;
 
                 const maxLength = selectedConversation?.model.maxLength;
 
@@ -209,7 +226,7 @@ export const ChatInput = ({
 
         const updatedDocuments = documents?.map((d) => {
             const metadata = documentMetadata[d.id];
-            if(metadata){
+            if (metadata) {
                 return {...d, metadata: metadata};
             }
             return d;
@@ -230,7 +247,7 @@ export const ChatInput = ({
     const handleStopConversation = () => {
         stopConversationRef.current = true;
 
-        if(currentRequestId) {
+        if (currentRequestId) {
             killRequest(currentRequestId);
         }
 
@@ -329,6 +346,7 @@ export const ChatInput = ({
     };
 
     const handleSubmit = (updatedVariables: string[]) => {
+
         const newContent = content?.replace(/{{(.*?)}}/g, (match, variable) => {
             const index = variables.indexOf(variable);
             return updatedVariables[index];
@@ -342,11 +360,8 @@ export const ChatInput = ({
     };
 
     useEffect(() => {
-        if (selectedConversation) {
-
-            const data = selectedConversation?.data;
-            const assistants = [DEFAULT_ASSISTANT, ...(data?.assistants || [])];
-
+        if (prompts) {
+            const assistants = getAssistants(prompts);
             setAvailableAssistants(assistants);
         }
     }, [selectedConversation]);
@@ -423,7 +438,7 @@ export const ChatInput = ({
 
     }
 
-    const handleSetMetadata = (document:AttachedDocument, metadata:any) => {
+    const handleSetMetadata = (document: AttachedDocument, metadata: any) => {
 
         setDocumentMetadata((prevState) => {
             const newMetadata = {...prevState, [document.id]: metadata};
@@ -433,16 +448,16 @@ export const ChatInput = ({
     }
 
     const handleSetKey = (document: AttachedDocument, key: string) => {
-        if (documents) {
-            const newDocuments = documents?.map((d) => {
-                if (d.id === document.id) {
-                    return {...d, key: key};
-                }
-                return d;
-            });
 
-            setDocuments(newDocuments);
-        }
+        const newDocuments = documents ? documents?.map((d) => {
+            if (d.id === document.id) {
+                return {...d, key: key};
+            }
+            return d;
+        }) : [{...document, key: key}];
+
+        setDocuments(newDocuments);
+
     }
 
     return (
@@ -453,7 +468,7 @@ export const ChatInput = ({
 
 
                 <div className='absolute top-0 left-0 right-0 mx-auto flex justify-center items-center gap-2'>
-                    <ActiveAssistantsList/>
+
 
                     {messageIsStreaming && (
                         <>
@@ -484,10 +499,23 @@ export const ChatInput = ({
                 <div
                     className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4">
 
-                    <FileList documents={documents}
-                              documentStates={documentState}
-                              onCancelUpload={onCancelUpload}
-                              setDocuments={setDocuments}/>
+                    <div className="flex flex-row items-center">
+                        <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
+                            if(asts.length === 0){
+                                //setAssistant(DEFAULT_ASSISTANT);
+                                homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+                            }
+                            else {
+                                //setAssistant(asts[0]);
+                                homeDispatch({field: 'selectedAssistant', value: asts[0]});
+                            }
+                        }}/>
+
+                        <FileList documents={documents}
+                                  documentStates={documentState}
+                                  onCancelUpload={onCancelUpload}
+                                  setDocuments={setDocuments}/>
+                    </div>
 
                     <div className="flex items-center">
 
@@ -502,6 +530,17 @@ export const ChatInput = ({
                             </button>
                         )}
 
+                        {featureFlags.dataSourceSelectorOnInput && (
+                            <button
+                                className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                                onClick={() => setShowDataSourceSelector(!showDataSourceSelector)}
+                                onKeyDown={(e) => {
+                                }}
+                            >
+                                <IconFiles size={20}/>
+                            </button>
+                        )}
+
                         {/*<button*/}
                         {/*    className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"*/}
                         {/*    onClick={() => setShowAssistantSelect(!showAssistantSelect)}*/}
@@ -510,17 +549,6 @@ export const ChatInput = ({
                         {/*>*/}
                         {/*    <IconRobot size={20}/>*/}
                         {/*</button>*/}
-
-                        {featureFlags.workflowCreate && (
-                            <button
-                                className={buttonClasses}
-                                onClick={handleWorkflowClick}
-                                onKeyDown={(e) => {
-                                }}
-                            >
-                                <IconApiApp size={20}/>
-                            </button>
-                        )}
 
                         <AttachFile id="__attachFile"
                                     disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
@@ -531,10 +559,21 @@ export const ChatInput = ({
                                     onUploadProgress={handleDocumentState}
                         />
 
+                        {featureFlags.assistants && (
+                            <button
+                                className={buttonClasses}
+                                onClick={handleShowAssistantSelector}
+                                onKeyDown={(e) => {
+                                }}
+                            >
+                                <IconAt size={20}/>
+                            </button>
+                        )}
+
                         {showAssistantSelect && (
                             <div className="absolute left-0 bottom-14 rounded bg-white dark:bg-[#343541]">
                                 <AssistantSelect
-                                    assistant={assistant}
+                                    assistant={selectedAssistant || DEFAULT_ASSISTANT}
                                     availableAssistants={availableAssistants}
                                     onKeyDown={(e: any) => {
                                         if (e.key === 'Escape') {
@@ -544,7 +583,7 @@ export const ChatInput = ({
                                         }
                                     }}
                                     onAssistantChange={(a: Assistant) => {
-                                        setAssistant(a);
+                                        homeDispatch({field: 'selectedAssistant', value: a});
                                         setShowAssistantSelect(false);
 
                                         if (textareaRef && textareaRef.current) {
@@ -573,6 +612,30 @@ export const ChatInput = ({
                                         if (textareaRef && textareaRef.current) {
                                             textareaRef.current.focus();
                                         }
+                                    }}
+                                />
+                            </div>
+                        )}
+
+                        {showDataSourceSelector && (
+                            <div className="absolute left-0 bottom-16 mb-6 rounded bg-white dark:bg-[#343541]">
+                                <DataSourceSelector
+                                    onDataSourceSelected={(d) => {
+
+                                        const doc = {
+                                            id: d.id,
+                                            name: d.name || "",
+                                            raw: null,
+                                            type: d.type || "",
+                                            data: "",
+                                            metadata: d.metadata
+                                        };
+                                        addDocument(
+                                            doc
+                                        );
+                                        handleSetKey(doc, doc.id);
+                                        handleSetMetadata(doc, d.metadata);
+                                        handleDocumentState(doc, 100);
                                     }}
                                 />
                             </div>

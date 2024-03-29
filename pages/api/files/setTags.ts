@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import {getServerSession} from "next-auth/next";
 import {authOptions} from "@/pages/api/auth/[...nextauth]";
 
-const assistantOp =
+const setTags =
     async (req: NextApiRequest, res: NextApiResponse) => {
 
         const session = await getServerSession(req, res, authOptions);
@@ -12,20 +12,17 @@ const assistantOp =
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        let apiUrl = process.env.ASSISTANTS_API_BASE + "/assistant" || "";
+        let apiUrl = process.env.API_BASE_URL + "/assistant/files/set_tags" || "";
 
         // Accessing itemData parameters from the request
         const reqData = req.body;
         const payload = reqData.data;
-        const op = reqData.op;
-
-        apiUrl = apiUrl + op;
 
         try {
             // @ts-ignore
             const { accessToken } = session;
 
-            console.log("Calling assistant: ", apiUrl, payload);
+            console.log("Calling set_tags on file: ", apiUrl, payload);
 
             const response = await fetch(apiUrl, {
                 method: "POST",
@@ -36,15 +33,15 @@ const assistantOp =
                 },
             });
 
-            if (!response.ok) throw new Error(`Assistant op:${op} failed with status: ${response.status}`);
+            if (!response.ok) throw new Error(`Query files failed with status: ${response.status}`);
 
             const data = await response.json();
 
             res.status(200).json(data);
         } catch (error) {
             console.error("Error calling assistant: ", error);
-            res.status(500).json({ error: `Could not perform assistant op:${op}` });
+            res.status(500).json({ error: `Could not query files` });
         }
     };
 
-export default assistantOp;
+export default setTags;

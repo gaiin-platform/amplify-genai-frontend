@@ -31,7 +31,7 @@ export const LoadingDialog: FC<Props> = ({ open, message}) => {
             className="dark:border-netural-400 inline-block max-h-[400px] transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 pt-5 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-h-[600px] sm:w-full sm:max-w-lg sm:p-6 sm:align-middle"
             role="dialog"
           >
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center text-gray-600 dark:text-white">
               <Loader size="48"/>
               <div className="text-xl">{message}</div>
             </div>
