@@ -53,6 +53,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [conversationTags, setConversationTags] = useState(cTags);
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
 
+    const [uri, setUri] = useState<string|null>(null);
+
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const modalRef = useRef<HTMLDivElement>(null);
 

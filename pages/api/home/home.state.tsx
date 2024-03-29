@@ -28,7 +28,6 @@ export interface HomeInitialState {
   models: OpenAIModel[];
   folders: FolderInterface[];
   conversations: Conversation[];
-  handleSend: HandleSend | null;
   workflows:WorkflowDefinition[];
   selectedConversation: Conversation | undefined;
   currentMessage: Message | undefined;
@@ -69,7 +68,6 @@ export const initialState: HomeInitialState = {
   models: [],
   folders: [],
   conversations: [],
-  handleSend: null,
   workflows:[
 
   ],
@@ -119,6 +117,7 @@ export const initialState: HomeInitialState = {
     dataSourceSelectorOnInput:true,
     followUpCreate:true,
     marketItemDelete:false,
+    automation:false,
   },
   statsService: noOpStatsServices,
   defaultFunctionCallModel: null,
