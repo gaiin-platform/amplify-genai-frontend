@@ -8,7 +8,7 @@ import { WorkflowDefinition } from "@/types/workflow";
 import { Status } from "@/types/workflow";
 import {Workspace} from "@/types/workspace";
 import { v4 as uuidv4 } from 'uuid';
-import {Assistant, AssistantDefinition, DEFAULT_ASSISTANT} from "@/types/assistant";
+import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {noOpStatsServices, StatsServices} from "@/types/stats";
 import {Account} from "@/types/accounts";
 
@@ -49,11 +49,9 @@ export interface HomeInitialState {
   defaultFunctionCallModel: string | null;
   statsService: StatsServices;
   currentRequestId: string | null;
-  assistants: AssistantDefinition[];
 }
 
 export const initialState: HomeInitialState = {
-  assistants: [],
   defaultAccount: undefined,
   chatEndpoint: null,
   conversationStateId: "init",
@@ -118,6 +116,7 @@ export const initialState: HomeInitialState = {
     followUpCreate:true,
     marketItemDelete:false,
     automation:false,
+    codeInterpreterEnabled:true
   },
   statsService: noOpStatsServices,
   defaultFunctionCallModel: null,

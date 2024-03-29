@@ -133,9 +133,6 @@ export function useSendService() {
                             ragOnly: true
                         };
                     }
-                    // else if(documents && documents.length > 0) {
-                    //     options =  {...(options || {}), skipRag: true};
-                    // }
 
                     if (!featureFlags.ragEnabled) {
                         options = {...(options || {}), skipRag: true};
@@ -161,8 +158,6 @@ export function useSendService() {
                             }
                         }
                     }
-
-                    //console.log("Root Prompt ID", selectedConversation.prompt.)
 
                     let updatedConversation: Conversation;
                     if (deleteCount) {
@@ -197,6 +192,15 @@ export function useSendService() {
 
                     if (uri) {
                         chatBody.endpoint = uri;
+                    }
+
+                    if (!featureFlags.codeInterpreterEnabled) {
+                        //check if we need
+                        options =  {...(options || {}), skipCodeInterpreter: true};//skipCodeInterpreter isnt used rn
+                    } else{
+                        if (updatedConversation.codeInterpreterAssistantId) {
+                            chatBody.codeInterpreterAssistantId = updatedConversation.codeInterpreterAssistantId;
+                        }
                     }
 
                     if (documents && documents.length > 0) {
@@ -348,23 +352,14 @@ export function useSendService() {
                                     };
                                 });
                             }
-                            /*
-                            if (updatedConversation.messages.length === 1) {
-                                const {content} = message;
-                                const customName =
-                                    content.length > 30 ? content.substring(0, 30) + '...' : content;
-                                updatedConversation = {
-                                    ...updatedConversation,
-                                    name: customName,
-                                };
-                            }
-                            */
+
                             homeDispatch({field: 'loading', value: false});
                             const reader = data.getReader();
                             const decoder = new TextDecoder();
                             let done = false;
                             let isFirst = true;
                             let text = '';
+                            let codeInterpreterData = {};
 
                             // Reset the status display
                             homeDispatch({
@@ -404,6 +399,34 @@ export function useSendService() {
                                     const chunkValue = decoder.decode(value);
 
                                     if (!outOfOrder) {
+                                        // check if codeInterpreterAssistantId
+                                        const assistantIdMatch = chunkValue.match(/codeInterpreterAssistantId=(.*)/);
+                                        const responseMatch = chunkValue.match(/codeInterpreterResponseData=(.*)/);
+
+                                        if (assistantIdMatch) {
+                                            const assistantIdExtracted = assistantIdMatch[1];
+                                            //update conversation
+                                            updatedConversation = {
+                                                ...updatedConversation,
+                                                codeInterpreterAssistantId: assistantIdExtracted
+                                            };
+                                            //move onto the next iteration
+                                            continue;
+                                        } else if (responseMatch) {
+                                            //if we get a match we know its a json guaranteed
+                                            const responseData = JSON.parse(responseMatch[1]);
+                                            if (responseData['success'] && responseData['data'] && 'textContent' in responseData['data'].data) {
+                                                codeInterpreterData = responseData['data'].data;
+                                                text += responseData['data'].data.textContent; //had to write this way to eliminate error
+
+                                            } else {
+                                                console.log(responseData.error);
+                                                text += "Something went wrong with code interpreter... please try again.";
+                                            }
+
+                                            continue;
+                                        }
+
                                         text += chunkValue;
                                     } else {
                                         let event = {s: "0", d: chunkValue};
@@ -419,11 +442,15 @@ export function useSendService() {
                                     const updatedMessages: Message[] =
                                         updatedConversation.messages.map((message, index) => {
                                             if (index === updatedConversation.messages.length - 1) {
-                                                return {
-                                                    ...message,
-                                                    content: text,
-                                                    data: {...(message.data || {}), state: currentState}
-                                                };
+                                                let assistantMessage =
+                                                    { ...message,
+                                                        content: text,
+                                                        data: {...(message.data || {}), state: currentState}
+                                                    };
+                                                if (Object.keys(codeInterpreterData).length !== 0) {
+                                                    assistantMessage['codeInterpreterMessageData'] = codeInterpreterData;
+                                                }
+                                                return assistantMessage
                                             }
                                             return message;
                                         });
