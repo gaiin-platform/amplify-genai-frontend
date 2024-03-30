@@ -23,7 +23,8 @@ export const setAssistant = (message: Message, assistant: Assistant): Message =>
             ...message.data, assistant: {
                 definition: {
                     assistantId: assistant.definition.assistantId,
-                    name: assistant.definition.name
+                    name: assistant.definition.name,
+                    ...(assistant.definition.uri ? {uri: assistant.definition.uri} : {}),
                 }
             }
         }

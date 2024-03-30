@@ -11,6 +11,7 @@ import {AttachFile} from "@/components/Chat/AttachFile";
 import {IconFiles, IconCircleX} from "@tabler/icons-react";
 import {createAssistant} from "@/services/assistantService";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 
 
 interface Props {
@@ -53,7 +54,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [conversationTags, setConversationTags] = useState(cTags);
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
 
-    const [uri, setUri] = useState<string|null>(null);
+    const [uri, setUri] = useState<string|null>(definition.uri || null);
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const modalRef = useRef<HTMLDivElement>(null);
@@ -75,6 +76,18 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         newAssistant.data = newAssistant.data || {provider: "amplify"};
         newAssistant.description = description;
         newAssistant.instructions = content;
+
+        if(uri && uri.trim().length > 0){
+            // Check that it is a valid uri
+            if(uri.trim().indexOf("://") === -1){
+                alert("Invalid URI, please update and try again.");
+                setIsLoading(false);
+                return;
+            }
+
+            newAssistant.uri = uri.trim();
+        }
+
         newAssistant.dataSources = dataSources.map(ds => {
             if(ds.key || (ds.id && ds.id.indexOf("://") > 0)){
                 return ds;
@@ -252,6 +265,20 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     </div>
                                 </div>
                             )}
+
+                            <ExpansionComponent title={"Advanced"} content={
+                                <div>
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                        {t('URI')}
+                                    </div>
+                                    <input
+                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                        placeholder={t('') || ''}
+                                        value={uri || ""}
+                                        onChange={(e) => setUri(e.target.value)}
+                                    />
+                                </div>
+                            }/>
                         </div>
                         <div className="flex flex-row items-center justify-end p-4 bg-white dark:bg-[#202123]">
                             <button
