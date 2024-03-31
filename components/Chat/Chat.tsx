@@ -386,7 +386,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     };
 
                     message.data = {...message.data, assistant: {definition: {
-                        assistantId: assistantInUse.assistantId, name: assistantInUse.name
+                        assistantId: assistantInUse.assistantId,
+                                name: assistantInUse.name,
+                            ...(assistantInUse.uri ? {uri: assistantInUse.uri} : {}),
                     }}};
 
                     const request = createChatRequest(

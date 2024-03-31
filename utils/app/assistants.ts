@@ -121,5 +121,7 @@ export const syncAssistants = (assistants: AssistantDefinition[], folders: Folde
         !(p.type === MessageType.ROOT && p.data && p.data.assistant)
     );
 
+    console.log("Syncing assistants...", aPrompts, withoutAssistants)
+
     dispatch({field: 'prompts', value: [...withoutAssistants, ...aPrompts]});
 }
