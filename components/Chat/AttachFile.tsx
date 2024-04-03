@@ -288,68 +288,70 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
 
     return (
         <>
-            <input
-                id={id}
-                className="sr-only"
-                tabIndex={-1}
-                type="file"
-                accept="*"
-                onChange={(e) => {
-                    if (!e.target.files?.length) return;
-                    const file = e.target.files[0];
-
-                    const fileName = file.name;
-                    const extension = fileName.split('.').pop() || '';
-
-                    if(extension === ''){
-                        alert("This file type is not supported.");
-                        return;
-                    }
-
-                    if(extension === 'xls' || extension === 'xlsm'){
-                        alert("This file type is not supported. Please save the file as xlsx.");
-                        return;
-                    }
-
-                    if(extension === 'ppt' || extension === 'potx'){
-                        alert("This file type is not supported. Please save the file as pptx.");
-                        return;
-                    }
-
-                    if(disallowedFileExtensions && disallowedFileExtensions.includes(extension)) {
-                        alert("This file type is not supported.");
-                        return;
-                    }
-
-                    if(allowedFileExtensions && !allowedFileExtensions.includes(extension)) {
-                        alert("This file type is not supported.");
-                        return;
-                    }
-
-                    statsService.attachFileEvent(file, uploadDocuments, extractDocumentsLocally);
-
-                    handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, onSetAbortController, uploadDocuments, extractDocumentsLocally);
-
-                    e.target.value = "";
-                }}
-            />
-
-            <button
-                className="left-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
-                onClick={() => {
-                    const importFile = document.querySelector(
-                        '#'+id,
-                    ) as HTMLInputElement;
-                    if (importFile) {
-                        importFile.click();
-                    }
-                }}
-                onKeyDown={(e) => {}}
-                title="Upload File"
-            >
-                <IconPlus size={20} />
-            </button>
-
+          <input
+            id={id}
+            className="sr-only"
+            tabIndex={-1}
+            type="file"
+            accept="*"
+            multiple 
+            onChange={(e) => {
+              if (!e.target.files?.length) return;
+    
+              // Changed to handle multiple files
+              const files = Array.from(e.target.files);
+    
+              files.forEach((file) => {
+                const fileName = file.name;
+                const extension = fileName.split('.').pop() || '';
+    
+                if (extension === '') {
+                  alert('This file type is not supported.');
+                  return;
+                }
+    
+                if (extension === 'xls' || extension === 'xlsm') {
+                  alert('This file type is not supported. Please save the file as xlsx.');
+                  return;
+                }
+    
+                if (extension === 'ppt' || extension === 'potx') {
+                  alert('This file type is not supported. Please save the file as pptx.');
+                  return;
+                }
+    
+                if (disallowedFileExtensions && disallowedFileExtensions.includes(extension)) {
+                  alert('This file type is not supported.');
+                  return;
+                }
+    
+                if (allowedFileExtensions && !allowedFileExtensions.includes(extension)) {
+                  alert('This file type is not supported.');
+                  return;
+                }
+    
+                statsService.attachFileEvent(file, uploadDocuments, extractDocumentsLocally);
+    
+                handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, onSetAbortController, uploadDocuments, extractDocumentsLocally);
+              });
+    
+              e.target.value = ''; // Clear the input after files are handled
+            }}
+          />
+    
+          <button
+            className="left-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+            onClick={() => {
+              const importFile = document.querySelector('#' + id) as HTMLInputElement;
+              if (importFile) {
+                importFile.click();
+              }
+            }}
+            onKeyDown={(e) => {}}
+            title="Upload File"
+          >
+            <IconPlus size={20} />
+          </button>
         </>
-    );
-};
+      );
+    };
