@@ -24,7 +24,8 @@ export enum OpenAIModelID {
   CLAUDE_3_SONNET = 'anthropic.claude-3-sonnet-20240229-v1:0',
   CLAUDE_3_HAIKU = 'anthropic.claude-3-haiku-20240307-v1:0',
   MISTRAL_7B = 'mistral.mistral-7b-instruct-v0:2',
-  MIXTRAL_8X7B =  'mistral.mixtral-8x7b-instruct-v0:1'
+  MIXTRAL_8X7B =  'mistral.mixtral-8x7b-instruct-v0:1',
+  MISTRAL_LARGE = 'mistral.mistral-large-2402-v1:0'
 }
 
 // in case the `DEFAULT_MODEL` environment variable is not set or set to an unsupported model
@@ -175,5 +176,16 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
     inputCost: 0.0007,
     description: "Consider for rapid processing and task-specific fine-tuning.\nOffers advanced intelligence, compared to its predecessors, at a low cost.\nBest for text summarization, question answering, text classification, code generation, and creative content generation.\nTrained on information available through September 2023."
   },
+  [OpenAIModelID.MISTRAL_LARGE]: {
+    id: OpenAIModelID.MISTRAL_LARGE,
+    name: 'Mistral-Large (bedrock)',
+    maxLength: 24000,
+    tokenLimit: 4000,
+    actualTokenLimit: 4096,
+    visible: false,
+    outputCost: 0.024,
+    inputCost: 0.008,
+    description: "Consider for complex tasks and advanced understanding without the need for recent knowledge.\mOffer a greater level of intelligence compared to its predecessors.\nExcels in complex reasoning, text understanding, transformation, code generation, and offers advanced capabilities for multilingual reasoning and analysis.\nTrained on information available through 2021."
+   },
    
 };
