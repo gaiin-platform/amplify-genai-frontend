@@ -37,7 +37,7 @@ import {Import} from "@/components/Settings/Import";
 import {OpenAIModel} from "@/types/openai";
 import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 import {ActiveAssistantsList} from "@/components/Assistants/ActiveAssistantsList";
-import {Assistant, AssistantDefinition, DEFAULT_ASSISTANT} from "@/types/assistant";
+import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";

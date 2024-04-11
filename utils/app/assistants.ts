@@ -3,6 +3,8 @@ import {Prompt} from "@/types/prompt";
 import {Message, MessageType} from "@/types/chat";
 import {FolderInterface} from "@/types/folder";
 import {ReservedTags} from "@/types/tags";
+import { saveFolders } from '@/utils/app/folders';
+
 
 export const isAssistant = (prompt: Prompt) => {
     return prompt.data && prompt.data.assistant;
@@ -101,7 +103,7 @@ export const syncAssistants = (assistants: AssistantDefinition[], folders: Folde
         return acc;
     }, {});
     assistants = Object.values(latestAssistants);
-
+    
     // Make sure the "assistants" folder exists and
     // create it if necessary
     const assistantsFolder = folders.find((f) => f.id === "assistants");
@@ -109,10 +111,13 @@ export const syncAssistants = (assistants: AssistantDefinition[], folders: Folde
         console.log("Creating assistants folder...")
         const newFolder = {
             id: "assistants",
+            date: new Date().toISOString().slice(0, 10),
             name: "Assistants",
             type: "prompt",
-        };
-        dispatch({field: 'folders', value: [...folders, newFolder]});
+        } as FolderInterface;
+        const updatedFolders = [...folders, newFolder];
+        dispatch({field: 'folders', value: updatedFolders});
+        saveFolders(updatedFolders);
     }
 
     const aPrompts: Prompt[] = assistants.map(createAssistantPrompt);

@@ -1,15 +1,14 @@
 import {useContext, useEffect, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
-import {IconRobot, IconZoomIn} from "@tabler/icons-react";
+import {IconRobot} from "@tabler/icons-react";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {createAssistant} from "@/services/assistantService";
 import { useSession } from "next-auth/react"
-import {Assistant, AssistantDefinition, AssistantProviderID} from "@/types/assistant";
+import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
 import {Prompt} from "@/types/prompt";
-import {Conversation, MessageType} from "@/types/chat";
-import {OpenAIModel} from "@/types/openai";
+import {Conversation} from "@/types/chat";
 import {savePrompts} from "@/utils/app/prompts";
 import {createAssistantPrompt} from "@/utils/app/assistants";
 

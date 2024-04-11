@@ -152,6 +152,7 @@ const Home = ({
             };
             fetchAccounts();
         }
+
     }, [session]);
 
     useEffect(() => {
@@ -171,15 +172,17 @@ const Home = ({
             }catch (e) {
                 console.log("Failed to import base prompts.", e);
             }
-            fetchAssistants();
+            await fetchAssistants();
         }
 
         const fetchAssistants = async() => {
             if(session?.user?.email) {
                 let assistants = await listAssistants(session?.user?.email);
-
+                // if local and assistants are not the same set assistants here
+                
                 if (assistants) {
                     syncAssistants(assistants, folders, prompts, dispatch);
+                     
                 }
             }
         }
@@ -642,34 +645,34 @@ const Home = ({
 
             dispatch({field: 'conversations', value: cleanedConversationHistory});
         }
+        // this was to open the last conversation the user was on 
+        // const selectedConversation = localStorage.getItem('selectedConversation');
+        // if (selectedConversation) {
+        //     const parsedSelectedConversation: Conversation =
+        //         JSON.parse(selectedConversation);
+        //     const cleanedSelectedConversation = cleanSelectedConversation(
+        //         parsedSelectedConversation,
+        //     );
 
-        const selectedConversation = localStorage.getItem('selectedConversation');
-        if (selectedConversation) {
-            const parsedSelectedConversation: Conversation =
-                JSON.parse(selectedConversation);
-            const cleanedSelectedConversation = cleanSelectedConversation(
-                parsedSelectedConversation,
-            );
-
-            dispatch({
-                field: 'selectedConversation',
-                value: cleanedSelectedConversation,
-            });
-        } else {
-            const lastConversation = conversations[conversations.length - 1];
-            dispatch({
-                field: 'selectedConversation',
-                value: {
-                    id: uuidv4(),
-                    name: t('New Conversation'),
-                    messages: [],
-                    model: OpenAIModels[defaultModelId],
-                    prompt: DEFAULT_SYSTEM_PROMPT,
-                    temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
-                    folderId: null,
-                },
-            });
-        }
+        //     dispatch({
+        //         field: 'selectedConversation',
+        //         value: cleanedSelectedConversation,
+        //     });
+        // } else {
+        const lastConversation = conversations[conversations.length - 1];
+        dispatch({
+            field: 'selectedConversation',
+            value: {
+                id: uuidv4(),
+                name: t('New Conversation'),
+                messages: [],
+                model: OpenAIModels[defaultModelId],
+                prompt: DEFAULT_SYSTEM_PROMPT,
+                temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
+                folderId: null,
+            },
+        });
+        // }
 
         dispatch({
             field: 'conversationStateId',
