@@ -68,7 +68,7 @@ export const ChatFolders = ({ searchTerm, conversations }: Props) => {
           // Check if both folders have a date attribute
           if (a.date && b.date) {
             // Sort by date if both folders have a date
-            return a.date.localeCompare(b.date);
+            return b.date.localeCompare(a.date);
             // Always put folders with a date before those without
           } else if (a.date) {
             return -1;
