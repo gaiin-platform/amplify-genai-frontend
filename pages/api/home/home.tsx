@@ -121,7 +121,7 @@ const Home = ({
             folders,
             workflows,
             conversations,
-            selectedConversation,
+            selectedConversation, 
             prompts,
             temperature,
             page,
@@ -275,6 +275,7 @@ const Home = ({
 
         const newFolder: FolderInterface = {
             id: uuidv4(),
+            date: new Date().toISOString().slice(0, 10),
             name,
             type,
         };
@@ -292,19 +293,39 @@ const Home = ({
         dispatch({field: 'folders', value: updatedFolders});
         saveFolders(updatedFolders);
 
-        const updatedConversations: Conversation[] = conversations.map((c) => {
+        const updatedConversations = conversations.reduce<Conversation[]>((acc, c) => {
             if (c.folderId === folderId) {
-                return {
-                    ...c,
-                    folderId: null,
-                };
+                statsService.deleteConversationEvent(c);
+            } else {
+                acc.push(c);
             }
+            return acc;
+        }, []);
 
-            return c;
-        });
+        if (updatedConversations.length > 0) {
+            dispatch({
+                field: 'selectedConversation',
+                value: updatedConversations[updatedConversations.length - 1],
+            });
 
-        dispatch({field: 'conversations', value: updatedConversations});
-        saveConversations(updatedConversations);
+            saveConversation(updatedConversations[updatedConversations.length - 1]);
+        } else {
+            defaultModelId &&
+                dispatch({
+                field: 'selectedConversation',
+                value: {
+                    id: uuidv4(),
+                    name: t('New Conversation'),
+                    messages: [],
+                    model: OpenAIModels[defaultModelId],
+                    prompt: DEFAULT_SYSTEM_PROMPT,
+                    temperature: DEFAULT_TEMPERATURE,
+                    folderId: null,
+                },
+                });
+
+            localStorage.removeItem('selectedConversation');
+        }
 
         const updatedPrompts: Prompt[] = prompts.map((p) => {
             if (p.folderId === folderId) {

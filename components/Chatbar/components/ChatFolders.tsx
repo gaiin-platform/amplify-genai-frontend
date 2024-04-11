@@ -64,7 +64,21 @@ export const ChatFolders = ({ searchTerm, conversations }: Props) => {
     <div className="flex w-full flex-col pt-2">
       {filteredFolders
         .filter((folder) => folder.type === 'chat')
-        .sort((a, b) => a.name.localeCompare(b.name))
+        .sort((a, b) => {
+          // Check if both folders have a date attribute
+          if (a.date && b.date) {
+            // Sort by date if both folders have a date
+            return a.date.localeCompare(b.date);
+            // Always put folders with a date before those without
+          } else if (a.date) {
+            return -1;
+          } else if (b.date) {
+            return 1;
+          } else {
+            // If neither folder has a date, sort by name
+            return a.name.localeCompare(b.name);
+          }
+        }) // currently doing this since folders have been created without the new date attribute. 
         .map((folder, index) => (
           <Folder
             key={index}

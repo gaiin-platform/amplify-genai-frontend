@@ -30,7 +30,6 @@ import {FileList} from "@/components/Chat/FileList";
 import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
 import HomeContext from '@/pages/api/home/home.context';
-
 import {PluginSelect} from './PluginSelect';
 import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
@@ -38,13 +37,13 @@ import {Import} from "@/components/Settings/Import";
 import {OpenAIModel} from "@/types/openai";
 import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 import {ActiveAssistantsList} from "@/components/Assistants/ActiveAssistantsList";
-import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
 import {Assistant, AssistantDefinition, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {getAssistants} from "@/utils/app/assistants";
 import AssistantsInUse from "@/components/Chat/AssistantsInUse";
+import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
