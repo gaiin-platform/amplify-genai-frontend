@@ -294,7 +294,7 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
             tabIndex={-1}
             type="file"
             accept="*"
-            multiple // Add this line to enable selecting multiple files
+            multiple 
             onChange={(e) => {
               if (!e.target.files?.length) return;
     
