@@ -542,6 +542,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }, [autoScrollEnabled]);
 
+
         const handleScroll = () => {
             if (chatContainerRef.current) {
                 const {scrollTop, scrollHeight, clientHeight} =
@@ -561,6 +562,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const handleScrollDown = () => {
             chatContainerRef.current?.scrollTo({
                 top: chatContainerRef.current.scrollHeight,
+                behavior: 'smooth',
+            });
+        };
+
+        const handleScrollUp = () => {
+            chatContainerRef.current?.scrollTo({
+                top: 30,
                 behavior: 'smooth',
             });
         };
@@ -872,6 +880,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
                                                 handleSettings();
+
+                                                if (!showSettings) {
+                                                    handleScrollUp();
+                                                } else {
+                                                    handleScrollDown();
+                                                } 
+                                                
                                             }}
                                             title="Chat Settings"
                                         >
