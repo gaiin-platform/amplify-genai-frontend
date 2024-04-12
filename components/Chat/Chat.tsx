@@ -911,12 +911,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 e.stopPropagation();
                                                 homeDispatch({field: 'page', value: 'home'});
                                             }}
-                                            title="Home"
+                                            title="Files"
                                         >
                                             <div className="flex flex-row items-center ml-2
-                                            bg-[#fdbd39] rounded-lg text-gray-600 p-1">
+                                            bg-[#00BFFF] rounded-lg text-gray-600 p-1">
                                                 <div><IconRocket size={18}/></div>
-                                                <div className="ml-1">Home</div>
+                                                <div className="ml-1">Files </div>
                                             </div>
                                         </button>
                                     </div>

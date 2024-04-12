@@ -93,6 +93,9 @@ export const ChatInput = ({
     const [documentAborts, setDocumentAborts] = useState<{ [key: string]: AbortController }>({});
 
     const promptListRef = useRef<HTMLUListElement | null>(null);
+    const dataSourceSelectorRef = useRef<HTMLUListElement | null>(null);
+    const assistantSelectorRef = useRef<HTMLUListElement | null>(null);
+
     const [isWorkflowOn, setWorkflowOn] = useState(false);
 
     const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
@@ -389,6 +392,15 @@ export const ChatInput = ({
             ) {
                 setShowPromptList(false);
             }
+
+
+            if (dataSourceSelectorRef.current && !dataSourceSelectorRef.current.contains(e.target as Node)) {
+                setShowDataSourceSelector(false);
+            }
+           
+            if (assistantSelectorRef.current && !assistantSelectorRef.current.contains(e.target as Node)) {
+                setShowAssistantSelect(false);
+            }
         };
 
         window.addEventListener('click', handleOutsideClick);
@@ -532,9 +544,13 @@ export const ChatInput = ({
                         {featureFlags.dataSourceSelectorOnInput && (
                             <button
                                 className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
-                                onClick={() => setShowDataSourceSelector(!showDataSourceSelector)}
+                                onClick={() => {
+                                    setShowDataSourceSelector(!showDataSourceSelector);
+                                    setShowAssistantSelect(false);
+                                }}
                                 onKeyDown={(e) => {
                                 }}
+                                title="Files"
                             >
                                 <IconFiles size={20}/>
                             </button>
@@ -561,9 +577,15 @@ export const ChatInput = ({
                         {featureFlags.assistants && (
                             <button
                                 className={buttonClasses}
-                                onClick={handleShowAssistantSelector}
+                                onClick={ () => {
+                                    handleShowAssistantSelector();
+                                    setShowDataSourceSelector(false);
+                                    }
+                                }
                                 onKeyDown={(e) => {
                                 }}
+                                title="Select Assistants"
+
                             >
                                 <IconAt size={20}/>
                             </button>
