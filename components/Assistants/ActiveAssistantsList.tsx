@@ -1,12 +1,10 @@
 import React, {FC, useContext, useEffect, useRef, useState} from 'react';
-import {IconTrashX, IconCircleX, IconRobot, IconAperture} from '@tabler/icons-react';
-import {AttachedDocument} from '@/types/attacheddocument';
-import {CircularProgressbar, buildStyles} from 'react-circular-progressbar';
+import {IconRobot} from '@tabler/icons-react';
 import 'react-circular-progressbar/dist/styles.css';
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import HomeContext from "@/pages/api/home/home.context";
-import {Assistant, AssistantDefinition} from "@/types/assistant";
+import {Assistant} from "@/types/assistant";
 import {DEFAULT_SYSTEM_PROMPT} from "@/utils/app/const";
 import {MessageType} from "@/types/chat";
 
@@ -136,7 +134,7 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
                 <button
                     className="ml-2 overflow-hidden text-overflow-ellipsis white-space-nowrap truncate flex w-full items-center"
                 >
-                    {activeAssistant.definition.name}
+                    {activeAssistant.definition?.name}
                 </button>
                 </div>
             )}

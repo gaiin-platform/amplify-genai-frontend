@@ -139,6 +139,9 @@ export function useChatService() {
             },
             state: (state: any) => {
 
+            },
+            shouldAbort: () => {
+                return false;
             }
         }
 
@@ -151,7 +154,12 @@ export function useChatService() {
             // @ts-ignore
             return sendChatRequestWithDocuments(targetEndpoint, session.accessToken, chatBody, plugin, abortSignal, metaHandler);
         }).catch((e) => {
-            alert("The chat service is currently unavailable. Please try again in a minute.");
+            if(chatBody.assistantId){
+                alert("The assistant you sent the message to is currently unavailable. Please try again in a minute.");
+            }
+            else {
+                alert("The chat service is currently unavailable. Please try again in a minute.");
+            }
             console.error(e);
             return Promise.reject(e);
         });

@@ -11,6 +11,9 @@ import {useChatService} from "@/hooks/useChatService";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {parsePartialJson} from "@/utils/app/data";
 import { DataTable } from "@/components/Markdown/DataTable";
+import AutonomousBlock from "@/components/Chat/ChatContentBlocks/AutonomousBlock";
+import {useContext} from "react";
+import HomeContext from "@/pages/api/home/home.context";
 
 // TODO: IMPLEMENT DATA TABLE COMPONENT INTO THIS FILE
 
@@ -30,6 +33,12 @@ const ChatContentBlock: React.FC<Props> = (
         handleCustomLinkClick,
     }) => {
 
+    const {
+        state: {
+            featureFlags
+        },
+    } = useContext(HomeContext);
+
     const {getOutputTransformers} = usePromptFinderService();
 
     const transformMessageContent = (conversation:Conversation, message:Message) => {
@@ -46,6 +55,8 @@ const ChatContentBlock: React.FC<Props> = (
     const transformedMessageContent = selectedConversation ?
         transformMessageContent(selectedConversation, message) :
         message.content;
+
+    const isLast = messageIndex == (selectedConversation?.messages.length ?? 0) - 1;
 
     return (<MemoizedReactMarkdown
     className="prose dark:prose-invert flex-1"
@@ -93,6 +104,25 @@ const ChatContentBlock: React.FC<Props> = (
                 //console.log("mermaid")
                 //@ts-ignore
                 return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1 }/>);
+            }
+
+            if (!inline && match && match[1] === 'apiResult') {
+                return (<ExpansionComponent title={"Result"} content={String(children)}/>)
+            }
+
+            if (!inline && match && match[1] === 'auto' && selectedConversation && featureFlags.automation) {
+                //console.log("mermaid")
+                //@ts-ignore
+                return (<AutonomousBlock
+                    message={message}
+                    conversation={selectedConversation}
+                    onStart={(id, action) => {
+                    }}
+                    onEnd={(id, action) => {}}
+                    id={message.id}
+                    isLast={isLast}
+                    action={String(children)}
+                    ready={!messageIsStreaming}/>);
             }
 
             if (!inline && match && match[1] === 'assistant') {

@@ -46,6 +46,7 @@ export function cleanData(data: SupportedExportFormats): LatestExportFormat {
       history: cleanConversationHistory(data.history || []),
       folders: (data.folders || []).map((chatFolder) => ({
         id: chatFolder.id.toString(),
+        date: new Date().toISOString().slice(0, 10),
         name: chatFolder.name,
         type: 'chat',
       })),

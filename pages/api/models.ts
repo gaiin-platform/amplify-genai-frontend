@@ -73,6 +73,7 @@ const handler = async (req: Request): Promise<Response> => {
             actualTokenLimit: OpenAIModels[value].actualTokenLimit,
             inputCost: OpenAIModels[value].inputCost,
             outputCost: OpenAIModels[value].outputCost,
+            description: OpenAIModels[value].description
           });
         }
       }

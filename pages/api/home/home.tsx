@@ -1,12 +1,11 @@
 import {useEffect, useRef, useState, useCallback} from 'react';
-import {useQuery} from 'react-query';
-
 import {GetServerSideProps} from 'next';
 import {useTranslation} from 'next-i18next';
 import {serverSideTranslations} from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import {Tab, TabSidebar} from "@/components/TabSidebar/TabSidebar";
-import {useCreateReducer} from '@/hooks/useCreateReducer';
+import {syncAssistants} from "@/utils/app/assistants";
+import {listAssistants} from "@/services/assistantService";
 import {SettingsBar} from "@/components/Settings/SettingsBar";
 import useErrorService from '@/services/errorService';
 import useApiService from '@/services/useApiService';
@@ -58,10 +57,8 @@ import {v4 as uuidv4} from 'uuid';
 import styled from "styled-components";
 import {WorkflowDefinition} from "@/types/workflow";
 import {saveWorkflowDefinitions} from "@/utils/app/workflows";
-import {findWorkflowPattern} from "@/utils/workflow/aiflow";
 import SharedItemsList from "@/components/Share/SharedItemList";
 import {saveFeatures} from "@/utils/app/features";
-import {findParametersInWorkflowCode} from "@/utils/workflow/workflow";
 import WorkspaceList from "@/components/Workspace/WorkspaceList";
 import {Market} from "@/components/Market/Market";
 import {getBasePrompts} from "@/services/basePromptsService";
@@ -70,7 +67,7 @@ import {importData} from "@/utils/app/importExport";
 import {useSession, signIn, signOut, getSession} from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import {useHomeReducer} from "@/hooks/useHomeReducer";
-import stateService from "@/services/stateService";
+import {MyHome} from "@/components/My/MyHome";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -124,7 +121,7 @@ const Home = ({
             folders,
             workflows,
             conversations,
-            selectedConversation,
+            selectedConversation, 
             prompts,
             temperature,
             page,
@@ -155,20 +152,38 @@ const Home = ({
             };
             fetchAccounts();
         }
+
     }, [session]);
 
     useEffect(() => {
         const fetchPrompts = async () => {
-            const basePrompts = await getBasePrompts();
-            if (basePrompts.success) {
-                const {history, folders, prompts}: LatestExportFormat = importData(basePrompts.data);
+            try {
+                const basePrompts = await getBasePrompts();
+                if (basePrompts.success) {
+                    const {history, folders, prompts}: LatestExportFormat = importData(basePrompts.data);
 
-                dispatch({field: 'conversations', value: history});
-                dispatch({field: 'folders', value: folders});
-                dispatch({field: 'prompts', value: prompts});
+                    dispatch({field: 'conversations', value: history});
+                    dispatch({field: 'folders', value: folders});
+                    dispatch({field: 'prompts', value: prompts});
 
-            } else {
-                console.log("Failed to import base prompts.");
+                } else {
+                    console.log("Failed to import base prompts.");
+                }
+            }catch (e) {
+                console.log("Failed to import base prompts.", e);
+            }
+            await fetchAssistants();
+        }
+
+        const fetchAssistants = async() => {
+            if(session?.user?.email) {
+                let assistants = await listAssistants(session?.user?.email);
+                // if local and assistants are not the same set assistants here
+                
+                if (assistants) {
+                    syncAssistants(assistants, folders, prompts, dispatch);
+                     
+                }
             }
         }
 
@@ -218,6 +233,7 @@ const Home = ({
                             actualTokenLimit: OpenAIModels[value].actualTokenLimit,
                             inputCost: OpenAIModels[value].inputCost,
                             outputCost: OpenAIModels[value].outputCost,
+                            description: OpenAIModels[value].description
                         });
                     }
                 }
@@ -262,6 +278,7 @@ const Home = ({
 
         const newFolder: FolderInterface = {
             id: uuidv4(),
+            date: new Date().toISOString().slice(0, 10),
             name,
             type,
         };
@@ -279,19 +296,39 @@ const Home = ({
         dispatch({field: 'folders', value: updatedFolders});
         saveFolders(updatedFolders);
 
-        const updatedConversations: Conversation[] = conversations.map((c) => {
+        const updatedConversations = conversations.reduce<Conversation[]>((acc, c) => {
             if (c.folderId === folderId) {
-                return {
-                    ...c,
-                    folderId: null,
-                };
+                statsService.deleteConversationEvent(c);
+            } else {
+                acc.push(c);
             }
+            return acc;
+        }, []);
 
-            return c;
-        });
+        if (updatedConversations.length > 0) {
+            dispatch({
+                field: 'selectedConversation',
+                value: updatedConversations[updatedConversations.length - 1],
+            });
 
-        dispatch({field: 'conversations', value: updatedConversations});
-        saveConversations(updatedConversations);
+            saveConversation(updatedConversations[updatedConversations.length - 1]);
+        } else {
+            defaultModelId &&
+                dispatch({
+                field: 'selectedConversation',
+                value: {
+                    id: uuidv4(),
+                    name: t('New Conversation'),
+                    messages: [],
+                    model: OpenAIModels[defaultModelId],
+                    prompt: DEFAULT_SYSTEM_PROMPT,
+                    temperature: DEFAULT_TEMPERATURE,
+                    folderId: null,
+                },
+                });
+
+            localStorage.removeItem('selectedConversation');
+        }
 
         const updatedPrompts: Prompt[] = prompts.map((p) => {
             if (p.folderId === folderId) {
@@ -404,169 +441,10 @@ const Home = ({
 
                 console.log(`handleCustomLinkClick ${category}:${action}/${path}`);
 
-
-                if (category === "workflow" && action === "save-workflow" && path && path.trim().length > 0) {
-
-                    const workflowId = path;
-                    console.log(`Saving workflow ${workflowId}...`);
-
-                    const workflowFilter = (workflowId: string, msgType: string) => {
-                        return (m: Message) => {
-                            return m.data
-                                && m.data.workflow
-                                && m.data.type
-                                && m.data.workflow === workflowId
-                                && m.data.type === msgType;
-                        }
-                    };
-
-                    //let code = conversation.messages.filter(workflowFilter(workflowId, "workflow:code")).pop();
-                    let prompt = conversation.messages.filter(workflowFilter(workflowId, "workflow:prompt")).pop();
-                    let result = conversation.messages.filter(workflowFilter(workflowId, "workflow:result")).pop();
-
-                    console.log("Workflow Result", result);
-                    console.log("Workflow", {
-                        code: result?.data.workflowCode,
-                        prompt: prompt,
-                        inputs: result?.data.inputs
-                    });
-
-                    if (prompt && result && result?.data.workflowCode) {
-                        let workflowDefinition: WorkflowDefinition = {
-                            id: uuidv4(),
-                            formatVersion: "v1.0",
-                            version: "1",
-                            folderId: null,
-                            description: prompt.content,
-                            generatingPrompt: prompt.content,
-                            name: prompt.content,
-                            code: result?.data.workflowCode,
-                            tags: [],
-                            inputs: result?.data.inputs || [],
-                            outputs: [],
-                        }
-
-                        const documentStrings = workflowDefinition.inputs.documents.map((doc) => `{{${doc.name}:file}}`).join('\n');
-                        const parameterStrings = Object.keys(workflowDefinition.inputs.parameters).map((key) => `{{${key}}}`).join('\n');
-                        const formattedString =
-                            `${documentStrings}${parameterStrings}${prompt.content}`;
-
-                        let promptTemplate: Prompt = {
-                            content: formattedString,
-                            data: {
-                                code: result?.data.workflowCode
-                            },
-                            description: prompt.content,
-                            folderId: null,
-                            id: uuidv4(),
-                            name: prompt.content,
-                            type: MessageType.AUTOMATION
-                        }
-
-                        const updatedPrompts = [...prompts, promptTemplate];
-
-                        dispatch({field: 'prompts', value: updatedPrompts});
-
-                        savePrompts(updatedPrompts);
-
-                        // const updatedWorkflowDefinitions = [
-                        //     ...workflows,
-                        //     workflowDefinition
-                        // ]
-
-                        // dispatch({field: 'workflows', value: updatedWorkflowDefinitions});
-
-                        // saveWorkflowDefinitions(updatedWorkflowDefinitions);
-                        alert("Workflow saved.");
-                    } else {
-                        console.log("Workflow not saved, missing code or prompt.");
-                    }
-                } else if (category === "workflow" && action === "save-workflow" && context.message && context.conversation) {
-
-                    let code = findWorkflowPattern(context.message.content);
-                    let codeMessageIndex = context.conversation.messages.indexOf(context.message);
-
-                    console.log("Workflow Code", code);
-                    console.log("Workflow Message Index", codeMessageIndex);
-
-                    if (codeMessageIndex > 0) {
-                        let msgBefore = context.conversation.messages[codeMessageIndex - 1];
-                        let prompt = msgBefore.content;
-
-                        console.log("Workflow Prompt", prompt);
-
-                        if (code && prompt) {
-                            let workflowDefinition: WorkflowDefinition = {
-                                id: uuidv4(),
-                                formatVersion: "v1.0",
-                                version: "1",
-                                folderId: null,
-                                description: prompt,
-                                generatingPrompt: prompt,
-                                name: prompt,
-                                code: code,
-                                tags: [],
-                                inputs: {parameters: {}, documents: []},
-                                outputs: [],
-                            }
-
-                            const documentStrings = workflowDefinition.inputs.documents.map((doc) => `{{${doc.name}:file}}`).join('\n');
-                            let parameterStrings = Object.keys(workflowDefinition.inputs.parameters).map((key) => `{{${key}}}`).join('\n');
-                            parameterStrings += findParametersInWorkflowCode(code);
-
-                            const formattedString =
-                                `${documentStrings}${parameterStrings}${prompt}`;
-
-
-                            const extractGetDocuments = (code: string): boolean => {
-                                const regex = /fnlibs.getDocuments\(\)/;
-                                return regex.test(code);
-                            };
-
-                            const extractGetDocumentArguments = (code: string): string[] => {
-                                const regex = /fnlibs.getDocument\(\s*"([^"]+)"\s*\)/g;
-                                const matches = code.match(regex);
-                                if (!matches) return [];
-                                return matches.map((match) => match.replace('fnlibs.getDocument("', "").replace('")', ""));
-                            };
-
-                            const promptDocumentVariables = "" +
-                                (extractGetDocuments(code) ? "{{Documents:files}}" : "") +
-                                extractGetDocumentArguments(code).map((arg) => `{{${arg}:file}}`).join('\n');
-
-
-                            let promptTemplate: Prompt = {
-                                content: promptDocumentVariables + formattedString,
-                                data: {
-                                    code: code
-                                },
-                                description: prompt,
-                                folderId: null,
-                                id: uuidv4(),
-                                name: prompt,
-                                type: MessageType.AUTOMATION
-                            }
-
-                            const updatedPrompts = [...prompts, promptTemplate];
-
-                            dispatch({field: 'prompts', value: updatedPrompts});
-
-                            savePrompts(updatedPrompts);
-
-                            alert("Workflow saved.");
-                        } else {
-                            console.log("Workflow not saved, missing code or prompt.");
-                        }
-                    }
-                }
             }
         } catch (e) {
             console.log("Error handling custom link", e);
         }
-
-        //let msgs = conversation.messages.filter(workflowFilter())
-
-        //console.log("Workflow msgs:", msgs);
     }
 
     const handleUpdateConversation = (
@@ -767,34 +645,34 @@ const Home = ({
 
             dispatch({field: 'conversations', value: cleanedConversationHistory});
         }
+        // this was to open the last conversation the user was on 
+        // const selectedConversation = localStorage.getItem('selectedConversation');
+        // if (selectedConversation) {
+        //     const parsedSelectedConversation: Conversation =
+        //         JSON.parse(selectedConversation);
+        //     const cleanedSelectedConversation = cleanSelectedConversation(
+        //         parsedSelectedConversation,
+        //     );
 
-        const selectedConversation = localStorage.getItem('selectedConversation');
-        if (selectedConversation) {
-            const parsedSelectedConversation: Conversation =
-                JSON.parse(selectedConversation);
-            const cleanedSelectedConversation = cleanSelectedConversation(
-                parsedSelectedConversation,
-            );
-
-            dispatch({
-                field: 'selectedConversation',
-                value: cleanedSelectedConversation,
-            });
-        } else {
-            const lastConversation = conversations[conversations.length - 1];
-            dispatch({
-                field: 'selectedConversation',
-                value: {
-                    id: uuidv4(),
-                    name: t('New Conversation'),
-                    messages: [],
-                    model: OpenAIModels[defaultModelId],
-                    prompt: DEFAULT_SYSTEM_PROMPT,
-                    temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
-                    folderId: null,
-                },
-            });
-        }
+        //     dispatch({
+        //         field: 'selectedConversation',
+        //         value: cleanedSelectedConversation,
+        //     });
+        // } else {
+        const lastConversation = conversations[conversations.length - 1];
+        dispatch({
+            field: 'selectedConversation',
+            value: {
+                id: uuidv4(),
+                name: t('New Conversation'),
+                messages: [],
+                model: OpenAIModels[defaultModelId],
+                prompt: DEFAULT_SYSTEM_PROMPT,
+                temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
+                folderId: null,
+            },
+        });
+        // }
 
         dispatch({
             field: 'conversationStateId',
@@ -938,6 +816,9 @@ const Home = ({
                                         // {id: "1", name: "Item 1"},
                                     ]}/>
                                 )}
+                                {page === 'home' && (
+                                    <MyHome/>
+                                )}
                             </div>
 
 
@@ -1017,6 +898,7 @@ export const getServerSideProps: GetServerSideProps = async ({locale}) => {
     const cognitoDomain = process.env.COGNITO_DOMAIN;
     const defaultFunctionCallModel = process.env.DEFAULT_FUNCTION_CALL_MODEL;
     const availableModels = process.env.AVAILABLE_MODELS;
+            
 
     //console.log("Default Model Id:", defaultModelId);
 

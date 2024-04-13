@@ -12,6 +12,8 @@ import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {noOpStatsServices, StatsServices} from "@/types/stats";
 import {Account} from "@/types/accounts";
 
+type HandleSend = (request: any) => void;
+
 export interface HomeInitialState {
   defaultAccount: Account|undefined;
   chatEndpoint: string|null;
@@ -98,6 +100,8 @@ export const initialState: HomeInitialState = {
     ragEnabled: true,
     sourcesEnabled: true,
     uploadDocuments:true,
+    assistantCreator:true,
+    assistants:true,
     overrideUneditablePrompts:false,
     overrideInvisiblePrompts: false,
     extractDocumentsLocally:false,
@@ -108,8 +112,11 @@ export const initialState: HomeInitialState = {
     workflowCreate:false,
     rootPromptCreate:true,
     pluginsOnInput:false,
+    dataSourceSelectorOnInput:true,
     followUpCreate:true,
     marketItemDelete:false,
+    automation:false,
+    codeInterpreterEnabled:true
   },
   statsService: noOpStatsServices,
   defaultFunctionCallModel: null,

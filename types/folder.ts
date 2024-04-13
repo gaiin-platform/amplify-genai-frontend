@@ -1,5 +1,6 @@
 export interface FolderInterface {
   id: string;
+  date?: string;
   name: string;
   type: FolderType;
 }

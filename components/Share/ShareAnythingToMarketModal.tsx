@@ -167,12 +167,14 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
 
         const newPromptFolder:FolderInterface = {
             id: v4(),
+            date: new Date().toISOString().slice(0, 10),
             name: "Mkt: "+publishingName,
             type: "prompt"
         }
 
         const newConversationsFolder:FolderInterface = {
             id: v4(),
+            date: new Date().toISOString().slice(0, 10),
             name: "Mkt: "+publishingName,
             type: "chat"
         }

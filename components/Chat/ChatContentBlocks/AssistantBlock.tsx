@@ -1,16 +1,16 @@
 import {useContext, useEffect, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
-import {IconRobot, IconZoomIn} from "@tabler/icons-react";
+import {IconRobot} from "@tabler/icons-react";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {createAssistant} from "@/services/assistantService";
 import { useSession } from "next-auth/react"
-import {Assistant, AssistantDefinition, AssistantProviderID} from "@/types/assistant";
+import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
 import {Prompt} from "@/types/prompt";
-import {Conversation, MessageType} from "@/types/chat";
-import {OpenAIModel} from "@/types/openai";
+import {Conversation} from "@/types/chat";
 import {savePrompts} from "@/utils/app/prompts";
+import {createAssistantPrompt} from "@/utils/app/assistants";
 
 
 const animate = keyframes`
@@ -64,11 +64,57 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
         return [];
     }
 
+    function parsePrefixedLines(text: string): {[key:string]:string} {
+        if (typeof text !== 'string' || text.length === 0) {
+            throw new Error('Input text must be a non-empty string');
+        }
+
+        const resultMap:{[key:string]:string} = {};
+        const lines: string[] = text.split('\n');
+        let currentPrefix: string | null = null;
+        const contentBuffer: string[] = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            const line: string = lines[i].trim();
+            const match: RegExpMatchArray | null = line.match(/^(\s*"?(\w+)"?\s*):(.*)$/);
+            if (match) {
+                // When a new prefix is found, save the previous prefix and its content
+                if (currentPrefix !== null) {
+                    resultMap[currentPrefix] =
+                        contentBuffer.join('\n');
+                }
+                // Extract current prefix from the regex match, removing quotes if present
+                currentPrefix = match[2].replaceAll('"', '');
+                contentBuffer.push(match[3]);
+            } else if (currentPrefix !== null) {
+                // If we are in a prefixed block, accumulate the content
+                contentBuffer.push(line);
+            }
+        }
+
+        // When the input ends, save the last prefix and its content
+        if (currentPrefix !== null) {
+            resultMap[currentPrefix] = contentBuffer.join('\n');
+        }
+
+        return resultMap;
+    }
+
     const parseAssistant = (definitionStr: string) => {
 
         try {
-            const definition = JSON.parse(definitionStr);
 
+            let definition = null;
+            try{
+                definition = JSON.parse(definitionStr);
+            }
+            catch(e) {
+                definition = parsePrefixedLines(definitionStr);
+            }
+
+            if(definition.name){
+                definition.name = definition.name.replace(/[^a-zA-Z0-9]+/g, '').trim();
+            }
             if(!definition.instructions && definition.description) {
                 definition.instructions = definition.description;
             }
@@ -83,7 +129,23 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
             definition.provider = AssistantProviderID.AMPLIFY;
             definition.tags = [];
             definition.tools = [];
-            definition.dataSources = getDocumentsInConversation(selectedConversation);
+
+            const rawDS = getDocumentsInConversation(selectedConversation);
+            const knowledge = rawDS.map(ds => {
+                if(ds.key || (ds.id && ds.id.indexOf("://") > 0)){
+                    return ds;
+                }
+                else {
+                    return {
+                        ...ds,
+                        id: "s3://"+ds.id
+                    }
+                }
+            });
+
+            definition.dataSources = knowledge;
+            definition.data = {};
+            definition.data.access = {read: true, write:true};
 
             return definition;
         } catch (e) {
@@ -96,21 +158,9 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
     const bindAssistantToConversation = async (id:string, definition:AssistantDefinition) => {
         if(selectedConversation) {
 
-            const assistant:Assistant = {
-                id, definition
-            };
+            const assistantPrompt:Prompt = createAssistantPrompt(definition);
 
-            const assistantPrompt:Prompt = {
-                id: id,
-                type: MessageType.ROOT,
-                name: definition.name,
-                description: definition.description,
-                content: definition.instructions,
-                folderId: null,
-                data: {
-                    assistant: assistant
-                }
-            };
+            console.log("Assistnat Prompt", assistantPrompt)
 
             homeDispatch({
                     type: 'append',
@@ -120,37 +170,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
 
             const updatedPrompts = [...prompts, assistantPrompt];
 
-            //homeDispatch({ field: 'prompts', value: updatedPrompts });
-
             savePrompts(updatedPrompts);
-
-            // const existingAssistants = selectedConversation.data?.assistants || [];
-            //
-            // const updatedConversation = {
-            //     ...selectedConversation,
-            //     data:{
-            //         ...selectedConversation.data,
-            //         assistants: [...existingAssistants, assistant],
-            //     }
-            // }
-            //
-            // homeDispatch({
-            //     field: 'selectedConversation',
-            //     value: updatedConversation,
-            // });
-            //
-            // const updatedConversations = conversations.map((conversation) => {
-            //     if(conversation.id === selectedConversation.id) {
-            //         return updatedConversation;
-            //     } else {
-            //         return conversation;
-            //     }
-            // });
-            // homeDispatch({
-            //     field: 'conversations',
-            //     value: updatedConversations,
-            // });
-
         }
     }
 
@@ -162,16 +182,18 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
             setIsLoading(true);
 
             try {
-                const {assistantId,provider} = await createAssistant(user.email, assistantDefinition);
+                const {id,assistantId,provider} = await createAssistant(assistantDefinition);
 
                 console.log("assistantId", assistantId);
                 console.log("provider", provider);
 
+                assistantDefinition.id = id;
                 assistantDefinition.provider = provider;
+                assistantDefinition.assistantId = assistantId;
 
                 if(assistantId) {
                     alert("Assistant created successfully!");
-                    bindAssistantToConversation(assistantId, assistantDefinition);
+                    bindAssistantToConversation(id, assistantDefinition);
                 } else {
                     alert("Failed to create assistant. Please try again.");
                 }
