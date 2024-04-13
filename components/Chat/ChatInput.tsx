@@ -93,7 +93,7 @@ export const ChatInput = ({
     const [documentAborts, setDocumentAborts] = useState<{ [key: string]: AbortController }>({});
 
     const promptListRef = useRef<HTMLUListElement | null>(null);
-    const dataSourceSelectorRef = useRef<HTMLUListElement | null>(null);
+    const dataSourceSelectorRef = useRef<HTMLDivElement | null>(null);
     const assistantSelectorRef = useRef<HTMLUListElement | null>(null);
 
     const [isWorkflowOn, setWorkflowOn] = useState(false);
@@ -544,7 +544,8 @@ export const ChatInput = ({
                         {featureFlags.dataSourceSelectorOnInput && (
                             <button
                                 className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
-                                onClick={() => {
+                                onClick={(e) => {
+                                    e.stopPropagation();
                                     setShowDataSourceSelector(!showDataSourceSelector);
                                     setShowAssistantSelect(false);
                                 }}
@@ -639,7 +640,7 @@ export const ChatInput = ({
                         )}
 
                         {showDataSourceSelector && (
-                            <div className="absolute left-0 bottom-16 mb-6 rounded bg-white dark:bg-[#343541]">
+                            <div ref={dataSourceSelectorRef} className="absolute left-0 bottom-16 mb-6 rounded bg-white dark:bg-[#343541]">
                                 <DataSourceSelector
                                     onDataSourceSelected={(d) => {
 
