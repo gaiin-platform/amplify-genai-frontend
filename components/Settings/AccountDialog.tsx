@@ -1,26 +1,27 @@
-import React, {FC, useContext, useEffect, useRef, useState} from 'react';
-import {useTranslation} from 'next-i18next';
-import {IconTrashX, IconPlus} from "@tabler/icons-react";
+import React, { FC, useContext, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'next-i18next';
+import { IconTrashX, IconPlus } from "@tabler/icons-react";
 import HomeContext from '@/pages/api/home/home.context';
-import {getAccounts, saveAccounts} from "@/services/accountService";
+import { getAccounts, saveAccounts } from "@/services/accountService";
 import Loader from "@/components/Loader/Loader";
-import {Account} from "@/types/accounts";
+import { Account } from "@/types/accounts";
 
 interface Props {
     open: boolean;
     onClose: () => void;
 }
 
-export const AccountDialog: FC<Props> = ({open, onClose}) => {
-    const {t} = useTranslation('settings');
+export const AccountDialog: FC<Props> = ({ open, onClose }) => {
+    const { t } = useTranslation('settings');
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [defaultAccount, setDefaultAccount] = useState<string>('');
     const accountIdRef = useRef<HTMLInputElement>(null);
     const accountNameRef = useRef<HTMLInputElement>(null);
-    const {dispatch: homeDispatch} = useContext(HomeContext);
+    const { dispatch: homeDispatch } = useContext(HomeContext);
     const modalRef = useRef<HTMLDivElement>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [loadingMessage, setLoadingMessage] = useState<string>('Loading...');
+    const noCoaAccount: Account = { id: 'general_account', name: 'No COA On File' };
 
     useEffect(() => {
         const fetchAccounts = async () => {
@@ -31,6 +32,11 @@ export const AccountDialog: FC<Props> = ({open, onClose}) => {
                 setIsLoading(false);
                 onClose();
             } else {
+                // Add "No COA" account to the list if not present
+                if (!result.data.some((account: any) => account.id === noCoaAccount.id)) {
+                    result.data.unshift(noCoaAccount);
+                }
+
                 setAccounts(result.data);
 
                 const updatedDefaultAccount = result.data.find((account: any) => account.isDefault) || result.data[0];
@@ -54,7 +60,7 @@ export const AccountDialog: FC<Props> = ({open, onClose}) => {
         const newAccountId = accountIdRef.current?.value;
         const newAccountName = accountNameRef.current?.value;
         if (newAccountId && newAccountName) {
-            const updatedAccounts = [...accounts, {id: newAccountId, name: newAccountName}];
+            const updatedAccounts = [...accounts, { id: newAccountId, name: newAccountName }];
             setAccounts(updatedAccounts);
 
             // Clear input fields after adding an account
@@ -64,6 +70,12 @@ export const AccountDialog: FC<Props> = ({open, onClose}) => {
     };
 
     const handleDeleteAccount = (accountToDelete: string) => {
+        // Prevent deletion of "No COA" account
+        if (accountToDelete === noCoaAccount.id) {
+            alert('The "No COA" account cannot be deleted.');
+            return;
+        }
+
         const updatedAccounts = accounts.filter(account => account.id !== accountToDelete);
         setAccounts(updatedAccounts);
     };
@@ -75,7 +87,7 @@ export const AccountDialog: FC<Props> = ({open, onClose}) => {
 
     const handleSave = async () => {
 
-        if(accounts.length === 0) {
+        if (accounts.length === 0) {
             alert("You must have at least one account.");
             return;
         }
@@ -84,7 +96,7 @@ export const AccountDialog: FC<Props> = ({open, onClose}) => {
         setIsLoading(true);
 
         let updatedAccounts = accounts.map(account => {
-            return {...account, isDefault: account.id === defaultAccount};
+            return { ...account, isDefault: account.id === defaultAccount };
         });
 
         let updatedDefaultAccount = updatedAccounts.find((account: any) => account.isDefault);
@@ -95,7 +107,7 @@ export const AccountDialog: FC<Props> = ({open, onClose}) => {
             alert("Unable to save accounts. Please try again.");
             setIsLoading(false);
         } else {
-            homeDispatch({field: 'defaultAccount', value: updatedDefaultAccount || accounts[0]});
+            homeDispatch({ field: 'defaultAccount', value: updatedDefaultAccount || accounts[0] });
             setIsLoading(false);
             onClose();
         }
@@ -125,7 +137,7 @@ export const AccountDialog: FC<Props> = ({open, onClose}) => {
 
                         {isLoading && (
                             <div className="flex flex-col items-center">
-                                <Loader size="48"/>
+                                <Loader size="48" />
                                 <div className="text-xl">{loadingMessage}</div>
                             </div>
                         )}
@@ -160,13 +172,13 @@ export const AccountDialog: FC<Props> = ({open, onClose}) => {
 
                                         />
                                     </div>
-                                    <div className="flex-shrink-0"> 
+                                    <div className="flex-shrink-0">
                                         <button
                                             type="button"
                                             className="ml-2 px-3 py-1.5 text-white rounded bg-neutral-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
                                             onClick={handleAddAccount}
                                         >
-                                            <IconPlus size={18}/>
+                                            <IconPlus size={18} />
                                         </button>
                                     </div>
                                 </li>
@@ -190,13 +202,19 @@ export const AccountDialog: FC<Props> = ({open, onClose}) => {
                                         <div className="w-40">{account.name}</div>
                                         <div className="w-40 truncate">{account.id}</div>
                                         <div className="ml-6 mr-2">
-                                            <button
-                                                type="button"
-                                                className="px-2 py-1.5 text-sm bg-neutral-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                                onClick={() => handleDeleteAccount(account.id)}
-                                            >
-                                                <IconTrashX size={18}/>
-                                            </button>
+                                            {account.id !== noCoaAccount.id ? (
+                                                <button
+                                                    type="button"
+                                                    className="px-2 py-1.5 text-sm bg-neutral-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                                    onClick={() => handleDeleteAccount(account.id)}
+                                                >
+                                                    <IconTrashX size={18} />
+                                                </button>
+                                            ) : (
+                                                <div className="px-2 py-1.5 text-sm opacity-0" aria-hidden="true"> {/* Invisible spacer */}
+                                                    <IconTrashX size={18} />
+                                                </div>
+                                            )}
                                         </div>
                                     </li>
                                 ))}
