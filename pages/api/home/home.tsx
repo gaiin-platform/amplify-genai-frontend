@@ -68,6 +68,7 @@ import {useSession, signIn, signOut, getSession} from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import {useHomeReducer} from "@/hooks/useHomeReducer";
 import {MyHome} from "@/components/My/MyHome";
+import { DEFAULT_ASSISTANT } from '@/types/assistant';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -379,6 +380,7 @@ const Home = ({
     // CONVERSATION OPERATIONS  --------------------------------------------
 
     const handleNewConversation = (params = {}) => {
+        dispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
         dispatch({field: 'page', value: 'chat'})
 
         const lastConversation = conversations[conversations.length - 1];
