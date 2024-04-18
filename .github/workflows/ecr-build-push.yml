@@ -5,27 +5,22 @@ on:
     branches:
       - main
       - dev
-  workflow_dispatch:
+  workflow_dispatch: # Added manual trigger capability
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    # Dynamically set the environment name based on the branch
     environment:
       name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v2
-    
+      
     - name: Print AWS region
-      run: echo "AWS Region: ${{ secrets.AWS_REGION }} 
-
-    - name: Print Github environment
-      run: echo "Github Environment: ${{ github.environment }}"
+      run: echo "AWS Region: ${{ secrets.AWS_REGION }}" # Corrected with ending quote
 
     - name: Print Github ref
-      run: echo "Github Ref: ${{ github.ref }}"
-
+      run: echo "Github Ref: ${{ github.ref }}" # Corrected with ending quote
 
     - name: Configure AWS credentials from environment secrets
       uses: aws-actions/configure-aws-credentials@master
