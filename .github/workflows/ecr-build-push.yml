@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - dev
+  workflow_dispatch:
 
 jobs:
   build-and-push:
@@ -24,7 +25,7 @@ jobs:
 
     - name: Print Github ref
       run: echo "Github Ref: ${{ github.ref }}"
-             
+
 
     - name: Configure AWS credentials from environment secrets
       uses: aws-actions/configure-aws-credentials@master
