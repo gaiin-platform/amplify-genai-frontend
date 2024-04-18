@@ -11,7 +11,8 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     environment:
-      name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+      name: ${{ (github.ref == 'refs/heads/main' && 'prod') || 'dev' }}      
+    
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v2
