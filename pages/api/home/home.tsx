@@ -9,6 +9,7 @@ import {listAssistants} from "@/services/assistantService";
 import {SettingsBar} from "@/components/Settings/SettingsBar";
 import useErrorService from '@/services/errorService';
 import useApiService from '@/services/useApiService';
+import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
 
 import {
     cleanConversationHistory,
@@ -102,6 +103,9 @@ const Home = ({
     const {getModels} = useApiService();
     const {getModelsError} = useErrorService();
     const [initialRender, setInitialRender] = useState<boolean>(true);
+    const [hasAcceptedDataDisclosure, setHasAcceptedDataDisclosure] = useState<boolean | null>(null);
+    const [latestDataDisclosureUrl, setLatestDataDisclosureUrl] = useState<string | undefined>('');
+    const [dataDisclosureDecisionMade, setDataDisclosureDecisionMade] = useState(false);
 
     const {data: session, status} = useSession();
     //const {user, error: userError, isLoading} = useUser();
@@ -737,7 +741,92 @@ const Home = ({
         setPostProcessingCallbacks(prev => prev.filter(c => c !== callback));
     }, []);
 
+    useEffect(() => {
+        const fetchDataDisclosureDecision = async () => {
+            if (session?.user?.email) {
+                try {
+                    const decision = await checkDataDisclosureDecision(session.user.email);
+                    const decisionBodyObject = JSON.parse(decision.item.body);
+                    const decisionValue = decisionBodyObject.acceptedDataDisclosure;
+                    // console.log("Decision: ", decisionValue);
+                    setHasAcceptedDataDisclosure(decisionValue);
+                    if (!hasAcceptedDataDisclosure) {
+                        // Fetch the latest data disclosure only if the user has not accepted it
+                        const latestDisclosure = await getLatestDataDisclosure();
+                        const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
+                        const latestDisclosureValue = latestDisclosureBodyObject.pre_signed_url;
+                        // console.log("Latest disclosure", latestDisclosureValue);
+                        setLatestDataDisclosureUrl(latestDisclosureValue);
+                    }
+                } catch (error) {
+                    console.error('Failed to check data disclosure decision:', error);
+                    setHasAcceptedDataDisclosure(false);
+                }
+            }
+        };
+
+        fetchDataDisclosureDecision();
+    }, [session, dataDisclosureDecisionMade]);
+
     if (session) {
+        if (hasAcceptedDataDisclosure === null) {
+            // Decision is still being checked, render a loading indicator
+            return (
+                <main
+                    className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
+                >
+                    <div
+                        className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                        <Loader />
+                        <h1 className="mb-4 text-2xl font-bold">
+                            Loading...
+                        </h1>
+
+                        {/*<progress className="w-64"/>*/}
+                    </div>
+                </main>);
+        } else if (!hasAcceptedDataDisclosure) {
+            // User has not accepted the data disclosure agreement, do not render page content
+            return (
+                <main
+                    className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
+                >
+                    <div
+                        className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                        <h1 className="mb-4 text-2xl font-bold">
+                            You must accept the data disclosure agreement to use Amplify.
+                        </h1>
+                        <a href={latestDataDisclosureUrl} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '10px' }}>Click here to download the data disclosure agreement</a>
+                        <iframe src={latestDataDisclosureUrl} width="70%" height="600px" style={{ border: 'none', marginBottom: '10px' }}></iframe>
+                        <button
+                            onClick={() => {
+                                if (session && session.user && session.user.email) {
+                                    saveDataDisclosureDecision(session.user.email, true);
+                                    setDataDisclosureDecisionMade(prev => !prev);
+                                    // TODO: MAKE LOADING HAPPEN FASTER OR SHOW THE USER A LOADING SCREEN
+                                } else {
+                                    console.error('Session or user is undefined.');
+                                }
+                            }}
+                            style={{
+                                backgroundColor: 'white',
+                                color: 'black',
+                                fontWeight: 'bold',
+                                padding: '10px 20px',
+                                borderRadius: '5px',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.3s ease-in-out',
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
+                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                        >
+                            Accept
+                        </button>
+                    </div>
+                </main>
+            );
+        }
+        
         // @ts-ignore
         return (
             <HomeContext.Provider
