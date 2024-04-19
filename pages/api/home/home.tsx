@@ -744,9 +744,9 @@ const Home = ({
         setPostProcessingCallbacks(prev => prev.filter(c => c !== callback));
     }, []);
 
-    const handleScroll = (e: any) => {
-        const iframe = e.target;
-        const isBottom = iframe.scrollHeight - iframe.scrollTop === iframe.clientHeight;
+    const handleScroll = (event:any) => {
+        const scrollableElement = event.currentTarget;
+        const isBottom = scrollableElement.scrollHeight - scrollableElement.scrollTop <= scrollableElement.clientHeight + 1;
         setHasScrolledToBottom(isBottom);
     };
 
