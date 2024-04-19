@@ -39,8 +39,7 @@
             ECR_REPO: ${{ secrets.PROD_ECR_REPOSITORY }}
           run: |
             IMAGE_URI="${ECR_REGISTRY}/${ECR_REPO}"
-            docker build -t $IMAGE_URI:latest .
-            docker tag $IMAGE_URI:latest $IMAGE_URI:$IMAGE_TAG_LATEST 
+            docker build -t $IMAGE_URI:latest . 
             docker tag $IMAGE_URI:latest $IMAGE_URI:$IMAGE_TAG_DATE
             docker push $IMAGE_URI:$IMAGE_TAG_LATEST
             docker push $IMAGE_URI:$IMAGE_TAG_DATE
@@ -72,7 +71,6 @@
           run: |
             IMAGE_URI="${ECR_REGISTRY}/${ECR_REPO}"
             docker build -t $IMAGE_URI:latest .
-            docker tag $IMAGE_URI:latest $IMAGE_URI:$IMAGE_TAG_LATEST 
             docker tag $IMAGE_URI:latest $IMAGE_URI:$IMAGE_TAG_DATE
             docker push $IMAGE_URI:$IMAGE_TAG_LATEST
             docker push $IMAGE_URI:$IMAGE_TAG_DATE
