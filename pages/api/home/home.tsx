@@ -113,6 +113,7 @@ const Home = ({
     const { data: session, status } = useSession();
     //const {user, error: userError, isLoading} = useUser();
     const user = session?.user;
+    const email = user?.email;
     const isLoading = status === "loading";
     const userError = null;
 
@@ -752,9 +753,9 @@ const Home = ({
 
     useEffect(() => {
         const fetchDataDisclosureDecision = async () => {
-            if (user?.email) {
+            if (email) {
                 try {
-                    const decision = await checkDataDisclosureDecision(user.email);
+                    const decision = await checkDataDisclosureDecision(email);
                     const decisionBodyObject = JSON.parse(decision.item.body);
                     const decisionValue = decisionBodyObject.acceptedDataDisclosure;
                     // console.log("Decision: ", decisionValue);
@@ -778,7 +779,7 @@ const Home = ({
         };
 
         fetchDataDisclosureDecision();
-    }, [user, dataDisclosureDecisionMade]);
+    }, [email, dataDisclosureDecisionMade]);
 
     if (session) {
         if (hasAcceptedDataDisclosure === null) {
