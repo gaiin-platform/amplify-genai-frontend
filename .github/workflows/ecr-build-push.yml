@@ -37,7 +37,7 @@ jobs:
           IMAGE_TAG_LATEST: latest
           IMAGE_TAG_DATE: ${{ env.DATE }}
         run: |
-          IMAGE_URI="${ECR_REGISTRY}/${{ secrets.PROD_ECR_REPOSITORY }}/${{ secrets.PROD_CONTAINER_NAME }}"
+          IMAGE_URI="${ECR_REGISTRY}/${{ secrets.PROD_ECR_REPOSITORY }}"
           docker build -t $IMAGE_URI .
           docker tag $IMAGE_URI:$IMAGE_TAG_LATEST 
           docker tag $IMAGE_URI:$IMAGE_TAG_DATE
@@ -68,7 +68,7 @@ jobs:
           IMAGE_TAG_LATEST: latest
           IMAGE_TAG_DATE: ${{ env.DATE }}
         run: |
-          IMAGE_URI="${ECR_REGISTRY}/${{ secrets.DEV_ECR_REPOSITORY }}/${{ secrets.DEV_CONTAINER_NAME }}"
+          IMAGE_URI="${ECR_REGISTRY}/${{ secrets.DEV_ECR_REPOSITORY }}"
           docker build -t $IMAGE_URI .
           docker tag $IMAGE_URI:$IMAGE_TAG_LATEST 
           docker tag $IMAGE_URI:$IMAGE_TAG_DATE
