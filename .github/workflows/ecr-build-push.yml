@@ -5,63 +5,70 @@ on:
     branches:
       - main
       - dev
-  workflow_dispatch: # Added manual trigger capability
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to (dev or prod)'
+        required: true
+        default: 'dev'
 
 jobs:
-  build-and-push:
+  build-and-push-prod:
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ (github.ref_name == 'main' && 'prod') || 'dev' }}      
-    
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+    environment: production
     steps:
-      - name: Print Github ref
-        run: echo "Github Ref: ${{ github.ref_name }}" # Corrected with ending quote
-        
-      - name: Checkout Repository
-        uses: actions/checkout@v2
-        
-      - name: Print AWS region
-        run: echo "AWS Region: ${{ secrets.AWS_REGION }}" # Corrected with ending quote
-  
-      - name: Configure AWS credentials from environment secrets
-        uses: aws-actions/configure-aws-credentials@master
+      - uses: actions/checkout@v2
+
+      - name: Configure AWS credentials from production secrets
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.WS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
+
+      - uses: aws-actions/amazon-ecr-login@v1
+      
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG_LATEST: latest
+          IMAGE_TAG_DATE: ${{ env.DATE }}
+        run: |
+          IMAGE_URI="${ECR_REGISTRY}/${{ secrets.PROD_ECR_REPOSITORY }}/${{ secrets.PROD_CONTAINER_NAME }}"
+          docker build -t $IMAGE_URI:$IMAGE_TAG_LATEST .
+          docker tag $IMAGE_URI:$IMAGE_TAG_LATEST $IMAGE_URI:$IMAGE_TAG_DATE
+          docker push $IMAGE_URI:$IMAGE_TAG_LATEST
+          docker push $IMAGE_URI:$IMAGE_TAG_DATE
+
+  build-and-push-dev:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/dev' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+    environment: development
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Configure AWS credentials from development secrets
+        uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
-  
-      - name: Get current date
-        id: date
-        run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
-  
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-  
+
+      - run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
+
+      - uses: aws-actions/amazon-ecr-login@v1
+      
       - name: Build, tag, and push image to Amazon ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG_LATEST: latest
+          IMAGE_TAG_DATE: ${{ env.DATE }}
         run: |
-          IMAGE_URI="${ECR_REGISTRY}/${{ secrets.ECR_REPOSITORY }}/${{ secrets.CONTAINER_NAME }}"
-          IMAGE_TAG_LATEST="latest"
-          IMAGE_TAG_DATE="${{ env.DATE }}"
-          
+          IMAGE_URI="${ECR_REGISTRY}/${{ secrets.DEV_ECR_REPOSITORY }}/${{ secrets.DEV_CONTAINER_NAME }}"
           docker build -t $IMAGE_URI:$IMAGE_TAG_LATEST .
-          
-          # Tag with 'latest'
-          docker tag $IMAGE_URI:$IMAGE_TAG_LATEST $IMAGE_URI:$IMAGE_TAG_LATEST
-          
-          # Tag with date
           docker tag $IMAGE_URI:$IMAGE_TAG_LATEST $IMAGE_URI:$IMAGE_TAG_DATE
-          
-          # Push 'latest' tag
           docker push $IMAGE_URI:$IMAGE_TAG_LATEST
-          
-          # Push date tag
           docker push $IMAGE_URI:$IMAGE_TAG_DATE
-  
-      - name: Verify pushed images
-        run: |
-          IMAGE_URI="${ECR_REGISTRY}/${{ secrets.ECR_REPOSITORY }}/${{ secrets.CONTAINER_NAME }}"
-          aws ecr describe-images --repository-name ${{ secrets.ECR_REPOSITORY }} --image-ids imageTag=$IMAGE_TAG_LATEST
-          aws ecr describe-images --repository-name ${{ secrets.ECR_REPOSITORY }} --image-ids imageTag=$IMAGE_TAG_DATE
