@@ -1,78 +1,78 @@
-name: Build and Push to ECR
+  name: Build and Push to ECR
 
-on:
-  push:
-    branches:
-      - main
-      - dev
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Environment to deploy to (dev or prod)'
-        required: true
-        default: 'dev'
+  on:
+    push:
+      branches:
+        - main
+        - dev
+    workflow_dispatch:
+      inputs:
+        environment:
+          description: 'Environment to deploy to (dev or prod)'
+          required: true
+          default: 'dev'
 
-jobs:
-  build-and-push-prod:
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
-    environment: production
-    steps:
-      - uses: actions/checkout@v2
+  jobs:
+    build-and-push-prod:
+      runs-on: ubuntu-latest
+      if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+      environment: production
+      steps:
+        - uses: actions/checkout@v2
 
-      - name: Configure AWS credentials from production secrets
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+        - name: Configure AWS credentials from production secrets
+          uses: aws-actions/configure-aws-credentials@v1
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ secrets.AWS_REGION }}
 
-      - run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
+        - run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
 
-      - uses: aws-actions/amazon-ecr-login@v1
-      
-      - name: Build, tag, and push image to Amazon ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG_LATEST: latest
-          IMAGE_TAG_DATE: ${{ env.DATE }}
-          ECR_REPO: ${{ secrets.PROD_ECR_REPOSITORY }}
-        run: |
-          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPO}"
-          docker build -t $IMAGE_URI .
-          docker tag $IMAGE_URI:$IMAGE_TAG_LATEST 
-          docker tag $IMAGE_URI:$IMAGE_TAG_DATE
-          docker push $IMAGE_URI:$IMAGE_TAG_LATEST
-          docker push $IMAGE_URI:$IMAGE_TAG_DATE
+        - uses: aws-actions/amazon-ecr-login@v1
+        
+        - name: Build, tag, and push image to Amazon ECR
+          env:
+            ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+            IMAGE_TAG_LATEST: latest
+            IMAGE_TAG_DATE: ${{ env.DATE }}
+            ECR_REPO: ${{ secrets.PROD_ECR_REPOSITORY }}
+          run: |
+            IMAGE_URI="${ECR_REGISTRY}/${ECR_REPO}"
+            docker build -t $IMAGE_URI:latest .
+            docker tag $IMAGE_URI:latest $IMAGE_URI:$IMAGE_TAG_LATEST 
+            docker tag $IMAGE_URI:latest $IMAGE_URI:$IMAGE_TAG_DATE
+            docker push $IMAGE_URI:$IMAGE_TAG_LATEST
+            docker push $IMAGE_URI:$IMAGE_TAG_DATE
 
-  build-and-push-dev:
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/dev' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
-    environment: development
-    steps:
-      - uses: actions/checkout@v2
+    build-and-push-dev:
+      runs-on: ubuntu-latest
+      if: github.ref == 'refs/heads/dev' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+      environment: development
+      steps:
+        - uses: actions/checkout@v2
 
-      - name: Configure AWS credentials from development secrets
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+        - name: Configure AWS credentials from development secrets
+          uses: aws-actions/configure-aws-credentials@v1
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ secrets.AWS_REGION }}
 
-      - run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
+        - run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
 
-      - uses: aws-actions/amazon-ecr-login@v1
-      
-      - name: Build, tag, and push image to Amazon ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG_LATEST: latest
-          IMAGE_TAG_DATE: ${{ env.DATE }}
-          ECR_REPO: ${{ secrets.DEV_ECR_REPOSITORY }}
-        run: |
-          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPO}"
-          docker build -t $IMAGE_URI .
-          docker tag $IMAGE_URI:$IMAGE_TAG_LATEST 
-          docker tag $IMAGE_URI:$IMAGE_TAG_DATE
-          docker push $IMAGE_URI:$IMAGE_TAG_LATEST
-          docker push $IMAGE_URI:$IMAGE_TAG_DATE
+        - uses: aws-actions/amazon-ecr-login@v1
+        
+        - name: Build, tag, and push image to Amazon ECR
+          env:
+            ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+            IMAGE_TAG_LATEST: latest
+            IMAGE_TAG_DATE: ${{ env.DATE }}
+            ECR_REPO: ${{ secrets.DEV_ECR_REPOSITORY }}
+          run: |
+            IMAGE_URI="${ECR_REGISTRY}/${ECR_REPO}"
+            docker build -t $IMAGE_URI:latest .
+            docker tag $IMAGE_URI:latest $IMAGE_URI:$IMAGE_TAG_LATEST 
+            docker tag $IMAGE_URI:latest $IMAGE_URI:$IMAGE_TAG_DATE
+            docker push $IMAGE_URI:$IMAGE_TAG_LATEST
+            docker push $IMAGE_URI:$IMAGE_TAG_DATE
