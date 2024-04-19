@@ -11,17 +11,17 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     environment:
-      name: ${{ (github.ref == 'refs/heads/main' && 'prod') || 'dev' }}      
+      name: ${{ (github.ref_name == 'main' && 'prod') || 'dev' }}      
     
     steps:
+    - name: Print Github ref
+      run: echo "Github Ref: ${{ github.ref_name }}" # Corrected with ending quote
+      
     - name: Checkout Repository
       uses: actions/checkout@v2
       
     - name: Print AWS region
       run: echo "AWS Region: ${{ secrets.AWS_REGION }}" # Corrected with ending quote
-
-    - name: Print Github ref
-      run: echo "Github Ref: ${{ github.ref }}" # Corrected with ending quote
 
     - name: Configure AWS credentials from environment secrets
       uses: aws-actions/configure-aws-credentials@master
