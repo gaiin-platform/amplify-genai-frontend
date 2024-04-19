@@ -69,8 +69,9 @@
             IMAGE_TAG_DATE: ${{ env.DATE }}
             ECR_REPO: ${{ secrets.DEV_ECR_REPOSITORY }}
           run: |
-            IMAGE_URI="${ECR_REGISTRY}/${ECR_REPO}"
-            docker build -t $IMAGE_URI:latest .
-            docker tag $IMAGE_URI:latest $IMAGE_URI:$IMAGE_TAG_DATE
+            docker build -t $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG_LATEST .
+            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_LATEST"
+            docker tag $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG_LATEST $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG_DATE
+            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_DATE"
             docker push $IMAGE_URI:$IMAGE_TAG_LATEST
             docker push $IMAGE_URI:$IMAGE_TAG_DATE
