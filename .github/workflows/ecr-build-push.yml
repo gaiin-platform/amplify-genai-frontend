@@ -36,8 +36,9 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG_LATEST: latest
           IMAGE_TAG_DATE: ${{ env.DATE }}
+          ECR_REPO: ${{ secrets.PROD_ECR_REPOSITORY }}
         run: |
-          IMAGE_URI="${ECR_REGISTRY}/${{ secrets.PROD_ECR_REPOSITORY }}"
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPO}"
           docker build -t $IMAGE_URI .
           docker tag $IMAGE_URI:$IMAGE_TAG_LATEST 
           docker tag $IMAGE_URI:$IMAGE_TAG_DATE
@@ -67,8 +68,9 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG_LATEST: latest
           IMAGE_TAG_DATE: ${{ env.DATE }}
+          ECR_REPO: ${{ secrets.DEV_ECR_REPOSITORY }}
         run: |
-          IMAGE_URI="${ECR_REGISTRY}/${{ secrets.DEV_ECR_REPOSITORY }}"
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPO}"
           docker build -t $IMAGE_URI .
           docker tag $IMAGE_URI:$IMAGE_TAG_LATEST 
           docker tag $IMAGE_URI:$IMAGE_TAG_DATE
