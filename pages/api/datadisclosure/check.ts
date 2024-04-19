@@ -17,7 +17,7 @@ const checkExport =
         const queryParams = new URLSearchParams({ email }); // Create query params with email
 
         const apiUrl = (process.env.API_BASE_URL + "/data-disclosure/check?" + queryParams) || ""; // API Gateway URL with query parameters
-        console.log(apiUrl);
+        // console.log(apiUrl);
 
         try {
 
