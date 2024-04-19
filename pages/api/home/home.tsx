@@ -104,9 +104,11 @@ const Home = ({
     const { getModelsError } = useErrorService();
     const [initialRender, setInitialRender] = useState<boolean>(true);
     const [hasAcceptedDataDisclosure, setHasAcceptedDataDisclosure] = useState<boolean | null>(null);
-    const [latestDataDisclosureUrl, setLatestDataDisclosureUrl] = useState<string | undefined>('');
+    const [latestDataDisclosureUrlPDF, setLatestDataDisclosureUrlPDF] = useState<string | undefined>('');
+    const [latestDataDisclosureHTML, setLatestDataDisclosureHTML] = useState<string | undefined>('');
     const [dataDisclosureDecisionMade, setDataDisclosureDecisionMade] = useState(false);
     const [inputEmail, setInputEmail] = useState('');
+    const [hasScrolledToBottom, setHasScrolledToBottom] = useState<boolean | null>(null);
 
     const { data: session, status } = useSession();
     //const {user, error: userError, isLoading} = useUser();
@@ -742,6 +744,12 @@ const Home = ({
         setPostProcessingCallbacks(prev => prev.filter(c => c !== callback));
     }, []);
 
+    const handleScroll = (e: any) => {
+        const iframe = e.target;
+        const isBottom = iframe.scrollHeight - iframe.scrollTop === iframe.clientHeight;
+        setHasScrolledToBottom(isBottom);
+    };
+
     useEffect(() => {
         const fetchDataDisclosureDecision = async () => {
             if (session?.user?.email) {
@@ -755,9 +763,12 @@ const Home = ({
                         // Fetch the latest data disclosure only if the user has not accepted it
                         const latestDisclosure = await getLatestDataDisclosure();
                         const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
-                        const latestDisclosureValue = latestDisclosureBodyObject.pre_signed_url;
-                        // console.log("Latest disclosure", latestDisclosureValue);
-                        setLatestDataDisclosureUrl(latestDisclosureValue);
+                        console.log("Latest disclosure", latestDisclosureBodyObject);
+                        const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
+                        const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
+                        // console.log("Latest disclosure", latestDisclosureUrl);
+                        setLatestDataDisclosureUrlPDF(latestDisclosureUrlPDF);
+                        setLatestDataDisclosureHTML(latestDisclosureHTML);
                     }
                 } catch (error) {
                     console.error('Failed to check data disclosure decision:', error);
@@ -790,20 +801,27 @@ const Home = ({
             // User has not accepted the data disclosure agreement, do not render page content
             return (
                 <main
-                    className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
+                    className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}
                 >
                     <div
-                        className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
-                        <h1 className="mb-4 text-2xl font-bold">
-                            You must accept the data disclosure agreement to use Amplify.
+                        className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
+                        <h1 className="text-2xl font-bold dark:text-white">
+                            Amplify Data Disclosure Agreement
                         </h1>
-                        <a href={latestDataDisclosureUrl} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '10px' }}>Click here to download the data disclosure agreement</a>
-                        <iframe
-                            src={latestDataDisclosureUrl}
-                            width="70%"
-                            height="600px"
-                            style={{ border: 'none', marginBottom: '10px' }}
-                        ></iframe>
+                        <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '10px' }}>Download the data disclosure agreement</a>
+                        <div
+                            className="dark:bg-[#343541] bg-gray-50 dark:text-white text-black"
+                            style={{
+                                overflowY: 'scroll',
+                                border: '1px solid #ccc',
+                                padding: '20px',
+                                marginBottom: '10px',
+                                height: '500px',
+                                width: '30%',
+                            }}
+                            onScroll={handleScroll}
+                            dangerouslySetInnerHTML={{ __html: latestDataDisclosureHTML || '' }}
+                        />
                         <input
                             type="email"
                             placeholder="Enter your email"
@@ -811,20 +829,27 @@ const Home = ({
                             onChange={(e) => setInputEmail(e.target.value)}
                             style={{
                                 marginBottom: '10px',
-                                padding: '10px 20px',
+                                padding: '4px 10px',
                                 borderRadius: '5px',
                                 border: '1px solid #ccc',
                                 color: 'black',
                                 backgroundColor: 'white',
+                                width: '300px', // Adjust this value as needed
+                                boxSizing: 'border-box', // Include padding and border in the element's total width
                             }}
                         />
                         <button
                             onClick={() => {
                                 if (session && session.user && session.user.email) {
-                                    if (inputEmail === session.user.email) {
-                                        // TODO: MAKE LOADING HAPPEN FASTER OR SHOW THE USER A LOADING SCREEN
-                                        saveDataDisclosureDecision(session.user.email, true);
-                                        setDataDisclosureDecisionMade(prev => !prev);
+                                    if (inputEmail.toLowerCase() === session.user.email.toLowerCase()) {
+                                        if (hasScrolledToBottom) {
+                                            // TODO: SHOW A SAVING ANIMATION
+                                            saveDataDisclosureDecision(session.user.email, true);
+                                            setDataDisclosureDecisionMade(prev => !prev);
+                                        }
+                                        else {
+                                            alert('You must scroll to the bottom of the disclosure before accepting.');
+                                        }
                                     } else {
                                         alert('The entered email does not match your account email.');
                                     }
@@ -836,8 +861,9 @@ const Home = ({
                                 backgroundColor: 'white',
                                 color: 'black',
                                 fontWeight: 'bold',
-                                padding: '10px 20px',
+                                padding: '4px 20px',
                                 borderRadius: '5px',
+                                border: '1px solid #ccc',
                                 cursor: 'pointer',
                                 transition: 'background-color 0.3s ease-in-out',
                             }}
