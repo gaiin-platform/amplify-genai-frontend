@@ -5,6 +5,10 @@
       branches:
         - main
         - dev
+  env:
+    DEV_ECR_REPOSITORY: dev-gen-ai-image      
+    PROD_ECR_REPOSITORY: prod-gen-ai-image
+    
     workflow_dispatch:
       inputs:
         environment:
@@ -65,13 +69,12 @@
         - name: Build, tag, and push image to Amazon ECR
           env:
             ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-            IMAGE_TAG_LATEST: latest
-            IMAGE_TAG_DATE: ${{ env.DATE }}
-            ECR_REPO: ${{ secrets.DEV_ECR_REPOSITORY }}
-          run: |
-            docker build -t $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG_LATEST .
-            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_LATEST"
-            docker tag $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG_LATEST $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG_DATE
-            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_DATE"
-            docker push $IMAGE_URI:$IMAGE_TAG_LATEST
-            docker push $IMAGE_URI:$IMAGE_TAG_DATE
+            IMAGE_TAG: ${{ github.sha }}
+            LATEST_TAG: latest
+          run: |                     
+            docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+            docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$LATEST_TAG
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY:$LATEST_TAG
+            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+            echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$LATEST_TAG"
