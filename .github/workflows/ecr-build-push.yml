@@ -65,9 +65,9 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           LATEST_TAG: latest
         run: |                     
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$LATEST_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$LATEST_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$LATEST_TAG"
+          docker build -t $ECR_REGISTRY/$DEV_ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$DEV_ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$DEV_ECR_REPOSITORY:$LATEST_TAG
+          docker push $ECR_REGISTRY/$DEV_ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$DEV_ECR_REPOSITORY:$LATEST_TAG
+          echo "image=$ECR_REGISTRY/$DEV_ECR_REPOSITORY:$IMAGE_TAG"
+          echo "image=$ECR_REGISTRY/$DEV_ECR_REPOSITORY:$LATEST_TAG"
