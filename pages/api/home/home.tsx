@@ -28,7 +28,7 @@ import { savePrompts } from '@/utils/app/prompts';
 import { getSettings } from '@/utils/app/settings';
 import { getAccounts } from "@/services/accountService";
 
-import { Conversation, Message, MessageType } from '@/types/chat';
+import { Conversation, Message, MessageType, newMessage } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
 import { FolderInterface, FolderType } from '@/types/folder';
 import { OpenAIModelID, OpenAIModels, fallbackModelID, OpenAIModel } from '@/types/openai';
@@ -169,8 +169,9 @@ const Home = ({
                     const { history, folders, prompts }: LatestExportFormat = importData(basePrompts.data);
 
                     dispatch({ field: 'conversations', value: history });
+                    console.log(history)
                     dispatch({ field: 'folders', value: folders });
-                    dispatch({ field: 'prompts', value: prompts });
+                    //dispatch({ field: 'prompts', value: prompts });
 
                 } else {
                     console.log("Failed to import base prompts.");
@@ -184,8 +185,6 @@ const Home = ({
         const fetchAssistants = async () => {
             if (session?.user?.email) {
                 let assistants = await listAssistants(session?.user?.email);
-                // if local and assistants are not the same set assistants here
-
                 if (assistants) {
                     syncAssistants(assistants, folders, prompts, dispatch);
 
@@ -196,7 +195,7 @@ const Home = ({
         if (session?.user) {
             fetchPrompts();
         }
-    }, [session]);
+    }, [session]); //prompts
 
     // This is where tabs will be sync'd
     useEffect(() => {
@@ -319,21 +318,7 @@ const Home = ({
 
             saveConversation(updatedConversations[updatedConversations.length - 1]);
         } else {
-            defaultModelId &&
-                dispatch({
-                    field: 'selectedConversation',
-                    value: {
-                        id: uuidv4(),
-                        name: t('New Conversation'),
-                        messages: [],
-                        model: OpenAIModels[defaultModelId],
-                        prompt: DEFAULT_SYSTEM_PROMPT,
-                        temperature: DEFAULT_TEMPERATURE,
-                        folderId: null,
-                    },
-                });
-
-            localStorage.removeItem('selectedConversation');
+            handleNewConversation({})
         }
 
         const updatedPrompts: Prompt[] = prompts.map((p) => {
@@ -643,43 +628,55 @@ const Home = ({
         }
 
         const conversationHistory = localStorage.getItem('conversationHistory');
-        if (conversationHistory) {
-            const parsedConversationHistory: Conversation[] =
-                JSON.parse(conversationHistory);
-            const cleanedConversationHistory = cleanConversationHistory(
-                parsedConversationHistory,
-            );
 
-            dispatch({ field: 'conversations', value: cleanedConversationHistory });
-        }
-        // this was to open the last conversation the user was on 
-        // const selectedConversation = localStorage.getItem('selectedConversation');
-        // if (selectedConversation) {
-        //     const parsedSelectedConversation: Conversation =
-        //         JSON.parse(selectedConversation);
-        //     const cleanedSelectedConversation = cleanSelectedConversation(
-        //         parsedSelectedConversation,
-        //     );
+        const conversations: Conversation[] = JSON.parse(conversationHistory || '[]');
+        const lastConversation = (conversations.length > 0)  ? conversations[conversations.length - 1] : null;
 
-        //     dispatch({
-        //         field: 'selectedConversation',
-        //         value: cleanedSelectedConversation,
-        //     });
-        // } else {
-        const lastConversation = conversations[conversations.length - 1];
-        dispatch({
-            field: 'selectedConversation',
-            value: {
+
+        let selectedConversation = lastConversation ? {...lastConversation} : null;
+        if (!lastConversation || !lastConversation.name || lastConversation.name !== 'New Conversation') {
+            // Create a string for the current date like Oct-18-2021
+            const date = new Date().toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+            });
+
+            const json_folders = JSON.parse(folders || '[]')
+
+            // See if there is a folder with the same name as the date
+            let folder = json_folders.find((f: FolderInterface) => f.name === date);
+            console.log("handleNewConversation", { date, folder });
+            if (!folder) {
+                folder = handleCreateFolder(date, "chat");
+            }
+            //new conversation on load 
+            const newConversation: Conversation = {
                 id: uuidv4(),
                 name: t('New Conversation'),
                 messages: [],
                 model: OpenAIModels[defaultModelId],
                 prompt: DEFAULT_SYSTEM_PROMPT,
                 temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
-                folderId: null,
-            },
-        });
-        // }
+                folderId: folder.id,
+                promptTemplate: null
+            };
+            // Ensure the new conversation is added to the list of conversationHistory
+            conversations.push(newConversation);
+
+            selectedConversation = {...newConversation}
+
+        }
+
+        dispatch({ field: 'selectedConversation', value: selectedConversation });
+        localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation))
+        
+        if (conversationHistory) {
+            const cleanedConversationHistory = cleanConversationHistory(conversations);
+
+            dispatch({ field: 'conversations', value: cleanedConversationHistory });
+            localStorage.setItem('conversationHistory', JSON.stringify(cleanedConversationHistory))
+        }
 
         dispatch({
             field: 'conversationStateId',
@@ -742,115 +739,115 @@ const Home = ({
         setPostProcessingCallbacks(prev => prev.filter(c => c !== callback));
     }, []);
 
-    useEffect(() => {
-        const fetchDataDisclosureDecision = async () => {
-            if (session?.user?.email) {
-                try {
-                    const decision = await checkDataDisclosureDecision(session.user.email);
-                    const decisionBodyObject = JSON.parse(decision.item.body);
-                    const decisionValue = decisionBodyObject.acceptedDataDisclosure;
-                    // console.log("Decision: ", decisionValue);
-                    setHasAcceptedDataDisclosure(decisionValue);
-                    if (!hasAcceptedDataDisclosure) {
-                        // Fetch the latest data disclosure only if the user has not accepted it
-                        const latestDisclosure = await getLatestDataDisclosure();
-                        const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
-                        const latestDisclosureValue = latestDisclosureBodyObject.pre_signed_url;
-                        // console.log("Latest disclosure", latestDisclosureValue);
-                        setLatestDataDisclosureUrl(latestDisclosureValue);
-                    }
-                } catch (error) {
-                    console.error('Failed to check data disclosure decision:', error);
-                    setHasAcceptedDataDisclosure(false);
-                }
-            }
-        };
+    // useEffect(() => {
+    //     const fetchDataDisclosureDecision = async () => {
+    //         if (session?.user?.email) {
+    //             try {
+    //                 const decision = await checkDataDisclosureDecision(session.user.email);
+    //                 const decisionBodyObject = JSON.parse(decision.item.body);
+    //                 const decisionValue = decisionBodyObject.acceptedDataDisclosure;
+    //                 // console.log("Decision: ", decisionValue);
+    //                 setHasAcceptedDataDisclosure(decisionValue);
+    //                 if (!hasAcceptedDataDisclosure) {
+    //                     // Fetch the latest data disclosure only if the user has not accepted it
+    //                     const latestDisclosure = await getLatestDataDisclosure();
+    //                     const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
+    //                     const latestDisclosureValue = latestDisclosureBodyObject.pre_signed_url;
+    //                     // console.log("Latest disclosure", latestDisclosureValue);
+    //                     setLatestDataDisclosureUrl(latestDisclosureValue);
+    //                 }
+    //             } catch (error) {
+    //                 console.error('Failed to check data disclosure decision:', error);
+    //                 setHasAcceptedDataDisclosure(false);
+    //             }
+    //         }
+    //     };
 
-        fetchDataDisclosureDecision();
-    }, [session, dataDisclosureDecisionMade]);
+    //     fetchDataDisclosureDecision();
+    // }, [session, dataDisclosureDecisionMade]);
 
-    if (session) {
-        if (hasAcceptedDataDisclosure === null) {
-            // Decision is still being checked, render a loading indicator
-            return (
-                <main
-                    className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
-                >
-                    <div
-                        className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
-                        <Loader />
-                        <h1 className="mb-4 text-2xl font-bold">
-                            Loading...
-                        </h1>
+     if (session) {
+    //     if (hasAcceptedDataDisclosure === null) {
+    //         // Decision is still being checked, render a loading indicator
+    //         return (
+    //             <main
+    //                 className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
+    //             >
+    //                 <div
+    //                     className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+    //                     <Loader />
+    //                     <h1 className="mb-4 text-2xl font-bold">
+    //                         Loading...
+    //                     </h1>
 
-                        {/*<progress className="w-64"/>*/}
-                    </div>
-                </main>);
-        } else if (!hasAcceptedDataDisclosure) {
-            // User has not accepted the data disclosure agreement, do not render page content
-            return (
-                <main
-                    className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
-                >
-                    <div
-                        className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
-                        <h1 className="mb-4 text-2xl font-bold">
-                            You must accept the data disclosure agreement to use Amplify.
-                        </h1>
-                        <a href={latestDataDisclosureUrl} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '10px' }}>Click here to download the data disclosure agreement</a>
-                        <iframe
-                            src={latestDataDisclosureUrl}
-                            width="70%"
-                            height="600px"
-                            style={{ border: 'none', marginBottom: '10px' }}
-                        ></iframe>
-                        <input
-                            type="email"
-                            placeholder="Enter your email"
-                            value={inputEmail}
-                            onChange={(e) => setInputEmail(e.target.value)}
-                            style={{
-                                marginBottom: '10px',
-                                padding: '10px 20px',
-                                borderRadius: '5px',
-                                border: '1px solid #ccc',
-                                color: 'black',
-                                backgroundColor: 'white',
-                            }}
-                        />
-                        <button
-                            onClick={() => {
-                                if (session && session.user && session.user.email) {
-                                    if (inputEmail === session.user.email) {
-                                        // TODO: MAKE LOADING HAPPEN FASTER OR SHOW THE USER A LOADING SCREEN
-                                        saveDataDisclosureDecision(session.user.email, true);
-                                        setDataDisclosureDecisionMade(prev => !prev);
-                                    } else {
-                                        alert('The entered email does not match your account email.');
-                                    }
-                                } else {
-                                    console.error('Session or user is undefined.');
-                                }
-                            }}
-                            style={{
-                                backgroundColor: 'white',
-                                color: 'black',
-                                fontWeight: 'bold',
-                                padding: '10px 20px',
-                                borderRadius: '5px',
-                                cursor: 'pointer',
-                                transition: 'background-color 0.3s ease-in-out',
-                            }}
-                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
-                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
-                        >
-                            Accept
-                        </button>
-                    </div>
-                </main>
-            );
-        }
-
+    //                     {/*<progress className="w-64"/>*/}
+    //                 </div>
+    //             </main>);
+    //     } else if (!hasAcceptedDataDisclosure) {
+    //         // User has not accepted the data disclosure agreement, do not render page content
+    //         return (
+    //             <main
+    //                 className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
+    //             >
+    //                 <div
+    //                     className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+    //                     <h1 className="mb-4 text-2xl font-bold">
+    //                         You must accept the data disclosure agreement to use Amplify.
+    //                     </h1>
+    //                     <a href={latestDataDisclosureUrl} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '10px' }}>Click here to download the data disclosure agreement</a>
+    //                     <iframe
+    //                         src={latestDataDisclosureUrl}
+    //                         width="70%"
+    //                         height="600px"
+    //                         style={{ border: 'none', marginBottom: '10px' }}
+    //                     ></iframe>
+    //                     <input
+    //                         type="email"
+    //                         placeholder="Enter your email"
+    //                         value={inputEmail}
+    //                         onChange={(e) => setInputEmail(e.target.value)}
+    //                         style={{
+    //                             marginBottom: '10px',
+    //                             padding: '10px 20px',
+    //                             borderRadius: '5px',
+    //                             border: '1px solid #ccc',
+    //                             color: 'black',
+    //                             backgroundColor: 'white',
+    //                         }}
+    //                     />
+    //                     <button
+    //                         onClick={() => {
+    //                             if (session && session.user && session.user.email) {
+    //                                 if (inputEmail === session.user.email) {
+    //                                     // TODO: MAKE LOADING HAPPEN FASTER OR SHOW THE USER A LOADING SCREEN
+    //                                     saveDataDisclosureDecision(session.user.email, true);
+    //                                     setDataDisclosureDecisionMade(prev => !prev);
+    //                                 } else {
+    //                                     alert('The entered email does not match your account email.');
+    //                                 }
+    //                             } else {
+    //                                 console.error('Session or user is undefined.');
+    //                             }
+    //                         }}
+    //                         style={{
+    //                             backgroundColor: 'white',
+    //                             color: 'black',
+    //                             fontWeight: 'bold',
+    //                             padding: '10px 20px',
+    //                             borderRadius: '5px',
+    //                             cursor: 'pointer',
+    //                             transition: 'background-color 0.3s ease-in-out',
+    //                         }}
+    //                         onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
+    //                         onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+    //                     >
+    //                         Accept
+    //                     </button>
+    //                 </div>
+    //             </main>
+    //         );
+    //     }
+    
         // @ts-ignore
         return (
             <HomeContext.Provider
