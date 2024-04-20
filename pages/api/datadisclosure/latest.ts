@@ -14,7 +14,7 @@ const latestExport =
         const { accessToken } = session;
 
         const apiUrl = process.env.API_BASE_URL + "/data-disclosure/latest" || ""; // API Gateway URL from environment variables
-        console.log(apiUrl);
+        // console.log(apiUrl);
 
         try {
 
