@@ -172,9 +172,8 @@ const Home = ({
                     const { history, folders, prompts }: LatestExportFormat = importData(basePrompts.data);
 
                     dispatch({ field: 'conversations', value: history });
-                    console.log(history)
                     dispatch({ field: 'folders', value: folders });
-                    //dispatch({ field: 'prompts', value: prompts });
+                    // dispatch({ field: 'prompts', value: prompts });
 
                 } else {
                     console.log("Failed to import base prompts.");
@@ -188,6 +187,7 @@ const Home = ({
         const fetchAssistants = async () => {
             if (session?.user?.email) {
                 let assistants = await listAssistants(session?.user?.email);
+
                 if (assistants) {
                     syncAssistants(assistants, folders, prompts, dispatch);
 
@@ -631,10 +631,8 @@ const Home = ({
         }
 
         const conversationHistory = localStorage.getItem('conversationHistory');
-
         const conversations: Conversation[] = JSON.parse(conversationHistory || '[]');
         const lastConversation = (conversations.length > 0)  ? conversations[conversations.length - 1] : null;
-
 
         let selectedConversation = lastConversation ? {...lastConversation} : null;
         if (!lastConversation || !lastConversation.name || lastConversation.name !== 'New Conversation') {
@@ -778,19 +776,19 @@ const Home = ({
         fetchDataDisclosureDecision();
     }, [email, dataDisclosureDecisionMade]);
 
-     if (session) {
-    //     if (hasAcceptedDataDisclosure === null) {
-    //         // Decision is still being checked, render a loading indicator
-    //         return (
-    //             <main
-    //                 className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
-    //             >
-    //                 <div
-    //                     className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
-    //                     <Loader />
-    //                     <h1 className="mb-4 text-2xl font-bold">
-    //                         Loading...
-    //                     </h1>
+    if (session) {
+        if (hasAcceptedDataDisclosure === null) {
+            // Decision is still being checked, render a loading indicator
+            return (
+                <main
+                    className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
+                >
+                    <div
+                        className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                        <Loader />
+                        <h1 className="mb-4 text-2xl font-bold">
+                            Loading...
+                        </h1>
 
                         {/*<progress className="w-64"/>*/}
                     </div>
