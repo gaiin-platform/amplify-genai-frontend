@@ -98,6 +98,11 @@ export const PromptComponent = ({ prompt }: Props) => {
     const handleDelete: MouseEventHandler<HTMLButtonElement> = async (e) => {
         e.stopPropagation();
 
+        if (isDeleting) {
+            handleDeletePrompt(prompt);
+            promptDispatch({ field: 'searchTerm', value: '' });
+        }
+        
         if(isAssistant(prompt)){
            const assistant = getAssistant(prompt);
            if(assistant && assistant.assistantId){
@@ -116,10 +121,6 @@ export const PromptComponent = ({ prompt }: Props) => {
                }
                setProgressMessage(null);
            }
-        }
-        if (isDeleting) {
-            handleDeletePrompt(prompt);
-            promptDispatch({ field: 'searchTerm', value: '' });
         }
 
         setIsDeleting(false);
