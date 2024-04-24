@@ -5,7 +5,8 @@ import {
     IconDownload,
     IconHome2,
     IconHome,
-    IconRocket
+    IconRocket,
+    IconArrowUp
 } from '@tabler/icons-react';
 import {
     MutableRefObject,
@@ -55,6 +56,7 @@ import {MemoizedRemoteMessages} from "@/components/Chat/MemoizedRemoteMessages";
 import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
 import {useSendService} from "@/hooks/useChatSendService";
+import { DEFAULT_ASSISTANT } from '@/types/assistant';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -650,19 +652,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         useEffect(() => {
 
+            const prompts: Prompt[] = localStorage ? JSON.parse(localStorage.getItem('prompts') || '[]') : [];
             if (selectedConversation
                 && selectedConversation.promptTemplate
                 && isAssistant(selectedConversation.promptTemplate)
                 && selectedConversation.messages.length == 0) {
-
+                    
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
-                    homeDispatch({field: 'selectedAssistant', value: selectedConversation.promptTemplate.data.assistant});
+                    const assistant = selectedConversation.promptTemplate.data.assistant;
+                    // make sure assistant hasnt been deleted 
+                    if (prompts.some(prompt => prompt.id === assistant.id)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
             else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
-
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
-                    homeDispatch({field: 'selectedAssistant', value: selectedConversation.promptTemplate.data.assistant});
+                    const assistant = selectedConversation.promptTemplate.data.assistant;
+                    // make sure assistant hasnt been deleted 
+                    if (prompts.some(prompt => prompt.id === assistant.id)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
@@ -674,6 +680,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 setVariables(workflowVariables);
                 setIsPromptTemplateDialogVisible(true);
+            } 
+            else {
+                //if last message used an assistant then we can kepe it tagged else should be erased
+                if (selectedConversation && selectedConversation.messages && selectedConversation.messages.length > 0) {
+                    const lastMessage: Message = selectedConversation.messages[selectedConversation.messages.length - 1];
+                    if (lastMessage.data && lastMessage.data.state && lastMessage.data.state.currentAssistant) {
+                        const astName = lastMessage.data.state.currentAssistant;
+
+                        const assistantPrompt = prompts.find(prompt => prompt.name === astName); 
+                        const assistant = assistantPrompt?.data?.assistant ? assistantPrompt.data.assistant : DEFAULT_ASSISTANT;
+                         
+                        homeDispatch({field: 'selectedAssistant', value: assistant});
+                    }
+                } else {
+                    homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT}); 
+                }
+                     
             }
         }, [selectedConversation]);
 
@@ -856,6 +879,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         includeFolders={false}
                                         selectedConversations={selectedConversation ? [selectedConversation] : []}
                                     />
+                                    
                                     {isDownloadDialogVisible && (
                                         <DownloadModal
                                             includeConversations={true}
@@ -892,6 +916,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         >
                                             <IconSettings size={18}/>
                                         </button>
+                                        
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={onClearAll}
@@ -963,8 +988,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     }
                                                 }
                                             }/>
-
-
                                         </div>
                                     </div>
 

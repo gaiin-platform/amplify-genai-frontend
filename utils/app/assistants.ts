@@ -120,13 +120,26 @@ export const syncAssistants = (assistants: AssistantDefinition[], folders: Folde
         saveFolders(updatedFolders);
     }
 
-    const aPrompts: Prompt[] = assistants.map(createAssistantPrompt);
+    // Note: any imported assistants were eliminated from concat of fetch assistant + withoutassistant leaving out imported
+    // alter this logic when we switch to remote
 
-    const withoutAssistants = prompts.filter((p) =>
-        !(p.type === MessageType.ROOT && p.data && p.data.assistant)
-    );
+    // create Assistant prompts for new assistants since we already have them in our prompts list
+    const assistantPrompts: Prompt[] = assistants.reduce((acc: Prompt[], ast) => {
+            const existingAssistant = prompts.find(prompt => prompt.id === ast.id);
+            if (!existingAssistant) {
+                const newPrompt = createAssistantPrompt(ast);
+                acc.push(newPrompt);
+            }
+            return acc;
+    }, []);
+   
 
-    console.log("Syncing assistants...", aPrompts, withoutAssistants)
+    
+    const assistantNames = new Set(assistantPrompts.map(prompt => prompt.name));
+    // we want the updated assistant versions so we filter and old versions from our original prompts list 
+    const updatedPrompts: Prompt[] = assistantNames.size > 0 ? prompts.filter(prompt => !assistantNames.has(prompt.name)) : prompts;
 
-    dispatch({field: 'prompts', value: [...withoutAssistants, ...aPrompts]});
+
+    dispatch({field: 'prompts', value: [...updatedPrompts, ...assistantPrompts]}); 
+    localStorage.setItem('prompt', JSON.stringify([...updatedPrompts, ...assistantPrompts]))
 }

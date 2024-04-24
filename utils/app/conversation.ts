@@ -31,7 +31,7 @@ export const saveConversation = (conversation: Conversation) => {
 
 export const saveConversations = (conversations: Conversation[]) => {
   try {
-    //localStorage.setItem('conversationHistory', JSON.stringify(conversations));
+    localStorage.setItem('conversationHistory', JSON.stringify(conversations));
   } catch (error) {
     alert("You have exceeded your available storage space for conversations. Please delete some converations before continuing. You can export your current conversations before deleting them.");
   }

@@ -28,7 +28,7 @@ import { savePrompts } from '@/utils/app/prompts';
 import { getSettings } from '@/utils/app/settings';
 import { getAccounts } from "@/services/accountService";
 
-import { Conversation, Message, MessageType } from '@/types/chat';
+import { Conversation, Message, MessageType, newMessage } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
 import { FolderInterface, FolderType } from '@/types/folder';
 import { OpenAIModelID, OpenAIModels, fallbackModelID, OpenAIModel } from '@/types/openai';
@@ -173,21 +173,19 @@ const Home = ({
 
                     dispatch({ field: 'conversations', value: history });
                     dispatch({ field: 'folders', value: folders });
-                    dispatch({ field: 'prompts', value: prompts });
-
+                    await fetchAssistants(folders, prompts);
                 } else {
                     console.log("Failed to import base prompts.");
                 }
             } catch (e) {
                 console.log("Failed to import base prompts.", e);
             }
-            await fetchAssistants();
+            
         }
 
-        const fetchAssistants = async () => {
+        const fetchAssistants = async (folders: FolderInterface[], prompts: Prompt[]) => {
             if (session?.user?.email) {
                 let assistants = await listAssistants(session?.user?.email);
-                // if local and assistants are not the same set assistants here
 
                 if (assistants) {
                     syncAssistants(assistants, folders, prompts, dispatch);
@@ -199,7 +197,7 @@ const Home = ({
         if (session?.user) {
             fetchPrompts();
         }
-    }, [session]);
+    }, [session]); //prompts
 
     // This is where tabs will be sync'd
     useEffect(() => {
@@ -257,7 +255,7 @@ const Home = ({
         if (chatEndpoint) dispatch({ field: 'chatEndpoint', value: chatEndpoint });
     }, [chatEndpoint]);
 
-    const handleSelectConversation = (conversation: Conversation) => {
+    const handleSelectConversation = (conversation: Conversation) => { 
         dispatch({ field: 'page', value: 'chat' })
 
         dispatch({
@@ -292,6 +290,7 @@ const Home = ({
             type,
         };
 
+        const folders: FolderInterface[] = JSON.parse(localStorage.getItem('folders') || '[]');
         const updatedFolders = [...folders, newFolder];
 
         dispatch({ field: 'folders', value: updatedFolders });
@@ -301,6 +300,8 @@ const Home = ({
     };
 
     const handleDeleteFolder = (folderId: string) => {
+        const folders: FolderInterface[] = JSON.parse(localStorage.getItem('folders') || '[]');
+
         const updatedFolders = folders.filter((f) => f.id !== folderId);
         dispatch({ field: 'folders', value: updatedFolders });
         saveFolders(updatedFolders);
@@ -314,29 +315,27 @@ const Home = ({
             return acc;
         }, []);
 
-        if (updatedConversations.length > 0) {
-            dispatch({
-                field: 'selectedConversation',
-                value: updatedConversations[updatedConversations.length - 1],
-            });
+        dispatch({ field: 'conversations', value: updatedConversations});
+        localStorage.setItem('conversationHistory', JSON.stringify(updatedConversations));
 
-            saveConversation(updatedConversations[updatedConversations.length - 1]);
-        } else {
-            defaultModelId &&
+        if (updatedConversations.length > 0) {
+            
+
+            const selectedNotDeleted = selectedConversation ? 
+                                        updatedConversations.some(conversation => 
+                                        conversation.id === selectedConversation.id) : false; 
+            if (!selectedNotDeleted) { // was deleted
+                const newSelectedConversation = updatedConversations[updatedConversations.length - 1];
                 dispatch({
                     field: 'selectedConversation',
-                    value: {
-                        id: uuidv4(),
-                        name: t('New Conversation'),
-                        messages: [],
-                        model: OpenAIModels[defaultModelId],
-                        prompt: DEFAULT_SYSTEM_PROMPT,
-                        temperature: DEFAULT_TEMPERATURE,
-                        folderId: null,
-                    },
+                    value: newSelectedConversation,
                 });
-
-            localStorage.removeItem('selectedConversation');
+                saveConversation(newSelectedConversation);
+                localStorage.setItem('selectedConversation', JSON.stringify(newSelectedConversation));
+            }
+            
+        } else {
+            handleNewConversation({})
         }
 
         const updatedPrompts: Prompt[] = prompts.map((p) => {
@@ -369,6 +368,7 @@ const Home = ({
     };
 
     const handleUpdateFolder = (folderId: string, name: string) => {
+        const folders: FolderInterface[] = JSON.parse(localStorage.getItem('folders') || '[]');
         const updatedFolders = folders.map((f) => {
             if (f.id === folderId) {
                 return {
@@ -391,7 +391,9 @@ const Home = ({
         dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
         dispatch({ field: 'page', value: 'chat' })
 
-        const lastConversation = conversations[conversations.length - 1];
+        const conversations = JSON.parse(localStorage.getItem("conversationHistory") || '[]')
+
+        const lastConversation = conversations ? conversations[conversations.length - 1] : null;
 
         // Create a string for the current date like Oct-18-2021
         const date = new Date().toLocaleDateString('en-US', {
@@ -399,6 +401,8 @@ const Home = ({
             day: 'numeric',
             year: 'numeric',
         });
+
+        const folders: FolderInterface[] = JSON.parse(localStorage.getItem('folders') || '[]');
 
         // See if there is a folder with the same name as the date
         let folder = folders.find((f) => f.name === date);
@@ -468,7 +472,7 @@ const Home = ({
 
         const { single, all } = updateConversation(
             updatedConversation,
-            conversations,
+            conversations, //
         );
 
         dispatch({ field: 'selectedConversation', value: single });
@@ -630,11 +634,7 @@ const Home = ({
             dispatch({ field: 'showPromptbar', value: showPromptbar === 'true' });
         }
 
-        const folders = localStorage.getItem('folders');
-        if (folders) {
-            dispatch({ field: 'folders', value: JSON.parse(folders) });
-        }
-
+        
         const prompts = localStorage.getItem('prompts');
         if (prompts) {
             dispatch({ field: 'prompts', value: JSON.parse(prompts) });
@@ -645,44 +645,76 @@ const Home = ({
             dispatch({ field: 'workflows', value: JSON.parse(workflows) });
         }
 
-        const conversationHistory = localStorage.getItem('conversationHistory');
-        if (conversationHistory) {
-            const parsedConversationHistory: Conversation[] =
-                JSON.parse(conversationHistory);
-            const cleanedConversationHistory = cleanConversationHistory(
-                parsedConversationHistory,
-            );
-
-            dispatch({ field: 'conversations', value: cleanedConversationHistory });
+        const folders = localStorage.getItem('folders');
+        const foldersParsed = JSON.parse(folders ? folders : '[]') 
+        if (folders) {
+            dispatch({ field: 'folders', value: foldersParsed});
         }
-        // this was to open the last conversation the user was on 
-        // const selectedConversation = localStorage.getItem('selectedConversation');
-        // if (selectedConversation) {
-        //     const parsedSelectedConversation: Conversation =
-        //         JSON.parse(selectedConversation);
-        //     const cleanedSelectedConversation = cleanSelectedConversation(
-        //         parsedSelectedConversation,
-        //     );
 
-        //     dispatch({
-        //         field: 'selectedConversation',
-        //         value: cleanedSelectedConversation,
-        //     });
-        // } else {
-        const lastConversation = conversations[conversations.length - 1];
-        dispatch({
-            field: 'selectedConversation',
-            value: {
+
+        // Create a string for the current date like Oct-18-2021
+            const dateName = new Date().toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+            });
+
+
+        //localStorage.setItem('conversationHistory', '[]')
+        const conversationHistory = localStorage.getItem('conversationHistory');
+        const conversations: Conversation[] = JSON.parse(conversationHistory ? conversationHistory : '[]');
+        const lastConversation = (conversations.length > 0)  ? conversations[conversations.length - 1] : null;
+        const lastConversationFolder = lastConversation && foldersParsed ?  foldersParsed.find((f: FolderInterface) => f.id ===  lastConversation.folderId) : null;
+            
+        let selectedConversation = lastConversation ? {...lastConversation} : null;
+        
+        if ((lastConversation && lastConversation.name !== 'New Conversation') || 
+            (lastConversationFolder && lastConversationFolder.name !== dateName)) {
+
+            // See if there is a folder with the same name as the date
+            let folder = foldersParsed.find((f: FolderInterface) => f.name === dateName);
+            if (!folder) {
+                const newFolder: FolderInterface = {
+                    id: uuidv4(),
+                    date: new Date().toISOString().slice(0, 10),
+                    name: dateName,
+                    type: "chat"
+                };
+
+                folder = newFolder;
+                const updatedFolders = [...foldersParsed, newFolder];
+        
+                dispatch({ field: 'folders', value: updatedFolders });
+                saveFolders(updatedFolders);
+            }
+            
+            //new conversation on load 
+            const newConversation: Conversation = {
                 id: uuidv4(),
                 name: t('New Conversation'),
                 messages: [],
                 model: OpenAIModels[defaultModelId],
                 prompt: DEFAULT_SYSTEM_PROMPT,
                 temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
-                folderId: null,
-            },
-        });
-        // }
+                folderId: folder.id,
+                promptTemplate: null
+            };
+            // Ensure the new conversation is added to the list of conversationHistory
+            conversations.push(newConversation);
+
+            selectedConversation = {...newConversation};
+
+        }
+
+        dispatch({ field: 'selectedConversation', value: selectedConversation });
+        localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
+        
+        if (conversationHistory) {
+            const cleanedConversationHistory = cleanConversationHistory(conversations);
+
+            dispatch({ field: 'conversations', value: cleanedConversationHistory });
+            localStorage.setItem('conversationHistory', JSON.stringify(cleanedConversationHistory))
+        }
 
         dispatch({
             field: 'conversationStateId',
@@ -752,29 +784,29 @@ const Home = ({
     };
 
     useEffect(() => {
-        const fetchDataDisclosureDecision = async () => {
-            if (email) {
-                try {
-                    const decision = await checkDataDisclosureDecision(email);
-                    const decisionBodyObject = JSON.parse(decision.item.body);
-                    const decisionValue = decisionBodyObject.acceptedDataDisclosure;
-                    // console.log("Decision: ", decisionValue);
-                    setHasAcceptedDataDisclosure(decisionValue);
-                    if (!hasAcceptedDataDisclosure) {
-                        // Fetch the latest data disclosure only if the user has not accepted it
-                        const latestDisclosure = await getLatestDataDisclosure();
-                        const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
-                        console.log("Latest disclosure", latestDisclosureBodyObject);
-                        const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
-                        const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
-                        // console.log("Latest disclosure", latestDisclosureUrl);
-                        setLatestDataDisclosureUrlPDF(latestDisclosureUrlPDF);
-                        setLatestDataDisclosureHTML(latestDisclosureHTML);
-                    }
+    const fetchDataDisclosureDecision = async () => {
+    if (email) {
+    try {
+    const decision = await checkDataDisclosureDecision(email);
+    const decisionBodyObject = JSON.parse(decision.item.body);
+    const decisionValue = decisionBodyObject.acceptedDataDisclosure;
+    // console.log("Decision: ", decisionValue);
+    setHasAcceptedDataDisclosure(decisionValue);
+    if (!hasAcceptedDataDisclosure) {
+    // Fetch the latest data disclosure only if the user has not accepted it
+    const latestDisclosure = await getLatestDataDisclosure();
+    const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
+    console.log("Latest disclosure", latestDisclosureBodyObject);
+    const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
+    const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
+    // console.log("Latest disclosure", latestDisclosureUrl);
+    setLatestDataDisclosureUrlPDF(latestDisclosureUrlPDF);
+    setLatestDataDisclosureHTML(latestDisclosureHTML);
+    }
                 } catch (error) {
-                    console.error('Failed to check data disclosure decision:', error);
-                    setHasAcceptedDataDisclosure(false);
-                }
+    console.error('Failed to check data disclosure decision:', error);
+    setHasAcceptedDataDisclosure(false);
+    }
             }
         };
 
@@ -783,99 +815,99 @@ const Home = ({
 
     if (session) {
         if (hasAcceptedDataDisclosure === null) {
-            // Decision is still being checked, render a loading indicator
-            return (
-                <main
-                    className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
-                >
+        // Decision is still being checked, render a loading indicator
+        return (
+        <main
+        className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
+        >
                     <div
-                        className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
-                        <Loader />
-                        <h1 className="mb-4 text-2xl font-bold">
-                            Loading...
-                        </h1>
+        className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+        <Loader />
+        <h1 className="mb-4 text-2xl font-bold">
+        Loading...
+        </h1>
 
-                        {/*<progress className="w-64"/>*/}
-                    </div>
-                </main>);
+        {/*<progress className="w-64"/>*/}
+        </div>
+        </main>);
         } else if (!hasAcceptedDataDisclosure) {
-            // User has not accepted the data disclosure agreement, do not render page content
-            return (
-                <main
-                    className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}
-                >
+        // User has not accepted the data disclosure agreement, do not render page content
+        return (
+        <main
+        className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}
+        >
                     <div
-                        className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
-                        <h1 className="text-2xl font-bold dark:text-white">
-                            Amplify Data Disclosure Agreement
-                        </h1>
-                        <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '10px' }}>Download the data disclosure agreement</a>
-                        <div
-                            className="dark:bg-[#343541] bg-gray-50 dark:text-white text-black"
-                            style={{
-                                overflowY: 'scroll',
-                                border: '1px solid #ccc',
-                                padding: '20px',
-                                marginBottom: '10px',
-                                height: '500px',
-                                width: '30%',
-                            }}
-                            onScroll={handleScroll}
-                            dangerouslySetInnerHTML={{ __html: latestDataDisclosureHTML || '' }}
-                        />
-                        <input
-                            type="email"
-                            placeholder="Enter your email"
-                            value={inputEmail}
-                            onChange={(e) => setInputEmail(e.target.value)}
-                            style={{
-                                marginBottom: '10px',
-                                padding: '4px 10px',
-                                borderRadius: '5px',
-                                border: '1px solid #ccc',
-                                color: 'black',
-                                backgroundColor: 'white',
-                                width: '300px', // Adjust this value as needed
-                                boxSizing: 'border-box', // Include padding and border in the element's total width
-                            }}
-                        />
-                        <button
-                            onClick={() => {
-                                if (session && session.user && session.user.email) {
-                                    if (inputEmail.toLowerCase() === session.user.email.toLowerCase()) {
-                                        if (hasScrolledToBottom) {
-                                            // TODO: SHOW A SAVING ANIMATION
-                                            saveDataDisclosureDecision(session.user.email, true);
-                                            setDataDisclosureDecisionMade(prev => !prev);
-                                        }
+        className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
+        <h1 className="text-2xl font-bold dark:text-white">
+        Amplify Data Disclosure Agreement
+        </h1>
+        <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '10px' }}>Download the data disclosure agreement</a>
+        <div
+        className="dark:bg-[#343541] bg-gray-50 dark:text-white text-black"
+        style={{
+        overflowY: 'scroll',
+        border: '1px solid #ccc',
+        padding: '20px',
+        marginBottom: '10px',
+        height: '500px',
+        width: '30%',
+        }}
+        onScroll={handleScroll}
+        dangerouslySetInnerHTML={{ __html: latestDataDisclosureHTML || '' }}
+        />
+        <input
+        type="email"
+        placeholder="Enter your email"
+        value={inputEmail}
+        onChange={(e) => setInputEmail(e.target.value)}
+        style={{
+        marginBottom: '10px',
+        padding: '4px 10px',
+        borderRadius: '5px',
+        border: '1px solid #ccc',
+        color: 'black',
+        backgroundColor: 'white',
+        width: '300px', // Adjust this value as needed
+        boxSizing: 'border-box', // Include padding and border in the element's total width
+        }}
+        />
+        <button
+        onClick={() => {
+        if (session && session.user && session.user.email) {
+        if (inputEmail.toLowerCase() === session.user.email.toLowerCase()) {
+        if (hasScrolledToBottom) {
+        // TODO: SHOW A SAVING ANIMATION
+        saveDataDisclosureDecision(session.user.email, true);
+        setDataDisclosureDecisionMade(prev => !prev);
+        }
                                         else {
-                                            alert('You must scroll to the bottom of the disclosure before accepting.');
-                                        }
+        alert('You must scroll to the bottom of the disclosure before accepting.');
+        }
                                     } else {
-                                        alert('The entered email does not match your account email.');
-                                    }
+        alert('The entered email does not match your account email.');
+        }
                                 } else {
-                                    console.error('Session or user is undefined.');
-                                }
+        console.error('Session or user is undefined.');
+        }
                             }}
-                            style={{
-                                backgroundColor: 'white',
-                                color: 'black',
-                                fontWeight: 'bold',
-                                padding: '4px 20px',
-                                borderRadius: '5px',
-                                border: '1px solid #ccc',
-                                cursor: 'pointer',
-                                transition: 'background-color 0.3s ease-in-out',
-                            }}
-                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
-                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
-                        >
+        style={{
+        backgroundColor: 'white',
+        color: 'black',
+        fontWeight: 'bold',
+        padding: '4px 20px',
+        borderRadius: '5px',
+        border: '1px solid #ccc',
+        cursor: 'pointer',
+        transition: 'background-color 0.3s ease-in-out',
+        }}
+        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
+        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+        >
                             Accept
-                        </button>
-                    </div>
-                </main>
-            );
+        </button>
+        </div>
+        </main>
+        );
         }
 
         // @ts-ignore

@@ -105,11 +105,12 @@ const Promptbar = () => {
 
   const handleDeletePrompt = (prompt: Prompt) => {
     statsService.deletePromptEvent(prompt);
-
+    const prompts: Prompt[] = JSON.parse(localStorage.getItem('prompts') || '[]');
     const updatedPrompts = prompts.filter((p) => p.id !== prompt.id);
 
     homeDispatch({ field: 'prompts', value: updatedPrompts });
     savePrompts(updatedPrompts);
+
   };
 
   const handleCancelNewPrompt = () => {
@@ -152,7 +153,7 @@ const Promptbar = () => {
 
   useEffect(() => {
 
-    const visiblePrompts = (featureFlags.overrideInvisiblePrompts) ?
+    const visiblePrompts = (featureFlags.overrideInvisiblePrompts) ? 
         prompts : prompts.filter((prompt) => !prompt.data?.hidden);
 
     if (searchTerm) {

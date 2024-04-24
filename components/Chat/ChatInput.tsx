@@ -363,10 +363,12 @@ export const ChatInput = ({
 
     useEffect(() => {
         if (prompts) {
+            const prompts: Prompt[] = JSON.parse(localStorage.getItem('prompts') || '[]');
             const assistants = getAssistants(prompts);
             setAvailableAssistants(assistants);
+            
         }
-    }, [selectedConversation]);
+    }, [prompts]);
 
     useEffect(() => {
         if (promptListRef.current) {
@@ -382,6 +384,7 @@ export const ChatInput = ({
                 textareaRef?.current?.scrollHeight > 400 ? 'auto' : 'hidden'
             }`;
         }
+       
     }, [content]);
 
     useEffect(() => {
