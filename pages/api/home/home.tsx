@@ -134,11 +134,13 @@ const Home = ({
             prompts,
             temperature,
             page,
-            statsService
+            statsService,
+            featureFlags,
         },
         dispatch,
     } = contextValue;
 
+    const features = { ...contextValue.state.featureFlags };
 
     const stopConversationRef = useRef<boolean>(false);
 
@@ -180,7 +182,7 @@ const Home = ({
             } catch (e) {
                 console.log("Failed to import base prompts.", e);
             }
-            
+
         }
 
         const fetchAssistants = async (folders: FolderInterface[], prompts: Prompt[]) => {
@@ -255,7 +257,7 @@ const Home = ({
         if (chatEndpoint) dispatch({ field: 'chatEndpoint', value: chatEndpoint });
     }, [chatEndpoint]);
 
-    const handleSelectConversation = (conversation: Conversation) => { 
+    const handleSelectConversation = (conversation: Conversation) => {
         dispatch({ field: 'page', value: 'chat' })
 
         dispatch({
@@ -315,15 +317,15 @@ const Home = ({
             return acc;
         }, []);
 
-        dispatch({ field: 'conversations', value: updatedConversations});
+        dispatch({ field: 'conversations', value: updatedConversations });
         localStorage.setItem('conversationHistory', JSON.stringify(updatedConversations));
 
         if (updatedConversations.length > 0) {
-            
 
-            const selectedNotDeleted = selectedConversation ? 
-                                        updatedConversations.some(conversation => 
-                                        conversation.id === selectedConversation.id) : false; 
+
+            const selectedNotDeleted = selectedConversation ?
+                updatedConversations.some(conversation =>
+                    conversation.id === selectedConversation.id) : false;
             if (!selectedNotDeleted) { // was deleted
                 const newSelectedConversation = updatedConversations[updatedConversations.length - 1];
                 dispatch({
@@ -333,7 +335,7 @@ const Home = ({
                 saveConversation(newSelectedConversation);
                 localStorage.setItem('selectedConversation', JSON.stringify(newSelectedConversation));
             }
-            
+
         } else {
             handleNewConversation({})
         }
@@ -634,7 +636,7 @@ const Home = ({
             dispatch({ field: 'showPromptbar', value: showPromptbar === 'true' });
         }
 
-        
+
         const prompts = localStorage.getItem('prompts');
         if (prompts) {
             dispatch({ field: 'prompts', value: JSON.parse(prompts) });
@@ -646,29 +648,29 @@ const Home = ({
         }
 
         const folders = localStorage.getItem('folders');
-        const foldersParsed = JSON.parse(folders ? folders : '[]') 
+        const foldersParsed = JSON.parse(folders ? folders : '[]')
         if (folders) {
-            dispatch({ field: 'folders', value: foldersParsed});
+            dispatch({ field: 'folders', value: foldersParsed });
         }
 
 
         // Create a string for the current date like Oct-18-2021
-            const dateName = new Date().toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-            });
+        const dateName = new Date().toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        });
 
 
         //localStorage.setItem('conversationHistory', '[]')
         const conversationHistory = localStorage.getItem('conversationHistory');
         const conversations: Conversation[] = JSON.parse(conversationHistory ? conversationHistory : '[]');
-        const lastConversation = (conversations.length > 0)  ? conversations[conversations.length - 1] : null;
-        const lastConversationFolder = lastConversation && foldersParsed ?  foldersParsed.find((f: FolderInterface) => f.id ===  lastConversation.folderId) : null;
-            
-        let selectedConversation = lastConversation ? {...lastConversation} : null;
-        
-        if ((lastConversation && lastConversation.name !== 'New Conversation') || 
+        const lastConversation = (conversations.length > 0) ? conversations[conversations.length - 1] : null;
+        const lastConversationFolder = lastConversation && foldersParsed ? foldersParsed.find((f: FolderInterface) => f.id === lastConversation.folderId) : null;
+
+        let selectedConversation = lastConversation ? { ...lastConversation } : null;
+
+        if ((lastConversation && lastConversation.name !== 'New Conversation') ||
             (lastConversationFolder && lastConversationFolder.name !== dateName)) {
 
             // See if there is a folder with the same name as the date
@@ -683,11 +685,11 @@ const Home = ({
 
                 folder = newFolder;
                 const updatedFolders = [...foldersParsed, newFolder];
-        
+
                 dispatch({ field: 'folders', value: updatedFolders });
                 saveFolders(updatedFolders);
             }
-            
+
             //new conversation on load 
             const newConversation: Conversation = {
                 id: uuidv4(),
@@ -702,13 +704,13 @@ const Home = ({
             // Ensure the new conversation is added to the list of conversationHistory
             conversations.push(newConversation);
 
-            selectedConversation = {...newConversation};
+            selectedConversation = { ...newConversation };
 
         }
 
         dispatch({ field: 'selectedConversation', value: selectedConversation });
         localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
-        
+
         if (conversationHistory) {
             const cleanedConversationHistory = cleanConversationHistory(conversations);
 
@@ -777,137 +779,141 @@ const Home = ({
         setPostProcessingCallbacks(prev => prev.filter(c => c !== callback));
     }, []);
 
-    const handleScroll = (event:any) => {
+    const handleScroll = (event: any) => {
         const scrollableElement = event.currentTarget;
         const isBottom = scrollableElement.scrollHeight - scrollableElement.scrollTop <= scrollableElement.clientHeight + 1;
         setHasScrolledToBottom(isBottom);
     };
 
     useEffect(() => {
-    const fetchDataDisclosureDecision = async () => {
-    if (email) {
-    try {
-    const decision = await checkDataDisclosureDecision(email);
-    const decisionBodyObject = JSON.parse(decision.item.body);
-    const decisionValue = decisionBodyObject.acceptedDataDisclosure;
-    // console.log("Decision: ", decisionValue);
-    setHasAcceptedDataDisclosure(decisionValue);
-    if (!hasAcceptedDataDisclosure) {
-    // Fetch the latest data disclosure only if the user has not accepted it
-    const latestDisclosure = await getLatestDataDisclosure();
-    const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
-    console.log("Latest disclosure", latestDisclosureBodyObject);
-    const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
-    const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
-    // console.log("Latest disclosure", latestDisclosureUrl);
-    setLatestDataDisclosureUrlPDF(latestDisclosureUrlPDF);
-    setLatestDataDisclosureHTML(latestDisclosureHTML);
-    }
-                } catch (error) {
-    console.error('Failed to check data disclosure decision:', error);
-    setHasAcceptedDataDisclosure(false);
-    }
-            }
-        };
+        if (features.dataDisclosure) {
+            const fetchDataDisclosureDecision = async () => {
+                if (email) {
+                    try {
+                        const decision = await checkDataDisclosureDecision(email);
+                        const decisionBodyObject = JSON.parse(decision.item.body);
+                        const decisionValue = decisionBodyObject.acceptedDataDisclosure;
+                        // console.log("Decision: ", decisionValue);
+                        setHasAcceptedDataDisclosure(decisionValue);
+                        if (!hasAcceptedDataDisclosure) {
+                            // Fetch the latest data disclosure only if the user has not accepted it
+                            const latestDisclosure = await getLatestDataDisclosure();
+                            const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
+                            console.log("Latest disclosure", latestDisclosureBodyObject);
+                            const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
+                            const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
+                            // console.log("Latest disclosure", latestDisclosureUrl);
+                            setLatestDataDisclosureUrlPDF(latestDisclosureUrlPDF);
+                            setLatestDataDisclosureHTML(latestDisclosureHTML);
+                        }
+                    } catch (error) {
+                        console.error('Failed to check data disclosure decision:', error);
+                        setHasAcceptedDataDisclosure(false);
+                    }
+                }
+            };
 
-        fetchDataDisclosureDecision();
+            fetchDataDisclosureDecision();
+        }
     }, [email, dataDisclosureDecisionMade]);
 
     if (session) {
-        if (hasAcceptedDataDisclosure === null) {
-        // Decision is still being checked, render a loading indicator
-        return (
-        <main
-        className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
-        >
-                    <div
-        className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
-        <Loader />
-        <h1 className="mb-4 text-2xl font-bold">
-        Loading...
-        </h1>
+        if (features.dataDisclosure) { // check data disclosure feature flag
+            if (hasAcceptedDataDisclosure === null) {
+                // Decision is still being checked, render a loading indicator
+                return (
+                    <main
+                        className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
+                    >
+                        <div
+                            className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                            <Loader />
+                            <h1 className="mb-4 text-2xl font-bold">
+                                Loading...
+                            </h1>
 
-        {/*<progress className="w-64"/>*/}
-        </div>
-        </main>);
-        } else if (!hasAcceptedDataDisclosure) {
-        // User has not accepted the data disclosure agreement, do not render page content
-        return (
-        <main
-        className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}
-        >
-                    <div
-        className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
-        <h1 className="text-2xl font-bold dark:text-white">
-        Amplify Data Disclosure Agreement
-        </h1>
-        <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '10px' }}>Download the data disclosure agreement</a>
-        <div
-        className="dark:bg-[#343541] bg-gray-50 dark:text-white text-black"
-        style={{
-        overflowY: 'scroll',
-        border: '1px solid #ccc',
-        padding: '20px',
-        marginBottom: '10px',
-        height: '500px',
-        width: '30%',
-        }}
-        onScroll={handleScroll}
-        dangerouslySetInnerHTML={{ __html: latestDataDisclosureHTML || '' }}
-        />
-        <input
-        type="email"
-        placeholder="Enter your email"
-        value={inputEmail}
-        onChange={(e) => setInputEmail(e.target.value)}
-        style={{
-        marginBottom: '10px',
-        padding: '4px 10px',
-        borderRadius: '5px',
-        border: '1px solid #ccc',
-        color: 'black',
-        backgroundColor: 'white',
-        width: '300px', // Adjust this value as needed
-        boxSizing: 'border-box', // Include padding and border in the element's total width
-        }}
-        />
-        <button
-        onClick={() => {
-        if (session && session.user && session.user.email) {
-        if (inputEmail.toLowerCase() === session.user.email.toLowerCase()) {
-        if (hasScrolledToBottom) {
-        // TODO: SHOW A SAVING ANIMATION
-        saveDataDisclosureDecision(session.user.email, true);
-        setDataDisclosureDecisionMade(prev => !prev);
-        }
-                                        else {
-        alert('You must scroll to the bottom of the disclosure before accepting.');
-        }
+                            {/*<progress className="w-64"/>*/}
+                        </div>
+                    </main>);
+            } else if (!hasAcceptedDataDisclosure) {
+                // User has not accepted the data disclosure agreement, do not render page content
+                return (
+                    <main
+                        className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}
+                    >
+                        <div
+                            className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
+                            <h1 className="text-2xl font-bold dark:text-white">
+                                Amplify Data Disclosure Agreement
+                            </h1>
+                            <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '10px' }}>Download the data disclosure agreement</a>
+                            <div
+                                className="dark:bg-[#343541] bg-gray-50 dark:text-white text-black"
+                                style={{
+                                    overflowY: 'scroll',
+                                    border: '1px solid #ccc',
+                                    padding: '20px',
+                                    marginBottom: '10px',
+                                    height: '500px',
+                                    width: '30%',
+                                }}
+                                onScroll={handleScroll}
+                                dangerouslySetInnerHTML={{ __html: latestDataDisclosureHTML || '' }}
+                            />
+                            <input
+                                type="email"
+                                placeholder="Enter your email"
+                                value={inputEmail}
+                                onChange={(e) => setInputEmail(e.target.value)}
+                                style={{
+                                    marginBottom: '10px',
+                                    padding: '4px 10px',
+                                    borderRadius: '5px',
+                                    border: '1px solid #ccc',
+                                    color: 'black',
+                                    backgroundColor: 'white',
+                                    width: '300px',
+                                    boxSizing: 'border-box',
+                                }}
+                            />
+                            <button
+                                onClick={() => {
+                                    if (session && session.user && session.user.email) {
+                                        if (inputEmail.toLowerCase() === session.user.email.toLowerCase()) {
+                                            if (hasScrolledToBottom) {
+                                                // TODO: show a saving animation
+                                                saveDataDisclosureDecision(session.user.email, true);
+                                                setDataDisclosureDecisionMade(prev => !prev);
+                                            }
+                                            else {
+                                                alert('You must scroll to the bottom of the disclosure before accepting.');
+                                            }
+                                        } else {
+                                            alert('The entered email does not match your account email.');
+                                        }
                                     } else {
-        alert('The entered email does not match your account email.');
-        }
-                                } else {
-        console.error('Session or user is undefined.');
-        }
-                            }}
-        style={{
-        backgroundColor: 'white',
-        color: 'black',
-        fontWeight: 'bold',
-        padding: '4px 20px',
-        borderRadius: '5px',
-        border: '1px solid #ccc',
-        cursor: 'pointer',
-        transition: 'background-color 0.3s ease-in-out',
-        }}
-        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
-        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
-        >
-                            Accept
-        </button>
-        </div>
-        </main>
-        );
+                                        console.error('Session or user is undefined.');
+                                    }
+                                }}
+                                style={{
+                                    backgroundColor: 'white',
+                                    color: 'black',
+                                    fontWeight: 'bold',
+                                    padding: '4px 20px',
+                                    borderRadius: '5px',
+                                    border: '1px solid #ccc',
+                                    cursor: 'pointer',
+                                    transition: 'background-color 0.3s ease-in-out',
+                                }}
+                                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
+                                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                            >
+                                Accept
+                            </button>
+                        </div>
+                    </main>
+                );
+            }
         }
 
         // @ts-ignore

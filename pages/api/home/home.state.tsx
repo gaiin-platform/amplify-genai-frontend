@@ -116,7 +116,8 @@ export const initialState: HomeInitialState = {
     followUpCreate:true,
     marketItemDelete:false,
     automation:false,
-    codeInterpreterEnabled:true
+    codeInterpreterEnabled:true,
+    dataDisclosure:true,
   },
   statsService: noOpStatsServices,
   defaultFunctionCallModel: null,
