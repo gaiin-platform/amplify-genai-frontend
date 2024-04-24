@@ -651,7 +651,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
         useEffect(() => {
-            
+
+            const prompts: Prompt[] = localStorage ? JSON.parse(localStorage.getItem('prompts') || '[]') : [];
             if (selectedConversation
                 && selectedConversation.promptTemplate
                 && isAssistant(selectedConversation.promptTemplate)
@@ -659,14 +660,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
-                    const prompts: Prompt[] = localStorage ? JSON.parse(localStorage.getItem('prompts') || '[]') : [];
                     // make sure assistant hasnt been deleted 
                     if (prompts.some(prompt => prompt.id === assistant.id)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
             else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
-                    homeDispatch({field: 'selectedAssistant', value: selectedConversation.promptTemplate.data.assistant});
+                    const assistant = selectedConversation.promptTemplate.data.assistant;
+                    // make sure assistant hasnt been deleted 
+                    if (prompts.some(prompt => prompt.id === assistant.id)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
@@ -685,7 +687,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     const lastMessage: Message = selectedConversation.messages[selectedConversation.messages.length - 1];
                     if (lastMessage.data && lastMessage.data.state && lastMessage.data.state.currentAssistant) {
                         const astName = lastMessage.data.state.currentAssistant;
-                        const prompts: Prompt[] = JSON.parse(localStorage.getItem('prompts') || '[]');
 
                         const assistantPrompt = prompts.find(prompt => prompt.name === astName); 
                         const assistant = assistantPrompt?.data?.assistant ? assistantPrompt.data.assistant : DEFAULT_ASSISTANT;
