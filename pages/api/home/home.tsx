@@ -256,8 +256,25 @@ const Home = ({
     }, [chatEndpoint]);
 
     const handleSelectConversation = (conversation: Conversation) => { 
-        dispatch({ field: 'page', value: 'chat' })
+        const prompts: Prompt[] = localStorage ? JSON.parse(localStorage.getItem('prompts') || '[]') : [];
+        // add last used assistant if there was one used else should be removed
+        if (conversation.messages && conversation.messages.length > 0) {
+            const lastMessage: Message = conversation.messages[conversation.messages.length - 1];
+            
+            if (lastMessage.data && lastMessage.data.state && lastMessage.data.state.currentAssistant) {
+                const astName = lastMessage.data.state.currentAssistant;
+                const assistantPrompt = prompts.find(prompt => prompt.name === astName); 
+                const assistant = assistantPrompt?.data?.assistant ? assistantPrompt.data.assistant : DEFAULT_ASSISTANT;
+                    
+                dispatch({field: 'selectedAssistant', value: assistant});
+            }
+        } 
+        else {
+            dispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT}); 
+        }
 
+
+        dispatch({ field: 'page', value: 'chat' })
         dispatch({
             field: 'selectedConversation',
             value: conversation,
@@ -777,138 +794,138 @@ const Home = ({
         setPostProcessingCallbacks(prev => prev.filter(c => c !== callback));
     }, []);
 
-    const handleScroll = (event:any) => {
-        const scrollableElement = event.currentTarget;
-        const isBottom = scrollableElement.scrollHeight - scrollableElement.scrollTop <= scrollableElement.clientHeight + 1;
-        setHasScrolledToBottom(isBottom);
-    };
+    // const handleScroll = (event:any) => {
+    //     const scrollableElement = event.currentTarget;
+    //     const isBottom = scrollableElement.scrollHeight - scrollableElement.scrollTop <= scrollableElement.clientHeight + 1;
+    //     setHasScrolledToBottom(isBottom);
+    // };
 
-    useEffect(() => {
-    const fetchDataDisclosureDecision = async () => {
-    if (email) {
-    try {
-    const decision = await checkDataDisclosureDecision(email);
-    const decisionBodyObject = JSON.parse(decision.item.body);
-    const decisionValue = decisionBodyObject.acceptedDataDisclosure;
-    // console.log("Decision: ", decisionValue);
-    setHasAcceptedDataDisclosure(decisionValue);
-    if (!hasAcceptedDataDisclosure) {
-    // Fetch the latest data disclosure only if the user has not accepted it
-    const latestDisclosure = await getLatestDataDisclosure();
-    const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
-    console.log("Latest disclosure", latestDisclosureBodyObject);
-    const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
-    const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
-    // console.log("Latest disclosure", latestDisclosureUrl);
-    setLatestDataDisclosureUrlPDF(latestDisclosureUrlPDF);
-    setLatestDataDisclosureHTML(latestDisclosureHTML);
-    }
-                } catch (error) {
-    console.error('Failed to check data disclosure decision:', error);
-    setHasAcceptedDataDisclosure(false);
-    }
-            }
-        };
+    // useEffect(() => {
+    // const fetchDataDisclosureDecision = async () => {
+    // if (email) {
+    // try {
+    // const decision = await checkDataDisclosureDecision(email);
+    // const decisionBodyObject = JSON.parse(decision.item.body);
+    // const decisionValue = decisionBodyObject.acceptedDataDisclosure;
+    // // console.log("Decision: ", decisionValue);
+    // setHasAcceptedDataDisclosure(decisionValue);
+    // if (!hasAcceptedDataDisclosure) {
+    // // Fetch the latest data disclosure only if the user has not accepted it
+    // const latestDisclosure = await getLatestDataDisclosure();
+    // const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
+    // console.log("Latest disclosure", latestDisclosureBodyObject);
+    // const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
+    // const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
+    // // console.log("Latest disclosure", latestDisclosureUrl);
+    // setLatestDataDisclosureUrlPDF(latestDisclosureUrlPDF);
+    // setLatestDataDisclosureHTML(latestDisclosureHTML);
+    // }
+    //             } catch (error) {
+    // console.error('Failed to check data disclosure decision:', error);
+    // setHasAcceptedDataDisclosure(false);
+    // }
+    //         }
+    //     };
 
-        fetchDataDisclosureDecision();
-    }, [email, dataDisclosureDecisionMade]);
+    //     fetchDataDisclosureDecision();
+    // }, [email, dataDisclosureDecisionMade]);
 
     if (session) {
-        if (hasAcceptedDataDisclosure === null) {
-        // Decision is still being checked, render a loading indicator
-        return (
-        <main
-        className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
-        >
-                    <div
-        className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
-        <Loader />
-        <h1 className="mb-4 text-2xl font-bold">
-        Loading...
-        </h1>
+        // if (hasAcceptedDataDisclosure === null) {
+        // // Decision is still being checked, render a loading indicator
+        // return (
+        // <main
+        // className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
+        // >
+        //             <div
+        // className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+        // <Loader />
+        // <h1 className="mb-4 text-2xl font-bold">
+        // Loading...
+        // </h1>
 
-        {/*<progress className="w-64"/>*/}
-        </div>
-        </main>);
-        } else if (!hasAcceptedDataDisclosure) {
-        // User has not accepted the data disclosure agreement, do not render page content
-        return (
-        <main
-        className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}
-        >
-                    <div
-        className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
-        <h1 className="text-2xl font-bold dark:text-white">
-        Amplify Data Disclosure Agreement
-        </h1>
-        <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '10px' }}>Download the data disclosure agreement</a>
-        <div
-        className="dark:bg-[#343541] bg-gray-50 dark:text-white text-black"
-        style={{
-        overflowY: 'scroll',
-        border: '1px solid #ccc',
-        padding: '20px',
-        marginBottom: '10px',
-        height: '500px',
-        width: '30%',
-        }}
-        onScroll={handleScroll}
-        dangerouslySetInnerHTML={{ __html: latestDataDisclosureHTML || '' }}
-        />
-        <input
-        type="email"
-        placeholder="Enter your email"
-        value={inputEmail}
-        onChange={(e) => setInputEmail(e.target.value)}
-        style={{
-        marginBottom: '10px',
-        padding: '4px 10px',
-        borderRadius: '5px',
-        border: '1px solid #ccc',
-        color: 'black',
-        backgroundColor: 'white',
-        width: '300px', // Adjust this value as needed
-        boxSizing: 'border-box', // Include padding and border in the element's total width
-        }}
-        />
-        <button
-        onClick={() => {
-        if (session && session.user && session.user.email) {
-        if (inputEmail.toLowerCase() === session.user.email.toLowerCase()) {
-        if (hasScrolledToBottom) {
-        // TODO: SHOW A SAVING ANIMATION
-        saveDataDisclosureDecision(session.user.email, true);
-        setDataDisclosureDecisionMade(prev => !prev);
-        }
-                                        else {
-        alert('You must scroll to the bottom of the disclosure before accepting.');
-        }
-                                    } else {
-        alert('The entered email does not match your account email.');
-        }
-                                } else {
-        console.error('Session or user is undefined.');
-        }
-                            }}
-        style={{
-        backgroundColor: 'white',
-        color: 'black',
-        fontWeight: 'bold',
-        padding: '4px 20px',
-        borderRadius: '5px',
-        border: '1px solid #ccc',
-        cursor: 'pointer',
-        transition: 'background-color 0.3s ease-in-out',
-        }}
-        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
-        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
-        >
-                            Accept
-        </button>
-        </div>
-        </main>
-        );
-        }
+        // {/*<progress className="w-64"/>*/}
+        // </div>
+        // </main>);
+        // } else if (!hasAcceptedDataDisclosure) {
+        // // User has not accepted the data disclosure agreement, do not render page content
+        // return (
+        // <main
+        // className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}
+        // >
+        //             <div
+        // className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
+        // <h1 className="text-2xl font-bold dark:text-white">
+        // Amplify Data Disclosure Agreement
+        // </h1>
+        // <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '10px' }}>Download the data disclosure agreement</a>
+        // <div
+        // className="dark:bg-[#343541] bg-gray-50 dark:text-white text-black"
+        // style={{
+        // overflowY: 'scroll',
+        // border: '1px solid #ccc',
+        // padding: '20px',
+        // marginBottom: '10px',
+        // height: '500px',
+        // width: '30%',
+        // }}
+        // onScroll={handleScroll}
+        // dangerouslySetInnerHTML={{ __html: latestDataDisclosureHTML || '' }}
+        // />
+        // <input
+        // type="email"
+        // placeholder="Enter your email"
+        // value={inputEmail}
+        // onChange={(e) => setInputEmail(e.target.value)}
+        // style={{
+        // marginBottom: '10px',
+        // padding: '4px 10px',
+        // borderRadius: '5px',
+        // border: '1px solid #ccc',
+        // color: 'black',
+        // backgroundColor: 'white',
+        // width: '300px', // Adjust this value as needed
+        // boxSizing: 'border-box', // Include padding and border in the element's total width
+        // }}
+        // />
+        // <button
+        // onClick={() => {
+        // if (session && session.user && session.user.email) {
+        // if (inputEmail.toLowerCase() === session.user.email.toLowerCase()) {
+        // if (hasScrolledToBottom) {
+        // // TODO: SHOW A SAVING ANIMATION
+        // saveDataDisclosureDecision(session.user.email, true);
+        // setDataDisclosureDecisionMade(prev => !prev);
+        // }
+        //                                 else {
+        // alert('You must scroll to the bottom of the disclosure before accepting.');
+        // }
+        //                             } else {
+        // alert('The entered email does not match your account email.');
+        // }
+        //                         } else {
+        // console.error('Session or user is undefined.');
+        // }
+        //                     }}
+        // style={{
+        // backgroundColor: 'white',
+        // color: 'black',
+        // fontWeight: 'bold',
+        // padding: '4px 20px',
+        // borderRadius: '5px',
+        // border: '1px solid #ccc',
+        // cursor: 'pointer',
+        // transition: 'background-color 0.3s ease-in-out',
+        // }}
+        // onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
+        // onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+        // >
+        //                     Accept
+        // </button>
+        // </div>
+        // </main>
+        // );
+        // }
 
         // @ts-ignore
         return (

@@ -661,14 +661,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
                     // make sure assistant hasnt been deleted 
-                    if (prompts.some(prompt => prompt.id === assistant.id)) homeDispatch({field: 'selectedAssistant', value: assistant});
+                    if (prompts.some(prompt => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
             else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
                     // make sure assistant hasnt been deleted 
-                    if (prompts.some(prompt => prompt.id === assistant.id)) homeDispatch({field: 'selectedAssistant', value: assistant});
+                    if (prompts.some(prompt => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
@@ -681,23 +681,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 setVariables(workflowVariables);
                 setIsPromptTemplateDialogVisible(true);
             } 
-            else {
-                //if last message used an assistant then we can kepe it tagged else should be erased
-                if (selectedConversation && selectedConversation.messages && selectedConversation.messages.length > 0) {
-                    const lastMessage: Message = selectedConversation.messages[selectedConversation.messages.length - 1];
-                    if (lastMessage.data && lastMessage.data.state && lastMessage.data.state.currentAssistant) {
-                        const astName = lastMessage.data.state.currentAssistant;
-
-                        const assistantPrompt = prompts.find(prompt => prompt.name === astName); 
-                        const assistant = assistantPrompt?.data?.assistant ? assistantPrompt.data.assistant : DEFAULT_ASSISTANT;
-                         
-                        homeDispatch({field: 'selectedAssistant', value: assistant});
-                    }
-                } else {
-                    homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT}); 
-                }
-                     
-            }
         }, [selectedConversation]);
 
         useEffect(() => {
