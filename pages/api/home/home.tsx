@@ -680,13 +680,13 @@ const Home = ({
         //localStorage.setItem('conversationHistory', '[]')
         const conversationHistory = localStorage.getItem('conversationHistory');
         const conversations: Conversation[] = JSON.parse(conversationHistory ? conversationHistory : '[]');
-        const lastConversation = (conversations.length > 0)  ? conversations[conversations.length - 1] : null;
-        const lastConversationFolder = lastConversation && foldersParsed ?  foldersParsed.find((f: FolderInterface) => f.id ===  lastConversation.folderId) : null;
+        const lastConversation: Conversation | null = (conversations.length > 0)  ? conversations[conversations.length - 1] : null;
+        const lastConversationFolder: FolderInterface | null = lastConversation && foldersParsed ?  foldersParsed.find((f: FolderInterface) => f.id ===  lastConversation.folderId) : null;
             
-        let selectedConversation = lastConversation ? {...lastConversation} : null;
+        let selectedConversation: Conversation | null = lastConversation ? {...lastConversation} : null;
         
-        if ((lastConversation && lastConversation.name !== 'New Conversation') || 
-            (lastConversationFolder && lastConversationFolder.name !== dateName)) {
+        if (!lastConversation || lastConversation.name !== 'New Conversation' ||
+           (lastConversationFolder && lastConversationFolder.name !== dateName)) {
 
             // See if there is a folder with the same name as the date
             let folder = foldersParsed.find((f: FolderInterface) => f.name === dateName);
