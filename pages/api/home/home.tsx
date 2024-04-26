@@ -139,8 +139,6 @@ const Home = ({
         dispatch,
     } = contextValue;
 
-    const features = { ...contextValue.state.featureFlags };
-
     const stopConversationRef = useRef<boolean>(false);
 
 
@@ -802,7 +800,7 @@ const Home = ({
     };
 
     useEffect(() => {
-        if (featureFlags.dataDisclosure) {
+        if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
             const fetchDataDisclosureDecision = async () => {
                 const { hasAcceptedDataDisclosure } = contextValue.state;
                 if (email && (!hasAcceptedDataDisclosure)) {
@@ -837,7 +835,7 @@ const Home = ({
         featureFlags.dataDisclosure]);
 
     if (session) {
-        if (featureFlags.dataDisclosure) { // check data disclosure feature flag
+        if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
             if (hasAcceptedDataDisclosure === null) {
                 // Decision is still being checked, render a loading indicator
                 return (
@@ -919,7 +917,6 @@ const Home = ({
                                     if (session && session.user && session.user.email) {
                                         if (inputEmail.toLowerCase() === session.user.email.toLowerCase()) {
                                             if (hasScrolledToBottom) {
-                                                // TODO: figure out why this isn't working
                                                 saveDataDisclosureDecision(session.user.email, true);
                                                 dispatch({ field: 'hasAcceptedDataDisclosure', value: true });
                                             }
