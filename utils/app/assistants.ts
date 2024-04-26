@@ -141,5 +141,5 @@ export const syncAssistants = (assistants: AssistantDefinition[], folders: Folde
 
 
     dispatch({field: 'prompts', value: [...updatedPrompts, ...assistantPrompts]}); 
-    localStorage.setItem('prompt', JSON.stringify([...updatedPrompts, ...assistantPrompts]))
+    localStorage.setItem('prompts', JSON.stringify([...updatedPrompts, ...assistantPrompts]))
 }

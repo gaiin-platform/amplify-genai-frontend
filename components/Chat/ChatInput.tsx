@@ -120,9 +120,10 @@ export const ChatInput = ({
         return documents?.every(isComplete);
     }
 
-    const onAssistantChange = (assistant: Assistant) => {
+const onAssistantChange = (assistant: Assistant) => {
 
-    }
+    
+}
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
@@ -363,7 +364,7 @@ export const ChatInput = ({
 
     useEffect(() => {
         if (prompts) {
-            const prompts: Prompt[] = JSON.parse(localStorage.getItem('prompts') || '[]');
+            const prompts: Prompt[] =JSON.parse(localStorage.getItem('prompts') || '[]');
             const assistants = getAssistants(prompts);
             setAvailableAssistants(assistants);
             
@@ -610,7 +611,11 @@ export const ChatInput = ({
                                     onAssistantChange={(a: Assistant) => {
                                         homeDispatch({field: 'selectedAssistant', value: a});
                                         setShowAssistantSelect(false);
-
+                                          
+                                        selectedConversation && (selectedConversation.tags = selectedConversation.tags ?
+                                                                        [...selectedConversation.tags, ...a.definition.tags] :
+                                                                        [...a.definition.tags]);
+                                 
                                         if (textareaRef && textareaRef.current) {
                                             textareaRef.current.focus();
                                         }
