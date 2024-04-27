@@ -335,8 +335,6 @@ const Home = ({
         localStorage.setItem('conversationHistory', JSON.stringify(updatedConversations));
 
         if (updatedConversations.length > 0) {
-
-
             const selectedNotDeleted = selectedConversation ?
                 updatedConversations.some(conversation =>
                     conversation.id === selectedConversation.id) : false;
@@ -351,7 +349,21 @@ const Home = ({
             }
 
         } else {
-            handleNewConversation({})
+            defaultModelId &&
+            dispatch({
+                field: 'selectedConversation',
+                value: {
+                    id: uuidv4(),
+                    name: t('New Conversation'),
+                    messages: [],
+                    model: OpenAIModels[defaultModelId],
+                    prompt: DEFAULT_SYSTEM_PROMPT,
+                    temperature: DEFAULT_TEMPERATURE,
+                    folderId: null,
+                },
+            });
+      
+            localStorage.removeItem('selectedConversation');
         }
 
         const updatedPrompts: Prompt[] = prompts.map((p) => {

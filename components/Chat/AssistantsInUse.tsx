@@ -15,7 +15,7 @@ type Props = {
 const AssistantsInUse: React.FC<Props> = ({assistants,assistantsChanged}) => {
 
     const {
-        state: {prompts, selectedConversation},
+        state: {prompts, selectedConversation}
     } = useContext(HomeContext);
 
     if(assistants.length === 0 || !assistants[0] || !assistants[0].id || assistants[0].id === DEFAULT_ASSISTANT.id){
@@ -25,6 +25,29 @@ const AssistantsInUse: React.FC<Props> = ({assistants,assistantsChanged}) => {
     const getLabel = (assistant:Assistant) => {
         if(!assistant.definition.name) { return 'Untitled Assistant'; }
         return assistant.definition.name.length > 30 ? assistant.definition.name.slice(0, 30) + '...' : assistant.definition.name;
+    }
+
+    function handleRemoveSelectedAssistant(assistant: Assistant) {
+        if (selectedConversation) {
+            //add prompt template
+            selectedConversation.promptTemplate = null;
+            //clear tags - currently only really applies to the assistant creator 
+            const aTags = assistant.definition.data?.conversationTags;
+            if (selectedConversation.tags && aTags) {
+                selectedConversation.tags = selectedConversation.tags.filter(tag => !aTags.includes(tag));
+
+                //remove added additional assistant creator prompt (I added when selecting the assitant creator)
+                if (assistant.id === 'ast/assistant-builder') {
+                    const marker = "CURRENT ASSISTANT CREATOR CUSTOM INSTRUCTIONS:";
+                    const index = selectedConversation.prompt.indexOf(marker);
+                    if (index !== -1) selectedConversation.prompt = selectedConversation.prompt.substring(0, index);
+                                      
+                    console.log("Removed Assistant Creator Prompt");
+                    
+                } 
+            }
+
+        }
     }
 
     return (
@@ -41,6 +64,7 @@ const AssistantsInUse: React.FC<Props> = ({assistants,assistantsChanged}) => {
                             e.preventDefault();
                             e.stopPropagation();
                             assistantsChanged(assistants.filter(x => x != assistant));
+                            handleRemoveSelectedAssistant(assistant);
                         }}
                     >
                         <IconCircleX/>

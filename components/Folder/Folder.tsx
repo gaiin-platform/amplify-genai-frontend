@@ -34,7 +34,7 @@ const Folder = ({
   handleDrop,
   folderComponent,
 }: Props) => {
-  const { handleDeleteFolder, handleUpdateFolder } = useContext(HomeContext);
+  const { handleDeleteFolder, handleUpdateFolder, state: {selectedConversation}} = useContext(HomeContext);
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -92,6 +92,12 @@ const Folder = ({
       setIsOpen(false);
     }
   }, [searchTerm]);
+
+  useEffect(() => {
+    if (selectedConversation?.folderId === currentFolder.id) {
+      setIsOpen(true);
+    } 
+  }, [selectedConversation]);
 
   return (
     <>

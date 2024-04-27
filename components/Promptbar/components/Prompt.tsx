@@ -86,6 +86,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
 
         statsService.startConversationEvent(startPrompt);
+        const prompts: Prompt[] = localStorage ? JSON.parse(localStorage.getItem('prompts') || '[]') : [];
         handleStartConversationWithPrompt(handleNewConversation, prompts, startPrompt);
 
     }
