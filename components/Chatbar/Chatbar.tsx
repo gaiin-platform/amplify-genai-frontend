@@ -89,11 +89,12 @@ export const Chatbar = () => {
     statsService.deleteConversationEvent(conversation);
 
     const updatedLength = updatedConversations.length;
-    let lastConversation = (updatedLength > 0)  ? updatedConversations[updatedLength - 1] : null;
-
+    if (updatedLength > 0) {
+    let lastConversation = updatedConversations[updatedLength - 1];
     
-    let selectedConversation = lastConversation ? {...lastConversation} : null;
-    if ((!lastConversation || !lastConversation.name || lastConversation.name !== 'New Conversation') && conversation.name !== 'New Conversation') { // handle if you delete this new conversation 
+
+    let selectedConversation: Conversation = {...lastConversation};
+    if (lastConversation.name !== 'New Conversation' && (conversation.name !== 'New Conversation')) { // handle if you delete this new conversation 
       const defaultModelId =
           (process.env.DEFAULT_MODEL &&
               Object.values(OpenAIModelID).includes(
@@ -131,11 +132,31 @@ export const Chatbar = () => {
       selectedConversation = {...newConversation}
     }
 
-    
     localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation))
+    homeDispatch({ field: 'selectedConversation', value: selectedConversation});
+
+    } else {
+      defaultModelId &&
+      homeDispatch({
+          field: 'selectedConversation',
+          value: {
+              id: uuidv4(),
+              name: t('New Conversation'),
+              messages: [],
+              model: conversation.model,
+              prompt: DEFAULT_SYSTEM_PROMPT,
+              temperature: conversation.temperature,
+              folderId: null,
+          },
+      });
+
+      localStorage.removeItem('selectedConversation');
+  }
+
+    
 
     homeDispatch({ field: 'conversations', value: updatedConversations });
-    homeDispatch({ field: 'selectedConversation', value: selectedConversation});
+    
     chatDispatch({ field: 'searchTerm', value: '' });
     saveConversations(updatedConversations);
   };
