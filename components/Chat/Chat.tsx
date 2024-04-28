@@ -40,7 +40,7 @@ import {SystemPrompt} from './SystemPrompt';
 import {TemperatureSlider} from './Temperature';
 import {MemoizedChatMessage} from './MemoizedChatMessage';
 import {VariableModal} from "@/components/Chat/VariableModal";
-import {parseEditableVariables} from "@/utils/app/prompts";
+import {getPrompts, parseEditableVariables} from "@/utils/app/prompts";
 import {v4 as uuidv4} from 'uuid';
 import {fillInTemplate} from "@/utils/app/prompts";
 import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
@@ -652,7 +652,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         useEffect(() => {
 
-            const prompts: Prompt[] = localStorage ? JSON.parse(localStorage.getItem('prompts') || '[]') : [];
+            const prompts: Prompt[] = localStorage ? getPrompts() : [];
             if (selectedConversation
                 && selectedConversation.promptTemplate
                 && isAssistant(selectedConversation.promptTemplate)
@@ -681,7 +681,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 setVariables(workflowVariables);
                 setIsPromptTemplateDialogVisible(true);
             } 
-        }, [selectedConversation]);
+        }, [selectedConversation, prompts]);
 
         useEffect(() => {
             const observer = new IntersectionObserver(

@@ -21,7 +21,7 @@ import {
 } from 'react';
 
 import {useTranslation} from 'next-i18next';
-import {parsePromptVariables} from "@/utils/app/prompts";
+import {getPrompts, parsePromptVariables} from "@/utils/app/prompts";
 import {Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 import {Prompt} from '@/types/prompt';
@@ -125,7 +125,7 @@ const onAssistantChange = (assistant: Assistant) => {
     setShowAssistantSelect(false);
 
     if (selectedConversation) {
-        const tags = assistant.definition.data?.conversationTags;
+        const tags = assistant.definition.data?.conversationTags || [];
         if (tags) {
             selectedConversation.tags = selectedConversation.tags ?
                                     [...selectedConversation.tags, ...tags] :
@@ -135,7 +135,7 @@ const onAssistantChange = (assistant: Assistant) => {
         selectedConversation.tags = Array.from(new Set(selectedConversation.tags));
 
 
-        const prompts: Prompt[] = localStorage ? JSON.parse(localStorage.getItem('prompts') || '[]') : [];
+        const prompts: Prompt[] = localStorage ? getPrompts() : [];
         let assistantPrompt: Prompt | undefined = undefined;
         // Assistant creator is treated differently in the backend, so we need to treat it differently here
         // User defined assistants are retrieved and applied to the conversation in the back end as a UserDefinedAssistant whereas assistant creator is not user defined per say
@@ -152,7 +152,6 @@ const onAssistantChange = (assistant: Assistant) => {
         selectedConversation.promptTemplate = assistantPrompt ?? null;
         
     } 
-
     
 }
 
@@ -395,7 +394,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
     useEffect(() => {
         if (prompts) {
-            const prompts: Prompt[] =JSON.parse(localStorage.getItem('prompts') || '[]');
+            const prompts: Prompt[] = getPrompts();
             const assistants = getAssistants(prompts);
             setAvailableAssistants(assistants);
             

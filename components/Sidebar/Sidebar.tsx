@@ -1,12 +1,6 @@
 import { IconFolderPlus, IconMistOff, IconPlus } from '@tabler/icons-react';
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-
-import {
-  CloseSidebarButton,
-  OpenSidebarButton,
-} from './components/OpenCloseButton';
-
 import Search from '../Search';
 
 interface Props<T> {
@@ -23,6 +17,7 @@ interface Props<T> {
   handleCreateItem: () => void;
   handleCreateFolder: () => void;
   handleDrop: (e: any) => void;
+  handleCreateAssistantItem: () => void;
 }
 
 const Sidebar = <T,>({
@@ -39,6 +34,7 @@ const Sidebar = <T,>({
   handleCreateItem,
   handleCreateFolder,
   handleDrop,
+  handleCreateAssistantItem
 }: Props<T>) => {
   const { t } = useTranslation('promptbar');
 
@@ -54,23 +50,44 @@ const Sidebar = <T,>({
     e.target.style.background = 'none';
   };
 
+  const addItemButton = (width: string) => ( <button className={`text-sidebar flex ${width} flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-gray-500/10`}
+                              onClick={() => {
+                                handleCreateItem();
+                                handleSearchTerm('');
+                              }}
+                              >
+                                <IconPlus size={16} />
+                                {addItemButtonTitle}
+                              </button>);
+
+
+  const addButtonForSide = (side: string) => {
+    if (side === 'left') return addItemButton("w-[190px]")
+
+    const addAssistantButton = (
+      <button
+        className="text-sidebar flex w-[190px] flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-gray-500/10"
+        onClick={() => {
+          handleCreateAssistantItem();
+          handleSearchTerm('');
+        }}
+      >
+        <IconPlus size={16} />
+        {"Assistant"}
+      </button>
+    );
+
+    return addAssistantButton
+    
+  }
+
   return (
     <div className={`border-t dark:border-white/20`}>
       <div
         className={`fixed top-0 ${side}-0 z-40 flex h-full w-[260px] flex-none flex-col space-y-2 bg-neutral-100 dark:bg-[#202123] p-2 text-[14px] transition-all sm:relative sm:top-0`}
       >
         <div className="flex items-center">
-          <button
-            className="text-sidebar flex w-[190px] flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-gray-500/10"
-            onClick={() => {
-              handleCreateItem();
-              handleSearchTerm('');
-            }}
-          >
-            <IconPlus size={16} />
-            {addItemButtonTitle}
-          </button>
-
+          {addButtonForSide(side)}
           <button
             className="ml-2 flex flex-shrink-0 cursor-pointer items-center gap-3 rounded-md border dark:border-white/20 p-3 text-sm dark:text-white transition-colors duration-200 hover:bg-gray-500/10"
             onClick={handleCreateFolder}
@@ -79,6 +96,7 @@ const Sidebar = <T,>({
             <IconFolderPlus size={16} />
           </button>
         </div>
+        {side === 'right' && addItemButton('')}
         <Search
           placeholder={t('Search...') || ''}
           searchTerm={searchTerm}
@@ -113,10 +131,9 @@ const Sidebar = <T,>({
         </div>
         {footerComponent}
       </div>
-
-
     </div>
   );
 };
 
 export default Sidebar;
+

@@ -28,6 +28,7 @@ import { PromptModal } from './PromptModal';
 import { ShareModal } from './ShareModal';
 import { v4 as uuidv4 } from "uuid";
 import {
+    getPrompts,
     handleStartConversationWithPrompt,
 } from "@/utils/app/prompts";
 import { useSession } from "next-auth/react";
@@ -86,7 +87,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
 
         statsService.startConversationEvent(startPrompt);
-        const prompts: Prompt[] = localStorage ? JSON.parse(localStorage.getItem('prompts') || '[]') : [];
+        const prompts: Prompt[] = localStorage ? getPrompts() : [];
         handleStartConversationWithPrompt(handleNewConversation, prompts, startPrompt);
 
     }

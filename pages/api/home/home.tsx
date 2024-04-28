@@ -23,8 +23,8 @@ import {
     saveConversationsDirect,
     updateConversation,
 } from '@/utils/app/conversation';
-import { saveFolders } from '@/utils/app/folders';
-import { savePrompts } from '@/utils/app/prompts';
+import { getFolders, saveFolders } from '@/utils/app/folders';
+import { getPrompts, savePrompts } from '@/utils/app/prompts';
 import { getSettings } from '@/utils/app/settings';
 import { getAccounts } from "@/services/accountService";
 
@@ -255,7 +255,7 @@ const Home = ({
     }, [chatEndpoint]);
 
     const handleSelectConversation = (conversation: Conversation) => { 
-        const prompts: Prompt[] = localStorage ? JSON.parse(localStorage.getItem('prompts') || '[]') : [];
+        const prompts: Prompt[] = localStorage ? getPrompts() : [];
         // add last used assistant if there was one used else should be removed
         if (conversation.messages && conversation.messages.length > 0) {
             const lastMessage: Message = conversation.messages[conversation.messages.length - 1];
@@ -306,7 +306,7 @@ const Home = ({
             type,
         };
 
-        const folders: FolderInterface[] = JSON.parse(localStorage.getItem('folders') || '[]');
+        const folders: FolderInterface[] = getFolders();
         const updatedFolders = [...folders, newFolder];
 
         dispatch({ field: 'folders', value: updatedFolders });
@@ -316,7 +316,7 @@ const Home = ({
     };
 
     const handleDeleteFolder = (folderId: string) => {
-        const folders: FolderInterface[] = JSON.parse(localStorage.getItem('folders') || '[]');
+        const folders: FolderInterface[] = getFolders();
 
         const updatedFolders = folders.filter((f) => f.id !== folderId);
         dispatch({ field: 'folders', value: updatedFolders });
@@ -396,7 +396,7 @@ const Home = ({
     };
 
     const handleUpdateFolder = (folderId: string, name: string) => {
-        const folders: FolderInterface[] = JSON.parse(localStorage.getItem('folders') || '[]');
+        const folders: FolderInterface[] = getFolders();
         const updatedFolders = folders.map((f) => {
             if (f.id === folderId) {
                 return {
@@ -430,7 +430,7 @@ const Home = ({
             year: 'numeric',
         });
 
-        const folders: FolderInterface[] = JSON.parse(localStorage.getItem('folders') || '[]');
+        const folders: FolderInterface[] = getFolders();
 
         // See if there is a folder with the same name as the date
         let folder = folders.find((f) => f.name === date);

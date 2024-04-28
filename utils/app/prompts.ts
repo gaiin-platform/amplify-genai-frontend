@@ -105,6 +105,10 @@ export const savePrompts = (prompts: Prompt[]) => {
   localStorage.setItem('prompts', JSON.stringify(prompts));
 };
 
+export const getPrompts = () => {
+  return JSON.parse(localStorage.getItem('prompts') || '[]');
+}
+
 export const parsePromptVariables = (content: string) => {
   const regex = /{{(.*?)}}/g;
   const foundVariables = [];
