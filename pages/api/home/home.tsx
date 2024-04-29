@@ -10,6 +10,7 @@ import { SettingsBar } from "@/components/Settings/SettingsBar";
 import useErrorService from '@/services/errorService';
 import useApiService from '@/services/useApiService';
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
+import { fetchDataDisclosureDecision } from '../datadisclosure/dataDisclosure';
 
 import {
     cleanConversationHistory,
@@ -679,6 +680,9 @@ const Home = ({
             dispatch({ field: 'folders', value: foldersParsed });
         }
 
+        if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
+            fetchDataDisclosureDecision(email!, dispatch);
+        }
 
         // Create a string for the current date like Oct-18-2021
         const dateName = new Date().toLocaleDateString('en-US', {
@@ -811,45 +815,9 @@ const Home = ({
         dispatch({ field: 'hasScrolledToBottom', value: isBottom });
     };
 
-    useEffect(() => {
-        if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
-            const fetchDataDisclosureDecision = async () => {
-                const { hasAcceptedDataDisclosure } = contextValue.state;
-                if (email && (!hasAcceptedDataDisclosure)) {
-                    try {
-                        const decision = await checkDataDisclosureDecision(email);
-                        const decisionBodyObject = JSON.parse(decision.item.body);
-                        const decisionValue = decisionBodyObject.acceptedDataDisclosure;
-                        // console.log("Decision: ", decisionValue);
-                        dispatch({ field: 'hasAcceptedDataDisclosure', value: decisionValue });
-                        if (!decisionValue) { // Fetch the latest data disclosure only if the user has not accepted it
-                            const latestDisclosure = await getLatestDataDisclosure();
-                            const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
-                            const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
-                            const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
-                            // console.log("Latest disclosure: ", latestDisclosureUrl);
-                            dispatch({ field: 'latestDataDisclosureUrlPDF', value: latestDisclosureUrlPDF });
-                            dispatch({ field: 'latestDataDisclosureHTML', value: latestDisclosureHTML });
-                        }
-                    } catch (error) {
-                        console.error('Failed to check data disclosure decision:', error);
-                        dispatch({ field: 'hasAcceptedDataDisclosure', value: false });
-                    }
-                }
-            };
-
-            fetchDataDisclosureDecision();
-        }
-    }, [email,
-        dispatch,
-        hasAcceptedDataDisclosure,
-        hasAcceptedDataDisclosure,
-        featureFlags.dataDisclosure]);
-
     if (session) {
-        if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
-            if (hasAcceptedDataDisclosure === null) {
-                // Decision is still being checked, render a loading indicator
+        if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') { // if feature flag is true and url is not localhost
+            if (hasAcceptedDataDisclosure === null) { // Decision is still being checked, render a loading indicator
                 return (
                     <main
                         className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
@@ -860,12 +828,9 @@ const Home = ({
                             <h1 className="mb-4 text-2xl font-bold">
                                 Loading...
                             </h1>
-
-                            {/*<progress className="w-64"/>*/}
                         </div>
                     </main>);
-            } else if (!hasAcceptedDataDisclosure) {
-                // User has not accepted the data disclosure agreement, do not render page content
+            } else if (!hasAcceptedDataDisclosure) { // User has not accepted the data disclosure agreement, present data disclosure page
                 return (
                     <main
                         className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}
