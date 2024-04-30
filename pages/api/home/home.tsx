@@ -825,7 +825,7 @@ const Home = ({
     };
 
     useEffect(() => {
-        if (featureFlags.dataDisclosure) {
+        if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
             const fetchDataDisclosureDecision = async () => {
                 const { hasAcceptedDataDisclosure } = contextValue.state;
                 if (email && (!hasAcceptedDataDisclosure)) {
@@ -860,7 +860,7 @@ const Home = ({
         featureFlags.dataDisclosure]);
 
     if (session) {
-        if (featureFlags.dataDisclosure) {
+        if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
             if (hasAcceptedDataDisclosure === null) { // Decision is still being checked, render a loading indicator
                 return (
                     <main
@@ -886,7 +886,7 @@ const Home = ({
                             </h1>
                             <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', marginBottom: '10px' }}>Download the data disclosure agreement</a>
                             <div
-                                className="data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black"
+                                className="data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black text-left"
                                 style={{
                                     overflowY: 'scroll',
                                     border: '1px solid #ccc',
