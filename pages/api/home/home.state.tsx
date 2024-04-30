@@ -122,7 +122,7 @@ export const initialState: HomeInitialState = {
     marketItemDelete: false,
     automation: false,
     codeInterpreterEnabled: true,
-    dataDisclosure: true,
+    dataDisclosure: false,
   },
   statsService: noOpStatsServices,
   defaultFunctionCallModel: null,
