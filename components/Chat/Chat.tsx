@@ -5,7 +5,8 @@ import {
     IconDownload,
     IconHome2,
     IconHome,
-    IconRocket
+    IconRocket,
+    IconArrowUp
 } from '@tabler/icons-react';
 import {
     MutableRefObject,
@@ -39,7 +40,7 @@ import {SystemPrompt} from './SystemPrompt';
 import {TemperatureSlider} from './Temperature';
 import {MemoizedChatMessage} from './MemoizedChatMessage';
 import {VariableModal} from "@/components/Chat/VariableModal";
-import {parseEditableVariables} from "@/utils/app/prompts";
+import {getPrompts, parseEditableVariables} from "@/utils/app/prompts";
 import {v4 as uuidv4} from 'uuid';
 import {fillInTemplate} from "@/utils/app/prompts";
 import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
@@ -55,6 +56,7 @@ import {MemoizedRemoteMessages} from "@/components/Chat/MemoizedRemoteMessages";
 import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
 import {useSendService} from "@/hooks/useChatSendService";
+import { DEFAULT_ASSISTANT } from '@/types/assistant';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -650,19 +652,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         useEffect(() => {
 
+            const prompts: Prompt[] = localStorage ? getPrompts() : [];
             if (selectedConversation
                 && selectedConversation.promptTemplate
                 && isAssistant(selectedConversation.promptTemplate)
                 && selectedConversation.messages.length == 0) {
-
+                    
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
-                    homeDispatch({field: 'selectedAssistant', value: selectedConversation.promptTemplate.data.assistant});
+                    const assistant = selectedConversation.promptTemplate.data.assistant;
+                    // make sure assistant hasnt been deleted 
+                    if (prompts.some(prompt => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
             else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
-
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
-                    homeDispatch({field: 'selectedAssistant', value: selectedConversation.promptTemplate.data.assistant});
+                    const assistant = selectedConversation.promptTemplate.data.assistant;
+                    // make sure assistant hasnt been deleted 
+                    if (prompts.some(prompt => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
@@ -674,8 +680,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 setVariables(workflowVariables);
                 setIsPromptTemplateDialogVisible(true);
-            }
-        }, [selectedConversation]);
+            } 
+        }, [selectedConversation, prompts]);
 
         useEffect(() => {
             const observer = new IntersectionObserver(
@@ -856,6 +862,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         includeFolders={false}
                                         selectedConversations={selectedConversation ? [selectedConversation] : []}
                                     />
+                                    
                                     {isDownloadDialogVisible && (
                                         <DownloadModal
                                             includeConversations={true}
@@ -892,6 +899,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         >
                                             <IconSettings size={18}/>
                                         </button>
+                                        
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={onClearAll}
@@ -963,8 +971,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     }
                                                 }
                                             }/>
-
-
                                         </div>
                                     </div>
 

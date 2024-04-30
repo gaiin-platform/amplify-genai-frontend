@@ -6,17 +6,17 @@ import { PluginKey } from '@/types/plugin';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
 import { Status } from "@/types/workflow";
-import {Workspace} from "@/types/workspace";
+import { Workspace } from "@/types/workspace";
 import { v4 as uuidv4 } from 'uuid';
-import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
-import {noOpStatsServices, StatsServices} from "@/types/stats";
-import {Account} from "@/types/accounts";
+import { Assistant, DEFAULT_ASSISTANT } from "@/types/assistant";
+import { noOpStatsServices, StatsServices } from "@/types/stats";
+import { Account } from "@/types/accounts";
 
 type HandleSend = (request: any) => void;
 
 export interface HomeInitialState {
-  defaultAccount: Account|undefined;
-  chatEndpoint: string|null;
+  defaultAccount: Account | undefined;
+  chatEndpoint: string | null;
   conversationStateId: string;
   apiKey: string;
   pluginKeys: PluginKey[];
@@ -28,7 +28,7 @@ export interface HomeInitialState {
   models: OpenAIModel[];
   folders: FolderInterface[];
   conversations: Conversation[];
-  workflows:WorkflowDefinition[];
+  workflows: WorkflowDefinition[];
   selectedConversation: Conversation | undefined;
   currentMessage: Message | undefined;
   prompts: Prompt[];
@@ -42,13 +42,18 @@ export interface HomeInitialState {
   defaultModelId: OpenAIModelID | undefined;
   serverSideApiKeyIsSet: boolean;
   serverSidePluginKeysSet: boolean,
-  featureFlags: {[key:string]:boolean},
+  featureFlags: { [key: string]: boolean },
   workspaceMetadata: Workspace;
   selectedAssistant: Assistant | null;
   page: string;
   defaultFunctionCallModel: string | null;
   statsService: StatsServices;
   currentRequestId: string | null;
+  latestDataDisclosureUrlPDF: string;
+  latestDataDisclosureHTML: string;
+  inputEmail: string;
+  hasAcceptedDataDisclosure: boolean | null;
+  hasScrolledToBottom: boolean;
 }
 
 export const initialState: HomeInitialState = {
@@ -66,7 +71,7 @@ export const initialState: HomeInitialState = {
   models: [],
   folders: [],
   conversations: [],
-  workflows:[
+  workflows: [
 
   ],
   workspaceMetadata: {
@@ -77,7 +82,7 @@ export const initialState: HomeInitialState = {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     lastAccessedAt: new Date().toISOString(),
-    tags:[],
+    tags: [],
     data: {},
   },
   selectedConversation: undefined,
@@ -99,25 +104,31 @@ export const initialState: HomeInitialState = {
     assistantsEnabled: true,
     ragEnabled: true,
     sourcesEnabled: true,
-    uploadDocuments:true,
-    assistantCreator:true,
-    assistants:true,
-    overrideUneditablePrompts:false,
+    uploadDocuments: true,
+    assistantCreator: true,
+    assistants: true,
+    overrideUneditablePrompts: false,
     overrideInvisiblePrompts: false,
-    extractDocumentsLocally:false,
-    enableMarket:false,
+    extractDocumentsLocally: false,
+    enableMarket: false,
     promptPrefixCreate: false,
     outputTransformerCreate: false,
-    workflowRun:true,
-    workflowCreate:false,
-    rootPromptCreate:true,
-    pluginsOnInput:false,
-    dataSourceSelectorOnInput:true,
-    followUpCreate:true,
-    marketItemDelete:false,
-    automation:false,
-    codeInterpreterEnabled:true
+    workflowRun: true,
+    workflowCreate: false,
+    rootPromptCreate: true,
+    pluginsOnInput: false,
+    dataSourceSelectorOnInput: true,
+    followUpCreate: true,
+    marketItemDelete: false,
+    automation: false,
+    codeInterpreterEnabled: true,
+    dataDisclosure: true,
   },
   statsService: noOpStatsServices,
   defaultFunctionCallModel: null,
+  latestDataDisclosureUrlPDF: '',
+  latestDataDisclosureHTML: '',
+  inputEmail: '',
+  hasAcceptedDataDisclosure: null,
+  hasScrolledToBottom: false,
 };

@@ -23,13 +23,14 @@ export enum OpenAIModelID {
   CLAUDE_2_1 = 'anthropic.claude-v2:1',
   CLAUDE_3_SONNET = 'anthropic.claude-3-sonnet-20240229-v1:0',
   CLAUDE_3_HAIKU = 'anthropic.claude-3-haiku-20240307-v1:0',
+  CLAUDE_3_OPUS = 'anthropic.claude-3-opus-20240229-v1:0',
   MISTRAL_7B = 'mistral.mistral-7b-instruct-v0:2',
   MIXTRAL_8X7B =  'mistral.mixtral-8x7b-instruct-v0:1',
   MISTRAL_LARGE = 'mistral.mistral-large-2402-v1:0'
 }
 
 // in case the `DEFAULT_MODEL` environment variable is not set or set to an unsupported model
-export const fallbackModelID = OpenAIModelID.GPT_3_5;
+export const fallbackModelID = OpenAIModelID.CLAUDE_3_HAIKU;
 
 export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
 
@@ -153,6 +154,17 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
     outputCost: 0.00125,
     inputCost: 0.00025,
     description: "Consider for high-velocity tasks with near-instant responsiveness and emphasis on security and robustness through minimized risk of harmful outputs.\nFeatures speeds 3 times faster than its Claude peer models while being the most economical choice.\nBest for simple queries, lightweight conversation, rapid analysis of large volumes of data, and handling of much longer prompts.\nTrained on information available through August 2023."
+   },
+   [OpenAIModelID.CLAUDE_3_OPUS]: {
+    id: OpenAIModelID.CLAUDE_3_OPUS,
+    name: 'Claude-3-Opus (bedrock)',
+    maxLength: 24000,
+    tokenLimit: 4000,
+    actualTokenLimit: 4096,
+    visible: false,
+    outputCost: 0.07500,
+    inputCost: 0.01500,
+    description: "Consider for your most demanding tasks that require a highly intelligent model.\nThis is Anthropic’s most sophisticated model to date.\nIt excels in task automation, interactive coding, complex data analysis, navigating intricate scenarios, brainstorming, hypothesis generation, and providing in-depth analysis of financial trends and market data.\nTrained on information available through August 2023."
    },
    [OpenAIModelID.MISTRAL_7B]: {
     id: OpenAIModelID.MISTRAL_7B,

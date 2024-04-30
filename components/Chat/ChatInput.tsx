@@ -21,7 +21,7 @@ import {
 } from 'react';
 
 import {useTranslation} from 'next-i18next';
-import {parsePromptVariables} from "@/utils/app/prompts";
+import {getPrompts, parsePromptVariables} from "@/utils/app/prompts";
 import {Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 import {Prompt} from '@/types/prompt';
@@ -71,7 +71,7 @@ export const ChatInput = ({
     const {
         state: {selectedConversation, selectedAssistant, messageIsStreaming, prompts, models, status, featureFlags, currentRequestId},
 
-        dispatch: homeDispatch,
+        dispatch: homeDispatch
     } = useContext(HomeContext);
 
     const [content, setContent] = useState<string>();
@@ -120,9 +120,40 @@ export const ChatInput = ({
         return documents?.every(isComplete);
     }
 
-    const onAssistantChange = (assistant: Assistant) => {
+const onAssistantChange = (assistant: Assistant) => {
+    homeDispatch({field: 'selectedAssistant', value: assistant});
+    setShowAssistantSelect(false);
 
-    }
+    if (selectedConversation) {
+        const tags = assistant.definition.data?.conversationTags || [];
+        if (tags) {
+            selectedConversation.tags = selectedConversation.tags ?
+                                    [...selectedConversation.tags, ...tags] :
+                                    [...tags];
+        }
+        //remove duplicates if any
+        selectedConversation.tags = Array.from(new Set(selectedConversation.tags));
+
+
+        const prompts: Prompt[] = localStorage ? getPrompts() : [];
+        let assistantPrompt: Prompt | undefined = undefined;
+        // Assistant creator is treated differently in the backend, so we need to treat it differently here
+        // User defined assistants are retrieved and applied to the conversation in the back end as a UserDefinedAssistant whereas assistant creator is not user defined per say
+        // when you click on assistant creator on the right hand side, it triggers handleStartConversationWithPrompt in utils/app/prompts.ts
+        // where it creates a new conversation with the root prompt being the assistant creator. This is what is missing here.
+        
+        if (assistant.id === 'ast/assistant-builder') {
+            assistantPrompt = prompts.find(prompt => prompt.id === assistant.id);
+            selectedConversation.prompt += "\n\nCURRENT ASSISTANT CREATOR CUSTOM INSTRUCTIONS: " + assistantPrompt?.content + "Address only the Current Assistant Creator custom Instructions.";
+        } else {  
+            assistantPrompt = prompts.find(prompt => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
+        }      
+         //I do not get the impression that promptTemplates are currently used nonetheless the bases are covered in case they ever come into play (as taken into account in handleStartConversationWithPrompt)
+        selectedConversation.promptTemplate = assistantPrompt ?? null;
+        
+    } 
+    
+}
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
@@ -363,10 +394,12 @@ export const ChatInput = ({
 
     useEffect(() => {
         if (prompts) {
+            const prompts: Prompt[] = getPrompts();
             const assistants = getAssistants(prompts);
             setAvailableAssistants(assistants);
+            
         }
-    }, [selectedConversation]);
+    }, [prompts]);
 
     useEffect(() => {
         if (promptListRef.current) {
@@ -382,6 +415,7 @@ export const ChatInput = ({
                 textareaRef?.current?.scrollHeight > 400 ? 'auto' : 'hidden'
             }`;
         }
+       
     }, [content]);
 
     useEffect(() => {
@@ -604,10 +638,8 @@ export const ChatInput = ({
                                             textareaRef.current?.focus();
                                         }
                                     }}
-                                    onAssistantChange={(a: Assistant) => {
-                                        homeDispatch({field: 'selectedAssistant', value: a});
-                                        setShowAssistantSelect(false);
-
+                                    onAssistantChange={(assistant: Assistant) => {
+                                        onAssistantChange(assistant);
                                         if (textareaRef && textareaRef.current) {
                                             textareaRef.current.focus();
                                         }

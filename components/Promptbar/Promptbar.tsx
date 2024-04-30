@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useCreateReducer } from '@/hooks/useCreateReducer';
 
-import { savePrompts } from '@/utils/app/prompts';
+import { getPrompts, savePrompts } from '@/utils/app/prompts';
 
 import { OpenAIModels } from '@/types/openai';
 import { Prompt } from '@/types/prompt';
@@ -23,9 +23,21 @@ import {MessageType} from "@/types/chat";
 import {PromptModal} from "@/components/Promptbar/components/PromptModal";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {FolderInterface} from "@/types/folder";
+import { IconPlus } from '@tabler/icons-react';
+import { AssistantModal } from '../Promptbar/components/AssistantModal';
+import { getAssistants, syncAssistants } from '@/utils/app/assistants';
+import { AssistantDefinition } from '@/types/assistant';
+import { getFolders } from '@/utils/app/folders';
+import { listAssistants } from '@/services/assistantService';
+import { useSession } from 'next-auth/react';
+
+
+
 
 const Promptbar = () => {
   const { t } = useTranslation('promptbar');
+  const { data: session } = useSession();
+
 
   const promptBarContextValue = useCreateReducer<PromptbarInitialState>({
     initialState,
@@ -36,7 +48,7 @@ const Promptbar = () => {
   const [sharedFolders, setSharedFolders] = useState<FolderInterface[]>([])
 
   const {
-    state: { prompts, defaultModelId, showPromptbar, statsService, featureFlags },
+    state: { prompts, defaultModelId, showPromptbar, statsService, featureFlags},
     dispatch: homeDispatch,
     handleCreateFolder,
   } = useContext(HomeContext);
@@ -61,10 +73,10 @@ const Promptbar = () => {
     setIsShareDialogVisible(true);
   }
 
-  const createPrompt = ():Prompt => {
+  const createPrompt = (name: string):Prompt => {
     return {
       id: uuidv4(),
-      name: `Prompt ${prompts.length + 1}`,
+      name: name,
       description: '',
       content: '',
       model: (defaultModelId)? OpenAIModels[defaultModelId] : OpenAIModels["gpt-3.5-turbo"],
@@ -74,7 +86,11 @@ const Promptbar = () => {
   }
 
   const [showModal, setShowModal] = useState(false);
-  const [prompt, setPrompt] = useState<Prompt>(createPrompt());
+  const [showAssistantModal, setAssistantShowModal] = useState(false);
+
+  const [prompt, setPrompt] = useState<Prompt>(createPrompt("Prompt 0"));
+  const [assistantPrompt, setAssistantPrompt] = useState<Prompt>(createPrompt("Assistant 0"));
+
 
   const handleAddPrompt = (prompt: Prompt) => {
     const updatedPrompts = [...prompts, prompt];
@@ -88,7 +104,7 @@ const Promptbar = () => {
   const handleCreatePrompt = () => {
     if (defaultModelId) {
 
-      const newPrompt = createPrompt();
+      const newPrompt = createPrompt(`Prompt ${prompts.length + 1}`);
 
       statsService.createPromptEvent(newPrompt);
 
@@ -103,13 +119,41 @@ const Promptbar = () => {
     }
   };
 
+  const handleCreateAssistant = () => {
+    if (defaultModelId) {
+      const promptName = `Assistant ${getAssistants(prompts).length + 1}`
+      const newPrompt = createPrompt(promptName);
+      newPrompt.folderId = "assistants";
+
+      const assistantDef: AssistantDefinition = {
+                            name: newPrompt.name,
+                            description: "",
+                            instructions: "",
+                            tools: [],
+                            tags: [],
+                            dataSources: [],
+                            version: 1,
+                            fileKeys: [],
+                            provider: 'Amplify'
+                          }
+
+      if (!newPrompt.data) newPrompt.data = {};  
+      if (!newPrompt.data.assistant) newPrompt.data.assistant = {};
+
+      newPrompt.data.assistant.definition = assistantDef;
+      setAssistantPrompt(newPrompt);
+      setAssistantShowModal(true);
+    }
+  }
+
   const handleDeletePrompt = (prompt: Prompt) => {
     statsService.deletePromptEvent(prompt);
-
+    const prompts: Prompt[] = getPrompts();
     const updatedPrompts = prompts.filter((p) => p.id !== prompt.id);
 
     homeDispatch({ field: 'prompts', value: updatedPrompts });
     savePrompts(updatedPrompts);
+
   };
 
   const handleCancelNewPrompt = () => {
@@ -133,7 +177,10 @@ const Promptbar = () => {
     homeDispatch({ field: 'prompts', value: updatedPrompts });
 
     savePrompts(updatedPrompts);
+    
   };
+
+  
 
   const handleDrop = (e: any) => {
     if (e.dataTransfer) {
@@ -152,7 +199,7 @@ const Promptbar = () => {
 
   useEffect(() => {
 
-    const visiblePrompts = (featureFlags.overrideInvisiblePrompts) ?
+    const visiblePrompts = (featureFlags.overrideInvisiblePrompts) ? 
         prompts : prompts.filter((prompt) => !prompt.data?.hidden);
 
     if (searchTerm) {
@@ -196,7 +243,7 @@ const Promptbar = () => {
           <Prompts
             prompts={filteredPrompts.filter((prompt) => !prompt.folderId)}
           />
-        }
+        } 
         folderComponent={<PromptFolders />}
         items={filteredPrompts}
         searchTerm={searchTerm}
@@ -210,6 +257,7 @@ const Promptbar = () => {
           handleCreateFolder(name || "New Folder", 'prompt')
         }}
         handleDrop={handleDrop}
+        handleCreateAssistantItem={handleCreateAssistant}
       />
 
       <ShareAnythingModal
@@ -233,6 +281,18 @@ const Promptbar = () => {
               onUpdatePrompt={handleUpdatePrompt}
           />
       )}
+      {showAssistantModal && (
+        <AssistantModal
+        assistant={assistantPrompt} 
+        onCancel={() => {setAssistantShowModal(false)}}
+        onSave={() => { setAssistantShowModal(false)}}
+        onUpdateAssistant={async (ast) => {
+              let assistants = await listAssistants(session?.user?.email || "");
+              if (assistants) syncAssistants(assistants, getFolders(), prompts, homeDispatch);
+            }}
+        />
+      )}
+      
     </PromptbarContext.Provider>
   );
 };

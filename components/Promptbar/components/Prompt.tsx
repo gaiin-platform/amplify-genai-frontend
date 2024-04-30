@@ -28,6 +28,7 @@ import { PromptModal } from './PromptModal';
 import { ShareModal } from './ShareModal';
 import { v4 as uuidv4 } from "uuid";
 import {
+    getPrompts,
     handleStartConversationWithPrompt,
 } from "@/utils/app/prompts";
 import { useSession } from "next-auth/react";
@@ -86,6 +87,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
 
         statsService.startConversationEvent(startPrompt);
+        const prompts: Prompt[] = localStorage ? getPrompts() : [];
         handleStartConversationWithPrompt(handleNewConversation, prompts, startPrompt);
 
     }
@@ -98,6 +100,11 @@ export const PromptComponent = ({ prompt }: Props) => {
     const handleDelete: MouseEventHandler<HTMLButtonElement> = async (e) => {
         e.stopPropagation();
 
+        if (isDeleting) {
+            handleDeletePrompt(prompt);
+            promptDispatch({ field: 'searchTerm', value: '' });
+        }
+        
         if(isAssistant(prompt)){
            const assistant = getAssistant(prompt);
            if(assistant && assistant.assistantId){
@@ -116,10 +123,6 @@ export const PromptComponent = ({ prompt }: Props) => {
                }
                setProgressMessage(null);
            }
-        }
-        if (isDeleting) {
-            handleDeletePrompt(prompt);
-            promptDispatch({ field: 'searchTerm', value: '' });
         }
 
         setIsDeleting(false);
