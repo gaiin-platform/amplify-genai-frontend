@@ -10,7 +10,6 @@ import { SettingsBar } from "@/components/Settings/SettingsBar";
 import useErrorService from '@/services/errorService';
 import useApiService from '@/services/useApiService';
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
-import { fetchDataDisclosureDecision } from '../datadisclosure/dataDisclosure';
 
 import {
     cleanConversationHistory,
@@ -255,22 +254,22 @@ const Home = ({
         if (chatEndpoint) dispatch({ field: 'chatEndpoint', value: chatEndpoint });
     }, [chatEndpoint]);
 
-    const handleSelectConversation = (conversation: Conversation) => { 
+    const handleSelectConversation = (conversation: Conversation) => {
         const prompts: Prompt[] = localStorage ? getPrompts() : [];
         // add last used assistant if there was one used else should be removed
         if (conversation.messages && conversation.messages.length > 0) {
             const lastMessage: Message = conversation.messages[conversation.messages.length - 1];
-            
+
             if (lastMessage.data && lastMessage.data.state && lastMessage.data.state.currentAssistant) {
                 const astName = lastMessage.data.state.currentAssistant;
-                const assistantPrompt = prompts.find(prompt => prompt.name === astName); 
+                const assistantPrompt = prompts.find(prompt => prompt.name === astName);
                 const assistant = assistantPrompt?.data?.assistant ? assistantPrompt.data.assistant : DEFAULT_ASSISTANT;
-                    
-                dispatch({field: 'selectedAssistant', value: assistant});
+
+                dispatch({ field: 'selectedAssistant', value: assistant });
             }
-        } 
+        }
         else {
-            dispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT}); 
+            dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
         }
 
 
@@ -351,19 +350,19 @@ const Home = ({
 
         } else {
             defaultModelId &&
-            dispatch({
-                field: 'selectedConversation',
-                value: {
-                    id: uuidv4(),
-                    name: t('New Conversation'),
-                    messages: [],
-                    model: OpenAIModels[defaultModelId],
-                    prompt: DEFAULT_SYSTEM_PROMPT,
-                    temperature: DEFAULT_TEMPERATURE,
-                    folderId: null,
-                },
-            });
-      
+                dispatch({
+                    field: 'selectedConversation',
+                    value: {
+                        id: uuidv4(),
+                        name: t('New Conversation'),
+                        messages: [],
+                        model: OpenAIModels[defaultModelId],
+                        prompt: DEFAULT_SYSTEM_PROMPT,
+                        temperature: DEFAULT_TEMPERATURE,
+                        folderId: null,
+                    },
+                });
+
             localStorage.removeItem('selectedConversation');
         }
 
@@ -680,9 +679,6 @@ const Home = ({
             dispatch({ field: 'folders', value: foldersParsed });
         }
 
-        if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
-            fetchDataDisclosureDecision(email!, dispatch);
-        }
 
         // Create a string for the current date like Oct-18-2021
         const dateName = new Date().toLocaleDateString('en-US', {
@@ -695,13 +691,13 @@ const Home = ({
         //localStorage.setItem('conversationHistory', '[]')
         const conversationHistory = localStorage.getItem('conversationHistory');
         const conversations: Conversation[] = JSON.parse(conversationHistory ? conversationHistory : '[]');
-        const lastConversation: Conversation | null = (conversations.length > 0)  ? conversations[conversations.length - 1] : null;
-        const lastConversationFolder: FolderInterface | null = lastConversation && foldersParsed ?  foldersParsed.find((f: FolderInterface) => f.id ===  lastConversation.folderId) : null;
-            
-        let selectedConversation: Conversation | null = lastConversation ? {...lastConversation} : null;
-        
+        const lastConversation: Conversation | null = (conversations.length > 0) ? conversations[conversations.length - 1] : null;
+        const lastConversationFolder: FolderInterface | null = lastConversation && foldersParsed ? foldersParsed.find((f: FolderInterface) => f.id === lastConversation.folderId) : null;
+
+        let selectedConversation: Conversation | null = lastConversation ? { ...lastConversation } : null;
+
         if (!lastConversation || lastConversation.name !== 'New Conversation' ||
-           (lastConversationFolder && lastConversationFolder.name !== dateName)) {
+            (lastConversationFolder && lastConversationFolder.name !== dateName)) {
 
             // See if there is a folder with the same name as the date
             let folder = foldersParsed.find((f: FolderInterface) => f.name === dateName);
@@ -811,12 +807,60 @@ const Home = ({
 
     const handleScroll = (event: any) => {
         const scrollableElement = event.currentTarget;
-        const isBottom = scrollableElement.scrollHeight - scrollableElement.scrollTop <= scrollableElement.clientHeight + 1;
-        dispatch({ field: 'hasScrolledToBottom', value: isBottom });
+        const hasScrollableContent = scrollableElement.scrollHeight > scrollableElement.clientHeight;
+        const isAtBottom = scrollableElement.scrollHeight - scrollableElement.scrollTop === scrollableElement.clientHeight;
+        if (hasScrollableContent && isAtBottom) {
+            dispatch({ field: 'hasScrolledToBottom', value: true });
+        } else if (!hasScrollableContent) {
+            dispatch({ field: 'hasScrolledToBottom', value: true });
+        }
     };
 
+    const checkScrollableContent = () => {
+        const scrollableElement = document.querySelector('.data-disclosure');
+        if (scrollableElement) {
+            const hasScrollableContent = scrollableElement.scrollHeight > scrollableElement.clientHeight;
+            dispatch({ field: 'hasScrolledToBottom', value: !hasScrollableContent });
+        }
+    };
+
+    useEffect(() => {
+        if (featureFlags.dataDisclosure) {
+            const fetchDataDisclosureDecision = async () => {
+                const { hasAcceptedDataDisclosure } = contextValue.state;
+                if (email && (!hasAcceptedDataDisclosure)) {
+                    try {
+                        const decision = await checkDataDisclosureDecision(email);
+                        const decisionBodyObject = JSON.parse(decision.item.body);
+                        const decisionValue = decisionBodyObject.acceptedDataDisclosure;
+                        // console.log("Decision: ", decisionValue);
+                        dispatch({ field: 'hasAcceptedDataDisclosure', value: decisionValue });
+                        if (!decisionValue) { // Fetch the latest data disclosure only if the user has not accepted it
+                            const latestDisclosure = await getLatestDataDisclosure();
+                            const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
+                            const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
+                            const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
+                            dispatch({ field: 'latestDataDisclosureUrlPDF', value: latestDisclosureUrlPDF });
+                            dispatch({ field: 'latestDataDisclosureHTML', value: latestDisclosureHTML });
+
+                            checkScrollableContent();
+                        }
+                    } catch (error) {
+                        console.error('Failed to check data disclosure decision:', error);
+                        dispatch({ field: 'hasAcceptedDataDisclosure', value: false });
+                    }
+                }
+            };
+
+            fetchDataDisclosureDecision();
+        }
+    }, [email,
+        dispatch,
+        hasAcceptedDataDisclosure,
+        featureFlags.dataDisclosure]);
+
     if (session) {
-        if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') { // if feature flag is true and url is not localhost
+        if (featureFlags.dataDisclosure) {
             if (hasAcceptedDataDisclosure === null) { // Decision is still being checked, render a loading indicator
                 return (
                     <main
@@ -830,7 +874,7 @@ const Home = ({
                             </h1>
                         </div>
                     </main>);
-            } else if (!hasAcceptedDataDisclosure) { // User has not accepted the data disclosure agreement, present data disclosure page
+            } else if (!hasAcceptedDataDisclosure) { // User has not accepted the data disclosure agreement, do not render page content
                 return (
                     <main
                         className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}
@@ -840,9 +884,9 @@ const Home = ({
                             <h1 className="text-2xl font-bold dark:text-white">
                                 Amplify Data Disclosure Agreement
                             </h1>
-                            <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '10px' }}>Download the data disclosure agreement</a>
+                            <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', marginBottom: '10px' }}>Download the data disclosure agreement</a>
                             <div
-                                className="dark:bg-[#343541] bg-gray-50 dark:text-white text-black"
+                                className="data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black"
                                 style={{
                                     overflowY: 'scroll',
                                     border: '1px solid #ccc',
