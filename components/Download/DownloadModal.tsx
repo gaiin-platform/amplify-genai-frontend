@@ -92,7 +92,8 @@ export const DownloadModal: FC<DownloadModalProps> = (
         "integral.pptx",
         "ion.pptx",
         "parcel.pptx",
-        "vapor.pptx"
+        "vapor.pptx",
+        "vusn.pptx",
     ];
 
     const wordTemplateOptions = [
