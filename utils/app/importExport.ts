@@ -91,7 +91,7 @@ const prepAnyAssistantPrompts = (prompts: Prompt[]) => {
       if (isAssistant(prompt) && prompt.data) {
         let updatedPrompt = { ...prompt};
         updatedPrompt.data = { ...prompt.data, access: { read: true, write: false },
-                              noCopy: true, noEdit: true, noShare: true };
+                              noCopy: true, noEdit: true, noShare: true, noDelete: true};
         return updatedPrompt;
       }
       return prompt;

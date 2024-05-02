@@ -199,6 +199,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                     prompt.data.noCopy = true;
                     prompt.data.noEdit = true;
                     prompt.data.noShare = true;
+                    prompt.data.noDelete = true;
                 } 
                 return promptsToSetFolderToNull.some(p => p.id === prompt.id) ? {...prompt, folderId: null} : prompt;
                 
