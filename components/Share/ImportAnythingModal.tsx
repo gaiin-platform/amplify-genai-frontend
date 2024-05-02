@@ -3,13 +3,13 @@ import HomeContext from "@/pages/api/home/home.context";
 import {Conversation} from "@/types/chat";
 import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";
-import {createExport, exportData, importData} from "@/utils/app/importExport";
-import {loadSharedItem, shareItems} from "@/services/shareService";
+import {createExport, importData} from "@/utils/app/importExport";
+import {loadSharedItem} from "@/services/shareService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
-import Folder from "@/components/Folder";
 import {ExportFormatV4, LatestExportFormat} from "@/types/export";
 import {useSession} from "next-auth/react";
+import { isAssistant } from "@/utils/app/assistants";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -193,14 +193,23 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
             }),
             exportData.folders,
             exportData.prompts.map(prompt => {
+                // already prepped before sending out, but backup prep
+                if (isAssistant(prompt) && prompt?.data?.access) {
+                    prompt.data.access = {read: true, write: false};
+                    prompt.data.noCopy = true;
+                    prompt.data.noEdit = true;
+                    prompt.data.noShare = true;
+                } 
                 return promptsToSetFolderToNull.some(p => p.id === prompt.id) ? {...prompt, folderId: null} : prompt;
+                
             }));
+
 
         console.log("Cleaned up export: ", cleanedUpExport);
 
         const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport);
 
-        console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);
+        // console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);
 
         homeDispatch({field: 'conversations', value: history});
 

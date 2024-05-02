@@ -4,8 +4,6 @@ import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
-import { syncAssistants } from "@/utils/app/assistants";
-import { listAssistants } from "@/services/assistantService";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
 import useErrorService from '@/services/errorService';
 import useApiService from '@/services/useApiService';
@@ -70,6 +68,8 @@ import Loader from "@/components/Loader/Loader";
 import { useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import { listAssistants } from '@/services/assistantService';
+import { syncAssistants } from '@/utils/app/assistants';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -103,6 +103,10 @@ const Home = ({
     const { getModels } = useApiService();
     const { getModelsError } = useErrorService();
     const [initialRender, setInitialRender] = useState<boolean>(true);
+    const [loadedAssistants, setloadedAssistants] = useState<boolean>(false);
+    const [loadedBasePrompts, setloadedBasePrompts] = useState<boolean>(false);
+
+
 
     const { data: session, status } = useSession();
     //const {user, error: userError, isLoading} = useUser();
@@ -172,9 +176,16 @@ const Home = ({
 
                     dispatch({ field: 'conversations', value: history });
                     dispatch({ field: 'folders', value: folders });
-                    await fetchAssistants(folders, prompts);
+                    setloadedBasePrompts(true);
+
+                    if (!loadedAssistants) await fetchAssistants(folders, prompts);
+                    
                 } else {
                     console.log("Failed to import base prompts.");
+                    await fetchAssistants(getFolders(), getPrompts());
+                    // so when baseprompts do load, we can sync them up 
+                    setloadedAssistants(false);
+
                 }
             } catch (e) {
                 console.log("Failed to import base prompts.", e);
@@ -188,15 +199,16 @@ const Home = ({
 
                 if (assistants) {
                     syncAssistants(assistants, folders, prompts, dispatch);
-
+                    setloadedAssistants(true);
                 }
             }
         }
 
-        if (session?.user) {
-            fetchPrompts();
+        if (session?.user ) {
+            if (!loadedBasePrompts) fetchPrompts();
         }
-    }, [session]); //prompts
+    }, [session]);
+
 
     // This is where tabs will be sync'd
     useEffect(() => {

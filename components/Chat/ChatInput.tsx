@@ -345,18 +345,19 @@ const onAssistantChange = (assistant: Assistant) => {
         } else if (e.key === 'Enter' && !isTyping && !isMobile() && !e.shiftKey) {
             e.preventDefault();
             handleSend();
-        } else if (e.key === '/' && e.metaKey) {
-            e.preventDefault();
-            setShowPluginSelect(!showPluginSelect);
-        }
+        } 
+        // else if (e.key === '/' && e.metaKey) {
+        //     e.preventDefault();
+        //     setShowPluginSelect(!showPluginSelect);
+        // }
     };
 
     const updatePromptListVisibility = useCallback((text: string) => {
         const match = text.match(/\/\w*$/);
 
         if (match) {
-            setShowPromptList(true);
-            setPromptInputValue(match[0].slice(1));
+            // setShowPromptList(true);
+            // setPromptInputValue(match[0].slice(1));
         } else {
             setShowPromptList(false);
             setPromptInputValue('');
@@ -709,7 +710,8 @@ const onAssistantChange = (assistant: Assistant) => {
                                 }`,
                             }}
                             placeholder={
-                                t('Type a message or type "/" to select a prompt...') || ''
+                                // t('Type a message or type "/" to select a prompt...') || ''
+                                "Type a message to chat with Amplify..."
                             }
                             value={content}
                             rows={1}

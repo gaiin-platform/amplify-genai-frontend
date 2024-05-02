@@ -286,10 +286,12 @@ const Promptbar = () => {
         assistant={assistantPrompt} 
         onCancel={() => {setAssistantShowModal(false)}}
         onSave={() => { setAssistantShowModal(false)}}
-        onUpdateAssistant={async (ast) => {
-              let assistants = await listAssistants(session?.user?.email || "");
-              if (assistants) syncAssistants(assistants, getFolders(), prompts, homeDispatch);
+        onUpdateAssistant={async (assistantPrompt) => {
+              const updatedPrompts = [...getPrompts(), assistantPrompt]
+              homeDispatch({ field: 'prompts', value: updatedPrompts });
+              savePrompts(updatedPrompts);
             }}
+        loadingMessage='Creating assistant...'
         />
       )}
       

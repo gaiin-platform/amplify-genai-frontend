@@ -11,6 +11,7 @@ import { FolderInterface } from '@/types/folder';
 import { Prompt } from '@/types/prompt';
 
 import { cleanConversationHistory } from './clean';
+import { isAssistant } from './assistants';
 
 export function isExportFormatV1(obj: any): obj is ExportFormatV1 {
   return Array.isArray(obj);
@@ -73,13 +74,29 @@ function currentDate() {
 }
 
 export function createExport(history: Conversation[], folders: FolderInterface[], prompts: Prompt[]) {
+  
   const data = {
     version: 4,
     history: history || [],
     folders: folders || [],
-    prompts: prompts || [],
+    prompts: prompts ? prepAnyAssistantPrompts(prompts) : [],
+
   } as LatestExportFormat;
   return data;
+}
+
+const prepAnyAssistantPrompts = (prompts: Prompt[]) => {
+  return prompts.map((prompt: Prompt) => {
+
+      if (isAssistant(prompt) && prompt.data) {
+        let updatedPrompt = { ...prompt};
+        updatedPrompt.data = { ...prompt.data, access: { read: true, write: false },
+                              noCopy: true, noEdit: true, noShare: true };
+        return updatedPrompt;
+      }
+      return prompt;
+    })
+
 }
 
 export const exportData = () => {
