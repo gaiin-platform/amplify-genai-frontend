@@ -105,6 +105,8 @@ const Home = ({
     const [initialRender, setInitialRender] = useState<boolean>(true);
     const [loadedAssistants, setloadedAssistants] = useState<boolean>(false);
     const [loadedBasePrompts, setloadedBasePrompts] = useState<boolean>(false);
+    const [loadedAccounts, setloadedAccounts] = useState<boolean>(false);
+
 
 
 
@@ -160,9 +162,10 @@ const Home = ({
                     if (defaultAccount) {
                         dispatch({ field: 'defaultAccount', value: defaultAccount });
                     }
+                    setloadedAccounts(true);
                 }
             };
-            fetchAccounts();
+            if (!loadedAccounts) fetchAccounts();
         }
 
     }, [session]);
