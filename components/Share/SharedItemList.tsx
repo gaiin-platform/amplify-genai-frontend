@@ -3,15 +3,10 @@ import {ExportFormatV4, ShareItem} from "@/types/export";
 import {
     IconCaretDown,
     IconCaretRight,
-    IconHexagonLetterM,
     IconJetpack,
-    IconPlanet,
     IconRocket,
-    IconCheck,
-    IconPencil,
-    IconTrash,
     IconShare,
-    IconX, IconPlus,
+    IconRefresh
 } from '@tabler/icons-react';
 import {getSharedItems, loadSharedItem} from "@/services/shareService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -22,6 +17,7 @@ import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
 import HomeContext from "@/pages/api/home/home.context";
 import {ShareAnythingToMarketModal} from "@/components/Share/ShareAnythingToMarketModal";
 import {useSession} from "next-auth/react";
+import { fetchData } from 'next-auth/client/_utils';
 
 type SharedItemsListProps = {};
 
@@ -64,36 +60,33 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
 
     useEffect(() => {
         const name = user?.email;
-
-        statsService.openSharedItemsEvent();
-
-        const fetchData = async () => {
-            try {
-                if (name) {
-                    try {
-                        const result = await getSharedItems(name);
-
-                        if (result.ok) {
-                            const items = await result.json();
-
-                            console.log("items", items);
-
-                            const grouped = groupBy('sharedBy', items.item);
-                            setGroupedItems(grouped);
-                        }
-
-                    } finally {
-                        setIsLoading(false);
-                    }
-                }
-            } catch (e) {
-               alert("Unable to fetch your shared items. Please check your Internet connection and try again later.")
-            }
-        };
-
-        fetchData();
-
+        if (name) fetchData(name);
     }, [user]);
+
+    const fetchData = async (name: string) => {
+        setIsLoading(true);
+        statsService.openSharedItemsEvent();
+        try {
+            if (name) {
+                try {
+                    const result = await getSharedItems(name);
+
+                    if (result.ok) {
+                        const items = await result.json();
+                        const grouped = groupBy('sharedBy', items.item);
+                        setGroupedItems(grouped);
+                    }
+
+                } finally {
+                    setIsLoading(false);
+                }
+            }
+        } catch (e) {
+           alert("Unable to fetch your shared items. Please check your Internet connection and try again later.")
+        }
+    };
+
+
 
     const handleFetchShare = async (item: ShareItem) => {
         setSelectedKey(item.key);
@@ -166,9 +159,9 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
             )}
 
             <div className="flex flex-row items-center pt-3 pl-3 pr-3">
-                <div className="flex items-center">
+                <div className="flex items-center space-x-2">
                     <button
-                        className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
+                        className="text-sidebar flex flex-grow flex-shrink flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
                         onClick={() => {
                             setIsModalOpen(true);
                         }}
@@ -176,6 +169,15 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                         <IconShare size={16}/>
                         Share with Other Users
                     </button>
+                    <button
+                    title='Refresh'
+                    className="text-sidebar flex flex-grow flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
+                    onClick={async () => {
+                       if (user?.email) await fetchData(user?.email)} 
+                    }
+                >
+                    <IconRefresh size={16}/>
+                </button>
                 </div>
                 {featureFlags.enableMarket && (
                 <div className="flex items-center pl-2">
@@ -195,14 +197,14 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
 
             <h3 className="text-lg border-b p-3 ml-3 mr-3">Shared with You</h3>
 
-            {isLoading && (
+            {isLoading ? (
                 <div className="flex flex-row ml-6 mt-6">
                     <LoadingIcon/>
                     <span className="text-l font-bold ml-2">Loading...</span>
                 </div>
-            )}
+            ) :
 
-            {Object.entries(groupedItems).map(([sharedBy, items]) => (
+            (Object.entries(groupedItems).map(([sharedBy, items]) => (
                 <div key={sharedBy} className="sharedBy-group ml-3 mt-6 p-2">
                     <ExpansionComponent
                         title={sharedBy}
@@ -231,7 +233,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                         ))}
                     />
                 </div>
-            ))}
+            )))}
         </div>
     );
 };
