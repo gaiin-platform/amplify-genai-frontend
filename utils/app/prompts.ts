@@ -71,6 +71,8 @@ export const handleStartConversationWithPrompt = (handleNewConversation:any, pro
   if (prompt.type === MessageType.PREFIX_PROMPT) {
     tags = [...tags, ...(prompt.data?.requiredTags || [])];
   }
+  // remove duplicates 
+  tags = Array.from(new Set(tags));
 
   handleNewConversation(
       {

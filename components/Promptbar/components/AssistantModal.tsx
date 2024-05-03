@@ -19,10 +19,11 @@ interface Props {
     onSave: () => void;
     onCancel: () => void;
     onUpdateAssistant: (prompt: Prompt) => void;
+    loadingMessage: string;
 }
 
 
-export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant}) => {
+export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage}) => {
     const {t} = useTranslation('promptbar');
     const {
         state: {featureFlags, prompts},
@@ -100,12 +101,21 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             }
         });
         newAssistant.tools = newAssistant.tools || [];
-        newAssistant.data.conversationTags = conversationTags.split(",").map((x: string) => x.trim());
+        newAssistant.data.conversationTags = conversationTags ? conversationTags.split(",").map((x: string) => x.trim()) : [];
+        
+        //if we were able to get to this assistant modal (only comes up with + assistant and edit buttons)
+        //then they must have had read/write access.
+        newAssistant.data.access = {read: true, write: true}; 
 
-        await createAssistant(newAssistant, null);
+        const {id, assistantId, provider} = await createAssistant(newAssistant, null);
 
+        newAssistant.id = id;
+        newAssistant.provider = provider;
+        newAssistant.assistantId = assistantId;
 
         const aPrompt = createAssistantPrompt(newAssistant);
+
+
         onUpdateAssistant(aPrompt);
 
         setIsLoading(false);
@@ -114,7 +124,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     }
 
     if(isLoading){
-        return <LoadingDialog open={isLoading} message={"Updating assistant..."}/>
+        return <LoadingDialog open={isLoading} message={loadingMessage}/>
     }
 
 
