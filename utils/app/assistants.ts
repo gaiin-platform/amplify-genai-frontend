@@ -4,6 +4,7 @@ import {Message, MessageType} from "@/types/chat";
 import {FolderInterface} from "@/types/folder";
 import {ReservedTags} from "@/types/tags";
 import { saveFolders } from '@/utils/app/folders';
+import { savePrompts } from "./prompts";
 
 
 export const isAssistant = (prompt: Prompt) => {
@@ -139,7 +140,7 @@ export const syncAssistants = (assistants: AssistantDefinition[], folders: Folde
     // we want the updated assistant versions so we filter and old versions from our original prompts list 
     const updatedPrompts: Prompt[] = assistantNames.size > 0 ? prompts.filter(prompt => !assistantNames.has(prompt.name)) : prompts;
 
-    localStorage.setItem('prompts', JSON.stringify([...updatedPrompts, ...assistantPrompts]))
+    savePrompts([...updatedPrompts, ...assistantPrompts]);
     dispatch({field: 'prompts', value: [...updatedPrompts, ...assistantPrompts]}); 
    
 }

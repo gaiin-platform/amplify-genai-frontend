@@ -28,6 +28,7 @@ import { PromptModal } from './PromptModal';
 import { ShareModal } from './ShareModal';
 import { v4 as uuidv4 } from "uuid";
 import {
+    getPrompts,
     handleStartConversationWithPrompt,
 } from "@/utils/app/prompts";
 import { useSession } from "next-auth/react";
@@ -35,6 +36,8 @@ import {getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AssistantModal} from "@/components/Promptbar/components/AssistantModal";
 import {deleteAssistant} from "@/services/assistantService";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import { ReservedTags } from '@/types/tags';
+import { DEFAULT_ASSISTANT } from '@/types/assistant';
 
 interface Props {
     prompt: Prompt;
@@ -50,7 +53,7 @@ export const PromptComponent = ({ prompt }: Props) => {
     } = useContext(PromptbarContext);
 
     const {
-        state: { prompts, defaultModelId, showPromptbar, apiKey, statsService },
+        state: { prompts, defaultModelId, showPromptbar, apiKey, statsService, selectedAssistant},
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -65,10 +68,14 @@ export const PromptComponent = ({ prompt }: Props) => {
         setShowShareModal(false);
     };
 
-    const canDelete = (!prompt.data || !prompt.data.noDelete)
-    const canEdit = (!prompt.data || !prompt.data.noEdit)
-    const canCopy = (!prompt.data || !prompt.data.noCopy)
-    const canShare = (!prompt.data || !prompt.data.noShare)
+    const isReserved = (isAssistant(prompt) && prompt?.data?.assistant?.definition?.tags?.includes(ReservedTags.SYSTEM));
+    
+    const canDelete = (!prompt.data || !prompt.data.noDelete);
+    const canEdit = (!prompt.data || !prompt.data.noEdit);
+    const canCopy = (!prompt.data || !prompt.data.noCopy);
+    const canShare = (!prompt.data || !prompt.data.noShare);
+
+
 
     const [progressMessage, setProgressMessage] = useState<string|null>(null);
     const [showModal, setShowModal] = useState<boolean>(false);
@@ -86,7 +93,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
 
         statsService.startConversationEvent(startPrompt);
-        const prompts: Prompt[] = localStorage ? JSON.parse(localStorage.getItem('prompts') || '[]') : [];
+        const prompts: Prompt[] = localStorage ? getPrompts() : [];
         handleStartConversationWithPrompt(handleNewConversation, prompts, startPrompt);
 
     }
@@ -103,8 +110,10 @@ export const PromptComponent = ({ prompt }: Props) => {
             handleDeletePrompt(prompt);
             promptDispatch({ field: 'searchTerm', value: '' });
         }
+
+        if (selectedAssistant && prompt?.data?.assistant?.definition.assistantId === selectedAssistant.definition.assistantId) homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT }); 
         
-        if(isAssistant(prompt)){
+        if(isAssistant(prompt) && canDelete ){
            const assistant = getAssistant(prompt);
            if(assistant && assistant.assistantId){
                setProgressMessage("Deleting assistant...");
@@ -247,7 +256,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                             </SidebarActionButton>
                         )}
 
-                        {!isDeleting && !isRenaming && canDelete && (
+                        {!isDeleting && !isRenaming && !isReserved && (
                             <SidebarActionButton handleClick={handleOpenDeleteModal} title="Delete Template">
                                 <IconTrash size={18} />
                             </SidebarActionButton>
@@ -285,6 +294,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                     onCancel={() => setShowModal(false)}
                     onSave={() => setShowModal(false)}
                     onUpdateAssistant={handleUpdate}
+                    loadingMessage="Updating assistant..."
                 />
             )}
 

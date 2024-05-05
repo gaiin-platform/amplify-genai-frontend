@@ -4,8 +4,6 @@ import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
-import { syncAssistants } from "@/utils/app/assistants";
-import { listAssistants } from "@/services/assistantService";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
 import useErrorService from '@/services/errorService';
 import useApiService from '@/services/useApiService';
@@ -23,8 +21,8 @@ import {
     saveConversationsDirect,
     updateConversation,
 } from '@/utils/app/conversation';
-import { saveFolders } from '@/utils/app/folders';
-import { savePrompts } from '@/utils/app/prompts';
+import { getFolders, saveFolders } from '@/utils/app/folders';
+import { getPrompts, savePrompts } from '@/utils/app/prompts';
 import { getSettings } from '@/utils/app/settings';
 import { getAccounts } from "@/services/accountService";
 
@@ -70,6 +68,8 @@ import Loader from "@/components/Loader/Loader";
 import { useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import { listAssistants } from '@/services/assistantService';
+import { syncAssistants } from '@/utils/app/assistants';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -103,6 +103,12 @@ const Home = ({
     const { getModels } = useApiService();
     const { getModelsError } = useErrorService();
     const [initialRender, setInitialRender] = useState<boolean>(true);
+    const [loadedAssistants, setloadedAssistants] = useState<boolean>(false);
+    const [loadedBasePrompts, setloadedBasePrompts] = useState<boolean>(false);
+    const [loadedAccounts, setloadedAccounts] = useState<boolean>(false);
+
+
+
 
     const { data: session, status } = useSession();
     //const {user, error: userError, isLoading} = useUser();
@@ -156,9 +162,10 @@ const Home = ({
                     if (defaultAccount) {
                         dispatch({ field: 'defaultAccount', value: defaultAccount });
                     }
+                    setloadedAccounts(true);
                 }
             };
-            fetchAccounts();
+            if (!loadedAccounts) fetchAccounts();
         }
 
     }, [session]);
@@ -172,9 +179,16 @@ const Home = ({
 
                     dispatch({ field: 'conversations', value: history });
                     dispatch({ field: 'folders', value: folders });
-                    await fetchAssistants(folders, prompts);
+                    setloadedBasePrompts(true);
+
+                    if (!loadedAssistants) await fetchAssistants(folders, prompts);
+                    
                 } else {
                     console.log("Failed to import base prompts.");
+                    await fetchAssistants(getFolders(), getPrompts());
+                    // so when baseprompts do load, we can sync them up 
+                    setloadedAssistants(false);
+
                 }
             } catch (e) {
                 console.log("Failed to import base prompts.", e);
@@ -188,15 +202,16 @@ const Home = ({
 
                 if (assistants) {
                     syncAssistants(assistants, folders, prompts, dispatch);
-
+                    setloadedAssistants(true);
                 }
             }
         }
 
-        if (session?.user) {
-            fetchPrompts();
+        if (session?.user ) {
+            if (!loadedBasePrompts) fetchPrompts();
         }
-    }, [session]); //prompts
+    }, [session]);
+
 
     // This is where tabs will be sync'd
     useEffect(() => {
@@ -254,22 +269,22 @@ const Home = ({
         if (chatEndpoint) dispatch({ field: 'chatEndpoint', value: chatEndpoint });
     }, [chatEndpoint]);
 
-    const handleSelectConversation = (conversation: Conversation) => { 
-        const prompts: Prompt[] = localStorage ? JSON.parse(localStorage.getItem('prompts') || '[]') : [];
+    const handleSelectConversation = (conversation: Conversation) => {
+        const prompts: Prompt[] = localStorage ? getPrompts() : [];
         // add last used assistant if there was one used else should be removed
         if (conversation.messages && conversation.messages.length > 0) {
             const lastMessage: Message = conversation.messages[conversation.messages.length - 1];
-            
+
             if (lastMessage.data && lastMessage.data.state && lastMessage.data.state.currentAssistant) {
                 const astName = lastMessage.data.state.currentAssistant;
-                const assistantPrompt = prompts.find(prompt => prompt.name === astName); 
+                const assistantPrompt = prompts.find(prompt => prompt.name === astName);
                 const assistant = assistantPrompt?.data?.assistant ? assistantPrompt.data.assistant : DEFAULT_ASSISTANT;
-                    
-                dispatch({field: 'selectedAssistant', value: assistant});
+
+                dispatch({ field: 'selectedAssistant', value: assistant });
             }
-        } 
+        }
         else {
-            dispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT}); 
+            dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
         }
 
 
@@ -306,7 +321,7 @@ const Home = ({
             type,
         };
 
-        const folders: FolderInterface[] = JSON.parse(localStorage.getItem('folders') || '[]');
+        const folders: FolderInterface[] = getFolders();
         const updatedFolders = [...folders, newFolder];
 
         dispatch({ field: 'folders', value: updatedFolders });
@@ -316,7 +331,7 @@ const Home = ({
     };
 
     const handleDeleteFolder = (folderId: string) => {
-        const folders: FolderInterface[] = JSON.parse(localStorage.getItem('folders') || '[]');
+        const folders: FolderInterface[] = getFolders();
 
         const updatedFolders = folders.filter((f) => f.id !== folderId);
         dispatch({ field: 'folders', value: updatedFolders });
@@ -350,19 +365,19 @@ const Home = ({
 
         } else {
             defaultModelId &&
-            dispatch({
-                field: 'selectedConversation',
-                value: {
-                    id: uuidv4(),
-                    name: t('New Conversation'),
-                    messages: [],
-                    model: OpenAIModels[defaultModelId],
-                    prompt: DEFAULT_SYSTEM_PROMPT,
-                    temperature: DEFAULT_TEMPERATURE,
-                    folderId: null,
-                },
-            });
-      
+                dispatch({
+                    field: 'selectedConversation',
+                    value: {
+                        id: uuidv4(),
+                        name: t('New Conversation'),
+                        messages: [],
+                        model: OpenAIModels[defaultModelId],
+                        prompt: DEFAULT_SYSTEM_PROMPT,
+                        temperature: DEFAULT_TEMPERATURE,
+                        folderId: null,
+                    },
+                });
+
             localStorage.removeItem('selectedConversation');
         }
 
@@ -396,7 +411,7 @@ const Home = ({
     };
 
     const handleUpdateFolder = (folderId: string, name: string) => {
-        const folders: FolderInterface[] = JSON.parse(localStorage.getItem('folders') || '[]');
+        const folders: FolderInterface[] = getFolders();
         const updatedFolders = folders.map((f) => {
             if (f.id === folderId) {
                 return {
@@ -430,7 +445,7 @@ const Home = ({
             year: 'numeric',
         });
 
-        const folders: FolderInterface[] = JSON.parse(localStorage.getItem('folders') || '[]');
+        const folders: FolderInterface[] = getFolders();
 
         // See if there is a folder with the same name as the date
         let folder = folders.find((f) => f.name === date);
@@ -691,13 +706,13 @@ const Home = ({
         //localStorage.setItem('conversationHistory', '[]')
         const conversationHistory = localStorage.getItem('conversationHistory');
         const conversations: Conversation[] = JSON.parse(conversationHistory ? conversationHistory : '[]');
-        const lastConversation: Conversation | null = (conversations.length > 0)  ? conversations[conversations.length - 1] : null;
-        const lastConversationFolder: FolderInterface | null = lastConversation && foldersParsed ?  foldersParsed.find((f: FolderInterface) => f.id ===  lastConversation.folderId) : null;
-            
-        let selectedConversation: Conversation | null = lastConversation ? {...lastConversation} : null;
-        
+        const lastConversation: Conversation | null = (conversations.length > 0) ? conversations[conversations.length - 1] : null;
+        const lastConversationFolder: FolderInterface | null = lastConversation && foldersParsed ? foldersParsed.find((f: FolderInterface) => f.id === lastConversation.folderId) : null;
+
+        let selectedConversation: Conversation | null = lastConversation ? { ...lastConversation } : null;
+
         if (!lastConversation || lastConversation.name !== 'New Conversation' ||
-           (lastConversationFolder && lastConversationFolder.name !== dateName)) {
+            (lastConversationFolder && lastConversationFolder.name !== dateName)) {
 
             // See if there is a folder with the same name as the date
             let folder = foldersParsed.find((f: FolderInterface) => f.name === dateName);
@@ -807,8 +822,21 @@ const Home = ({
 
     const handleScroll = (event: any) => {
         const scrollableElement = event.currentTarget;
-        const isBottom = scrollableElement.scrollHeight - scrollableElement.scrollTop <= scrollableElement.clientHeight + 1;
-        dispatch({ field: 'hasScrolledToBottom', value: isBottom });
+        const hasScrollableContent = scrollableElement.scrollHeight > scrollableElement.clientHeight;
+        const isAtBottom = scrollableElement.scrollHeight - scrollableElement.scrollTop === scrollableElement.clientHeight;
+        if (hasScrollableContent && isAtBottom) {
+            dispatch({ field: 'hasScrolledToBottom', value: true });
+        } else if (!hasScrollableContent) {
+            dispatch({ field: 'hasScrolledToBottom', value: true });
+        }
+    };
+
+    const checkScrollableContent = () => {
+        const scrollableElement = document.querySelector('.data-disclosure');
+        if (scrollableElement) {
+            const hasScrollableContent = scrollableElement.scrollHeight > scrollableElement.clientHeight;
+            dispatch({ field: 'hasScrolledToBottom', value: !hasScrollableContent });
+        }
     };
 
     useEffect(() => {
@@ -827,9 +855,10 @@ const Home = ({
                             const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
                             const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
                             const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
-                            // console.log("Latest disclosure: ", latestDisclosureUrl);
                             dispatch({ field: 'latestDataDisclosureUrlPDF', value: latestDisclosureUrlPDF });
                             dispatch({ field: 'latestDataDisclosureHTML', value: latestDisclosureHTML });
+
+                            checkScrollableContent();
                         }
                     } catch (error) {
                         console.error('Failed to check data disclosure decision:', error);
@@ -843,13 +872,11 @@ const Home = ({
     }, [email,
         dispatch,
         hasAcceptedDataDisclosure,
-        hasAcceptedDataDisclosure,
         featureFlags.dataDisclosure]);
 
     if (session) {
         if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
-            if (hasAcceptedDataDisclosure === null) {
-                // Decision is still being checked, render a loading indicator
+            if (hasAcceptedDataDisclosure === null) { // Decision is still being checked, render a loading indicator
                 return (
                     <main
                         className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
@@ -860,12 +887,9 @@ const Home = ({
                             <h1 className="mb-4 text-2xl font-bold">
                                 Loading...
                             </h1>
-
-                            {/*<progress className="w-64"/>*/}
                         </div>
                     </main>);
-            } else if (!hasAcceptedDataDisclosure) {
-                // User has not accepted the data disclosure agreement, do not render page content
+            } else if (!hasAcceptedDataDisclosure) { // User has not accepted the data disclosure agreement, do not render page content
                 return (
                     <main
                         className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}
@@ -875,9 +899,9 @@ const Home = ({
                             <h1 className="text-2xl font-bold dark:text-white">
                                 Amplify Data Disclosure Agreement
                             </h1>
-                            <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ marginBottom: '10px' }}>Download the data disclosure agreement</a>
+                            <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', marginBottom: '10px' }}>Download the data disclosure agreement</a>
                             <div
-                                className="dark:bg-[#343541] bg-gray-50 dark:text-white text-black"
+                                className="data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black text-left"
                                 style={{
                                     overflowY: 'scroll',
                                     border: '1px solid #ccc',

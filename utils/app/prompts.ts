@@ -71,6 +71,8 @@ export const handleStartConversationWithPrompt = (handleNewConversation:any, pro
   if (prompt.type === MessageType.PREFIX_PROMPT) {
     tags = [...tags, ...(prompt.data?.requiredTags || [])];
   }
+  // remove duplicates 
+  tags = Array.from(new Set(tags));
 
   handleNewConversation(
       {
@@ -104,6 +106,10 @@ export const updatePrompt = (updatedPrompt: Prompt, allPrompts: Prompt[]) => {
 export const savePrompts = (prompts: Prompt[]) => {
   localStorage.setItem('prompts', JSON.stringify(prompts));
 };
+
+export const getPrompts = () => {
+  return JSON.parse(localStorage.getItem('prompts') || '[]');
+}
 
 export const parsePromptVariables = (content: string) => {
   const regex = /{{(.*?)}}/g;

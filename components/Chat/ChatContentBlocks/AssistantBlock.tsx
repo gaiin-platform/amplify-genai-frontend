@@ -4,13 +4,14 @@ import {IconRobot} from "@tabler/icons-react";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
-import {createAssistant} from "@/services/assistantService";
+import {createAssistant, listAssistants} from "@/services/assistantService";
 import { useSession } from "next-auth/react"
 import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
 import {Prompt} from "@/types/prompt";
 import {Conversation} from "@/types/chat";
-import {savePrompts} from "@/utils/app/prompts";
-import {createAssistantPrompt} from "@/utils/app/assistants";
+import {getPrompts, savePrompts} from "@/utils/app/prompts";
+import { syncAssistants} from "@/utils/app/assistants";
+import { getFolders } from "@/utils/app/folders";
 
 
 const animate = keyframes`
@@ -155,24 +156,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
         }
     }
 
-    const bindAssistantToConversation = async (id:string, definition:AssistantDefinition) => {
-        if(selectedConversation) {
 
-            const assistantPrompt:Prompt = createAssistantPrompt(definition);
-
-            console.log("Assistnat Prompt", assistantPrompt)
-
-            homeDispatch({
-                    type: 'append',
-                    field: 'prompts',
-                    value: assistantPrompt,
-            });
-
-            const updatedPrompts = [...prompts, assistantPrompt];
-
-            savePrompts(updatedPrompts);
-        }
-    }
 
     const handleCreateAssistant = async () => {
 
@@ -186,14 +170,15 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
 
                 console.log("assistantId", assistantId);
                 console.log("provider", provider);
-
+                
                 assistantDefinition.id = id;
                 assistantDefinition.provider = provider;
                 assistantDefinition.assistantId = assistantId;
 
+
                 if(assistantId) {
                     alert("Assistant created successfully!");
-                    bindAssistantToConversation(id, assistantDefinition);
+                    syncAssistants([assistantDefinition], getFolders(), getPrompts(), homeDispatch)
                 } else {
                     alert("Failed to create assistant. Please try again.");
                 }

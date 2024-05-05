@@ -6,7 +6,7 @@ import { useCreateReducer } from '@/hooks/useCreateReducer';
 
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
 import { saveConversation, saveConversations } from '@/utils/app/conversation';
-import { saveFolders } from '@/utils/app/folders';
+import { getFolders, saveFolders } from '@/utils/app/folders';
 import { exportData, importData } from '@/utils/app/importExport';
 
 import { Conversation } from '@/types/chat';
@@ -109,7 +109,7 @@ export const Chatbar = () => {
         year: 'numeric',
       });
 
-      const json_folders = JSON.parse(localStorage.getItem('folders') || '[]')
+      const json_folders = getFolders();
 
       // See if there is a folder with the same name as the date
       let folder = json_folders.find((f: FolderInterface) => f.name === date);
@@ -223,26 +223,21 @@ export const Chatbar = () => {
         isOpen={showChatbar}
         addItemButtonTitle={t('New Chat')}
         itemComponent={<Conversations conversations={filteredConversations} />}
-        folderComponent={<ChatFolders searchTerm={searchTerm} conversations={filteredConversations}/>}
+        folderComponent={<ChatFolders searchTerm={searchTerm} conversations={filteredConversations} />}
         items={filteredConversations}
         searchTerm={searchTerm}
-        handleSearchTerm={(searchTerm: string) =>
-          chatDispatch({ field: 'searchTerm', value: searchTerm })
-        }
+        handleSearchTerm={(searchTerm: string) => chatDispatch({ field: 'searchTerm', value: searchTerm })}
         toggleOpen={handleToggleChatbar}
         handleCreateItem={() => {
-          handleNewConversation({})}}
+          handleNewConversation({});
+        } }
         handleCreateFolder={() => {
           const name = window.prompt("Folder name:");
-          handleCreateFolder(name || "New Folder", 'chat')
-        }}
+          handleCreateFolder(name || "New Folder", 'chat');
+        } }
         handleDrop={handleDrop}
-        footerComponent={
-          <>
-
-          </>
-        }
-      />
+        footerComponent={<>
+        </>} handleCreateAssistantItem={() => {}}      />
     </ChatbarContext.Provider>
   );
 };
