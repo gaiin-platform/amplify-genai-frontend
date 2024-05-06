@@ -78,7 +78,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
             </div>
 
             <select
-              className="w-full cursor-pointer bg-transparent p-2 text-neutral-700 dark:text-neutral-200"
+              className="w-full cursor-pointer bg-transparent p-2 text-neutral-700 dark:text-neutral-200 border rounded-lg shadow border-neutral-300 dark:border-b-neutral-600 "
               value={state.theme}
               onChange={(event) => {
                 statsService.setThemeEvent(event.target.value);
