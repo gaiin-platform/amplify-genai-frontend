@@ -14,6 +14,7 @@ import { DataTable } from "@/components/Markdown/DataTable";
 import AutonomousBlock from "@/components/Chat/ChatContentBlocks/AutonomousBlock";
 import {useContext} from "react";
 import HomeContext from "@/pages/api/home/home.context";
+import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
 
 // TODO: IMPLEMENT DATA TABLE COMPONENT INTO THIS FILE
 
@@ -123,6 +124,13 @@ const ChatContentBlock: React.FC<Props> = (
                     isLast={isLast}
                     action={String(children)}
                     ready={!messageIsStreaming}/>);
+            }
+
+            if (!inline && match && match[1] === 'op' && selectedConversation) {
+                //@ts-ignore
+                return (<OpBlock
+                    definition={String(children)}
+                    />);
             }
 
             if (!inline && match && match[1] === 'assistant') {
