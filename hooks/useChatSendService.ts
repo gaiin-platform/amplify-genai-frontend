@@ -151,7 +151,7 @@ export function useSendService() {
                                 return;
                             }
                         }
-                        if (totalCost > 0.5) {
+                        if (+totalCost > 0.5) {
                             const go = confirm(`This request will cost an estimated $${totalCost} (the actual cost may be more) and require ${prompts} prompt(s).`);
                             if (!go) {
                                 return;
@@ -196,10 +196,11 @@ export function useSendService() {
 
                     if (!featureFlags.codeInterpreterEnabled) {
                         //check if we need
-                        options =  {...(options || {}), skipCodeInterpreter: true};//skipCodeInterpreter isnt used rn
+                        options =  {...(options || {}), skipCodeInterpreter: true};
                     } else{
                         if (updatedConversation.codeInterpreterAssistantId) {
                             chatBody.codeInterpreterAssistantId = updatedConversation.codeInterpreterAssistantId;
+                            options =  {...(options || {}), skipRag: true};
                         }
                     }
 

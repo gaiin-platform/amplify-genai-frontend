@@ -35,7 +35,7 @@ import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 import PromptingStatusDisplay from "@/components/Status/PromptingStatusDisplay";
 import ChatSourceBlock from "@/components/Chat/ChatContentBlocks/ChatSourcesBlock";
 import DataSourcesBlock from "@/components/Chat/ChatContentBlocks/DataSourcesBlock";
-
+import ChatCodeInterpreterFileBlock from './ChatContentBlocks/ChatCodeInterpreterFilesBlock';
 
 export interface Props {
     message: Message;
@@ -347,6 +347,15 @@ export const ChatMessage: FC<Props> = memo(({
                                                 handleCustomLinkClick={handleCustomLinkClick}
                                             />
                                         </div>
+                                    )}
+                                    {!isEditing && (
+                                        <ChatCodeInterpreterFileBlock
+                                            messageIsStreaming={messageIsStreaming}
+                                            messageIndex={messageIndex}
+                                            message={message}
+                                            selectedConversation={selectedConversation}
+                                            handleCustomLinkClick={handleCustomLinkClick}
+                                        />
                                     )}
                                     {!isEditing && (
                                         <ChatSourceBlock
