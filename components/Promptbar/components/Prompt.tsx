@@ -295,6 +295,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                     onSave={() => setShowModal(false)}
                     onUpdateAssistant={handleUpdate}
                     loadingMessage="Updating assistant..."
+                    loc="edit_assistant"
                 />
             )}
 

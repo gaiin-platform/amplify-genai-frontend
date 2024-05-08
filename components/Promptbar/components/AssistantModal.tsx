@@ -20,10 +20,12 @@ interface Props {
     onCancel: () => void;
     onUpdateAssistant: (prompt: Prompt) => void;
     loadingMessage: string;
+    loc: string;
+
 }
 
 
-export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage}) => {
+export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc}) => {
     const {t} = useTranslation('promptbar');
     const {
         state: {featureFlags, prompts},
@@ -204,7 +206,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 >
                                     <IconFiles size={20}/>
                                 </button>
-                                <AttachFile id="__attachFile_assistant"
+                                <AttachFile id={"__attachFile_assistant_" + loc}
                                             disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                             onAttach={(doc) => {
                                                 setDataSources((prev) => {

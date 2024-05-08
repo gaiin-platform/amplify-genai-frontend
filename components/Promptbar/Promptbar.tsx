@@ -292,6 +292,7 @@ const Promptbar = () => {
               savePrompts(updatedPrompts);
             }}
         loadingMessage='Creating assistant...'
+        loc="add_assistant"
         />
       )}
       
