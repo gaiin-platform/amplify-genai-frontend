@@ -227,7 +227,9 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
     const renderScrollableSection = (items: Array<Prompt | Conversation | FolderInterface>, itemType: string) => {
         return (
-            <div style={{height: "100px", overflowY: "scroll"}}>
+            <div 
+                className= "border border-neutral-700"
+                style={{height: "100px", overflowY: "scroll"}}>
                 {items.map((item) =>
                     renderItem(item, itemType)
                 )}
@@ -304,7 +306,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
                                     {includePrompts && (
                                         <>
-                                            <div className="mt-3 flex items-center border-b">
+                                            <div className="mt-4 flex items-center border-b">
                                                 <input
                                                     type="checkbox"
                                                     className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
@@ -313,13 +315,14 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                                                 />
                                                 <h3 className="ml-2 text-black dark:text-white text-lg">Prompts</h3>
                                             </div>
-                                            {renderScrollableSection(prompts, 'Prompt')}
+
+                                            {renderScrollableSection(prompts.filter((prompt:Prompt) => { return (!prompt.data || !prompt.data.noShare)}), 'Prompt')}
                                         </>
                                     )}
 
                                     {includeConversations && (
                                         <>
-                                            <div className="mt-3 flex items-center border-b ">
+                                            <div className="mt-4 flex items-center border-b ">
 
                                                 <input
                                                     type="checkbox"
@@ -335,7 +338,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
                                     {includeFolders && (
                                         <>
-                                            <div className="mt-3 flex items-center border-b ">
+                                            <div className="mt-4 flex items-center border-b ">
 
                                                 <input
                                                     type="checkbox"
