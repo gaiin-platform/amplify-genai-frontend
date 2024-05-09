@@ -23,12 +23,9 @@ import {MessageType} from "@/types/chat";
 import {PromptModal} from "@/components/Promptbar/components/PromptModal";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {FolderInterface} from "@/types/folder";
-import { IconPlus } from '@tabler/icons-react';
 import { AssistantModal } from '../Promptbar/components/AssistantModal';
-import { getAssistants, syncAssistants } from '@/utils/app/assistants';
+import { getAssistants, handleUpdateAssistantPrompt} from '@/utils/app/assistants';
 import { AssistantDefinition } from '@/types/assistant';
-import { getFolders } from '@/utils/app/folders';
-import { listAssistants } from '@/services/assistantService';
 import { useSession } from 'next-auth/react';
 
 
@@ -53,6 +50,7 @@ const Promptbar = () => {
     handleCreateFolder,
   } = useContext(HomeContext);
 
+  
   const {
     state: { searchTerm, filteredPrompts },
     dispatch: promptDispatch,
@@ -285,11 +283,11 @@ const Promptbar = () => {
         <AssistantModal
         assistant={assistantPrompt} 
         onCancel={() => {setAssistantShowModal(false)}}
-        onSave={() => { setAssistantShowModal(false)}}
+        onSave={() => { setAssistantShowModal(false)
+                statsService.createPromptEvent(assistantPrompt);
+               }}
         onUpdateAssistant={async (assistantPrompt) => {
-              const updatedPrompts = [...getPrompts(), assistantPrompt]
-              homeDispatch({ field: 'prompts', value: updatedPrompts });
-              savePrompts(updatedPrompts);
+              handleUpdateAssistantPrompt(assistantPrompt, homeDispatch);
             }}
         loadingMessage='Creating assistant...'
         loc="add_assistant"

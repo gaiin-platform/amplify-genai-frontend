@@ -10,7 +10,7 @@ import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
 import {Prompt} from "@/types/prompt";
 import {Conversation} from "@/types/chat";
 import {getPrompts, savePrompts} from "@/utils/app/prompts";
-import { syncAssistants} from "@/utils/app/assistants";
+import { createAssistantPrompt, handleUpdateAssistantPrompt, syncAssistants} from "@/utils/app/assistants";
 import { getFolders } from "@/utils/app/folders";
 
 
@@ -48,7 +48,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
     const [assistantTags, setAssistantTags] = useState<string[]>([]);
     const [assistantDocuments, setAssistantDocuments] = useState<string[]>([]);
 
-    const {state:{selectedConversation, conversations, prompts}, dispatch:homeDispatch} = useContext(HomeContext);
+    const {state:{selectedConversation, conversations, prompts,statsService},  dispatch:homeDispatch} = useContext(HomeContext);
     const { data: session } = useSession();
     const user = session?.user;
 
@@ -178,7 +178,9 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
 
                 if(assistantId) {
                     alert("Assistant created successfully!");
-                    syncAssistants([assistantDefinition], getFolders(), getPrompts(), homeDispatch)
+                    const createdAssistantPrompt = createAssistantPrompt(assistantDefinition);
+                    handleUpdateAssistantPrompt(createdAssistantPrompt, homeDispatch);
+                    statsService.createPromptEvent(createdAssistantPrompt);
                 } else {
                     alert("Failed to create assistant. Please try again.");
                 }
