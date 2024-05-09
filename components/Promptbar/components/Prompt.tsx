@@ -32,7 +32,7 @@ import {
     handleStartConversationWithPrompt,
 } from "@/utils/app/prompts";
 import { useSession } from "next-auth/react";
-import {getAssistant, isAssistant} from "@/utils/app/assistants";
+import {getAssistant, handleUpdateAssistantPrompt, isAssistant} from "@/utils/app/assistants";
 import {AssistantModal} from "@/components/Promptbar/components/AssistantModal";
 import {deleteAssistant} from "@/services/assistantService";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
@@ -293,8 +293,12 @@ export const PromptComponent = ({ prompt }: Props) => {
                     assistant={prompt}
                     onCancel={() => setShowModal(false)}
                     onSave={() => setShowModal(false)}
-                    onUpdateAssistant={handleUpdate}
+                    onUpdateAssistant={async (assistantPrompt) => {
+                        handleUpdateAssistantPrompt(assistantPrompt, homeDispatch)
+                        statsService.editPromptCompletedEvent(assistantPrompt);
+                    }}
                     loadingMessage="Updating assistant..."
+                    loc="edit_assistant"
                 />
             )}
 

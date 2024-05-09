@@ -9,6 +9,7 @@ import {shareItems} from "@/services/shareService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {useSession} from "next-auth/react";
+import { EmailsAutocompleteList } from "../Chat/EmailsAutocompleteList";
 
 export interface SharingModalProps {
     open: boolean;
@@ -159,8 +160,9 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
             selectedFoldersState,
             [...selectedPromptsState, ...rootPromptsToAdd]);
 
-        const sharedWith = selectedPeople;
-        const sharedBy = user?.email;
+        const sharedWith = selectedPeople.map(string => string.toLowerCase());
+        const sharedBy = user?.email ? user.email.toLowerCase() : undefined;
+
 
         if (sharedBy && sharingNote) {
             try {
@@ -225,7 +227,9 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
     const renderScrollableSection = (items: Array<Prompt | Conversation | FolderInterface>, itemType: string) => {
         return (
-            <div style={{height: "100px", overflowY: "scroll"}}>
+            <div 
+                className= "border border-neutral-700"
+                style={{height: "100px", overflowY: "scroll"}}>
                 {items.map((item) =>
                     renderItem(item, itemType)
                 )}
@@ -249,11 +253,6 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
         }
     }, [open]);
 
-    function extractEmails(inputText: string): string[] {
-        const regex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi;
-        const emails = inputText.match(regex);
-        return emails ?? [];  // return an empty array if no emails found.
-    }
 
 
     if (!open) {
@@ -286,11 +285,11 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
                                 <div className="overflow-y-auto" style={{maxHeight: "calc(100vh - 200px)"}}>
 
-                                    <TagsList label={"People"}
+                                    <EmailsAutocompleteList label={"People"}
                                               addMessage={"Email addresses of people to share with:"}
-                                              tagParser={extractEmails}
-                                              tags={selectedPeople}
-                                              setTags={setSelectedPeople}/>
+                                              emails={selectedPeople}
+                                              setEmails={setSelectedPeople}/>
+
 
 
                                     <h3 className="text-black dark:text-white text-lg mt-2 border-b">Note</h3>
@@ -307,7 +306,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
                                     {includePrompts && (
                                         <>
-                                            <div className="mt-3 flex items-center border-b">
+                                            <div className="mt-4 flex items-center border-b">
                                                 <input
                                                     type="checkbox"
                                                     className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
@@ -316,13 +315,14 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                                                 />
                                                 <h3 className="ml-2 text-black dark:text-white text-lg">Prompts</h3>
                                             </div>
-                                            {renderScrollableSection(prompts, 'Prompt')}
+
+                                            {renderScrollableSection(prompts.filter((prompt:Prompt) => { return (!prompt.data || !prompt.data.noShare)}), 'Prompt')}
                                         </>
                                     )}
 
                                     {includeConversations && (
                                         <>
-                                            <div className="mt-3 flex items-center border-b ">
+                                            <div className="mt-4 flex items-center border-b ">
 
                                                 <input
                                                     type="checkbox"
@@ -338,7 +338,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
                                     {includeFolders && (
                                         <>
-                                            <div className="mt-3 flex items-center border-b ">
+                                            <div className="mt-4 flex items-center border-b ">
 
                                                 <input
                                                     type="checkbox"
@@ -369,7 +369,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                                 <button
                                     type="button"
                                     style={{opacity: selectedPeople.length === 0 || !canShare() ? 0.3 : 1}}
-                                    className="ml-2 w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300 ${selectedPeople.length === 0 || (selectedPromptsState.length === 0 && selectedConversationsState.length === 0 && selectedFoldersState.length === 0) ? 'cursor-not-allowed' : ''}"
+                                    className={`ml-2 w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300 ${selectedPeople.length === 0 || (selectedPromptsState.length === 0 && selectedConversationsState.length === 0 && selectedFoldersState.length === 0) ? 'cursor-not-allowed' : ''}`}
                                     onClick={handleShare}
                                     disabled={!canShare()}
                                 >
