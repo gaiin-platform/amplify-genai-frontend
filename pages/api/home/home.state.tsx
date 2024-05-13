@@ -100,6 +100,7 @@ export const initialState: HomeInitialState = {
   selectedAssistant: null,
   page: 'chat',
   currentRequestId: null,
+
   featureFlags: {
     assistantsEnabled: true,
     ragEnabled: true,
@@ -123,7 +124,9 @@ export const initialState: HomeInitialState = {
     automation: false,
     codeInterpreterEnabled: true,
     dataDisclosure: false,
+    inCognitoGroup: false
   },
+
   statsService: noOpStatsServices,
   defaultFunctionCallModel: null,
   latestDataDisclosureUrlPDF: '',

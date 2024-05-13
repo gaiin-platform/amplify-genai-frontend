@@ -24,7 +24,7 @@ import {
 import { getFolders, saveFolders } from '@/utils/app/folders';
 import { getPrompts, savePrompts } from '@/utils/app/prompts';
 import { getSettings } from '@/utils/app/settings';
-import { getAccounts } from "@/services/accountService";
+import { fetchInCognitoGroup, getAccounts } from "@/services/accountService";
 
 import { Conversation, Message, MessageType, newMessage } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
@@ -165,7 +165,15 @@ const Home = ({
                     setloadedAccounts(true);
                 }
             };
-            if (!loadedAccounts) fetchAccounts();
+            const fetchInGroup = async () => {
+                const inGroup = await fetchInCognitoGroup();
+                if (inGroup.inCognitoGroup) featureFlags.inCognitoGroup = inGroup.inCognitoGroup;
+            }
+
+            if (!loadedAccounts) {
+                fetchAccounts();
+                fetchInGroup()
+            }
         }
 
     }, [session]);
