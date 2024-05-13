@@ -346,7 +346,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                 </div>
                 <input
                     className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                    placeholder={t() || 'Required tag names separated by commas.'}
+                    placeholder={'Required tag names separated by commas.'}
                     value={requiredTags}
                     title={'A list of any tags that must be present on the conversation for the buttons to appear.'}
                     onChange={(e) => setRequiredTags(e.target.value)}
