@@ -8,7 +8,6 @@ import HomeContext from '@/pages/api/home/home.context';
 import { SettingDialog } from '@/components/Settings/SettingDialog';
 
 import { Import } from '../../Settings/Import';
-import { Key } from '../../Settings/Key';
 import { SidebarButton } from '../../Sidebar/SidebarButton';
 import ChatbarContext from '../Chatbar.context';
 import {AccountDialog} from "@/components/Settings/AccountDialog";
@@ -21,10 +20,7 @@ export const ChatbarSettings = () => {
 
     const {
         state: {
-            apiKey,
             lightMode,
-            serverSideApiKeyIsSet,
-            serverSidePluginKeysSet,
             conversations,
         },
         dispatch: homeDispatch,
@@ -34,7 +30,6 @@ export const ChatbarSettings = () => {
         handleClearConversations,
         handleImportConversations,
         handleExportData,
-        handleApiKeyChange,
     } = useContext(ChatbarContext);
 
     return (
@@ -78,11 +73,7 @@ export const ChatbarSettings = () => {
                 onClick={() => window.location.href = 'mailto:amplify@vanderbilt.edu'}
             />
 
-            {!serverSideApiKeyIsSet ? (
-                <Key apiKey={apiKey} onApiKeyChange={handleApiKeyChange} />
-            ) : null}
 
-            {/*{!serverSidePluginKeysSet ? <PluginKeys /> : null}*/}
 
             <SettingDialog
                 open={isSettingDialogOpen}

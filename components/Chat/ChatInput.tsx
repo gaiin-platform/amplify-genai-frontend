@@ -71,7 +71,7 @@ export const ChatInput = ({
     const {killRequest} = useChatService();
 
     const {
-        state: {selectedConversation, selectedAssistant, messageIsStreaming, prompts, models, status, featureFlags, currentRequestId, apiKey, chatEndpoint, statsService},
+        state: {selectedConversation, selectedAssistant, messageIsStreaming, prompts, models, status, featureFlags, currentRequestId, chatEndpoint, statsService},
 
         dispatch: homeDispatch
     } = useContext(HomeContext);

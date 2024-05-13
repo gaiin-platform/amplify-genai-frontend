@@ -2,7 +2,7 @@
 import {incrementalJSONtoCSV} from "@/utils/app/incrementalCsvParser";
 import {useCallback, useContext} from 'react';
 import HomeContext from '@/pages/api/home/home.context';
-import {killRequest as killReq, MetaHandler, sendChatRequest as send, sendChatRequestWithDocuments} from '../services/chatService';
+import {killRequest as killReq, MetaHandler, sendChatRequestWithDocuments} from '../services/chatService';
 import {ChatBody, Conversation, CustomFunction, JsonSchema, Message, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
 import {Plugin} from '@/types/plugin';
@@ -40,7 +40,7 @@ export type ChatRequest = {
 
 export function useSendService() {
     const {
-        state: {apiKey, selectedConversation, conversations, pluginKeys, featureFlags},
+        state: {selectedConversation, conversations, featureFlags},
         postProcessingCallbacks,
         dispatch:homeDispatch,
     } = useContext(HomeContext);
@@ -76,8 +76,6 @@ export function useSendService() {
             };
         }
 
-
-        console.log("Model in chatSendService!", model);
         const contextWindow = model.actualTokenLimit;
         // calculate cost / context window rounded up
         const prompts = Math.ceil(cost / contextWindow);
@@ -184,7 +182,6 @@ export function useSendService() {
                     const chatBody: ChatBody = {
                         model: updatedConversation.model,
                         messages: updatedConversation.messages,
-                        key: apiKey,
                         prompt: rootPrompt || updatedConversation.prompt,
                         temperature: updatedConversation.temperature,
                         maxTokens: updatedConversation.maxTokens || 1000
@@ -590,9 +587,7 @@ export function useSendService() {
             });
         },
         [
-            apiKey,
             conversations,
-            pluginKeys,
             selectedConversation
         ],
     );

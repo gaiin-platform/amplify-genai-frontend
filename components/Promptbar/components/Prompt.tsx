@@ -53,7 +53,7 @@ export const PromptComponent = ({ prompt }: Props) => {
     } = useContext(PromptbarContext);
 
     const {
-        state: { prompts, defaultModelId, showPromptbar, apiKey, statsService, selectedAssistant},
+        state: { prompts, defaultModelId, showPromptbar, statsService, selectedAssistant},
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);

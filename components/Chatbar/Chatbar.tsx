@@ -1,23 +1,20 @@
-import { useCallback, useContext, useEffect } from 'react';
+import { useContext, useEffect } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
 import { useCreateReducer } from '@/hooks/useCreateReducer';
 
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
-import { saveConversation, saveConversations } from '@/utils/app/conversation';
-import { getFolders, saveFolders } from '@/utils/app/folders';
-import { exportData, importData } from '@/utils/app/importExport';
+import { saveConversations } from '@/utils/app/conversation';
+import { getFolders, } from '@/utils/app/folders';
 
 import { Conversation } from '@/types/chat';
-import { LatestExportFormat, SupportedExportFormats } from '@/types/export';
+import { SupportedExportFormats } from '@/types/export';
 import { OpenAIModelID, OpenAIModels, fallbackModelID } from '@/types/openai';
-import { PluginKey } from '@/types/plugin';
 
 import HomeContext from '@/pages/api/home/home.context';
 
 import { ChatFolders } from './components/ChatFolders';
-import { RAG } from './components/RAG';
 import { Conversations } from './components/Conversations';
 
 import Sidebar from '../Sidebar';
@@ -36,7 +33,7 @@ export const Chatbar = () => {
   });
 
   const {
-    state: { conversations, showChatbar, defaultModelId, folders, pluginKeys, statsService},
+    state: { conversations, showChatbar, defaultModelId, folders,statsService},
     dispatch: homeDispatch,
     handleCreateFolder,
     handleNewConversation,
@@ -49,24 +46,10 @@ export const Chatbar = () => {
   } = chatBarContextValue;
 
 
-  const handleApiKeyChange = useCallback(
-    (apiKey: string) => {
-
-    },
-    [homeDispatch],
-  );
 
   const handleShareFolder = (folder: FolderInterface) => {
 
   }
-
-  const handlePluginKeyChange = (pluginKey: PluginKey) => {
-
-  };
-
-  const handleClearPluginKey = (pluginKey: PluginKey) => {
-
-  };
 
   const handleExportData = () => {
 
@@ -212,9 +195,6 @@ export const Chatbar = () => {
         handleClearConversations,
         handleImportConversations,
         handleExportData,
-        handlePluginKeyChange,
-        handleClearPluginKey,
-        handleApiKeyChange,
         handleShareFolder,
       }}
     >

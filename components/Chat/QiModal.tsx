@@ -154,7 +154,7 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type}) 
                             <textarea
                                 className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                 style={{resize: 'none'}}
-                                placeholder={t('A short description of the concern.') || ''}
+                                placeholder={t('A summary of the overall conversation and concerns.') || ''}
                                 value={summary}
                                 onChange={(e) => setSummary(e.target.value)}
                                 rows={5}
