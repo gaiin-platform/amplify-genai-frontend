@@ -53,6 +53,7 @@ const AutonomousBlock: React.FC<Props> = (
         return { functionName, params };
     }
 
+
     const handlers:{[key:string]:(params:any)=>any} = {
         "/chats": (params:any) => {
             return conversations.map((c:any) => {
@@ -68,9 +69,42 @@ const AutonomousBlock: React.FC<Props> = (
                 }
             });
         },
+        "/searchChats": (params:string[]) => {
+            const thisId = selectedConversation?.id || "";
+            params = params.slice(1);
+
+            console.log('Searching for keywords', params);
+
+            const results = conversations
+                .filter((c) => c.id !== thisId)
+                .filter((c) => {
+                    const matches =  c.messages.filter((m) => {
+                        return params.some((k: string) => m.content.includes(k));
+                    });
+                    return matches.length > 0;
+                });
+
+            return results.map((c:any) => {
+                return {
+                    id: c.id,
+                    name: c.name,
+                    description: c.description,
+                    createdAt: c.createdAt,
+                    updatedAt: c.updatedAt,
+                    workspaceId: c.workspaceId,
+                    modelId: c.modelId,
+                    folderId: c.folderId,
+                }
+            });
+        },
         "/chat": (params:any) => {
-            const id = params[0];
+            console.log("/chat params:", params)
+
+            const id = params[1];
             const chat = conversations.find((c:any) => c.id === id);
+
+            console.log("chat:", chat);
+
             return chat;
         },
         "/folders": (params:any) => {
@@ -102,7 +136,10 @@ const AutonomousBlock: React.FC<Props> = (
     const runAction = (action: any) => {
         try{
             if(!isLast || hasExecuted[id] || message.data.automation){
-               console.log("Skipping execution of action:", action, "isLast:", isLast, "hasExecuted:", hasExecuted[id]);
+               console.log("Skipping execution of action:", action,
+                   "isLast:", isLast,
+                   "hasExecuted:", hasExecuted[id],
+                   "automation:", message.data.automation);
                return;
             }
             hasExecuted[id] = true;
@@ -134,12 +171,13 @@ const AutonomousBlock: React.FC<Props> = (
             const apiCall = parseApiCall(action);
             console.log("apiCall:", apiCall);
 
+            const shouldConfirm = false;
             const { functionName, params } = apiCall;
             const url = params[0];
-            const handler = handlers[url];
+            const handler = handlers[url] || handlers["/"+url];
             const result = handler(params);
             const shouldAbort = () => false;
-            if(handleSend && confirm("Allow automation to proceed?")){
+            if(handleSend && (!shouldConfirm || confirm("Allow automation to proceed?"))){
                 handleSend(
                     {message:newMessage(
                         {"role":"user","content":JSON.stringify(result), label:"API Result"})},

@@ -70,6 +70,7 @@ import { MyHome } from "@/components/My/MyHome";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { listAssistants } from '@/services/assistantService';
 import { syncAssistants } from '@/utils/app/assistants';
+import {getOpsForUser} from "@/services/opsService";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -107,9 +108,6 @@ const Home = ({
     const [loadedBasePrompts, setloadedBasePrompts] = useState<boolean>(false);
     const [loadedAccounts, setloadedAccounts] = useState<boolean>(false);
 
-
-
-
     const { data: session, status } = useSession();
     //const {user, error: userError, isLoading} = useUser();
     const user = session?.user;
@@ -118,8 +116,11 @@ const Home = ({
     const userError = null;
 
     const contextValue = useHomeReducer({
-        initialState: { ...initialState, statsService: useEventService(mixPanelToken) },
+        initialState: {
+            ...initialState,
+            statsService: useEventService(mixPanelToken) },
     });
+
 
     const {
         state: {
@@ -146,8 +147,6 @@ const Home = ({
     } = contextValue;
 
     const stopConversationRef = useRef<boolean>(false);
-
-
 
     useEffect(() => {
         // @ts-ignore
@@ -182,7 +181,7 @@ const Home = ({
                     setloadedBasePrompts(true);
 
                     if (!loadedAssistants) await fetchAssistants(folders, prompts);
-                    
+
                 } else {
                     console.log("Failed to import base prompts.");
                     await fetchAssistants(getFolders(), getPrompts());
@@ -556,6 +555,27 @@ const Home = ({
             saveConversationsDirect(conversations);
         }
     }, [conversationStateId]);
+
+    useEffect(() => {
+        const getOps = async () => {
+            try {
+                const ops = await getOpsForUser();
+
+                const opMap:{[key:string]:any} = {};
+                ops.data.forEach((op:any) => {
+                    opMap[op.id] = op;
+                })
+
+                console.log("Ops", opMap)
+                dispatch({field: 'ops', value: opMap});
+            } catch (e) {
+                console.error('Error getting ops', e);
+            }
+        }
+        if(session?.user) {
+           getOps();
+        }
+    }, [session]);
 
     const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
         if (selectedConversation) {

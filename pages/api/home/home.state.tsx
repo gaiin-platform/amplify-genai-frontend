@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Assistant, DEFAULT_ASSISTANT } from "@/types/assistant";
 import { noOpStatsServices, StatsServices } from "@/types/stats";
 import { Account } from "@/types/accounts";
+import {Op} from "@/types/op";
 
 type HandleSend = (request: any) => void;
 
@@ -54,6 +55,7 @@ export interface HomeInitialState {
   inputEmail: string;
   hasAcceptedDataDisclosure: boolean | null;
   hasScrolledToBottom: boolean;
+  ops: { [key: string]: Op };
 }
 
 export const initialState: HomeInitialState = {
@@ -71,6 +73,7 @@ export const initialState: HomeInitialState = {
   models: [],
   folders: [],
   conversations: [],
+  ops: {},
   workflows: [
 
   ],
@@ -120,7 +123,7 @@ export const initialState: HomeInitialState = {
     dataSourceSelectorOnInput: true,
     followUpCreate: true,
     marketItemDelete: false,
-    automation: false,
+    automation: true,
     codeInterpreterEnabled: true,
     dataDisclosure: false,
   },

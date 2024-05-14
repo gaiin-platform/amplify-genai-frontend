@@ -6,13 +6,15 @@ import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {createAssistant, listAssistants} from "@/services/assistantService";
+import { useOpsService} from "@/hooks/useOpsService";
 import { useSession } from "next-auth/react"
 import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
 import {Prompt} from "@/types/prompt";
-import {Conversation} from "@/types/chat";
+import {Conversation, newMessage} from "@/types/chat";
 import {getPrompts, savePrompts} from "@/utils/app/prompts";
 import { syncAssistants} from "@/utils/app/assistants";
 import { getFolders } from "@/utils/app/folders";
+import {useSendService} from "@/hooks/useChatSendService";
 
 
 const animate = keyframes`
@@ -94,6 +96,9 @@ const OpBlock: React.FC<OpProps> = ({definition}) => {
     const { data: session } = useSession();
     const user = session?.user;
 
+    const {getOp, executeOp} = useOpsService();
+    const {handleSend} = useSendService();
+
     const getDocumentsInConversation = (conversation?:Conversation) => {
         if(conversation){
             // Go through every message in the conversation and collect all of the
@@ -107,12 +112,26 @@ const OpBlock: React.FC<OpProps> = ({definition}) => {
         return [];
     }
 
+    const getAction = (raw:any) => {
+        // Check if raw is an array
+        if(Array.isArray(raw)){
+            return raw[0];
+        }
+        return raw;
+    }
 
     const parseOp = (definitionStr: string) => {
 
         try {
 
             let op = parseStringWithPrefixes(definitionStr);
+            const raw = getAction(op.action) || "";
+            const parts = raw.split(",").map((p: string) => p.trim());
+            const id = parts[0];
+            const args = parts.slice(1);
+
+            op.id = id;
+            op.args = args;
 
             const rawDS = getDocumentsInConversation(selectedConversation);
             const knowledge = rawDS.map(ds => {
@@ -141,12 +160,33 @@ const OpBlock: React.FC<OpProps> = ({definition}) => {
 
     const handleDoOp = async () => {
 
-        if(user?.email && op) {
+        if(user?.email && op && selectedConversation) {
 
             setLoadingMessage("Working on it...");
             setIsLoading(true);
 
             try {
+
+                console.log("Executing operation", op);
+
+                const id = op.id || "";
+                const args = op.args || [];
+                const result = await executeOp(id, args);
+
+                if(result && result.message){
+                    const message = newMessage({
+                        role: "user",
+                        content: "The result of the operation was:\n\n"+result.message,
+                        label:"Operation Result Not Shown"
+                    })
+
+                    const shouldAbort = () => false;
+                    if(handleSend){
+                        handleSend(
+                            {message},
+                            shouldAbort);
+                    }
+                }
 
             } catch (e) {
                 alert("Something went wrong. Please try again.");
@@ -188,9 +228,11 @@ const OpBlock: React.FC<OpProps> = ({definition}) => {
                         <div className="flex flex-col w-full mb-4">
                             <div className="flex flex-row items-center justify-center">
                                 <div className="mr-2"><IconRobot size={30} /></div>
-                                <div className="text-2xl font-bold">Plan</div>
+                                <div className="text-2xl font-bold">{op.title || "My Plan"}</div>
                             </div>
-                            {Object.entries(op).map(([key, value], index) => {
+                            {Object.entries(op)
+                                .filter(([key, value]) => key !== "_dataSources" && key !== "id")
+                                .map(([key, value], index) => {
                                 return <ExpansionComponent key={index} title={key} content={
                                     <div className="text-sm text-gray-500">{JSON.stringify(value)}</div>
                                 }/>
@@ -198,7 +240,7 @@ const OpBlock: React.FC<OpProps> = ({definition}) => {
                             <button className="mt-4 w-full px-4 py-2 text-white bg-blue-500 rounded hover:bg-green-600"
                                     onClick={handleDoOp}
                             >
-                                Execute
+                                Go
                             </button>
                         </div>
                     </>
