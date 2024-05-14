@@ -39,6 +39,7 @@ const AutonomousBlock: React.FC<Props> = (
             workspaceMetadata
         },
         handleUpdateConversation,
+        handleCreateFolder,
         handleCustomLinkClick,
         dispatch: homeDispatch,
         handleAddMessages: handleAddMessages
@@ -107,8 +108,31 @@ const AutonomousBlock: React.FC<Props> = (
 
             return chat;
         },
+        "/chatSamples": (params:any) => {
+            console.log("/chat params:", params)
+
+            const ids = params.slice(1);
+            const chats = conversations.filter((c:any) => ids.includes(c.id));
+            const sampledMessagesPerChat = chats.map((c:any) => {
+                const messages = c.messages;
+                const sampledMessages = messages.slice(0, 6);
+                return {
+                    id: c.id,
+                    name: c.name,
+                    messages: sampledMessages
+                }
+            });
+
+            return sampledMessagesPerChat;
+        },
         "/folders": (params:any) => {
             return folders;
+        },
+        "/searchFolders": (params:string[]) => {
+            params = params.slice(1);
+            return folders.filter((f) => {
+                return params.some((k: string) => f.name.includes(k));
+            });
         },
         "/models": (params:any) => {
             return models;
@@ -130,6 +154,38 @@ const AutonomousBlock: React.FC<Props> = (
         },
         "/selectedAssistant": (params:any) => {
             return selectedAssistant;
+        },
+        "/createChatFolder": (params:any) => {
+            params = params.slice(1);
+            const name = params[0];
+            const folder = handleCreateFolder(name, "chat");
+            return folder;
+        },
+        "/moveChatsToFolder": (params:any) => {
+            params = params.slice(1);
+            const folderId = params[0];
+            const chatIds = params.slice(1);
+            const folder = folders.find((f) => f.id === folderId);
+            if(folder){
+                for(const chatId of chatIds){
+                    const chat = conversations.find((c) => c.id === chatId);
+                    if(chat){
+                        chat.folderId = folder.id;
+                        homeDispatch({
+                            type: 'conversation',
+                            action: {
+                                type: 'changeFolder',
+                                conversationId: chat.id,
+                                folderId: folder.id
+                            }
+                        })
+                    }
+                }
+                return {success: true, message:"Conversations moved to folder"};
+            }
+            else {
+                return {error: "Folder not found"};
+            }
         },
     }
 
@@ -175,13 +231,28 @@ const AutonomousBlock: React.FC<Props> = (
             const { functionName, params } = apiCall;
             const url = params[0];
             const handler = handlers[url] || handlers["/"+url];
-            const result = handler(params);
+
+            let result = {success:false, message:"Unknown operation: "+url}
+            if(handler){
+                result = handler(params);
+            }
+
             const shouldAbort = () => false;
-            if(handleSend && (!shouldConfirm || confirm("Allow automation to proceed?"))){
-                handleSend(
-                    {message:newMessage(
-                        {"role":"user","content":JSON.stringify(result), label:"API Result"})},
-                    shouldAbort);
+            if(!shouldAbort() && handleSend && (!shouldConfirm || confirm("Allow automation to proceed?"))){
+
+                const feedbackMessage = {
+                    op: action,
+                    resultOfOp: result,
+                }
+
+                if(!shouldAbort()) {
+                    handleSend(
+                        {
+                            message: newMessage(
+                                {"role": "user", "content": JSON.stringify(feedbackMessage), label: "API Result"})
+                        },
+                        shouldAbort);
+                }
             }
             // const handler = handlers[functionName];
             // if (handler) {
