@@ -7,6 +7,7 @@ import HomeContext from "@/pages/api/home/home.context";
 import {useSendService} from "@/hooks/useChatSendService";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
+import {execOp} from "@/services/opsService";
 
 interface Props {
     conversation: Conversation;
@@ -39,6 +40,8 @@ const AutonomousBlock: React.FC<Props> = (
             workspaceMetadata
         },
         handleUpdateConversation,
+        handleStopConversation,
+        shouldStopConversation,
         handleCreateFolder,
         handleCustomLinkClick,
         dispatch: homeDispatch,
@@ -54,8 +57,27 @@ const AutonomousBlock: React.FC<Props> = (
         return { functionName, params };
     }
 
+    const stripQuotes = (s:string) => {
+        s = s.trim();
+
+        if(s.startsWith('"') && s.endsWith('"')){
+            return s.substring(1, s.length-1);
+        }
+        else if (s.startsWith("'") && s.endsWith("'")){
+            return s.substring(1, s.length-1);
+        }
+        return s;
+    }
+
 
     const handlers:{[key:string]:(params:any)=>any} = {
+        "/ops": async (params:any) => {
+            const tag = params[1];
+            const result = await execOp("/ops/get", {
+                tag
+            });
+            return result;
+        },
         "/chats": (params:any) => {
             return conversations.map((c:any) => {
                 return {
@@ -104,6 +126,10 @@ const AutonomousBlock: React.FC<Props> = (
             const id = params[1];
             const chat = conversations.find((c:any) => c.id === id);
 
+            if(!chat){
+                return {error: "Conversation not found, try listing all of the chats to find a valid conversation id."};
+            }
+
             console.log("chat:", chat);
 
             return chat;
@@ -113,6 +139,11 @@ const AutonomousBlock: React.FC<Props> = (
 
             const ids = params.slice(1);
             const chats = conversations.filter((c:any) => ids.includes(c.id));
+
+            if(chats.length === 0){
+                return {error: "No conversations found for the given ids. Try listing the chats to find valid ids."};
+            }
+
             const sampledMessagesPerChat = chats.map((c:any) => {
                 const messages = c.messages;
                 const sampledMessages = messages.slice(0, 6);
@@ -130,9 +161,15 @@ const AutonomousBlock: React.FC<Props> = (
         },
         "/searchFolders": (params:string[]) => {
             params = params.slice(1);
-            return folders.filter((f) => {
+            const found = folders.filter((f) => {
                 return params.some((k: string) => f.name.includes(k));
             });
+
+            if(found.length === 0){
+                return {error: "No folders found with names that include the given keywords. Try listing all of the folders."};
+            }
+
+            return found;
         },
         "/models": (params:any) => {
             return models;
@@ -158,6 +195,11 @@ const AutonomousBlock: React.FC<Props> = (
         "/createChatFolder": (params:any) => {
             params = params.slice(1);
             const name = params[0];
+
+            if(!name){
+                return {error: "Folder name is required as a parameter"};
+            }
+
             const folder = handleCreateFolder(name, "chat");
             return folder;
         },
@@ -167,9 +209,11 @@ const AutonomousBlock: React.FC<Props> = (
             const chatIds = params.slice(1);
             const folder = folders.find((f) => f.id === folderId);
             if(folder){
+                const moved:{[key:string]:string} = {};
                 for(const chatId of chatIds){
                     const chat = conversations.find((c) => c.id === chatId);
                     if(chat){
+                        moved[chatId] = "Moved successfully.";
                         chat.folderId = folder.id;
                         homeDispatch({
                             type: 'conversation',
@@ -180,16 +224,20 @@ const AutonomousBlock: React.FC<Props> = (
                             }
                         })
                     }
+                    else {
+                        moved[chatId] = "Chat not found.";
+                    }
                 }
-                return {success: true, message:"Conversations moved to folder"};
+
+                return {success: true, resultByChatId: moved};
             }
             else {
-                return {error: "Folder not found"};
+                return {error: "Folder not found. Try listing the folders to find a valid folder id."};
             }
         },
     }
 
-    const runAction = (action: any) => {
+    const runAction = async (action: any) => {
         try{
             if(!isLast || hasExecuted[id] || message.data.automation){
                console.log("Skipping execution of action:", action,
@@ -219,39 +267,34 @@ const AutonomousBlock: React.FC<Props> = (
                 }
             )
 
-
-            // homeDispatch(
-            //
-            // );
-
             const apiCall = parseApiCall(action);
             console.log("apiCall:", apiCall);
 
             const shouldConfirm = false;
             const { functionName, params } = apiCall;
-            const url = params[0];
+            const url = stripQuotes(params[0]);
+
             const handler = handlers[url] || handlers["/"+url];
 
             let result = {success:false, message:"Unknown operation: "+url}
             if(handler){
-                result = handler(params);
+                result = await handler(params);
             }
 
-            const shouldAbort = () => false;
-            if(!shouldAbort() && handleSend && (!shouldConfirm || confirm("Allow automation to proceed?"))){
+            if(!shouldStopConversation() && handleSend && (!shouldConfirm || confirm("Allow automation to proceed?"))){
 
                 const feedbackMessage = {
                     op: action,
                     resultOfOp: result,
                 }
 
-                if(!shouldAbort()) {
+                if(!shouldStopConversation()) {
                     handleSend(
                         {
                             message: newMessage(
                                 {"role": "user", "content": JSON.stringify(feedbackMessage), label: "API Result"})
                         },
-                        shouldAbort);
+                        shouldStopConversation);
                 }
             }
             // const handler = handlers[functionName];

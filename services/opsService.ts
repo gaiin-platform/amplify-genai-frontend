@@ -57,3 +57,33 @@ export const getOpsForUser = async () => {
 
     return {success:true, message:"User Ops fetched successfully.", data:data};
 }
+
+export const execOp = async (path:string, data:any, errorHandler=(e:any)=>{}) => {
+    const op = {
+        data: data,
+        path: path
+    };
+
+    const response = await fetch('/api/ops/exec', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        signal: null,
+        body: JSON.stringify(op),
+    });
+
+
+    if (response.ok){
+        try {
+            const result = await response.json();
+
+            return result;
+        } catch (e){
+            return {success:false, message:"Error parsing op exec response."};
+        }
+    }
+    else {
+        return {success:false, message:`Error in exec op: ${response.statusText} .`}
+    }
+}

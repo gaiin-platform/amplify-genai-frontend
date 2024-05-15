@@ -71,6 +71,7 @@ import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { listAssistants } from '@/services/assistantService';
 import { syncAssistants } from '@/utils/app/assistants';
 import {getOpsForUser} from "@/services/opsService";
+import {killRequest as killReq} from "@/services/chatService";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -127,6 +128,7 @@ const Home = ({
             apiKey,
             conversationStateId,
             messageIsStreaming,
+            currentRequestId,
             lightMode,
             folders,
             workflows,
@@ -309,6 +311,44 @@ const Home = ({
     };
 
     // FOLDER OPERATIONS  --------------------------------------------
+
+    const killRequest = async (requestId:string) => {
+        const session = await getSession();
+
+        // @ts-ignore
+        if(!session || !session.accessToken || !chatEndpoint){
+            return false;
+        }
+
+        // @ts-ignore
+        const result = await killReq(chatEndpoint, session.accessToken, requestId);
+
+        return result;
+    }
+
+    const shouldStopConversation = () => {
+        return stopConversationRef.current;
+    }
+
+    const handleStopConversation = async () => {
+        stopConversationRef.current = true;
+
+        if (currentRequestId) {
+            try{
+                await killRequest(currentRequestId);
+            } catch(e) {
+                console.error("Error killing request", e);
+            }
+        }
+
+        setTimeout(() => {
+            stopConversationRef.current = false;
+
+            dispatch({field: 'loading', value: false});
+            dispatch({field: 'messageIsStreaming', value: false});
+            dispatch({field: 'status', value: []});
+        }, 1000);
+    };
 
     const handleCreateFolder = (name: string, type: FolderType) => {
         //console.log("handleCreateFolder", name, type);
@@ -1013,6 +1053,8 @@ const Home = ({
                 value={{
                     ...contextValue,
                     handleNewConversation,
+                    handleStopConversation,
+                    shouldStopConversation,
                     handleCreateFolder,
                     handleDeleteFolder,
                     handleUpdateFolder,
