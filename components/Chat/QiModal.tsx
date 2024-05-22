@@ -46,22 +46,20 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type}) 
     const [includeDataSources, setIncludeDataSources] = useState<boolean>(false);
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-    const [conversation, setconversation] = useState<Conversation | null>(null);
-    
 
     const {t} = useTranslation('qiSummary');
 
     const getDataSources = () => {
         if (type === QiSummaryType.CONVERSATION ) {
              if (selectedConversation) {
-                    setconversation({...selectedConversation});
-                    return selectedConversation.messages.filter( m => {
+                    const ds = selectedConversation.messages.filter( m => {
                         return m.data && m.data.dataSources as AttachedDocument
                     }).flatMap(m => m.data.dataSources);
+                    return { conversation: {...selectedConversation}, dataSources: ds };
                 }
         }
 
-        return [];
+        return { conversation: null, dataSources: [] };;
     }
 
     const stripDataSources = () => {
@@ -73,14 +71,16 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type}) 
                         m.data.dataSources = []; 
                     }
                 });
-                setconversation(copy);
+                return { conversation: copy, dataSources: [] };
             }
         }
-        return [];
+        return { conversation: null, dataSources: [] };
     }
 
-
-    const handleSubmit = async () => {
+    const handleSubmit = async (datasources: any) => {
+        setIsSubmitting(true);
+        const updatedConvAndDS =  includeDataSources ? getDataSources() : stripDataSources();
+        
         const updatedSummary = 
             {
                 type : type,
@@ -88,11 +88,10 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type}) 
                 description: description,
                 feedbackImprovements: feedbackImprovements,
                 additionalComments: additionalComments || undefined,
-                dataSources: includeDataSources ? getDataSources() : stripDataSources()
+                dataSources: updatedConvAndDS.dataSources
             }
-        setIsSubmitting(true);
         const response = await uploadToQiS3({ qiData : updatedSummary,
-                                        conversation : {...conversation, folderId: null}
+                                        conversation : {...updatedConvAndDS.conversation, folderId: null}
                                       }, type);
         setIsSubmitting(false);
         if (response.success) {
