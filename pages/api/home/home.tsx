@@ -160,14 +160,9 @@ const Home = ({
                     setloadedAccounts(true);
                 }
             };
-            const fetchInGroup = async () => {
-                const inGroup = await fetchInCognitoGroup();
-                if (inGroup.inCognitoGroup) featureFlags.inCognitoGroup = inGroup.inCognitoGroup;
-            }
 
             if (!loadedAccounts) {
                 fetchAccounts();
-                fetchInGroup()
             }
         }
 

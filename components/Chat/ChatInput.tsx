@@ -524,13 +524,13 @@ const onAssistantChange = (assistant: Assistant) => {
         <div
             className="absolute bottom-0 left-0 w-full border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
             <div
-                className="flex flex-col stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
+                className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
                
                {!showScrollDownButton && !showDataSourceSelector && !showAssistantSelect && 
                (selectedConversation && selectedConversation.messages.length > 0) && featureFlags.inCognitoGroup && (
                <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert">
                 <button
-                    className="mt-5 mx-8 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-in-out cursor-pointer border border-gray-300 dark:border-gray-600 rounded px-2 py-1"
+                    className="mt-5 cursor-pointer border border-gray-300 dark:border-gray-600 rounded px-2 py-1"
                     style={{ fontSize: '0.9rem' }} 
                     onClick={async () => {
                         setQiIsLoading(true);
@@ -540,7 +540,7 @@ const onAssistantChange = (assistant: Assistant) => {
                         handleGetQiSummary(QiSummaryType.CONVERSATION);
                         
                     }}
-                    title={`Help Improve Amplify - Anonymously submit your conversation for quality improvement`}
+                    title={`Help Improve Amplify \nAnonymously submit your conversation for quality improvement`}
                 >
                     Send Chat to Amplify 
                 </button>

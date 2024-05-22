@@ -1,6 +1,6 @@
 import { Conversation, Message } from '@/types/chat';
 import { ErrorMessage } from '@/types/error';
-import { FolderInterface } from '@/types/folder';
+import { FolderInterface, SortType } from '@/types/folder';
 import { OpenAIModel, OpenAIModelID } from '@/types/openai';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Assistant } from "@/types/assistant";
 import { noOpStatsServices, StatsServices } from "@/types/stats";
 import { Account } from "@/types/accounts";
+
 
 type HandleSend = (request: any) => void;
 
@@ -49,6 +50,13 @@ export interface HomeInitialState {
   inputEmail: string;
   hasAcceptedDataDisclosure: boolean | null;
   hasScrolledToBottom: boolean;
+  checkFolders: boolean;
+  allFoldersOpenConvs: boolean;
+  checkConversations: boolean;
+  convFolderSort: SortType;
+  allFoldersOpenPrompts: boolean;
+  checkPrompts: boolean;
+  promptFolderSort: SortType;
 }
 
 export const initialState: HomeInitialState = {
@@ -115,7 +123,7 @@ export const initialState: HomeInitialState = {
     automation: false,
     codeInterpreterEnabled: true,
     dataDisclosure: false,
-    inCognitoGroup: false
+    inCognitoGroup: true
   },
 
   statsService: noOpStatsServices,
@@ -125,4 +133,12 @@ export const initialState: HomeInitialState = {
   inputEmail: '',
   hasAcceptedDataDisclosure: null,
   hasScrolledToBottom: false,
+  checkFolders: false,
+  allFoldersOpenConvs: false,
+  checkConversations: false,
+  convFolderSort: 'date',
+  allFoldersOpenPrompts: false,
+  checkPrompts: false,
+  promptFolderSort: 'name'
+
 };
