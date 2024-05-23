@@ -11,15 +11,20 @@ export interface OpResult {
 
 export interface OpData {
     shouldConfirm?: boolean;
+    includeConversation?: boolean;
+    includeMessage?: boolean;
+    includeAccessToken?: boolean;
     [key: string]: any;
 }
 
 export interface OpDef {
     id: string;
     name: string;
+    url: string;
+    method?: string;
     description: string;
     type: string;
-    params: Record<string, string>; // An empty object, or possibly a more specific type if needed.
+    params: Record<string, string>[];
     data?: OpData;
 }
 

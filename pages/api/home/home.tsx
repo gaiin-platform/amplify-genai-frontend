@@ -596,26 +596,26 @@ const Home = ({
         }
     }, [conversationStateId]);
 
-    useEffect(() => {
-        const getOps = async () => {
-            try {
-                const ops = await getOpsForUser();
-
-                const opMap:{[key:string]:any} = {};
-                ops.data.forEach((op:any) => {
-                    opMap[op.id] = op;
-                })
-
-                console.log("Ops", opMap)
-                dispatch({field: 'ops', value: opMap});
-            } catch (e) {
-                console.error('Error getting ops', e);
-            }
-        }
-        if(session?.user) {
-           getOps();
-        }
-    }, [session]);
+    // useEffect(() => {
+    //     const getOps = async () => {
+    //         try {
+    //             const ops = await getOpsForUser();
+    //
+    //             const opMap:{[key:string]:any} = {};
+    //             ops.data.forEach((op:any) => {
+    //                 opMap[op.id] = op;
+    //             })
+    //
+    //             console.log("Ops", opMap)
+    //             dispatch({field: 'ops', value: opMap});
+    //         } catch (e) {
+    //             console.error('Error getting ops', e);
+    //         }
+    //     }
+    //     if(session?.user) {
+    //        getOps();
+    //     }
+    // }, [session]);
 
     const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
         if (selectedConversation) {

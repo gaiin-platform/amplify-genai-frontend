@@ -8,6 +8,9 @@ import {useSendService} from "@/hooks/useChatSendService";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {execOp} from "@/services/opsService";
+import {OpDef} from "@/types/op";
+import {useSession} from "next-auth/react";
+import {getDbsForUser} from "@/services/pdbService";
 
 interface Props {
     conversation: Conversation;
@@ -48,6 +51,8 @@ const AutonomousBlock: React.FC<Props> = (
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
 
+    const { data: session, status } = useSession();
+
     const {handleSend} = useSendService();
 
     function parseApiCall(str:string) {
@@ -58,6 +63,11 @@ const AutonomousBlock: React.FC<Props> = (
     }
 
     const stripQuotes = (s:string) => {
+
+        if(!s){
+            return "";
+        }
+
         s = s.trim();
 
         if(s.startsWith('"') && s.endsWith('"')){
@@ -71,6 +81,7 @@ const AutonomousBlock: React.FC<Props> = (
 
 
     const handlers:{[key:string]:(params:any)=>any} = {
+
         "/ops": async (params:any) => {
             const tag = params[1];
             const result = await execOp("/ops/get", {
@@ -171,6 +182,9 @@ const AutonomousBlock: React.FC<Props> = (
 
             return found;
         },
+        "/dbs": async (params:any) => {
+            return await getDbsForUser();
+        },
         "/models": (params:any) => {
             return models;
         },
@@ -191,6 +205,11 @@ const AutonomousBlock: React.FC<Props> = (
         },
         "/selectedAssistant": (params:any) => {
             return selectedAssistant;
+        },
+        "/listAssistants": (params:any) => {
+            return prompts
+                .filter(p => p.data && p.data.assistant)
+                .map(p => p.data?.assistant);
         },
         "/createChatFolder": (params:any) => {
             params = params.slice(1);
@@ -237,6 +256,88 @@ const AutonomousBlock: React.FC<Props> = (
         },
     }
 
+    const remoteOpHandler = (opDef:OpDef) => {
+
+        console.log("Building remote op handler", opDef);
+
+        const opData = opDef.data || {};
+
+        const url = opDef.url;
+        const method = opDef.method || "POST";
+        const defaultErrorMessage = opData.defaultErrorMessage;
+        const includeMessage = opData.includeMessage;
+        const includeConversation = opData.includeConversation;
+        const includeAccessToken = opData.includeAccessToken;
+        const shouldConfirm = opData.shouldConfirm;
+        const confirmationMessage = opData.confirmationMessage || "Do you want to allow the assistant to perform the specified operation?";
+
+        return async (params:any) => {
+            if(!shouldConfirm || confirm(confirmationMessage)){
+
+                const headers = {
+                    "Content-Type": "application/json"
+                }
+                if (includeAccessToken){
+                    console.log("Including access token");
+                    // @ts-ignore
+                    headers["Authorization"] = `Bearer ${session?.accessToken}` // Assuming the API Gateway/Lambda expects a Bearer token
+                }
+
+                const req:Record<string,any> = {
+                    method,
+                    headers
+                };
+
+                const payload = {
+
+                };
+
+                if(method === "POST"){
+                    req["body"] = JSON.stringify({data:payload});
+                }
+
+                try {
+
+                    console.log("Sending remote op request", req);
+
+                    const response = await fetch(url, req);
+                    if (response.ok) {
+                        const result = await response.json();
+                        return result;
+                    } else {
+                        return {
+                            success: false,
+                            result: defaultErrorMessage || response.statusText
+                        }
+                    }
+                } catch (e) {
+                    return {
+                        success: false,
+                        result: defaultErrorMessage || `{e}`
+                    }
+                }
+            }
+            else {
+                return {success:false, result:"The user canceled the operation and asked you to stop."}
+            }
+        };
+    }
+
+    const resolveServerHandler = (message:Message, id:string) => {
+        const serverResolvedOps = (message.data && message.data.state) ?
+            message.data.state.resolvedOps : [];
+
+        if(!serverResolvedOps || serverResolvedOps.length === 0){
+            return null;
+        }
+
+        const opDef = serverResolvedOps.find(
+            (op:any) => op.id === id || op.id === "/"+id
+        );
+
+        return opDef ? remoteOpHandler(opDef) : null;
+    }
+
     const runAction = async (action: any) => {
         try{
             if(!isLast || hasExecuted[id] || message.data.automation){
@@ -270,11 +371,16 @@ const AutonomousBlock: React.FC<Props> = (
             const apiCall = parseApiCall(action);
             console.log("apiCall:", apiCall);
 
+
+
             const shouldConfirm = false;
             const { functionName, params } = apiCall;
             const url = stripQuotes(params[0]);
 
-            const handler = handlers[url] || handlers["/"+url];
+            const handler =
+                resolveServerHandler(message, url)
+                || handlers[url]
+                || handlers["/"+url];
 
             let result = {success:false, message:"Unknown operation: "+url}
             if(handler){
