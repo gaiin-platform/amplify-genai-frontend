@@ -47,7 +47,6 @@ import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
 import {Prompt} from "@/types/prompt";
 import {WorkflowDefinition} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
-import {Key} from "@/components/Settings/Key";
 import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from "@/utils/app/const";
 import {TagsList} from "@/components/Chat/TagsList";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
@@ -85,8 +84,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 selectedAssistant,
                 conversations,
                 models,
-                apiKey,
-                serverSideApiKeyIsSet,
                 modelError,
                 loading,
                 prompts,
@@ -527,15 +524,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }, [selectedConversation]);
 
-        const handleApiKeyChange = useCallback(
-            (apiKey: string) => {
-                homeDispatch({field: 'apiKey', value: apiKey});
-
-                localStorage.setItem('apiKey', apiKey);
-            },
-            [homeDispatch],
-        );
-
 
         const scrollToBottom = useCallback(() => {
             if (autoScrollEnabled) {
@@ -710,51 +698,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 // @ts-ignore
         return (
             <div className="relative flex-1 overflow-hidden bg-white dark:bg-[#343541]">
-                {!(apiKey || serverSideApiKeyIsSet) ? (
-                    <div className="mx-auto flex h-full w-[300px] flex-col justify-center space-y-1 sm:w-[600px]">
-                        <div className="text-left text-4xl font-bold text-black dark:text-white">
-                            Welcome
-                        </div>
-                        <div className="text-left text-gray-500 dark:text-gray-400 mb-6">
-                            <div className="text-left text-gray-500 dark:text-gray-400 mb-6">
-                                The tool allows you to plug in your API keys to use this UI with
-                                their API. Right now, only OpenAI is supported. It is <span
-                                className="italic">only</span> used to communicate
-                                with their APIs.
-                            </div>
-
-                            {!serverSideApiKeyIsSet ? (
-
-                                <div className="text-left text-gray-500 dark:text-gray-400 mb-6">
-                                    <div className="text-left text-2xl font-bold text-black dark:text-white">
-                                        Please set your OpenAI API key:
-                                    </div>
-                                    <div className="text-left text-4xl font-bold text-black dark:text-white">
-                                        <Key apiKey={apiKey} onApiKeyChange={handleApiKeyChange}/>
-                                    </div>
-                                </div>
-                            ) : null}
-
-                            <div className="text-left text-gray-500 dark:text-gray-400">
-                                {t("If you don't have an OpenAI API key, you can get one here: ")}
-                                <a
-                                    href="https://platform.openai.com/account/api-keys"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-blue-500 hover:underline"
-                                >
-                                    openai.com
-                                </a>
-                            </div>
-                            <div className="text-left text-gray-500 dark:text-gray-400">
-                                <div>
-                                    Important: This tool is 100% unaffiliated with OpenAI, Anthropic, Google, etc.
-                                </div>
-                            </div>
-
-                        </div>
-                    </div>
-                ) : modelError ? (
+                { modelError ? (
                     <ErrorMessageDiv error={modelError}/>
                 ) : (
                     <>

@@ -29,7 +29,7 @@ const LoadingIcon = styled(FiCommand)`
 
 
 export const ActiveAssistantsList: FC<Props> = ({}) => {
-    const {state: {selectedConversation,prompts,selectedAssistant}, dispatch: homeDispatch} = useContext(HomeContext);
+    const {state: {selectedConversation, prompts, selectedAssistant}, dispatch: homeDispatch} = useContext(HomeContext);
 
     const baseAssistant: Assistant = {
         id: 'chat',
@@ -52,13 +52,12 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if(prompts){
+        if(prompts) {
 
             const all:Assistant[] = prompts.filter(
                 (prompt) => prompt.type === MessageType.ROOT && prompt.data?.assistant)
                 .map((prompt) => prompt.data?.assistant as Assistant);
 
-            const data = selectedConversation?.data;
             const assistants = [baseAssistant, ...all];
 
             setAvailableAssistants(assistants);

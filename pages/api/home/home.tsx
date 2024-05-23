@@ -24,7 +24,7 @@ import {
 import { getFolders, saveFolders } from '@/utils/app/folders';
 import { getPrompts, savePrompts } from '@/utils/app/prompts';
 import { getSettings } from '@/utils/app/settings';
-import { getAccounts } from "@/services/accountService";
+import { fetchInCognitoGroup, getAccounts } from "@/services/accountService";
 
 import { Conversation, Message, MessageType, newMessage } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
@@ -78,8 +78,6 @@ const LoadingIcon = styled(Icon3dCubeSphere)`
 `;
 
 interface Props {
-    serverSideApiKeyIsSet: boolean;
-    serverSidePluginKeysSet: boolean;
     defaultModelId: OpenAIModelID;
     cognitoClientId: string | null;
     cognitoDomain: string | null;
@@ -90,8 +88,6 @@ interface Props {
 
 
 const Home = ({
-    serverSideApiKeyIsSet,
-    serverSidePluginKeysSet,
     defaultModelId,
     cognitoClientId,
     cognitoDomain,
@@ -123,7 +119,6 @@ const Home = ({
 
     const {
         state: {
-            apiKey,
             conversationStateId,
             messageIsStreaming,
             lightMode,
@@ -165,7 +160,10 @@ const Home = ({
                     setloadedAccounts(true);
                 }
             };
-            if (!loadedAccounts) fetchAccounts();
+
+            if (!loadedAccounts) {
+                fetchAccounts();
+            }
         }
 
     }, [session]);
@@ -616,17 +614,8 @@ const Home = ({
     useEffect(() => {
         defaultModelId &&
             dispatch({ field: 'defaultModelId', value: defaultModelId });
-        serverSideApiKeyIsSet &&
-            dispatch({
-                field: 'serverSideApiKeyIsSet',
-                value: serverSideApiKeyIsSet,
-            });
-        serverSidePluginKeysSet &&
-            dispatch({
-                field: 'serverSidePluginKeysSet',
-                value: serverSidePluginKeysSet,
-            });
-    }, [defaultModelId, serverSideApiKeyIsSet, serverSidePluginKeysSet]);
+        
+    }, [defaultModelId]);
 
     // ON LOAD --------------------------------------------
 
@@ -639,27 +628,10 @@ const Home = ({
             });
         }
 
-        const apiKey = localStorage.getItem('apiKey');
 
         const workspaceMetadataStr = localStorage.getItem('workspaceMetadata');
         if (workspaceMetadataStr) {
             dispatch({ field: 'workspaceMetadata', value: JSON.parse(workspaceMetadataStr) });
-        }
-
-        if (serverSideApiKeyIsSet) {
-            dispatch({ field: 'apiKey', value: '' });
-
-            localStorage.removeItem('apiKey');
-        } else if (apiKey) {
-            dispatch({ field: 'apiKey', value: apiKey });
-        }
-
-        const pluginKeys = localStorage.getItem('pluginKeys');
-        if (serverSidePluginKeysSet) {
-            dispatch({ field: 'pluginKeys', value: [] });
-            localStorage.removeItem('pluginKeys');
-        } else if (pluginKeys) {
-            dispatch({ field: 'pluginKeys', value: pluginKeys });
         }
 
         if (window.innerWidth < 640) {
@@ -766,8 +738,6 @@ const Home = ({
     }, [
         defaultModelId,
         dispatch,
-        serverSideApiKeyIsSet,
-        serverSidePluginKeysSet,
     ]);
 
     const [preProcessingCallbacks, setPreProcessingCallbacks] = useState([]);
@@ -1151,24 +1121,19 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
     const availableModels = process.env.AVAILABLE_MODELS;
 
 
-    //console.log("Default Model Id:", defaultModelId);
-
-    let serverSidePluginKeysSet = false;
 
     const googleApiKey = process.env.GOOGLE_API_KEY;
     const googleCSEId = process.env.GOOGLE_CSE_ID;
 
-    if (googleApiKey && googleCSEId) {
-        serverSidePluginKeysSet = true;
-    }
+    // if (googleApiKey && googleCSEId) {
+    //     serverSidePluginKeysSet = true;
+    // }
 
     return {
         props: {
             availableModels,
             chatEndpoint,
-            serverSideApiKeyIsSet: !!process.env.OPENAI_API_KEY,
             defaultModelId,
-            serverSidePluginKeysSet,
             mixPanelToken,
             cognitoClientId,
             cognitoDomain,

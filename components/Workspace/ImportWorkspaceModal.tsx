@@ -3,7 +3,6 @@ import HomeContext from "@/pages/api/home/home.context";
 import {Conversation} from "@/types/chat";
 import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";
-import {TagsList} from "@/components/Chat/TagsList";
 import {createExport, exportData, importData} from "@/utils/app/importExport";
 import {loadSharedItem, shareItems} from "@/services/shareService";
 import styled, {keyframes} from "styled-components";
@@ -207,7 +206,7 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
 
         const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport);
 
-        console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);
+        // console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);
 
         homeDispatch({field: 'conversations', value: history});
         homeDispatch({

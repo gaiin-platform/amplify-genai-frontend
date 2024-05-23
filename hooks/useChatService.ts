@@ -2,7 +2,7 @@
 import {incrementalJSONtoCSV} from "@/utils/app/incrementalCsvParser";
 import {useContext} from 'react';
 import HomeContext from '@/pages/api/home/home.context';
-import {killRequest as killReq, MetaHandler, sendChatRequest as send, sendChatRequestWithDocuments} from '../services/chatService';
+import {killRequest as killReq, MetaHandler, sendChatRequestWithDocuments} from '../services/chatService';
 import {ChatBody, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
 import {Plugin} from '@/types/plugin';
@@ -15,7 +15,7 @@ import {newStatus} from "@/types/workflow";
 
 export function useChatService() {
     const {
-        state: {apiKey, statsService, chatEndpoint, defaultAccount, defaultModelId},
+        state: {statsService, chatEndpoint, defaultAccount, defaultModelId},
         preProcessingCallbacks,
         postProcessingCallbacks,
         dispatch,
@@ -113,7 +113,7 @@ export function useChatService() {
         statsService.sendChatEvent(chatBody);
 
         preProcessingCallbacks.forEach(callback => callback({plugin: plugin, chatBody: chatBody}));
-        //let response = send(apiKey, chatBody, plugin, abortSignal);
+    
 
         let response = null;
 
@@ -203,7 +203,7 @@ export function useChatService() {
     const routeChatRequest = async (chatBody: ChatBody, plugin?: Plugin | null, abortSignal?: AbortSignal) => {
         const message = chatBody.messages.slice(-1)[0];
 
-        chatBody.key = apiKey;
+        
         if (!chatBody.model && defaultModelId) {
             chatBody.model = OpenAIModels[defaultModelId];
         }
@@ -213,7 +213,7 @@ export function useChatService() {
         let updated = {...message, content: body};
         chatBody.messages = [...chatBody.messages.slice(0, -1), updated];
 
-        console.log(`Prompt:`, {prefix: prefix, options, message});
+        // console.log(`Prompt:`, {prefix: prefix, options, message});
 
         const generateJsonLoose = (): Promise<Response> => {
             if (options.length === 0) {

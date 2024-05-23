@@ -144,7 +144,7 @@ const Folder = ({
         )}
 
         {(isDeleting || isRenaming) && (
-          <div className="absolute right-1 z-10 flex text-gray-300">
+          <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
             <SidebarActionButton
               handleClick={(e) => {
                 e.stopPropagation();
@@ -174,7 +174,7 @@ const Folder = ({
         )}
 
         {!isDeleting && !isRenaming && isHovered && (
-          <div className="absolute right-1 z-10 flex text-gray-300">
+          <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
             <SidebarActionButton
               handleClick={(e) => {
                 e.stopPropagation();

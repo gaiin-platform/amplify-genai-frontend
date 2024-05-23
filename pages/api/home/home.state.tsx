@@ -1,16 +1,16 @@
 import { Conversation, Message } from '@/types/chat';
 import { ErrorMessage } from '@/types/error';
-import { FolderInterface } from '@/types/folder';
+import { FolderInterface, SortType } from '@/types/folder';
 import { OpenAIModel, OpenAIModelID } from '@/types/openai';
-import { PluginKey } from '@/types/plugin';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
 import { Status } from "@/types/workflow";
 import { Workspace } from "@/types/workspace";
 import { v4 as uuidv4 } from 'uuid';
-import { Assistant, DEFAULT_ASSISTANT } from "@/types/assistant";
+import { Assistant } from "@/types/assistant";
 import { noOpStatsServices, StatsServices } from "@/types/stats";
 import { Account } from "@/types/accounts";
+
 
 type HandleSend = (request: any) => void;
 
@@ -18,8 +18,6 @@ export interface HomeInitialState {
   defaultAccount: Account | undefined;
   chatEndpoint: string | null;
   conversationStateId: string;
-  apiKey: string;
-  pluginKeys: PluginKey[];
   loading: boolean;
   lightMode: 'light' | 'dark';
   messageIsStreaming: boolean;
@@ -40,8 +38,6 @@ export interface HomeInitialState {
   messageError: boolean;
   searchTerm: string;
   defaultModelId: OpenAIModelID | undefined;
-  serverSideApiKeyIsSet: boolean;
-  serverSidePluginKeysSet: boolean,
   featureFlags: { [key: string]: boolean },
   workspaceMetadata: Workspace;
   selectedAssistant: Assistant | null;
@@ -54,15 +50,20 @@ export interface HomeInitialState {
   inputEmail: string;
   hasAcceptedDataDisclosure: boolean | null;
   hasScrolledToBottom: boolean;
+  checkFolders: boolean;
+  allFoldersOpenConvs: boolean;
+  checkConversations: boolean;
+  convFolderSort: SortType;
+  allFoldersOpenPrompts: boolean;
+  checkPrompts: boolean;
+  promptFolderSort: SortType;
 }
 
 export const initialState: HomeInitialState = {
   defaultAccount: undefined,
   chatEndpoint: null,
   conversationStateId: "init",
-  apiKey: '',
   loading: false,
-  pluginKeys: [],
   lightMode: 'dark',
   status: [],
   workspaceDirty: false,
@@ -95,11 +96,10 @@ export const initialState: HomeInitialState = {
   messageError: false,
   searchTerm: '',
   defaultModelId: undefined,
-  serverSideApiKeyIsSet: false,
-  serverSidePluginKeysSet: false,
   selectedAssistant: null,
   page: 'chat',
   currentRequestId: null,
+
   featureFlags: {
     assistantsEnabled: true,
     ragEnabled: true,
@@ -123,7 +123,9 @@ export const initialState: HomeInitialState = {
     automation: false,
     codeInterpreterEnabled: true,
     dataDisclosure: false,
+    inCognitoGroup: true
   },
+
   statsService: noOpStatsServices,
   defaultFunctionCallModel: null,
   latestDataDisclosureUrlPDF: '',
@@ -131,4 +133,12 @@ export const initialState: HomeInitialState = {
   inputEmail: '',
   hasAcceptedDataDisclosure: null,
   hasScrolledToBottom: false,
+  checkFolders: false,
+  allFoldersOpenConvs: false,
+  checkConversations: false,
+  convFolderSort: 'date',
+  allFoldersOpenPrompts: false,
+  checkPrompts: false,
+  promptFolderSort: 'name'
+
 };
