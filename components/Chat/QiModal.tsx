@@ -47,19 +47,28 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type}) 
                 if (selectedConversation) {
                     let dsCount = 0;
                     const copy = cloneDeep(selectedConversation);
+
                     copy.messages.forEach(m => {
-                        if (m.data && m.data.dataSources) {
-                            m.data.dataSources = [];
-                            dsCount += 1;
+                        if (m.data) {
+                            if (m.data.dataSources) {
+                                m.data.dataSources = null;
+                                dsCount += 1;
+                            }
+                            if (m.data.state && m.data.state.sources) {
+                                m.data.state.sources = null;
+                            }
                         }
                     });
+                    if (copy.promptTemplate) {
+                        copy.promptTemplate.data = {};
+                    }
                     setDataSourceCount(dsCount);
                     setConversation(copy);
                 }
             }
         };
         
-        stripDataSources();
+        if (!conversation) stripDataSources();
     }, [type]); 
 
     const [summary, setSummary] = useState<string>(qiSummary ? qiSummary.summary : "");
@@ -73,7 +82,7 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type}) 
 
     const {t} = useTranslation('qiSummary');
     
-    const handleSubmit = async (datasources: any) => {
+    const handleSubmit = async () => {
         setIsSubmitting(true);
         
         const updatedSummary = { type : type,
@@ -140,7 +149,7 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type}) 
 
 
                         <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
-                                {t('Summary')}
+                                {t('Conversation Summary')}
                             </div>
                             <textarea
                                 className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
@@ -148,7 +157,7 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type}) 
                                 placeholder={t('A summary of the overall conversation.') || ''}
                                 value={summary}
                                 onChange={(e) => setSummary(e.target.value)}
-                                rows={4}
+                                rows={5}
                             />
 
                         <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
