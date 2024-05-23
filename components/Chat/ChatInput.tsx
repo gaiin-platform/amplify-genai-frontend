@@ -540,9 +540,9 @@ const onAssistantChange = (assistant: Assistant) => {
                         handleGetQiSummary(QiSummaryType.CONVERSATION);
                         
                     }}
-                    title={`Help Improve Amplify \nAnonymously submit your conversation for quality improvement`}
+                    title={`Anonymously share your conversation for quality improvement`}
                 >
-                    Send Chat to Amplify 
+                    Share for Quality Improvement
                 </button>
             </div>)}
 

@@ -8,7 +8,6 @@ import {Conversation} from "@/types/chat";
 import { QiSummary, QiSummaryType } from "@/types/qi";
 import {useTranslation} from 'next-i18next';
 import { uploadToQiS3 } from '@/services/qiService';
-import { AttachedDocument } from "@/types/attacheddocument";
 import cloneDeep from 'lodash/cloneDeep';
 
 
@@ -39,60 +38,51 @@ interface QiModalProps {
 
 const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type}) => {
     const {state:{selectedConversation}} = useContext(HomeContext);
-    const [summary, setSummary] = useState<string>(qiSummary ? qiSummary.summary : "");
-    const [description, setDescription] = useState<string>(qiSummary ? qiSummary.description : "");
-    const [feedbackImprovements, setFeedbackImprovements] = useState<string>(qiSummary ? qiSummary.feedbackImprovements :"");
-    const [additionalComments, setAdditionalComments] = useState("");
-    const [includeDataSources, setIncludeDataSources] = useState<boolean>(false);
-    const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+    const [conversation, setConversation] = useState<Conversation | null>(null);
+    const [dataSourceCount, setDataSourceCount] =  useState<Number>(0);
 
+    useEffect(() => {
+        const stripDataSources = () => {
+            if (type === QiSummaryType.CONVERSATION) {
+                if (selectedConversation) {
+                    let dsCount = 0;
+                    const copy = cloneDeep(selectedConversation);
+                    copy.messages.forEach(m => {
+                        if (m.data && m.data.dataSources) {
+                            m.data.dataSources = [];
+                            dsCount += 1;
+                        }
+                    });
+                    setDataSourceCount(dsCount);
+                    setConversation(copy);
+                }
+            }
+        };
+        
+        stripDataSources();
+    }, [type]); 
+
+    const [summary, setSummary] = useState<string>(qiSummary ? qiSummary.summary : "");
+    const [purpose, setPurpose] = useState<string>(qiSummary ? qiSummary.purpose :"");
+    const [additionalComments, setAdditionalComments] = useState<string>("");
+    
+    const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+    
+
+   
 
     const {t} = useTranslation('qiSummary');
-
-    const getDataSources = () => {
-        if (type === QiSummaryType.CONVERSATION ) {
-             if (selectedConversation) {
-                    const ds = selectedConversation.messages.filter( m => {
-                        return m.data && m.data.dataSources as AttachedDocument
-                    }).flatMap(m => m.data.dataSources);
-                    return { conversation: {...selectedConversation}, dataSources: ds };
-                }
-        }
-
-        return { conversation: null, dataSources: [] };;
-    }
-
-    const stripDataSources = () => {
-        if (type === QiSummaryType.CONVERSATION ) {
-            if (selectedConversation) {
-                const copy = cloneDeep(selectedConversation);
-                copy.messages.forEach(m => {
-                    if (m.data && m.data.dataSources) {
-                        m.data.dataSources = []; 
-                    }
-                });
-                return { conversation: copy, dataSources: [] };
-            }
-        }
-        return { conversation: null, dataSources: [] };
-    }
-
+    
     const handleSubmit = async (datasources: any) => {
         setIsSubmitting(true);
-        const updatedConvAndDS =  includeDataSources ? getDataSources() : stripDataSources();
         
-        const updatedSummary = 
-            {
-                type : type,
-                summary: summary,
-                description: description,
-                feedbackImprovements: feedbackImprovements,
-                additionalComments: additionalComments || undefined,
-                dataSources: updatedConvAndDS.dataSources
-            }
-        const response = await uploadToQiS3({ qiData : updatedSummary,
-                                        conversation : {...updatedConvAndDS.conversation, folderId: null}
-                                      }, type);
+        const updatedSummary = { type : type,
+                                 summary: summary,
+                                 purpose: purpose,
+                                 additionalComments: additionalComments || undefined,
+                                 numberOfDataSources: dataSourceCount
+                            } as QiSummary
+        const response = await uploadToQiS3(uploadData(updatedSummary), type);
         setIsSubmitting(false);
         if (response.success) {
             alert("Successfully submitted quality improvement summary.");
@@ -100,6 +90,20 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type}) 
         } else {
             alert("Failed to submit quality improvement summary. Please try again...")
         }
+    }
+
+    interface QiData {
+        qiData: QiSummary;
+        conversation?: any;
+    }
+
+    const uploadData = (summary: QiSummary) => {
+        let data:QiData = { qiData : summary }
+        if (type === QiSummaryType.CONVERSATION) {
+            data.conversation = {...conversation, folderId: null}
+        }
+        return data;
+
     }
 
 
@@ -126,8 +130,7 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type}) 
                                 </div>
                             </div>
                         )}
-
-                        
+    
                         
                         <div className="max-h-[calc(100vh-10rem)] overflow-y-auto">
 
@@ -135,17 +138,6 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type}) 
                                 {label()}
                             </div>
 
-                            <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
-                                {t('Description')}
-                            </div>
-                            <textarea
-                                className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                style={{resize: 'none'}}
-                                placeholder={t('A short description of the concern.') || ''}
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                rows={3}
-                            />
 
                         <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
                                 {t('Summary')}
@@ -153,24 +145,24 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type}) 
                             <textarea
                                 className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                 style={{resize: 'none'}}
-                                placeholder={t('A summary of the overall conversation and concerns.') || ''}
+                                placeholder={t('A summary of the overall conversation.') || ''}
                                 value={summary}
                                 onChange={(e) => setSummary(e.target.value)}
-                                rows={5}
+                                rows={4}
                             />
 
-
-                            <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
-                                {t('Feedback for Improvements')}
+                        <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
+                                {t('Amplify Use Case ')}
                             </div>
-                                <textarea
+                            <textarea
                                 className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                 style={{resize: 'none'}}
-                                placeholder={t('Provide any specific feedback.') || ''}
-                                value={feedbackImprovements}
-                                onChange={(e) => setFeedbackImprovements(e.target.value)}
+                                placeholder={t('Write the purpose or use case of your conversation.') || ''}
+                                value={purpose}
+                                onChange={(e) => setPurpose(e.target.value)}
                                 rows={5}
                             />
+
 
                             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
                                 {t('Additional Comments')}
@@ -178,15 +170,15 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type}) 
                             <textarea
                                 className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                 style={{resize: 'none'}}
-                                placeholder={t('Enter any additional thoughts or concerns.') || ''}
+                                placeholder={t('Provide any additional feedback or comments regarding this conversation for quality improvement.') || ''}
                                 value={additionalComments}
                                 onChange={(e) => setAdditionalComments(e.target.value)}
                                 rows={2}
                             />
 
                             <div className="ml-1 mt-4 flex flex-row gap-3">
-                                <input type="checkbox" checked={includeDataSources} onChange={(e) => setIncludeDataSources(e.target.checked)} />
-                                <label className="text-sm font-bold text-black dark:text-neutral-200">Include Data Sources</label>
+                                <label className="text-sm font-bold text-black dark:text-neutral-200"
+                                    title='Data sources attached to this conversation will not be included in the submission.'>{`Number of Data Sources: ${dataSourceCount}`}</label>
                             </div>
                         </div>
 

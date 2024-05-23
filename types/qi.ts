@@ -8,8 +8,7 @@ export enum QiSummaryType {
 export interface QiSummary {
     type: QiSummaryType;
     summary:string;
-    description:string;
-    feedbackImprovements:string;
+    purpose:string;
     additionalComments?:string;
-    dataSources?:AttachedDocument[];
+    numberOfDataSources?:number;
 }
