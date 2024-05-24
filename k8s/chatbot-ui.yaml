@@ -9,8 +9,6 @@ metadata:
   namespace: chatbot-ui
   name: chatbot-ui
 type: Opaque
-data:
-  OPENAI_API_KEY: <base64 encoded key>
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -35,12 +33,7 @@ spec:
           resources: {}
           ports:
             - containerPort: 3000
-          env:
-            - name: OPENAI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: chatbot-ui
-                  key: OPENAI_API_KEY
+
 ---
 kind: Service
 apiVersion: v1

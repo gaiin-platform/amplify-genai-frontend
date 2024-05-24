@@ -1,7 +1,5 @@
-import {Assistant, AssistantDefinition} from "@/types/assistant";
-import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
-import {ChatBody, Message, newMessage} from "@/types/chat";
-import {sendChatRequest} from "@/services/chatService";
+import {AssistantDefinition} from "@/types/assistant";
+import {Message, newMessage} from "@/types/chat";
 import {Stopper} from "@/utils/app/tools";
 import {v4 as uuidv4} from 'uuid';
 

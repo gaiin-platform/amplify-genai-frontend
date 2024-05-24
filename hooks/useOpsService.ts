@@ -1,10 +1,7 @@
 import {useContext, useEffect, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
-import {Op, OpDef, OpData} from "@/types/op";
+import {Op, OpDef} from "@/types/op";
 import JSON5 from "json5";
-import {Message} from "@/types/chat";
-import {getOpsForUser} from "@/services/opsService";
-
 
 
 export function useOpsService() {
@@ -21,10 +18,11 @@ export function useOpsService() {
             result += op.name;
             if (op.params) {
                 const paramKeys: string[] = Object.keys(op.params);
-                const paramValuesPlaceholder: string = paramKeys.map(key => `"${op.params[key]}"`).join(', ');
-                if (paramValuesPlaceholder) {
-                    result += ', ' + paramValuesPlaceholder;
-                }
+                // @ts-ignore
+                // const paramValuesPlaceholder: string = paramKeys.map((key) => `"${op.params[key]}"`).join(', ');
+                // if (paramValuesPlaceholder) {
+                //     result += ', ' + paramValuesPlaceholder;
+                // }
             }
             result += ' -- ' + op.description + '\n';
         });
@@ -58,13 +56,16 @@ export function useOpsService() {
         return s;
     }
 
+
+
     const localOps:{[key:string]:Op} = {
+        // @ts-ignore
         listOps: {
             id: 'listOps',
             name: 'List Ops',
             description: 'List all of the available ops',
             type: 'chat',
-            params: {},
+            params: [],
             paramChecker: (params: any) => {
                 return true;
             },
@@ -78,13 +79,14 @@ export function useOpsService() {
                 shouldConfirm: false
             }
         },
+        // @ts-ignore
         listConversations:
             {
                 id: 'listConversations',
                 name: 'List Conversations',
                 description: 'List all of the conversations',
                 type: 'chat',
-                params: {},
+                params: [],
                 paramChecker: (params: any) => {
                     return true;
                 },
@@ -99,13 +101,14 @@ export function useOpsService() {
                     return {message};
                 }
             },
+        // @ts-ignore
         searchConversations:
             {
                 id: 'searchConversations',
                 name: 'Search Conversations',
                 description: 'Search all of the conversations for a set of key words',
                 type: 'chat',
-                params: {'keywords': 'a comma separated list of keywords to search for'},
+                params: [],//'keywords': 'a comma separated list of keywords to search for'},
                 paramChecker: (params: any) => {
                     return true;
                 },
@@ -132,13 +135,14 @@ export function useOpsService() {
                     return {message};
                 }
             },
+        // @ts-ignore
         getConversation:
             {
                 id: 'getConversation',
                 name: 'Get Conversation',
                 description: 'Get the contents of a conversation',
                 type: 'chat',
-                params: {'id': 'ID of the conversation'},
+                params: [],//{'id': 'ID of the conversation'},
                 paramChecker: (params: any) => {
                     return true;
                 },

@@ -42,7 +42,6 @@ const AssistantsInUse: React.FC<Props> = ({assistants,assistantsChanged}) => {
                     const index = selectedConversation.prompt.indexOf(marker);
                     if (index !== -1) selectedConversation.prompt = selectedConversation.prompt.substring(0, index);
                                       
-                    console.log("Removed Assistant Creator Prompt");
                     
                 } 
             }

@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 
-const fetchEmailSuggestions = async (req: NextApiRequest, res: NextApiResponse) => {
+const fetchInCognitoGroup = async (req: NextApiRequest, res: NextApiResponse) => {
     const session = await getServerSession(req, res, authOptions);
 
     if (!session) {
@@ -11,10 +11,8 @@ const fetchEmailSuggestions = async (req: NextApiRequest, res: NextApiResponse) 
     }
 
     const { accessToken } = session;
-
-    const query = typeof req.query.emailprefix === 'string' ? req.query.emailprefix : ""; 
     
-    const apiUrl = process.env.API_BASE_URL + `/utilities/emails?emailprefix=${encodeURIComponent(query)}`;
+    const apiUrl = process.env.API_BASE_URL + `/utilities/in_cognito_group`;
 
     try {
         const response = await fetch(apiUrl, {
@@ -33,10 +31,8 @@ const fetchEmailSuggestions = async (req: NextApiRequest, res: NextApiResponse) 
         res.status(200).json(data);
 
     } catch (error) {
-        console.log("ERROR");
-        console.error("Error making request to get email suggestions: ", error);
-        res.status(500).json({ success: false, error: "Could not retrieve email suggestions"});
+        res.status(500).json({ success: false, error: "Could not make call to check if cognito groups"});
     }
 };
 
-export default fetchEmailSuggestions;
+export default fetchInCognitoGroup;

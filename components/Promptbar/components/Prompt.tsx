@@ -53,7 +53,7 @@ export const PromptComponent = ({ prompt }: Props) => {
     } = useContext(PromptbarContext);
 
     const {
-        state: { prompts, defaultModelId, showPromptbar, apiKey, statsService, selectedAssistant},
+        state: { prompts, defaultModelId, showPromptbar, statsService, selectedAssistant},
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -234,7 +234,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
                 {isHovered &&
                     <div
-                        className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-gray-900 rounded">
+                        className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-neutral-200 dark:bg-[#343541]/90 rounded">
 
                         {!isDeleting && !isRenaming && canCopy && (
                             <SidebarActionButton handleClick={handleCopy} title="Duplicate Template">

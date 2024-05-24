@@ -4,10 +4,8 @@ import {
     IconBrandGoogle,
     IconPlayerStop,
     IconAt,
-    IconRepeat,
-    IconRobot,
     IconFiles,
-    IconApiApp,
+    IconShare2,
     IconSend,
 } from '@tabler/icons-react';
 import {
@@ -44,6 +42,10 @@ import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {getAssistants} from "@/utils/app/assistants";
 import AssistantsInUse from "@/components/Chat/AssistantsInUse";
 import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
+import QiModal from './QiModal';
+import { QiSummary, QiSummaryType } from '@/types/qi';
+import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import { createQiSummary } from '@/services/qiService';
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -69,7 +71,7 @@ export const ChatInput = ({
     const {killRequest} = useChatService();
 
     const {
-        state: {selectedConversation, selectedAssistant, messageIsStreaming, prompts, models, status, featureFlags, currentRequestId},
+        state: {selectedConversation, selectedAssistant, messageIsStreaming, prompts, models, status, featureFlags, currentRequestId, chatEndpoint, statsService},
 
         dispatch: homeDispatch
     } = useContext(HomeContext);
@@ -82,6 +84,10 @@ export const ChatInput = ({
     const [variables, setVariables] = useState<string[]>([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [showPluginSelect, setShowPluginSelect] = useState(false);
+    const [showQiDialog, setshowQiDialog] = useState(false);
+    const [isQiLoading, setQiIsLoading] = useState<boolean>(true);
+    const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
+
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const [plugin, setPlugin] = useState<Plugin | null>(null);
     //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
@@ -94,7 +100,7 @@ export const ChatInput = ({
 
     const promptListRef = useRef<HTMLUListElement | null>(null);
     const dataSourceSelectorRef = useRef<HTMLDivElement | null>(null);
-    const assistantSelectorRef = useRef<HTMLUListElement | null>(null);
+    const assistantSelectorRef = useRef<HTMLDivElement | null>(null);
 
     const [isWorkflowOn, setWorkflowOn] = useState(false);
 
@@ -505,12 +511,41 @@ const onAssistantChange = (assistant: Assistant) => {
         setDocuments(newDocuments);
 
     }
+    const handleGetQiSummary = async (type: QiSummaryType) => {
+        if (type === QiSummaryType.CONVERSATION && selectedConversation) {
+            const summary = await createQiSummary(chatEndpoint || '', selectedConversation, type, statsService);
+            setQiSummary(summary);
+            setQiIsLoading(false);
+            return;
+        } 
+    }
 
     return (
         <div
             className="absolute bottom-0 left-0 w-full border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
             <div
-                className="stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
+                className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
+               
+               {!showScrollDownButton && !messageIsStreaming && featureFlags.inCognitoGroup && !showDataSourceSelector &&
+               (selectedConversation && selectedConversation.messages.length > 0) &&  (
+               <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert">
+                <button
+                    className="mt-5 cursor-pointer border border-gray-300 dark:border-gray-600 rounded px-2 py-1"
+                    style={{ fontSize: '0.9rem' }} 
+                    onClick={async () => {
+                        setQiIsLoading(true);
+                        setshowQiDialog(true);
+                        // setShowPluginSelect(false);
+                        // setShowPromptList(false);
+                        handleGetQiSummary(QiSummaryType.CONVERSATION);
+                        
+                    }}
+                    title={`Help Improve Amplify \nAnonymously submit your conversation for quality improvement`}
+                >
+                    Send Chat to Amplify 
+                </button>
+            </div>)}
+
 
 
                 <div className='absolute top-0 left-0 right-0 mx-auto flex justify-center items-center gap-2'>
@@ -694,6 +729,24 @@ const onAssistantChange = (assistant: Assistant) => {
                                     }}
                                 />
                             </div>
+                        )}
+
+                        {showQiDialog && (
+                         isQiLoading ? (  <LoadingDialog open={isQiLoading} message={"Creating Summary..."}/>) :
+                            <QiModal
+                                qiSummary={qiSummary}
+                                onCancel={() => {
+                                    setshowQiDialog(false)
+                                    setQiSummary(null);
+                                    setQiIsLoading(true);
+                                }}
+                                onSubmit={() => {
+                                    setshowQiDialog(false)
+                                    setQiSummary(null);
+                                    setQiIsLoading(true);
+                                }}
+                                type={QiSummaryType.CONVERSATION}
+                        />
                         )}
 
                         <textarea

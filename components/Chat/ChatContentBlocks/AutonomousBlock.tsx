@@ -182,7 +182,7 @@ const AutonomousBlock: React.FC<Props> = (
 
             return found;
         },
-        "/dbs": async (params:any) => {
+        "/listDbs": async (params:any) => {
             return await getDbsForUser();
         },
         "/models": (params:any) => {
@@ -288,22 +288,29 @@ const AutonomousBlock: React.FC<Props> = (
                     headers
                 };
 
-                const payload = {
+                const payload:Record<string,any> = {};
 
-                };
-
-                if(method === "POST"){
-                    req["body"] = JSON.stringify({data:payload});
+                params = params.slice(1); // The first param is the operation name
+                for (let i = 0; i < opDef.params.length; i++) {
+                    const paramDef = opDef.params[i];
+                    console.log(`paramDef ${i}:`, paramDef);
+                    try {
+                        payload[paramDef.name] = JSON5.parse(params[i]);
+                    } catch (e) {
+                        payload[paramDef.name] = params[i];
+                    }
+                    console.log(`payload ${i}:`, payload[paramDef.name]);
                 }
 
                 try {
 
-                    console.log("Sending remote op request", req);
+                    console.log("Sending remote op request", url, payload);
 
-                    const response = await fetch(url, req);
-                    if (response.ok) {
-                        const result = await response.json();
-                        return result;
+                    const response = await execOp(url, payload);
+
+                    //const response = await fetch(url, req);
+                    if (response) {
+                        return response;
                     } else {
                         return {
                             success: false,
@@ -311,9 +318,10 @@ const AutonomousBlock: React.FC<Props> = (
                         }
                     }
                 } catch (e) {
+                    console.error("Error invoking remote op:", e);
                     return {
                         success: false,
-                        result: defaultErrorMessage || `{e}`
+                        result: defaultErrorMessage || `${e}`
                     }
                 }
             }
@@ -323,9 +331,13 @@ const AutonomousBlock: React.FC<Props> = (
         };
     }
 
-    const resolveServerHandler = (message:Message, id:string) => {
-        const serverResolvedOps = (message.data && message.data.state) ?
+    const getServerProvidedOps = (message:Message) => {
+        return (message.data && message.data.state) ?
             message.data.state.resolvedOps : [];
+    }
+
+    const resolveServerHandler = (message:Message, id:string) => {
+        const serverResolvedOps = getServerProvidedOps(message);
 
         if(!serverResolvedOps || serverResolvedOps.length === 0){
             return null;
@@ -371,11 +383,16 @@ const AutonomousBlock: React.FC<Props> = (
             const apiCall = parseApiCall(action);
             console.log("apiCall:", apiCall);
 
-
-
             const shouldConfirm = false;
             const { functionName, params } = apiCall;
             const url = stripQuotes(params[0]);
+
+            const remoteOps = getServerProvidedOps(message);
+            console.log("Message:", message);
+            console.log("Searching for operation:", url);
+            console.log(`Known keys: 
+            ${remoteOps ? "Remote:" + remoteOps.map((o:any) => o.id).join(",") : ""}
+            Local:${Object.keys(handlers)}`);
 
             const handler =
                 resolveServerHandler(message, url)
