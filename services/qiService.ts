@@ -6,21 +6,21 @@ import {v4 as uuidv4} from 'uuid';
 import { sendChatRequestWithDocuments } from "./chatService";
 import { Message } from "ai";
 
-const qiConversationPrompt= 
-    `Analyze the provided chat conversation and generate a detailed report based on the following criteria:
+const qiConversationPrompt = 
+    `Generate a focused summary based on user and system exchanges, emphasizing the user's task: 
 
     Summary: 
-    Provide a concise overview of the entire conversation, capturing all critical points discussed. Focus on the main topics, key decisions made, and the overall flow of the dialogue. Condense the summary into two to three sentences. 
-    
+    Summarize only the actionable and pertinent points discussed, avoiding transcription of extensive dialogue or content. Condense the summary into two to five sentences. 
+
     Purpose: 
-    Please review the conversation in its entirety and identify the key objectives and use cases. Highlight the primary reasons for this interaction and outline the problems the user aims to resolve.
+    Please review the conversation in its entirety and identify the key objectives and use cases. Highlight the primary reasons for this interaction and outline the problems the user aims to resolve. Please focus on the users questions to establish overall intent. 
     
     
     To ensure anonymity, replace anything you think is a persons name to NAME_REDACTED
 
     It is very important that you format your response correctly. Format your response as follows:
-    /SUMMARY_START [Your summary here] /SUMMARY_END
-    /PURPOSE_START [Your purpose and use case here] /PURPOSE_END`
+    /SUMMARY_START [Summary here] /SUMMARY_END
+    /PURPOSE_START [Purpose and use case here] /PURPOSE_END`
 
 
 export const createQiSummary = async (chatEndpoint:string, data:any, type: QiSummaryType, statsService: any) => {
@@ -93,7 +93,8 @@ const parseToQiSummary = (text: string, type: QiSummaryType) => {
 export const createEmptyQiSummary = (type: QiSummaryType) =>{
     return  { type: type,
               summary : '',
-              purpose: ''
+              purpose: '',
+            //   includeUser: false
             } as QiSummary;
 }
 
