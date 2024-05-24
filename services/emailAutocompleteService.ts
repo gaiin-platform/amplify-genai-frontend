@@ -1,4 +1,4 @@
-export const fetchEmailSuggestions = async (queryInput: any) => {
+export const fetchEmailSuggestions = async (queryInput: string) => {
     try {
         const response = await fetch('/api/emails/autocomplete' + `?emailprefix=${queryInput}`, {
             method: 'GET',
