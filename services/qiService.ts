@@ -94,7 +94,7 @@ export const createEmptyQiSummary = (type: QiSummaryType) =>{
     return  { type: type,
               summary : '',
               purpose: '',
-            //   includeUser: false
+              includeUser: false
             } as QiSummary;
 }
 
@@ -116,7 +116,7 @@ export const uploadToQiS3 = async (data:any, type: QiSummaryType, errorHandler=(
             'Content-Type': 'application/json',
         },
         signal: null,
-        body: JSON.stringify({'data': data, 'type': type}),
+        body: JSON.stringify({'data': data, 'type': type.toLowerCase()}),
     });
 
 

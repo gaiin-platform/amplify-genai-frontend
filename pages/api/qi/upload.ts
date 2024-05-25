@@ -27,7 +27,7 @@ const uploadToQiS3 =
             // @ts-ignore
             const { accessToken } = session;
 
-            console.log("Call to upload qi: ", apiUrl, payload);
+            // console.log("Call to upload qi: ", apiUrl, payload);
 
             const response = await fetch(apiUrl, {
                 method: "POST",
@@ -44,7 +44,7 @@ const uploadToQiS3 =
 
             res.status(200).json(data);
         } catch (error) {
-            console.error("Error calling assistant: ", error);
+            console.error("Error call upload for QI: ", error);
             res.status(500).json({ error: `Could not perform upload to S3` });
         }
     };
