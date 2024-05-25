@@ -47,6 +47,7 @@ import { QiSummary, QiSummaryType } from '@/types/qi';
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import { createQiSummary } from '@/services/qiService';
 import MessageSelectModal from './MesssageSelectModal';
+import cloneDeep from 'lodash/cloneDeep';
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -541,7 +542,13 @@ const onAssistantChange = (assistant: Assistant) => {
                     onClick={async () => {
                         // setShowPluginSelect(false);
                         // setShowPromptList(false);
-                        setShowMessageSelectDialog(true);
+                        if (selectedConversation && selectedConversation.messages.length > 2) {
+                            setShowMessageSelectDialog(true);
+                        } else {
+                            setCroppedConversation(cloneDeep(selectedConversation));
+                            handleGetQiSummary(selectedConversation);
+                        }
+                        
                         
                     }}
                     title={`Anonymously share your conversation for quality improvement`}
