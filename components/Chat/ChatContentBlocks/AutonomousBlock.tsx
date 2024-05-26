@@ -331,6 +331,16 @@ const AutonomousBlock: React.FC<Props> = (
         };
     }
 
+    const getServerSelectedAssistant = (message:Message) => {
+
+        const aid = (message.data && message.data.state) ?
+            message.data.state.currentAssistantId : null;
+
+        console.log(`Server-set assistantId: "${aid}"`)
+
+        return aid;
+    }
+
     const getServerProvidedOps = (message:Message) => {
         return (message.data && message.data.state) ?
             message.data.state.resolvedOps : [];
@@ -399,7 +409,9 @@ const AutonomousBlock: React.FC<Props> = (
                 || handlers[url]
                 || handlers["/"+url];
 
-            let result = {success:false, message:"Unknown operation: "+url}
+            let result = {success:false, message:"Unknown operation: "+url+ ". " +
+                    "Please double check that you are using the right format for invoking operations (e.g., do(someOperationName, ...)) and that" +
+                    " the name of the op is correct."}
             if(handler){
                 result = await handler(params);
             }
@@ -411,9 +423,15 @@ const AutonomousBlock: React.FC<Props> = (
                     resultOfOp: result,
                 }
 
+                const assistantId =
+                    getServerSelectedAssistant(message) ||
+                    selectedAssistant?.id;
+
                 if(!shouldStopConversation()) {
+
                     handleSend(
                         {
+                            options:{assistantId},
                             message: newMessage(
                                 {"role": "user", "content": JSON.stringify(feedbackMessage), label: "API Result"})
                         },
