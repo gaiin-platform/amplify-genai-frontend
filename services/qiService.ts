@@ -13,14 +13,15 @@ const qiConversationPrompt =
     Summarize only the actionable and pertinent points discussed, avoiding transcription of extensive dialogue or content. Condense the summary into two to five sentences. 
 
     Purpose: 
-    Please review the conversation in its entirety and identify the key objectives and use cases. Highlight the primary reasons for this interaction and outline the problems the user aims to resolve. Please focus on the users questions to establish overall intent. 
+    Please review the conversation in its entirety prior to this messaage and identify the key objectives and use cases. Highlight the primary reasons for this interaction and outline the problems the user aims to resolve. Please focus on the users questions to establish overall intent. 
     
     
     To ensure anonymity, replace anything you think is a persons name to NAME_REDACTED
 
     It is very important that you format your response correctly. Format your response as follows:
     /SUMMARY_START [Summary here] /SUMMARY_END
-    /PURPOSE_START [Purpose and use case here] /PURPOSE_END`
+    /PURPOSE_START [Purpose and use case here] /PURPOSE_END
+    `
 
 
 export const createQiSummary = async (chatEndpoint:string, data:any, type: QiSummaryType, statsService: any) => {
@@ -94,7 +95,7 @@ export const createEmptyQiSummary = (type: QiSummaryType) =>{
     return  { type: type,
               summary : '',
               purpose: '',
-            //   includeUser: false
+              includeUser: false
             } as QiSummary;
 }
 
@@ -116,7 +117,7 @@ export const uploadToQiS3 = async (data:any, type: QiSummaryType, errorHandler=(
             'Content-Type': 'application/json',
         },
         signal: null,
-        body: JSON.stringify({'data': data, 'type': type}),
+        body: JSON.stringify({'data': data, 'type': type.toLowerCase()}),
     });
 
 
