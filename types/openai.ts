@@ -44,7 +44,7 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
     visible: true,
     outputCost: .03,
     inputCost: .01,
-    description: "Consider for complex tasks requiring advanced understanding.\nOffers further advanced intelligence over its predecessors.\nCan carry out complex mathematical operations, code assistance, analyze intricate documents and datasets, demonstrates critical thinking, and in-depth context understanding.\nTrained on information available through April 2023."
+    description: "This is an omni model which can be used for complex tasks requiring advanced understanding.\nIncreased speed with similar understanding in line with its predecessors at a reduced cost. \nCan carry out complex mathematical operations, code assistance, analyze intricate documents and datasets, demonstrates critical thinking, and in-depth context understanding.\nTrained on information available through October 2023."
   },
   [OpenAIModelID.GPT_4o_AZ]: {
     id: OpenAIModelID.GPT_4o_AZ,
