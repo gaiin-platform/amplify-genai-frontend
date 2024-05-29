@@ -18,6 +18,7 @@ export enum OpenAIModelID {
   GPT_3_5_FN = 'gpt-3.5-turbo-0613',
   GPT_3_5_AZ = 'gpt-35-turbo',
   GPT_4 = 'gpt-4',
+  GPT_4o_AZ = 'gpt-4o',
   GPT_4_FN = 'gpt-4-0613',
   CLAUDE_INSTANT_1_2 = 'anthropic.claude-instant-v1',
   CLAUDE_2_1 = 'anthropic.claude-v2:1',
@@ -43,6 +44,17 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
     visible: true,
     outputCost: .03,
     inputCost: .01,
+    description: "Consider for complex tasks requiring advanced understanding.\nOffers further advanced intelligence over its predecessors.\nCan carry out complex mathematical operations, code assistance, analyze intricate documents and datasets, demonstrates critical thinking, and in-depth context understanding.\nTrained on information available through April 2023."
+  },
+  [OpenAIModelID.GPT_4o_AZ]: {
+    id: OpenAIModelID.GPT_4o_AZ,
+    name: 'GPT-4o (Azure)',
+    maxLength: 24000,
+    tokenLimit: 8000,
+    actualTokenLimit: 128000,
+    visible: true,
+    outputCost: .005,
+    inputCost: .015,
     description: "Consider for complex tasks requiring advanced understanding.\nOffers further advanced intelligence over its predecessors.\nCan carry out complex mathematical operations, code assistance, analyze intricate documents and datasets, demonstrates critical thinking, and in-depth context understanding.\nTrained on information available through April 2023."
   },
   [OpenAIModelID.GPT_4_TURBO]: {
