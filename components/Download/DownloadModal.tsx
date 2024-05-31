@@ -243,10 +243,10 @@ export const DownloadModal: FC<DownloadModalProps> = (
                 });
             }
 
-            const sharedData = createExport(
+            const sharedData = await createExport(
                 exportedConversations,
                 selectedFoldersState,
-                [...selectedPromptsState, ...rootPromptsToAdd]);
+                [...selectedPromptsState, ...rootPromptsToAdd], "download");
 
             const withNewline = (s:string) => {
                 return s ? s + "\n\n" : s;
@@ -265,9 +265,9 @@ export const DownloadModal: FC<DownloadModalProps> = (
                conversionOptions.templateName = templateSelection;
             }
 
-            const result = await convert(conversionOptions, sharedData);
+            const result = await convert(conversionOptions, await sharedData);
 
-            statsService.downloadItemEvent(conversionOptions, sharedData);
+            statsService.downloadItemEvent(conversionOptions, await sharedData);
 
             let resultArrived = false;
             let triesLeft = 60;

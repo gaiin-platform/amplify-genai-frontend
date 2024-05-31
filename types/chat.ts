@@ -117,14 +117,16 @@ export interface Conversation {
   id: string;
   name: string;
   messages: Message[];
+  compressedMessages?: number[];
   model: OpenAIModel;
-  prompt: string;
-  temperature: number;
+  prompt?: string;
+  temperature?: number;
   folderId: string | null;
-  promptTemplate: Prompt | null;
+  promptTemplate?: Prompt | null;
   tags?: string[]
   maxTokens?: number;
   workflowDefinition?: WorkflowDefinition;
   data?: {[key:string]:any}
   codeInterpreterAssistantId?: string;
+  isLocal?: boolean;
 }

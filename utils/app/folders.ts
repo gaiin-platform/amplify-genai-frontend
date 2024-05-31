@@ -6,5 +6,6 @@ export const saveFolders = (folders: FolderInterface[]) => {
 
 
 export const getFolders= () => {
-  return JSON.parse(localStorage.getItem('folders') || '[]');
+  return JSON.parse(localStorage.getItem('folders') || '[]').filter((f:FolderInterface) => f);
+
 }

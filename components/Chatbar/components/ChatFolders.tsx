@@ -47,23 +47,22 @@ export const ChatFolders = ({ searchTerm, conversations }: Props) => {
     return (
       conversations &&
       conversations
-        .filter((conversation) => conversation.folderId)
+        .filter((conversation) => conversation.folderId && conversation.folderId === currentFolder.id)
         .map((conversation, index) => {
-          if (conversation.folderId === currentFolder.id) {
             return (
               <div key={index} className="ml-5 gap-2 border-l pl-2">
                 <ConversationComponent conversation={conversation} />
               </div>
             );
-          }
         })
     );
   };
 
+
   return (
     <div className="flex w-full flex-col pt-2">
       {filteredFolders
-        .filter((folder) => folder.type === 'chat')
+        .filter((folder) => folder && folder.type === 'chat')
         .sort((a, b) => {
           // Check if both folders have a date attribute
           if (a.date && b.date) {

@@ -26,6 +26,7 @@ import {RAG} from "@/components/Chatbar/components/RAG";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {Prompt} from "@/types/prompt";
 import {FolderInterface} from "@/types/folder";
+import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 
 export const SettingsBar = () => {
     const { t } = useTranslation('sidebar');
@@ -82,6 +83,7 @@ export const SettingsBar = () => {
                 prompt: DEFAULT_SYSTEM_PROMPT,
                 temperature: DEFAULT_TEMPERATURE,
                 folderId: null,
+                isLocal: getIsLocalStorageSelection() 
             },
         });
 

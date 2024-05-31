@@ -49,6 +49,7 @@ export interface HomeInitialState {
   inputEmail: string;
   hasAcceptedDataDisclosure: boolean | null;
   hasScrolledToBottom: boolean;
+  storageSelection: string | null;
 }
 
 export const initialState: HomeInitialState = {
@@ -64,9 +65,7 @@ export const initialState: HomeInitialState = {
   models: [],
   folders: [],
   conversations: [],
-  workflows: [
-
-  ],
+  workflows: [],
   workspaceMetadata: {
     name: '',
     description: '',
@@ -115,6 +114,7 @@ export const initialState: HomeInitialState = {
     automation: false,
     codeInterpreterEnabled: true,
     dataDisclosure: false,
+    storeCloudConversations: true,
     inCognitoGroup: false
   },
 
@@ -125,4 +125,5 @@ export const initialState: HomeInitialState = {
   inputEmail: '',
   hasAcceptedDataDisclosure: null,
   hasScrolledToBottom: false,
+  storageSelection: null
 };

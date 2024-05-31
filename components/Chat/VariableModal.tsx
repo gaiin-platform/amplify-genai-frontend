@@ -10,6 +10,8 @@ import JSON5 from 'json5'
 import {getType, parsePromptVariableValues, variableTypeOptions} from "@/utils/app/prompts";
 import {FileList} from "@/components/Chat/FileList";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
+import { includeRemoteConversationData } from '@/utils/app/conversationStorage';
+import { Conversation } from '@/types/chat';
 
 interface Props {
     models: OpenAIModel[];
@@ -105,6 +107,7 @@ export const VariableModal: FC<Props> = ({
     const [files, setFiles] = useState<AttachedDocument[]>([]);
     const [documentKeys, setDocumentKeys] = useState<{[key:string]:string}>({});
     const [documentMetadata, setDocumentMetadata] = useState<{[key:string]:AttachedDocumentMetadata}>({});
+    const [conversationVariableMap, setConversationVariableMap] = useState<Map<string, Conversation[]>>(new Map());
     const [updatedVariables, setUpdatedVariables] = useState<{ key: string; value: any }[]>(
         variables
             .map((variable) => {
@@ -130,6 +133,28 @@ export const VariableModal: FC<Props> = ({
             ),
     );
 
+    useEffect(() => {
+        const fetchAndMapConversations = async () => {
+          const conversationPromises = updatedVariables
+            .filter(variable => isConversation(variable.key) && !conversationVariableMap.has(variable.key))
+            .map(async variable => {
+              const conversations = await getConversations(variable.key);
+              return { key: variable.key, conversations };
+            });
+    
+          const conversationResults = await Promise.all(conversationPromises);
+    
+          setConversationVariableMap(prevMap => {
+            const newMap = new Map(prevMap);
+            conversationResults.forEach(({ key, conversations }) => {
+              newMap.set(key, conversations);
+            });
+            return newMap;
+          });
+        };
+    
+        fetchAndMapConversations();
+    }, [updatedVariables]);
 
     const modalRef = useRef<HTMLDivElement>(null);
     const nameInputRef = useRef<HTMLTextAreaElement>(null);
@@ -331,10 +356,12 @@ export const VariableModal: FC<Props> = ({
 
 
 
-    const getConversations = (variable: string) => {
+    const getConversations = async (variable: string) => {
         const options = parsePromptVariableValues(variable);
 
-        let filtered = conversations.filter((conversation) => {
+        const completeConversations = await includeRemoteConversationData(conversations, "resolve", true);
+
+        let filtered = completeConversations.filter((conversation) => {
            if(options.startsWith){
                return conversation.name.startsWith(options.startsWith);
            }
@@ -553,7 +580,7 @@ export const VariableModal: FC<Props> = ({
                                         key={"not selected"} value={''}>
                                         {'Select a Conversation...'}
                                     </option>
-                                    {getConversations(variable.key).map((conversation) => (
+                                    {(conversationVariableMap.get(variable.key), []).map((conversation: Conversation) => (
                                         <option
                                             style={{ maxWidth: '250px', overflow:'hidden' }}
                                             className={'truncate'}

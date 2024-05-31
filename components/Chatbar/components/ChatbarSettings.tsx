@@ -1,5 +1,6 @@
-import { IconFileExport, IconSettings, IconHelp } from '@tabler/icons-react';
+import { IconFileExport, IconSettings, IconHelp, IconCloud } from '@tabler/icons-react';
 import { useContext, useState } from 'react';
+
 
 import { useTranslation } from 'next-i18next';
 
@@ -11,17 +12,19 @@ import { Import } from '../../Settings/Import';
 import { SidebarButton } from '../../Sidebar/SidebarButton';
 import ChatbarContext from '../Chatbar.context';
 import {AccountDialog} from "@/components/Settings/AccountDialog";
+import { StorageDialog } from '@/components/Settings/StorageDialog';
 
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
     const [isSettingDialogOpen, setIsSettingDialog] = useState<boolean>(false);
     const [isAccountDialogVisible, setIsAccountDialogVisible] = useState<boolean>(false);
+    const [isStorageDialogVisible, setIsStorageDialogVisible] = useState<boolean>(false);
+
 
     const {
         state: {
-            lightMode,
-            conversations,
+            featureFlags
         },
         dispatch: homeDispatch,
     } = useContext(HomeContext);
@@ -58,6 +61,14 @@ export const ChatbarSettings = () => {
                 onClick={() => handleExportData()}
             />
 
+            {featureFlags.storeCloudConversations && <SidebarButton
+                text={t('Conversation Storage')}
+                icon={<IconCloud size={18} />}
+                onClick={() => {
+                    setIsStorageDialogVisible(true);
+                }}
+            />}
+
             <SidebarButton
                 text={t('Theme')}
                 icon={<IconSettings size={18} />}
@@ -88,6 +99,12 @@ export const ChatbarSettings = () => {
                     setIsAccountDialogVisible(false);
                 }}
             />
+            { featureFlags.storeCloudConversations && <StorageDialog
+                open={isStorageDialogVisible}
+                onClose={() => {
+                    setIsStorageDialogVisible(false);
+                }}
+            />}
 
         </div>
     );

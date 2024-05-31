@@ -155,10 +155,10 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
             .map(id => prompts.find(p => p.id === id))
             .filter(prompt => prompt !== undefined) as Prompt[];
 
-        const sharedData = createExport(
+        const sharedData = await createExport(
             selectedConversationsState,
             selectedFoldersState,
-            [...selectedPromptsState, ...rootPromptsToAdd]);
+            [...selectedPromptsState, ...rootPromptsToAdd], "share", false);
 
         const sharedWith = selectedPeople.map(string => string.toLowerCase());
         const sharedBy = user?.email ? user.email.toLowerCase() : undefined;
@@ -206,7 +206,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
 
         // Create a new ref for each item if it does not exist yet.
-        if (!itemRefs.current[item.id]) {
+        if (item && item.id && !itemRefs.current[item.id]) {
             itemRefs.current[item.id] = React.createRef();
         }
 

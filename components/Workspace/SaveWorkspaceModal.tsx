@@ -181,10 +181,10 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
                 .map(id => prompts.find(p => p.id === id))
                 .filter(prompt => prompt !== undefined) as Prompt[];
 
-            const sharedData = createExport(
+            const sharedData = await createExport(
                 selectedConversationsState,
                 selectedFoldersState,
-                [...selectedPromptsState, ...rootPromptsToAdd]);
+                [...selectedPromptsState, ...rootPromptsToAdd], "save", false);
 
             const sharedWith = [user?.email];
             const sharedBy = user?.email;
