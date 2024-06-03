@@ -47,7 +47,7 @@ export function usePromptFinderService() {
                     }
                 };
 
-                eval("context.transformer = " + content);
+                
 
                 transformer = context.transformer;
             } catch (e) {

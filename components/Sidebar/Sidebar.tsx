@@ -62,11 +62,11 @@ const Sidebar = <T,>({
 
 
   const addButtonForSide = (side: string) => {
-    if (side === 'left') return addItemButton("w-[190px]")
+    if (side === 'left') return addItemButton("w-[205px]")
 
     const addAssistantButton = (
       <button
-        className="text-sidebar flex w-[190px] flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-gray-500/10"
+        className="text-sidebar flex w-[205px] flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-gray-500/10"
         onClick={() => {
           handleCreateAssistantItem();
           handleSearchTerm('');
@@ -84,7 +84,7 @@ const Sidebar = <T,>({
   return (
     <div className={`border-t dark:border-white/20`}>
       <div
-        className={`fixed top-0 ${side}-0 z-40 flex h-full w-[260px] flex-none flex-col space-y-2 bg-neutral-100 dark:bg-[#202123] p-2 text-[14px] transition-all sm:relative sm:top-0`}
+        className={`fixed top-0 ${side}-0 z-40 flex h-full w-[270px] flex-none flex-col space-y-2 bg-neutral-100 dark:bg-[#202123] p-2 text-[14px] transition-all sm:relative sm:top-0`}
       >
         <div className="flex items-center">
           {addButtonForSide(side)}

@@ -6,3 +6,5 @@ export interface FolderInterface {
 }
 
 export type FolderType = 'chat' | 'prompt' | 'workflow';
+
+export type SortType = 'date' | 'name';

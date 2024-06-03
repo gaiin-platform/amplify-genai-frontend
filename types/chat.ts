@@ -98,7 +98,6 @@ export interface DataSource {
 export interface ChatBody {
   model: OpenAIModel;
   messages: Message[];
-  key: string;
   prompt: string;
   temperature: number;
   functions?: CustomFunction[];
