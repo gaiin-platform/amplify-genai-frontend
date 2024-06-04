@@ -1,7 +1,7 @@
 import { useMemo, useReducer } from 'react';
 import {HomeInitialState} from "@/pages/api/home/home.state";
 import {Conversation, Message} from "@/types/chat";
-import {conversationWithUncompressedMessages, saveConversation} from "@/utils/app/conversation";
+import {conversationWithUncompressedMessages} from "@/utils/app/conversation";
 import {v4 as uuidv4} from "uuid";
 
 // Extracts property names from initial state of reducer to allow typesafe dispatch objects

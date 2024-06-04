@@ -90,6 +90,7 @@ interface Props {
     
   ClientId: string | null;
     cognitoDomain: string | null;
+    cognitoClientId: string | null;
     mixPanelToken: string;
     chatEndpoint: string | null;
     availableModels: string | null;
