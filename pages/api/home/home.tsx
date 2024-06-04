@@ -181,7 +181,6 @@ const Home = ({
             if (!loadedAccounts && session?.user) {
                 fetchAccounts();
             }
-            }
         }
 
     }, [session]);
