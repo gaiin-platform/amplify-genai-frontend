@@ -62,7 +62,7 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
 
             setAvailableAssistants(assistants);
         }
-    }, [prompts]);
+    }, [prompts, baseAssistant]);
 
     useEffect(() => {
         if(selectedAssistant){

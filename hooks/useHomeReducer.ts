@@ -123,13 +123,13 @@ export const useHomeReducer = ({ initialState }: { initialState: HomeInitialStat
     const {conversations, selectedConversation} = state;
 
     // Find the conversation with the given id
-    let conversation = conversations.find(
+    const conversationFound = conversations.find(
         (conversation) => conversation.id === action.conversationId,
     );
 
-    if(!conversation) return state;
+    if(!conversationFound) return state;
 
-    conversation = conversationWithUncompressedMessages(conversation);
+    const conversation = conversationWithUncompressedMessages(conversationFound);
 
     // @ts-ignore
     const doUpdate = (action:ConversationAction) => {

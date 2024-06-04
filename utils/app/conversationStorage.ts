@@ -207,7 +207,7 @@ export const updateWithRemoteConversations = async (dispatch: any) => {
                     dispatch({field: 'folders', value: updatedFolders});
                     saveFolders(updatedFolders);
                 } else {
-                    remoteConv.folderId = folderExists.id;
+                    remoteConv.folderId = folderExists ? folderExists.id : null;
                 }
                 
                 // const minimalConvAttr = pickConversationAttributes(remoteConv, CloudConvAttr) as Conversation;

@@ -97,7 +97,7 @@ const Folder = ({
     if (selectedConversation?.folderId === currentFolder.id) {
       setIsOpen(true);
     } 
-  }, [selectedConversation]);
+  }, [selectedConversation, currentFolder]);
 
   return (
     <>
