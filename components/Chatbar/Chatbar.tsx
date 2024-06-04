@@ -23,6 +23,9 @@ import { ChatbarInitialState, initialState } from './Chatbar.state';
 
 import { v4 as uuidv4 } from 'uuid';
 import {FolderInterface} from "@/types/folder";
+import { getIsLocalStorageSelection, isLocalConversation, isRemoteConversation } from '@/utils/app/conversationStorage';
+import { deleteRemoteConversation } from '@/services/remoteConversationService';
+import { uncompressMessages } from '@/utils/app/messages';
 
 
 export const Chatbar = () => {
@@ -64,6 +67,8 @@ export const Chatbar = () => {
   };
 
   const handleDeleteConversation = (conversation: Conversation) => {
+
+    if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
     
     const updatedConversations = conversations.filter(
       (c) => c.id !== conversation.id,
@@ -130,6 +135,7 @@ export const Chatbar = () => {
               prompt: DEFAULT_SYSTEM_PROMPT,
               temperature: conversation.temperature,
               folderId: null,
+              isLocal: getIsLocalStorageSelection() 
           },
       });
 
@@ -167,10 +173,15 @@ export const Chatbar = () => {
       statsService.searchConversationsEvent(searchTerm);
 
       const results = conversations.filter((conversation) => {
+        let messages = '';
+        if (isLocalConversation(conversation)) {
+          //uncompress messages 
+          const uncompressedMs = uncompressMessages(conversation.compressedMessages?? []);
+          if (uncompressedMs) messages = uncompressedMs.map((message) => message.content).join(' ');
+        }
+        // remote messages are currently unsearchable NOTE
         const searchable =
-            conversation.name.toLocaleLowerCase() +
-            ' ' +
-            conversation.messages.map((message) => message.content).join(' ');
+            conversation.name.toLocaleLowerCase() +  ' ' + messages
         return searchable.toLowerCase().includes(searchTerm.toLowerCase());
       });
 

@@ -204,10 +204,10 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
             foldersToAdd.push(newConversationsFolder);
         }
 
-        const sharedData = createExport(
+        const sharedData = await createExport(
             allConversations,
             foldersToAdd,
-            allPrompts);
+            allPrompts, "market publish"); // may need parameter  ,false 
 
 
         if (publishingName && publishedDescription) {

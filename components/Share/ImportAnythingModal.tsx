@@ -10,6 +10,7 @@ import {FiCommand} from "react-icons/fi";
 import {ExportFormatV4, LatestExportFormat} from "@/types/export";
 import {useSession} from "next-auth/react";
 import { isAssistant } from "@/utils/app/assistants";
+import { conversationWithCompressedMessages } from "@/utils/app/conversation";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -166,9 +167,14 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
             customImportFn(selectedConversationsState, selectedFoldersState, selectedPromptsState);
             return;
         }
+        
+        const compressedConversationsState = selectedConversationsState.map((c:Conversation) => {
+            if (c.messages && !c.compressedMessages) return conversationWithCompressedMessages(c);
+            return c;
+        });
 
         //onSave(selectedItems);
-        const exportData = createExport(selectedConversationsState, selectedFoldersState, selectedPromptsState);
+        const exportData = await createExport(compressedConversationsState, selectedFoldersState, selectedPromptsState, "import", false);
 
         const needsFolderReset = (item: Conversation | Prompt) => {
             return item.folderId != null &&
@@ -184,7 +190,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         console.log("Prompts needing folder reset: ", promptsToSetFolderToNull);
         console.log("Conversations needing folder reset: ", conversationsToSetFolderToNull);
 
-        const cleanedUpExport = createExport(
+        const cleanedUpExport = await createExport(
             exportData.history.map(conversation => {
                 return conversationsToSetFolderToNull.some(c => c.id === conversation.id) ? {
                     ...conversation,
@@ -203,7 +209,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                 } 
                 return promptsToSetFolderToNull.some(p => p.id === prompt.id) ? {...prompt, folderId: null} : prompt;
                 
-            }));
+            }), "import", false);
 
 
         console.log("Cleaned up export: ", cleanedUpExport);
@@ -214,7 +220,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
         homeDispatch({field: 'conversations', value: history});
 
-        if(history && history.length > 0) {
+        if (history && history.length > 0) {
             homeDispatch({
                 field: 'selectedConversation',
                 value: history[history.length - 1],

@@ -3,10 +3,7 @@ import {
     IconSettings,
     IconShare,
     IconDownload,
-    IconHome2,
-    IconHome,
     IconRocket,
-    IconArrowUp
 } from '@tabler/icons-react';
 import {
     MutableRefObject,
@@ -20,10 +17,7 @@ import {
 
 import {useTranslation} from 'next-i18next';
 
-import {
-    saveConversation,
-    saveConversations,
-} from '@/utils/app/conversation';
+import { saveConversations} from '@/utils/app/conversation';
 import {throttle} from '@/utils/data/throttle';
 
 import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
@@ -56,6 +50,9 @@ import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
 import {useSendService} from "@/hooks/useChatSendService";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import {CloudStorage} from './CloudStorage';
+import { getIsLocalStorageSelection, isRemoteConversation } from '@/utils/app/conversationStorage';
+import { deleteRemoteConversation } from '@/services/remoteConversationService';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -90,6 +87,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 defaultModelId,
                 workspaceMetadata,
                 statsService,
+                featureFlags
             },
             handleUpdateConversation,
             handleCustomLinkClick,
@@ -138,7 +136,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 value: updatedConversation,
             });
 
-            saveConversation(updatedConversation);
             const updatedConversations: Conversation[] = conversations.map(
                 (conversation) => {
                     if (conversation.id === selectedConversation.id) {
@@ -595,6 +592,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, [selectedConversation, throttledScrollDown]);
 
         const handleDeleteConversation = (conversation: Conversation) => {
+            if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
             const updatedConversations = conversations.filter(
                 (c) => c.id !== conversation.id,
             );
@@ -609,7 +607,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     value: updatedConversations[updatedConversations.length - 1],
                 });
 
-                saveConversation(updatedConversations[updatedConversations.length - 1]);
             } else {
                 defaultModelId &&
                 homeDispatch({
@@ -622,6 +619,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
+                        isLocal: getIsLocalStorageSelection()
                     },
                 });
 
@@ -707,7 +705,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             ref={chatContainerRef}
                             onScroll={handleScroll}
                         >
-                            {selectedConversation?.messages.length === 0 ? (
+                            {selectedConversation && selectedConversation?.messages.length === 0 ? (
                                 <>
                                     <div
                                         className="mx-auto flex flex-col space-y-5 md:space-y-10 px-3 pt-5 md:pt-12 sm:max-w-[600px]">
@@ -725,8 +723,19 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         {models.length > 0 && (
                                             <div
                                                 className="flex h-full flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600">
-                                                <ModelSelect/>
+                                                
+                                                <div className="relative flex flex-row w-full items-center"> 
+                                                    <div className="flex-grow">
+                                                        <ModelSelect/>
+                                                    </div>
 
+                                                    {featureFlags.storeCloudConversations && <div className="mt-[-5px] absolute top-0 right-0 flex justify-end items-center">
+                                                        <CloudStorage iconSize={20} />
+                                                    </div>}
+                                                    
+                                                </div>
+                                                
+                                                
                                                 <SystemPrompt
                                                     models={models}
                                                     handleUpdateModel={handleUpdateModel}
@@ -870,6 +879,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         >
                                             <IconDownload size={18}/>
                                         </button>
+                                        {featureFlags.storeCloudConversations && <CloudStorage 
+                                         iconSize={18}>
+                                        </CloudStorage>}
+
                                         |
                                         <button
                                             className="ml-2 mr-2 cursor-pointer hover:opacity-50"
@@ -881,7 +894,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             title="Files"
                                         >
                                             <div className="flex flex-row items-center ml-2
-                                            bg-[#00BFFF] rounded-lg text-gray-600 p-1">
+                                            bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
                                                 <div><IconRocket size={18}/></div>
                                                 <div className="ml-1">Files </div>
                                             </div>
@@ -1021,6 +1034,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 )}
             </div>
         );
-    })
-;
+    });
+    
 Chat.displayName = 'Chat';

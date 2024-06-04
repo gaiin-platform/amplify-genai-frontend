@@ -17,12 +17,15 @@ import {deepMerge} from "@/utils/app/state";
 import toast from "react-hot-toast";
 import callRenameChatApi from "@/components/Chat/RenameChat";
 import {OutOfOrderResults} from "@/utils/app/outOfOrder";
-import {saveConversation, saveConversations, updateConversation} from "@/utils/app/conversation";
+import {conversationWithCompressedMessages, saveConversations} from "@/utils/app/conversation";
 import {getHook} from "@/utils/app/chathooks";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {Prompt} from "@/types/prompt";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {useChatService} from "@/hooks/useChatService";
+import { DEFAULT_TEMPERATURE } from "@/utils/app/const";
+import { uploadConversation } from "@/services/remoteConversationService";
+import { compressMessages } from "@/utils/app/messages";
 
 export type ChatRequest = {
     message: Message;
@@ -182,8 +185,8 @@ export function useSendService() {
                     const chatBody: ChatBody = {
                         model: updatedConversation.model,
                         messages: updatedConversation.messages,
-                        prompt: rootPrompt || updatedConversation.prompt,
-                        temperature: updatedConversation.temperature,
+                        prompt: rootPrompt || updatedConversation.prompt || "",
+                        temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
                         maxTokens: updatedConversation.maxTokens || 1000
                     };
 
@@ -460,20 +463,23 @@ export function useSendService() {
                                         value: updatedConversation,
                                     });
                                 } catch (error: any) {
-                                    saveConversation(updatedConversation);
-                                    const updatedConversations: Conversation[] = conversations.map(
-                                        (conversation) => {
-                                            if (conversation.id === selectedConversation.id) {
-                                                return updatedConversation;
-                                            }
-                                            return conversation;
-                                        },
-                                    );
-                                    if (updatedConversations.length === 0) {
-                                        updatedConversations.push(updatedConversation);
+                                    if (selectedConversation.isLocal) {
+                                        const updatedConversations: Conversation[] = conversations.map(
+                                            (conversation) => {
+                                                if (conversation.id === selectedConversation.id) {
+                                                    return conversationWithCompressedMessages(updatedConversation);
+                                                }
+                                                return conversation;
+                                            },
+                                        );
+                                        if (updatedConversations.length === 0) {
+                                            updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                                        }
+                                        homeDispatch({field: 'conversations', value: updatedConversations});
+                                        saveConversations(updatedConversations);
+                                    } else {
+                                        uploadConversation(updatedConversation);
                                     }
-                                    homeDispatch({field: 'conversations', value: updatedConversations});
-                                    saveConversations(updatedConversations);
                                     homeDispatch({field: 'messageIsStreaming', value: false});
                                     homeDispatch({field: 'loading', value: false});
                                     homeDispatch({field: 'status', value: []});
@@ -516,20 +522,23 @@ export function useSendService() {
                                 });
                             }
 
-                            saveConversation(updatedConversation);
-                            const updatedConversations: Conversation[] = conversations.map(
-                                (conversation) => {
-                                    if (conversation.id === selectedConversation.id) {
-                                        return updatedConversation;
-                                    }
-                                    return conversation;
-                                },
-                            );
-                            if (updatedConversations.length === 0) {
-                                updatedConversations.push(updatedConversation);
+                            if (selectedConversation.isLocal) {
+                                const updatedConversations: Conversation[] = conversations.map(
+                                    (conversation) => {
+                                        if (conversation.id === selectedConversation.id) {
+                                            return conversationWithCompressedMessages(updatedConversation);
+                                        }
+                                        return conversation;
+                                    },
+                                );
+                                if (updatedConversations.length === 0) {
+                                    updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                                }
+                                homeDispatch({field: 'conversations', value: updatedConversations});
+                                saveConversations(updatedConversations);
+                            } else {
+                                uploadConversation(updatedConversation);
                             }
-                            homeDispatch({field: 'conversations', value: updatedConversations});
-                            saveConversations(updatedConversations);
                             homeDispatch({field: 'messageIsStreaming', value: false});
 
                             resolve(text);
@@ -545,22 +554,26 @@ export function useSendService() {
                             };
                             homeDispatch({
                                 field: 'selectedConversation',
-                                value: updateConversation,
+                                value: updatedConversation,
                             });
-                            saveConversation(updatedConversation);
-                            const updatedConversations: Conversation[] = conversations.map(
-                                (conversation) => {
-                                    if (conversation.id === selectedConversation.id) {
-                                        return updatedConversation;
-                                    }
-                                    return conversation;
-                                },
-                            );
-                            if (updatedConversations.length === 0) {
-                                updatedConversations.push(updatedConversation);
+                            if (selectedConversation.isLocal) {
+                                
+                                const updatedConversations: Conversation[] = conversations.map(
+                                    (conversation) => {
+                                        if (conversation.id === selectedConversation.id) {
+                                            return conversationWithCompressedMessages(updatedConversation);
+                                        }
+                                        return conversation;
+                                    },
+                                );
+                                if (updatedConversations.length === 0) {
+                                    updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                                }
+                                homeDispatch({field: 'conversations', value: updatedConversations});
+                                saveConversations(updatedConversations);
+                            } else {
+                                uploadConversation(updatedConversation);
                             }
-                            homeDispatch({field: 'conversations', value: updatedConversations});
-                            saveConversations(updatedConversations);
                             homeDispatch({field: 'loading', value: false});
                             homeDispatch({field: 'messageIsStreaming', value: false});
 

@@ -51,13 +51,11 @@ export interface HomeInitialState {
   inputEmail: string;
   hasAcceptedDataDisclosure: boolean | null;
   hasScrolledToBottom: boolean;
+  storageSelection: string | null;
   ops: { [key: string]: Op };
-  checkFolders: boolean;
   allFoldersOpenConvs: boolean;
-  checkConversations: boolean;
   convFolderSort: SortType;
   allFoldersOpenPrompts: boolean;
-  checkPrompts: boolean;
   promptFolderSort: SortType;
 }
 
@@ -74,10 +72,8 @@ export const initialState: HomeInitialState = {
   models: [],
   folders: [],
   conversations: [],
+  workflows: [],
   ops: {},
-  workflows: [
-
-  ],
   workspaceMetadata: {
     name: '',
     description: '',
@@ -126,7 +122,7 @@ export const initialState: HomeInitialState = {
     automation: true,
     codeInterpreterEnabled: true,
     dataDisclosure: false,
-    inCognitoGroup: true
+    storeCloudConversations: true,
   },
 
   statsService: noOpStatsServices,
@@ -136,12 +132,10 @@ export const initialState: HomeInitialState = {
   inputEmail: '',
   hasAcceptedDataDisclosure: null,
   hasScrolledToBottom: false,
-  checkFolders: false,
+  storageSelection: null,
   allFoldersOpenConvs: false,
-  checkConversations: false,
   convFolderSort: 'date',
   allFoldersOpenPrompts: false,
-  checkPrompts: false,
   promptFolderSort: 'name'
 
 };

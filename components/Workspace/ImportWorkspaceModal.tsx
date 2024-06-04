@@ -11,6 +11,7 @@ import Folder from "@/components/Folder";
 import {ExportFormatV4, LatestExportFormat} from "@/types/export";
 import {saveWorkspaceMetadata} from "@/utils/app/settings";
 import {useSession} from "next-auth/react";
+import { conversationWithCompressedMessages, conversationWithUncompressedMessages, uncompressConversation } from "@/utils/app/conversation";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -173,8 +174,13 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
 
     const handleImport = async () => {
 
+        const compressedConversationsState = selectedConversationsState.map((c:Conversation) => {
+            if (c.messages && !c.compressedMessages) return conversationWithCompressedMessages(c);
+            return c;
+        });
+
         //onSave(selectedItems);
-        const exportData = createExport(selectedConversationsState, selectedFoldersState, selectedPromptsState);
+        const exportData = await createExport(compressedConversationsState, selectedFoldersState, selectedPromptsState, "import", false);
 
         const needsFolderReset = (item: Conversation | Prompt) => {
             return item.folderId != null &&
@@ -190,7 +196,7 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
         console.log("Prompts needing folder reset: ", promptsToSetFolderToNull);
         console.log("Conversations needing folder reset: ", conversationsToSetFolderToNull);
 
-        const cleanedUpExport = createExport(
+        const cleanedUpExport = await createExport(
             exportData.history.map(conversation => {
                 return conversationsToSetFolderToNull.some(c => c.id === conversation.id) ? {
                     ...conversation,
@@ -200,7 +206,7 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
             exportData.folders,
             exportData.prompts.map(prompt => {
                 return promptsToSetFolderToNull.some(p => p.id === prompt.id) ? {...prompt, folderId: null} : prompt;
-            }));
+            }), "import", false);
 
         console.log("Cleaned up export: ", cleanedUpExport);
 
@@ -209,9 +215,9 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
         // console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);
 
         homeDispatch({field: 'conversations', value: history});
-        homeDispatch({
+        if (history && history.length > 0) homeDispatch({
             field: 'selectedConversation',
-            value: history[history.length - 1],
+            value: conversationWithUncompressedMessages(history[history.length - 1]),
         });
         homeDispatch({field: 'folders', value: folders});
         homeDispatch({field: 'prompts', value: prompts});

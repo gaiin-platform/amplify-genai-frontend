@@ -14,7 +14,7 @@ import {FiCommand} from "react-icons/fi";
 import styled, {keyframes} from 'styled-components';
 import React, {FC, memo, useContext, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'next-i18next';
-import {updateConversation} from '@/utils/app/conversation';
+import {conversationWithUncompressedMessages, updateConversation} from '@/utils/app/conversation';
 import {DataSource, Message} from '@/types/chat';
 import {useChatService} from "@/hooks/useChatService";
 import HomeContext from '@/pages/api/home/home.context';
@@ -35,6 +35,8 @@ import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 import PromptingStatusDisplay from "@/components/Status/PromptingStatusDisplay";
 import ChatSourceBlock from "@/components/Chat/ChatContentBlocks/ChatSourcesBlock";
 import DataSourcesBlock from "@/components/Chat/ChatContentBlocks/DataSourcesBlock";
+import { uploadConversation } from '@/services/remoteConversationService';
+import { isLocalConversation, isRemoteConversation } from '@/utils/app/conversationStorage';
 
 
 export interface Props {
@@ -152,8 +154,8 @@ export const ChatMessage: FC<Props> = memo(({
             updatedConversation,
             conversations,
         );
-        homeDispatch({field: 'selectedConversation', value: single});
-        homeDispatch({field: 'conversations', value: all});
+        homeDispatch({ field: 'selectedConversation', value: updatedConversation });
+        if (isRemoteConversation(updatedConversation)) uploadConversation(updatedConversation);
     };
 
     const copyOnClick = () => {
