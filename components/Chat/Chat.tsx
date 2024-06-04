@@ -879,9 +879,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         >
                                             <IconDownload size={18}/>
                                         </button>
-                                        {featureFlags.storeCloudConversations && <CloudStorage 
-                                         iconSize={18}>
-                                        </CloudStorage>}
+                                        {featureFlags.storeCloudConversations &&
+                                        <CloudStorage iconSize={18} />
+                                        }
 
                                         |
                                         <button
