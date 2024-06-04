@@ -189,29 +189,6 @@ export const defaultVariableFillOptions:VariableFillOptions = {
         return uuidv4();
       }
     },
-    "tools": {
-      isEditable: false,
-      filler: (name: string) => {
-
-        const context:WorkflowContext = {
-            inputs: {
-                documents: [],
-                parameters: {},
-                prompts: [],
-                folders: [],
-                conversations: [],
-            },
-        }
-
-        // @ts-ignore
-        let metadata = getToolMetadata({context:context});
-        let description = Object.entries(metadata)
-            .map(([k, v]) => {
-              return `${k}${v.description}`;
-            }).join("\n");
-        return description;
-      }
-    },
     "options":{
       isEditable: true,
     },

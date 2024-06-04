@@ -30,7 +30,7 @@ import {
 import { getFolders, saveFolders } from '@/utils/app/folders';
 import { getPrompts, savePrompts } from '@/utils/app/prompts';
 import { getSettings } from '@/utils/app/settings';
-import { fetchInCognitoGroup, getAccounts } from "@/services/accountService";
+import { getAccounts } from "@/services/accountService";
 
 import { Conversation, Message, MessageType, newMessage } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
@@ -76,6 +76,7 @@ import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { listAssistants } from '@/services/assistantService';
 import { syncAssistants } from '@/utils/app/assistants';
 import { deleteRemoteConversation, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
+import {killRequest as killReq} from "@/services/chatService";
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -86,7 +87,8 @@ const LoadingIcon = styled(Icon3dCubeSphere)`
 
 interface Props {
     defaultModelId: OpenAIModelID;
-    cognitoClientId: string | null;
+    
+  ClientId: string | null;
     cognitoDomain: string | null;
     mixPanelToken: string;
     chatEndpoint: string | null;
@@ -109,12 +111,9 @@ const Home = ({
     const [loadedAssistants, setloadedAssistants] = useState<boolean>(false);
     const [loadedBasePrompts, setloadedBasePrompts] = useState<boolean>(false);
     const [loadedAccounts, setloadedAccounts] = useState<boolean>(false);
-
     const [initialRemoteCall, setInitialRemoteCall] = useState<boolean>(true);
     const [loadingSelectedConv, setLoadingSelectedConv] = useState<boolean>(false);
     const [loadingAmplify, setLoadingAmplify] = useState<boolean>(true);
-
-
     const { data: session, status } = useSession();
     //const {user, error: userError, isLoading} = useUser();
     const user = session?.user;
@@ -123,13 +122,17 @@ const Home = ({
     const userError = null;
 
     const contextValue = useHomeReducer({
-        initialState: { ...initialState, statsService: useEventService(mixPanelToken) },
+        initialState: {
+            ...initialState,
+            statsService: useEventService(mixPanelToken) },
     });
+
 
     const {
         state: {
             conversationStateId,
             messageIsStreaming,
+            currentRequestId,
             lightMode,
             folders,
             workflows,
@@ -150,8 +153,6 @@ const Home = ({
     } = contextValue;
 
     const stopConversationRef = useRef<boolean>(false);
-
-
 
     useEffect(() => {
         // @ts-ignore
@@ -176,16 +177,11 @@ const Home = ({
                     if (featureFlags.storeCloudConversations && initialRemoteCall) syncConversations(); 
                 }
             };
-            const fetchInGroup = async () => {
-                const inGroup = await fetchInCognitoGroup();
-                if (inGroup.inCognitoGroup) featureFlags.inCognitoGroup = inGroup.inCognitoGroup;
-            }
 
             if (!loadedAccounts && session?.user) {
                 fetchAccounts();
-                fetchInGroup()
-            } 
-             
+            }
+            }
         }
 
     }, [session]);
@@ -202,7 +198,7 @@ const Home = ({
                     setloadedBasePrompts(true);
 
                     if (!loadedAssistants) await fetchAssistants(folders, prompts);
-                    
+
                 } else {
                     console.log("Failed to import base prompts.");
                     await fetchAssistants(getFolders(), getPrompts());
@@ -356,6 +352,44 @@ const Home = ({
     };
 
     // FOLDER OPERATIONS  --------------------------------------------
+
+    const killRequest = async (requestId:string) => {
+        const session = await getSession();
+
+        // @ts-ignore
+        if(!session || !session.accessToken || !chatEndpoint){
+            return false;
+        }
+
+        // @ts-ignore
+        const result = await killReq(chatEndpoint, session.accessToken, requestId);
+
+        return result;
+    }
+
+    const shouldStopConversation = () => {
+        return stopConversationRef.current;
+    }
+
+    const handleStopConversation = async () => {
+        stopConversationRef.current = true;
+
+        if (currentRequestId) {
+            try{
+                await killRequest(currentRequestId);
+            } catch(e) {
+                console.error("Error killing request", e);
+            }
+        }
+
+        setTimeout(() => {
+            stopConversationRef.current = false;
+
+            dispatch({field: 'loading', value: false});
+            dispatch({field: 'messageIsStreaming', value: false});
+            dispatch({field: 'status', value: []});
+        }, 1000);
+    };
 
     const handleCreateFolder = (name: string, type: FolderType) => {
         //console.log("handleCreateFolder", name, type);
@@ -599,6 +633,27 @@ const Home = ({
             saveConversationsDirect(conversations);
         }
     }, [conversationStateId]);
+
+    // useEffect(() => {
+    //     const getOps = async () => {
+    //         try {
+    //             const ops = await getOpsForUser();
+    //
+    //             const opMap:{[key:string]:any} = {};
+    //             ops.data.forEach((op:any) => {
+    //                 opMap[op.id] = op;
+    //             })
+    //
+    //             console.log("Ops", opMap)
+    //             dispatch({field: 'ops', value: opMap});
+    //         } catch (e) {
+    //             console.error('Error getting ops', e);
+    //         }
+    //     }
+    //     if(session?.user) {
+    //        getOps();
+    //     }
+    // }, [session]);
 
     const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
         if (selectedConversation) {
@@ -988,6 +1043,8 @@ const Home = ({
                 value={{
                     ...contextValue,
                     handleNewConversation,
+                    handleStopConversation,
+                    shouldStopConversation,
                     handleCreateFolder,
                     handleDeleteFolder,
                     handleUpdateFolder,

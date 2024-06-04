@@ -207,9 +207,9 @@ export function useSendService() {
 
                         const dataSources = documents.map((doc) => {
                             if (doc.key && doc.key.indexOf("://") === -1) {
-                                return {id: "s3://" + doc.key, type: doc.type, metadata: doc.metadata || {}};
+                                return {id: "s3://" + doc.key, type: doc.type, name: doc.name || "", metadata: doc.metadata || {}};
                             } else if (doc.key && doc.key.indexOf("://") > -1) {
-                                return {id: doc.key, type: doc.type, metadata: doc.metadata || {}};
+                                return {id: doc.key, type: doc.type, name: doc.name || "",metadata: doc.metadata || {}};
                             } else {
                                 return doc;
                             }
@@ -217,7 +217,7 @@ export function useSendService() {
                         chatBody.dataSources = dataSources;
                     } else if (message.data && message.data.dataSources && message.data.dataSources.length > 0) {
                         chatBody.dataSources = message.data.dataSources.map((doc: any) => {
-                            return {id: doc.id, type: doc.type, metadata: doc.metadata || {}};
+                            return {id: doc.id, type: doc.type, name: doc.name || "", metadata: doc.metadata || {}};
                         });
                     }
 

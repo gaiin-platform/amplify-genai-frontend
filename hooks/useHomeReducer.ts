@@ -43,10 +43,17 @@ export type ConversationUpdateMessageAction = {
   messages: Message[],
 }
 
+export type ConversationChangeFolderAction = {
+  type: "changeFolder",
+  conversationId: string,
+  folderId: string,
+}
+
 export type ConversationAction =
     ConversationAddMessageAction |
     ConversationDeleteMessageAction |
-    ConversationUpdateMessageAction;
+    ConversationUpdateMessageAction |
+    ConversationChangeFolderAction;
 
 // Returns the Action Type for the dispatch object to be used for typing in things like context
 export type ActionType<T> =
@@ -141,6 +148,11 @@ export const useHomeReducer = ({ initialState }: { initialState: HomeInitialStat
               (conversation, message) => updateMessage(conversation, message),
               conversation,
           );
+        case "changeFolder":
+            return {
+                ...conversation,
+                folderId: action.folderId,
+            };
       }
     };
 

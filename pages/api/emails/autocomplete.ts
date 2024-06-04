@@ -14,7 +14,7 @@ const fetchEmailSuggestions = async (req: NextApiRequest, res: NextApiResponse) 
 
     const query = typeof req.query.emailprefix === 'string' ? req.query.emailprefix : ""; 
     
-    const apiUrl = process.env.API_BASE_URL + `/utilities/emails/?emailprefix=${encodeURIComponent(query)}`;
+    const apiUrl = process.env.API_BASE_URL + `/utilities/emails?emailprefix=${encodeURIComponent(query)}`;
 
     try {
         const response = await fetch(apiUrl, {

@@ -1,10 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]";
+import {getServerSession} from "next-auth/next";
+import {authOptions} from "@/pages/api/auth/[...nextauth]";
 
 
-
-const uploadToQiS3 =
+const opExec =
     async (req: NextApiRequest, res: NextApiResponse) => {
 
         const session = await getServerSession(req, res, authOptions);
@@ -14,20 +13,19 @@ const uploadToQiS3 =
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        
+        const { accessToken } = session;
 
         // Accessing itemData parameters from the request
         const reqData = req.body;
         const payload = reqData.data;
-        const type = reqData.type;
-        
-        const apiUrl = process.env.API_BASE_URL + `/qi/upload/${type}` || "";
+        const path = reqData.path;
+
+        let apiUrl = process.env.API_BASE_URL + path || "";
 
         try {
-            // @ts-ignore
-            const { accessToken } = session;
 
-            // console.log("Call to upload qi: ", apiUrl, payload);
+            console.log("Invoking op at: ", apiUrl)
+            console.log("With payload: ", payload)
 
             const response = await fetch(apiUrl, {
                 method: "POST",
@@ -38,15 +36,15 @@ const uploadToQiS3 =
                 },
             });
 
-            if (!response.ok) throw new Error(`Call failed with status: ${response.status}`);
+            if (!response.ok) throw new Error(`Op exec failed with status: ${response.status}`);
 
             const data = await response.json();
 
             res.status(200).json(data);
         } catch (error) {
-            console.error("Error call upload for QI: ", error);
-            res.status(500).json({ error: `Could not perform upload to S3` });
+            console.error("Error calling Ops op: ", error);
+            res.status(500).json({ error: `Could not exec Op` });
         }
     };
 
-export default uploadToQiS3;
+export default opExec;

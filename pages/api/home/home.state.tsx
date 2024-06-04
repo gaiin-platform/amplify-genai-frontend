@@ -1,6 +1,6 @@
 import { Conversation, Message } from '@/types/chat';
 import { ErrorMessage } from '@/types/error';
-import { FolderInterface } from '@/types/folder';
+import { FolderInterface, SortType } from '@/types/folder';
 import { OpenAIModel, OpenAIModelID } from '@/types/openai';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
@@ -10,6 +10,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { Assistant } from "@/types/assistant";
 import { noOpStatsServices, StatsServices } from "@/types/stats";
 import { Account } from "@/types/accounts";
+import {Op} from "@/types/op";
+
 
 type HandleSend = (request: any) => void;
 
@@ -50,6 +52,11 @@ export interface HomeInitialState {
   hasAcceptedDataDisclosure: boolean | null;
   hasScrolledToBottom: boolean;
   storageSelection: string | null;
+  ops: { [key: string]: Op };
+  allFoldersOpenConvs: boolean;
+  convFolderSort: SortType;
+  allFoldersOpenPrompts: boolean;
+  promptFolderSort: SortType;
 }
 
 export const initialState: HomeInitialState = {
@@ -66,6 +73,7 @@ export const initialState: HomeInitialState = {
   folders: [],
   conversations: [],
   workflows: [],
+  ops: {},
   workspaceMetadata: {
     name: '',
     description: '',
@@ -111,11 +119,10 @@ export const initialState: HomeInitialState = {
     dataSourceSelectorOnInput: true,
     followUpCreate: true,
     marketItemDelete: false,
-    automation: false,
+    automation: true,
     codeInterpreterEnabled: true,
     dataDisclosure: false,
     storeCloudConversations: true,
-    inCognitoGroup: false
   },
 
   statsService: noOpStatsServices,
@@ -125,5 +132,10 @@ export const initialState: HomeInitialState = {
   inputEmail: '',
   hasAcceptedDataDisclosure: null,
   hasScrolledToBottom: false,
-  storageSelection: null
+  storageSelection: null,
+  allFoldersOpenConvs: false,
+  convFolderSort: 'date',
+  allFoldersOpenPrompts: false,
+  promptFolderSort: 'name'
+
 };

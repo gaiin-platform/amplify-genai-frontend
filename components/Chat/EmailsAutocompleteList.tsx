@@ -18,6 +18,8 @@ interface EmailModalProps {
     input: string;
     setInput: (input: string) => void;
     message: string;
+    allEmails: string[] | null;
+    alreadyAddedEmails: string[]
 }
 
 function stringToColor(str: string): string {
@@ -37,7 +39,7 @@ function stringToColor(str: string): string {
 
 
 
-const EmailModal: FC<EmailModalProps> = ({ isOpen, onClose, onSubmit, input, setInput, message }) => {
+const EmailModal: FC<EmailModalProps> = ({ isOpen, onClose, onSubmit, input, setInput, message, allEmails, alreadyAddedEmails}) => {
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const suggestionRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -74,11 +76,17 @@ const EmailModal: FC<EmailModalProps> = ({ isOpen, onClose, onSubmit, input, set
         debounce(async (emailPrefix: string, curInput: string) => {
             const suggestionData = await fetchEmailSuggestions(emailPrefix);
             let newSuggestions = (suggestionData && suggestionData.emails) ? suggestionData.emails : [];
-            newSuggestions = newSuggestions.filter((suggestion: string) => !curInput.includes(suggestion))
+            newSuggestions = newSuggestions.filter((suggestion: string) => !curInput.includes(suggestion) && !alreadyAddedEmails.includes(suggestion));
             setSuggestions(newSuggestions);  
-        }, 300),
+        }, 100),
         []
     );
+
+    const emailSuggestions = (emailPrefix: string, curInput: string) => {
+        if (!allEmails) return;
+        const suggestions = allEmails.filter(email => email.startsWith(emailPrefix) && !curInput.includes(email) && !alreadyAddedEmails.includes(email));
+        setSuggestions(suggestions);  
+    }
 
     const calculateHeight = (rows: number) => rows <= 2 ? rows * 30 : 60;
     
@@ -88,7 +96,7 @@ const EmailModal: FC<EmailModalProps> = ({ isOpen, onClose, onSubmit, input, set
             <div className="fixed inset-0 z-10 overflow-hidden">
                 <div className="flex items-center justify-center min-h-screen pt-4 pb-20 text-center sm:block sm:p-0">
                     <div className="inline-block overflow-y-auto  overflow-x-hidden rounded-lg border border-gray-300 bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:w-full sm:max-w-[480px] sm:align-middle"
-                        style={{ transform: 'translateY(+30%)', position: 'relative' }}>
+                        style={{ transform: 'translateY(+22%)', position: 'relative' }}>
                         <div className="max-h-[calc(100vh-10rem)] p-0.5 overflow-y-auto">
                             {message}
                                 <input ref={inputRef}
@@ -103,12 +111,19 @@ const EmailModal: FC<EmailModalProps> = ({ isOpen, onClose, onSubmit, input, set
                                         const value = e.currentTarget.value;
                                         setInput(value);
                                         const lastQuery = value.split(',').pop();
+                                        
                                         if (lastQuery && lastQuery.length > 0 && lastQuery.trim().length > 0) {
-                                            await debouncedFetchSuggestions(lastQuery.trim(), input);
+                                            if (allEmails) {
+                                                emailSuggestions(lastQuery.trim(), input);
+                                            } else {
+                                              await debouncedFetchSuggestions(lastQuery.trim(), input);
+                                            }  
+                                        } else {
+                                            setSuggestions([]);
                                         }
                                     }}
                                     placeholder={"Enter email addresses separated by commas"}
-                                    
+                                    autoFocus
                                 />
                                 {suggestions.length > 0 && (
                                     <div ref={suggestionRef}  
@@ -155,8 +170,18 @@ export const EmailsAutocompleteList: FC<Props> = ({
     label = "Emails",
     addMessage = "Enter emails separated by commas:",
 }) => {
-    const [input, setInput] = useState('');
-    const [showModal, setShowModal] = useState(false);
+    const [input, setInput] = useState<string>('');
+    const [showModal, setShowModal] = useState<boolean>(false);
+    const [allEmails, setAllEmails] = useState<Array<string> | null>(null)
+
+    useEffect(() => {
+        const fetchEmails = async () => {
+            const emailSuggestions = await fetchEmailSuggestions("*");
+            setAllEmails(emailSuggestions.emails ? emailSuggestions.emails : []);
+        };
+        if (!allEmails) fetchEmails();
+    }, [showModal]);
+
 
     const handleAddEmails = () => {
         const newEmails = input.split(',')
@@ -180,14 +205,14 @@ export const EmailsAutocompleteList: FC<Props> = ({
             <EmailModal
                 isOpen={showModal}
                 onClose={() => {
-                    setShowModal(false)
+                    setShowModal(false);
                     setInput('');
-                }}
+                } }
                 onSubmit={handleAddEmails}
                 input={input}
                 setInput={setInput}
-                message={addMessage}
-            />
+                message={addMessage} allEmails={allEmails}
+                alreadyAddedEmails={emails}/>    
             <div className="flex w-full flex-wrap pb-2 mt-2">
                 {emails.map((email, index) => (
                     <div 

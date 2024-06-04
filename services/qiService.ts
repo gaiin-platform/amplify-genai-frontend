@@ -6,20 +6,22 @@ import {v4 as uuidv4} from 'uuid';
 import { sendChatRequestWithDocuments } from "./chatService";
 import { Message } from "ai";
 
-const qiConversationPrompt= 
-    `Analyze the provided chat conversation and generate a detailed report based on the following criteria:
+const qiConversationPrompt = 
+    `Generate a focused summary based on user and system exchanges, emphasizing the user's task: 
 
-    Summary: Provide a concise overview of the entire conversation, capturing all critical points discussed. Focus on the main topics, key decisions made, and the overall flow of the dialogue.
+    Summary: 
+    Summarize only the actionable and pertinent points discussed, avoiding transcription of extensive dialogue or content. Condense the summary into two to five sentences. 
+
+    Purpose: 
+    Please review the conversation in its entirety prior to this messaage and identify the key objectives and use cases. Highlight the primary reasons for this interaction and outline the problems the user aims to resolve. Please focus on the users questions to establish overall intent. 
     
-    Description: Condense the summary into one to two sentences, specifically highlighting any issues identified during the conversation. Focus on the main problem or challenge discussed in the chat.
     
-    Feedback and Improvements:
-    Evaluate the alignment of the LLM's responses with the user's underlying intentions to gauge how effectively the system is recognizing and addressing user needs. Track and analyze the frequency and clarity of unanswered or partially answered questions as a key metric of conversational completeness. Identify specific instances in the dialogue where soliciting user feedback could have provided additional insights or improved user satisfaction. Propose measurable enhancements to the response strategies, such as increasing accuracy, reducing response time, or enriching the content provided. These suggestions should aim to directly enhance the quality and relevance of future interactions.
-    
+    To ensure anonymity, replace anything you think is a persons name to NAME_REDACTED
+
     It is very important that you format your response correctly. Format your response as follows:
-    /SUMMARY_START [Your summary here] /SUMMARY_END
-    /DESCRIPTION_START [Your concise issue-focused description here] /DESCRIPTION_END
-    /FEEDBACK_START [Your detailed feedback and improvements, formatted in bullet points with newlines] /FEEDBACK_END`
+    /SUMMARY_START [Summary here] /SUMMARY_END
+    /PURPOSE_START [Purpose and use case here] /PURPOSE_END
+    `
 
 
 export const createQiSummary = async (chatEndpoint:string, data:any, type: QiSummaryType, statsService: any) => {
@@ -77,17 +79,14 @@ const parseToQiSummary = (text: string, type: QiSummaryType) => {
     if (!text) return createEmptyQiSummary(type);
     
     const summaryRegex = /\/SUMMARY_START\s+([\s\S]*?)\s*\/SUMMARY_END/;
-    const descriptionRegex = /\/DESCRIPTION_START\s+([\s\S]*?)\s*\/DESCRIPTION_END/;
-    const feedbackRegex = /\/FEEDBACK_START\s+([\s\S]*?)\s*\/FEEDBACK_END/;
+    const purposeRegex = /\/PURPOSE_START\s+([\s\S]*?)\s*\/PURPOSE_END/;
 
     const summaryMatch = text.match(summaryRegex);
-    const descriptionMatch = text.match(descriptionRegex);
-    const feedbackMatch = text.match(feedbackRegex);
+    const purposeMatch = text.match(purposeRegex);
 
     const summary = createEmptyQiSummary(type);
     if (summaryMatch) summary.summary = summaryMatch[1].trim();
-    if (descriptionMatch) summary.description = descriptionMatch[1].trim();
-    if (feedbackMatch) summary.feedbackImprovements = feedbackMatch[1].trim();
+    if (purposeMatch) summary.purpose = purposeMatch[1].trim();
     return summary;
 }
 
@@ -95,8 +94,8 @@ const parseToQiSummary = (text: string, type: QiSummaryType) => {
 export const createEmptyQiSummary = (type: QiSummaryType) =>{
     return  { type: type,
               summary : '',
-              description: '',
-              feedbackImprovements: ''
+              purpose: '',
+              includeUser: false
             } as QiSummary;
 }
 
@@ -118,7 +117,7 @@ export const uploadToQiS3 = async (data:any, type: QiSummaryType, errorHandler=(
             'Content-Type': 'application/json',
         },
         signal: null,
-        body: JSON.stringify({'data': data, 'type': type}),
+        body: JSON.stringify({'data': data, 'type': type.toLowerCase()}),
     });
 
 

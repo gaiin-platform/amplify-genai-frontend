@@ -20,7 +20,7 @@ import {
 
 import {useTranslation} from 'next-i18next';
 import {getPrompts, parsePromptVariables} from "@/utils/app/prompts";
-import {Message, MessageType, newMessage} from '@/types/chat';
+import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 import {Prompt} from '@/types/prompt';
 import {AttachFile} from "@/components/Chat/AttachFile";
@@ -46,6 +46,8 @@ import QiModal from './QiModal';
 import { QiSummary, QiSummaryType } from '@/types/qi';
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import { createQiSummary } from '@/services/qiService';
+import MessageSelectModal from './MesssageSelectModal';
+import cloneDeep from 'lodash/cloneDeep';
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -84,9 +86,14 @@ export const ChatInput = ({
     const [variables, setVariables] = useState<string[]>([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [showPluginSelect, setShowPluginSelect] = useState(false);
-    const [showQiDialog, setshowQiDialog] = useState(false);
-    const [isQiLoading, setQiIsLoading] = useState<boolean>(true);
+
+    const [showMessageSelectDialog, setShowMessageSelectDialog] = useState(false);
+    const [croppedConversation, setCroppedConversation] = useState<Conversation | null>(null);
+
+    const [showQiDialog, setShowQiDialog] = useState(false);
+    const [isQiLoading, setIsQiLoading] = useState<boolean>(true);
     const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
+
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const [plugin, setPlugin] = useState<Plugin | null>(null);
@@ -511,38 +518,42 @@ const onAssistantChange = (assistant: Assistant) => {
         setDocuments(newDocuments);
 
     }
-    const handleGetQiSummary = async (type: QiSummaryType) => {
-        if (type === QiSummaryType.CONVERSATION && selectedConversation) {
-            const summary = await createQiSummary(chatEndpoint || '', selectedConversation, type, statsService);
-            setQiSummary(summary);
-            setQiIsLoading(false);
-            return;
-        } 
+    const handleGetQiSummary = async (conversation:Conversation) => {
+        setShowMessageSelectDialog(false);
+        setIsQiLoading(true);
+        setShowQiDialog(true); 
+        const summary = await createQiSummary(chatEndpoint || '', conversation, QiSummaryType.CONVERSATION, statsService);
+        setQiSummary(summary);
+        setIsQiLoading(false); 
     }
 
     return (
         <div
             className="absolute bottom-0 left-0 w-full border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
             <div
-                className="flex flex-col stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
+                className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
                
-               {!showScrollDownButton && !showDataSourceSelector && !showAssistantSelect && 
-               (selectedConversation && selectedConversation.messages.length > 0) && featureFlags.inCognitoGroup && (
+               {!showScrollDownButton && !messageIsStreaming && featureFlags.inCognitoGroup && !showDataSourceSelector &&
+               (selectedConversation && selectedConversation.messages.length > 0) &&  (
                <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert">
                 <button
-                    className="mt-5 mx-8 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-in-out cursor-pointer border border-gray-300 dark:border-gray-600 rounded px-2 py-1"
+                    className="mt-5 cursor-pointer border border-gray-300 dark:border-gray-600 rounded px-2 py-1"
                     style={{ fontSize: '0.9rem' }} 
                     onClick={async () => {
-                        setQiIsLoading(true);
-                        setshowQiDialog(true);
                         // setShowPluginSelect(false);
                         // setShowPromptList(false);
-                        handleGetQiSummary(QiSummaryType.CONVERSATION);
+                        if (selectedConversation && selectedConversation.messages.length > 2) {
+                            setShowMessageSelectDialog(true);
+                        } else {
+                            setCroppedConversation(cloneDeep(selectedConversation));
+                            handleGetQiSummary(selectedConversation);
+                        }
+                        
                         
                     }}
-                    title={`Help Improve Amplify - Anonymously submit your conversation for quality improvement`}
+                    title={`Anonymously share your conversation for quality improvement`}
                 >
-                    Send Chat to Amplify 
+                    Share for Quality Improvement
                 </button>
             </div>)}
 
@@ -731,21 +742,31 @@ const onAssistantChange = (assistant: Assistant) => {
                             </div>
                         )}
 
+                        {showMessageSelectDialog && 
+                            <MessageSelectModal 
+                            setConversation={setCroppedConversation}
+                            onCancel={() => {
+                                setShowMessageSelectDialog(false);
+                            }}
+                            onSubmit={handleGetQiSummary}                      
+                        />}
+
                         {showQiDialog && (
                          isQiLoading ? (  <LoadingDialog open={isQiLoading} message={"Creating Summary..."}/>) :
                             <QiModal
                                 qiSummary={qiSummary}
                                 onCancel={() => {
-                                    setshowQiDialog(false)
+                                    setShowQiDialog(false)
                                     setQiSummary(null);
-                                    setQiIsLoading(true);
+                                    setIsQiLoading(true);
                                 }}
                                 onSubmit={() => {
-                                    setshowQiDialog(false)
+                                    setShowQiDialog(false)
                                     setQiSummary(null);
-                                    setQiIsLoading(true);
+                                    setIsQiLoading(true);
                                 }}
                                 type={QiSummaryType.CONVERSATION}
+                                conversation={croppedConversation}
                         />
                         )}
 
