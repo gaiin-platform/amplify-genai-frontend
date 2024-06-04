@@ -131,6 +131,7 @@ export const useHomeReducer = ({ initialState }: { initialState: HomeInitialStat
 
     conversation = conversationWithUncompressedMessages(conversation);
 
+    // @ts-ignore
     const doUpdate = (action:ConversationAction) => {
       switch (action.type) {
         case "addMessages":
