@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 
-import { FolderInterface } from '@/types/folder';
+import { FolderInterface, SortType } from '@/types/folder';
 
 import HomeContext from '@/pages/api/home/home.context';
 
@@ -8,14 +8,21 @@ import Folder from '@/components/Folder';
 import { PromptComponent } from '@/components/Promptbar/components/Prompt';
 
 import PromptbarContext from '../PromptBar.context';
+import { sortFoldersByDate, sortFoldersByName } from '@/utils/app/folders';
 
-export const PromptFolders = () => {
+
+interface Props {
+  sort: SortType
+} 
+
+
+export const PromptFolders = ({sort}: Props) => {
   const {
-    state: { folders },
+    state: { folders},
   } = useContext(HomeContext);
 
   const {
-    state: { searchTerm, filteredPrompts },
+    state: { searchTerm, filteredPrompts},
     handleUpdatePrompt,
     handleShareFolder,
   } = useContext(PromptbarContext);
@@ -47,10 +54,10 @@ export const PromptFolders = () => {
       });
 
   return (
-    <div className="flex w-full flex-col pt-2">
+    <div className="flex w-full flex-col">
       {folders
-        .filter((folder) => folder && folder.type === 'prompt')
-        .sort((a, b) => a.name.localeCompare(b.name))
+        .filter((folder) => folder.type === 'prompt')
+        .sort(sort === 'date' ? sortFoldersByDate : sortFoldersByName)
         .map((folder, index) => (
           <Folder
             key={index}

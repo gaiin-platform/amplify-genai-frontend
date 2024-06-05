@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 
-import { FolderInterface } from '@/types/folder';
+import { FolderInterface, SortType } from '@/types/folder';
 
 import HomeContext from '@/pages/api/home/home.context';
 
@@ -9,15 +9,17 @@ import Folder from '@/components/Folder';
 import { ConversationComponent } from './Conversation';
 import ChatbarContext from "@/components/Chatbar/Chatbar.context";
 import {Conversation} from "@/types/chat";
+import { sortFoldersByDate, sortFoldersByName } from '@/utils/app/folders';
 
 interface Props {
+  sort: SortType
   searchTerm: string;
   conversations: Conversation[];
 }
 
-export const ChatFolders = ({ searchTerm, conversations }: Props) => {
+export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
   const {
-    state: { folders, selectedConversation },
+    state: { folders, selectedConversation},
     handleUpdateConversation,
   } = useContext(HomeContext);
 
@@ -51,7 +53,7 @@ export const ChatFolders = ({ searchTerm, conversations }: Props) => {
         .map((conversation, index) => {
             return (
               <div key={index} className="ml-5 gap-2 border-l pl-2">
-                <ConversationComponent conversation={conversation} />
+                <ConversationComponent conversation={conversation}/>
               </div>
             );
         })
@@ -60,24 +62,10 @@ export const ChatFolders = ({ searchTerm, conversations }: Props) => {
 
 
   return (
-    <div className="flex w-full flex-col pt-2">
+    <div className="flex w-full flex-col">
       {filteredFolders
-        .filter((folder) => folder && folder.type === 'chat')
-        .sort((a, b) => {
-          // Check if both folders have a date attribute
-          if (a.date && b.date) {
-            // Sort by date if both folders have a date
-            return b.date.localeCompare(a.date);
-            // Always put folders with a date before those without
-          } else if (a.date) {
-            return -1;
-          } else if (b.date) {
-            return 1;
-          } else {
-            // If neither folder has a date, sort by name
-            return a.name.localeCompare(b.name);
-          }
-        }) // currently doing this since folders have been created without the new date attribute. 
+        .filter((folder) => folder.type === 'chat')
+        .sort(sort === 'date' ? sortFoldersByDate : sortFoldersByName) // currently doing this since folders have been created without the new date attribute. 
         .map((folder, index) => (
           <Folder
             key={index}

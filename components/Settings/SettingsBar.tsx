@@ -16,8 +16,6 @@ import HomeContext from '@/pages/api/home/home.context';
 
 import {ChatbarSettings} from "@/components/Chatbar/components/ChatbarSettings";
 
-
-import Sidebar from '../Sidebar';
 import ChatbarContext from "@/components/Chatbar/Chatbar.context";
 import { ChatbarInitialState, initialState } from "@/components/Chatbar/Chatbar.state";
 

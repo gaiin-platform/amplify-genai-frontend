@@ -11,6 +11,8 @@ import { Assistant } from "@/types/assistant";
 import { noOpStatsServices, StatsServices } from "@/types/stats";
 import { Account } from "@/types/accounts";
 import {Op} from "@/types/op";
+import {CheckItemType} from "@/types/checkItem";
+
 
 
 type HandleSend = (request: any) => void;
@@ -54,9 +56,9 @@ export interface HomeInitialState {
   storageSelection: string | null;
   ops: { [key: string]: Op };
   allFoldersOpenConvs: boolean;
-  convFolderSort: SortType;
   allFoldersOpenPrompts: boolean;
-  promptFolderSort: SortType;
+  checkedItems: Array<any>;
+  checkingItemType: CheckItemType | null;
 }
 
 export const initialState: HomeInitialState = {
@@ -134,8 +136,7 @@ export const initialState: HomeInitialState = {
   hasScrolledToBottom: false,
   storageSelection: null,
   allFoldersOpenConvs: false,
-  convFolderSort: 'date',
   allFoldersOpenPrompts: false,
-  promptFolderSort: 'name'
-
+  checkedItems: [],
+  checkingItemType: null
 };

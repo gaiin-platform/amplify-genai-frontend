@@ -1,4 +1,4 @@
-import { useContext, useEffect } from 'react';
+import { useContext, useEffect, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
@@ -22,7 +22,7 @@ import ChatbarContext from './Chatbar.context';
 import { ChatbarInitialState, initialState } from './Chatbar.state';
 
 import { v4 as uuidv4 } from 'uuid';
-import {FolderInterface} from "@/types/folder";
+import {FolderInterface, SortType} from "@/types/folder";
 import { getIsLocalStorageSelection, isLocalConversation, isRemoteConversation } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation } from '@/services/remoteConversationService';
 import { uncompressMessages } from '@/utils/app/messages';
@@ -48,6 +48,8 @@ export const Chatbar = () => {
     dispatch: chatDispatch,
   } = chatBarContextValue;
 
+
+  const [folderSort, setFolderSort] = useState<SortType>('date');
 
 
   const handleShareFolder = (folder: FolderInterface) => {
@@ -83,13 +85,6 @@ export const Chatbar = () => {
 
     let selectedConversation: Conversation = {...lastConversation};
     if (lastConversation.name !== 'New Conversation' && (conversation.name !== 'New Conversation')) { // handle if you delete this new conversation 
-      const defaultModelId =
-          (process.env.DEFAULT_MODEL &&
-              Object.values(OpenAIModelID).includes(
-                  process.env.DEFAULT_MODEL as OpenAIModelID,
-              ) &&
-              process.env.DEFAULT_MODEL) ||
-          fallbackModelID;
       
       const date = new Date().toLocaleDateString('en-US', {
         month: 'short',
@@ -214,7 +209,7 @@ export const Chatbar = () => {
         isOpen={showChatbar}
         addItemButtonTitle={t('New Chat')}
         itemComponent={<Conversations conversations={filteredConversations} />}
-        folderComponent={<ChatFolders searchTerm={searchTerm} conversations={filteredConversations} />}
+        folderComponent={<ChatFolders sort={folderSort} searchTerm={searchTerm} conversations={filteredConversations} />}
         items={filteredConversations}
         searchTerm={searchTerm}
         handleSearchTerm={(searchTerm: string) => chatDispatch({ field: 'searchTerm', value: searchTerm })}
@@ -227,8 +222,10 @@ export const Chatbar = () => {
           handleCreateFolder(name || "New Folder", 'chat');
         } }
         handleDrop={handleDrop}
-        footerComponent={<>
-        </>} handleCreateAssistantItem={() => {}}      />
+        footerComponent={<> </>} 
+        handleCreateAssistantItem={() => {}} 
+        setFolderSort={setFolderSort} 
+        />
     </ChatbarContext.Provider>
   );
 };

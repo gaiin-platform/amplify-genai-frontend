@@ -30,11 +30,12 @@ interface Props {
   conversation: Conversation;
 }
 
-export const ConversationComponent = ({ conversation }: Props) => {
+export const ConversationComponent = ({ conversation}: Props) => {
   const {
-    state: { selectedConversation, messageIsStreaming },
+    state: { selectedConversation, messageIsStreaming, checkingItemType, checkedItems},
     handleSelectConversation,
-    handleUpdateConversation, dispatch: homeDispatch
+    handleUpdateConversation,
+    dispatch: homeDispatch
   } = useContext(HomeContext);
 
   const { handleDeleteConversation } = useContext(ChatbarContext);
@@ -42,6 +43,9 @@ export const ConversationComponent = ({ conversation }: Props) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  const [checkConversations, setCheckConversations] = useState(false);
+  const [isChecked, setIsChecked] = useState(false);
+
 
   const handleEnterDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {
@@ -111,6 +115,24 @@ export const ConversationComponent = ({ conversation }: Props) => {
     }
   }, [isRenaming, isDeleting]);
 
+  useEffect(() => {
+    if (checkingItemType === 'Conversations') setCheckConversations(true);
+    if (checkingItemType === null) setCheckConversations(false);
+  }, [checkingItemType]);
+
+
+  useEffect(() => {
+    setIsChecked((checkedItems.includes(prompt) ? true : false)); 
+  }, [checkedItems]);
+
+  const handleCheckboxChange = (checked: boolean) => {
+    if (checked){
+      homeDispatch({field: 'checkedItems', value: [...checkedItems, conversation]}); 
+    } else {
+      homeDispatch({field: 'checkedItems', value: checkedItems.filter((i:any) => i !== conversation)});
+    }
+  }
+
   return (
     <div className="relative flex items-center">
       {isRenaming && selectedConversation?.id === conversation.id ? (
@@ -172,10 +194,22 @@ export const ConversationComponent = ({ conversation }: Props) => {
           </div>
         )}
 
+
+      { checkConversations &&  (
+        <div className="relative flex items-center">
+          <div key={conversation.id} className="absolute right-1 z-10">
+              <input
+              type="checkbox"
+              checked={checkedItems.includes(conversation)}
+              onChange={(e) => handleCheckboxChange(e.target.checked)}
+              />
+          </div>
+        </div>
+      )}  
+
       {selectedConversation?.id === conversation.id &&
-        !isDeleting &&
-        !isRenaming && (
-          <div className="absolute right-1 z-10 flex text-gray-300">
+        !isDeleting && !isRenaming && !checkConversations &&
+        ( <div className="absolute right-1 z-10 flex text-gray-300">
             <SidebarActionButton handleClick={handleOpenRenameModal} title="Rename Conversation">
               <IconPencil size={18} />
             </SidebarActionButton>

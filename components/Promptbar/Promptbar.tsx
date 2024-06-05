@@ -11,7 +11,6 @@ import { Prompt } from '@/types/prompt';
 import HomeContext from '@/pages/api/home/home.context';
 
 import { PromptFolders } from './components/PromptFolders';
-import { PromptbarSettings } from './components/PromptbarSettings';
 import { Prompts } from './components/Prompts';
 
 import Sidebar from '../Sidebar';
@@ -22,7 +21,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {MessageType} from "@/types/chat";
 import {PromptModal} from "@/components/Promptbar/components/PromptModal";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
-import {FolderInterface} from "@/types/folder";
+import {FolderInterface, SortType} from "@/types/folder";
 import { AssistantModal } from '../Promptbar/components/AssistantModal';
 import { getAssistants, handleUpdateAssistantPrompt} from '@/utils/app/assistants';
 import { AssistantDefinition } from '@/types/assistant';
@@ -41,8 +40,10 @@ const Promptbar = () => {
   });
 
   const [isShareDialogVisible, setIsShareDialogVisible] = useState(false);
-  const [sharedPrompts, setSharedPrompts] = useState<Prompt[]>([])
-  const [sharedFolders, setSharedFolders] = useState<FolderInterface[]>([])
+  const [sharedPrompts, setSharedPrompts] = useState<Prompt[]>([]);
+  const [sharedFolders, setSharedFolders] = useState<FolderInterface[]>([]);
+  const [folderSort, setFolderSort] = useState<SortType>('name');
+
 
   const {
     state: { prompts, defaultModelId, showPromptbar, statsService, featureFlags},
@@ -242,7 +243,7 @@ const Promptbar = () => {
             prompts={filteredPrompts.filter((prompt) => !prompt.folderId)}
           />
         } 
-        folderComponent={<PromptFolders />}
+        folderComponent={<PromptFolders sort={folderSort}/>}
         items={filteredPrompts}
         searchTerm={searchTerm}
         handleSearchTerm={(searchTerm: string) =>
@@ -256,6 +257,7 @@ const Promptbar = () => {
         }}
         handleDrop={handleDrop}
         handleCreateAssistantItem={handleCreateAssistant}
+        setFolderSort={setFolderSort}
       />
 
       <ShareAnythingModal

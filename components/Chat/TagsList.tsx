@@ -8,6 +8,8 @@ interface Props {
     tagParser?: (tag: string) => string[];
     addMessage?: string;
     maxWidth?: string;
+    removeTag?: (tags: string) => void;
+
 }
 
 function stringToColor(str:string) {
@@ -42,11 +44,12 @@ function stringToColor(str:string) {
 
 
 export const TagsList: FC<Props> = (
-    { tags, setTags , maxWidth="200px", label="Tags", tagParser=(t:string)=>t.split(","), addMessage="Tag names separated by commas:"}) => {
+    { tags, setTags , maxWidth="200px", label="Tags", tagParser=(t:string)=>t.split(","), addMessage="Tag names separated by commas:", removeTag=((t:string)=>{})}) => {
 
     return (
         <div className="flex w-full">
-            <div className="flex items-center justify-between px-1 py-1 mr-2">
+
+            <div className="flex flex-row items-start justify-between px-1 py-1 mr-2">
                 <button
                     className="text-gray-400 hover:text-gray-600 transition-all"
                     onClick={(e) =>{
@@ -82,6 +85,7 @@ export const TagsList: FC<Props> = (
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setTags(tags?.filter(x => x != tag));
+                                removeTag(tag);
                             }}
                             title="Remove Tag"
                         >

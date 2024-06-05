@@ -53,7 +53,7 @@ export const PromptComponent = ({ prompt }: Props) => {
     } = useContext(PromptbarContext);
 
     const {
-        state: { prompts, defaultModelId, showPromptbar, statsService, selectedAssistant},
+        state: { statsService, selectedAssistant, checkingItemType, checkedItems},
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -62,6 +62,7 @@ export const PromptComponent = ({ prompt }: Props) => {
     const user = session?.user;
 
     const [showShareModal, setShowShareModal] = useState(false);
+    
 
 
     const closeModal = () => {
@@ -83,7 +84,8 @@ export const PromptComponent = ({ prompt }: Props) => {
     const [isRenaming, setIsRenaming] = useState(false);
     const [renameValue, setRenameValue] = useState('');
     const [isHovered, setIsHovered] = useState(false);
-
+    const [checkPrompts, setCheckPrompts] = useState(false);
+    const [isChecked, setIsChecked] = useState(false);
 
     const handleStartConversation = (startPrompt: Prompt) => {
 
@@ -97,6 +99,11 @@ export const PromptComponent = ({ prompt }: Props) => {
         handleStartConversationWithPrompt(handleNewConversation, prompts, startPrompt);
 
     }
+
+    useEffect(() => {
+        if (checkingItemType === 'Prompts') setCheckPrompts(true);
+        if (checkingItemType === null) setCheckPrompts(false);
+      }, [checkingItemType]);
 
     const handleUpdate = (prompt: Prompt) => {
         handleUpdatePrompt(prompt);
@@ -178,6 +185,18 @@ export const PromptComponent = ({ prompt }: Props) => {
         }
     }, [isRenaming, isDeleting]);
 
+    useEffect(() => {
+        setIsChecked((checkedItems.includes(prompt) ? true : false)); 
+    }, [checkedItems]);
+
+    const handleCheckboxChange = (checked: boolean) => {
+        if (checked){
+          homeDispatch({field: 'checkedItems', value: [...checkedItems, prompt]}); 
+        } else {
+          homeDispatch({field: 'checkedItems', value: checkedItems.filter((i:any) => i !== prompt)});
+        }
+    }
+
     // @ts-ignore
     // @ts-ignore
     return (
@@ -232,7 +251,19 @@ export const PromptComponent = ({ prompt }: Props) => {
 
                 </button>
 
-                {isHovered &&
+                { checkPrompts && !isReserved  &&  (
+                    <div className="relative flex items-center">
+                        <div key={prompt.id} className="absolute right-1 z-10">
+                            <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => handleCheckboxChange(e.target.checked)}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {isHovered && !checkPrompts &&
                     <div
                         className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-neutral-200 dark:bg-[#343541]/90 rounded">
 
@@ -251,7 +282,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                         {!isDeleting && !isRenaming && canShare && (
                             <SidebarActionButton handleClick={() => {
                                 handleSharePrompt(prompt);
-                            }} title="Share">
+                            }} title="Share Template">
                                 <IconShare size={18} />
                             </SidebarActionButton>
                         )}

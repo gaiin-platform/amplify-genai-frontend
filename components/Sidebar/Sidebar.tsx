@@ -2,6 +2,8 @@ import { IconFolderPlus, IconMistOff, IconPlus } from '@tabler/icons-react';
 import { ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Search from '../Search';
+import { KebabMenu } from './components/KebabMenu';
+import { SortType } from '@/types/folder';
 
 interface Props<T> {
   isOpen: boolean;
@@ -18,6 +20,7 @@ interface Props<T> {
   handleCreateFolder: () => void;
   handleDrop: (e: any) => void;
   handleCreateAssistantItem: () => void;
+  setFolderSort: (s: SortType) => void;
 }
 
 const Sidebar = <T,>({
@@ -34,7 +37,8 @@ const Sidebar = <T,>({
   handleCreateItem,
   handleCreateFolder,
   handleDrop,
-  handleCreateAssistantItem
+  handleCreateAssistantItem,
+  setFolderSort,
 }: Props<T>) => {
   const { t } = useTranslation('promptbar');
 
@@ -82,7 +86,7 @@ const Sidebar = <T,>({
   }
 
   return (
-    <div className={`border-t dark:border-white/20`}>
+    <div className={`border-t dark:border-white/20 overflow-x-hidden`}>
       <div
         className={`fixed top-0 ${side}-0 z-40 flex h-full w-[270px] flex-none flex-col space-y-2 bg-neutral-100 dark:bg-[#202123] p-2 text-[14px] transition-all sm:relative sm:top-0`}
       >
@@ -103,6 +107,13 @@ const Sidebar = <T,>({
           onSearch={handleSearchTerm}
         />
 
+        <KebabMenu
+        label={side === 'left' ? "Conversations": "Prompts"} 
+        items={items}
+        handleSearchTerm={handleSearchTerm}
+        setFolderSort={setFolderSort}
+        />
+
         <div className="flex-grow overflow-auto">
           {items?.length > 0 && (
             <div className="flex border-b dark:border-white/20 pb-2">
@@ -112,7 +123,6 @@ const Sidebar = <T,>({
 
           {items?.length > 0 ? (
             <div
-              className="pt-2"
               onDrop={handleDrop}
               onDragOver={allowDrop}
               onDragEnter={highlightDrop}

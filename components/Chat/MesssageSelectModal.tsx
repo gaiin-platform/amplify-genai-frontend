@@ -3,9 +3,6 @@ import HomeContext from "@/pages/api/home/home.context";
 import { Conversation, Message } from "@/types/chat";
 import cloneDeep from 'lodash/cloneDeep';
 
-import { MdToggleOff, MdToggleOn } from 'react-icons/md';
-
-
 
 interface Props {
     setConversation: (c: Conversation) => void;
