@@ -51,8 +51,8 @@ import {
     IconSettings,
 } from "@tabler/icons-react";
 import { IconLogout } from "@tabler/icons-react";
-import HomeContext, { ClickContext, Processor } from './home.context';
-import { initialState } from './home.state';
+
+import { initialState } from '../../home/home.state';
 import useEventService from "@/hooks/useEventService";
 import { v4 as uuidv4 } from 'uuid';
 
@@ -78,6 +78,7 @@ import {killRequest as killReq} from "@/services/chatService";
 import Folder from '@/components/Folder';
 import { DefaultUser } from 'next-auth';
 import { addDateAttribute, getDate, getDateName } from '@/utils/app/date';
+import HomeContext, {  ClickContext, Processor } from '@/home/home.context';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -349,7 +350,7 @@ const Home = ({
             const lastMessage: Message = newSelectedConv.messages[newSelectedConv.messages.length - 1];
             if (lastMessage.data && lastMessage.data.state && lastMessage.data.state.currentAssistant) {
                 const astName = lastMessage.data.state.currentAssistant;
-                const assistantPrompt =  promptsRef.current.find(prompt => prompt.name === astName);
+                const assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt.name === astName);
                 const assistant = assistantPrompt?.data?.assistant ? assistantPrompt.data.assistant : DEFAULT_ASSISTANT;
                 dispatch({ field: 'selectedAssistant', value: assistant });
             }
@@ -439,26 +440,26 @@ const Home = ({
 
     const handleDeleteFolder = (folderId: string) => {
 
-        const updatedFolders = foldersRef.current.filter((f) => (f.id !== folderId));
+        const updatedFolders = foldersRef.current.filter((f:FolderInterface) => (f.id !== folderId));
         dispatch({ field: 'folders', value: updatedFolders });
         saveFolders(updatedFolders);
 
-        const updatedConversations = conversationsRef.current.reduce<Conversation[]>((acc, c) => {
-            if (c.folderId === folderId) {
-                statsService.deleteConversationEvent(c);
-                if (isRemoteConversation(c)) deleteRemoteConversation(c.id);
-            } else {
-                acc.push(c);
-            }
-            return acc;
-        }, []);
+        const updatedConversations = conversationsRef.current.reduce((acc: Conversation[], c:Conversation) => {
+                                        if (c.folderId === folderId) {
+                                            statsService.deleteConversationEvent(c);
+                                            if (isRemoteConversation(c)) deleteRemoteConversation(c.id);
+                                        } else {
+                                            acc.push(c);
+                                        }
+                                        return acc;
+                                    }, [] as Conversation[]);
 
         dispatch({ field: 'conversations', value: updatedConversations });
         saveConversations(updatedConversations);
 
         if (updatedConversations.length > 0) {
             const selectedNotDeleted = selectedConversation ?
-                updatedConversations.some(conversation =>
+                updatedConversations.some((conversation:Conversation) =>
                     conversation.id === selectedConversation.id) : false;
             if (!selectedNotDeleted) { // was deleted
                 const newSelectedConversation = updatedConversations[updatedConversations.length - 1];
@@ -489,7 +490,7 @@ const Home = ({
             localStorage.removeItem('selectedConversation');
         }
 
-        const updatedPrompts: Prompt[] =  promptsRef.current.map((p) => {
+        const updatedPrompts: Prompt[] =  promptsRef.current.map((p:Prompt) => {
             if (p.folderId === folderId) {
                 return {
                     ...p,
@@ -503,14 +504,13 @@ const Home = ({
         dispatch({ field: 'prompts', value: updatedPrompts });
         savePrompts(updatedPrompts);
 
-        const updatedWorkflows: WorkflowDefinition[] = workflows.map((p) => {
+        const updatedWorkflows: WorkflowDefinition[] = workflows.map((p:WorkflowDefinition) => {
             if (p.folderId === folderId) {
                 return {
                     ...p,
                     folderId: null,
                 };
             }
-
             return p;
         });
 
@@ -519,7 +519,7 @@ const Home = ({
     };
 
     const handleUpdateFolder = (folderId: string, name: string) => {
-        const updatedFolders = foldersRef.current.map((f) => {
+        const updatedFolders = foldersRef.current.map((f:FolderInterface) => {
             if (f.id === folderId) {
                 return {
                     ...f,
@@ -547,7 +547,7 @@ const Home = ({
         const date = getDateName();
 
         // See if there is a folder with the same name as the date
-        let folder = foldersRef.current.find((f) => f.name === date);
+        let folder = foldersRef.current.find((f:FolderInterface) => f.name === date);
 
         if (!folder) {
             folder = handleCreateFolder(date, "chat");
@@ -1221,9 +1221,8 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
 
 
 
-    const googleApiKey = process.env.GOOGLE_API_KEY;
-    const googleCSEId = process.env.GOOGLE_CSE_ID;
-
+    // const googleApiKey = process.env.GOOGLE_API_KEY;
+    // const googleCSEId = process.env.GOOGLE_CSE_ID;
     // if (googleApiKey && googleCSEId) {
     //     serverSidePluginKeysSet = true;
     // }

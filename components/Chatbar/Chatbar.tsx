@@ -11,7 +11,7 @@ import { Conversation } from '@/types/chat';
 import { SupportedExportFormats } from '@/types/export';
 import { OpenAIModelID, OpenAIModels, fallbackModelID } from '@/types/openai';
 
-import HomeContext from '@/pages/home/home.context';
+import HomeContext from '@/home/home.context';
 
 import { ChatFolders } from './components/ChatFolders';
 import { Conversations } from './components/Conversations';

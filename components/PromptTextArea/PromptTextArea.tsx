@@ -7,7 +7,7 @@ import {parseEditableVariables, parsePromptVariables} from "@/utils/app/prompts"
 import {VariableModal} from "@/components/Chat/VariableModal";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {OpenAIModel} from "@/types/openai";
-import HomeContext from "@/pages/home/home.context";
+import HomeContext from "@/home/home.context";
 import {ChatBody, newMessage} from "@/types/chat";
 
 interface PromptTextAreaProps {

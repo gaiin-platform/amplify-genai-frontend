@@ -18,7 +18,7 @@ import {
     useState,
 } from 'react';
 
-import HomeContext from '@/pages/home/home.context';
+import HomeContext from '@/home/home.context';
 
 import { Prompt } from '@/types/prompt';
 
@@ -258,7 +258,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
                 { checkPrompts && !isReserved  &&  (
                     <div className="relative flex items-center">
-                        <div key={prompt.id} className="absolute right-1 z-10">
+                        <div key={prompt.id} className="absolute right-4 z-10">
                             <input
                             type="checkbox"
                             checked={isChecked}

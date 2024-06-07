@@ -1,5 +1,5 @@
 import {useContext, useEffect, useRef} from "react";
-import HomeContext from "@/pages/home/home.context";
+import HomeContext from "@/home/home.context";
 import {Conversation, Message, MessageType} from "@/types/chat";
 
 

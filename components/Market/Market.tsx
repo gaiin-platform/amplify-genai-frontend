@@ -28,7 +28,7 @@ import {
     useState,
 } from 'react';
 
-import HomeContext from '@/pages/home/home.context';
+import HomeContext from '@/home/home.context';
 import {MarketCategory, MarketItem, MarketItemType} from "@/types/market";
 import {deleteItem, getCategory, getItem, getItemExamples} from "@/services/marketService";
 import styled, {keyframes} from "styled-components";

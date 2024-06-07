@@ -1,6 +1,6 @@
 import mermaid from "mermaid";
 import { useContext, useEffect, useState } from "react";
-import HomeContext from "@/pages/home/home.context";
+import HomeContext from "@/home/home.context";
 import { IconZoomIn } from "@tabler/icons-react";
 import styled, { keyframes } from "styled-components";
 import { FiCommand } from "react-icons/fi";

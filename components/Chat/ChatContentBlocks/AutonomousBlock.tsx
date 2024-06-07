@@ -3,7 +3,7 @@ import {
 } from '@tabler/icons-react';
 import React, {useContext, useEffect, useRef} from "react";
 import JSON5 from "json5";
-import HomeContext from "@/pages/home/home.context";
+import HomeContext from "@/home/home.context";
 import {useSendService} from "@/hooks/useChatSendService";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";

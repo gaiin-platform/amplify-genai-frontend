@@ -5,7 +5,7 @@ import {
     IconCloudFilled
 } from '@tabler/icons-react';
 
-import HomeContext from '@/pages/home/home.context';
+import HomeContext from '@/home/home.context';
 import { handleStorageSelection, saveStorageSettings } from '@/utils/app/conversationStorage';
 import { ConversationStorage } from "@/types/conversationStorage";
 import { saveConversations } from '@/utils/app/conversation';

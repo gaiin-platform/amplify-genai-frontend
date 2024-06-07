@@ -11,7 +11,7 @@ import { TagsList } from "@/components/Chat/TagsList";
 import { Conversation } from "@/types/chat";
 import { getAssistant, isAssistant } from "@/utils/app/assistants";
 import { DEFAULT_ASSISTANT } from "@/types/assistant";
-import HomeContext from "@/pages/home/home.context";
+import HomeContext from "@/home/home.context";
 import { Prompt } from "@/types/prompt";
 import { deleteAssistant } from "@/services/assistantService";
 import { OpenAIModelID, OpenAIModels } from "@/types/openai";
@@ -299,7 +299,7 @@ interface Props {
 
           <div className="relative inline-block text-left">
             { actionItem && checkIsActiveSide() ?
-                <div className="z-10 p-1">
+                <div className="z-10 p-0.5">
                     <input
                     type="checkbox"
                     checked={allItemsChecked}

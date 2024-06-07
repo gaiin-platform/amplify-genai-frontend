@@ -19,7 +19,7 @@ import {
 
 import { Conversation } from '@/types/chat';
 
-import HomeContext from '@/pages/home/home.context';
+import HomeContext from '@/home/home.context';
 
 import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import ChatbarContext from '@/components/Chatbar/Chatbar.context';
@@ -203,7 +203,7 @@ export const ConversationComponent = ({ conversation}: Props) => {
 
       { checkConversations &&  (
         <div className="relative flex items-center">
-          <div key={conversation.id} className="absolute right-1 z-10">
+          <div key={conversation.id} className="absolute right-4 z-10">
               <input
               type="checkbox"
               checked={checkedItems.includes(conversation)}

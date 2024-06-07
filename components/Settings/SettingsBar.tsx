@@ -12,7 +12,7 @@ import { Conversation } from '@/types/chat';
 import { LatestExportFormat, SupportedExportFormats } from '@/types/export';
 import { OpenAIModels } from '@/types/openai';
 
-import HomeContext from '@/pages/home/home.context';
+import HomeContext from '@/home/home.context';
 
 import {ChatbarSettings} from "@/components/Chatbar/components/ChatbarSettings";
 

@@ -2,7 +2,7 @@
 import React, {useContext} from 'react';
 import {Conversation, MessageType} from "@/types/chat";
 import {Prompt} from "@/types/prompt";
-import HomeContext from "@/pages/home/home.context";
+import HomeContext from "@/home/home.context";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {IconCheck, IconCircleX, IconAt} from "@tabler/icons-react";
 import {AttachedDocument} from "@/types/attacheddocument";

@@ -5,6 +5,7 @@ import Search from '../Search';
 import { KebabMenu } from './components/KebabMenu';
 import { SortType } from '@/types/folder';
 
+
 interface Props<T> {
   isOpen: boolean;
   addItemButtonTitle: string;
@@ -40,6 +41,8 @@ const Sidebar = <T,>({
   handleCreateAssistantItem,
   setFolderSort,
 }: Props<T>) => {
+
+
   const { t } = useTranslation('promptbar');
 
   const allowDrop = (e: any) => {
@@ -113,8 +116,7 @@ const Sidebar = <T,>({
         handleSearchTerm={handleSearchTerm}
         setFolderSort={setFolderSort}
         />
-
-        <div className="flex-grow ">
+        <div className="relative flex-grow overflow-y-auto w-[268px]">
           {items?.length > 0 && (
             <div className="flex border-b dark:border-white/20 pb-2">
               {folderComponent}

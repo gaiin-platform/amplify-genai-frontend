@@ -1,5 +1,5 @@
 import {useContext, useEffect, useState} from "react";
-import HomeContext from "@/pages/home/home.context";
+import HomeContext from "@/home/home.context";
 import {styled, keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {Conversation} from "@/types/chat";

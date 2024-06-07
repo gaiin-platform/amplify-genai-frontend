@@ -17,7 +17,7 @@ import {useTranslation} from 'next-i18next';
 import {conversationWithUncompressedMessages, updateConversation} from '@/utils/app/conversation';
 import {DataSource, Message} from '@/types/chat';
 import {useChatService} from "@/hooks/useChatService";
-import HomeContext from '@/pages/home/home.context';
+import HomeContext from '@/home/home.context';
 import ChatFollowups from './ChatFollowups';
 import {VariableModal} from "@/components/Chat/VariableModal";
 import ChatContentBlock from "@/components/Chat/ChatContentBlocks/ChatContentBlock";

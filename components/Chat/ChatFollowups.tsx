@@ -2,7 +2,7 @@
 import React, {useContext, useEffect, useRef} from 'react';
 import {Conversation, MessageType} from "@/types/chat";
 import {Prompt} from "@/types/prompt";
-import HomeContext from "@/pages/home/home.context";
+import HomeContext from "@/home/home.context";
 
 type ChatFollowupsProps = {
     promptSelected: (prompt: Prompt) => void,

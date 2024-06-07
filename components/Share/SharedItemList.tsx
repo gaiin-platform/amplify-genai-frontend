@@ -20,7 +20,7 @@ import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
-import HomeContext from "@/pages/home/home.context";
+import HomeContext from "@/home/home.context";
 import {ShareAnythingToMarketModal} from "@/components/Share/ShareAnythingToMarketModal";
 import {useSession} from "next-auth/react";
 import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
@@ -363,124 +363,125 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                         ))}
                     />
                 </div>
-            ))) : YSItems && // active tab is set to YS
-            (   (YSItems.map((item: SharedItem) => (
-                    <div key={item.note} className=" ml-4 mt-4 p-2"
-                        // onMouseEnter={() => {
-                        //                     setHoveredItem(item);
-                        //                     setIsButtonHover(true);
-                        //                 }}
-                        // onMouseLeave={() => {
-                        //     setDeletingItem(null); 
-                        //     setHoveredItem(null);
-                        // }
-                        // }
-                        >
+            ))) : <></>
+            // YSItems && //active tab is set to YS
+            // (   (YSItems.map((item: SharedItem) => (
+            //         <div key={item.note} className=" ml-4 mt-4 p-2"
+            //             // onMouseEnter={() => {
+            //             //                     setHoveredItem(item);
+            //             //                     setIsButtonHover(true);
+            //             //                 }}
+            //             // onMouseLeave={() => {
+            //             //     setDeletingItem(null); 
+            //             //     setHoveredItem(null);
+            //             // }
+            //             // }
+            //             >
 
-                        <ExpansionComponent
-                            title={item.note}
-                            openWidget={<IconCaretDown size={18}/>}
-                            closedWidget={<IconCaretRight size={18}/>}
-                            content={[ 
-                                <div>
-                                    <div className="mt-2 flex items-center justify-center text-sm text-black dark:text-neutral-200 border-b  border-gray-500">
-                                        {'Shared Items'}
-                                    </div>
+            //             <ExpansionComponent
+            //                 title={item.note}
+            //                 openWidget={<IconCaretDown size={18}/>}
+            //                 closedWidget={<IconCaretRight size={18}/>}
+            //                 content={[ 
+            //                     <div>
+            //                         <div className="mt-2 flex items-center justify-center text-sm text-black dark:text-neutral-200 border-b  border-gray-500">
+            //                             {'Shared Items'}
+            //                         </div>
                                     
-                                    {item.objects.map((object: any) => {
-                                        return (<label
-                                        className="ml-4 flex w-full items-center gap-3 rounded-lg p-2 text-sm">
-                                        {object.type === 'prompt' && isAssistantById(object.id, promptsRef.current) ? <IconRobot size={20} /> : <IconMessage size={18} />}
-                                            <div
-                                                className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">
-                                                {object.name}
-                                            </div>
-                                        </label>)   
-                                        })}
-                                </div>
-                                ,
+            //                         {item.objects.map((object: any) => {
+            //                             return (<label
+            //                             className="ml-4 flex w-full items-center gap-3 rounded-lg p-2 text-sm">
+            //                             {object.type === 'prompt' && isAssistantById(object.id, promptsRef.current) ? <IconRobot size={20} /> : <IconMessage size={18} />}
+            //                                 <div
+            //                                     className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">
+            //                                     {object.name}
+            //                                 </div>
+            //                             </label>)   
+            //                             })}
+            //                     </div>
+            //                     ,
 
 
-                                // <ExpansionComponent
-                                //     title={'Shared Items'}
-                                //     openWidget={<IconCaretDown size={18}/>}
-                                //     closedWidget={<IconCaretRight size={18}/>}
-                                //     content={item.objects.map((object: any) => {
-                                //         return (<label
-                                //         className="ml-2 flex w-full items-center gap-3 rounded-lg p-2 text-sm">
-                                //         {object.type === 'prompt' && isAssistantById(object.id) ? <IconRobot size={20} /> : <IconMessage size={18} />}
-                                //             <div
-                                //                 className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">
-                                //                 {object.name}
-                                //             </div>
-                                //         </label>)   
-                                //         })}
-                                //     />
+            //                     // <ExpansionComponent
+            //                     //     title={'Shared Items'}
+            //                     //     openWidget={<IconCaretDown size={18}/>}
+            //                     //     closedWidget={<IconCaretRight size={18}/>}
+            //                     //     content={item.objects.map((object: any) => {
+            //                     //         return (<label
+            //                     //         className="ml-2 flex w-full items-center gap-3 rounded-lg p-2 text-sm">
+            //                     //         {object.type === 'prompt' && isAssistantById(object.id) ? <IconRobot size={20} /> : <IconMessage size={18} />}
+            //                     //             <div
+            //                     //                 className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">
+            //                     //                 {object.name}
+            //                     //             </div>
+            //                     //         </label>)   
+            //                     //         })}
+            //                     //     />
                                 
                             
-                                ,
-                                <div className="mt-2 flex items-center justify-center text-sm text-black dark:text-neutral-200 border-b  border-gray-500">
-                                    {'People You Shared With'}
-                                </div>
-                                ,
-                                ...item.shared_with.map((user_item: any, index: number) => (
-                                    <label
-                                        onMouseEnter={() => {
-                                            setHoveredItem(user_item)
-                                            setIsButtonHover(true)
-                                        }}
-                                        onMouseLeave={() => {
-                                            setDeletingItem(null); 
-                                            setHoveredItem(null)
-                                        }
-                                        }
-                                        key={index}
-                                        className="ml-6 flex flex-row w-full cursor-pointer items-center gap-3 rounded-lg pb-2 pt-3 pr-2 text-sm"
-                                    >
-                                        <IconUser size={18} className="flex-shrink-0"/>
-                                        <div
-                                            className="relative max-w-5 truncate text-left text-[12.5px] leading-3 pr-1 "
-                                            style={{wordWrap: "break-word"}} >
-                                            {user_item.user.includes('@')? user_item.user.split("@")[0] : user_item.user}
-                                        </div>
-                                        {hoveredItem === user_item && ( 
-                                            <div className="ml-auto mr-4 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"
-                                            onMouseEnter={() => {
-                                                setHoveredItem(user_item)
-                                                setIsButtonHover(false)
-                                            }}
-                                            onMouseLeave={() => setIsButtonHover(true)}>
-                                            {!deletingItem && (
-                                                <SidebarActionButton handleClick={(e) => handleOpenDeleteModal(user_item, e)} title="Delete Shared Item">
-                                                    <IconTrash size={18} />
-                                                </SidebarActionButton>
-                                            )}
+            //                     ,
+            //                     <div className="mt-2 flex items-center justify-center text-sm text-black dark:text-neutral-200 border-b  border-gray-500">
+            //                         {'People You Shared With'}
+            //                     </div>
+            //                     ,
+            //                     ...item.shared_with.map((user_item: any, index: number) => (
+            //                         <label
+            //                             onMouseEnter={() => {
+            //                                 setHoveredItem(user_item)
+            //                                 setIsButtonHover(true)
+            //                             }}
+            //                             onMouseLeave={() => {
+            //                                 setDeletingItem(null); 
+            //                                 setHoveredItem(null)
+            //                             }
+            //                             }
+            //                             key={index}
+            //                             className="ml-6 flex flex-row w-full cursor-pointer items-center gap-3 rounded-lg pb-2 pt-3 pr-2 text-sm"
+            //                         >
+            //                             <IconUser size={18} className="flex-shrink-0"/>
+            //                             <div
+            //                                 className="relative max-w-5 truncate text-left text-[12.5px] leading-3 pr-1 "
+            //                                 style={{wordWrap: "break-word"}} >
+            //                                 {user_item.user.includes('@')? user_item.user.split("@")[0] : user_item.user}
+            //                             </div>
+            //                             {hoveredItem === user_item && ( 
+            //                                 <div className="ml-auto mr-4 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"
+            //                                 onMouseEnter={() => {
+            //                                     setHoveredItem(user_item)
+            //                                     setIsButtonHover(false)
+            //                                 }}
+            //                                 onMouseLeave={() => setIsButtonHover(true)}>
+            //                                 {!deletingItem && (
+            //                                     <SidebarActionButton handleClick={(e) => handleOpenDeleteModal(user_item, e)} title="Delete Shared Item">
+            //                                         <IconTrash size={18} />
+            //                                     </SidebarActionButton>
+            //                                 )}
         
-                                            {deletingItem && (
-                                                <>
-                                                    {/* different handledelete */}
-                                                    <SidebarActionButton handleClick={(e) => handleYSDelete(e, item.id, user_item)} title="Confirm">
-                                                        <IconCheck size={18} />
-                                                    </SidebarActionButton>
+            //                                 {deletingItem && (
+            //                                     <>
+            //                                         {/* different handledelete */}
+            //                                         <SidebarActionButton handleClick={(e) => handleYSDelete(e, item.id, user_item)} title="Confirm">
+            //                                             <IconCheck size={18} />
+            //                                         </SidebarActionButton>
         
-                                                    <SidebarActionButton handleClick={handleCancelDelete} title="Cancel">
-                                                        <IconX size={18} />
-                                                    </SidebarActionButton>
-                                                </>
-                                            )}
-                                        </div>
-                                        )}
-                                    </label>
+            //                                         <SidebarActionButton handleClick={handleCancelDelete} title="Cancel">
+            //                                             <IconX size={18} />
+            //                                         </SidebarActionButton>
+            //                                     </>
+            //                                 )}
+            //                             </div>
+            //                             )}
+            //                         </label>
                                 
-                                ))
-                            ]
-                            }
-                        />
+            //                     ))
+            //                 ]
+            //                 }
+            //             />
                         
 
-                    </div>
-                )))
-            ) 
+            //         </div>
+            //     )))
+            // ) 
         }
         </div>
     );

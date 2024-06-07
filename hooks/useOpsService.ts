@@ -1,5 +1,5 @@
 import {useContext, useEffect, useRef, useState} from "react";
-import HomeContext from "@/pages/home/home.context";
+import HomeContext from "@/home/home.context";
 import {Op, OpDef} from "@/types/op";
 import JSON5 from "json5";
 

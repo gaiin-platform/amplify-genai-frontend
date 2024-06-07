@@ -1,6 +1,6 @@
 import { Conversation, Message } from '@/types/chat';
 import { ErrorMessage } from '@/types/error';
-import { FolderInterface, SortType } from '@/types/folder';
+import { FolderInterface} from '@/types/folder';
 import { OpenAIModel, OpenAIModelID } from '@/types/openai';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
@@ -12,7 +12,6 @@ import { noOpStatsServices, StatsServices } from "@/types/stats";
 import { Account } from "@/types/accounts";
 import {Op} from "@/types/op";
 import {CheckItemType} from "@/types/checkItem";
-
 
 
 type HandleSend = (request: any) => void;
