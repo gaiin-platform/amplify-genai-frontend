@@ -1,6 +1,6 @@
 import { Dispatch } from 'react';
 import { FieldNames } from "@/hooks/useHomeReducer";
-import { HomeInitialState } from "@/home/home.state";
+import { HomeInitialState } from "@/pages/api//home/home.state";
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
 
 interface DataDisclosureAction {

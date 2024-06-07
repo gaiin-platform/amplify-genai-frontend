@@ -1,4 +1,4 @@
-import HomeContext from "@/home/home.context";
+import HomeContext from "@/pages/api/home/home.context";
 import { CheckItemType } from "@/types/checkItem";
 import { FC, useContext, useState } from "react";
 import React from "react";
@@ -16,9 +16,9 @@ export const KebabItem: FC<ItemProps> = ({label, handleAction, icon}) => {
         key={label}
         value={label}
         onClick={handleAction}
-        className={`items-center gap-1 flex flex-row pr-1 pl-1 cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#343541]/90`}>
+        className={`w-full items-center gap-1 flex flex-row pr-1 pl-1 cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#343541]/90`}>
         <div className="text-neutral-900 dark:text-neutral-100 flex-shrink-0">{icon} </div>
-        <label className="flex w-full flex-grow"> {label}</label>
+         {label}
       </button>
     </div>);
 }
@@ -104,8 +104,8 @@ export const KebabMenuItems: FC<MenuItemsProps> = ({ label, xShift=220, minWidth
         <div 
           className={`relative`} 
           style={{ display: isSubMenuVisible ? 'block' : 'none', top: `-11px`}}>
-          <div className={`flex-grow min-w-[${minWidth}px] absolute bg-neutral-100 dark:bg-[#202123] text-neutral-900 rounded border border-neutral-200 dark:border-neutral-600 dark:text-white z-50`}
-            style={{ transform: `translateX(${xShiftPercentage})` }}>    
+          <div className={`flex-grow absolute bg-neutral-100 dark:bg-[#202123] text-neutral-900 rounded border border-neutral-200 dark:border-neutral-600 dark:text-white z-50`}
+            style={{ transform: `translateX(${xShiftPercentage})`, minWidth: `${minWidth}px`}}>    
             {childrenArray} 
           </div>
         </div>
@@ -114,4 +114,3 @@ export const KebabMenuItems: FC<MenuItemsProps> = ({ label, xShift=220, minWidth
   );
 };
 
-// left:xShiftPercentage

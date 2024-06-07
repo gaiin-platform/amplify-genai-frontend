@@ -5,10 +5,10 @@ import { useCreateReducer } from '@/hooks/useCreateReducer';
 
 import { savePrompts } from '@/utils/app/prompts';
 
-import { OpenAIModels } from '@/types/openai';
+import { OpenAIModelID, OpenAIModels } from '@/types/openai';
 import { Prompt } from '@/types/prompt';
 
-import HomeContext from '@/home/home.context';
+import HomeContext from '@/pages/api/home/home.context';
 
 import { PromptFolders } from './components/PromptFolders';
 import { Prompts } from './components/Prompts';
@@ -83,7 +83,7 @@ const Promptbar = () => {
       name: name,
       description: '',
       content: '',
-      model: (defaultModelId)? OpenAIModels[defaultModelId] : OpenAIModels["gpt-3.5-turbo"],
+      model: (defaultModelId)? OpenAIModels[defaultModelId as OpenAIModelID] : OpenAIModels["gpt-3.5-turbo"],
       folderId: null,
       type: MessageType.PROMPT
     };
@@ -152,7 +152,7 @@ const Promptbar = () => {
 
   const handleDeletePrompt = (prompt: Prompt) => {
     statsService.deletePromptEvent(prompt);
-    const updatedPrompts = promptsRef.current.filter((p) => p.id !== prompt.id);
+    const updatedPrompts = promptsRef.current.filter((p:Prompt) => p.id !== prompt.id);
 
     homeDispatch({ field: 'prompts', value: updatedPrompts });
     savePrompts(updatedPrompts);
@@ -170,7 +170,7 @@ const Promptbar = () => {
 
     statsService.editPromptCompletedEvent(prompt);
 
-    const updatedPrompts = promptsRef.current.map((p) => {
+    const updatedPrompts = promptsRef.current.map((p:Prompt) => {
       if (p.id === prompt.id) {
         return prompt;
       }
@@ -202,8 +202,8 @@ const Promptbar = () => {
 
   useEffect(() => {
 
-    const visiblePrompts = (featureFlags.overrideInvisiblePrompts) ? 
-                                                           prompts : prompts.filter((prompt) => !prompt.data?.hidden);
+    const visiblePrompts = (featureFlags.overrideInvisiblePrompts) ? prompts 
+                             : prompts.filter((prompt: Prompt) => !prompt.data?.hidden);
 
     if (searchTerm) {
 
@@ -211,7 +211,7 @@ const Promptbar = () => {
 
       promptDispatch({
         field: 'filteredPrompts',
-        value: visiblePrompts.filter((prompt) => {
+        value: visiblePrompts.filter((prompt: Prompt) => {
           const searchable =
             prompt.name.toLowerCase() +
             ' ' +

@@ -9,7 +9,7 @@ import JSZip from "jszip";
 import { v4 as uuidv4 } from 'uuid';
 import {AttachedDocument, AttachedDocumentMetadata} from '@/types/attacheddocument';
 import {addFile, checkContentReady} from "@/services/fileService";
-import HomeContext from "@/home/home.context";
+import HomeContext from "@/pages/api/home/home.context";
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;

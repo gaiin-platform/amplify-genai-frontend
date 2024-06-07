@@ -10,7 +10,7 @@ import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {SaveWorkspaceModal} from "@/components/Workspace/SaveWorkspaceModal";
 import {ImportWorkspaceModal} from "@/components/Workspace/ImportWorkspaceModal";
-import HomeContext from "@/home/home.context";
+import HomeContext from "@/pages/api/home/home.context";
 import {saveWorkspaceMetadata} from "@/utils/app/settings";
 import {Workspace} from "@/types/workspace";
 import {v4} from "uuid";

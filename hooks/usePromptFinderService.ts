@@ -1,6 +1,7 @@
 import {useContext, useEffect, useRef} from "react";
-import HomeContext from "@/home/home.context";
+import HomeContext from "@/pages/api/home/home.context";
 import {Conversation, Message, MessageType} from "@/types/chat";
+import { Prompt } from "@/types/prompt";
 
 
 export function usePromptFinderService() {
@@ -23,7 +24,7 @@ export function usePromptFinderService() {
             return {content:null, label:message.label || message.content};
         }
 
-        const applicable = promptsRef.current.find(p => {
+        const applicable = promptsRef.current.find((p:Prompt) => {
             if(p.type === type && p.data && p.data.requiredTags){
                 if(p.data.requiredTags.every((t:string) => tags.includes(t))){
                     return p;

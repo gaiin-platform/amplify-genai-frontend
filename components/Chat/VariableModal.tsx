@@ -5,7 +5,7 @@ import {AttachFile} from "@/components/Chat/AttachFile";
 import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 import {WorkflowDefinition} from "@/types/workflow";
 import {OpenAIModelID, OpenAIModel} from "@/types/openai";
-import HomeContext from "@/home/home.context";
+import HomeContext from "@/pages/api/home/home.context";
 import JSON5 from 'json5'
 import {getType, parsePromptVariableValues, variableTypeOptions} from "@/utils/app/prompts";
 import {FileList} from "@/components/Chat/FileList";
@@ -394,7 +394,7 @@ export const VariableModal: FC<Props> = ({
     const getPromptTemplates = (variable: string) => {
         const options = parsePromptVariableValues(variable);
 
-        let filtered = promptsRef.current.filter((prompt) => {
+        let filtered = promptsRef.current.filter((prompt:Prompt) => {
             if(options.startsWith){
                 return prompt.name.startsWith(options.startsWith);
             }
@@ -621,7 +621,7 @@ export const VariableModal: FC<Props> = ({
                                         key={"not selected"} value={''}>
                                         {'Select a Template...'}
                                     </option>
-                                    {getPromptTemplates(variable.key).map((template) => (
+                                    {getPromptTemplates(variable.key).map((template:any) => (
                                         <option
                                             style={{ maxWidth: '250px', overflow:'hidden' }}
                                             className={'truncate'}
@@ -649,7 +649,7 @@ export const VariableModal: FC<Props> = ({
                             value={selectedModel && selectedModel.id || ""}
                             onChange={(e) => handleModelChange(e.target.value)}
                         >
-                            {models.map((model) => (
+                            {models.map((model:OpenAIModel) => (
                                 <option key={model.id} value={model.id}
                                 >
                                     {model.name}

@@ -1,7 +1,7 @@
 // src/hooks/useChatService.js
 import {incrementalJSONtoCSV} from "@/utils/app/incrementalCsvParser";
 import {useCallback, useContext, useEffect, useRef} from 'react';
-import HomeContext from '@/home/home.context';
+import HomeContext from '@/pages/api/home/home.context';
 import {killRequest as killReq, MetaHandler, sendChatRequestWithDocuments} from '../services/chatService';
 import {ChatBody, Conversation, CustomFunction, JsonSchema, Message, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
@@ -480,7 +480,7 @@ export function useSendService() {
                                 } catch (error: any) {
                                     if (selectedConversation.isLocal) {
                                         const updatedConversations: Conversation[] = conversationsRef.current.map(
-                                            (conversation) => {
+                                            (conversation:Conversation) => {
                                                 if (conversation.id === selectedConversation.id) {
                                                     return conversationWithCompressedMessages(updatedConversation);
                                                 }
@@ -539,7 +539,7 @@ export function useSendService() {
 
                             if (selectedConversation.isLocal) {
                                 const updatedConversations: Conversation[] = conversationsRef.current.map(
-                                    (conversation) => {
+                                    (conversation:Conversation) => {
                                         if (conversation.id === selectedConversation.id) {
                                             return conversationWithCompressedMessages(updatedConversation);
                                         }
@@ -574,7 +574,7 @@ export function useSendService() {
                             if (selectedConversation.isLocal) {
                                 
                                 const updatedConversations: Conversation[] = conversationsRef.current.map(
-                                    (conversation) => {
+                                    (conversation:Conversation) => {
                                         if (conversation.id === selectedConversation.id) {
                                             return conversationWithCompressedMessages(updatedConversation);
                                         }

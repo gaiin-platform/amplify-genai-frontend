@@ -5,7 +5,7 @@ import { useTranslation } from 'next-i18next';
 
 import { OpenAIModel } from '@/types/openai';
 
-import HomeContext from '@/home/home.context';
+import HomeContext from '@/pages/api/home/home.context';
 
 export const ModelSelect = () => {
   const { t } = useTranslation('chat');
@@ -23,8 +23,8 @@ export const ModelSelect = () => {
       handleUpdateConversation(selectedConversation, {
         key: 'model',
         value: models.find(
-          (model) => model.id === e.target.value,
-        ) as OpenAIModel,
+          (model: OpenAIModel) => model.id === e.target.value,
+        ),
       });
   };
   
@@ -40,7 +40,7 @@ export const ModelSelect = () => {
           value={selectedConversation?.model?.id || defaultModelId}
           onChange={handleChange}
         >
-          {models.map((model) => (
+          {models.map((model: OpenAIModel) => (
             <option
               key={model.id}
               value={model.id}

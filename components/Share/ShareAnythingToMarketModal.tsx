@@ -1,5 +1,5 @@
 import {FolderInterface} from "@/types/folder";
-import HomeContext from "@/home/home.context";
+import HomeContext from "@/pages/api/home/home.context";
 import {Conversation} from "@/types/chat";
 import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";
@@ -138,10 +138,10 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
                 } else {
                     // If the folder is currently deselected, we are selecting it
                     if (folder.type === 'prompt') {
-                        const folderPrompts = promptsRef.current.filter(prompt => prompt.folderId === folder.id);
+                        const folderPrompts = promptsRef.current.filter((prompt:Prompt) => prompt.folderId === folder.id);
                         setSelectedPrompts(prevPrompts => [...prevPrompts, ...folderPrompts]);
                     } else if (folder.type === 'chat') {
-                        const folderConversations = conversationsRef.current.filter(conversation => conversation.folderId === folder.id);
+                        const folderConversations = conversationsRef.current.filter((conversation:Conversation)=> conversation.folderId === folder.id);
                         setSelectedConversations(prevConversations => [...prevConversations, ...folderConversations]);
                     }
                 }
@@ -177,15 +177,15 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
         const rootPromptsToAdd = selectedPromptsState.filter(prompt => {
             if (prompt.data && prompt.data.rootPromptId) {
                 // @ts-ignore
-                const rootPrompt = promptsRef.current.find(p => p.id === prompt.data.rootPromptId);
-                if (rootPrompt && !selectedPromptsState.some(p => p.id === rootPrompt.id)) {
+                const rootPrompt = promptsRef.current.find((p:Prompt) => p.id === prompt.data.rootPromptId);
+                if (rootPrompt && !selectedPromptsState.some((p:Prompt) => p.id === rootPrompt.id)) {
                     return true;
                 }
             }
             return false;
         })
             .map(prompt => prompt.data?.rootPromptId)
-            .map(id => promptsRef.current.find(p => p.id === id))
+            .map(id => promptsRef.current.find((p:Prompt) => p.id === id))
             .filter(prompt => prompt !== undefined) as Prompt[];
 
 

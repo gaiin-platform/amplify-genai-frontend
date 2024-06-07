@@ -1,7 +1,7 @@
 // src/hooks/useChatService.js
 import {incrementalJSONtoCSV} from "@/utils/app/incrementalCsvParser";
 import {useContext} from 'react';
-import HomeContext from '@/home/home.context';
+import HomeContext from '@/pages/api/home/home.context';
 import {killRequest as killReq, MetaHandler, sendChatRequestWithDocuments} from '../services/chatService';
 import {ChatBody, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
@@ -10,7 +10,7 @@ import {wrapResponse, stringChunkCallback} from "@/utils/app/responseWrapper";
 
 import {getSession} from "next-auth/react"
 import json5 from "json5";
-import {OpenAIModels} from "@/types/openai";
+import {OpenAIModelID, OpenAIModels} from "@/types/openai";
 import {newStatus} from "@/types/workflow";
 
 export function useChatService() {
@@ -205,7 +205,7 @@ export function useChatService() {
 
         
         if (!chatBody.model && defaultModelId) {
-            chatBody.model = OpenAIModels[defaultModelId];
+            chatBody.model = OpenAIModels[defaultModelId as OpenAIModelID];
         }
 
         const {prefix, body, options} = parseMessageType(message.content || "");

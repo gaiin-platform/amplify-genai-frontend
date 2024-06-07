@@ -11,7 +11,7 @@ import { TagsList } from "@/components/Chat/TagsList";
 import { Conversation } from "@/types/chat";
 import { getAssistant, isAssistant } from "@/utils/app/assistants";
 import { DEFAULT_ASSISTANT } from "@/types/assistant";
-import HomeContext from "@/home/home.context";
+import HomeContext from "@/pages/api/home/home.context";
 import { Prompt } from "@/types/prompt";
 import { deleteAssistant } from "@/services/assistantService";
 import { OpenAIModelID, OpenAIModels } from "@/types/openai";
@@ -119,7 +119,7 @@ interface Props {
     }, [isMenuOpen, setIsMenuOpen, menuRef]);
 
     const getItemsInFolders = () => {
-        const folderIdSet = new Set(checkedItemsRef.current.map(folder => folder.id));
+        const folderIdSet = new Set(checkedItemsRef.current.map((folder:FolderInterface) => folder.id));
         return items.filter(i => i.folderId ? folderIdSet.has(i.folderId) : false);
     }
 
@@ -176,7 +176,7 @@ interface Props {
                     id: uuidv4(),
                     name: 'New Conversation',
                     messages: [],
-                    model: OpenAIModels[defaultModelId],
+                    model: OpenAIModels[defaultModelId as OpenAIModelID],
                     prompt: DEFAULT_SYSTEM_PROMPT,
                     temperature: DEFAULT_TEMPERATURE,
                     folderId: null,
@@ -193,7 +193,7 @@ interface Props {
     const handleDeletePrompts = () => {
         const failedAssistants: string[] = [];
 
-        const updatedPrompts = promptsRef.current.filter((p) => !checkedItemsRef.current.includes(p));
+        const updatedPrompts = promptsRef.current.filter((p:Prompt) => !checkedItemsRef.current.includes(p));
         homeDispatch({ field: 'prompts', value: updatedPrompts });
         savePrompts(updatedPrompts);
         handleSearchTerm('');
@@ -230,7 +230,7 @@ interface Props {
         handleSearchTerm('');
         const conversationInFolders: Conversation[] = [];
         checkedItemsRef.current.forEach((f: FolderInterface) => {
-                                        conversationInFolders.push(...conversationsRef.current.filter(c => c.folderId === f.id));
+                                        conversationInFolders.push(...conversationsRef.current.filter((c:Conversation) => c.folderId === f.id));
                                         handleDeleteFolder(f.id);
                                     });
         handleDeleteConversations(conversationInFolders)
@@ -299,7 +299,7 @@ interface Props {
 
           <div className="relative inline-block text-left">
             { actionItem && checkIsActiveSide() ?
-                <div className="z-10 p-0.5">
+                <div className={`z-10 p-0.5 ${ checkingItemType?.includes("Folder")? "": ""}`}>
                     <input
                     type="checkbox"
                     checked={allItemsChecked}
@@ -328,7 +328,7 @@ interface Props {
                         
                         <KebabMenuItems label="Folders" xShift={176} minWidth={86}>
 
-                            <KebabMenuItems label="Sort" xShift={164}>
+                            <KebabMenuItems label="Sort" xShift={162}>
                                 <KebabItem label="Name" handleAction={() => {setFolderSort('name')}} icon={<IconAbc size={18}/>} />
                                 <KebabItem label="Date" handleAction={() => { setFolderSort('date') } } icon={<IconCalendar size={14}/>} />
                             </KebabMenuItems>

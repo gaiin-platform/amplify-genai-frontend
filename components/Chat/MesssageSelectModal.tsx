@@ -1,5 +1,5 @@
 import {useContext, useEffect, useState} from "react";
-import HomeContext from "@/home/home.context";
+import HomeContext from "@/pages/api/home/home.context";
 import { Conversation, Message } from "@/types/chat";
 import cloneDeep from 'lodash/cloneDeep';
 
@@ -17,7 +17,7 @@ const MessageSelectModal: React.FC<Props> = ({setConversation, onSubmit, onCance
     const [useEntireConv , setUseEntireConv] = useState<boolean>(true);
     const [startIndex, setStartIndex] = useState<number | null>(null);
 
-    const [messages, setMessages] = useState<Message[]>(selectedConversation?.messages.filter(m => { return m.role !== 'assistant'}) || []);
+    const [messages, setMessages] = useState<Message[]>(selectedConversation?.messages.filter((m:Message) => { return m.role !== 'assistant'}) || []);
 
     const cropMessages = () => {
         if (selectedConversation) {

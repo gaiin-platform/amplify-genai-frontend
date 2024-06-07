@@ -17,7 +17,7 @@ import {
 
 import { FolderInterface } from '@/types/folder';
 
-import HomeContext from '@/home/home.context';
+import HomeContext from '@/pages/api/home/home.context';
 
 import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 
@@ -204,7 +204,7 @@ const Folder = ({
 
           { checkFolders && (
             <div className="relative flex items-center">
-              <div key={currentFolder.id} className="absolute right-1 z-10">
+              <div key={currentFolder.id} className="absolute right-4 z-10">
                 <input
                   type="checkbox"
                   checked={isChecked}

@@ -27,7 +27,7 @@ import {AttachFile} from "@/components/Chat/AttachFile";
 import {FileList} from "@/components/Chat/FileList";
 import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
-import HomeContext from '@/home/home.context';
+import HomeContext from '@/pages/api/home/home.context';
 import {PluginSelect} from './PluginSelect';
 import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
@@ -119,7 +119,7 @@ export const ChatInput = ({
 
     const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
 
-    const filteredPrompts =  promptsRef.current.filter((prompt) =>
+    const filteredPrompts =  promptsRef.current.filter((prompt:Prompt) =>
         prompt.name.toLowerCase().includes(promptInputValue.toLowerCase()),
     );
 
@@ -160,10 +160,10 @@ const onAssistantChange = (assistant: Assistant) => {
         // where it creates a new conversation with the root prompt being the assistant creator. This is what is missing here.
         
         if (assistant.id === 'ast/assistant-builder') {
-            assistantPrompt =  promptsRef.current.find(prompt => prompt.id === assistant.id);
+            assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt.id === assistant.id);
             selectedConversation.prompt += "\n\nCURRENT ASSISTANT CREATOR CUSTOM INSTRUCTIONS: " + assistantPrompt?.content + "Address only the Current Assistant Creator custom Instructions.";
         } else {  
-            assistantPrompt =  promptsRef.current.find(prompt => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
+            assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
         }      
          //I do not get the impression that promptTemplates are currently used nonetheless the bases are covered in case they ever come into play (as taken into account in handleStartConversationWithPrompt)
         selectedConversation.promptTemplate = assistantPrompt ?? null;
@@ -205,7 +205,7 @@ const onAssistantChange = (assistant: Assistant) => {
         }
 
         // This prevents documents that were uploaded from being jammed into the prompt here
-        const toInsert = documents.filter(doc => !doc.key && doc.raw && doc.raw.length > 0);
+        const toInsert = documents.filter((doc:AttachedDocument) => !doc.key && doc.raw && doc.raw.length > 0);
 
         if (toInsert.length > 0) {
             content =

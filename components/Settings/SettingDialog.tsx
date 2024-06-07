@@ -8,7 +8,7 @@ import { getSettings, saveSettings } from '@/utils/app/settings';
 
 import { Settings } from '@/types/settings';
 
-import HomeContext from '@/home/home.context';
+import HomeContext from '@/pages/api/home/home.context';
 
 interface Props {
   open: boolean;

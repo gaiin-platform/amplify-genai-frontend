@@ -11,7 +11,7 @@ import { Conversation } from '@/types/chat';
 import { SupportedExportFormats } from '@/types/export';
 import { OpenAIModelID, OpenAIModels, fallbackModelID } from '@/types/openai';
 
-import HomeContext from '@/home/home.context';
+import HomeContext from '@/pages/api/home/home.context';
 
 import { ChatFolders } from './components/ChatFolders';
 import { Conversations } from './components/Conversations';
@@ -85,7 +85,7 @@ export const Chatbar = () => {
     if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
     
     const updatedConversations = conversationsRef.current.filter(
-      (c) => c.id !== conversation.id,
+      (c: Conversation) => c.id !== conversation.id,
     );
 
     statsService.deleteConversationEvent(conversation);
@@ -170,7 +170,7 @@ export const Chatbar = () => {
 
       statsService.searchConversationsEvent(searchTerm);
 
-      const results = conversations.filter((conversation) => {
+      const results = conversations.filter((conversation:Conversation) => {
         let messages = '';
         if (isLocalConversation(conversation)) {
           //uncompress messages 

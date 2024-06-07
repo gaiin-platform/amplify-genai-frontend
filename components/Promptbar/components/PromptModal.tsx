@@ -4,7 +4,7 @@ import { useTranslation } from 'next-i18next';
 import JSON5 from 'json5'
 import { Prompt } from '@/types/prompt';
 import {MessageType} from "@/types/chat";
-import HomeContext from "@/home/home.context";
+import HomeContext from "@/pages/api/home/home.context";
 import {variableTypeOptions, parsePromptVariableValues, parsePromptVariables, getType, getName} from "@/utils/app/prompts";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import EditableField from "@/components/Promptbar/components/EditableField";
@@ -58,11 +58,11 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
     folderId: null,
   };
 
-  let rootPrompts = [workflowRoot, ...promptsRef.current.filter((p) => p.type === MessageType.ROOT)];
+  let rootPrompts = [workflowRoot, ...promptsRef.current.filter((p: Prompt) => p.type === MessageType.ROOT)];
 
   if(rootPrompts.length > 0) {
     workflowRoot =
-        rootPrompts.filter(p => p.id === prompt.data?.rootPromptId)[0]
+        rootPrompts.filter((p:Prompt) => p.id === prompt.data?.rootPromptId)[0]
         || rootPrompts[0];
   }
 
@@ -99,7 +99,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
 
   const handleUpdateRootPrompt = (rootPromptId:string) => {
     try {
-      let root = rootPrompts.filter((p) => p.id === rootPromptId)[0];
+      let root = rootPrompts.filter((p:Prompt) => p.id === rootPromptId)[0];
       setRootPrompt(root);
     }catch (e) {
     }

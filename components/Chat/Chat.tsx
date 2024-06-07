@@ -23,7 +23,7 @@ import {throttle} from '@/utils/data/throttle';
 import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 
-import HomeContext from '@/home/home.context';
+import HomeContext from '@/pages/api/home/home.context';
 
 import Spinner from '../Spinner';
 import {ChatInput} from './ChatInput';
@@ -152,7 +152,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             });
 
             const updatedConversations: Conversation[] = conversationsRef.current.map(
-                (conversation) => {
+                (conversation:Conversation) => {
                     if (conversation.id === selectedConversation.id) {
                         return updatedConversation;
                     }
@@ -271,7 +271,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     } else if (action === "template") {
                         const name = path;
 
-                        const prompt = promptsRef.current.find((p) => p.name === name);
+                        const prompt = promptsRef.current.find((p:Prompt) => p.name === name);
 
                         if (prompt) {
                             runPrompt(prompt);
@@ -609,7 +609,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const handleDeleteConversation = (conversation: Conversation) => {
             if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
             const updatedConversations = conversationsRef.current.filter(
-                (c) => c.id !== conversation.id,
+                (c:Conversation) => c.id !== conversation.id,
             );
 
             homeDispatch({field: 'conversations', value: updatedConversations});
@@ -630,7 +630,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         id: uuidv4(),
                         name: t('New Conversation'),
                         messages: [],
-                        model: OpenAIModels[defaultModelId],
+                        model: OpenAIModels[defaultModelId as OpenAIModelID],
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
@@ -660,14 +660,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
                     // make sure assistant hasnt been deleted 
-                    if (prompts.some(prompt => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
+                    if (prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
             else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
                     // make sure assistant hasnt been deleted 
-                    if (prompts.some(prompt => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
+                    if (prompts.some((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
@@ -945,7 +945,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     </div>
 
 
-                                    {selectedConversation?.messages.map((message, index) => (
+                                    {selectedConversation?.messages.map((message: Message, index: number) => (
                                         (message.type === MessageType.REMOTE) ?
                                             <MemoizedRemoteMessages
                                                 key={index}

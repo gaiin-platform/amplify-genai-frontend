@@ -52,7 +52,7 @@ import {
 } from "@tabler/icons-react";
 import { IconLogout } from "@tabler/icons-react";
 
-import { initialState } from '../../home/home.state';
+import { initialState } from './home.state';
 import useEventService from "@/hooks/useEventService";
 import { v4 as uuidv4 } from 'uuid';
 
@@ -78,7 +78,7 @@ import {killRequest as killReq} from "@/services/chatService";
 import Folder from '@/components/Folder';
 import { DefaultUser } from 'next-auth';
 import { addDateAttribute, getDate, getDateName } from '@/utils/app/date';
-import HomeContext, {  ClickContext, Processor } from '@/home/home.context';
+import HomeContext, {  ClickContext, Processor } from './home.context';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;

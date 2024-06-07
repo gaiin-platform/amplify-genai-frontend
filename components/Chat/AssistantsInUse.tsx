@@ -2,7 +2,7 @@
 import React, {useContext} from 'react';
 import {Conversation, MessageType} from "@/types/chat";
 import {Prompt} from "@/types/prompt";
-import HomeContext from "@/home/home.context";
+import HomeContext from "@/pages/api/home/home.context";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {IconCheck, IconCircleX, IconAt} from "@tabler/icons-react";
 import {AttachedDocument} from "@/types/attacheddocument";
@@ -34,7 +34,7 @@ const AssistantsInUse: React.FC<Props> = ({assistants,assistantsChanged}) => {
             //clear tags - currently only really applies to the assistant creator 
             const aTags = assistant.definition.data?.conversationTags;
             if (selectedConversation.tags && aTags) {
-                selectedConversation.tags = selectedConversation.tags.filter(tag => !aTags.includes(tag));
+                selectedConversation.tags = selectedConversation.tags.filter((tag:string) => !aTags.includes(tag));
 
                 //remove added additional assistant creator prompt (I added when selecting the assitant creator)
                 if (assistant.id === 'ast/assistant-builder' && selectedConversation.prompt) {

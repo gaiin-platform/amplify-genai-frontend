@@ -183,8 +183,6 @@ export interface remoteConvData {
 
 export const updateWithRemoteConversations = async (conversations: Conversation[], folders:FolderInterface[], dispatch: any) => {
     const allRemoteConvs = await fetchAllRemoteConversations();
-    console.log("+", conversations)
-
     
     if (allRemoteConvs) {
         const currentConversationsMap = new Map();

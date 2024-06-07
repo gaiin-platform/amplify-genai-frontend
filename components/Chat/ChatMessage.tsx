@@ -17,7 +17,7 @@ import {useTranslation} from 'next-i18next';
 import {conversationWithUncompressedMessages, updateConversation} from '@/utils/app/conversation';
 import {DataSource, Message} from '@/types/chat';
 import {useChatService} from "@/hooks/useChatService";
-import HomeContext from '@/home/home.context';
+import HomeContext from '@/pages/api/home/home.context';
 import ChatFollowups from './ChatFollowups';
 import {VariableModal} from "@/components/Chat/VariableModal";
 import ChatContentBlock from "@/components/Chat/ChatContentBlocks/ChatContentBlock";
@@ -128,7 +128,7 @@ export const ChatMessage: FC<Props> = memo(({
         if (!selectedConversation) return;
 
         const {messages} = selectedConversation;
-        const findIndex = messages.findIndex((elm) => elm === message);
+        const findIndex = messages.findIndex((elm:Message) => elm === message);
 
         if (findIndex < 0) return;
 

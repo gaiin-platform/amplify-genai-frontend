@@ -6,9 +6,10 @@ import { FC, useContext, useEffect, useRef, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
-import HomeContext from '@/home/home.context';
+import HomeContext from '@/pages/api/home/home.context';
 import { handleConversationIsLocalChange, isRemoteConversation } from '@/utils/app/conversationStorage';
 import { saveConversations } from '@/utils/app/conversation';
+import { Conversation } from '@/types/chat';
 
 
 interface Props {
@@ -38,7 +39,7 @@ export const CloudStorage: FC<Props> = ({
 
 
    const checkConvLocked = () => {
-    const curConv = conversationsRef.current.find(c => selectedConversation ? c.id === selectedConversation.id : false);
+    const curConv = conversationsRef.current.find((c:Conversation) => selectedConversation ? c.id === selectedConversation.id : false);
     return curConv ? !isRemoteConversation(curConv) : true;
   }
  

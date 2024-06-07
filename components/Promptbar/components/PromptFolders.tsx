@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef } from 'react';
 
 import { FolderInterface, SortType } from '@/types/folder';
 
-import HomeContext from '@/home/home.context';
+import HomeContext from '@/pages/api/home/home.context';
 
 import Folder from '@/components/Folder';
 import { PromptComponent } from '@/components/Promptbar/components/Prompt';
@@ -63,9 +63,9 @@ export const PromptFolders = ({sort}: Props) => {
   return (
     <div className="flex w-full flex-col">
       {foldersRef.current
-        .filter((folder) => folder.type === 'prompt')
+        .filter((folder: FolderInterface) => folder.type === 'prompt')
         .sort(sort === 'date' ? sortFoldersByDate : sortFoldersByName)
-        .map((folder, index) => (
+        .map((folder: FolderInterface, index:number) => (
           <Folder
             key={index}
             searchTerm={searchTerm}

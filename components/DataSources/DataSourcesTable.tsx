@@ -6,7 +6,7 @@ import {
     type MRT_ColumnDef, MRT_SortingState, MRT_ColumnFiltersState, MRT_Cell, MRT_TableInstance,
 } from 'mantine-react-table';
 import {MantineProvider} from "@mantine/core";
-import HomeContext from "@/home/home.context";
+import HomeContext from "@/pages/api/home/home.context";
 import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";

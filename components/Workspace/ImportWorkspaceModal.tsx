@@ -1,5 +1,5 @@
 import {FolderInterface} from "@/types/folder";
-import HomeContext from "@/home/home.context";
+import HomeContext from "@/pages/api/home/home.context";
 import {Conversation} from "@/types/chat";
 import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";
@@ -204,8 +204,8 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
 
         const needsFolderReset = (item: Conversation | Prompt) => {
             return item.folderId != null &&
-                !exportData.folders.some(folder => folder.id === item.folderId) &&
-                !foldersRef.current.some(folder => folder.id === item.folderId)
+                !exportData.folders.some((folder:FolderInterface) => folder.id === item.folderId) &&
+                !foldersRef.current.some((folder:FolderInterface) => folder.id === item.folderId)
         };
 
         // Check if any of the folders of the prompts or conversations don't exist in local folders
