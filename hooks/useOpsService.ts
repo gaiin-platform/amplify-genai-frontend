@@ -1,5 +1,5 @@
-import {useContext, useEffect, useState} from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import {useContext, useEffect, useRef, useState} from "react";
+import HomeContext from "@/pages/home/home.context";
 import {Op, OpDef} from "@/types/op";
 import JSON5 from "json5";
 
@@ -10,6 +10,14 @@ export function useOpsService() {
         state: {conversations, selectedConversation, ops},
         dispatch:homeDispatch,
     } = useContext(HomeContext);
+
+    const conversationsRef = useRef(conversations);
+
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
 
     function reformatOps(opsArray: OpDef[]): string {
         let result: string = '';
@@ -96,7 +104,7 @@ export function useOpsService() {
 
                     const message = 'List of conversations:\n' +
                         formatSimpleConversationsMessage(
-                            conversations.filter((c) => c.id !== thisId));
+                            conversationsRef.current.filter((c) => c.id !== thisId));
 
                     return {message};
                 }
@@ -120,7 +128,7 @@ export function useOpsService() {
 
                     params = params.map((p:string) => stripQuotes(p));
 
-                    const results = conversations
+                    const results = conversationsRef.current
                         .filter((c) => c.id !== thisId)
                         .filter((c) => {
                        const matches =  c.messages.filter((m) => {
@@ -152,7 +160,7 @@ export function useOpsService() {
 
                     console.log('Opening conversation id', params[0]);
 
-                    const results = conversations.filter((c) => {
+                    const results = conversationsRef.current.filter((c) => {
                         return c.id === params[0];
                     })[0];
 

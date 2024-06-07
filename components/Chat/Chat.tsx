@@ -23,7 +23,7 @@ import {throttle} from '@/utils/data/throttle';
 import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/pages/home/home.context';
 
 import Spinner from '../Spinner';
 import {ChatInput} from './ChatInput';
@@ -34,7 +34,7 @@ import {SystemPrompt} from './SystemPrompt';
 import {TemperatureSlider} from './Temperature';
 import {MemoizedChatMessage} from './MemoizedChatMessage';
 import {VariableModal} from "@/components/Chat/VariableModal";
-import {getPrompts, parseEditableVariables} from "@/utils/app/prompts";
+import {parseEditableVariables} from "@/utils/app/prompts";
 import {v4 as uuidv4} from 'uuid';
 import {fillInTemplate} from "@/utils/app/prompts";
 import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
@@ -87,13 +87,28 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 defaultModelId,
                 workspaceMetadata,
                 statsService,
-                featureFlags
+                featureFlags,
+                storageSelection
             },
             handleUpdateConversation,
             handleCustomLinkClick,
             dispatch: homeDispatch,
             handleAddMessages: handleAddMessages
         } = useContext(HomeContext);
+
+        const promptsRef = useRef(prompts);
+
+        useEffect(() => {
+            promptsRef.current = prompts;
+          }, [prompts]);
+    
+    
+        const conversationsRef = useRef(conversations);
+    
+        useEffect(() => {
+            conversationsRef.current = conversations;
+        }, [conversations]);
+    
 
         const {handleSend:handleSendService} = useSendService();
 
@@ -136,7 +151,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 value: updatedConversation,
             });
 
-            const updatedConversations: Conversation[] = conversations.map(
+            const updatedConversations: Conversation[] = conversationsRef.current.map(
                 (conversation) => {
                     if (conversation.id === selectedConversation.id) {
                         return updatedConversation;
@@ -256,7 +271,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     } else if (action === "template") {
                         const name = path;
 
-                        const prompt = prompts.find((p) => p.name === name);
+                        const prompt = promptsRef.current.find((p) => p.name === name);
 
                         if (prompt) {
                             runPrompt(prompt);
@@ -593,7 +608,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const handleDeleteConversation = (conversation: Conversation) => {
             if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
-            const updatedConversations = conversations.filter(
+            const updatedConversations = conversationsRef.current.filter(
                 (c) => c.id !== conversation.id,
             );
 
@@ -619,7 +634,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
-                        isLocal: getIsLocalStorageSelection()
+                        isLocal: getIsLocalStorageSelection(storageSelection)
                     },
                 });
 
@@ -637,8 +652,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
         useEffect(() => {
-
-            const prompts: Prompt[] = localStorage ? getPrompts() : [];
             if (selectedConversation
                 && selectedConversation.promptTemplate
                 && isAssistant(selectedConversation.promptTemplate)
@@ -740,7 +753,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     models={models}
                                                     handleUpdateModel={handleUpdateModel}
                                                     conversation={selectedConversation}
-                                                    prompts={prompts}
+                                                    prompts={promptsRef.current}
                                                     onChangePrompt={(prompt) =>
                                                         handleUpdateConversation(selectedConversation, {
                                                             key: 'prompt',

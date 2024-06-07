@@ -1,8 +1,8 @@
-import { useContext } from 'react';
+import { useContext, useEffect, useRef } from 'react';
 
 import { FolderInterface, SortType } from '@/types/folder';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/pages/home/home.context';
 
 import Folder from '@/components/Folder';
 
@@ -19,18 +19,23 @@ interface Props {
 
 export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
   const {
-    state: { folders, selectedConversation},
+    state: { folders },
     handleUpdateConversation,
   } = useContext(HomeContext);
+
+  const foldersRef = useRef(folders);
+
+  useEffect(() => {
+      foldersRef.current = folders;
+  }, [folders]);
 
   const { handleShareFolder } = useContext(ChatbarContext);
 
 
     const filteredFolders = searchTerm ?
-        folders.filter((folder:FolderInterface) => {
-          return conversations.some((conversation) => conversation.folderId === folder.id);
-        }) :
-        folders;
+          foldersRef.current.filter((folder:FolderInterface) => {
+            return conversations.some((conversation) => conversation.folderId === folder.id)})
+                                      : foldersRef.current;
 
 
 

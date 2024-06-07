@@ -2,11 +2,11 @@ import {IconCloud, IconCloudFilled,
     IconCloudOff
 } from '@tabler/icons-react';
 
-import { FC, useContext, useEffect, useState } from 'react';
+import { FC, useContext, useEffect, useRef, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/pages/home/home.context';
 import { handleConversationIsLocalChange, isRemoteConversation } from '@/utils/app/conversationStorage';
 import { saveConversations } from '@/utils/app/conversation';
 
@@ -21,11 +21,24 @@ export const CloudStorage: FC<Props> = ({
   iconSize
 }) => {
   const { 
-    state: { selectedConversation, conversations, statsService}, dispatch: homeDispatch
+    state: { selectedConversation, conversations, folders, statsService}, dispatch: homeDispatch
   } = useContext(HomeContext);
 
+  const conversationsRef = useRef(conversations);
+
+  useEffect(() => {
+      conversationsRef.current = conversations;
+  }, [conversations]);
+
+  const foldersRef = useRef(folders);
+
+  useEffect(() => {
+      foldersRef.current = folders;
+  }, [folders]);
+
+
    const checkConvLocked = () => {
-    const curConv = conversations.find(c => selectedConversation ? c.id === selectedConversation.id : false);
+    const curConv = conversationsRef.current.find(c => selectedConversation ? c.id === selectedConversation.id : false);
     return curConv ? !isRemoteConversation(curConv) : true;
   }
  
@@ -50,7 +63,7 @@ const title = () => {
 const handleConversationLockChange = async () => {
     if (selectedConversation) { // should always be true
       setInCloud(!inCloud);
-      const updatedConversations = await handleConversationIsLocalChange(selectedConversation, conversations, statsService);
+      const updatedConversations = await handleConversationIsLocalChange(selectedConversation, conversationsRef.current, foldersRef.current, statsService);
       // in case failure happens, update isLocked. it should match isLocked otherwise.   
       //@ts-ignore       
       setInCloud(selectedConversation.isLocal); 

@@ -5,7 +5,7 @@ import {AttachFile} from "@/components/Chat/AttachFile";
 import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 import {WorkflowDefinition} from "@/types/workflow";
 import {OpenAIModelID, OpenAIModel} from "@/types/openai";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/pages/home/home.context";
 import JSON5 from 'json5'
 import {getType, parsePromptVariableValues, variableTypeOptions} from "@/utils/app/prompts";
 import {FileList} from "@/components/Chat/FileList";
@@ -98,8 +98,21 @@ export const VariableModal: FC<Props> = ({
                                          }) => {
 
     const {
-        state: { featureFlags, prompts, conversations },
+        state: { prompts, conversations },
     } = useContext(HomeContext);
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
+
+
+    const conversationsRef = useRef(conversations);
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
 
     // @ts-ignore
     const [selectedModel, setSelectedModel] = useState<OpenAIModel>((models.length>0)? models[0] : null);
@@ -359,7 +372,7 @@ export const VariableModal: FC<Props> = ({
     const getConversations = async (variable: string) => {
         const options = parsePromptVariableValues(variable);
 
-        const completeConversations = await includeRemoteConversationData(conversations, "resolve", true);
+        const completeConversations = await includeRemoteConversationData(conversationsRef.current, "resolve", true);
 
         let filtered = completeConversations.filter((conversation) => {
            if(options.startsWith){
@@ -381,7 +394,7 @@ export const VariableModal: FC<Props> = ({
     const getPromptTemplates = (variable: string) => {
         const options = parsePromptVariableValues(variable);
 
-        let filtered = prompts.filter((prompt) => {
+        let filtered = promptsRef.current.filter((prompt) => {
             if(options.startsWith){
                 return prompt.name.startsWith(options.startsWith);
             }

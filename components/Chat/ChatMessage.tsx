@@ -17,7 +17,7 @@ import {useTranslation} from 'next-i18next';
 import {conversationWithUncompressedMessages, updateConversation} from '@/utils/app/conversation';
 import {DataSource, Message} from '@/types/chat';
 import {useChatService} from "@/hooks/useChatService";
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/pages/home/home.context';
 import ChatFollowups from './ChatFollowups';
 import {VariableModal} from "@/components/Chat/VariableModal";
 import ChatContentBlock from "@/components/Chat/ChatContentBlocks/ChatContentBlock";
@@ -36,7 +36,7 @@ import PromptingStatusDisplay from "@/components/Status/PromptingStatusDisplay";
 import ChatSourceBlock from "@/components/Chat/ChatContentBlocks/ChatSourcesBlock";
 import DataSourcesBlock from "@/components/Chat/ChatContentBlocks/DataSourcesBlock";
 import { uploadConversation } from '@/services/remoteConversationService';
-import { isLocalConversation, isRemoteConversation } from '@/utils/app/conversationStorage';
+import { isRemoteConversation } from '@/utils/app/conversationStorage';
 
 
 export interface Props {
@@ -76,10 +76,23 @@ export const ChatMessage: FC<Props> = memo(({
     const {t} = useTranslation('chat');
 
     const {
-        state: {selectedConversation, conversations, currentMessage, messageIsStreaming, status},
+        state: {selectedConversation, conversations,messageIsStreaming, status, folders},
         dispatch: homeDispatch,
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
+
+    const conversationsRef = useRef(conversations);
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
 
 
     const markdownComponentRef = useRef<HTMLDivElement>(null);
@@ -152,10 +165,10 @@ export const ChatMessage: FC<Props> = memo(({
 
         const {single, all} = updateConversation(
             updatedConversation,
-            conversations,
+            conversationsRef.current,
         );
         homeDispatch({ field: 'selectedConversation', value: updatedConversation });
-        if (isRemoteConversation(updatedConversation)) uploadConversation(updatedConversation);
+        if (isRemoteConversation(updatedConversation)) uploadConversation(updatedConversation, foldersRef.current);
     };
 
     const copyOnClick = () => {

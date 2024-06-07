@@ -3,7 +3,7 @@ import {IconRobot} from '@tabler/icons-react';
 import 'react-circular-progressbar/dist/styles.css';
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/pages/home/home.context";
 import {Assistant} from "@/types/assistant";
 import {DEFAULT_SYSTEM_PROMPT} from "@/utils/app/const";
 import {MessageType} from "@/types/chat";

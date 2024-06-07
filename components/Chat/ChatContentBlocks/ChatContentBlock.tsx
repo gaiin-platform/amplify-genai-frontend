@@ -13,7 +13,7 @@ import {parsePartialJson} from "@/utils/app/data";
 import { DataTable } from "@/components/Markdown/DataTable";
 import AutonomousBlock from "@/components/Chat/ChatContentBlocks/AutonomousBlock";
 import {useContext} from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/pages/home/home.context";
 import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
 
 // TODO: IMPLEMENT DATA TABLE COMPONENT INTO THIS FILE

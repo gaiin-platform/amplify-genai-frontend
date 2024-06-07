@@ -3,9 +3,9 @@ import { Conversation } from "@/types/chat";
 import { deleteMultipleRemoteConversations, deleteRemoteConversation, fetchAllRemoteConversations, fetchMultipleRemoteConversations, uploadConversation } from "@/services/remoteConversationService";
 import cloneDeep from 'lodash/cloneDeep';
 import { conversationWithCompressedMessages, conversationWithUncompressedMessages, saveConversations } from "./conversation";
-import { getFolders, saveFolders } from "./folders";
 import { FolderInterface } from "@/types/folder";
-import { stat } from "fs";
+import { saveFolders } from "./folders";
+import { StorageType } from "@mantine/hooks/lib/use-local-storage/create-storage";
 
 const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal'];
 
@@ -39,14 +39,14 @@ const handleAllLocal = async (conversations: Conversation[], statsService: any) 
     return updatedConversations;
 }
 
-const handleAllCloud = async (conversations: Conversation[], statsService: any) => {
+const handleAllCloud = async (conversations: Conversation[], folders: FolderInterface[], statsService: any) => {
     const failedToUpload: string[] = [];
     const updatedConversations: Conversation[] = await Promise.all(conversations.map(
         async (conversation) => {
             if (isLocalConversation(conversation)) {
                 const uncompressMessageConv = conversationWithUncompressedMessages(conversation);
                 //Send localConversation to the cloud
-                const uploadResult = await uploadConversation(uncompressMessageConv);
+                const uploadResult = await uploadConversation(uncompressMessageConv, folders);
                 if (!uploadResult) {
                     failedToUpload.push(conversation.name);
                     return conversation
@@ -69,9 +69,9 @@ const handleAllCloud = async (conversations: Conversation[], statsService: any) 
 }
 
 // when individual conversation is changed to be sent to the cloud
-const handleConversationLocalToCloud = async (selectedConversation: Conversation, conversations: Conversation[], statsService: any) => {
+const handleConversationLocalToCloud = async (selectedConversation: Conversation, conversations: Conversation[], folders: FolderInterface[], statsService: any) => {
     const copyConv = cloneDeep(selectedConversation)
-    const uploadResult = await uploadConversation({...copyConv, isLocal: false})
+    const uploadResult = await uploadConversation({...copyConv, isLocal: false}, folders)
     if (!uploadResult) {
         alert("Failed to send conversation to the cloud. Please try again later...");
         return conversations
@@ -108,9 +108,9 @@ const handleConversationCloudToLocal = (selectedConversation: Conversation, conv
 }
 
 
-export const  handleConversationIsLocalChange = (selectedConversation: Conversation, conversations: Conversation[], statsService: any) => {
+export const  handleConversationIsLocalChange = (selectedConversation: Conversation, conversations: Conversation[], folders:FolderInterface[], statsService: any) => {
     if (selectedConversation.isLocal) {  
-        return handleConversationLocalToCloud(selectedConversation, conversations, statsService)
+        return handleConversationLocalToCloud(selectedConversation, conversations, folders, statsService)
     } else {
         // switching to local
         statsService.moveConversationFromRemoteEvent(selectedConversation);
@@ -120,26 +120,21 @@ export const  handleConversationIsLocalChange = (selectedConversation: Conversat
 }
 
 
-export const handleStorageSelection = (selection: String, conversations: Conversation[], statsService: any) => {
+export const handleStorageSelection = (selection: String, conversations: Conversation[], folders:FolderInterface[], statsService: any) => {
     // future storage options is taken care of by saving the storage settings in local storage. 
 
     if (selection === 'local-only') {
         return handleAllLocal(conversations, statsService);
 
     } else if (selection === 'cloud-only') {
-        return handleAllCloud(conversations, statsService);
+        return handleAllCloud(conversations, folders, statsService);
     }
     
 }
 
-export const getStorageSelection = () => {
-    return localStorage.getItem('storageSelection');
-}
 
-
-export const getIsLocalStorageSelection = () => { 
-    const storageSelection = getStorageSelection();
-    return !storageSelection || storageSelection.includes('local');
+export const getIsLocalStorageSelection = (storageSelection: string | null) => { 
+    return storageSelection ? storageSelection.includes('local') : true
 }
 
   
@@ -161,9 +156,9 @@ function pickConversationAttributes<T extends object, K extends keyof T>(obj: T,
 }
 
 //currently unused
-export const syncCloudConversation = async (selectedConversation: Conversation, conversations: Conversation[], dispatch: any) => {
+export const syncCloudConversation = async (selectedConversation: Conversation, conversations: Conversation[], folders: FolderInterface[], dispatch: any) => {
         //ensure upload is successfull todo else dont switch
-        const result = await uploadConversation(selectedConversation);
+        const result = await uploadConversation(selectedConversation, folders);
         if (!result) {
             alert("We've encountered problems updating your last selected conversation in the cloud. To avoid losing your conversation, it has been saved locally. You will need to click the lock icon once again to send your conversation to the cloud.");
             const updatedConversations = handleConversationCloudToLocal(selectedConversation, conversations); // ensure its up to date
@@ -186,21 +181,24 @@ export interface remoteConvData {
     folder: FolderInterface | null;
 }
 
-export const updateWithRemoteConversations = async (dispatch: any) => {
+export const updateWithRemoteConversations = async (conversations: Conversation[], folders:FolderInterface[], dispatch: any) => {
     const allRemoteConvs = await fetchAllRemoteConversations();
+    console.log("+", conversations)
+
     
     if (allRemoteConvs) {
-        const folders = getFolders();
-        const currentConversations: Conversation[] = JSON.parse(localStorage.getItem('conversationHistory') || '[]');
         const currentConversationsMap = new Map();
-        currentConversations.forEach(conv => currentConversationsMap.set(conv.id, conv));
+        conversations.forEach(conv => currentConversationsMap.set(conv.id, conv));
 
         allRemoteConvs.forEach((cd: remoteConvData)=> {
             const remoteConv = cd.conversation;
             // check if there is record of this conversation in the current browser
             const existsLocally = currentConversationsMap.get(remoteConv.id);
-            const folderExists = folders.find((f:FolderInterface) => (f.name === cd.folder?.name));
-            if (!existsLocally || remoteConv.name !== existsLocally.name || !folderExists || folderExists.id !== existsLocally.id) {
+            const folderExists = folders.find((f:FolderInterface) => {
+                            return existsLocally ? f.id === existsLocally.folderId 
+                                                : f.name === cd.folder?.name;
+                            });
+            if (!existsLocally || remoteConv.name !== existsLocally.name || (!folderExists && cd.folder)) {
                 //check folder exists, if not create it
                 if (!folderExists && cd.folder) {
                     const updatedFolders = [...folders,  cd.folder];
@@ -209,8 +207,6 @@ export const updateWithRemoteConversations = async (dispatch: any) => {
                 } else {
                     remoteConv.folderId = folderExists ? folderExists.id : null;
                 }
-                
-                // const minimalConvAttr = pickConversationAttributes(remoteConv, CloudConvAttr) as Conversation;
                 currentConversationsMap.set(remoteConv.id, existsLocally ? remoteConv : pickConversationAttributes(remoteConv, CloudConvAttr) as Conversation); 
             }  
         });

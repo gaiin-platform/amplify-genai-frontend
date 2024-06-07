@@ -1,7 +1,7 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import { IconTrashX, IconPlus } from "@tabler/icons-react";
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/pages/home/home.context';
 import { getAccounts, saveAccounts } from "@/services/accountService";
 import Loader from "@/components/Loader/Loader";
 import { Account } from "@/types/accounts";

@@ -4,7 +4,7 @@ import { useTranslation } from 'next-i18next';
 import JSON5 from 'json5'
 import { Prompt } from '@/types/prompt';
 import {MessageType} from "@/types/chat";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/pages/home/home.context";
 import {variableTypeOptions, parsePromptVariableValues, parsePromptVariables, getType, getName} from "@/utils/app/prompts";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import EditableField from "@/components/Promptbar/components/EditableField";
@@ -43,6 +43,12 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
     state: { featureFlags, prompts },
   } = useContext(HomeContext);
 
+  const promptsRef = useRef(prompts);
+
+  useEffect(() => {
+      promptsRef.current = prompts;
+    }, [prompts]);
+
   let workflowRoot:Prompt = {
     id: "default",
     name: "Default custom instructions",
@@ -52,7 +58,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
     folderId: null,
   };
 
-  let rootPrompts = [workflowRoot, ...prompts.filter((p) => p.type === MessageType.ROOT)];
+  let rootPrompts = [workflowRoot, ...promptsRef.current.filter((p) => p.type === MessageType.ROOT)];
 
   if(rootPrompts.length > 0) {
     workflowRoot =

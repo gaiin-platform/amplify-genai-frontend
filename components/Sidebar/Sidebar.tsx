@@ -86,7 +86,7 @@ const Sidebar = <T,>({
   }
 
   return (
-    <div className={`border-t dark:border-white/20 overflow-x-hidden`}>
+    <div className={`border-t dark:border-white/20 overflow-x-hidden h-full`}>
       <div
         className={`fixed top-0 ${side}-0 z-40 flex h-full w-[270px] flex-none flex-col space-y-2 bg-neutral-100 dark:bg-[#202123] p-2 text-[14px] transition-all sm:relative sm:top-0`}
       >
@@ -114,7 +114,7 @@ const Sidebar = <T,>({
         setFolderSort={setFolderSort}
         />
 
-        <div className="flex-grow overflow-auto">
+        <div className="flex-grow ">
           {items?.length > 0 && (
             <div className="flex border-b dark:border-white/20 pb-2">
               {folderComponent}

@@ -17,7 +17,7 @@ import {
 
 import { FolderInterface } from '@/types/folder';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/pages/home/home.context';
 
 import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 
@@ -37,6 +37,7 @@ const Folder = ({
 }: Props) => {
   const { handleDeleteFolder, handleUpdateFolder, state: {selectedConversation, allFoldersOpenPrompts, allFoldersOpenConvs, checkingItemType, checkedItems},
           dispatch: homeDispatch,} = useContext(HomeContext);
+
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);

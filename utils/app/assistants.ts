@@ -4,8 +4,14 @@ import {Message, MessageType} from "@/types/chat";
 import {FolderInterface} from "@/types/folder";
 import {ReservedTags} from "@/types/tags";
 import { saveFolders } from '@/utils/app/folders';
-import { getPrompts, savePrompts } from "./prompts";
+import { savePrompts } from "./prompts";
+import { getDate } from "./date";
 
+export const isAssistantById = (promptId: string, prompts: Prompt[]) => {
+    const prompt = prompts.find((p: Prompt) => p.id === promptId);
+    if (prompt) return isAssistant(prompt);
+    return false;
+}
 
 export const isAssistant = (prompt: Prompt) => {
     return prompt.data && prompt.data.assistant;
@@ -94,7 +100,7 @@ const createAssistantFolder = (folders: FolderInterface[], dispatch: any) => {
     console.log("Creating assistants folder...")
     const newFolder = {
         id: "assistants",
-        date: new Date().toISOString().slice(0, 10),
+        date: getDate(),
         name: "Assistants",
         type: "prompt",
     } as FolderInterface;
@@ -157,10 +163,10 @@ export const syncAssistants = (assistants: AssistantDefinition[], folders: Folde
 
 
 
-export const handleUpdateAssistantPrompt = async (assistantPrompt: Prompt, dispatch: any) => {
-    const prompts: Prompt[] = getPrompts().filter((curPrompt: Prompt) => curPrompt?.data?.assistant?.definition.assistantId !== 
+export const handleUpdateAssistantPrompt = async (assistantPrompt: Prompt, prompts: Prompt[], dispatch: any) => {
+    const filteredPrompts: Prompt[] = prompts.filter((curPrompt: Prompt) => curPrompt?.data?.assistant?.definition.assistantId !== 
                                                                          assistantPrompt.data?.assistant?.definition.assistantId)
-    const updatedPrompts = [...prompts, assistantPrompt]
+    const updatedPrompts = [...filteredPrompts, assistantPrompt]
     dispatch({ field: 'prompts', value: updatedPrompts });
     savePrompts(updatedPrompts);
 }

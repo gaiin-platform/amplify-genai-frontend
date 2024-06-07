@@ -1,5 +1,5 @@
 import {FolderInterface} from "@/types/folder";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/pages/home/home.context";
 import {Conversation} from "@/types/chat";
 import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";
@@ -10,7 +10,9 @@ import {FiCommand} from "react-icons/fi";
 import {ExportFormatV4, LatestExportFormat} from "@/types/export";
 import {useSession} from "next-auth/react";
 import { isAssistant } from "@/utils/app/assistants";
-import { conversationWithCompressedMessages } from "@/utils/app/conversation";
+import { conversationWithCompressedMessages, saveConversations } from "@/utils/app/conversation";
+import { saveFolders } from "@/utils/app/folders";
+import { savePrompts } from "@/utils/app/prompts";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -62,9 +64,29 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
 
     const {
-        state: {prompts: localPrompts, conversations: localConversations, folders: localFolders},
+        state: {folders: localFolders, conversations: localConversations,  prompts:localPrompts, },
         dispatch: homeDispatch
     } = useContext(HomeContext);
+
+    const foldersRef = useRef(localFolders);
+
+    useEffect(() => {
+        foldersRef.current = localFolders;
+    }, [localFolders]);
+
+    const promptsRef = useRef(localPrompts);
+
+    useEffect(() => {
+        promptsRef.current = localPrompts;
+      }, [localPrompts]);
+
+
+    const conversationsRef = useRef(localConversations);
+
+    useEffect(() => {
+        conversationsRef.current = localConversations;
+    }, [localConversations]);
+
 
     const { data: session } = useSession();
     const user = session?.user;
@@ -179,7 +201,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         const needsFolderReset = (item: Conversation | Prompt) => {
             return item.folderId != null &&
                 !exportData.folders.some(folder => folder.id === item.folderId) &&
-                !localFolders.some(folder => folder.id === item.folderId)
+                !foldersRef.current.some(folder => folder.id === item.folderId)
         };
 
         // Check if any of the folders of the prompts or conversations don't exist in local folders
@@ -214,11 +236,12 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
         console.log("Cleaned up export: ", cleanedUpExport);
 
-        const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport);
+        const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport, conversationsRef.current, promptsRef.current, foldersRef.current);
 
         // console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);
 
         homeDispatch({field: 'conversations', value: history});
+        saveConversations(history);
 
         if (history && history.length > 0) {
             homeDispatch({
@@ -227,7 +250,9 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
             });
         }
         homeDispatch({field: 'folders', value: folders});
+        saveFolders(folders);
         homeDispatch({field: 'prompts', value: prompts});
+        savePrompts(prompts);
 
         onImport(exportData);
         resetSelection();
@@ -341,10 +366,6 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                 }
 
             }
-
-            // setSelectedPrompts([...prompts]);
-            // setSelectedConversations([...conversations]);
-            // setSelectedFolders([...folders]);
 
         };
 

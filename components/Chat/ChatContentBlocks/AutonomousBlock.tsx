@@ -1,9 +1,9 @@
 import {
     IconFileCheck,
 } from '@tabler/icons-react';
-import React, {useContext, useEffect} from "react";
+import React, {useContext, useEffect, useRef} from "react";
 import JSON5 from "json5";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/pages/home/home.context";
 import {useSendService} from "@/hooks/useChatSendService";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -51,6 +51,28 @@ const AutonomousBlock: React.FC<Props> = (
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
 
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
+
+
+    const conversationsRef = useRef(conversations);
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
+
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
+
     const { data: session, status } = useSession();
 
     const {handleSend} = useSendService();
@@ -90,7 +112,7 @@ const AutonomousBlock: React.FC<Props> = (
             return result;
         },
         "/chats": (params:any) => {
-            return conversations.map((c:any) => {
+            return conversationsRef.current.map((c:any) => {
                 return {
                     id: c.id,
                     name: c.name,
@@ -109,7 +131,7 @@ const AutonomousBlock: React.FC<Props> = (
 
             console.log('Searching for keywords', params);
 
-            const results = conversations
+            const results = conversationsRef.current
                 .filter((c) => c.id !== thisId)
                 .filter((c) => {
                     const matches =  c.messages.filter((m) => {
@@ -135,7 +157,7 @@ const AutonomousBlock: React.FC<Props> = (
             console.log("/chat params:", params)
 
             const id = params[1];
-            const chat = conversations.find((c:any) => c.id === id);
+            const chat = conversationsRef.current.find((c:any) => c.id === id);
 
             if(!chat){
                 return {error: "Conversation not found, try listing all of the chats to find a valid conversation id."};
@@ -149,7 +171,7 @@ const AutonomousBlock: React.FC<Props> = (
             console.log("/chat params:", params)
 
             const ids = params.slice(1);
-            const chats = conversations.filter((c:any) => ids.includes(c.id));
+            const chats = conversationsRef.current.filter((c:any) => ids.includes(c.id));
 
             if(chats.length === 0){
                 return {error: "No conversations found for the given ids. Try listing the chats to find valid ids."};
@@ -168,11 +190,11 @@ const AutonomousBlock: React.FC<Props> = (
             return sampledMessagesPerChat;
         },
         "/folders": (params:any) => {
-            return folders;
+            return foldersRef.current;
         },
         "/searchFolders": (params:string[]) => {
             params = params.slice(1);
-            const found = folders.filter((f) => {
+            const found = foldersRef.current.filter((f) => {
                 return params.some((k: string) => f.name.includes(k));
             });
 
@@ -189,7 +211,7 @@ const AutonomousBlock: React.FC<Props> = (
             return models;
         },
         "/prompts": (params:any) => {
-            return prompts;
+            return promptsRef.current;
         },
         "/defaultModelId": (params:any) => {
             return defaultModelId;
@@ -207,7 +229,7 @@ const AutonomousBlock: React.FC<Props> = (
             return selectedAssistant;
         },
         "/listAssistants": (params:any) => {
-            return prompts
+            return promptsRef.current
                 .filter(p => p.data && p.data.assistant)
                 .map(p => p.data?.assistant);
         },
@@ -226,11 +248,11 @@ const AutonomousBlock: React.FC<Props> = (
             params = params.slice(1);
             const folderId = params[0];
             const chatIds = params.slice(1);
-            const folder = folders.find((f) => f.id === folderId);
+            const folder = foldersRef.current.find((f) => f.id === folderId);
             if(folder){
                 const moved:{[key:string]:string} = {};
                 for(const chatId of chatIds){
-                    const chat = conversations.find((c) => c.id === chatId);
+                    const chat = conversationsRef.current.find((c) => c.id === chatId);
                     if(chat){
                         moved[chatId] = "Moved successfully.";
                         chat.folderId = folder.id;

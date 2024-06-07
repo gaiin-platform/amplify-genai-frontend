@@ -5,12 +5,6 @@ export const saveFolders = (folders: FolderInterface[]) => {
 };
 
 
-export const getFolders= () => {
-  return JSON.parse(localStorage.getItem('folders') || '[]');
-
-}
-
-
 export const sortFoldersByDate = (a: FolderInterface, b: FolderInterface) => {
   if (a.date && b.date) {
     // Sort by date if both folders have a date
@@ -21,7 +15,6 @@ export const sortFoldersByDate = (a: FolderInterface, b: FolderInterface) => {
   } else if (b.date) {
     return 1;
   } else {
-    // If neither folder has a date, sort by name
     return a.name.localeCompare(b.name);
   }
 };

@@ -1,8 +1,8 @@
 // ChatFollowups.tsx
-import React, {useContext} from 'react';
+import React, {useContext, useEffect, useRef} from 'react';
 import {Conversation, MessageType} from "@/types/chat";
 import {Prompt} from "@/types/prompt";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/pages/home/home.context";
 
 type ChatFollowupsProps = {
     promptSelected: (prompt: Prompt) => void,
@@ -14,8 +14,14 @@ const ChatFollowups: React.FC<ChatFollowupsProps> = ({promptSelected}) => {
         state: {prompts, selectedConversation},
     } = useContext(HomeContext);
 
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
+
     const conversationTags = selectedConversation?.tags || [];
-    const promptButtons = prompts.filter((prompt) => {
+    const promptButtons = promptsRef.current.filter((prompt) => {
         const promptTags = prompt.data?.requiredTags;
         if (prompt.type === MessageType.FOLLOW_UP && (!promptTags || promptTags.length === 0)) {
             return true;

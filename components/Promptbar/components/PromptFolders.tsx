@@ -1,8 +1,8 @@
-import { useContext } from 'react';
+import { useContext, useEffect, useRef } from 'react';
 
 import { FolderInterface, SortType } from '@/types/folder';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/pages/home/home.context';
 
 import Folder from '@/components/Folder';
 import { PromptComponent } from '@/components/Promptbar/components/Prompt';
@@ -20,6 +20,13 @@ export const PromptFolders = ({sort}: Props) => {
   const {
     state: { folders},
   } = useContext(HomeContext);
+
+  const foldersRef = useRef(folders);
+
+  useEffect(() => {
+      foldersRef.current = folders;
+  }, [folders]);
+
 
   const {
     state: { searchTerm, filteredPrompts},
@@ -55,7 +62,7 @@ export const PromptFolders = ({sort}: Props) => {
 
   return (
     <div className="flex w-full flex-col">
-      {folders
+      {foldersRef.current
         .filter((folder) => folder.type === 'prompt')
         .sort(sort === 'date' ? sortFoldersByDate : sortFoldersByName)
         .map((folder, index) => (

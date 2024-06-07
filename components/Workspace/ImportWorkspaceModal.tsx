@@ -1,17 +1,18 @@
 import {FolderInterface} from "@/types/folder";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/pages/home/home.context";
 import {Conversation} from "@/types/chat";
 import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";
-import {createExport, exportData, importData} from "@/utils/app/importExport";
-import {loadSharedItem, shareItems} from "@/services/shareService";
+import {createExport, importData} from "@/utils/app/importExport";
+import {loadSharedItem} from "@/services/shareService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
-import Folder from "@/components/Folder";
 import {ExportFormatV4, LatestExportFormat} from "@/types/export";
 import {saveWorkspaceMetadata} from "@/utils/app/settings";
 import {useSession} from "next-auth/react";
-import { conversationWithCompressedMessages, conversationWithUncompressedMessages, uncompressConversation } from "@/utils/app/conversation";
+import { conversationWithCompressedMessages, conversationWithUncompressedMessages, saveConversations, uncompressConversation } from "@/utils/app/conversation";
+import { saveFolders } from "@/utils/app/folders";
+import { savePrompts } from "@/utils/app/prompts";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -54,14 +55,34 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
     }) => {
 
     const {
-        state: {prompts: localPrompts,
-            conversations: localConversations,
+        state: {
+            conversations: localConversations, 
+            prompts:localPrompts, 
             folders: localFolders,
             workspaceMetadata,
             workspaceDirty},
         dispatch: homeDispatch,
         clearWorkspace
     } = useContext(HomeContext);
+
+    const foldersRef = useRef(localFolders);
+
+    useEffect(() => {
+        foldersRef.current = localFolders;
+    }, [localFolders]);
+
+    // const promptsRef = useRef(localPrompts);
+
+    // useEffect(() => {
+    //     promptsRef.current = localPrompts;
+    //   }, [localPrompts]);
+
+
+    // const conversationsRef = useRef(localConversations);
+
+    // useEffect(() => {
+    //     conversationsRef.current = localConversations;
+    // }, [localConversations]);
 
     const updatedWorkspaceMetadata = {
         ...workspaceMetadata,
@@ -173,7 +194,6 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
     }
 
     const handleImport = async () => {
-
         const compressedConversationsState = selectedConversationsState.map((c:Conversation) => {
             if (c.messages && !c.compressedMessages) return conversationWithCompressedMessages(c);
             return c;
@@ -185,7 +205,7 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
         const needsFolderReset = (item: Conversation | Prompt) => {
             return item.folderId != null &&
                 !exportData.folders.some(folder => folder.id === item.folderId) &&
-                !localFolders.some(folder => folder.id === item.folderId)
+                !foldersRef.current.some(folder => folder.id === item.folderId)
         };
 
         // Check if any of the folders of the prompts or conversations don't exist in local folders
@@ -210,17 +230,20 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
 
         console.log("Cleaned up export: ", cleanedUpExport);
 
-        const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport);
+        const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport, [], [], [] );
 
         // console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);
 
         homeDispatch({field: 'conversations', value: history});
+        saveConversations(history);
         if (history && history.length > 0) homeDispatch({
             field: 'selectedConversation',
             value: conversationWithUncompressedMessages(history[history.length - 1]),
         });
         homeDispatch({field: 'folders', value: folders});
+        saveFolders(folders);
         homeDispatch({field: 'prompts', value: prompts});
+        savePrompts(prompts);
 
         homeDispatch({field: 'workspaceMetadata', value: updatedWorkspaceMetadata});
         saveWorkspaceMetadata(updatedWorkspaceMetadata);
@@ -429,17 +452,6 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
                             >
                                 Cancel
                             </button>
-                            {/*{!isImporting && (*/}
-                            {/*    <button*/}
-                            {/*        type="button"*/}
-                            {/*        style={{opacity: !canImport() ? 0.3 : 1}}*/}
-                            {/*        className="ml-2 w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300 ${selectedPeople.length === 0 || (selectedPromptsState.length === 0 && selectedConversationsState.length === 0 && selectedFoldersState.length === 0) ? 'cursor-not-allowed' : ''}"*/}
-                            {/*        onClick={handleImport}*/}
-                            {/*        disabled={!canImport()}*/}
-                            {/*    >*/}
-                            {/*        Merge*/}
-                            {/*    </button>*/}
-                            {/*)}*/}
                             {!isImporting && (
                                 <button
                                     type="button"

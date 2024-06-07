@@ -28,7 +28,7 @@ import {
     useState,
 } from 'react';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/pages/home/home.context';
 import {MarketCategory, MarketItem, MarketItemType} from "@/types/market";
 import {deleteItem, getCategory, getItem, getItemExamples} from "@/services/marketService";
 import styled, {keyframes} from "styled-components";
@@ -82,24 +82,27 @@ export const Market = ({items}: Props) => {
 
     const {
         state: {
-            selectedConversation,
-            selectedAssistant,
-            conversations,
             folders,
-            models,
-            messageIsStreaming,
-            modelError,
-            loading,
             prompts,
-            defaultModelId,
-            featureFlags,
-            workspaceMetadata,
             statsService,
             featureFlags: {marketItemDelete},
         },
         handleNewConversation,
         dispatch: homeDispatch,
     } = useContext(HomeContext);
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
+
+
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
 
     const { startConversationEvent, tryMarketItemEvent } = statsService;
 
@@ -447,13 +450,13 @@ If people need help with prompt engineering, which is how you converse effective
             type: "prompt",
         }
 
-        const updatedFolders = [...folders].filter(f => f.id !== tutorialFolder.id);
+        const updatedFolders = [...foldersRef.current].filter(f => f.id !== tutorialFolder.id);
 
         homeDispatch({ field: 'folders', value: updatedFolders });
 
         saveFolders(updatedFolders);
 
-        const updatedPrompts = [...prompts].filter(p => p.id !== rootPrompt.id && p.id !== startTutorialPrompt.id);
+        const updatedPrompts = [...promptsRef.current].filter(p => p.id !== rootPrompt.id && p.id !== startTutorialPrompt.id);
         updatedPrompts.push(rootPrompt);
         updatedPrompts.push(startTutorialPrompt);
 
@@ -506,7 +509,7 @@ If people need help with prompt engineering, which is how you converse effective
     const doTryItem = async (consersations: Conversation[], folders: FolderInterface[], itemPrompts: Prompt[]) => {
         if (itemPrompts.length > 0) {
             startConversationEvent(itemPrompts[0]);
-            handleStartConversationWithPrompt(handleNewConversation, [...prompts, ...itemPrompts], itemPrompts[0]);
+            handleStartConversationWithPrompt(handleNewConversation, [...promptsRef.current, ...itemPrompts], itemPrompts[0]);
         } else {
             alert("There are no prompts to try in this market item.");
         }

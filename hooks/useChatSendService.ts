@@ -1,7 +1,7 @@
 // src/hooks/useChatService.js
 import {incrementalJSONtoCSV} from "@/utils/app/incrementalCsvParser";
-import {useCallback, useContext} from 'react';
-import HomeContext from '@/pages/api/home/home.context';
+import {useCallback, useContext, useEffect, useRef} from 'react';
+import HomeContext from '@/pages/home/home.context';
 import {killRequest as killReq, MetaHandler, sendChatRequestWithDocuments} from '../services/chatService';
 import {ChatBody, Conversation, CustomFunction, JsonSchema, Message, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
@@ -43,10 +43,25 @@ export type ChatRequest = {
 
 export function useSendService() {
     const {
-        state: {selectedConversation, conversations, featureFlags},
+        state: {selectedConversation, conversations, featureFlags, folders},
         postProcessingCallbacks,
         dispatch:homeDispatch,
     } = useContext(HomeContext);
+
+    const conversationsRef = useRef(conversations);
+
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
+
 
     const {
         sendChatRequest,
@@ -115,7 +130,7 @@ export function useSendService() {
                         options,
                     } = request;
 
-                    console.log("Sending msg:", message)
+                    // console.log("Sending msg:", message)
 
                     const {content, label} = getPrefix(selectedConversation, message);
                     if (content) {
@@ -464,7 +479,7 @@ export function useSendService() {
                                     });
                                 } catch (error: any) {
                                     if (selectedConversation.isLocal) {
-                                        const updatedConversations: Conversation[] = conversations.map(
+                                        const updatedConversations: Conversation[] = conversationsRef.current.map(
                                             (conversation) => {
                                                 if (conversation.id === selectedConversation.id) {
                                                     return conversationWithCompressedMessages(updatedConversation);
@@ -478,7 +493,7 @@ export function useSendService() {
                                         homeDispatch({field: 'conversations', value: updatedConversations});
                                         saveConversations(updatedConversations);
                                     } else {
-                                        uploadConversation(updatedConversation);
+                                        uploadConversation(updatedConversation, foldersRef.current);
                                     }
                                     homeDispatch({field: 'messageIsStreaming', value: false});
                                     homeDispatch({field: 'loading', value: false});
@@ -523,7 +538,7 @@ export function useSendService() {
                             }
 
                             if (selectedConversation.isLocal) {
-                                const updatedConversations: Conversation[] = conversations.map(
+                                const updatedConversations: Conversation[] = conversationsRef.current.map(
                                     (conversation) => {
                                         if (conversation.id === selectedConversation.id) {
                                             return conversationWithCompressedMessages(updatedConversation);
@@ -537,7 +552,7 @@ export function useSendService() {
                                 homeDispatch({field: 'conversations', value: updatedConversations});
                                 saveConversations(updatedConversations);
                             } else {
-                                uploadConversation(updatedConversation);
+                                uploadConversation(updatedConversation, foldersRef.current);
                             }
                             homeDispatch({field: 'messageIsStreaming', value: false});
 
@@ -558,7 +573,7 @@ export function useSendService() {
                             });
                             if (selectedConversation.isLocal) {
                                 
-                                const updatedConversations: Conversation[] = conversations.map(
+                                const updatedConversations: Conversation[] = conversationsRef.current.map(
                                     (conversation) => {
                                         if (conversation.id === selectedConversation.id) {
                                             return conversationWithCompressedMessages(updatedConversation);
@@ -572,7 +587,7 @@ export function useSendService() {
                                 homeDispatch({field: 'conversations', value: updatedConversations});
                                 saveConversations(updatedConversations);
                             } else {
-                                uploadConversation(updatedConversation);
+                                uploadConversation(updatedConversation, foldersRef.current);
                             }
                             homeDispatch({field: 'loading', value: false});
                             homeDispatch({field: 'messageIsStreaming', value: false});
@@ -600,7 +615,7 @@ export function useSendService() {
             });
         },
         [
-            conversations,
+            conversationsRef.current,
             selectedConversation
         ],
     );

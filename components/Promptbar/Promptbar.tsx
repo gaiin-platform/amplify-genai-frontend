@@ -1,14 +1,14 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useCreateReducer } from '@/hooks/useCreateReducer';
 
-import { getPrompts, savePrompts } from '@/utils/app/prompts';
+import { savePrompts } from '@/utils/app/prompts';
 
 import { OpenAIModels } from '@/types/openai';
 import { Prompt } from '@/types/prompt';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/pages/home/home.context';
 
 import { PromptFolders } from './components/PromptFolders';
 import { Prompts } from './components/Prompts';
@@ -51,6 +51,11 @@ const Promptbar = () => {
     handleCreateFolder,
   } = useContext(HomeContext);
 
+  const promptsRef = useRef(prompts);
+
+  useEffect(() => {
+      promptsRef.current = prompts;
+    }, [prompts]);
   
   const {
     state: { searchTerm, filteredPrompts },
@@ -92,7 +97,7 @@ const Promptbar = () => {
 
 
   const handleAddPrompt = (prompt: Prompt) => {
-    const updatedPrompts = [...prompts, prompt];
+    const updatedPrompts = [...promptsRef.current, prompt];
 
     homeDispatch({ field: 'prompts', value: updatedPrompts });
 
@@ -103,11 +108,11 @@ const Promptbar = () => {
   const handleCreatePrompt = () => {
     if (defaultModelId) {
 
-      const newPrompt = createPrompt(`Prompt ${prompts.length + 1}`);
+      const newPrompt = createPrompt(`Prompt ${promptsRef.current.length + 1}`);
 
       statsService.createPromptEvent(newPrompt);
 
-      const updatedPrompts = [...prompts, newPrompt];
+      const updatedPrompts = [...promptsRef.current, newPrompt];
 
       homeDispatch({ field: 'prompts', value: updatedPrompts });
 
@@ -120,7 +125,7 @@ const Promptbar = () => {
 
   const handleCreateAssistant = () => {
     if (defaultModelId) {
-      const promptName = `Assistant ${getAssistants(prompts).length + 1}`
+      const promptName = `Assistant ${getAssistants(promptsRef.current).length + 1}`
       const newPrompt = createPrompt(promptName);
       newPrompt.folderId = "assistants";
 
@@ -147,8 +152,7 @@ const Promptbar = () => {
 
   const handleDeletePrompt = (prompt: Prompt) => {
     statsService.deletePromptEvent(prompt);
-    const prompts: Prompt[] = getPrompts();
-    const updatedPrompts = prompts.filter((p) => p.id !== prompt.id);
+    const updatedPrompts = promptsRef.current.filter((p) => p.id !== prompt.id);
 
     homeDispatch({ field: 'prompts', value: updatedPrompts });
     savePrompts(updatedPrompts);
@@ -166,7 +170,7 @@ const Promptbar = () => {
 
     statsService.editPromptCompletedEvent(prompt);
 
-    const updatedPrompts = prompts.map((p) => {
+    const updatedPrompts = promptsRef.current.map((p) => {
       if (p.id === prompt.id) {
         return prompt;
       }
@@ -199,7 +203,7 @@ const Promptbar = () => {
   useEffect(() => {
 
     const visiblePrompts = (featureFlags.overrideInvisiblePrompts) ? 
-        prompts : prompts.filter((prompt) => !prompt.data?.hidden);
+                                                           prompts : prompts.filter((prompt) => !prompt.data?.hidden);
 
     if (searchTerm) {
 
@@ -289,7 +293,7 @@ const Promptbar = () => {
                 statsService.createPromptEvent(assistantPrompt);
                }}
         onUpdateAssistant={async (assistantPrompt) => {
-              handleUpdateAssistantPrompt(assistantPrompt, homeDispatch);
+              handleUpdateAssistantPrompt(assistantPrompt, promptsRef.current, homeDispatch);
             }}
         loadingMessage='Creating assistant...'
         loc="add_assistant"

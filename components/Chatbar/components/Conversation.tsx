@@ -13,16 +13,16 @@ import {
   MouseEventHandler,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
 import { Conversation } from '@/types/chat';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/pages/home/home.context';
 
 import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import ChatbarContext from '@/components/Chatbar/Chatbar.context';
-import { updateConversation } from '@/utils/app/conversation';
 import { uploadConversation } from '@/services/remoteConversationService';
 import { isLocalConversation, isRemoteConversation } from '@/utils/app/conversationStorage';
 
@@ -32,11 +32,17 @@ interface Props {
 
 export const ConversationComponent = ({ conversation}: Props) => {
   const {
-    state: { selectedConversation, messageIsStreaming, checkingItemType, checkedItems},
+    state: { selectedConversation, messageIsStreaming, checkingItemType, checkedItems, folders},
     handleSelectConversation,
     handleUpdateConversation,
     dispatch: homeDispatch
   } = useContext(HomeContext);
+
+  const foldersRef = useRef(folders);
+
+  useEffect(() => {
+      foldersRef.current = folders;
+  }, [folders]);
 
   const { handleDeleteConversation } = useContext(ChatbarContext);
 
@@ -73,7 +79,7 @@ export const ConversationComponent = ({ conversation}: Props) => {
       if (isRemoteConversation(conversation) && selectedConversation) {
         const renamedSelected = {...selectedConversation, name: renameValue};
         homeDispatch({field: 'selectedConversation', value: renamedSelected});
-        await uploadConversation(renamedSelected);
+        uploadConversation(renamedSelected, foldersRef.current);
       }
       setRenameValue('');
       setIsRenaming(false);

@@ -1,9 +1,8 @@
-import {FC, useContext, useRef, useState} from 'react';
+import {FC, useRef, useState} from 'react';
 
 import {useTranslation} from 'next-i18next';
 import {Prompt} from '@/types/prompt';
-import HomeContext from "@/pages/api/home/home.context";
-import {COMMON_DISALLOWED_FILE_EXTENSIONS, DEFAULT_SYSTEM_PROMPT} from "@/utils/app/const";
+import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant} from "@/utils/app/assistants";
@@ -27,9 +26,6 @@ interface Props {
 
 export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc}) => {
     const {t} = useTranslation('promptbar');
-    const {
-        state: {featureFlags, prompts},
-    } = useContext(HomeContext);
 
     let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
 

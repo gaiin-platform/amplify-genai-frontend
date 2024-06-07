@@ -14,7 +14,7 @@ import {FC, memo, useContext, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'next-i18next';
 import {updateConversation} from '@/utils/app/conversation';
 import {Conversation, Message} from '@/types/chat';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/pages/home/home.context';
 import ChatFollowups from './ChatFollowups';
 import {VariableModal} from "@/components/Chat/VariableModal";
 import ChatContentBlock from "@/components/Chat/ChatContentBlocks/ChatContentBlock";

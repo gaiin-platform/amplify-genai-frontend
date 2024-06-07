@@ -5,8 +5,8 @@ import {
     IconCloudFilled
 } from '@tabler/icons-react';
 
-import HomeContext from '@/pages/api/home/home.context';
-import { getStorageSelection, handleStorageSelection, saveStorageSettings } from '@/utils/app/conversationStorage';
+import HomeContext from '@/pages/home/home.context';
+import { handleStorageSelection, saveStorageSettings } from '@/utils/app/conversationStorage';
 import { ConversationStorage } from "@/types/conversationStorage";
 import { saveConversations } from '@/utils/app/conversation';
 
@@ -19,12 +19,34 @@ interface Props {
 
 
 export const StorageDialog: FC<Props> = ({ open, onClose }) => {
-  
-  const [selectedOption, setSelectedOption] = useState(getStorageSelection() || '');
+
+  const { dispatch: homeDispatch, state:{conversations, selectedConversation, folders, statsService, storageSelection} } = useContext(HomeContext);
+
+  const storageRef = useRef(storageSelection);
+
+  useEffect(() => {
+    storageRef.current = storageSelection;
+  }, [storageSelection]);
+
+  const [selectedOption, setSelectedOption] = useState( storageRef.current || '');
 
   const { t } = useTranslation('conversationStorage');
 
-  const { dispatch: homeDispatch, state:{conversations, selectedConversation, statsService} } = useContext(HomeContext);
+  
+
+  const conversationsRef = useRef(conversations);
+
+  useEffect(() => {
+      conversationsRef.current = conversations;
+  }, [conversations]);
+
+  const foldersRef = useRef(folders);
+
+  useEffect(() => {
+      foldersRef.current = folders;
+  }, [folders]);
+
+
   const modalRef = useRef<HTMLDivElement>(null);
   
 
@@ -52,7 +74,7 @@ export const StorageDialog: FC<Props> = ({ open, onClose }) => {
     saveStorageSettings({ storageLocation: selectedOption } as ConversationStorage);
     homeDispatch({field: 'storageSelection', value: selectedOption});
 
-    const updatedConversations = await handleStorageSelection(selectedOption, conversations, statsService);
+    const updatedConversations = await handleStorageSelection(selectedOption, conversationsRef.current, foldersRef.current, statsService);
     if (updatedConversations) {
       homeDispatch({field: 'conversations', value: updatedConversations});
       saveConversations(updatedConversations);
