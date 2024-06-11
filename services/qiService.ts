@@ -1,10 +1,10 @@
-import { Conversation } from "@/types/chat";
+import {  Message } from "@/types/chat";
 import { OpenAIModelID, OpenAIModels } from "@/types/openai";
 import { QiSummary, QiSummaryType } from "@/types/qi";
 import {getSession} from "next-auth/react"
 import {v4 as uuidv4} from 'uuid';
 import { sendChatRequestWithDocuments } from "./chatService";
-import { Message } from "ai";
+
 
 const qiConversationPrompt = 
     `Generate a focused summary based on user and system exchanges, emphasizing the user's task: 

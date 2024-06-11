@@ -80,7 +80,7 @@ return  <button
     }}
     title={title()}
     >
-    { inCloud ? <IconCloudOff className="block text-neutral-900 dark:text-neutral-200" size={iconSize} /> : 
+    { inCloud ? <IconCloudOff className="block text-neutral-500 dark:text-neutral-200" size={iconSize} /> : 
     <div>
       <IconCloud className="block dark:hidden" size={18} style={{ stroke: '#000000', fill: '#D3D3D3' }}/>
       <IconCloudFilled className="hidden dark:block dark:text-neutral-200" size={18} />

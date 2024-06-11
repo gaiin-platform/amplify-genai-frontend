@@ -15,7 +15,7 @@ import {newStatus} from "@/types/workflow";
 import {ReservedTags} from "@/types/tags";
 import {deepMerge} from "@/utils/app/state";
 import toast from "react-hot-toast";
-import callRenameChatApi from "@/components/Chat/RenameChat";
+import {callRenameChat} from "@/components/Chat/RenameChat";
 import {OutOfOrderResults} from "@/utils/app/outOfOrder";
 import {conversationWithCompressedMessages, saveConversations} from "@/utils/app/conversation";
 import {getHook} from "@/utils/app/chathooks";
@@ -26,6 +26,7 @@ import {useChatService} from "@/hooks/useChatService";
 import { DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { uploadConversation } from "@/services/remoteConversationService";
 import { compressMessages } from "@/utils/app/messages";
+import { isRemoteConversation } from "@/utils/app/conversationStorage";
 
 export type ChatRequest = {
     message: Message;
@@ -43,7 +44,7 @@ export type ChatRequest = {
 
 export function useSendService() {
     const {
-        state: {selectedConversation, conversations, featureFlags, folders},
+        state: {selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService},
         postProcessingCallbacks,
         dispatch:homeDispatch,
     } = useContext(HomeContext);
@@ -138,16 +139,24 @@ export function useSendService() {
                         message.label = label;
                     }
 
-                    if (selectedConversation && selectedConversation.tags && selectedConversation.tags.includes(ReservedTags.ASSISTANT_BUILDER)) {
-                        // In assistants, this has the effect of
-                        // disabling the use of documents so that we
-                        // can just add the document to the list of documents
-                        // the assistant is using.
-                        options = {
-                            ...(options || {}),
-                            skipRag: true,
-                            ragOnly: true
-                        };
+                    if (selectedConversation && selectedConversation.tags) {
+                            if (selectedConversation.tags.includes(ReservedTags.ASSISTANT_BUILDER)) {
+                                // In assistants, this has the effect of
+                                // disabling the use of documents so that we
+                                // can just add the document to the list of documents
+                                // the assistant is using.
+                                options = {
+                                    ...(options || {}),
+                                    skipRag: true,
+                                    ragOnly: true
+                                };
+                            } else if (selectedConversation.tags.includes("NoRag")) {
+                                options = {
+                                    ...(options || {}),
+                                    skipRag: true,
+                                    ragOnly: false
+                                };
+                            }
                     }
 
                     if (!featureFlags.ragEnabled) {
@@ -195,6 +204,31 @@ export function useSendService() {
                         field: 'selectedConversation',
                         value: updatedConversation,
                     });
+                    //before call we should rename it 
+                    if (updatedConversation.messages.length === 1) {
+                        // will always return a string whether call was successful or not 
+                        callRenameChat(chatEndpoint || '', updatedConversation.messages, statsService).then(customName => {
+                            updatedConversation = {
+                                ...updatedConversation,
+                                name: customName, 
+                            };
+                            if (isRemoteConversation(updatedConversation)) {
+                                // we need to update the conversation list because we do not do this typically when updating the chat
+                                const updatedConversations: Conversation[] = conversationsRef.current.map(
+                                    (c:Conversation) => {
+                                        if (c.id === selectedConversation.id) {
+                                            return updatedConversation;
+                                        }
+                                        return c;
+                                    },
+                                );
+                                homeDispatch({field: 'conversations', value: updatedConversations});
+                                saveConversations(updatedConversations);
+
+                            }
+                        })
+                    }
+
                     homeDispatch({field: 'loading', value: true});
                     homeDispatch({field: 'messageIsStreaming', value: true});
                     const chatBody: ChatBody = {
@@ -348,25 +382,7 @@ export function useSendService() {
                             return;
                         }
                         if (!plugin) {
-                            if (updatedConversation.messages.length === 1) {
-                                const {content} = message;
-                                callRenameChatApi(content).then(customName => {
-                                    updatedConversation = {
-                                        ...updatedConversation,
-                                        name: customName, // Use the name returned by Lambda
-                                    };
-                                }).catch(error => {
-                                    console.error('Failed to rename conversation:', error);
-                                    // fallback to default naming convention
-                                    const {content} = message;
-                                    const customName =
-                                        content.length > 30 ? content.substring(0, 30) + '...' : content;
-                                    updatedConversation = {
-                                        ...updatedConversation,
-                                        name: customName,
-                                    };
-                                });
-                            }
+
 
                             homeDispatch({field: 'loading', value: false});
                             const reader = data.getReader();
