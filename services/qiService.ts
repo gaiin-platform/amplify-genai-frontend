@@ -52,27 +52,32 @@ export const createQiSummary = async (chatEndpoint:string, data:any, type: QiSum
         const decoder = new TextDecoder();
         let done = false;
         let text = '';
-    
-        while (!done) {
-    
-            // @ts-ignore
-            const {value, done: doneReading} = await reader.read();
-            done = doneReading;
-            const chunkValue = decoder.decode(value);
-    
-            if (done) {
-                break;
+        try {
+            while (!done) {
+        
+                // @ts-ignore
+                const {value, done: doneReading} = await reader.read();
+                done = doneReading;
+                const chunkValue = decoder.decode(value);
+        
+                if (done) break;
+        
+                text += chunkValue;
             }
-    
-            text += chunkValue;
-        }
 
-        return parseToQiSummary(text, type);
+            return parseToQiSummary(text, type);
+        } finally {
+            if (reader) {
+                await reader.cancel(); 
+                reader.releaseLock();
+            }
+        }
 
     } catch (e) {
         console.error("Error prompting for qi summary: ", e);
         return createEmptyQiSummary(type);
-    }
+    } 
+    
 }
 
 const parseToQiSummary = (text: string, type: QiSummaryType) => {

@@ -36,22 +36,28 @@ export const callRenameChat = async (chatEndpoint:string, messages: Message[], s
         const decoder = new TextDecoder();
         let done = false;
         let text = '';
-    
-        while (!done) {
-    
-            // @ts-ignore
-            const {value, done: doneReading} = await reader.read();
-            done = doneReading;
-            const chunkValue = decoder.decode(value);
-    
-            if (done) {
-                break;
+        try {
+            while (!done) {
+        
+                // @ts-ignore
+                const {value, done: doneReading} = await reader.read();
+                done = doneReading;
+                const chunkValue = decoder.decode(value);
+        
+                if (done) {
+                    break;
+                }
+        
+                text += chunkValue;
             }
-    
-            text += chunkValue;
-        }
 
-        return text;
+            return text;
+        } finally {
+            if (reader) {
+                await reader.cancel(); 
+                reader.releaseLock();
+            }
+        }
 
     } catch (e) {
         console.error("Error prompting for rename: ", e);
@@ -60,31 +66,3 @@ export const callRenameChat = async (chatEndpoint:string, messages: Message[], s
         
     }
 }
-
-
-
-
-// Not in use 
-async function callRenameChatApi(taskDescription: string) {
-    const response = await fetch('/api/renameChat', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ taskDescription }),
-    });
-
-    if (!response.ok) {
-        throw new Error('Failed to rename chat');
-    }
-
-    const data = await response.json();
-    // Assuming `data.item` contains the chat name with potential quotes
-    // Remove quotes from the name
-    const nameWithoutQuotes = data.item.replace(/^"|"$/g, ''); // This regex removes leading and trailing quotes
-    return nameWithoutQuotes;
-}
-
-export default callRenameChatApi;
-
-
