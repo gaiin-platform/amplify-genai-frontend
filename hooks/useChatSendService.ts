@@ -1,6 +1,6 @@
 // src/hooks/useChatService.js
 import {incrementalJSONtoCSV} from "@/utils/app/incrementalCsvParser";
-import {useCallback, useContext} from 'react';
+import {useCallback, useContext, useEffect, useRef} from 'react';
 import HomeContext from '@/pages/api/home/home.context';
 import {killRequest as killReq, MetaHandler, sendChatRequestWithDocuments} from '../services/chatService';
 import {ChatBody, Conversation, CustomFunction, JsonSchema, Message, newMessage} from "@/types/chat";
@@ -15,14 +15,18 @@ import {newStatus} from "@/types/workflow";
 import {ReservedTags} from "@/types/tags";
 import {deepMerge} from "@/utils/app/state";
 import toast from "react-hot-toast";
-import callRenameChatApi from "@/components/Chat/RenameChat";
+import {callRenameChat} from "@/components/Chat/RenameChat";
 import {OutOfOrderResults} from "@/utils/app/outOfOrder";
-import {saveConversation, saveConversations, updateConversation} from "@/utils/app/conversation";
+import {conversationWithCompressedMessages, saveConversations} from "@/utils/app/conversation";
 import {getHook} from "@/utils/app/chathooks";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {Prompt} from "@/types/prompt";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {useChatService} from "@/hooks/useChatService";
+import { DEFAULT_TEMPERATURE } from "@/utils/app/const";
+import { uploadConversation } from "@/services/remoteConversationService";
+import { compressMessages } from "@/utils/app/messages";
+import { isRemoteConversation } from "@/utils/app/conversationStorage";
 
 export type ChatRequest = {
     message: Message;
@@ -40,10 +44,25 @@ export type ChatRequest = {
 
 export function useSendService() {
     const {
-        state: {selectedConversation, conversations, featureFlags},
+        state: {selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService},
         postProcessingCallbacks,
         dispatch:homeDispatch,
     } = useContext(HomeContext);
+
+    const conversationsRef = useRef(conversations);
+
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
+
 
     const {
         sendChatRequest,
@@ -112,7 +131,7 @@ export function useSendService() {
                         options,
                     } = request;
 
-                    console.log("Sending msg:", message)
+                    // console.log("Sending msg:", message)
 
                     const {content, label} = getPrefix(selectedConversation, message);
                     if (content) {
@@ -120,16 +139,24 @@ export function useSendService() {
                         message.label = label;
                     }
 
-                    if (selectedConversation && selectedConversation.tags && selectedConversation.tags.includes(ReservedTags.ASSISTANT_BUILDER)) {
-                        // In assistants, this has the effect of
-                        // disabling the use of documents so that we
-                        // can just add the document to the list of documents
-                        // the assistant is using.
-                        options = {
-                            ...(options || {}),
-                            skipRag: true,
-                            ragOnly: true
-                        };
+                    if (selectedConversation && selectedConversation.tags) {
+                            if (selectedConversation.tags.includes(ReservedTags.ASSISTANT_BUILDER)) {
+                                // In assistants, this has the effect of
+                                // disabling the use of documents so that we
+                                // can just add the document to the list of documents
+                                // the assistant is using.
+                                options = {
+                                    ...(options || {}),
+                                    skipRag: true,
+                                    ragOnly: true
+                                };
+                            } else if (selectedConversation.tags.includes("NoRag")) {
+                                options = {
+                                    ...(options || {}),
+                                    skipRag: true,
+                                    ragOnly: false
+                                };
+                            }
                     }
 
                     if (!featureFlags.ragEnabled) {
@@ -177,13 +204,38 @@ export function useSendService() {
                         field: 'selectedConversation',
                         value: updatedConversation,
                     });
+                    //before call we should rename it 
+                    if (updatedConversation.messages.length === 1) {
+                        // will always return a string whether call was successful or not 
+                        callRenameChat(chatEndpoint || '', updatedConversation.messages, statsService).then(customName => {
+                            updatedConversation = {
+                                ...updatedConversation,
+                                name: customName, 
+                            };
+                            if (isRemoteConversation(updatedConversation)) {
+                                // we need to update the conversation list because we do not do this typically when updating the chat
+                                const updatedConversations: Conversation[] = conversationsRef.current.map(
+                                    (c:Conversation) => {
+                                        if (c.id === selectedConversation.id) {
+                                            return updatedConversation;
+                                        }
+                                        return c;
+                                    },
+                                );
+                                homeDispatch({field: 'conversations', value: updatedConversations});
+                                saveConversations(updatedConversations);
+
+                            }
+                        })
+                    }
+
                     homeDispatch({field: 'loading', value: true});
                     homeDispatch({field: 'messageIsStreaming', value: true});
                     const chatBody: ChatBody = {
                         model: updatedConversation.model,
                         messages: updatedConversation.messages,
-                        prompt: rootPrompt || updatedConversation.prompt,
-                        temperature: updatedConversation.temperature,
+                        prompt: rootPrompt || updatedConversation.prompt || "",
+                        temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
                         maxTokens: updatedConversation.maxTokens || 1000
                     };
 
@@ -330,25 +382,7 @@ export function useSendService() {
                             return;
                         }
                         if (!plugin) {
-                            if (updatedConversation.messages.length === 1) {
-                                const {content} = message;
-                                callRenameChatApi(content).then(customName => {
-                                    updatedConversation = {
-                                        ...updatedConversation,
-                                        name: customName, // Use the name returned by Lambda
-                                    };
-                                }).catch(error => {
-                                    console.error('Failed to rename conversation:', error);
-                                    // fallback to default naming convention
-                                    const {content} = message;
-                                    const customName =
-                                        content.length > 30 ? content.substring(0, 30) + '...' : content;
-                                    updatedConversation = {
-                                        ...updatedConversation,
-                                        name: customName,
-                                    };
-                                });
-                            }
+
 
                             homeDispatch({field: 'loading', value: false});
                             const reader = data.getReader();
@@ -460,20 +494,23 @@ export function useSendService() {
                                         value: updatedConversation,
                                     });
                                 } catch (error: any) {
-                                    saveConversation(updatedConversation);
-                                    const updatedConversations: Conversation[] = conversations.map(
-                                        (conversation) => {
-                                            if (conversation.id === selectedConversation.id) {
-                                                return updatedConversation;
-                                            }
-                                            return conversation;
-                                        },
-                                    );
-                                    if (updatedConversations.length === 0) {
-                                        updatedConversations.push(updatedConversation);
+                                    if (selectedConversation.isLocal) {
+                                        const updatedConversations: Conversation[] = conversationsRef.current.map(
+                                            (conversation:Conversation) => {
+                                                if (conversation.id === selectedConversation.id) {
+                                                    return conversationWithCompressedMessages(updatedConversation);
+                                                }
+                                                return conversation;
+                                            },
+                                        );
+                                        if (updatedConversations.length === 0) {
+                                            updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                                        }
+                                        homeDispatch({field: 'conversations', value: updatedConversations});
+                                        saveConversations(updatedConversations);
+                                    } else {
+                                        uploadConversation(updatedConversation, foldersRef.current);
                                     }
-                                    homeDispatch({field: 'conversations', value: updatedConversations});
-                                    saveConversations(updatedConversations);
                                     homeDispatch({field: 'messageIsStreaming', value: false});
                                     homeDispatch({field: 'loading', value: false});
                                     homeDispatch({field: 'status', value: []});
@@ -516,20 +553,23 @@ export function useSendService() {
                                 });
                             }
 
-                            saveConversation(updatedConversation);
-                            const updatedConversations: Conversation[] = conversations.map(
-                                (conversation) => {
-                                    if (conversation.id === selectedConversation.id) {
-                                        return updatedConversation;
-                                    }
-                                    return conversation;
-                                },
-                            );
-                            if (updatedConversations.length === 0) {
-                                updatedConversations.push(updatedConversation);
+                            if (selectedConversation.isLocal) {
+                                const updatedConversations: Conversation[] = conversationsRef.current.map(
+                                    (conversation:Conversation) => {
+                                        if (conversation.id === selectedConversation.id) {
+                                            return conversationWithCompressedMessages(updatedConversation);
+                                        }
+                                        return conversation;
+                                    },
+                                );
+                                if (updatedConversations.length === 0) {
+                                    updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                                }
+                                homeDispatch({field: 'conversations', value: updatedConversations});
+                                saveConversations(updatedConversations);
+                            } else {
+                                uploadConversation(updatedConversation, foldersRef.current);
                             }
-                            homeDispatch({field: 'conversations', value: updatedConversations});
-                            saveConversations(updatedConversations);
                             homeDispatch({field: 'messageIsStreaming', value: false});
 
                             resolve(text);
@@ -545,22 +585,26 @@ export function useSendService() {
                             };
                             homeDispatch({
                                 field: 'selectedConversation',
-                                value: updateConversation,
+                                value: updatedConversation,
                             });
-                            saveConversation(updatedConversation);
-                            const updatedConversations: Conversation[] = conversations.map(
-                                (conversation) => {
-                                    if (conversation.id === selectedConversation.id) {
-                                        return updatedConversation;
-                                    }
-                                    return conversation;
-                                },
-                            );
-                            if (updatedConversations.length === 0) {
-                                updatedConversations.push(updatedConversation);
+                            if (selectedConversation.isLocal) {
+                                
+                                const updatedConversations: Conversation[] = conversationsRef.current.map(
+                                    (conversation:Conversation) => {
+                                        if (conversation.id === selectedConversation.id) {
+                                            return conversationWithCompressedMessages(updatedConversation);
+                                        }
+                                        return conversation;
+                                    },
+                                );
+                                if (updatedConversations.length === 0) {
+                                    updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                                }
+                                homeDispatch({field: 'conversations', value: updatedConversations});
+                                saveConversations(updatedConversations);
+                            } else {
+                                uploadConversation(updatedConversation, foldersRef.current);
                             }
-                            homeDispatch({field: 'conversations', value: updatedConversations});
-                            saveConversations(updatedConversations);
                             homeDispatch({field: 'loading', value: false});
                             homeDispatch({field: 'messageIsStreaming', value: false});
 
@@ -587,7 +631,7 @@ export function useSendService() {
             });
         },
         [
-            conversations,
+            conversationsRef.current,
             selectedConversation
         ],
     );

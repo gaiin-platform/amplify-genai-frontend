@@ -1,4 +1,5 @@
 import { Conversation } from './chat';
+import { ConversationStorage } from './conversationStorage';
 import { FolderInterface } from './folder';
 import { Prompt } from './prompt';
 
@@ -14,4 +15,5 @@ export interface LocalStorage {
   // added showChatbar and showPromptbar (3/26/23)
   showChatbar: boolean;
   showPromptbar: boolean;
+  storageSelection: ConversationStorage;
 }

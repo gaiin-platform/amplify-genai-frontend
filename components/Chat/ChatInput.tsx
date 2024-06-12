@@ -19,7 +19,7 @@ import {
 } from 'react';
 
 import {useTranslation} from 'next-i18next';
-import {getPrompts, parsePromptVariables} from "@/utils/app/prompts";
+import {parsePromptVariables} from "@/utils/app/prompts";
 import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 import {Prompt} from '@/types/prompt';
@@ -73,10 +73,16 @@ export const ChatInput = ({
     const {killRequest} = useChatService();
 
     const {
-        state: {selectedConversation, selectedAssistant, messageIsStreaming, prompts, models, status, featureFlags, currentRequestId, chatEndpoint, statsService},
+        state: {selectedConversation, selectedAssistant, messageIsStreaming, prompts, models, featureFlags, currentRequestId, chatEndpoint, statsService},
 
         dispatch: homeDispatch
     } = useContext(HomeContext);
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
 
     const [content, setContent] = useState<string>();
     const [isTyping, setIsTyping] = useState<boolean>(false);
@@ -113,7 +119,7 @@ export const ChatInput = ({
 
     const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
 
-    const filteredPrompts = prompts.filter((prompt) =>
+    const filteredPrompts =  promptsRef.current.filter((prompt:Prompt) =>
         prompt.name.toLowerCase().includes(promptInputValue.toLowerCase()),
     );
 
@@ -147,8 +153,6 @@ const onAssistantChange = (assistant: Assistant) => {
         //remove duplicates if any
         selectedConversation.tags = Array.from(new Set(selectedConversation.tags));
 
-
-        const prompts: Prompt[] = localStorage ? getPrompts() : [];
         let assistantPrompt: Prompt | undefined = undefined;
         // Assistant creator is treated differently in the backend, so we need to treat it differently here
         // User defined assistants are retrieved and applied to the conversation in the back end as a UserDefinedAssistant whereas assistant creator is not user defined per say
@@ -156,10 +160,10 @@ const onAssistantChange = (assistant: Assistant) => {
         // where it creates a new conversation with the root prompt being the assistant creator. This is what is missing here.
         
         if (assistant.id === 'ast/assistant-builder') {
-            assistantPrompt = prompts.find(prompt => prompt.id === assistant.id);
+            assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt.id === assistant.id);
             selectedConversation.prompt += "\n\nCURRENT ASSISTANT CREATOR CUSTOM INSTRUCTIONS: " + assistantPrompt?.content + "Address only the Current Assistant Creator custom Instructions.";
         } else {  
-            assistantPrompt = prompts.find(prompt => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
+            assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
         }      
          //I do not get the impression that promptTemplates are currently used nonetheless the bases are covered in case they ever come into play (as taken into account in handleStartConversationWithPrompt)
         selectedConversation.promptTemplate = assistantPrompt ?? null;
@@ -201,7 +205,7 @@ const onAssistantChange = (assistant: Assistant) => {
         }
 
         // This prevents documents that were uploaded from being jammed into the prompt here
-        const toInsert = documents.filter(doc => !doc.key && doc.raw && doc.raw.length > 0);
+        const toInsert = documents.filter((doc:AttachedDocument) => !doc.key && doc.raw && doc.raw.length > 0);
 
         if (toInsert.length > 0) {
             content =
@@ -334,7 +338,7 @@ const onAssistantChange = (assistant: Assistant) => {
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 setActivePromptIndex((prevIndex) =>
-                    prevIndex < prompts.length - 1 ? prevIndex + 1 : prevIndex,
+                    prevIndex <  promptsRef.current.length - 1 ? prevIndex + 1 : prevIndex,
                 );
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
@@ -344,7 +348,7 @@ const onAssistantChange = (assistant: Assistant) => {
             } else if (e.key === 'Tab') {
                 e.preventDefault();
                 setActivePromptIndex((prevIndex) =>
-                    prevIndex < prompts.length - 1 ? prevIndex + 1 : 0,
+                    prevIndex <  promptsRef.current.length - 1 ? prevIndex + 1 : 0,
                 );
             } else if (e.key === 'Enter') {
                 e.preventDefault();
@@ -408,10 +412,8 @@ const onAssistantChange = (assistant: Assistant) => {
 
     useEffect(() => {
         if (prompts) {
-            const prompts: Prompt[] = getPrompts();
             const assistants = getAssistants(prompts);
             setAvailableAssistants(assistants);
-            
         }
     }, [prompts]);
 
@@ -533,9 +535,9 @@ const onAssistantChange = (assistant: Assistant) => {
             <div
                 className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
                
-               {!showScrollDownButton && !messageIsStreaming && featureFlags.inCognitoGroup && !showDataSourceSelector &&
+               {!showScrollDownButton && !messageIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
                (selectedConversation && selectedConversation.messages.length > 0) &&  (
-               <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert">
+               <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert  hover:text-neutral-900 dark:hover:text-neutral-100">
                 <button
                     className="mt-5 cursor-pointer border border-gray-300 dark:border-gray-600 rounded px-2 py-1"
                     style={{ fontSize: '0.9rem' }} 
