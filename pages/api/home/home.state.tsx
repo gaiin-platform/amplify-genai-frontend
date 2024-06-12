@@ -124,6 +124,7 @@ export const initialState: HomeInitialState = {
     codeInterpreterEnabled: true,
     dataDisclosure: false,
     storeCloudConversations: true,
+    qiSummary: false,
   },
 
   statsService: noOpStatsServices,
