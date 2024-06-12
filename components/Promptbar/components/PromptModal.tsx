@@ -43,6 +43,12 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
     state: { featureFlags, prompts },
   } = useContext(HomeContext);
 
+  const promptsRef = useRef(prompts);
+
+  useEffect(() => {
+      promptsRef.current = prompts;
+    }, [prompts]);
+
   let workflowRoot:Prompt = {
     id: "default",
     name: "Default custom instructions",
@@ -52,11 +58,11 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
     folderId: null,
   };
 
-  let rootPrompts = [workflowRoot, ...prompts.filter((p) => p.type === MessageType.ROOT)];
+  let rootPrompts = [workflowRoot, ...promptsRef.current.filter((p: Prompt) => p.type === MessageType.ROOT)];
 
   if(rootPrompts.length > 0) {
     workflowRoot =
-        rootPrompts.filter(p => p.id === prompt.data?.rootPromptId)[0]
+        rootPrompts.filter((p:Prompt) => p.id === prompt.data?.rootPromptId)[0]
         || rootPrompts[0];
   }
 
@@ -93,7 +99,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
 
   const handleUpdateRootPrompt = (rootPromptId:string) => {
     try {
-      let root = rootPrompts.filter((p) => p.id === rootPromptId)[0];
+      let root = rootPrompts.filter((p:Prompt) => p.id === rootPromptId)[0];
       setRootPrompt(root);
     }catch (e) {
     }

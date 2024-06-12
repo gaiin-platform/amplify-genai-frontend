@@ -256,7 +256,8 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
             } catch (e) {
                 controller.error(e);
             } finally {
-                reader.releaseLock();
+                await reader.cancel();
+                reader.releaseLock(); 
             }
 
             controller.close();

@@ -3,10 +3,7 @@ import {
     IconSettings,
     IconShare,
     IconDownload,
-    IconHome2,
-    IconHome,
     IconRocket,
-    IconArrowUp
 } from '@tabler/icons-react';
 import {
     MutableRefObject,
@@ -20,10 +17,7 @@ import {
 
 import {useTranslation} from 'next-i18next';
 
-import {
-    saveConversation,
-    saveConversations,
-} from '@/utils/app/conversation';
+import { saveConversations} from '@/utils/app/conversation';
 import {throttle} from '@/utils/data/throttle';
 
 import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
@@ -40,7 +34,7 @@ import {SystemPrompt} from './SystemPrompt';
 import {TemperatureSlider} from './Temperature';
 import {MemoizedChatMessage} from './MemoizedChatMessage';
 import {VariableModal} from "@/components/Chat/VariableModal";
-import {getPrompts, parseEditableVariables} from "@/utils/app/prompts";
+import {parseEditableVariables} from "@/utils/app/prompts";
 import {v4 as uuidv4} from 'uuid';
 import {fillInTemplate} from "@/utils/app/prompts";
 import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
@@ -56,6 +50,9 @@ import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
 import {useSendService} from "@/hooks/useChatSendService";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import {CloudStorage} from './CloudStorage';
+import { getIsLocalStorageSelection, isRemoteConversation } from '@/utils/app/conversationStorage';
+import { deleteRemoteConversation } from '@/services/remoteConversationService';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -90,12 +87,28 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 defaultModelId,
                 workspaceMetadata,
                 statsService,
+                featureFlags,
+                storageSelection
             },
             handleUpdateConversation,
             handleCustomLinkClick,
             dispatch: homeDispatch,
             handleAddMessages: handleAddMessages
         } = useContext(HomeContext);
+
+        const promptsRef = useRef(prompts);
+
+        useEffect(() => {
+            promptsRef.current = prompts;
+          }, [prompts]);
+    
+    
+        const conversationsRef = useRef(conversations);
+    
+        useEffect(() => {
+            conversationsRef.current = conversations;
+        }, [conversations]);
+    
 
         const {handleSend:handleSendService} = useSendService();
 
@@ -138,9 +151,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 value: updatedConversation,
             });
 
-            saveConversation(updatedConversation);
-            const updatedConversations: Conversation[] = conversations.map(
-                (conversation) => {
+            const updatedConversations: Conversation[] = conversationsRef.current.map(
+                (conversation:Conversation) => {
                     if (conversation.id === selectedConversation.id) {
                         return updatedConversation;
                     }
@@ -259,7 +271,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     } else if (action === "template") {
                         const name = path;
 
-                        const prompt = prompts.find((p) => p.name === name);
+                        const prompt = promptsRef.current.find((p:Prompt) => p.name === name);
 
                         if (prompt) {
                             runPrompt(prompt);
@@ -595,8 +607,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, [selectedConversation, throttledScrollDown]);
 
         const handleDeleteConversation = (conversation: Conversation) => {
-            const updatedConversations = conversations.filter(
-                (c) => c.id !== conversation.id,
+            if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
+            const updatedConversations = conversationsRef.current.filter(
+                (c:Conversation) => c.id !== conversation.id,
             );
 
             homeDispatch({field: 'conversations', value: updatedConversations});
@@ -609,7 +622,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     value: updatedConversations[updatedConversations.length - 1],
                 });
 
-                saveConversation(updatedConversations[updatedConversations.length - 1]);
             } else {
                 defaultModelId &&
                 homeDispatch({
@@ -618,10 +630,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         id: uuidv4(),
                         name: t('New Conversation'),
                         messages: [],
-                        model: OpenAIModels[defaultModelId],
+                        model: OpenAIModels[defaultModelId as OpenAIModelID],
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
+                        isLocal: getIsLocalStorageSelection(storageSelection)
                     },
                 });
 
@@ -639,8 +652,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
         useEffect(() => {
-
-            const prompts: Prompt[] = localStorage ? getPrompts() : [];
             if (selectedConversation
                 && selectedConversation.promptTemplate
                 && isAssistant(selectedConversation.promptTemplate)
@@ -649,14 +660,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
                     // make sure assistant hasnt been deleted 
-                    if (prompts.some(prompt => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
+                    if (prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
             else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
                     // make sure assistant hasnt been deleted 
-                    if (prompts.some(prompt => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
+                    if (prompts.some((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
@@ -707,7 +718,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             ref={chatContainerRef}
                             onScroll={handleScroll}
                         >
-                            {selectedConversation?.messages.length === 0 ? (
+                            {selectedConversation && selectedConversation?.messages.length === 0 ? (
                                 <>
                                     <div
                                         className="mx-auto flex flex-col space-y-5 md:space-y-10 px-3 pt-5 md:pt-12 sm:max-w-[600px]">
@@ -725,13 +736,24 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         {models.length > 0 && (
                                             <div
                                                 className="flex h-full flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600">
-                                                <ModelSelect/>
+                                                
+                                                <div className="relative flex flex-row w-full items-center"> 
+                                                    <div className="flex-grow">
+                                                        <ModelSelect/>
+                                                    </div>
 
+                                                    {featureFlags.storeCloudConversations && <div className="mt-[-5px] absolute top-0 right-0 flex justify-end items-center">
+                                                        <CloudStorage iconSize={20} />
+                                                    </div>}
+                                                    
+                                                </div>
+                                                
+                                                
                                                 <SystemPrompt
                                                     models={models}
                                                     handleUpdateModel={handleUpdateModel}
                                                     conversation={selectedConversation}
-                                                    prompts={prompts}
+                                                    prompts={promptsRef.current}
                                                     onChangePrompt={(prompt) =>
                                                         handleUpdateConversation(selectedConversation, {
                                                             key: 'prompt',
@@ -870,6 +892,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         >
                                             <IconDownload size={18}/>
                                         </button>
+                                        {featureFlags.storeCloudConversations &&
+                                        <CloudStorage iconSize={18} />
+                                        }
+
                                         |
                                         <button
                                             className="ml-2 mr-2 cursor-pointer hover:opacity-50"
@@ -881,7 +907,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             title="Files"
                                         >
                                             <div className="flex flex-row items-center ml-2
-                                            bg-[#00BFFF] rounded-lg text-gray-600 p-1">
+                                            bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
                                                 <div><IconRocket size={18}/></div>
                                                 <div className="ml-1">Files </div>
                                             </div>
@@ -919,7 +945,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     </div>
 
 
-                                    {selectedConversation?.messages.map((message, index) => (
+                                    {selectedConversation?.messages.map((message: Message, index: number) => (
                                         (message.type === MessageType.REMOTE) ?
                                             <MemoizedRemoteMessages
                                                 key={index}
@@ -1021,6 +1047,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 )}
             </div>
         );
-    })
-;
+    });
+    
 Chat.displayName = 'Chat';

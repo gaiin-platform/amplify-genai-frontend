@@ -1,11 +1,6 @@
-import { FC, useContext, useState } from 'react';
+import { FC, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
-
-import { DEFAULT_TEMPERATURE } from '@/utils/app/const';
-
-import HomeContext from '@/pages/api/home/home.context';
-import {OpenAIModelID, OpenAIModels} from "@/types/openai";
 
 interface Props {
   label: string;
@@ -15,9 +10,6 @@ interface Props {
 export const ResponseTokensSlider: FC<Props> = ({
   label, onResponseTokenRatioChange,
 }) => {
-  const {
-    state: { conversations },
-  } = useContext(HomeContext);
 
 
   const [responseTokenRatio, setResponseTokenRatio] = useState(

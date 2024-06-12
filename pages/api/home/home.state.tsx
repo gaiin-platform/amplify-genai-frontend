@@ -1,6 +1,6 @@
 import { Conversation, Message } from '@/types/chat';
 import { ErrorMessage } from '@/types/error';
-import { FolderInterface, SortType } from '@/types/folder';
+import { FolderInterface} from '@/types/folder';
 import { OpenAIModel, OpenAIModelID } from '@/types/openai';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
@@ -11,6 +11,7 @@ import { Assistant } from "@/types/assistant";
 import { noOpStatsServices, StatsServices } from "@/types/stats";
 import { Account } from "@/types/accounts";
 import {Op} from "@/types/op";
+import {CheckItemType} from "@/types/checkItem";
 
 
 type HandleSend = (request: any) => void;
@@ -51,14 +52,12 @@ export interface HomeInitialState {
   inputEmail: string;
   hasAcceptedDataDisclosure: boolean | null;
   hasScrolledToBottom: boolean;
+  storageSelection: string | null;
   ops: { [key: string]: Op };
-  checkFolders: boolean;
   allFoldersOpenConvs: boolean;
-  checkConversations: boolean;
-  convFolderSort: SortType;
   allFoldersOpenPrompts: boolean;
-  checkPrompts: boolean;
-  promptFolderSort: SortType;
+  checkedItems: Array<any>;
+  checkingItemType: CheckItemType | null;
 }
 
 export const initialState: HomeInitialState = {
@@ -74,10 +73,8 @@ export const initialState: HomeInitialState = {
   models: [],
   folders: [],
   conversations: [],
+  workflows: [],
   ops: {},
-  workflows: [
-
-  ],
   workspaceMetadata: {
     name: '',
     description: '',
@@ -126,7 +123,8 @@ export const initialState: HomeInitialState = {
     automation: true,
     codeInterpreterEnabled: true,
     dataDisclosure: false,
-    inCognitoGroup: true
+    storeCloudConversations: true,
+    qiSummary: true,
   },
 
   statsService: noOpStatsServices,
@@ -136,12 +134,9 @@ export const initialState: HomeInitialState = {
   inputEmail: '',
   hasAcceptedDataDisclosure: null,
   hasScrolledToBottom: false,
-  checkFolders: false,
+  storageSelection: null,
   allFoldersOpenConvs: false,
-  checkConversations: false,
-  convFolderSort: 'date',
   allFoldersOpenPrompts: false,
-  checkPrompts: false,
-  promptFolderSort: 'name'
-
+  checkedItems: [],
+  checkingItemType: null
 };

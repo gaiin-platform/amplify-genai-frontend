@@ -8,6 +8,11 @@ import { SettingsBar } from "@/components/Settings/SettingsBar";
 import useErrorService from '@/services/errorService';
 import useApiService from '@/services/useApiService';
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
+import { getIsLocalStorageSelection, isRemoteConversation, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
+import cloneDeep from 'lodash/cloneDeep';
+import {styled} from "styled-components";
+import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+
 
 import {
     cleanConversationHistory,
@@ -15,16 +20,17 @@ import {
 } from '@/utils/app/clean';
 import { AVAILABLE_MODELS, DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
 import {
-    saveConversation,
     saveConversations,
     saveConversationDirect,
     saveConversationsDirect,
     updateConversation,
+    compressAllConversationMessages,
+    conversationWithUncompressedMessages,
 } from '@/utils/app/conversation';
-import { getFolders, saveFolders } from '@/utils/app/folders';
-import { getPrompts, savePrompts } from '@/utils/app/prompts';
+import { saveFolders } from '@/utils/app/folders';
+import { savePrompts } from '@/utils/app/prompts';
 import { getSettings } from '@/utils/app/settings';
-import { fetchInCognitoGroup, getAccounts } from "@/services/accountService";
+import { getAccounts } from "@/services/accountService";
 
 import { Conversation, Message, MessageType, newMessage } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
@@ -41,19 +47,16 @@ import {
     Icon3dCubeSphere,
     IconTournament,
     IconShare,
-    IconApiApp,
     IconMessage,
     IconSettings,
-    IconBook2
 } from "@tabler/icons-react";
-import { IconUser, IconLogout } from "@tabler/icons-react";
-import HomeContext, { ClickContext, Processor } from './home.context';
-import { HomeInitialState, initialState } from './home.state';
+import { IconLogout } from "@tabler/icons-react";
+
+import { initialState } from './home.state';
 import useEventService from "@/hooks/useEventService";
 import { v4 as uuidv4 } from 'uuid';
 
 
-import styled from "styled-components";
 import { WorkflowDefinition } from "@/types/workflow";
 import { saveWorkflowDefinitions } from "@/utils/app/workflows";
 import SharedItemsList from "@/components/Share/SharedItemList";
@@ -70,7 +73,12 @@ import { MyHome } from "@/components/My/MyHome";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { listAssistants } from '@/services/assistantService';
 import { syncAssistants } from '@/utils/app/assistants';
+import { deleteRemoteConversation, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import {killRequest as killReq} from "@/services/chatService";
+import Folder from '@/components/Folder';
+import { DefaultUser } from 'next-auth';
+import { addDateAttribute, getDate, getDateName } from '@/utils/app/date';
+import HomeContext, {  ClickContext, Processor } from './home.context';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -78,10 +86,13 @@ const LoadingIcon = styled(Icon3dCubeSphere)`
   width: 150px;
 `;
 
+
 interface Props {
     defaultModelId: OpenAIModelID;
-    cognitoClientId: string | null;
+    
+  ClientId: string | null;
     cognitoDomain: string | null;
+    cognitoClientId: string | null;
     mixPanelToken: string;
     chatEndpoint: string | null;
     availableModels: string | null;
@@ -103,10 +114,12 @@ const Home = ({
     const [loadedAssistants, setloadedAssistants] = useState<boolean>(false);
     const [loadedBasePrompts, setloadedBasePrompts] = useState<boolean>(false);
     const [loadedAccounts, setloadedAccounts] = useState<boolean>(false);
-
+    const [initialRemoteCall, setInitialRemoteCall] = useState<boolean>(true);
+    const [loadingSelectedConv, setLoadingSelectedConv] = useState<boolean>(false);
+    const [loadingAmplify, setLoadingAmplify] = useState<boolean>(true);
     const { data: session, status } = useSession();
-    //const {user, error: userError, isLoading} = useUser();
-    const user = session?.user;
+    const [user, setUser] = useState<DefaultUser | null>(null);
+
     const email = user?.email;
     const isLoading = status === "loading";
     const userError = null;
@@ -138,18 +151,52 @@ const Home = ({
             hasAcceptedDataDisclosure,
             hasScrolledToBottom,
             featureFlags,
+            storageSelection
+
         },
         dispatch,
     } = contextValue;
 
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
+
+
+    const conversationsRef = useRef(conversations);
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
+
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
+
     const stopConversationRef = useRef<boolean>(false);
+
+    useEffect (() => {
+        if (!user && session?.user) setUser(session?.user as DefaultUser);
+    }, [session])
 
     useEffect(() => {
         // @ts-ignore
         if (session?.error === "RefreshAccessTokenError") {
             signOut();
+            setUser(null);
         }
         else {
+            const syncConversations = async () => {
+                setInitialRemoteCall(false);
+                await updateWithRemoteConversations(conversationsRef.current, foldersRef.current, dispatch);
+                setLoadingAmplify(false);
+            }
+
             const fetchAccounts = async () => {
                 const response = await getAccounts();
                 if (response.success) {
@@ -157,23 +204,25 @@ const Home = ({
                     if (defaultAccount) {
                         dispatch({ field: 'defaultAccount', value: defaultAccount });
                     }
-                    setloadedAccounts(true);
+                    setloadedAccounts(true);  
+                    if (featureFlags.storeCloudConversations && initialRemoteCall) syncConversations(); 
                 }
             };
 
-            if (!loadedAccounts) {
+            if (!loadedAccounts && session?.user) {
                 fetchAccounts();
+                console.log("FETCH ACCOUNTS")
             }
         }
 
-    }, [session]);
+    }, [user]);
 
     useEffect(() => {
         const fetchPrompts = async () => {
             try {
                 const basePrompts = await getBasePrompts();
                 if (basePrompts.success) {
-                    const { history, folders, prompts }: LatestExportFormat = importData(basePrompts.data);
+                    const { history, folders, prompts }: LatestExportFormat = importData(basePrompts.data, conversationsRef.current, promptsRef.current, foldersRef.current);
 
                     dispatch({ field: 'conversations', value: history });
                     dispatch({ field: 'folders', value: folders });
@@ -183,7 +232,7 @@ const Home = ({
 
                 } else {
                     console.log("Failed to import base prompts.");
-                    await fetchAssistants(getFolders(), getPrompts());
+                    await fetchAssistants(foldersRef.current, promptsRef.current);
                     // so when baseprompts do load, we can sync them up 
                     setloadedAssistants(false);
 
@@ -201,14 +250,15 @@ const Home = ({
                 if (assistants) {
                     syncAssistants(assistants, folders, prompts, dispatch);
                     setloadedAssistants(true);
+                    setLoadingAmplify(false);
                 }
             }
         }
 
-        if (session?.user ) {
+        if (session?.user) {
             if (!loadedBasePrompts) fetchPrompts();
         }
-    }, [session]);
+    }, [user]);
 
 
     // This is where tabs will be sync'd
@@ -267,33 +317,57 @@ const Home = ({
         if (chatEndpoint) dispatch({ field: 'chatEndpoint', value: chatEndpoint });
     }, [chatEndpoint]);
 
-    const handleSelectConversation = (conversation: Conversation) => {
-        const prompts: Prompt[] = localStorage ? getPrompts() : [];
-        // add last used assistant if there was one used else should be removed
-        if (conversation.messages && conversation.messages.length > 0) {
-            const lastMessage: Message = conversation.messages[conversation.messages.length - 1];
+    const handleSelectConversation = async (conversation: Conversation) => {
+        // if we click on the conversation we are already on, then dont do anything
+        if (selectedConversation && (conversation.id === selectedConversation.id)) return;
+        //loading 
+        //old conversations that do not have IsLocal are automatically local
+        if (!('isLocal' in conversation)) {
+            conversation.isLocal = true;
+        }
 
+        setLoadingSelectedConv(true);
+        let newSelectedConv = null;
+        // check if it isLocal? if not get the conversation from s3
+        if (isRemoteConversation(conversation)) { 
+            const remoteConversation = await fetchRemoteConversation(conversation.id, conversationsRef.current, dispatch);
+            if (remoteConversation) {
+                newSelectedConv = remoteConversation;
+            }
+        } else {
+            newSelectedConv = conversationWithUncompressedMessages(cloneDeep(conversation));
+        }
+        setLoadingSelectedConv(false);
+
+        // not in use
+        // // Before changing the selected conversation, we must sync the conversation with teh cloud conversation
+        // // selectedConversation should always have isLocal attribute
+        // if (selectedConversation && !selectedConversation.isLocal) syncCloudConversation(selectedConversation, conversations, dispatch);
+
+        if (newSelectedConv) {
+        //add last used assistant if there was one used else should be removed
+        if (newSelectedConv.messages && newSelectedConv.messages.length > 0) {
+            const lastMessage: Message = newSelectedConv.messages[newSelectedConv.messages.length - 1];
             if (lastMessage.data && lastMessage.data.state && lastMessage.data.state.currentAssistant) {
                 const astName = lastMessage.data.state.currentAssistant;
-                const assistantPrompt = prompts.find(prompt => prompt.name === astName);
+                const assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt.name === astName);
                 const assistant = assistantPrompt?.data?.assistant ? assistantPrompt.data.assistant : DEFAULT_ASSISTANT;
-
                 dispatch({ field: 'selectedAssistant', value: assistant });
             }
-        }
-        else {
+        } else {
             dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
         }
 
-
         dispatch({ field: 'page', value: 'chat' })
-        dispatch({
-            field: 'selectedConversation',
-            value: conversation,
-        });
 
-        saveConversation(conversation);
+        dispatch({  field: 'selectedConversation',
+                    value: newSelectedConv
+                });
+        }
     };
+
+
+
 
     // Feature OPERATIONS  --------------------------------------------
 
@@ -347,18 +421,16 @@ const Home = ({
         }, 1000);
     };
 
-    const handleCreateFolder = (name: string, type: FolderType) => {
-        //console.log("handleCreateFolder", name, type);
+    const handleCreateFolder = (name: string, type: FolderType):FolderInterface => {
 
         const newFolder: FolderInterface = {
             id: uuidv4(),
-            date: new Date().toISOString().slice(0, 10),
+            date: getDate(),
             name,
             type,
         };
 
-        const folders: FolderInterface[] = getFolders();
-        const updatedFolders = [...folders, newFolder];
+        const updatedFolders = [...foldersRef.current, newFolder];
 
         dispatch({ field: 'folders', value: updatedFolders });
         saveFolders(updatedFolders);
@@ -367,27 +439,27 @@ const Home = ({
     };
 
     const handleDeleteFolder = (folderId: string) => {
-        const folders: FolderInterface[] = getFolders();
 
-        const updatedFolders = folders.filter((f) => f.id !== folderId);
+        const updatedFolders = foldersRef.current.filter((f:FolderInterface) => (f.id !== folderId));
         dispatch({ field: 'folders', value: updatedFolders });
         saveFolders(updatedFolders);
 
-        const updatedConversations = conversations.reduce<Conversation[]>((acc, c) => {
-            if (c.folderId === folderId) {
-                statsService.deleteConversationEvent(c);
-            } else {
-                acc.push(c);
-            }
-            return acc;
-        }, []);
+        const updatedConversations = conversationsRef.current.reduce((acc: Conversation[], c:Conversation) => {
+                                        if (c.folderId === folderId) {
+                                            statsService.deleteConversationEvent(c);
+                                            if (isRemoteConversation(c)) deleteRemoteConversation(c.id);
+                                        } else {
+                                            acc.push(c);
+                                        }
+                                        return acc;
+                                    }, [] as Conversation[]);
 
         dispatch({ field: 'conversations', value: updatedConversations });
-        localStorage.setItem('conversationHistory', JSON.stringify(updatedConversations));
+        saveConversations(updatedConversations);
 
         if (updatedConversations.length > 0) {
             const selectedNotDeleted = selectedConversation ?
-                updatedConversations.some(conversation =>
+                updatedConversations.some((conversation:Conversation) =>
                     conversation.id === selectedConversation.id) : false;
             if (!selectedNotDeleted) { // was deleted
                 const newSelectedConversation = updatedConversations[updatedConversations.length - 1];
@@ -395,7 +467,6 @@ const Home = ({
                     field: 'selectedConversation',
                     value: newSelectedConversation,
                 });
-                saveConversation(newSelectedConversation);
                 localStorage.setItem('selectedConversation', JSON.stringify(newSelectedConversation));
             }
 
@@ -411,13 +482,15 @@ const Home = ({
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
+                        isLocal: getIsLocalStorageSelection(storageSelection)
+
                     },
                 });
 
             localStorage.removeItem('selectedConversation');
         }
 
-        const updatedPrompts: Prompt[] = prompts.map((p) => {
+        const updatedPrompts: Prompt[] =  promptsRef.current.map((p:Prompt) => {
             if (p.folderId === folderId) {
                 return {
                     ...p,
@@ -431,14 +504,13 @@ const Home = ({
         dispatch({ field: 'prompts', value: updatedPrompts });
         savePrompts(updatedPrompts);
 
-        const updatedWorkflows: WorkflowDefinition[] = workflows.map((p) => {
+        const updatedWorkflows: WorkflowDefinition[] = workflows.map((p:WorkflowDefinition) => {
             if (p.folderId === folderId) {
                 return {
                     ...p,
                     folderId: null,
                 };
             }
-
             return p;
         });
 
@@ -447,8 +519,7 @@ const Home = ({
     };
 
     const handleUpdateFolder = (folderId: string, name: string) => {
-        const folders: FolderInterface[] = getFolders();
-        const updatedFolders = folders.map((f) => {
+        const updatedFolders = foldersRef.current.map((f:FolderInterface) => {
             if (f.id === folderId) {
                 return {
                     ...f,
@@ -466,27 +537,17 @@ const Home = ({
 
     // CONVERSATION OPERATIONS  --------------------------------------------
 
-    const handleNewConversation = (params = {}) => {
+    const handleNewConversation = async (params = {}) => {
         dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
         dispatch({ field: 'page', value: 'chat' })
 
-        const conversations = JSON.parse(localStorage.getItem("conversationHistory") || '[]')
-
-        const lastConversation = conversations ? conversations[conversations.length - 1] : null;
+        const lastConversation = conversationsRef.current[conversationsRef.current.length - 1];
 
         // Create a string for the current date like Oct-18-2021
-        const date = new Date().toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-        });
-
-        const folders: FolderInterface[] = getFolders();
+        const date = getDateName();
 
         // See if there is a folder with the same name as the date
-        let folder = folders.find((f) => f.name === date);
-
-        console.log("handleNewConversation", { date, folder });
+        let folder = foldersRef.current.find((f:FolderInterface) => f.name === date);
 
         if (!folder) {
             folder = handleCreateFolder(date, "chat");
@@ -506,18 +567,18 @@ const Home = ({
             temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
             folderId: folder.id,
             promptTemplate: null,
+            isLocal: getIsLocalStorageSelection(storageSelection),
             ...params
         };
+        if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);
 
         statsService.newConversationEvent();
 
-        const updatedConversations = [...conversations, newConversation];
+        const updatedConversations = [...conversationsRef.current, newConversation];
 
         dispatch({ field: 'selectedConversation', value: newConversation });
         dispatch({ field: 'conversations', value: updatedConversations });
 
-
-        saveConversation(newConversation);
         saveConversations(updatedConversations);
 
         dispatch({ field: 'loading', value: false });
@@ -551,33 +612,28 @@ const Home = ({
 
         const { single, all } = updateConversation(
             updatedConversation,
-            conversations, //
+            conversationsRef.current, 
         );
 
-        dispatch({ field: 'selectedConversation', value: single });
+        if ((selectedConversation && selectedConversation.id) === updatedConversation.id) {
+            dispatch({field: 'selectedConversation', value: conversationWithUncompressedMessages(single)});
+        }
+
+        if (isRemoteConversation(updatedConversation)) uploadConversation(conversationWithUncompressedMessages(single), foldersRef.current);
+       
         dispatch({ field: 'conversations', value: all });
     };
 
     const clearWorkspace = async () => {
-        await dispatch({ field: 'conversations', value: [] });
-        await dispatch({ field: 'prompts', value: [] });
-        await dispatch({ field: 'folders', value: [] });
+        dispatch({ field: 'conversations', value: [] });
+        dispatch({ field: 'prompts', value: [] });
+        dispatch({ field: 'folders', value: [] });
 
-        saveConversation({
-            id: uuidv4(),
-            name: t('New Conversation'),
-            messages: [],
-            model: OpenAIModels[defaultModelId],
-            prompt: DEFAULT_SYSTEM_PROMPT,
-            temperature: DEFAULT_TEMPERATURE,
-            folderId: null,
-            promptTemplate: null
-        });
         saveConversations([]);
         saveFolders([]);
         savePrompts([]);
 
-        await dispatch({ field: 'selectedConversation', value: null });
+        dispatch({ field: 'selectedConversation', value: null });
     }
 
     useEffect(() => {
@@ -589,7 +645,7 @@ const Home = ({
             if (selectedConversation) {
                 saveConversationDirect(selectedConversation);
             }
-            saveConversationsDirect(conversations);
+            saveConversationsDirect(conversationsRef.current);
         }
     }, [conversationStateId]);
 
@@ -612,7 +668,7 @@ const Home = ({
     //     if(session?.user) {
     //        getOps();
     //     }
-    // }, [session]);
+    // }, [user]);
 
     const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
         if (selectedConversation) {
@@ -627,37 +683,7 @@ const Home = ({
                 }
             )
         }
-        // if (selectedConversation) {
-        //
-        //     const updatedMessages = [
-        //         ...selectedConversation.messages,
-        //         ...messages
-        //     ];
-        //
-        //     let updatedConversation = {
-        //         ...selectedConversation,
-        //         messages: updatedMessages,
-        //     };
-        //
-        //     await dispatch({
-        //         field: 'selectedConversation',
-        //         value: updatedConversation
-        //     });
-        //
-        //     saveConversation(updatedConversation);
-        //     const updatedConversations = conversations.map(
-        //         (conversation) => {
-        //             if (conversation.id === selectedConversation.id) {
-        //                 return updatedConversation;
-        //             }
-        //             return conversation;
-        //         },
-        //     );
-        //     if (updatedConversations.length === 0) {
-        //         updatedConversations.push(updatedConversation);
-        //     }
-        //     await dispatch({field: 'conversations', value: updatedConversations});
-        // }
+
 
     };
 
@@ -708,6 +734,10 @@ const Home = ({
             dispatch({ field: 'showPromptbar', value: showPromptbar === 'true' });
         }
 
+        const storageSelection = localStorage.getItem('storageSelection');
+        if (storageSelection) {
+            dispatch({field: 'storageSelection', value: storageSelection});
+        }
 
         const prompts = localStorage.getItem('prompts');
         if (prompts) {
@@ -722,21 +752,23 @@ const Home = ({
         const folders = localStorage.getItem('folders');
         const foldersParsed = JSON.parse(folders ? folders : '[]')
         if (folders) {
+            // for older folders with no date, if it can be transform to the correct format then we add the date attribte
+            foldersParsed.map((folder:FolderInterface) => {
+                return "date" in folder ? folder : addDateAttribute(folder);
+            })
             dispatch({ field: 'folders', value: foldersParsed });
         }
 
 
         // Create a string for the current date like Oct-18-2021
-        const dateName = new Date().toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-        });
+        const dateName = getDateName();
 
-
-        //localStorage.setItem('conversationHistory', '[]')
         const conversationHistory = localStorage.getItem('conversationHistory');
-        const conversations: Conversation[] = JSON.parse(conversationHistory ? conversationHistory : '[]');
+        let conversations: Conversation[] = JSON.parse(conversationHistory ? conversationHistory : '[]');
+        //ensure all conversation messagea are compressed 
+        conversations = compressAllConversationMessages(conversations);
+
+        // call fetach all conversations 
         const lastConversation: Conversation | null = (conversations.length > 0) ? conversations[conversations.length - 1] : null;
         const lastConversationFolder: FolderInterface | null = lastConversation && foldersParsed ? foldersParsed.find((f: FolderInterface) => f.id === lastConversation.folderId) : null;
 
@@ -750,7 +782,7 @@ const Home = ({
             if (!folder) {
                 const newFolder: FolderInterface = {
                     id: uuidv4(),
-                    date: new Date().toISOString().slice(0, 10),
+                    date: getDate(),
                     name: dateName,
                     type: "chat"
                 };
@@ -771,8 +803,11 @@ const Home = ({
                 prompt: DEFAULT_SYSTEM_PROMPT,
                 temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
                 folderId: folder.id,
-                promptTemplate: null
+                promptTemplate: null,
+                isLocal: getIsLocalStorageSelection(storageSelection)
             };
+
+            if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);
             // Ensure the new conversation is added to the list of conversationHistory
             conversations.push(newConversation);
 
@@ -787,7 +822,7 @@ const Home = ({
             const cleanedConversationHistory = cleanConversationHistory(conversations);
 
             dispatch({ field: 'conversations', value: cleanedConversationHistory });
-            localStorage.setItem('conversationHistory', JSON.stringify(cleanedConversationHistory))
+            saveConversations(cleanedConversationHistory)
         }
 
         dispatch({
@@ -1112,6 +1147,9 @@ const Home = ({
                             </TabSidebar>
 
                         </div>
+
+                        <LoadingDialog open={loadingSelectedConv} message={"Loading Conversation..."}/>
+                        <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
                     </main>
                 )}
 
@@ -1183,9 +1221,8 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
 
 
 
-    const googleApiKey = process.env.GOOGLE_API_KEY;
-    const googleCSEId = process.env.GOOGLE_CSE_ID;
-
+    // const googleApiKey = process.env.GOOGLE_API_KEY;
+    // const googleCSEId = process.env.GOOGLE_CSE_ID;
     // if (googleApiKey && googleCSEId) {
     //     serverSidePluginKeysSet = true;
     // }
