@@ -28,7 +28,7 @@ const ChatCodeInterpreterFileBlock: React.FC<Props> = (
     }) => {
 
     const files = (message.codeInterpreterMessageData?.content) ? message.codeInterpreterMessageData.content : [];
-
+   
     if(Object.keys(files).length === 0 || messageIsStreaming){
         return <></>;
     }

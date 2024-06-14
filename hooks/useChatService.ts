@@ -2,7 +2,7 @@
 import {incrementalJSONtoCSV} from "@/utils/app/incrementalCsvParser";
 import {useContext} from 'react';
 import HomeContext from '@/pages/api/home/home.context';
-import {killRequest as killReq, MetaHandler, sendChatRequest as send, sendChatRequestWithDocuments} from '../services/chatService';
+import {killRequest as killReq, MetaHandler, sendChatRequestWithDocuments} from '../services/chatService';
 import {ChatBody, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
 import {Plugin} from '@/types/plugin';
@@ -10,12 +10,12 @@ import {wrapResponse, stringChunkCallback} from "@/utils/app/responseWrapper";
 
 import {getSession} from "next-auth/react"
 import json5 from "json5";
-import {OpenAIModels} from "@/types/openai";
+import {OpenAIModelID, OpenAIModels} from "@/types/openai";
 import {newStatus} from "@/types/workflow";
 
 export function useChatService() {
     const {
-        state: {apiKey, statsService, chatEndpoint, defaultAccount, defaultModelId},
+        state: {statsService, chatEndpoint, defaultAccount, defaultModelId},
         preProcessingCallbacks,
         postProcessingCallbacks,
         dispatch,
@@ -113,7 +113,7 @@ export function useChatService() {
         statsService.sendChatEvent(chatBody);
 
         preProcessingCallbacks.forEach(callback => callback({plugin: plugin, chatBody: chatBody}));
-        //let response = send(apiKey, chatBody, plugin, abortSignal);
+    
 
         let response = null;
 
@@ -154,7 +154,12 @@ export function useChatService() {
             // @ts-ignore
             return sendChatRequestWithDocuments(targetEndpoint, session.accessToken, chatBody, plugin, abortSignal, metaHandler);
         }).catch((e) => {
-            alert("The chat service is currently unavailable. Please try again in a minute.");
+            if(chatBody.assistantId){
+                alert("The assistant you sent the message to is currently unavailable. Please try again in a minute.");
+            }
+            else {
+                alert("The chat service is currently unavailable. Please try again in a minute.");
+            }
             console.error(e);
             return Promise.reject(e);
         });
@@ -198,9 +203,9 @@ export function useChatService() {
     const routeChatRequest = async (chatBody: ChatBody, plugin?: Plugin | null, abortSignal?: AbortSignal) => {
         const message = chatBody.messages.slice(-1)[0];
 
-        chatBody.key = apiKey;
+        
         if (!chatBody.model && defaultModelId) {
-            chatBody.model = OpenAIModels[defaultModelId];
+            chatBody.model = OpenAIModels[defaultModelId as OpenAIModelID];
         }
 
         const {prefix, body, options} = parseMessageType(message.content || "");
@@ -208,7 +213,7 @@ export function useChatService() {
         let updated = {...message, content: body};
         chatBody.messages = [...chatBody.messages.slice(0, -1), updated];
 
-        console.log(`Prompt:`, {prefix: prefix, options, message});
+        // console.log(`Prompt:`, {prefix: prefix, options, message});
 
         const generateJsonLoose = (): Promise<Response> => {
             if (options.length === 0) {

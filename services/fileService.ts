@@ -147,9 +147,9 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
     const statusUrl = result.statusUrl;
     const metadataUrl = result.metadataUrl;
 
-    console.log("contentUrl", contentUrl);
-    console.log("statusUrl", statusUrl);
-    console.log("metadataUrl", metadataUrl);
+    // console.log("contentUrl", contentUrl);
+    // console.log("statusUrl", statusUrl);
+    // console.log("metadataUrl", metadataUrl);
 
     const {response:uploadResponse, abort:abort} = uploadFileToS3(file, uploadUrl, (progress: number) => {
         if (onProgress) {

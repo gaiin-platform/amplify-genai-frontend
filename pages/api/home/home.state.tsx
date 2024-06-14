@@ -1,25 +1,25 @@
 import { Conversation, Message } from '@/types/chat';
 import { ErrorMessage } from '@/types/error';
-import { FolderInterface } from '@/types/folder';
+import { FolderInterface} from '@/types/folder';
 import { OpenAIModel, OpenAIModelID } from '@/types/openai';
-import { PluginKey } from '@/types/plugin';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
 import { Status } from "@/types/workflow";
-import {Workspace} from "@/types/workspace";
+import { Workspace } from "@/types/workspace";
 import { v4 as uuidv4 } from 'uuid';
-import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
-import {noOpStatsServices, StatsServices} from "@/types/stats";
-import {Account} from "@/types/accounts";
+import { Assistant } from "@/types/assistant";
+import { noOpStatsServices, StatsServices } from "@/types/stats";
+import { Account } from "@/types/accounts";
+import {Op} from "@/types/op";
+import {CheckItemType} from "@/types/checkItem";
+
 
 type HandleSend = (request: any) => void;
 
 export interface HomeInitialState {
-  defaultAccount: Account|undefined;
-  chatEndpoint: string|null;
+  defaultAccount: Account | undefined;
+  chatEndpoint: string | null;
   conversationStateId: string;
-  apiKey: string;
-  pluginKeys: PluginKey[];
   loading: boolean;
   lightMode: 'light' | 'dark';
   messageIsStreaming: boolean;
@@ -28,7 +28,7 @@ export interface HomeInitialState {
   models: OpenAIModel[];
   folders: FolderInterface[];
   conversations: Conversation[];
-  workflows:WorkflowDefinition[];
+  workflows: WorkflowDefinition[];
   selectedConversation: Conversation | undefined;
   currentMessage: Message | undefined;
   prompts: Prompt[];
@@ -40,24 +40,31 @@ export interface HomeInitialState {
   messageError: boolean;
   searchTerm: string;
   defaultModelId: OpenAIModelID | undefined;
-  serverSideApiKeyIsSet: boolean;
-  serverSidePluginKeysSet: boolean,
-  featureFlags: {[key:string]:boolean},
+  featureFlags: { [key: string]: boolean },
   workspaceMetadata: Workspace;
   selectedAssistant: Assistant | null;
   page: string;
   defaultFunctionCallModel: string | null;
   statsService: StatsServices;
   currentRequestId: string | null;
+  latestDataDisclosureUrlPDF: string;
+  latestDataDisclosureHTML: string;
+  inputEmail: string;
+  hasAcceptedDataDisclosure: boolean | null;
+  hasScrolledToBottom: boolean;
+  storageSelection: string | null;
+  ops: { [key: string]: Op };
+  allFoldersOpenConvs: boolean;
+  allFoldersOpenPrompts: boolean;
+  checkedItems: Array<any>;
+  checkingItemType: CheckItemType | null;
 }
 
 export const initialState: HomeInitialState = {
   defaultAccount: undefined,
   chatEndpoint: null,
   conversationStateId: "init",
-  apiKey: '',
   loading: false,
-  pluginKeys: [],
   lightMode: 'dark',
   status: [],
   workspaceDirty: false,
@@ -66,9 +73,8 @@ export const initialState: HomeInitialState = {
   models: [],
   folders: [],
   conversations: [],
-  workflows:[
-
-  ],
+  workflows: [],
+  ops: {},
   workspaceMetadata: {
     name: '',
     description: '',
@@ -77,7 +83,7 @@ export const initialState: HomeInitialState = {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     lastAccessedAt: new Date().toISOString(),
-    tags:[],
+    tags: [],
     data: {},
   },
   selectedConversation: undefined,
@@ -90,34 +96,48 @@ export const initialState: HomeInitialState = {
   messageError: false,
   searchTerm: '',
   defaultModelId: undefined,
-  serverSideApiKeyIsSet: false,
-  serverSidePluginKeysSet: false,
   selectedAssistant: null,
   page: 'chat',
   currentRequestId: null,
+
   featureFlags: {
     assistantsEnabled: true,
     ragEnabled: true,
     sourcesEnabled: true,
-    uploadDocuments:true,
-    assistantCreator:true,
-    assistants:true,
-    overrideUneditablePrompts:false,
+    uploadDocuments: true,
+    assistantCreator: true,
+    assistants: true,
+    overrideUneditablePrompts: false,
     overrideInvisiblePrompts: false,
-    extractDocumentsLocally:false,
-    enableMarket:false,
+    extractDocumentsLocally: false,
+    enableMarket: false,
     promptPrefixCreate: false,
     outputTransformerCreate: false,
-    workflowRun:true,
-    workflowCreate:false,
-    rootPromptCreate:true,
-    pluginsOnInput:false,
-    dataSourceSelectorOnInput:true,
-    followUpCreate:true,
-    marketItemDelete:false,
-    automation:false,
-    codeInterpreterEnabled:true
+    workflowRun: true,
+    workflowCreate: false,
+    rootPromptCreate: true,
+    pluginsOnInput: false,
+    dataSourceSelectorOnInput: true,
+    followUpCreate: true,
+    marketItemDelete: false,
+    automation: true,
+    codeInterpreterEnabled: true,
+    dataDisclosure: false,
+    storeCloudConversations: true,
+    qiSummary: true,
+    apiKeys: true
   },
+
   statsService: noOpStatsServices,
   defaultFunctionCallModel: null,
+  latestDataDisclosureUrlPDF: '',
+  latestDataDisclosureHTML: '',
+  inputEmail: '',
+  hasAcceptedDataDisclosure: null,
+  hasScrolledToBottom: false,
+  storageSelection: null,
+  allFoldersOpenConvs: false,
+  allFoldersOpenPrompts: false,
+  checkedItems: [],
+  checkingItemType: null
 };

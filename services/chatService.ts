@@ -1,10 +1,7 @@
 // chatService.js
-import {getEndpoint} from '@/utils/app/api';
-import {ChatBody, ChatResponseFormat, CustomFunction, JsonSchema, Message, newMessage} from "@/types/chat";
+import {ChatBody, newMessage} from "@/types/chat";
 import {Plugin} from '@/types/plugin';
 import {createParser, ParsedEvent, ReconnectInterval} from "eventsource-parser";
-import {OpenAIError} from "@/utils/server";
-import {OpenAIModel} from "@/types/openai";
 import {v4 as uuidv4} from 'uuid';
 
 export interface MetaHandler {
@@ -59,7 +56,7 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
         }
     }
 
-    console.log('sending chat request with dataSources', requestBody);
+    // console.log('sending chat request with dataSources', requestBody);
 
     const body = JSON.stringify(requestBody);
 
@@ -259,7 +256,8 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
             } catch (e) {
                 controller.error(e);
             } finally {
-                reader.releaseLock();
+                await reader.cancel();
+                reader.releaseLock(); 
             }
 
             controller.close();
@@ -274,48 +272,4 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
     });
 
 
-}
-
-export async function sendChatRequest(apiKey: string, chatBody: ChatBody, plugin?: Plugin | null, abortSignal?: AbortSignal) {
-
-    if (chatBody.response_format && chatBody.response_format.type === 'json_object') {
-        if (!chatBody.messages.some(m => m.content.indexOf('json') > -1)) {
-            chatBody.messages.push(newMessage({role: 'user', content: 'Please provide a json object as output.'}))
-        }
-    }
-
-    chatBody = {
-        ...chatBody,
-        // @ts-ignore
-        messages: [...chatBody.messages.map(m => {
-            return {role: m.role, content: m.content}
-        })],
-    }
-
-    let body;
-    if (!plugin) {
-        body = JSON.stringify(chatBody);
-    } else {
-        // body = JSON.stringify({
-        //     ...chatBody,
-        //     googleAPIKey: pluginKeys
-        //         .find((key) => key.pluginId === 'google-search')
-        //         ?.requiredKeys.find((key) => key.key === 'GOOGLE_API_KEY')?.value,
-        //     googleCSEId: pluginKeys
-        //         .find((key) => key.pluginId === 'google-search')
-        //         ?.requiredKeys.find((key) => key.key === 'GOOGLE_CSE_ID')?.value,
-        // });
-    }
-    const endpoint = getEndpoint(plugin);
-
-    const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-        body,
-    });
-
-    return response;
 }

@@ -14,7 +14,7 @@ import {FiCommand} from "react-icons/fi";
 import styled, {keyframes} from 'styled-components';
 import React, {FC, memo, useContext, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'next-i18next';
-import {updateConversation} from '@/utils/app/conversation';
+import {conversationWithUncompressedMessages, updateConversation} from '@/utils/app/conversation';
 import {DataSource, Message} from '@/types/chat';
 import {useChatService} from "@/hooks/useChatService";
 import HomeContext from '@/pages/api/home/home.context';
@@ -35,7 +35,9 @@ import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 import PromptingStatusDisplay from "@/components/Status/PromptingStatusDisplay";
 import ChatSourceBlock from "@/components/Chat/ChatContentBlocks/ChatSourcesBlock";
 import DataSourcesBlock from "@/components/Chat/ChatContentBlocks/DataSourcesBlock";
-import ChatCodeInterpreterFileBlock from './ChatContentBlocks/ChatCodeInterpreterFilesBlock';
+import ChatCodeInterpreterFileBlock from './ChatContentBlocks/ChatCodeInterpreterFilesBlock';import { uploadConversation } from '@/services/remoteConversationService';
+import { isRemoteConversation } from '@/utils/app/conversationStorage';
+
 
 export interface Props {
     message: Message;
@@ -74,10 +76,23 @@ export const ChatMessage: FC<Props> = memo(({
     const {t} = useTranslation('chat');
 
     const {
-        state: {selectedConversation, conversations, currentMessage, messageIsStreaming, status},
+        state: {selectedConversation, conversations,messageIsStreaming, status, folders},
         dispatch: homeDispatch,
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
+
+    const conversationsRef = useRef(conversations);
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
 
 
     const markdownComponentRef = useRef<HTMLDivElement>(null);
@@ -113,7 +128,7 @@ export const ChatMessage: FC<Props> = memo(({
         if (!selectedConversation) return;
 
         const {messages} = selectedConversation;
-        const findIndex = messages.findIndex((elm) => elm === message);
+        const findIndex = messages.findIndex((elm:Message) => elm === message);
 
         if (findIndex < 0) return;
 
@@ -150,10 +165,10 @@ export const ChatMessage: FC<Props> = memo(({
 
         const {single, all} = updateConversation(
             updatedConversation,
-            conversations,
+            conversationsRef.current,
         );
-        homeDispatch({field: 'selectedConversation', value: single});
-        homeDispatch({field: 'conversations', value: all});
+        homeDispatch({ field: 'selectedConversation', value: updatedConversation });
+        if (isRemoteConversation(updatedConversation)) uploadConversation(updatedConversation, foldersRef.current);
     };
 
     const copyOnClick = () => {

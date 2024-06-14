@@ -1,5 +1,5 @@
 // ChatFollowups.tsx
-import React, {useContext} from 'react';
+import React, {useContext, useEffect, useRef} from 'react';
 import {Conversation, MessageType} from "@/types/chat";
 import {Prompt} from "@/types/prompt";
 import HomeContext from "@/pages/api/home/home.context";
@@ -14,8 +14,14 @@ const ChatFollowups: React.FC<ChatFollowupsProps> = ({promptSelected}) => {
         state: {prompts, selectedConversation},
     } = useContext(HomeContext);
 
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
+
     const conversationTags = selectedConversation?.tags || [];
-    const promptButtons = prompts.filter((prompt) => {
+    const promptButtons = promptsRef.current.filter((prompt:Prompt) => {
         const promptTags = prompt.data?.requiredTags;
         if (prompt.type === MessageType.FOLLOW_UP && (!promptTags || promptTags.length === 0)) {
             return true;
@@ -33,7 +39,7 @@ const ChatFollowups: React.FC<ChatFollowupsProps> = ({promptSelected}) => {
 
     return (
         <div className="mt-4 flex-wrap gap-4">
-            {promptButtons.map((prompt) => (
+            {promptButtons.map((prompt:Prompt) => (
                 <button
                     key={prompt.id}
                     className="invisible group-hover:visible focus:visible px-5 py-2 mr-1 mt-1 text-sm border border-gray-600 rounded-lg text-gray-700 hover:bg-gray-100 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800"

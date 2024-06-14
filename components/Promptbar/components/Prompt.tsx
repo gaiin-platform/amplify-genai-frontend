@@ -14,6 +14,7 @@ import {
     MouseEventHandler,
     useContext,
     useEffect,
+    useRef,
     useState,
 } from 'react';
 
@@ -31,10 +32,12 @@ import {
     handleStartConversationWithPrompt,
 } from "@/utils/app/prompts";
 import { useSession } from "next-auth/react";
-import {getAssistant, isAssistant} from "@/utils/app/assistants";
+import {getAssistant, handleUpdateAssistantPrompt, isAssistant} from "@/utils/app/assistants";
 import {AssistantModal} from "@/components/Promptbar/components/AssistantModal";
 import {deleteAssistant} from "@/services/assistantService";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import { ReservedTags } from '@/types/tags';
+import { DEFAULT_ASSISTANT } from '@/types/assistant';
 
 interface Props {
     prompt: Prompt;
@@ -50,25 +53,36 @@ export const PromptComponent = ({ prompt }: Props) => {
     } = useContext(PromptbarContext);
 
     const {
-        state: { prompts, defaultModelId, showPromptbar, apiKey, statsService },
+        state: { statsService, selectedAssistant, checkingItemType, checkedItems, prompts},
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
 
     const { data: session } = useSession();
     const user = session?.user;
 
     const [showShareModal, setShowShareModal] = useState(false);
+    
 
 
     const closeModal = () => {
         setShowShareModal(false);
     };
 
-    const canDelete = (!prompt.data || !prompt.data.noDelete)
-    const canEdit = (!prompt.data || !prompt.data.noEdit)
-    const canCopy = (!prompt.data || !prompt.data.noCopy)
-    const canShare = (!prompt.data || !prompt.data.noShare)
+    const isReserved = (isAssistant(prompt) && prompt?.data?.assistant?.definition?.tags?.includes(ReservedTags.SYSTEM));
+    
+    const canDelete = (!prompt.data || !prompt.data.noDelete);
+    const canEdit = (!prompt.data || !prompt.data.noEdit);
+    const canCopy = (!prompt.data || !prompt.data.noCopy);
+    const canShare = (!prompt.data || !prompt.data.noShare);
+
+
 
     const [progressMessage, setProgressMessage] = useState<string|null>(null);
     const [showModal, setShowModal] = useState<boolean>(false);
@@ -76,7 +90,8 @@ export const PromptComponent = ({ prompt }: Props) => {
     const [isRenaming, setIsRenaming] = useState(false);
     const [renameValue, setRenameValue] = useState('');
     const [isHovered, setIsHovered] = useState(false);
-
+    const [checkPrompts, setCheckPrompts] = useState(false);
+    const [isChecked, setIsChecked] = useState(false);
 
     const handleStartConversation = (startPrompt: Prompt) => {
 
@@ -86,9 +101,14 @@ export const PromptComponent = ({ prompt }: Props) => {
 
 
         statsService.startConversationEvent(startPrompt);
-        handleStartConversationWithPrompt(handleNewConversation, prompts, startPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt);
 
     }
+
+    useEffect(() => {
+        if (checkingItemType === 'Prompts') setCheckPrompts(true);
+        if (checkingItemType === null) setCheckPrompts(false);
+      }, [checkingItemType]);
 
     const handleUpdate = (prompt: Prompt) => {
         handleUpdatePrompt(prompt);
@@ -98,7 +118,14 @@ export const PromptComponent = ({ prompt }: Props) => {
     const handleDelete: MouseEventHandler<HTMLButtonElement> = async (e) => {
         e.stopPropagation();
 
-        if(isAssistant(prompt)){
+        if (isDeleting) {
+            handleDeletePrompt(prompt);
+            promptDispatch({ field: 'searchTerm', value: '' });
+        }
+
+        if (selectedAssistant && prompt?.data?.assistant?.definition.assistantId === selectedAssistant.definition.assistantId) homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT }); 
+        
+        if(isAssistant(prompt) && canDelete ){
            const assistant = getAssistant(prompt);
            if(assistant && assistant.assistantId){
                setProgressMessage("Deleting assistant...");
@@ -116,10 +143,6 @@ export const PromptComponent = ({ prompt }: Props) => {
                }
                setProgressMessage(null);
            }
-        }
-        if (isDeleting) {
-            handleDeletePrompt(prompt);
-            promptDispatch({ field: 'searchTerm', value: '' });
         }
 
         setIsDeleting(false);
@@ -166,6 +189,18 @@ export const PromptComponent = ({ prompt }: Props) => {
             setIsRenaming(false);
         }
     }, [isRenaming, isDeleting]);
+
+    useEffect(() => {
+        setIsChecked((checkedItems.includes(prompt) ? true : false)); 
+    }, [checkedItems]);
+
+    const handleCheckboxChange = (checked: boolean) => {
+        if (checked){
+          homeDispatch({field: 'checkedItems', value: [...checkedItems, prompt]}); 
+        } else {
+          homeDispatch({field: 'checkedItems', value: checkedItems.filter((i:any) => i !== prompt)});
+        }
+    }
 
     // @ts-ignore
     // @ts-ignore
@@ -221,9 +256,21 @@ export const PromptComponent = ({ prompt }: Props) => {
 
                 </button>
 
-                {isHovered &&
+                { checkPrompts && !isReserved  &&  (
+                    <div className="relative flex items-center">
+                        <div key={prompt.id} className="absolute right-4 z-10">
+                            <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => handleCheckboxChange(e.target.checked)}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {isHovered && !checkPrompts &&
                     <div
-                        className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-gray-900 rounded">
+                        className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-neutral-200 dark:bg-[#343541]/90 rounded">
 
                         {!isDeleting && !isRenaming && canCopy && (
                             <SidebarActionButton handleClick={handleCopy} title="Duplicate Template">
@@ -240,12 +287,12 @@ export const PromptComponent = ({ prompt }: Props) => {
                         {!isDeleting && !isRenaming && canShare && (
                             <SidebarActionButton handleClick={() => {
                                 handleSharePrompt(prompt);
-                            }} title="Share">
+                            }} title="Share Template">
                                 <IconShare size={18} />
                             </SidebarActionButton>
                         )}
 
-                        {!isDeleting && !isRenaming && canDelete && (
+                        {!isDeleting && !isRenaming && !isReserved && (
                             <SidebarActionButton handleClick={handleOpenDeleteModal} title="Delete Template">
                                 <IconTrash size={18} />
                             </SidebarActionButton>
@@ -282,7 +329,12 @@ export const PromptComponent = ({ prompt }: Props) => {
                     assistant={prompt}
                     onCancel={() => setShowModal(false)}
                     onSave={() => setShowModal(false)}
-                    onUpdateAssistant={handleUpdate}
+                    onUpdateAssistant={async (assistantPrompt) => {
+                        handleUpdateAssistantPrompt(assistantPrompt, promptsRef.current, homeDispatch)
+                        statsService.editPromptCompletedEvent(assistantPrompt);
+                    }}
+                    loadingMessage="Updating assistant..."
+                    loc="edit_assistant"
                 />
             )}
 

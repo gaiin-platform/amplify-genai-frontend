@@ -4,11 +4,10 @@ import {
     IconBrandGoogle,
     IconPlayerStop,
     IconAt,
-    IconRepeat,
-    IconRobot,
     IconFiles,
-    IconApiApp,
+    IconShare2,
     IconSend,
+    IconSparkles
 } from '@tabler/icons-react';
 import {
     KeyboardEvent,
@@ -22,7 +21,7 @@ import {
 
 import {useTranslation} from 'next-i18next';
 import {parsePromptVariables} from "@/utils/app/prompts";
-import {Message, MessageType, newMessage} from '@/types/chat';
+import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 import {Prompt} from '@/types/prompt';
 import {AttachFile} from "@/components/Chat/AttachFile";
@@ -30,21 +29,23 @@ import {FileList} from "@/components/Chat/FileList";
 import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
 import HomeContext from '@/pages/api/home/home.context';
-
-import {PluginSelect} from './PluginSelect';
 import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
-import {Import} from "@/components/Settings/Import";
 import {OpenAIModel} from "@/types/openai";
-import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
-import {ActiveAssistantsList} from "@/components/Assistants/ActiveAssistantsList";
-import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
-import {Assistant, AssistantDefinition, DEFAULT_ASSISTANT} from "@/types/assistant";
+import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {getAssistants} from "@/utils/app/assistants";
 import AssistantsInUse from "@/components/Chat/AssistantsInUse";
+import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
+import QiModal from './QiModal';
+import { QiSummary, QiSummaryType } from '@/types/qi';
+import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import { createQiSummary } from '@/services/qiService';
+import MessageSelectModal from './MesssageSelectModal';
+import cloneDeep from 'lodash/cloneDeep';
+import FeaturePlugins from './FeaturePlugins';
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -70,10 +71,16 @@ export const ChatInput = ({
     const {killRequest} = useChatService();
 
     const {
-        state: {selectedConversation, selectedAssistant, messageIsStreaming, prompts, models, status, featureFlags, currentRequestId},
+        state: {selectedConversation, selectedAssistant, messageIsStreaming, prompts, models, featureFlags, currentRequestId, chatEndpoint, statsService},
 
-        dispatch: homeDispatch,
+        dispatch: homeDispatch
     } = useContext(HomeContext);
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
 
     const [content, setContent] = useState<string>();
     const [isTyping, setIsTyping] = useState<boolean>(false);
@@ -82,7 +89,14 @@ export const ChatInput = ({
     const [promptInputValue, setPromptInputValue] = useState('');
     const [variables, setVariables] = useState<string[]>([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
-    const [showPluginSelect, setShowPluginSelect] = useState(false);
+    const [showMessageSelectDialog, setShowMessageSelectDialog] = useState(false);
+    const [croppedConversation, setCroppedConversation] = useState<Conversation | null>(null);
+
+    const [showQiDialog, setShowQiDialog] = useState(false);
+    const [isQiLoading, setIsQiLoading] = useState<boolean>(true);
+    const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
+
+
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const [plugin, setPlugin] = useState<Plugin | null>(null);
     //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
@@ -94,11 +108,14 @@ export const ChatInput = ({
     const [documentAborts, setDocumentAborts] = useState<{ [key: string]: AbortController }>({});
 
     const promptListRef = useRef<HTMLUListElement | null>(null);
+    const dataSourceSelectorRef = useRef<HTMLDivElement | null>(null);
+    const assistantSelectorRef = useRef<HTMLDivElement | null>(null);
+
     const [isWorkflowOn, setWorkflowOn] = useState(false);
 
     const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
 
-    const filteredPrompts = prompts.filter((prompt) =>
+    const filteredPrompts =  promptsRef.current.filter((prompt:Prompt) =>
         prompt.name.toLowerCase().includes(promptInputValue.toLowerCase()),
     );
 
@@ -118,9 +135,42 @@ export const ChatInput = ({
         return documents?.every(isComplete);
     }
 
-    const onAssistantChange = (assistant: Assistant) => {
+    
 
-    }
+   
+
+const onAssistantChange = (assistant: Assistant) => {
+    homeDispatch({field: 'selectedAssistant', value: assistant});
+    setShowAssistantSelect(false);
+
+    if (selectedConversation) {
+        const tags = assistant.definition.data?.conversationTags || [];
+        if (tags) {
+            selectedConversation.tags = selectedConversation.tags ?
+                                    [...selectedConversation.tags, ...tags] :
+                                    [...tags];
+        }
+        //remove duplicates if any
+        selectedConversation.tags = Array.from(new Set(selectedConversation.tags));
+
+        let assistantPrompt: Prompt | undefined = undefined;
+        // Assistant creator is treated differently in the backend, so we need to treat it differently here
+        // User defined assistants are retrieved and applied to the conversation in the back end as a UserDefinedAssistant whereas assistant creator is not user defined per say
+        // when you click on assistant creator on the right hand side, it triggers handleStartConversationWithPrompt in utils/app/prompts.ts
+        // where it creates a new conversation with the root prompt being the assistant creator. This is what is missing here.
+        
+        if (assistant.id === 'ast/assistant-builder') {
+            assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt.id === assistant.id);
+            selectedConversation.prompt += "\n\nCURRENT ASSISTANT CREATOR CUSTOM INSTRUCTIONS: " + assistantPrompt?.content + "Address only the Current Assistant Creator custom Instructions.";
+        } else {  
+            assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
+        }      
+         //I do not get the impression that promptTemplates are currently used nonetheless the bases are covered in case they ever come into play (as taken into account in handleStartConversationWithPrompt)
+        selectedConversation.promptTemplate = assistantPrompt ?? null;
+        
+    } 
+    
+}
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
@@ -155,7 +205,7 @@ export const ChatInput = ({
         }
 
         // This prevents documents that were uploaded from being jammed into the prompt here
-        const toInsert = documents.filter(doc => !doc.key && doc.raw && doc.raw.length > 0);
+        const toInsert = documents.filter((doc:AttachedDocument) => !doc.key && doc.raw && doc.raw.length > 0);
 
         if (toInsert.length > 0) {
             content =
@@ -288,7 +338,7 @@ export const ChatInput = ({
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 setActivePromptIndex((prevIndex) =>
-                    prevIndex < prompts.length - 1 ? prevIndex + 1 : prevIndex,
+                    prevIndex <  promptsRef.current.length - 1 ? prevIndex + 1 : prevIndex,
                 );
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
@@ -298,7 +348,7 @@ export const ChatInput = ({
             } else if (e.key === 'Tab') {
                 e.preventDefault();
                 setActivePromptIndex((prevIndex) =>
-                    prevIndex < prompts.length - 1 ? prevIndex + 1 : 0,
+                    prevIndex <  promptsRef.current.length - 1 ? prevIndex + 1 : 0,
                 );
             } else if (e.key === 'Enter') {
                 e.preventDefault();
@@ -312,18 +362,19 @@ export const ChatInput = ({
         } else if (e.key === 'Enter' && !isTyping && !isMobile() && !e.shiftKey) {
             e.preventDefault();
             handleSend();
-        } else if (e.key === '/' && e.metaKey) {
-            e.preventDefault();
-            setShowPluginSelect(!showPluginSelect);
-        }
+        } 
+        // else if (e.key === '/' && e.metaKey) {
+        //     e.preventDefault();
+        //     setShowPluginSelect(!showPluginSelect);
+        // }
     };
 
     const updatePromptListVisibility = useCallback((text: string) => {
         const match = text.match(/\/\w*$/);
 
         if (match) {
-            setShowPromptList(true);
-            setPromptInputValue(match[0].slice(1));
+            // setShowPromptList(true);
+            // setPromptInputValue(match[0].slice(1));
         } else {
             setShowPromptList(false);
             setPromptInputValue('');
@@ -364,7 +415,7 @@ export const ChatInput = ({
             const assistants = getAssistants(prompts);
             setAvailableAssistants(assistants);
         }
-    }, [selectedConversation]);
+    }, [prompts]);
 
     useEffect(() => {
         if (promptListRef.current) {
@@ -380,6 +431,7 @@ export const ChatInput = ({
                 textareaRef?.current?.scrollHeight > 400 ? 'auto' : 'hidden'
             }`;
         }
+       
     }, [content]);
 
     useEffect(() => {
@@ -389,6 +441,15 @@ export const ChatInput = ({
                 !promptListRef.current.contains(e.target as Node)
             ) {
                 setShowPromptList(false);
+            }
+
+
+            if (dataSourceSelectorRef.current && !dataSourceSelectorRef.current.contains(e.target as Node)) {
+                setShowDataSourceSelector(false);
+            }
+           
+            if (assistantSelectorRef.current && !assistantSelectorRef.current.contains(e.target as Node)) {
+                setShowAssistantSelect(false);
             }
         };
 
@@ -459,12 +520,51 @@ export const ChatInput = ({
         setDocuments(newDocuments);
 
     }
+    const handleGetQiSummary = async (conversation:Conversation) => {
+        setShowMessageSelectDialog(false);
+        setIsQiLoading(true);
+        setShowQiDialog(true); 
+        const summary = await createQiSummary(chatEndpoint || '', conversation, QiSummaryType.CONVERSATION, statsService);
+        setQiSummary(summary);
+        setIsQiLoading(false); 
+    }
 
     return (
         <div
             className="absolute bottom-0 left-0 w-full border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
+            { featureFlags.pluginsOnInput &&
+            <FeaturePlugins
+            plugin={plugin}
+            setPlugin={setPlugin}
+            />
+            }
+            
             <div
-                className="stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
+                className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
+               
+               {!showScrollDownButton && !messageIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
+               (selectedConversation && selectedConversation.messages.length > 0) &&  (
+               <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert  hover:text-neutral-900 dark:hover:text-neutral-100">
+                <button
+                    className="mt-5 cursor-pointer border border-gray-300 dark:border-gray-600 rounded px-2 py-1"
+                    style={{ fontSize: '0.9rem' }} 
+                    onClick={async () => {
+                        // setShowPromptList(false);
+                        if (selectedConversation && selectedConversation.messages.length > 2) {
+                            setShowMessageSelectDialog(true);
+                        } else {
+                            setCroppedConversation(cloneDeep(selectedConversation));
+                            handleGetQiSummary(selectedConversation);
+                        }
+                        
+                        
+                    }}
+                    title={`Anonymously share your conversation for quality improvement`}
+                >
+                    Share for Quality Improvement
+                </button>
+            </div>)}
+
 
 
                 <div className='absolute top-0 left-0 right-0 mx-auto flex justify-center items-center gap-2'>
@@ -519,27 +619,23 @@ export const ChatInput = ({
 
                     <div className="flex items-center">
 
-                        {featureFlags.pluginsOnInput && (
-                            <button
-                                className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
-                                onClick={() => setShowPluginSelect(!showPluginSelect)}
-                                onKeyDown={(e) => {
-                                }}
-                            >
-                                {plugin ? <IconBrandGoogle size={20}/> : <IconBolt size={20}/>}
-                            </button>
-                        )}
-
                         {featureFlags.dataSourceSelectorOnInput && (
                             <button
                                 className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
-                                onClick={() => setShowDataSourceSelector(!showDataSourceSelector)}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowDataSourceSelector(!showDataSourceSelector);
+                                    setShowAssistantSelect(false);
+
+                                }}
                                 onKeyDown={(e) => {
                                 }}
+                                title="Files"
                             >
                                 <IconFiles size={20}/>
                             </button>
                         )}
+
 
                         {/*<button*/}
                         {/*    className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"*/}
@@ -562,9 +658,15 @@ export const ChatInput = ({
                         {featureFlags.assistants && (
                             <button
                                 className={buttonClasses}
-                                onClick={handleShowAssistantSelector}
+                                onClick={ () => {
+                                    handleShowAssistantSelector();
+                                    setShowDataSourceSelector(false);
+                                    }
+                                }
                                 onKeyDown={(e) => {
                                 }}
+                                title="Select Assistants"
+
                             >
                                 <IconAt size={20}/>
                             </button>
@@ -582,33 +684,8 @@ export const ChatInput = ({
                                             textareaRef.current?.focus();
                                         }
                                     }}
-                                    onAssistantChange={(a: Assistant) => {
-                                        homeDispatch({field: 'selectedAssistant', value: a});
-                                        setShowAssistantSelect(false);
-
-                                        if (textareaRef && textareaRef.current) {
-                                            textareaRef.current.focus();
-                                        }
-                                    }}
-                                />
-                            </div>
-                        )}
-
-                        {showPluginSelect && (
-                            <div className="absolute left-0 bottom-14 rounded bg-white dark:bg-[#343541]">
-                                <PluginSelect
-                                    plugin={plugin}
-                                    onKeyDown={(e: any) => {
-                                        if (e.key === 'Escape') {
-                                            e.preventDefault();
-                                            setShowPluginSelect(false);
-                                            textareaRef.current?.focus();
-                                        }
-                                    }}
-                                    onPluginChange={(plugin: Plugin) => {
-                                        setPlugin(plugin);
-                                        setShowPluginSelect(false);
-
+                                    onAssistantChange={(assistant: Assistant) => {
+                                        onAssistantChange(assistant);
                                         if (textareaRef && textareaRef.current) {
                                             textareaRef.current.focus();
                                         }
@@ -618,7 +695,7 @@ export const ChatInput = ({
                         )}
 
                         {showDataSourceSelector && (
-                            <div className="absolute left-0 bottom-16 mb-6 rounded bg-white dark:bg-[#343541]">
+                            <div ref={dataSourceSelectorRef} className="absolute left-0 bottom-16 mb-6 rounded bg-white dark:bg-[#343541]">
                                 <DataSourceSelector
                                     onDataSourceSelected={(d) => {
 
@@ -641,6 +718,34 @@ export const ChatInput = ({
                             </div>
                         )}
 
+                        {showMessageSelectDialog && 
+                            <MessageSelectModal 
+                            setConversation={setCroppedConversation}
+                            onCancel={() => {
+                                setShowMessageSelectDialog(false);
+                            }}
+                            onSubmit={handleGetQiSummary}                      
+                        />}
+
+                        {showQiDialog && (
+                         isQiLoading ? (  <LoadingDialog open={isQiLoading} message={"Creating Summary..."}/>) :
+                            <QiModal
+                                qiSummary={qiSummary}
+                                onCancel={() => {
+                                    setShowQiDialog(false)
+                                    setQiSummary(null);
+                                    setIsQiLoading(true);
+                                }}
+                                onSubmit={() => {
+                                    setShowQiDialog(false)
+                                    setQiSummary(null);
+                                    setIsQiLoading(true);
+                                }}
+                                type={QiSummaryType.CONVERSATION}
+                                conversation={croppedConversation}
+                        />
+                        )}
+
                         <textarea
                             ref={textareaRef}
                             className="m-0 w-full resize-none border-0 bg-transparent p-0 py-2 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-3 md:pl-10"
@@ -655,7 +760,8 @@ export const ChatInput = ({
                                 }`,
                             }}
                             placeholder={
-                                t('Type a message or type "/" to select a prompt...') || ''
+                                // t('Type a message or type "/" to select a prompt...') || ''
+                                "Type a message to chat with Amplify..."
                             }
                             value={content}
                             rows={1}

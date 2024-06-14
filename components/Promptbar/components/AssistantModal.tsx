@@ -1,9 +1,8 @@
-import {FC, useContext, useRef, useState} from 'react';
+import {FC, useRef, useState} from 'react';
 
 import {useTranslation} from 'next-i18next';
 import {Prompt} from '@/types/prompt';
-import HomeContext from "@/pages/api/home/home.context";
-import {COMMON_DISALLOWED_FILE_EXTENSIONS, DEFAULT_SYSTEM_PROMPT} from "@/utils/app/const";
+import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant} from "@/utils/app/assistants";
@@ -11,6 +10,7 @@ import {AttachFile} from "@/components/Chat/AttachFile";
 import {IconFiles, IconCircleX} from "@tabler/icons-react";
 import {createAssistant} from "@/services/assistantService";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 
 
 interface Props {
@@ -18,14 +18,14 @@ interface Props {
     onSave: () => void;
     onCancel: () => void;
     onUpdateAssistant: (prompt: Prompt) => void;
+    loadingMessage: string;
+    loc: string;
+
 }
 
 
-export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant}) => {
+export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc}) => {
     const {t} = useTranslation('promptbar');
-    const {
-        state: {featureFlags, prompts},
-    } = useContext(HomeContext);
 
     let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
 
@@ -53,7 +53,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [conversationTags, setConversationTags] = useState(cTags);
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
 
-    const [uri, setUri] = useState<string|null>(null);
+    const [uri, setUri] = useState<string|null>(definition.uri || null);
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const modalRef = useRef<HTMLDivElement>(null);
@@ -75,6 +75,18 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         newAssistant.data = newAssistant.data || {provider: "amplify"};
         newAssistant.description = description;
         newAssistant.instructions = content;
+
+        if(uri && uri.trim().length > 0){
+            // Check that it is a valid uri
+            if(uri.trim().indexOf("://") === -1){
+                alert("Invalid URI, please update and try again.");
+                setIsLoading(false);
+                return;
+            }
+
+            newAssistant.uri = uri.trim();
+        }
+
         newAssistant.dataSources = dataSources.map(ds => {
             if(ds.key || (ds.id && ds.id.indexOf("://") > 0)){
                 return ds;
@@ -87,12 +99,21 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             }
         });
         newAssistant.tools = newAssistant.tools || [];
-        newAssistant.data.conversationTags = conversationTags.split(",").map((x: string) => x.trim());
+        newAssistant.data.conversationTags = conversationTags ? conversationTags.split(",").map((x: string) => x.trim()) : [];
+        
+        //if we were able to get to this assistant modal (only comes up with + assistant and edit buttons)
+        //then they must have had read/write access.
+        newAssistant.data.access = {read: true, write: true}; 
 
-        await createAssistant(newAssistant, null);
+        const {id, assistantId, provider} = await createAssistant(newAssistant, null);
 
+        newAssistant.id = id;
+        newAssistant.provider = provider;
+        newAssistant.assistantId = assistantId;
 
         const aPrompt = createAssistantPrompt(newAssistant);
+
+
         onUpdateAssistant(aPrompt);
 
         setIsLoading(false);
@@ -101,7 +122,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     }
 
     if(isLoading){
-        return <LoadingDialog open={isLoading} message={"Updating assistant..."}/>
+        return <LoadingDialog open={isLoading} message={loadingMessage}/>
     }
 
 
@@ -181,7 +202,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 >
                                     <IconFiles size={20}/>
                                 </button>
-                                <AttachFile id="__attachFile_assistant"
+                                <AttachFile id={"__attachFile_assistant_" + loc}
                                             disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                             onAttach={(doc) => {
                                                 setDataSources((prev) => {
@@ -252,6 +273,20 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     </div>
                                 </div>
                             )}
+
+                            <ExpansionComponent title={"Advanced"} content={
+                                <div>
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                        {t('URI')}
+                                    </div>
+                                    <input
+                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                        placeholder={t('') || ''}
+                                        value={uri || ""}
+                                        onChange={(e) => setUri(e.target.value)}
+                                    />
+                                </div>
+                            }/>
                         </div>
                         <div className="flex flex-row items-center justify-end p-4 bg-white dark:bg-[#202123]">
                             <button

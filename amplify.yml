@@ -5,7 +5,6 @@ frontend:
       commands:
         - nvm install 20    # Install Node.js version 18
         - nvm use 20        # Use Node.js version 18
-        - env | grep -e  OPENAI_API_KEY >> .env.production
         - env | grep -e  OPENAI_API_HOST >> .env.production
         - env | grep -e  OPENAI_API_TYPE >> .env.production
         - env | grep -e  OPENAI_API_VERSION >> .env.production

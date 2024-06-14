@@ -43,6 +43,12 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
     state: { featureFlags, prompts },
   } = useContext(HomeContext);
 
+  const promptsRef = useRef(prompts);
+
+  useEffect(() => {
+      promptsRef.current = prompts;
+    }, [prompts]);
+
   let workflowRoot:Prompt = {
     id: "default",
     name: "Default custom instructions",
@@ -52,11 +58,11 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
     folderId: null,
   };
 
-  let rootPrompts = [workflowRoot, ...prompts.filter((p) => p.type === MessageType.ROOT)];
+  let rootPrompts = [workflowRoot, ...promptsRef.current.filter((p: Prompt) => p.type === MessageType.ROOT)];
 
   if(rootPrompts.length > 0) {
     workflowRoot =
-        rootPrompts.filter(p => p.id === prompt.data?.rootPromptId)[0]
+        rootPrompts.filter((p:Prompt) => p.id === prompt.data?.rootPromptId)[0]
         || rootPrompts[0];
   }
 
@@ -93,7 +99,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
 
   const handleUpdateRootPrompt = (rootPromptId:string) => {
     try {
-      let root = prompts.filter((p) => p.id === rootPromptId)[0];
+      let root = rootPrompts.filter((p:Prompt) => p.id === rootPromptId)[0];
       setRootPrompt(root);
     }catch (e) {
     }
@@ -319,12 +325,13 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             {selectedTemplate !== MessageType.PREFIX_PROMPT && (
             <div className="mt-6">
             <ExpansionComponent title={"Conversation Tags"} content={
-                <div className="mt-2 mb-6 text-sm font-bold text-black dark:text-neutral-200">
+                <div className="mt-2 mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
                   <input
                       ref={nameInputRef}
                       className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                      placeholder={t('Tags for conversations created with this template.') || ''}
+                      placeholder={t('Tag names separated by commas.') || ''}
                       value={conversationTags}
+                      title={"Tags for conversations created with this template."}
                       onChange={(e) => {
                         setConversationTags(e.target.value);
                       }}
@@ -345,8 +352,9 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                 </div>
                 <input
                     className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                    placeholder={t('A list of any tags that must be present on the conversation for the buttons to appear.') || ''}
+                    placeholder={'Required tag names separated by commas.'}
                     value={requiredTags}
+                    title={'A list of any tags that must be present on the conversation for the buttons to appear.'}
                     onChange={(e) => setRequiredTags(e.target.value)}
                 />
                 </>

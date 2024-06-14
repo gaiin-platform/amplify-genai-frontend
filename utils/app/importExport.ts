@@ -11,7 +11,12 @@ import { FolderInterface } from '@/types/folder';
 import { Prompt } from '@/types/prompt';
 
 import { cleanConversationHistory } from './clean';
-
+import { isAssistant } from './assistants';
+import { includeRemoteConversationData } from './conversationStorage';
+import { saveConversations } from './conversation';
+import { savePrompts } from './prompts';
+import { saveFolders } from './folders';
+import { getDate } from './date';
 export function isExportFormatV1(obj: any): obj is ExportFormatV1 {
   return Array.isArray(obj);
 }
@@ -46,6 +51,7 @@ export function cleanData(data: SupportedExportFormats): LatestExportFormat {
       history: cleanConversationHistory(data.history || []),
       folders: (data.folders || []).map((chatFolder) => ({
         id: chatFolder.id.toString(),
+        date: getDate(),
         name: chatFolder.name,
         type: 'chat',
       })),
@@ -70,27 +76,35 @@ function currentDate() {
   const day = date.getDate();
   return `${month}-${day}`;
 }
+                                                                                        // useMessage is used in includeRemoteConversationData failed to ${useMessage}
+export async function createExport(history: Conversation[], folders: FolderInterface[], prompts: Prompt[], useMessage:string, uncompressLocal:boolean = true) {  
 
-export function createExport(history: Conversation[], folders: FolderInterface[], prompts: Prompt[]) {
   const data = {
     version: 4,
-    history: history || [],
+    history: await includeRemoteConversationData(history, useMessage, uncompressLocal) || [],
     folders: folders || [],
-    prompts: prompts || [],
+    prompts: prompts ? prepAnyAssistantPrompts(prompts) : [],
+
   } as LatestExportFormat;
   return data;
 }
 
-export const exportData = () => {
-  let historyStr = localStorage.getItem('conversationHistory');
-  let foldersStr = localStorage.getItem('folders');
-  let promptsStr = localStorage.getItem('prompts');
+const prepAnyAssistantPrompts = (prompts: Prompt[]) => {
+  return prompts.map((prompt: Prompt) => {
 
-  const history = (historyStr)?  JSON.parse(historyStr) as Conversation[] : [];
-  const folders = (foldersStr)?  JSON.parse(foldersStr) as FolderInterface[] : [];
-  const prompts = (promptsStr)?  JSON.parse(promptsStr) as Prompt[] : [];
+      if (isAssistant(prompt) && prompt.data) {
+        let updatedPrompt = { ...prompt};
+        updatedPrompt.data = { ...prompt.data, access: { read: true, write: false },
+                              noCopy: true, noEdit: true, noShare: true, noDelete: true};
+        return updatedPrompt;
+      }
+      return prompt;
+    })
 
-  const data = createExport(history, folders, prompts);
+}
+
+export const exportData = async (conversations: Conversation[], prompts: Prompt[], folders: FolderInterface[]) => {
+  const data = await createExport(conversations, folders, prompts, "export");
 
   const blob = new Blob([JSON.stringify(data, null, 2)], {
     type: 'application/json',
@@ -106,24 +120,17 @@ export const exportData = () => {
   URL.revokeObjectURL(url);
 };
 
-export const importData = (
-  data: SupportedExportFormats,
-): LatestExportFormat => {
+export const importData = ( data: SupportedExportFormats, oldConversations: Conversation[], oldPrompts: Prompt[], oldFolders: FolderInterface[]): LatestExportFormat => {
   const { history, folders, prompts } = cleanData(data);
 
-  const oldConversations = localStorage.getItem('conversationHistory');
-  const oldConversationsParsed = oldConversations
-    ? JSON.parse(oldConversations)
-    : [];
-
   const newHistory: Conversation[] = [
-    ...oldConversationsParsed,
+    ...oldConversations,
     ...history,
   ].filter(
     (conversation, index, self) =>
       index === self.findIndex((c) => c.id === conversation.id),
   );
-  localStorage.setItem('conversationHistory', JSON.stringify(newHistory));
+  saveConversations(newHistory);
   if (newHistory.length > 0) {
     localStorage.setItem(
       'selectedConversation',
@@ -132,25 +139,20 @@ export const importData = (
   } else {
     localStorage.removeItem('selectedConversation');
   }
-
-  const oldFolders = localStorage.getItem('folders');
-  const oldFoldersParsed = oldFolders ? JSON.parse(oldFolders) : [];
   const newFolders: FolderInterface[] = [
-    ...oldFoldersParsed,
+    ...oldFolders,
     ...folders,
   ].filter(
     (folder, index, self) =>
       index === self.findIndex((f) => f.id === folder.id),
   );
-  localStorage.setItem('folders', JSON.stringify(newFolders));
-
-  const oldPrompts = localStorage.getItem('prompts');
-  const oldPromptsParsed = oldPrompts ? JSON.parse(oldPrompts) : [];
-  const newPrompts: Prompt[] = [...oldPromptsParsed, ...prompts].filter(
+  saveFolders(newFolders);
+  
+  const newPrompts: Prompt[] = [...oldPrompts, ...prompts].filter(
     (prompt, index, self) =>
       index === self.findIndex((p) => p.id === prompt.id),
   );
-  localStorage.setItem('prompts', JSON.stringify(newPrompts));
+  savePrompts(newPrompts);
 
   return {
     version: 4,

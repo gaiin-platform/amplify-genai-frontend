@@ -1,7 +1,7 @@
 import { useMemo, useReducer } from 'react';
-import {HomeInitialState} from "@/pages/api/home/home.state";
+import {HomeInitialState} from "@/pages/api//home/home.state";
 import {Conversation, Message} from "@/types/chat";
-import {saveConversation} from "@/utils/app/conversation";
+import {conversationWithUncompressedMessages} from "@/utils/app/conversation";
 import {v4 as uuidv4} from "uuid";
 
 // Extracts property names from initial state of reducer to allow typesafe dispatch objects
@@ -43,10 +43,17 @@ export type ConversationUpdateMessageAction = {
   messages: Message[],
 }
 
+export type ConversationChangeFolderAction = {
+  type: "changeFolder",
+  conversationId: string,
+  folderId: string,
+}
+
 export type ConversationAction =
     ConversationAddMessageAction |
     ConversationDeleteMessageAction |
-    ConversationUpdateMessageAction;
+    ConversationUpdateMessageAction |
+    ConversationChangeFolderAction;
 
 // Returns the Action Type for the dispatch object to be used for typing in things like context
 export type ActionType<T> =
@@ -116,12 +123,15 @@ export const useHomeReducer = ({ initialState }: { initialState: HomeInitialStat
     const {conversations, selectedConversation} = state;
 
     // Find the conversation with the given id
-    const conversation = conversations.find(
+    const conversationFound = conversations.find(
         (conversation) => conversation.id === action.conversationId,
     );
 
-    if(!conversation) return state;
+    if(!conversationFound) return state;
 
+    const conversation = conversationWithUncompressedMessages(conversationFound);
+
+    // @ts-ignore
     const doUpdate = (action:ConversationAction) => {
       switch (action.type) {
         case "addMessages":
@@ -139,6 +149,11 @@ export const useHomeReducer = ({ initialState }: { initialState: HomeInitialStat
               (conversation, message) => updateMessage(conversation, message),
               conversation,
           );
+        case "changeFolder":
+            return {
+                ...conversation,
+                folderId: action.folderId,
+            };
       }
     };
 

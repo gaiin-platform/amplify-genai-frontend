@@ -9,7 +9,7 @@ interface Props {
 export const ExampleChat: FC<Props> = ({messages}) => {
 
     return (
-        <div className="relative flex-1 overflow-hidden bg-white dark:bg-[#343541]">
+        <div className="relative flex-1 overflow-hidden bg-neutral-100 dark:bg-[#343541]">
             <div
                 className="max-h-full overflow-x-hidden"
             >

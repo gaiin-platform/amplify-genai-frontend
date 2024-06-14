@@ -1,5 +1,5 @@
 import { Conversation } from '@/types/chat';
-
+import { isRemoteConversation } from '@/utils/app/conversationStorage';
 import { ConversationComponent } from './Conversation';
 
 interface Props {
@@ -7,6 +7,7 @@ interface Props {
 }
 
 export const Conversations = ({ conversations }: Props) => {
+
   return (
     <div className="flex w-full flex-col gap-1">
       {conversations

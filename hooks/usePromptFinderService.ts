@@ -1,6 +1,7 @@
-import {useContext} from "react";
+import {useContext, useEffect, useRef} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import {Conversation, Message, MessageType} from "@/types/chat";
+import { Prompt } from "@/types/prompt";
 
 
 export function usePromptFinderService() {
@@ -8,6 +9,12 @@ export function usePromptFinderService() {
     const {
         state: {prompts},
     } = useContext(HomeContext);
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
 
 
     const getApplicablePromptsByTagAndType = (conversation:Conversation, message:Message, type:MessageType) => {
@@ -17,7 +24,7 @@ export function usePromptFinderService() {
             return {content:null, label:message.label || message.content};
         }
 
-        const applicable = prompts.find(p => {
+        const applicable = promptsRef.current.find((p:Prompt) => {
             if(p.type === type && p.data && p.data.requiredTags){
                 if(p.data.requiredTags.every((t:string) => tags.includes(t))){
                     return p;
@@ -47,7 +54,7 @@ export function usePromptFinderService() {
                     }
                 };
 
-                eval("context.transformer = " + content);
+                
 
                 transformer = context.transformer;
             } catch (e) {

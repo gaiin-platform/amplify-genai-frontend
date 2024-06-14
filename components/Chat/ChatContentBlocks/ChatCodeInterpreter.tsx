@@ -1,6 +1,8 @@
 import { getPresignedDownloadUrl } from '@/services/codeInterpreterService';
 import React, { useEffect, useState } from 'react';
-import { AiOutlineDownload } from 'react-icons/ai';
+import {
+  IconDownload
+} from '@tabler/icons-react';
 
 interface FileInfo {
   type: string;
@@ -34,9 +36,9 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
   const downloadButton = (fileName: string, presigned_url: string) => {
     return (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>{fileName}</span>
+            <span className='text-lg font-bold'>{fileName}</span>
             <button
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                className=" text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                 onClick={(e) => {
                     e.preventDefault();
                     const link = document.createElement('a');
@@ -49,7 +51,7 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                 title={`Download ${fileName}`}
                 aria-label={`Download ${fileName}`}
                 style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
-                <AiOutlineDownload size={26} />
+                <IconDownload size={24} />
             </button>
         </div>
     );
@@ -62,10 +64,10 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
         if (!response.ok) throw new Error('Failed to fetch CSV content');
         const csvText = await response.text();
         
-        let contentToShow =  csvText.split('\n');
+        let contentToShow =  csvText.trim().split('\n');
         
-        if (contentToShow.length > 12) {
-            const previewRows = contentToShow.slice(0, 12);
+        if (contentToShow.length > 11) {
+            const previewRows = contentToShow.slice(0, 11);
             previewRows.push('...')
             setcsvOverflow(true);
             contentToShow = previewRows;
@@ -185,10 +187,10 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                 );
             };
             setFileContent (
-            <div>
+            <div className='mb-6'>
                 {downloadButton(fileName, presigned_url)}
                 { !csvPreview ? <div>Loading...</div> : csvPreview.length > 0 
-                            ? <div>{renderCsvTable()} {csvOverflow && <span>Download to see full content</span>} </div> 
+                            ? <div >{renderCsvTable()} {csvOverflow && <>{'Download to see full content'}</>} </div> 
                             : <div>Unfortunately, we are unable to display the file contents at this time...</div>}
             </div>
             );
@@ -196,11 +198,12 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
         case 'application/pdf':
             const pdfUrl = await fetchPdfAndDisplay(presigned_url)
             setFileContent(
-                <div>
+                <div className='mb-6'>
                     {downloadButton(fileName, presigned_url)}
                     {pdfError ? ( <div>Unfortunately, we are unable to display the PDF at this time...</div>) 
                               : pdfUrl && pdfUrl !== "" ? 
                                         (<iframe
+                                            className='mt-6'
                                             id="Generated_PDF"
                                             width="625"
                                             height="450"
@@ -239,7 +242,7 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                     src={presigned_url} 
                     alt={fileName} 
                     loading="lazy" 
-                    style={{ maxWidth: '100%', height: 'auto', display: 'block', marginTop: '10px' }} 
+                    style={{ maxWidth: '100%', height: 'auto', display: 'block'}} 
                     onError={(e) => {
                         // Display error text or handle the error as desired
                         e.currentTarget.alt = 'Unfortunately, we are unable to display the image at this time...';

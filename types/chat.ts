@@ -98,7 +98,6 @@ export interface DataSource {
 export interface ChatBody {
   model: OpenAIModel;
   messages: Message[];
-  key: string;
   prompt: string;
   temperature: number;
   functions?: CustomFunction[];
@@ -118,14 +117,16 @@ export interface Conversation {
   id: string;
   name: string;
   messages: Message[];
+  compressedMessages?: number[];
   model: OpenAIModel;
-  prompt: string;
-  temperature: number;
+  prompt?: string;
+  temperature?: number;
   folderId: string | null;
-  promptTemplate: Prompt | null;
+  promptTemplate?: Prompt | null;
   tags?: string[]
   maxTokens?: number;
   workflowDefinition?: WorkflowDefinition;
   data?: {[key:string]:any}
   codeInterpreterAssistantId?: string;
+  isLocal?: boolean;
 }

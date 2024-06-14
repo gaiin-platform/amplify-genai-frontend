@@ -71,6 +71,8 @@ export const handleStartConversationWithPrompt = (handleNewConversation:any, pro
   if (prompt.type === MessageType.PREFIX_PROMPT) {
     tags = [...tags, ...(prompt.data?.requiredTags || [])];
   }
+  // remove duplicates 
+  tags = Array.from(new Set(tags));
 
   handleNewConversation(
       {
@@ -104,6 +106,7 @@ export const updatePrompt = (updatedPrompt: Prompt, allPrompts: Prompt[]) => {
 export const savePrompts = (prompts: Prompt[]) => {
   localStorage.setItem('prompts', JSON.stringify(prompts));
 };
+
 
 export const parsePromptVariables = (content: string) => {
   const regex = /{{(.*?)}}/g;
@@ -181,29 +184,6 @@ export const defaultVariableFillOptions:VariableFillOptions = {
       isEditable: false,
       filler: (variable:string) => {
         return uuidv4();
-      }
-    },
-    "tools": {
-      isEditable: false,
-      filler: (name: string) => {
-
-        const context:WorkflowContext = {
-            inputs: {
-                documents: [],
-                parameters: {},
-                prompts: [],
-                folders: [],
-                conversations: [],
-            },
-        }
-
-        // @ts-ignore
-        let metadata = getToolMetadata({context:context});
-        let description = Object.entries(metadata)
-            .map(([k, v]) => {
-              return `${k}${v.description}`;
-            }).join("\n");
-        return description;
       }
     },
     "options":{

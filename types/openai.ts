@@ -18,17 +18,20 @@ export enum OpenAIModelID {
   GPT_3_5_FN = 'gpt-3.5-turbo-0613',
   GPT_3_5_AZ = 'gpt-35-turbo',
   GPT_4 = 'gpt-4',
+  GPT_4o_AZ = 'gpt-4o',
   GPT_4_FN = 'gpt-4-0613',
   CLAUDE_INSTANT_1_2 = 'anthropic.claude-instant-v1',
   CLAUDE_2_1 = 'anthropic.claude-v2:1',
   CLAUDE_3_SONNET = 'anthropic.claude-3-sonnet-20240229-v1:0',
   CLAUDE_3_HAIKU = 'anthropic.claude-3-haiku-20240307-v1:0',
+  CLAUDE_3_OPUS = 'anthropic.claude-3-opus-20240229-v1:0',
   MISTRAL_7B = 'mistral.mistral-7b-instruct-v0:2',
-  MIXTRAL_8X7B =  'mistral.mixtral-8x7b-instruct-v0:1'
+  MIXTRAL_8X7B =  'mistral.mixtral-8x7b-instruct-v0:1',
+  MISTRAL_LARGE = 'mistral.mistral-large-2402-v1:0'
 }
 
 // in case the `DEFAULT_MODEL` environment variable is not set or set to an unsupported model
-export const fallbackModelID = OpenAIModelID.GPT_3_5;
+export const fallbackModelID = OpenAIModelID.CLAUDE_3_HAIKU;
 
 export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
 
@@ -41,6 +44,17 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
     visible: true,
     outputCost: .03,
     inputCost: .01,
+    description: "This is an omni model which can be used for complex tasks requiring advanced understanding.\nIncreased speed with similar understanding in line with its predecessors at a reduced cost. \nCan carry out complex mathematical operations, code assistance, analyze intricate documents and datasets, demonstrates critical thinking, and in-depth context understanding.\nTrained on information available through October 2023."
+  },
+  [OpenAIModelID.GPT_4o_AZ]: {
+    id: OpenAIModelID.GPT_4o_AZ,
+    name: 'GPT-4o (Azure)',
+    maxLength: 24000,
+    tokenLimit: 8000,
+    actualTokenLimit: 128000,
+    visible: true,
+    outputCost: .005,
+    inputCost: .015,
     description: "Consider for complex tasks requiring advanced understanding.\nOffers further advanced intelligence over its predecessors.\nCan carry out complex mathematical operations, code assistance, analyze intricate documents and datasets, demonstrates critical thinking, and in-depth context understanding.\nTrained on information available through April 2023."
   },
   [OpenAIModelID.GPT_4_TURBO]: {
@@ -153,6 +167,17 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
     inputCost: 0.00025,
     description: "Consider for high-velocity tasks with near-instant responsiveness and emphasis on security and robustness through minimized risk of harmful outputs.\nFeatures speeds 3 times faster than its Claude peer models while being the most economical choice.\nBest for simple queries, lightweight conversation, rapid analysis of large volumes of data, and handling of much longer prompts.\nTrained on information available through August 2023."
    },
+   [OpenAIModelID.CLAUDE_3_OPUS]: {
+    id: OpenAIModelID.CLAUDE_3_OPUS,
+    name: 'Claude-3-Opus (bedrock)',
+    maxLength: 24000,
+    tokenLimit: 4000,
+    actualTokenLimit: 4096,
+    visible: false,
+    outputCost: 0.07500,
+    inputCost: 0.01500,
+    description: "Consider for your most demanding tasks that require a highly intelligent model.\nThis is Anthropic’s most sophisticated model to date.\nIt excels in task automation, interactive coding, complex data analysis, navigating intricate scenarios, brainstorming, hypothesis generation, and providing in-depth analysis of financial trends and market data.\nTrained on information available through August 2023."
+   },
    [OpenAIModelID.MISTRAL_7B]: {
     id: OpenAIModelID.MISTRAL_7B,
     name: 'Mistral-7b-Instruct (bedrock)',
@@ -175,5 +200,16 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
     inputCost: 0.0007,
     description: "Consider for rapid processing and task-specific fine-tuning.\nOffers advanced intelligence, compared to its predecessors, at a low cost.\nBest for text summarization, question answering, text classification, code generation, and creative content generation.\nTrained on information available through September 2023."
   },
+  [OpenAIModelID.MISTRAL_LARGE]: {
+    id: OpenAIModelID.MISTRAL_LARGE,
+    name: 'Mistral-Large (bedrock)',
+    maxLength: 24000,
+    tokenLimit: 4000,
+    actualTokenLimit: 4096,
+    visible: false,
+    outputCost: 0.024,
+    inputCost: 0.008,
+    description: "Consider for complex tasks and advanced understanding without the need for recent knowledge.\mOffer a greater level of intelligence compared to its predecessors.\nExcels in complex reasoning, text understanding, transformation, code generation, and offers advanced capabilities for multilingual reasoning and analysis.\nTrained on information available through 2021."
+   },
    
 };

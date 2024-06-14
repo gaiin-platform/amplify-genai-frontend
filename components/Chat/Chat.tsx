@@ -3,9 +3,7 @@ import {
     IconSettings,
     IconShare,
     IconDownload,
-    IconHome2,
-    IconHome,
-    IconRocket
+    IconRocket,
 } from '@tabler/icons-react';
 import {
     MutableRefObject,
@@ -19,10 +17,7 @@ import {
 
 import {useTranslation} from 'next-i18next';
 
-import {
-    saveConversation,
-    saveConversations,
-} from '@/utils/app/conversation';
+import { saveConversations} from '@/utils/app/conversation';
 import {throttle} from '@/utils/data/throttle';
 
 import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
@@ -46,7 +41,6 @@ import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
 import {Prompt} from "@/types/prompt";
 import {WorkflowDefinition} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
-import {Key} from "@/components/Settings/Key";
 import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from "@/utils/app/const";
 import {TagsList} from "@/components/Chat/TagsList";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
@@ -55,6 +49,11 @@ import {MemoizedRemoteMessages} from "@/components/Chat/MemoizedRemoteMessages";
 import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
 import {useSendService} from "@/hooks/useChatSendService";
+import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import {CloudStorage} from './CloudStorage';
+import { getIsLocalStorageSelection, isRemoteConversation } from '@/utils/app/conversationStorage';
+import { deleteRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
+import { callRenameChat } from './RenameChat';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -83,20 +82,84 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 selectedAssistant,
                 conversations,
                 models,
-                apiKey,
-                serverSideApiKeyIsSet,
                 modelError,
                 loading,
                 prompts,
                 defaultModelId,
                 workspaceMetadata,
                 statsService,
+                featureFlags,
+                storageSelection,
+                messageIsStreaming,
+                chatEndpoint,
+                folders
             },
             handleUpdateConversation,
             handleCustomLinkClick,
             dispatch: homeDispatch,
             handleAddMessages: handleAddMessages
         } = useContext(HomeContext);
+
+        const foldersRef = useRef(folders);
+
+        useEffect(() => {
+            foldersRef.current = folders;
+          }, [folders]);
+    
+
+        const promptsRef = useRef(prompts);
+
+        useEffect(() => {
+            promptsRef.current = prompts;
+          }, [prompts]);
+    
+    
+        const conversationsRef = useRef(conversations);
+    
+        useEffect(() => {
+            conversationsRef.current = conversations;
+        }, [conversations]);
+
+        const [isRenaming, setIsRenaming] = useState<boolean>(false);
+
+        useEffect(() => {
+
+            const renameConversation = async() => {
+                setIsRenaming(true);
+                if (selectedConversation) {
+                    let updatedConversation = {...selectedConversation}
+                    // will always return a string whether call was successful or not 
+                    callRenameChat(chatEndpoint || '', [updatedConversation.messages[0]], statsService).then(customName => {
+                        updatedConversation = {
+                            ...updatedConversation,
+                            name: customName, 
+                        };
+                        homeDispatch({
+                            field: 'selectedConversation',
+                            value: updatedConversation,
+                        });
+                        console.log("Rename chat: ", customName)
+                        
+                        if (isRemoteConversation(updatedConversation)) uploadConversation(updatedConversation, foldersRef.current);
+
+                        const updatedConversations: Conversation[] = conversationsRef.current.map(
+                            (c:Conversation) => {
+                                if (c.id === selectedConversation.id) {
+                                    return updatedConversation;
+                                }
+                                return c;
+                            },
+                        );
+                        homeDispatch({field: 'conversations', value: updatedConversations});
+                        saveConversations(updatedConversations);
+                        setIsRenaming(false);
+                    })
+                }
+            }
+            if (selectedConversation?.messages.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
+
+        }, [selectedConversation]);
+    
 
         const {handleSend:handleSendService} = useSendService();
 
@@ -139,9 +202,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 value: updatedConversation,
             });
 
-            saveConversation(updatedConversation);
-            const updatedConversations: Conversation[] = conversations.map(
-                (conversation) => {
+            const updatedConversations: Conversation[] = conversationsRef.current.map(
+                (conversation:Conversation) => {
                     if (conversation.id === selectedConversation.id) {
                         return updatedConversation;
                     }
@@ -260,7 +322,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     } else if (action === "template") {
                         const name = path;
 
-                        const prompt = prompts.find((p) => p.name === name);
+                        const prompt = promptsRef.current.find((p:Prompt) => p.name === name);
 
                         if (prompt) {
                             runPrompt(prompt);
@@ -386,7 +448,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     };
 
                     message.data = {...message.data, assistant: {definition: {
-                        assistantId: assistantInUse.assistantId, name: assistantInUse.name
+                        assistantId: assistantInUse.assistantId,
+                                name: assistantInUse.name,
+                            ...(assistantInUse.uri ? {uri: assistantInUse.uri} : {}),
                     }}};
 
                     const request = createChatRequest(
@@ -523,15 +587,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }, [selectedConversation]);
 
-        const handleApiKeyChange = useCallback(
-            (apiKey: string) => {
-                homeDispatch({field: 'apiKey', value: apiKey});
-
-                localStorage.setItem('apiKey', apiKey);
-            },
-            [homeDispatch],
-        );
-
 
         const scrollToBottom = useCallback(() => {
             if (autoScrollEnabled) {
@@ -539,6 +594,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 textareaRef.current?.focus();
             }
         }, [autoScrollEnabled]);
+
 
         const handleScroll = () => {
             if (chatContainerRef.current) {
@@ -559,6 +615,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const handleScrollDown = () => {
             chatContainerRef.current?.scrollTo({
                 top: chatContainerRef.current.scrollHeight,
+                behavior: 'smooth',
+            });
+        };
+
+        const handleScrollUp = () => {
+            chatContainerRef.current?.scrollTo({
+                top: 30,
                 behavior: 'smooth',
             });
         };
@@ -595,8 +658,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, [selectedConversation, throttledScrollDown]);
 
         const handleDeleteConversation = (conversation: Conversation) => {
-            const updatedConversations = conversations.filter(
-                (c) => c.id !== conversation.id,
+            if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
+            const updatedConversations = conversationsRef.current.filter(
+                (c:Conversation) => c.id !== conversation.id,
             );
 
             homeDispatch({field: 'conversations', value: updatedConversations});
@@ -609,7 +673,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     value: updatedConversations[updatedConversations.length - 1],
                 });
 
-                saveConversation(updatedConversations[updatedConversations.length - 1]);
             } else {
                 defaultModelId &&
                 homeDispatch({
@@ -618,10 +681,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         id: uuidv4(),
                         name: t('New Conversation'),
                         messages: [],
-                        model: OpenAIModels[defaultModelId],
+                        model: OpenAIModels[defaultModelId as OpenAIModelID],
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
+                        isLocal: getIsLocalStorageSelection(storageSelection)
                     },
                 });
 
@@ -639,20 +703,22 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
         useEffect(() => {
-
             if (selectedConversation
                 && selectedConversation.promptTemplate
                 && isAssistant(selectedConversation.promptTemplate)
                 && selectedConversation.messages.length == 0) {
-
+                    
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
-                    homeDispatch({field: 'selectedAssistant', value: selectedConversation.promptTemplate.data.assistant});
+                    const assistant = selectedConversation.promptTemplate.data.assistant;
+                    // make sure assistant hasnt been deleted 
+                    if (prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
             else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
-
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
-                    homeDispatch({field: 'selectedAssistant', value: selectedConversation.promptTemplate.data.assistant});
+                    const assistant = selectedConversation.promptTemplate.data.assistant;
+                    // make sure assistant hasnt been deleted 
+                    if (prompts.some((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
@@ -664,8 +730,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 setVariables(workflowVariables);
                 setIsPromptTemplateDialogVisible(true);
-            }
-        }, [selectedConversation]);
+            } 
+        }, [selectedConversation, prompts]);
 
         useEffect(() => {
             const observer = new IntersectionObserver(
@@ -693,52 +759,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
 // @ts-ignore
         return (
-            <div className="relative flex-1 overflow-hidden bg-white dark:bg-[#343541]">
-                {!(apiKey || serverSideApiKeyIsSet) ? (
-                    <div className="mx-auto flex h-full w-[300px] flex-col justify-center space-y-1 sm:w-[600px]">
-                        <div className="text-left text-4xl font-bold text-black dark:text-white">
-                            Welcome
-                        </div>
-                        <div className="text-left text-gray-500 dark:text-gray-400 mb-6">
-                            <div className="text-left text-gray-500 dark:text-gray-400 mb-6">
-                                The tool allows you to plug in your API keys to use this UI with
-                                their API. Right now, only OpenAI is supported. It is <span
-                                className="italic">only</span> used to communicate
-                                with their APIs.
-                            </div>
-
-                            {!serverSideApiKeyIsSet ? (
-
-                                <div className="text-left text-gray-500 dark:text-gray-400 mb-6">
-                                    <div className="text-left text-2xl font-bold text-black dark:text-white">
-                                        Please set your OpenAI API key:
-                                    </div>
-                                    <div className="text-left text-4xl font-bold text-black dark:text-white">
-                                        <Key apiKey={apiKey} onApiKeyChange={handleApiKeyChange}/>
-                                    </div>
-                                </div>
-                            ) : null}
-
-                            <div className="text-left text-gray-500 dark:text-gray-400">
-                                {t("If you don't have an OpenAI API key, you can get one here: ")}
-                                <a
-                                    href="https://platform.openai.com/account/api-keys"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-blue-500 hover:underline"
-                                >
-                                    openai.com
-                                </a>
-                            </div>
-                            <div className="text-left text-gray-500 dark:text-gray-400">
-                                <div>
-                                    Important: This tool is 100% unaffiliated with OpenAI, Anthropic, Google, etc.
-                                </div>
-                            </div>
-
-                        </div>
-                    </div>
-                ) : modelError ? (
+            <div className="relative flex-1 overflow-hidden bg-neutral-100 dark:bg-[#343541]">
+                { modelError ? (
                     <ErrorMessageDiv error={modelError}/>
                 ) : (
                     <>
@@ -747,7 +769,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             ref={chatContainerRef}
                             onScroll={handleScroll}
                         >
-                            {selectedConversation?.messages.length === 0 ? (
+                            {selectedConversation && selectedConversation?.messages.length === 0 ? (
                                 <>
                                     <div
                                         className="mx-auto flex flex-col space-y-5 md:space-y-10 px-3 pt-5 md:pt-12 sm:max-w-[600px]">
@@ -765,13 +787,24 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         {models.length > 0 && (
                                             <div
                                                 className="flex h-full flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600">
-                                                <ModelSelect/>
+                                                
+                                                <div className="relative flex flex-row w-full items-center"> 
+                                                    <div className="flex-grow">
+                                                        <ModelSelect/>
+                                                    </div>
 
+                                                    {featureFlags.storeCloudConversations && <div className="mt-[-5px] absolute top-0 right-0 flex justify-end items-center">
+                                                        <CloudStorage iconSize={20} />
+                                                    </div>}
+                                                    
+                                                </div>
+                                                
+                                                
                                                 <SystemPrompt
                                                     models={models}
                                                     handleUpdateModel={handleUpdateModel}
                                                     conversation={selectedConversation}
-                                                    prompts={prompts}
+                                                    prompts={promptsRef.current}
                                                     onChangePrompt={(prompt) =>
                                                         handleUpdateConversation(selectedConversation, {
                                                             key: 'prompt',
@@ -846,6 +879,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         includeFolders={false}
                                         selectedConversations={selectedConversation ? [selectedConversation] : []}
                                     />
+                                    
                                     {isDownloadDialogVisible && (
                                         <DownloadModal
                                             includeConversations={true}
@@ -870,11 +904,19 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
                                                 handleSettings();
+
+                                                if (!showSettings) {
+                                                    handleScrollUp();
+                                                } else {
+                                                    handleScrollDown();
+                                                } 
+                                                
                                             }}
                                             title="Chat Settings"
                                         >
                                             <IconSettings size={18}/>
                                         </button>
+                                        
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={onClearAll}
@@ -901,6 +943,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         >
                                             <IconDownload size={18}/>
                                         </button>
+                                        {featureFlags.storeCloudConversations &&
+                                        <CloudStorage iconSize={18} />
+                                        }
+
                                         |
                                         <button
                                             className="ml-2 mr-2 cursor-pointer hover:opacity-50"
@@ -909,12 +955,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 e.stopPropagation();
                                                 homeDispatch({field: 'page', value: 'home'});
                                             }}
-                                            title="Home"
+                                            title="Files"
                                         >
                                             <div className="flex flex-row items-center ml-2
-                                            bg-[#fdbd39] rounded-lg text-gray-600 p-1">
+                                            bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
                                                 <div><IconRocket size={18}/></div>
-                                                <div className="ml-1">Home</div>
+                                                <div className="ml-1">Files </div>
                                             </div>
                                         </button>
                                     </div>
@@ -946,13 +992,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     }
                                                 }
                                             }/>
-
-
                                         </div>
                                     </div>
 
 
-                                    {selectedConversation?.messages.map((message, index) => (
+                                    {selectedConversation?.messages.map((message: Message, index: number) => (
                                         (message.type === MessageType.REMOTE) ?
                                             <MemoizedRemoteMessages
                                                 key={index}
@@ -1054,6 +1098,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 )}
             </div>
         );
-    })
-;
+    });
+    
 Chat.displayName = 'Chat';

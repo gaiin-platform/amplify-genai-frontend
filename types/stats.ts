@@ -67,6 +67,10 @@ export interface StatsServices {
 
     createConversationEvent: (conversation: Conversation) => void;
 
+    moveConversationRemoteEvent: (conversation: Conversation) => void;
+
+    moveConversationFromRemoteEvent: (conversation: Conversation) => void;
+
     sendChatEvent: (chatBody: ChatBody) => void;
 
     sendChatRewriteEvent: (chatBody: ChatBody, updateIndex: number) => void;
@@ -150,6 +154,10 @@ export const noOpStatsServices:StatsServices = {
     deleteConversationEvent: (conversation: Conversation) => {},
 
     createConversationEvent: (conversation: Conversation) => {},
+
+    moveConversationRemoteEvent: (conversation: Conversation) => {},
+
+    moveConversationFromRemoteEvent: (conversation: Conversation) => {},
 
     sendChatEvent: (chatBody: ChatBody) => {},
 
