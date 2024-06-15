@@ -368,6 +368,8 @@ export function useSendService() {
                             let isFirst = true;
                             let text = '';
                             let codeInterpreterData = {};
+                            // i find once a run on a thread is marked incomplete/failed/requires_action etc it will not work if you try again right away, better to just start with a new thread
+                            let codeInterpreterNeedsNewThread = false;
 
                             // Reset the status display
                             homeDispatch({
@@ -429,6 +431,7 @@ export function useSendService() {
 
                                             } else {
                                                 console.log(responseData.error);
+                                                if (responseData.error.includes("Error with run status")) codeInterpreterNeedsNewThread = true;
                                                 text += "Something went wrong with code interpreter... please try again.";
                                             }
 
@@ -455,11 +458,10 @@ export function useSendService() {
                                                         content: text,
                                                         data: {...(message.data || {}), state: currentState}
                                                     };
-                                                if (Object.keys(codeInterpreterData).length !== 0) {
-                                                    assistantMessage['codeInterpreterMessageData'] = codeInterpreterData;
-                                                }
+                                                if (Object.keys(codeInterpreterData).length !== 0)  assistantMessage['codeInterpreterMessageData'] = codeInterpreterData;
                                                 return assistantMessage
                                             }
+                                            if (codeInterpreterNeedsNewThread && message.codeInterpreterMessageData && 'threadId' in message.codeInterpreterMessageData)  delete message.codeInterpreterMessageData.threadId
                                             return message;
                                         });
                                     updatedConversation = {
