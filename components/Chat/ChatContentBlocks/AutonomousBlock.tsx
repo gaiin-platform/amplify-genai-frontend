@@ -8,9 +8,10 @@ import {useSendService} from "@/hooks/useChatSendService";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {execOp} from "@/services/opsService";
-import {OpDef} from "@/types/op";
+import {ApiCall, OpDef} from "@/types/op";
 import {useSession} from "next-auth/react";
 import {getDbsForUser} from "@/services/pdbService";
+import {getServerProvidedOps, parseApiCalls, resolveServerHandler} from "@/utils/app/ops";
 
 interface Props {
     conversation: Conversation;
@@ -22,6 +23,7 @@ interface Props {
     id: string;
     isLast: boolean;
 }
+
 
 const hasExecuted:{[key:string]:boolean} = {
 
@@ -55,12 +57,7 @@ const AutonomousBlock: React.FC<Props> = (
 
     const {handleSend} = useSendService();
 
-    function parseApiCall(str:string) {
-        const functionName = str.split("(")[0];
-        const paramsStr = str.substring(str.indexOf('(') + 1, str.lastIndexOf(')'));
-        const params = JSON5.parse("["+paramsStr+"]");
-        return { functionName, params };
-    }
+
 
     const stripQuotes = (s:string) => {
 
@@ -83,7 +80,7 @@ const AutonomousBlock: React.FC<Props> = (
     const handlers:{[key:string]:(params:any)=>any} = {
 
         "/ops": async (params:any) => {
-            const tag = params[1];
+            const tag = params[0];
             const result = await execOp("/ops/get", {
                 tag
             });
@@ -105,7 +102,6 @@ const AutonomousBlock: React.FC<Props> = (
         },
         "/searchChats": (params:string[]) => {
             const thisId = selectedConversation?.id || "";
-            params = params.slice(1);
 
             console.log('Searching for keywords', params);
 
@@ -134,7 +130,7 @@ const AutonomousBlock: React.FC<Props> = (
         "/chat": (params:any) => {
             console.log("/chat params:", params)
 
-            const id = params[1];
+            const id = params[0];
             const chat = conversations.find((c:any) => c.id === id);
 
             if(!chat){
@@ -148,8 +144,21 @@ const AutonomousBlock: React.FC<Props> = (
         "/chatSamples": (params:any) => {
             console.log("/chat params:", params)
 
-            const ids = params.slice(1);
+            const ids = params;
             const chats = conversations.filter((c:any) => ids.includes(c.id));
+
+            if(chats.length === 0){
+                console.log("No conversations found for the given ids. Searching for folders with the specified ids.");
+                const matchedFolders = folders.filter((f) => ids.includes(f.id));
+
+                console.log("Matched folders:", matchedFolders);
+
+                matchedFolders.forEach((f) => {
+                    const folderChats = conversations.filter((c) => c.folderId === f.id);
+                    console.log("Folder chats:", folderChats);
+                    chats.push(...folderChats);
+                });
+            }
 
             if(chats.length === 0){
                 return {error: "No conversations found for the given ids. Try listing the chats to find valid ids."};
@@ -171,7 +180,7 @@ const AutonomousBlock: React.FC<Props> = (
             return folders;
         },
         "/searchFolders": (params:string[]) => {
-            params = params.slice(1);
+
             const found = folders.filter((f) => {
                 return params.some((k: string) => f.name.includes(k));
             });
@@ -212,7 +221,7 @@ const AutonomousBlock: React.FC<Props> = (
                 .map(p => p.data?.assistant);
         },
         "/createChatFolder": (params:any) => {
-            params = params.slice(1);
+
             const name = params[0];
 
             if(!name){
@@ -223,7 +232,7 @@ const AutonomousBlock: React.FC<Props> = (
             return folder;
         },
         "/moveChatsToFolder": (params:any) => {
-            params = params.slice(1);
+
             const folderId = params[0];
             const chatIds = params.slice(1);
             const folder = folders.find((f) => f.id === folderId);
@@ -256,80 +265,6 @@ const AutonomousBlock: React.FC<Props> = (
         },
     }
 
-    const remoteOpHandler = (opDef:OpDef) => {
-
-        console.log("Building remote op handler", opDef);
-
-        const opData = opDef.data || {};
-
-        const url = opDef.url;
-        const method = opDef.method || "POST";
-        const defaultErrorMessage = opData.defaultErrorMessage;
-        const includeMessage = opData.includeMessage;
-        const includeConversation = opData.includeConversation;
-        const includeAccessToken = opData.includeAccessToken;
-        const shouldConfirm = opData.shouldConfirm;
-        const confirmationMessage = opData.confirmationMessage || "Do you want to allow the assistant to perform the specified operation?";
-
-        return async (params:any) => {
-            if(!shouldConfirm || confirm(confirmationMessage)){
-
-                const headers = {
-                    "Content-Type": "application/json"
-                }
-                if (includeAccessToken){
-                    console.log("Including access token");
-                    // @ts-ignore
-                    headers["Authorization"] = `Bearer ${session?.accessToken}` // Assuming the API Gateway/Lambda expects a Bearer token
-                }
-
-                const req:Record<string,any> = {
-                    method,
-                    headers
-                };
-
-                const payload:Record<string,any> = {};
-
-                params = params.slice(1); // The first param is the operation name
-                for (let i = 0; i < opDef.params.length; i++) {
-                    const paramDef = opDef.params[i];
-                    console.log(`paramDef ${i}:`, paramDef);
-                    try {
-                        payload[paramDef.name] = JSON5.parse(params[i]);
-                    } catch (e) {
-                        payload[paramDef.name] = params[i];
-                    }
-                    console.log(`payload ${i}:`, payload[paramDef.name]);
-                }
-
-                try {
-
-                    console.log("Sending remote op request", url, payload);
-
-                    const response = await execOp(url, payload);
-
-                    //const response = await fetch(url, req);
-                    if (response) {
-                        return response;
-                    } else {
-                        return {
-                            success: false,
-                            result: defaultErrorMessage || response.statusText
-                        }
-                    }
-                } catch (e) {
-                    console.error("Error invoking remote op:", e);
-                    return {
-                        success: false,
-                        result: defaultErrorMessage || `${e}`
-                    }
-                }
-            }
-            else {
-                return {success:false, result:"The user canceled the operation and asked you to stop."}
-            }
-        };
-    }
 
     const getServerSelectedAssistant = (message:Message) => {
 
@@ -341,24 +276,6 @@ const AutonomousBlock: React.FC<Props> = (
         return aid;
     }
 
-    const getServerProvidedOps = (message:Message) => {
-        return (message.data && message.data.state) ?
-            message.data.state.resolvedOps : [];
-    }
-
-    const resolveServerHandler = (message:Message, id:string) => {
-        const serverResolvedOps = getServerProvidedOps(message);
-
-        if(!serverResolvedOps || serverResolvedOps.length === 0){
-            return null;
-        }
-
-        const opDef = serverResolvedOps.find(
-            (op:any) => op.id === id || op.id === "/"+id
-        );
-
-        return opDef ? remoteOpHandler(opDef) : null;
-    }
 
     const runAction = async (action: any) => {
         try{
@@ -390,37 +307,46 @@ const AutonomousBlock: React.FC<Props> = (
                 }
             )
 
-            const apiCall = parseApiCall(action);
-            console.log("apiCall:", apiCall);
+            const apiCalls = parseApiCalls(action);
 
-            const shouldConfirm = false;
-            const { functionName, params } = apiCall;
-            const url = stripQuotes(params[0]);
+            const results = [];
 
-            const remoteOps = getServerProvidedOps(message);
-            console.log("Message:", message);
-            console.log("Searching for operation:", url);
-            console.log(`Known keys: 
-            ${remoteOps ? "Remote:" + remoteOps.map((o:any) => o.id).join(",") : ""}
+            for(const apiCall of apiCalls) {
+
+                console.log("apiCall:", apiCall);
+
+                const shouldConfirm = false;
+                const {functionName, params, code} = apiCall;
+                const url = stripQuotes(functionName);
+
+                const remoteOps = getServerProvidedOps(message);
+                console.log("Message:", message);
+                console.log("Searching for operation:", url);
+                console.log(`Known keys: 
+            ${remoteOps ? "Remote:" + remoteOps.map((o: any) => o.id).join(",") : ""}
             Local:${Object.keys(handlers)}`);
 
-            const handler =
-                resolveServerHandler(message, url)
-                || handlers[url]
-                || handlers["/"+url];
+                const handler =
+                    resolveServerHandler(message, url)
+                    || handlers[url]
+                    || handlers["/" + url];
 
-            let result = {success:false, message:"Unknown operation: "+url+ ". " +
-                    "Please double check that you are using the right format for invoking operations (e.g., do(someOperationName, ...)) and that" +
-                    " the name of the op is correct."}
-            if(handler){
-                result = await handler(params);
+                let result = {
+                    success: false, message: "Unknown operation: " + url + ". " +
+                        "Please double check that you are using the right format for invoking operations (e.g., do(someOperationName, ...)) and that" +
+                        " the name of the op is correct."
+                }
+                if (handler && (!shouldConfirm || confirm("Allow automation to proceed?"))) {
+                    result = await handler(params);
+                }
+
+                results.push({op:code, ...result});
             }
 
-            if(!shouldStopConversation() && handleSend && (!shouldConfirm || confirm("Allow automation to proceed?"))){
+            if(!shouldStopConversation()){
 
                 const feedbackMessage = {
-                    op: action,
-                    resultOfOp: result,
+                    resultOfOps: results,
                 }
 
                 const assistantId =
@@ -438,15 +364,7 @@ const AutonomousBlock: React.FC<Props> = (
                         shouldStopConversation);
                 }
             }
-            // const handler = handlers[functionName];
-            // if (handler) {
-            //     handler(params).then((result: any) => {
-            //         console.log("result:", result);
-            //     });
-            // }
-            // else {
-            //     console.error("No handler found for function:", functionName);
-            // }
+
         }
         catch (e) {
             console.error(e);

@@ -129,6 +129,7 @@ const ChatContentBlock: React.FC<Props> = (
             if (!inline && match && match[1] === 'op' && selectedConversation) {
                 //@ts-ignore
                 return (<OpBlock
+                    message={message}
                     definition={String(children)}
                     />);
             }
