@@ -12,6 +12,7 @@ import { noOpStatsServices, StatsServices } from "@/types/stats";
 import { Account } from "@/types/accounts";
 import {Op} from "@/types/op";
 import {CheckItemType} from "@/types/checkItem";
+import { PluginLocation } from '@/types/plugin';
 
 
 type HandleSend = (request: any) => void;
@@ -58,6 +59,7 @@ export interface HomeInitialState {
   allFoldersOpenPrompts: boolean;
   checkedItems: Array<any>;
   checkingItemType: CheckItemType | null;
+  pluginLocation: PluginLocation;
 }
 
 export const initialState: HomeInitialState = {
@@ -116,7 +118,7 @@ export const initialState: HomeInitialState = {
     workflowRun: true,
     workflowCreate: false,
     rootPromptCreate: true,
-    pluginsOnInput: false,
+    pluginsOnInput: true, // if all plugin features are disables, then this should be disabled. ex. ragEnabled, codeInterpreterEnabled etc.
     dataSourceSelectorOnInput: true,
     followUpCreate: true,
     marketItemDelete: false,
@@ -139,5 +141,6 @@ export const initialState: HomeInitialState = {
   allFoldersOpenConvs: false,
   allFoldersOpenPrompts: false,
   checkedItems: [],
-  checkingItemType: null
+  checkingItemType: null,
+  pluginLocation: {x:100, y:-250}
 };

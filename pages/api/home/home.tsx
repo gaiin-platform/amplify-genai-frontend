@@ -724,6 +724,11 @@ const Home = ({
             dispatch({ field: 'showPromptbar', value: false });
         }
 
+        const pluginLoc = localStorage.getItem('pluginLocation');
+        if (pluginLoc) {
+            dispatch({ field: 'pluginLocation', value: JSON.parse(pluginLoc) });
+        }
+
         const showChatbar = localStorage.getItem('showChatbar');
         if (showChatbar) {
             dispatch({ field: 'showChatbar', value: showChatbar === 'true' });
