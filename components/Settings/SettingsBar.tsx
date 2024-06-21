@@ -1,4 +1,4 @@
-import {useCallback, useContext, useEffect, useState} from 'react';
+import {useCallback, useContext, useEffect, useRef, useState} from 'react';
 
 import { useTranslation } from 'next-i18next';
 
@@ -10,7 +10,7 @@ import { exportData, importData } from '@/utils/app/importExport';
 
 import { Conversation } from '@/types/chat';
 import { LatestExportFormat, SupportedExportFormats } from '@/types/export';
-import { OpenAIModels } from '@/types/openai';
+import { OpenAIModelID, OpenAIModels } from '@/types/openai';
 
 import HomeContext from '@/pages/api/home/home.context';
 
@@ -39,12 +39,30 @@ export const SettingsBar = () => {
     const [sharedFolders, setSharedFolders] = useState<FolderInterface[]>([])
 
     const {
-        state: {  defaultModelId, folders, statsService },
+        state: {  defaultModelId, conversations, prompts, folders, statsService, storageSelection},
         dispatch: homeDispatch,
     } = useContext(HomeContext);
 
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
+
+
+    const conversationsRef = useRef(conversations);
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
     const {
-        dispatch: chatDispatch,
     } = chatBarContextValue;
 
     useEffect(() => {
@@ -53,11 +71,11 @@ export const SettingsBar = () => {
 
 
     const handleExportData = () => {
-        exportData();
+        exportData(conversationsRef.current, promptsRef.current, foldersRef.current);
     };
 
     const handleImportConversations = (data: SupportedExportFormats) => {
-        const { history, folders, prompts }: LatestExportFormat = importData(data);
+        const { history, folders, prompts }: LatestExportFormat = importData(data, conversationsRef.current, promptsRef.current, foldersRef.current);
         homeDispatch({ field: 'conversations', value: history });
         homeDispatch({
             field: 'selectedConversation',
@@ -77,11 +95,11 @@ export const SettingsBar = () => {
                 id: uuidv4(),
                 name: t('New Conversation'),
                 messages: [],
-                model: OpenAIModels[defaultModelId],
+                model: OpenAIModels[defaultModelId as OpenAIModelID],
                 prompt: DEFAULT_SYSTEM_PROMPT,
                 temperature: DEFAULT_TEMPERATURE,
                 folderId: null,
-                isLocal: getIsLocalStorageSelection() 
+                isLocal: getIsLocalStorageSelection(storageSelection) 
             },
         });
 
@@ -90,7 +108,7 @@ export const SettingsBar = () => {
         localStorage.removeItem('conversationHistory');
         localStorage.removeItem('selectedConversation');
 
-        const updatedFolders = folders.filter((f) => f.type !== 'chat');
+        const updatedFolders = foldersRef.current.filter((f: FolderInterface) => f.type !== 'chat');
 
         homeDispatch({ field: 'folders', value: updatedFolders });
         saveFolders(updatedFolders);

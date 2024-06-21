@@ -236,7 +236,7 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
                                     handleFetchShare(item);
                                 }}
                             >
-                                <IconRocket size={18}/>
+                                <IconRocket className='ml-2' size={18}/>
                                 <div className="flex-1 flex-col break-all text-left text-[12.5px] leading-3 pr-1">
                                     <div className="mb-1 text-gray-500">{new Date(item.sharedAt).toLocaleString()}</div>
                                     <div

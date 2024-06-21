@@ -2,13 +2,14 @@ import {IconCloud, IconCloudFilled,
     IconCloudOff
 } from '@tabler/icons-react';
 
-import { FC, useContext, useEffect, useState } from 'react';
+import { FC, useContext, useEffect, useRef, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
 import HomeContext from '@/pages/api/home/home.context';
 import { handleConversationIsLocalChange, isRemoteConversation } from '@/utils/app/conversationStorage';
 import { saveConversations } from '@/utils/app/conversation';
+import { Conversation } from '@/types/chat';
 
 
 interface Props {
@@ -21,11 +22,24 @@ export const CloudStorage: FC<Props> = ({
   iconSize
 }) => {
   const { 
-    state: { selectedConversation, conversations, statsService}, dispatch: homeDispatch
+    state: { selectedConversation, conversations, folders, statsService}, dispatch: homeDispatch
   } = useContext(HomeContext);
 
+  const conversationsRef = useRef(conversations);
+
+  useEffect(() => {
+      conversationsRef.current = conversations;
+  }, [conversations]);
+
+  const foldersRef = useRef(folders);
+
+  useEffect(() => {
+      foldersRef.current = folders;
+  }, [folders]);
+
+
    const checkConvLocked = () => {
-    const curConv = conversations.find(c => selectedConversation ? c.id === selectedConversation.id : false);
+    const curConv = conversationsRef.current.find((c:Conversation) => selectedConversation ? c.id === selectedConversation.id : false);
     return curConv ? !isRemoteConversation(curConv) : true;
   }
  
@@ -50,7 +64,7 @@ const title = () => {
 const handleConversationLockChange = async () => {
     if (selectedConversation) { // should always be true
       setInCloud(!inCloud);
-      const updatedConversations = await handleConversationIsLocalChange(selectedConversation, conversations, statsService);
+      const updatedConversations = await handleConversationIsLocalChange(selectedConversation, conversationsRef.current, foldersRef.current, statsService);
       // in case failure happens, update isLocked. it should match isLocked otherwise.   
       //@ts-ignore       
       setInCloud(selectedConversation.isLocal); 
@@ -66,7 +80,7 @@ return  <button
     }}
     title={title()}
     >
-    { inCloud ? <IconCloudOff className="block text-neutral-900 dark:text-neutral-200" size={iconSize} /> : 
+    { inCloud ? <IconCloudOff className="block text-neutral-500 dark:text-neutral-200" size={iconSize} /> : 
     <div>
       <IconCloud className="block dark:hidden" size={18} style={{ stroke: '#000000', fill: '#D3D3D3' }}/>
       <IconCloudFilled className="hidden dark:block dark:text-neutral-200" size={18} />

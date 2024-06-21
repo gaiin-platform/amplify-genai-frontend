@@ -98,8 +98,21 @@ export const VariableModal: FC<Props> = ({
                                          }) => {
 
     const {
-        state: { featureFlags, prompts, conversations },
+        state: { prompts, conversations },
     } = useContext(HomeContext);
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
+
+
+    const conversationsRef = useRef(conversations);
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
 
     // @ts-ignore
     const [selectedModel, setSelectedModel] = useState<OpenAIModel>((models.length>0)? models[0] : null);
@@ -359,7 +372,7 @@ export const VariableModal: FC<Props> = ({
     const getConversations = async (variable: string) => {
         const options = parsePromptVariableValues(variable);
 
-        const completeConversations = await includeRemoteConversationData(conversations, "resolve", true);
+        const completeConversations = await includeRemoteConversationData(conversationsRef.current, "resolve", true);
 
         let filtered = completeConversations.filter((conversation) => {
            if(options.startsWith){
@@ -381,7 +394,7 @@ export const VariableModal: FC<Props> = ({
     const getPromptTemplates = (variable: string) => {
         const options = parsePromptVariableValues(variable);
 
-        let filtered = prompts.filter((prompt) => {
+        let filtered = promptsRef.current.filter((prompt:Prompt) => {
             if(options.startsWith){
                 return prompt.name.startsWith(options.startsWith);
             }
@@ -608,7 +621,7 @@ export const VariableModal: FC<Props> = ({
                                         key={"not selected"} value={''}>
                                         {'Select a Template...'}
                                     </option>
-                                    {getPromptTemplates(variable.key).map((template) => (
+                                    {getPromptTemplates(variable.key).map((template:any) => (
                                         <option
                                             style={{ maxWidth: '250px', overflow:'hidden' }}
                                             className={'truncate'}
@@ -636,7 +649,7 @@ export const VariableModal: FC<Props> = ({
                             value={selectedModel && selectedModel.id || ""}
                             onChange={(e) => handleModelChange(e.target.value)}
                         >
-                            {models.map((model) => (
+                            {models.map((model:OpenAIModel) => (
                                 <option key={model.id} value={model.id}
                                 >
                                     {model.name}

@@ -33,7 +33,7 @@ const conversationOp =
         const queryConvId = typeof req.query.conversationId === 'string' ? req.query.conversationId : "";
         
         if (queryPath) apiUrl += queryPath;
-        if (queryConvId) apiUrl += `/?conversationId=${encodeURIComponent(queryConvId)}`
+        if (queryConvId) apiUrl += `?conversationId=${encodeURIComponent(queryConvId)}`
 
         console.log("API url: ", apiUrl);
         // @ts-ignore

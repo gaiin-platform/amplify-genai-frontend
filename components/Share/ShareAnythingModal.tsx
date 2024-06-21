@@ -3,8 +3,7 @@ import HomeContext from "@/pages/api/home/home.context";
 import {Conversation} from "@/types/chat";
 import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";
-import {TagsList} from "@/components/Chat/TagsList";
-import {createExport, exportData} from "@/utils/app/importExport";
+import {createExport} from "@/utils/app/importExport";
 import {shareItems} from "@/services/shareService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
@@ -54,6 +53,27 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
         state: {prompts, conversations, folders, statsService},
     } = useContext(HomeContext);
 
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
+
+
+    const conversationsRef = useRef(conversations);
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
+
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
+
     const { data: session } = useSession();
     const user = session?.user;
 
@@ -71,17 +91,17 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
     const handlePromptsCheck = (checked:boolean) => {
         // if checked, add all prompts to selected, else remove them
-        setSelectedPrompts(checked ? prompts: []);
+        setSelectedPrompts(checked ? promptsRef.current: []);
         setPromptsChecked(checked);
     };
 
     const handleConversationsCheck = (checked:boolean) => {
-        setSelectedConversations(checked ? conversations : []);
+        setSelectedConversations(checked ? conversationsRef.current : []);
         setConversationsChecked(checked);
     };
 
     const handleFoldersCheck = (checked:boolean) => {
-        setSelectedFolders(checked ? folders: []);
+        setSelectedFolders(checked ? foldersRef.current: []);
         setFoldersChecked(checked);
     };
 
@@ -107,10 +127,10 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                 } else {
                     // If the folder is currently deselected, we are selecting it
                     if (folder.type === 'prompt') {
-                        const folderPrompts = prompts.filter(prompt => prompt.folderId === folder.id);
+                        const folderPrompts = promptsRef.current.filter((prompt:Prompt) => prompt.folderId === folder.id);
                         setSelectedPrompts(prevPrompts => [...prevPrompts, ...folderPrompts]);
                     } else if (folder.type === 'chat') {
-                        const folderConversations = conversations.filter(conversation => conversation.folderId === folder.id);
+                        const folderConversations = conversationsRef.current.filter((conversation:Conversation) => conversation.folderId === folder.id);
                         setSelectedConversations(prevConversations => [...prevConversations, ...folderConversations]);
                     }
                 }
@@ -144,7 +164,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
         const rootPromptsToAdd = selectedPromptsState.filter(prompt => {
             if (prompt.data && prompt.data.rootPromptId) {
                 // @ts-ignore
-                const rootPrompt = prompts.find(p => p.id === prompt.data.rootPromptId);
+                const rootPrompt = promptsRef.current.find(p => p.id === prompt.data.rootPromptId);
                 if (rootPrompt && !selectedPromptsState.some(p => p.id === rootPrompt.id)) {
                     return true;
                 }
@@ -152,7 +172,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
             return false;
         })
             .map(prompt => prompt.data?.rootPromptId)
-            .map(id => prompts.find(p => p.id === id))
+            .map(id => promptsRef.current.find((p:Prompt) => p.id === id))
             .filter(prompt => prompt !== undefined) as Prompt[];
 
         const sharedData = await createExport(
@@ -316,7 +336,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                                                 <h3 className="ml-2 text-black dark:text-white text-lg">Prompts</h3>
                                             </div>
 
-                                            {renderScrollableSection(prompts.filter((prompt:Prompt) => { return (!prompt.data || !prompt.data.noShare)}), 'Prompt')}
+                                            {renderScrollableSection(promptsRef.current.filter((prompt:Prompt) => { return (!prompt.data || !prompt.data.noShare)}), 'Prompt')}
                                         </>
                                     )}
 
@@ -332,7 +352,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                                                 />
                                                 <h3 className="ml-2 text-black dark:text-white text-lg">Conversations</h3>
                                             </div>
-                                            {renderScrollableSection(conversations, 'Conversation')}
+                                            {renderScrollableSection(conversationsRef.current, 'Conversation')}
                                         </>
                                     )}
 
@@ -348,7 +368,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                                                 />
                                                 <h3 className="ml-2 text-black dark:text-white text-lg">Folders</h3>
                                             </div>
-                                            {renderScrollableSection(folders, 'Folder')}
+                                            {renderScrollableSection(foldersRef.current, 'Folder')}
                                         </>
                                     )}
 

@@ -1,7 +1,7 @@
 import {
     IconFileCheck,
 } from '@tabler/icons-react';
-import React, {useContext, useEffect} from "react";
+import React, {useContext, useEffect, useRef} from "react";
 import JSON5 from "json5";
 import HomeContext from "@/pages/api/home/home.context";
 import {useSendService} from "@/hooks/useChatSendService";
@@ -12,6 +12,8 @@ import {ApiCall, OpDef} from "@/types/op";
 import {useSession} from "next-auth/react";
 import {getDbsForUser} from "@/services/pdbService";
 import {getServerProvidedOps, parseApiCalls, resolveServerHandler} from "@/utils/app/ops";
+import { FolderInterface } from '@/types/folder';
+import { Prompt } from '@/types/prompt';
 
 interface Props {
     conversation: Conversation;
@@ -53,6 +55,28 @@ const AutonomousBlock: React.FC<Props> = (
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
 
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
+
+
+    const conversationsRef = useRef(conversations);
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
+
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
+
     const { data: session, status } = useSession();
 
     const {handleSend} = useSendService();
@@ -87,7 +111,7 @@ const AutonomousBlock: React.FC<Props> = (
             return result;
         },
         "/chats": (params:any) => {
-            return conversations.map((c:any) => {
+            return conversationsRef.current.map((c:any) => {
                 return {
                     id: c.id,
                     name: c.name,
@@ -105,9 +129,9 @@ const AutonomousBlock: React.FC<Props> = (
 
             console.log('Searching for keywords', params);
 
-            const results = conversations
-                .filter((c) => c.id !== thisId)
-                .filter((c) => {
+            const results = conversationsRef.current
+                .filter((c: Conversation) => c.id !== thisId)
+                .filter((c: Conversation) => {
                     const matches =  c.messages.filter((m) => {
                         return params.some((k: string) => m.content.includes(k));
                     });
@@ -130,8 +154,8 @@ const AutonomousBlock: React.FC<Props> = (
         "/chat": (params:any) => {
             console.log("/chat params:", params)
 
-            const id = params[0];
-            const chat = conversations.find((c:any) => c.id === id);
+            const id = params[1];
+            const chat = conversationsRef.current.find((c:Conversation) => c.id === id);
 
             if(!chat){
                 return {error: "Conversation not found, try listing all of the chats to find a valid conversation id."};
@@ -144,8 +168,8 @@ const AutonomousBlock: React.FC<Props> = (
         "/chatSamples": (params:any) => {
             console.log("/chat params:", params)
 
-            const ids = params;
-            const chats = conversations.filter((c:any) => ids.includes(c.id));
+            const ids = params.slice(1);
+            const chats = conversationsRef.current.filter((c:any) => ids.includes(c.id));
 
             if(chats.length === 0){
                 console.log("No conversations found for the given ids. Searching for folders with the specified ids.");
@@ -177,11 +201,12 @@ const AutonomousBlock: React.FC<Props> = (
             return sampledMessagesPerChat;
         },
         "/folders": (params:any) => {
-            return folders;
+            return foldersRef.current;
         },
         "/searchFolders": (params:string[]) => {
 
-            const found = folders.filter((f) => {
+            params = params.slice(1);
+            const found = foldersRef.current.filter((f:FolderInterface) => {
                 return params.some((k: string) => f.name.includes(k));
             });
 
@@ -198,7 +223,7 @@ const AutonomousBlock: React.FC<Props> = (
             return models;
         },
         "/prompts": (params:any) => {
-            return prompts;
+            return promptsRef.current;
         },
         "/defaultModelId": (params:any) => {
             return defaultModelId;
@@ -216,9 +241,9 @@ const AutonomousBlock: React.FC<Props> = (
             return selectedAssistant;
         },
         "/listAssistants": (params:any) => {
-            return prompts
-                .filter(p => p.data && p.data.assistant)
-                .map(p => p.data?.assistant);
+            return promptsRef.current
+                .filter((p:Prompt) => p.data && p.data.assistant)
+                .map((p:Prompt) => p.data?.assistant);
         },
         "/createChatFolder": (params:any) => {
 
@@ -235,11 +260,11 @@ const AutonomousBlock: React.FC<Props> = (
 
             const folderId = params[0];
             const chatIds = params.slice(1);
-            const folder = folders.find((f) => f.id === folderId);
+            const folder = foldersRef.current.find((f:FolderInterface) => f.id === folderId);
             if(folder){
                 const moved:{[key:string]:string} = {};
                 for(const chatId of chatIds){
-                    const chat = conversations.find((c) => c.id === chatId);
+                    const chat = conversationsRef.current.find((c:Conversation) => c.id === chatId);
                     if(chat){
                         moved[chatId] = "Moved successfully.";
                         chat.folderId = folder.id;

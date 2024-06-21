@@ -17,7 +17,7 @@ const MessageSelectModal: React.FC<Props> = ({setConversation, onSubmit, onCance
     const [useEntireConv , setUseEntireConv] = useState<boolean>(true);
     const [startIndex, setStartIndex] = useState<number | null>(null);
 
-    const [messages, setMessages] = useState<Message[]>(selectedConversation?.messages.filter(m => { return m.role !== 'assistant'}) || []);
+    const [messages, setMessages] = useState<Message[]>(selectedConversation?.messages.filter((m:Message) => { return m.role !== 'assistant'}) || []);
 
     const cropMessages = () => {
         if (selectedConversation) {

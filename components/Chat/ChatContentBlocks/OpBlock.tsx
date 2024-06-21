@@ -5,15 +5,10 @@ import {IconRobot} from "@tabler/icons-react";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
-import {createAssistant, listAssistants} from "@/services/assistantService";
 import { useOpsService} from "@/hooks/useOpsService";
 import { useSession } from "next-auth/react"
 import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
-import {Prompt} from "@/types/prompt";
 import {Conversation, Message, newMessage} from "@/types/chat";
-import {getPrompts, savePrompts} from "@/utils/app/prompts";
-import { syncAssistants} from "@/utils/app/assistants";
-import { getFolders } from "@/utils/app/folders";
 import {useSendService} from "@/hooks/useChatSendService";
 import {resolveServerHandler} from "@/utils/app/ops";
 import JsonForm from "@/components/JsonForm/JsonForm";
@@ -94,7 +89,7 @@ const OpBlock: React.FC<OpProps> = ({definition, message}) => {
     const [loadingMessage, setLoadingMessage] = useState<string>("");
     const [op, setOp] = useState<any>({});
 
-    const {state:{selectedConversation, selectedAssistant, conversations, prompts}, dispatch:homeDispatch} = useContext(HomeContext);
+    const {state:{messageIsStreaming, selectedConversation, selectedAssistant, conversations, prompts}, dispatch:homeDispatch} = useContext(HomeContext);
     const { data: session } = useSession();
     const user = session?.user;
 
@@ -230,10 +225,6 @@ const OpBlock: React.FC<OpProps> = ({definition, message}) => {
             setIsLoading(false);
         }
     }
-
-    const {
-        state: {messageIsStreaming},
-    } = useContext(HomeContext);
 
 
     useEffect(() => {

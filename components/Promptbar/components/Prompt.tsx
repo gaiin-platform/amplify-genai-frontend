@@ -14,6 +14,7 @@ import {
     MouseEventHandler,
     useContext,
     useEffect,
+    useRef,
     useState,
 } from 'react';
 
@@ -28,7 +29,6 @@ import { PromptModal } from './PromptModal';
 import { ShareModal } from './ShareModal';
 import { v4 as uuidv4 } from "uuid";
 import {
-    getPrompts,
     handleStartConversationWithPrompt,
 } from "@/utils/app/prompts";
 import { useSession } from "next-auth/react";
@@ -53,10 +53,16 @@ export const PromptComponent = ({ prompt }: Props) => {
     } = useContext(PromptbarContext);
 
     const {
-        state: { statsService, selectedAssistant, checkingItemType, checkedItems},
+        state: { statsService, selectedAssistant, checkingItemType, checkedItems, prompts},
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
 
     const { data: session } = useSession();
     const user = session?.user;
@@ -95,8 +101,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
 
         statsService.startConversationEvent(startPrompt);
-        const prompts: Prompt[] = localStorage ? getPrompts() : [];
-        handleStartConversationWithPrompt(handleNewConversation, prompts, startPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt);
 
     }
 
@@ -253,7 +258,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
                 { checkPrompts && !isReserved  &&  (
                     <div className="relative flex items-center">
-                        <div key={prompt.id} className="absolute right-1 z-10">
+                        <div key={prompt.id} className="absolute right-4 z-10">
                             <input
                             type="checkbox"
                             checked={isChecked}
@@ -325,7 +330,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                     onCancel={() => setShowModal(false)}
                     onSave={() => setShowModal(false)}
                     onUpdateAssistant={async (assistantPrompt) => {
-                        handleUpdateAssistantPrompt(assistantPrompt, homeDispatch)
+                        handleUpdateAssistantPrompt(assistantPrompt, promptsRef.current, homeDispatch)
                         statsService.editPromptCompletedEvent(assistantPrompt);
                     }}
                     loadingMessage="Updating assistant..."

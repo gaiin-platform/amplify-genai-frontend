@@ -11,6 +11,18 @@ const JsonForm: React.FC<FormProps> = ({form,onChange}) => {
 
     const hiddenKeys = ["_id", "_title", "_dataSources", "_button", "args", "id"];
 
+    const isSubForm = (index:any, key:string, value:any) => {
+        try {
+            if (typeof value === "string" && JSON.parse(value)) {
+                value = JSON.parse(value);
+            }
+        } catch (e) {
+            // Do nothing
+        }
+
+        return (typeof value === "object" && value !== null);
+    }
+
     const getComponent = (index:any, key:string, value:any) => {
 
         try {
@@ -82,6 +94,15 @@ const JsonForm: React.FC<FormProps> = ({form,onChange}) => {
                         <div className="flex flex-col w-full mb-5">
                             {Object.entries(form)
                                 .filter(([key, value]) => !hiddenKeys.includes(key))
+                                .sort(([key1, value1], [key2, value2]) => {
+                                  // Put non-forms first
+                                    if (isSubForm(0, key1, value1) && !isSubForm(0, key2, value2)) {
+                                        return 1;
+                                    } else if (!isSubForm(0, key1, value1) && isSubForm(0, key2, value2)) {
+                                        return -1;
+                                    }
+                                    return 0;
+                                })
                                 .map(([key, value], index) => {
                                     return getComponent(index, key, value);
                                 })}

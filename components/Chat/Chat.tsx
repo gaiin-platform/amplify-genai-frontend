@@ -34,7 +34,7 @@ import {SystemPrompt} from './SystemPrompt';
 import {TemperatureSlider} from './Temperature';
 import {MemoizedChatMessage} from './MemoizedChatMessage';
 import {VariableModal} from "@/components/Chat/VariableModal";
-import {getPrompts, parseEditableVariables} from "@/utils/app/prompts";
+import {parseEditableVariables} from "@/utils/app/prompts";
 import {v4 as uuidv4} from 'uuid';
 import {fillInTemplate} from "@/utils/app/prompts";
 import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
@@ -52,7 +52,8 @@ import {useSendService} from "@/hooks/useChatSendService";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection, isRemoteConversation } from '@/utils/app/conversationStorage';
-import { deleteRemoteConversation } from '@/services/remoteConversationService';
+import { deleteRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
+import { callRenameChat } from './RenameChat';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -87,13 +88,78 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 defaultModelId,
                 workspaceMetadata,
                 statsService,
-                featureFlags
+                featureFlags,
+                storageSelection,
+                messageIsStreaming,
+                chatEndpoint,
+                folders
             },
             handleUpdateConversation,
             handleCustomLinkClick,
             dispatch: homeDispatch,
             handleAddMessages: handleAddMessages
         } = useContext(HomeContext);
+
+        const foldersRef = useRef(folders);
+
+        useEffect(() => {
+            foldersRef.current = folders;
+          }, [folders]);
+    
+
+        const promptsRef = useRef(prompts);
+
+        useEffect(() => {
+            promptsRef.current = prompts;
+          }, [prompts]);
+    
+    
+        const conversationsRef = useRef(conversations);
+    
+        useEffect(() => {
+            conversationsRef.current = conversations;
+        }, [conversations]);
+
+        const [isRenaming, setIsRenaming] = useState<boolean>(false);
+
+        useEffect(() => {
+
+            const renameConversation = async() => {
+                setIsRenaming(true);
+                if (selectedConversation) {
+                    let updatedConversation = {...selectedConversation}
+                    // will always return a string whether call was successful or not 
+                    callRenameChat(chatEndpoint || '', [updatedConversation.messages[0]], statsService).then(customName => {
+                        updatedConversation = {
+                            ...updatedConversation,
+                            name: customName, 
+                        };
+                        homeDispatch({
+                            field: 'selectedConversation',
+                            value: updatedConversation,
+                        });
+                        console.log("Rename chat: ", customName)
+                        
+                        if (isRemoteConversation(updatedConversation)) uploadConversation(updatedConversation, foldersRef.current);
+
+                        const updatedConversations: Conversation[] = conversationsRef.current.map(
+                            (c:Conversation) => {
+                                if (c.id === selectedConversation.id) {
+                                    return updatedConversation;
+                                }
+                                return c;
+                            },
+                        );
+                        homeDispatch({field: 'conversations', value: updatedConversations});
+                        saveConversations(updatedConversations);
+                        setIsRenaming(false);
+                    })
+                }
+            }
+            if (selectedConversation?.messages.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
+
+        }, [selectedConversation]);
+    
 
         const {handleSend:handleSendService} = useSendService();
 
@@ -136,8 +202,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 value: updatedConversation,
             });
 
-            const updatedConversations: Conversation[] = conversations.map(
-                (conversation) => {
+            const updatedConversations: Conversation[] = conversationsRef.current.map(
+                (conversation:Conversation) => {
                     if (conversation.id === selectedConversation.id) {
                         return updatedConversation;
                     }
@@ -256,7 +322,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     } else if (action === "template") {
                         const name = path;
 
-                        const prompt = prompts.find((p) => p.name === name);
+                        const prompt = promptsRef.current.find((p:Prompt) => p.name === name);
 
                         if (prompt) {
                             runPrompt(prompt);
@@ -593,8 +659,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const handleDeleteConversation = (conversation: Conversation) => {
             if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
-            const updatedConversations = conversations.filter(
-                (c) => c.id !== conversation.id,
+            const updatedConversations = conversationsRef.current.filter(
+                (c:Conversation) => c.id !== conversation.id,
             );
 
             homeDispatch({field: 'conversations', value: updatedConversations});
@@ -615,11 +681,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         id: uuidv4(),
                         name: t('New Conversation'),
                         messages: [],
-                        model: OpenAIModels[defaultModelId],
+                        model: OpenAIModels[defaultModelId as OpenAIModelID],
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
-                        isLocal: getIsLocalStorageSelection()
+                        isLocal: getIsLocalStorageSelection(storageSelection)
                     },
                 });
 
@@ -637,8 +703,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
         useEffect(() => {
-
-            const prompts: Prompt[] = localStorage ? getPrompts() : [];
             if (selectedConversation
                 && selectedConversation.promptTemplate
                 && isAssistant(selectedConversation.promptTemplate)
@@ -647,14 +711,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
                     // make sure assistant hasnt been deleted 
-                    if (prompts.some(prompt => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
+                    if (prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
             else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
                     // make sure assistant hasnt been deleted 
-                    if (prompts.some(prompt => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
+                    if (prompts.some((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
@@ -695,7 +759,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
 // @ts-ignore
         return (
-            <div className="relative flex-1 overflow-hidden bg-white dark:bg-[#343541]">
+            <div className="relative flex-1 overflow-hidden bg-neutral-100 dark:bg-[#343541]">
                 { modelError ? (
                     <ErrorMessageDiv error={modelError}/>
                 ) : (
@@ -740,7 +804,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     models={models}
                                                     handleUpdateModel={handleUpdateModel}
                                                     conversation={selectedConversation}
-                                                    prompts={prompts}
+                                                    prompts={promptsRef.current}
                                                     onChangePrompt={(prompt) =>
                                                         handleUpdateConversation(selectedConversation, {
                                                             key: 'prompt',
@@ -932,7 +996,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     </div>
 
 
-                                    {selectedConversation?.messages.map((message, index) => (
+                                    {selectedConversation?.messages.map((message: Message, index: number) => (
                                         (message.type === MessageType.REMOTE) ?
                                             <MemoizedRemoteMessages
                                                 key={index}

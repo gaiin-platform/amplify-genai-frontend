@@ -1,17 +1,15 @@
-import {useContext, useEffect, useState} from "react";
+import {useContext, useEffect, useRef, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import {IconRobot} from "@tabler/icons-react";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
-import {createAssistant, listAssistants} from "@/services/assistantService";
+import {createAssistant} from "@/services/assistantService";
 import { useSession } from "next-auth/react"
 import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
 import {Prompt} from "@/types/prompt";
 import {Conversation} from "@/types/chat";
-import {getPrompts, savePrompts} from "@/utils/app/prompts";
-import { createAssistantPrompt, handleUpdateAssistantPrompt, syncAssistants} from "@/utils/app/assistants";
-import { getFolders } from "@/utils/app/folders";
+import { createAssistantPrompt, handleUpdateAssistantPrompt} from "@/utils/app/assistants";
 
 
 const animate = keyframes`
@@ -48,9 +46,16 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
     const [assistantTags, setAssistantTags] = useState<string[]>([]);
     const [assistantDocuments, setAssistantDocuments] = useState<string[]>([]);
 
-    const {state:{selectedConversation, conversations, prompts,statsService},  dispatch:homeDispatch} = useContext(HomeContext);
+    const {state:{selectedConversation, statsService, messageIsStreaming, prompts},  dispatch:homeDispatch} = useContext(HomeContext);
     const { data: session } = useSession();
     const user = session?.user;
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
+
 
     const getDocumentsInConversation = (conversation?:Conversation) => {
         if(conversation){
@@ -168,8 +173,8 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
             try {
                 const {id,assistantId,provider} = await createAssistant(assistantDefinition);
 
-                console.log("assistantId", assistantId);
-                console.log("provider", provider);
+                // console.log("assistantId", assistantId);
+                // console.log("provider", provider);
                 
                 assistantDefinition.id = id;
                 assistantDefinition.provider = provider;
@@ -179,7 +184,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
                 if(assistantId) {
                     alert("Assistant created successfully!");
                     const createdAssistantPrompt = createAssistantPrompt(assistantDefinition);
-                    handleUpdateAssistantPrompt(createdAssistantPrompt, homeDispatch);
+                    handleUpdateAssistantPrompt(createdAssistantPrompt, promptsRef.current, homeDispatch);
                     statsService.createPromptEvent(createdAssistantPrompt);
                 } else {
                     alert("Failed to create assistant. Please try again.");
@@ -192,10 +197,6 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
             setIsLoading(false);
         }
     }
-
-    const {
-        state: {messageIsStreaming},
-    } = useContext(HomeContext);
 
 
     useEffect(() => {
@@ -225,22 +226,33 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
                 <div className="flex flex-row items-center"><LoadingIcon/> <div className="ml-2">{loadingMessage}</div></div>
             ) : (
                 <>
-                    <div className="flex flex-col w-full mb-4">
+                    <div className="flex flex-col w-full mb-4 overflow-x-hidden gap-0.5">
                         <div className="flex flex-row items-center justify-center">
                             <div className="mr-2"><IconRobot size={30} /></div>
                             <div className="text-2xl font-bold">{assistantName}</div>
                         </div>
-                        <ExpansionComponent title={"Description"} content={
-                            <div className="text-sm text-gray-500">{assistantDescription}</div>
-                        }/>
-                        <ExpansionComponent title={"Instructions"} content={
-                            <div className="mb-4">
-                                <div className="text-sm text-gray-500">{assistantInstructions}</div>
-                            </div>
-                        }/>
+
+                        <div style={{ width: '99%' }}>
+                            <ExpansionComponent title={"Instructions"} content={
+                                <div style={{  wordWrap: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}
+                                     className="mb-2 max-h-24 overflow-y-auto text-sm text-gray-500">
+                                        {assistantDescription}
+                                    </div>
+                                }/>
+                        </div>
+
+                        <div style={{ width: '99%' }}>
+                            <ExpansionComponent title={"Instructions"} content={
+                                <div  style={{  wordWrap: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }} 
+                                      className="mb-2 max-h-24 overflow-y-auto text-sm text-gray-500">
+                                        {assistantInstructions}
+                                    </div>
+                                }/>
+                        </div>
+                        
                         <ExpansionComponent title={"Data Sources"} content={
-                            <div className="mb-4">
-                                <div className="text-sm text-gray-500">
+                            <div>
+                                <div className="text-sm text-gray-500 max-h-24 overflow-y-auto">
                                     {dataSources.map((source, index) => {
                                         return <div key={index}>{source.name}</div>
                                     })}

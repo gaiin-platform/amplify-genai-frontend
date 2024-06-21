@@ -20,9 +20,10 @@ import {v4 as uuidv4} from 'uuid';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { CheckItemType } from "@/types/checkItem";
 import { savePrompts } from "@/utils/app/prompts";
-import { saveFolders } from "@/utils/app/folders";
 import { isRemoteConversation } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation, fetchMultipleRemoteConversations, uploadConversation } from '@/services/remoteConversationService';
+import { saveConversations } from "@/utils/app/conversation";
+import { getDateName } from "@/utils/app/date";
 
 interface Props {
     label: string; 
@@ -42,19 +43,51 @@ interface Props {
     const [allItemsChecked, setAllItemsChecked] = useState<boolean>(false);
 
     const {
-        state: { statsService, selectedAssistant, defaultModelId, checkedItems, folders, prompts, selectedConversation}, handleDeleteFolder,
-        dispatch: homeDispatch,
+        state: { statsService, selectedAssistant, defaultModelId, checkedItems, folders, prompts, conversations, selectedConversation, checkingItemType}, handleDeleteFolder,
+        dispatch: homeDispatch, handleCreateFolder
     } = useContext(HomeContext);
 
+    const conversationsRef = useRef(conversations);
+
     useEffect(() => {
-        checkedItemsRef.current = checkedItems;
-      }, [checkedItems]);
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+    }, [prompts]);
+
+
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
 
     const checkedItemsRef = useRef(checkedItems);
 
+    useEffect(() => {
+        checkedItemsRef.current = checkedItems;
+    }, [checkedItems]);
+
+  
     const isConvSide = label === 'Conversations';
 
+    const checkIsActiveSide = () => {
+        if (checkingItemType) {
+            const activeSide = isConvSide ? checkingItemType.includes("Conv") || checkingItemType.includes("Chat")
+                                 :  checkingItemType.includes("Prompt");
+            if (!activeSide) setActionItem(null);
+            return activeSide;
+        } 
+        return false;
+    }
+
     const toggleDropdown = () => {
+        if (checkingItemType) clear();
         setIsMenuOpen(!isMenuOpen);
         handleSearchTerm('');
 
@@ -85,11 +118,17 @@ interface Props {
         };
     }, [isMenuOpen, setIsMenuOpen, menuRef]);
 
+    const getItemsInFolders = () => {
+        const folderIdSet = new Set(checkedItemsRef.current.map((folder:FolderInterface) => folder.id));
+        return items.filter(i => i.folderId ? folderIdSet.has(i.folderId) : false);
+    }
 
-    const handleDeleteConversation = () => {
+
+
+    const handleDeleteConversations = (conversations: Conversation[] = checkedItemsRef.current) => {
         handleSearchTerm('');
         const updatedConversations = items.filter( (c: Conversation) => 
-                                    { const remove = checkedItemsRef.current.includes(c) 
+                                    { const remove = conversations.includes(c) 
                                           if (remove) {
                                             statsService.deleteConversationEvent(c);
                                               if (isRemoteConversation(c)) deleteRemoteConversation(c.id);
@@ -104,27 +143,12 @@ interface Props {
             let selectedConversation: Conversation = {...lastConversation};
             if (lastConversation.name !== 'New Conversation') { 
                 
-                const date = new Date().toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                });
+                const date = getDateName();
             
                 // See if there is a folder with the same name as the date
-                let folder = folders.find((f: FolderInterface) => f.name === date);
+                let folder = foldersRef.current.find((f: FolderInterface) => f.name === date);
                 if (!folder) {
-                    const newFolder: FolderInterface = {
-                        id: uuidv4(),
-                        date: new Date().toISOString().slice(0, 10),
-                        name: date,
-                        type: "chat"
-                    };
-
-                    folder = newFolder;
-                    const updatedFolders = [...folders, newFolder];
-
-                    homeDispatch({ field: 'folders', value: updatedFolders });
-                    saveFolders(updatedFolders);
+                    folder = handleCreateFolder(date, "chat");
                 }
                 
                 const newConversation: Conversation = {
@@ -152,7 +176,7 @@ interface Props {
                     id: uuidv4(),
                     name: 'New Conversation',
                     messages: [],
-                    model: OpenAIModels[defaultModelId],
+                    model: OpenAIModels[defaultModelId as OpenAIModelID],
                     prompt: DEFAULT_SYSTEM_PROMPT,
                     temperature: DEFAULT_TEMPERATURE,
                     folderId: null,
@@ -162,14 +186,14 @@ interface Props {
             localStorage.removeItem('selectedConversation');
         };
         homeDispatch({ field: 'conversations', value: updatedConversations });
-        localStorage.setItem('conversationHistory', JSON.stringify(updatedConversations));
+        saveConversations(updatedConversations)
         clear();
     }
 
     const handleDeletePrompts = () => {
         const failedAssistants: string[] = [];
 
-        const updatedPrompts = prompts.filter((p) => !checkedItemsRef.current.includes(p));
+        const updatedPrompts = promptsRef.current.filter((p:Prompt) => !checkedItemsRef.current.includes(p));
         homeDispatch({ field: 'prompts', value: updatedPrompts });
         savePrompts(updatedPrompts);
         handleSearchTerm('');
@@ -204,7 +228,12 @@ interface Props {
 
     const handleDeleteFolders = () => {
         handleSearchTerm('');
-        checkedItemsRef.current.forEach((folder: FolderInterface) => {handleDeleteFolder(folder.id) });
+        const conversationInFolders: Conversation[] = [];
+        checkedItemsRef.current.forEach((f: FolderInterface) => {
+                                        conversationInFolders.push(...conversationsRef.current.filter((c:Conversation) => c.folderId === f.id));
+                                        handleDeleteFolder(f.id);
+                                    });
+        handleDeleteConversations(conversationInFolders)
         clear();
     }
 
@@ -218,11 +247,11 @@ interface Props {
         let allItems: any[] = items;
         switch (actionItem?.type) {
             case ('ChatFolders'):
-                allItems = folders.filter((f:FolderInterface) => f.type === 'chat');
+                allItems = foldersRef.current.filter((f:FolderInterface) => f.type === 'chat');
                 break;
 
             case ('PromptFolders'):
-                allItems = folders.filter((f:FolderInterface) => f.type === 'prompt');
+                allItems = foldersRef.current.filter((f:FolderInterface) => f.type === 'prompt');
                 break;
         }
         homeDispatch({field: 'checkedItems', value: allItems}); 
@@ -234,7 +263,7 @@ interface Props {
           <div className="pb-1 flex w-full text-lg ml-1 text-black dark:text-neutral-200 flex items-center">
             {label} 
           </div>
-            {actionItem && (
+            {actionItem && checkIsActiveSide() && (
                 <div className="text-xs flex flex-row gap-1">
                     {`${actionItem.actionLabel}...`} 
                     <div className="flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 rounded">
@@ -269,19 +298,19 @@ interface Props {
             )}
 
           <div className="relative inline-block text-left">
-            { !actionItem ?
-                <button
-                    className={`outline-none focus:outline-none p-0.5 ${isMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
-                    onClick={toggleDropdown}>
-                    <IconDotsVertical size={20} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"/>
-                </button> :
-                <div className="z-10 p-1">
+            { actionItem && checkIsActiveSide() ?
+                <div className={`z-10 p-0.5 ${ checkingItemType?.includes("Folder")? "": ""}`}>
                     <input
                     type="checkbox"
                     checked={allItemsChecked}
                     onChange={(e) => handleCheckAll(e.target.checked)}
                     />
-                </div>
+                </div> :
+                <button
+                    className={`outline-none focus:outline-none p-0.5 ${isMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
+                    onClick={toggleDropdown}>
+                    <IconDotsVertical size={20} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"/>
+                </button>
             }
             
             {isMenuOpen && (
@@ -290,20 +319,26 @@ interface Props {
                     className="ml-[-200%] absolute bg-neutral-100 dark:bg-[#202123] text-neutral-900 rounded border border-neutral-200 dark:border-neutral-600 dark:text-white z-50"
                     style={{ top: '90%', pointerEvents: 'auto' }}>
                     <div>
-                        <KebabActionItem label="Delete" type={label as CheckItemType} handleAction={()=>{isConvSide ? handleDeleteConversation() : handleDeletePrompts()}} 
-                                         setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTrash size={14} />}/>
-                        <KebabActionItem label="Share" type={label as CheckItemType} handleAction={()=>{setIsShareDialogVisible(true)}} setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconShare size={14} />}/>
-                        {isConvSide  && <KebabActionItem label="Tag" type={label as CheckItemType} handleAction={()=>{setIsTagsDialogVisible(true)}} setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTags size={14} />}/>}
+                        <KebabActionItem label="Delete" type={label as CheckItemType} handleAction={()=>{isConvSide ? handleDeleteConversations() : handleDeletePrompts()}} 
+                                         setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTrash size={14} />} />
+                        <KebabActionItem label="Share" type={label as CheckItemType} handleAction={()=>{setIsShareDialogVisible(true)}} setIsMenuOpen={setIsMenuOpen} 
+                                         setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconShare size={14} />} />
+                        {isConvSide  && <KebabActionItem label="Tag" type={label as CheckItemType} handleAction={()=>{setIsTagsDialogVisible(true)}} 
+                                         setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTags size={14} />} />}
                         
-                        <KebabMenuItems label="Folders" xShift={224} minWidth={84}>
-                            <KebabMenuItems label="Sort" xShift={176}>
+                        <KebabMenuItems label="Folders" xShift={176} minWidth={86}>
+
+                            <KebabMenuItems label="Sort" xShift={162}>
                                 <KebabItem label="Name" handleAction={() => {setFolderSort('name')}} icon={<IconAbc size={18}/>} />
                                 <KebabItem label="Date" handleAction={() => { setFolderSort('date') } } icon={<IconCalendar size={14}/>} />
                             </KebabMenuItems>
-                            <KebabActionItem label="Delete" type={`${isConvSide?'Chat':'Prompt'}Folders`} handleAction={() => { handleDeleteFolders() }}
-                                setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTrash size={14} />} />
-                            <KebabItem label="Open All" handleAction={() => { openCloseFolders(true) } } icon={<IconFolderOpen size={13} />} minWidth={84} />
-                            <KebabItem label="Close All" handleAction={() => { openCloseFolders(false) }} icon={<IconFolder size={14}/>} minWidth={84} />
+
+                            <KebabActionItem label="Share" type={`${isConvSide?'Chat':'Prompt'}Folders`} handleAction={()=>{setIsShareDialogVisible(true)}} 
+                                             setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconShare size={14} />} />
+                            <KebabActionItem label="Delete" type={`${isConvSide?'Chat':'Prompt'}Folders`} handleAction={() => { handleDeleteFolders() }} 
+                                             setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTrash size={14} />} />
+                            <KebabItem label="Open All" handleAction={() => { openCloseFolders(true) } } icon={<IconFolderOpen size={13} />}  />
+                            <KebabItem label="Close All" handleAction={() => { openCloseFolders(false) }} icon={<IconFolder size={14}/>}  />
                             
                         </KebabMenuItems>
                     </div>
@@ -324,9 +359,14 @@ interface Props {
         }}
         includePrompts={!isConvSide }
         includeConversations={isConvSide }
-        includeFolders={false}
-        selectedPrompts={!isConvSide  ? checkedItems : []}
-        selectedConversations={isConvSide  ? checkedItems : []}
+        includeFolders={actionItem ? actionItem.type.includes('Folders') : false}
+        selectedPrompts={ (actionItem && actionItem.type.includes('Folders')) ? getItemsInFolders()
+                                       : ( !isConvSide ?  checkedItemsRef.current : [] )
+            }
+        selectedConversations={ (actionItem && actionItem.type.includes('Folders')) ?  getItemsInFolders()
+                                : (isConvSide ?  checkedItemsRef.current : [] )
+            }
+        selectedFolders={actionItem ? checkedItemsRef.current : []}
         />)}
 
         {isTagsDialogVisible && 
@@ -338,13 +378,13 @@ interface Props {
                 <TagsList tags={tags} 
                     setTags={(tags) => {
                                 setTags(tags);
-                                checkedItems.forEach(async (item: Conversation) => {
+                                checkedItemsRef.current.forEach(async (item: Conversation) => {
                                     const itemTags = item.tags || [];
                                     item.tags = [...itemTags, ...tags.filter(tag => !itemTags.includes(tag))]
                                     if (isRemoteConversation(item)) {
                                         try {
                                             const fullConv = await fetchMultipleRemoteConversations([item.id]);
-                                            if (fullConv.length > 0) uploadConversation({...fullConv[0], tags: item.tags});
+                                            if (fullConv.length > 0) uploadConversation({...fullConv[0], tags: item.tags}, foldersRef.current);
                                         } catch {
                                             console.log("Failed to update remote conversation with new tags")
                                         } 
@@ -352,12 +392,12 @@ interface Props {
                                 })
                             }}
                     removeTag={(tag) => {
-                        checkedItems.forEach(async (item: Conversation) => {
+                        checkedItemsRef.current.forEach(async (item: Conversation) => {
                             item.tags = item.tags?.filter(x => x != tag)
                             if (isRemoteConversation(item)) {
                                 try {
                                     const fullConv = await fetchMultipleRemoteConversations([item.id]);
-                                    if (fullConv.length > 0) uploadConversation({...fullConv[0], tags: item.tags});
+                                    if (fullConv.length > 0) uploadConversation({...fullConv[0], tags: item.tags}, foldersRef.current);
                                 } catch {
                                     console.log("Failed to update remote conversation with updated tags")
                                 }
@@ -374,7 +414,7 @@ interface Props {
                                         clear();
                                         if (tags.length > 0)  {
                                             homeDispatch({ field: 'conversations', value: items });
-                                            localStorage.setItem('conversationHistory', JSON.stringify(items));
+                                            saveConversations(items);
                                             const updatedSelected = items.find((c) => (selectedConversation) ? c.id === selectedConversation.id : false);
                                             if (updatedSelected) {
                                                 const selectedWithTags = {...selectedConversation, tags: updatedSelected.tags};

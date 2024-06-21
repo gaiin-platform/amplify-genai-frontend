@@ -51,3 +51,10 @@ export interface ShareItem {
   key: string;
   note: string;
 }
+
+export interface SharedItem {
+  id: string;
+  shared_with: any;
+  objects: any;
+  note: string;
+}

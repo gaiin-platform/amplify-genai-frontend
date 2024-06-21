@@ -38,6 +38,7 @@ const Folder = ({
   const { handleDeleteFolder, handleUpdateFolder, state: {selectedConversation, allFoldersOpenPrompts, allFoldersOpenConvs, checkingItemType, checkedItems},
           dispatch: homeDispatch,} = useContext(HomeContext);
 
+
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
@@ -203,7 +204,7 @@ const Folder = ({
 
           { checkFolders && (
             <div className="relative flex items-center">
-              <div key={currentFolder.id} className="absolute right-1 z-10">
+              <div key={currentFolder.id} className="absolute right-4 z-10">
                 <input
                   type="checkbox"
                   checked={isChecked}

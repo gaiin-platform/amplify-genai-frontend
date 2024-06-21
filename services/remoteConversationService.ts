@@ -1,14 +1,14 @@
 import { Conversation } from "@/types/chat";
 import { FolderInterface } from "@/types/folder";
-import { compressConversation, uncompressConversation } from "@/utils/app/conversation";
+import { compressConversation, saveConversations, uncompressConversation } from "@/utils/app/conversation";
 import { remoteConvData } from "@/utils/app/conversationStorage";
-import { getFolders } from "@/utils/app/folders";
-import { number } from "zod";
 
 
-export const uploadConversation = async (conversation: Conversation, abortSignal = null) => {
+export const uploadConversation = async (conversation: Conversation, folders: FolderInterface[], abortSignal = null) => {
+    // always ensure isLocal is false just in case
+    conversation.isLocal = false;
     const compressedConversation = compressConversation(conversation);
-    const folder = conversation.folderId ? getFolders().find((f: FolderInterface) => conversation.folderId ===f.id) : null;
+    const folder = conversation.folderId ? folders.find((f: FolderInterface) => conversation.folderId ===f.id) : null;
     const data = {op: "/upload", data: {conversation: compressedConversation,
                                         conversationId: conversation.id,
                                         folder: folder
@@ -63,7 +63,7 @@ export const fetchRemoteConversation = async (conversationId: string, conversati
             //remove conv
             const updatedConversations = conversations.filter((c: Conversation) => c.id !== conversationId);
             dispatch({ field: 'conversations', value: updatedConversations });
-            localStorage.setItem('conversationHistory', JSON.stringify(updatedConversations));
+            saveConversations(updatedConversations);
         }
         alert(message)
         return null;

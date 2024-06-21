@@ -1,5 +1,5 @@
 # ---- Base Node ----
-    FROM node:19-alpine AS base
+    FROM --platform=linux/amd64 node:19-alpine AS base
     WORKDIR /app
     COPY package*.json ./
     
@@ -18,7 +18,7 @@
     RUN npm run build
     
     # ---- Production ----
-    FROM node:19-alpine AS production
+    FROM --platform=linux/amd64 node:19-alpine AS production
     # Recreate the "appuser" and "appgroup" in the production stage
     RUN addgroup -S appgroup && adduser -S appuser -G appgroup
     WORKDIR /app

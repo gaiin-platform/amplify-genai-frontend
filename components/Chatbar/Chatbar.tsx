@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
@@ -6,7 +6,6 @@ import { useCreateReducer } from '@/hooks/useCreateReducer';
 
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
 import { saveConversations } from '@/utils/app/conversation';
-import { getFolders, } from '@/utils/app/folders';
 
 import { Conversation } from '@/types/chat';
 import { SupportedExportFormats } from '@/types/export';
@@ -26,6 +25,7 @@ import {FolderInterface, SortType} from "@/types/folder";
 import { getIsLocalStorageSelection, isLocalConversation, isRemoteConversation } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation } from '@/services/remoteConversationService';
 import { uncompressMessages } from '@/utils/app/messages';
+import { getDateName } from '@/utils/app/date';
 
 
 export const Chatbar = () => {
@@ -36,12 +36,24 @@ export const Chatbar = () => {
   });
 
   const {
-    state: { conversations, showChatbar, defaultModelId, folders,statsService},
+    state: { conversations, showChatbar, defaultModelId, statsService, folders, storageSelection},
     dispatch: homeDispatch,
     handleCreateFolder,
     handleNewConversation,
     handleUpdateConversation,
   } = useContext(HomeContext);
+
+  const conversationsRef = useRef(conversations);
+
+  useEffect(() => {
+      conversationsRef.current = conversations;
+  }, [conversations]);
+
+  const foldersRef = useRef(folders);
+
+  useEffect(() => {
+      foldersRef.current = folders;
+  }, [folders]);
 
   const {
     state: { searchTerm, filteredConversations },
@@ -72,8 +84,8 @@ export const Chatbar = () => {
 
     if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
     
-    const updatedConversations = conversations.filter(
-      (c) => c.id !== conversation.id,
+    const updatedConversations = conversationsRef.current.filter(
+      (c: Conversation) => c.id !== conversation.id,
     );
 
     statsService.deleteConversationEvent(conversation);
@@ -86,17 +98,10 @@ export const Chatbar = () => {
     let selectedConversation: Conversation = {...lastConversation};
     if (lastConversation.name !== 'New Conversation' && (conversation.name !== 'New Conversation')) { // handle if you delete this new conversation 
       
-      const date = new Date().toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
-
-      const json_folders = getFolders();
+      const date = getDateName();
 
       // See if there is a folder with the same name as the date
-      let folder = json_folders.find((f: FolderInterface) => f.name === date);
-      console.log("handleNewConversation", { date, folder });
+      let folder = foldersRef.current.find((f: FolderInterface) => f.name === date);
       if (!folder) {
           folder = handleCreateFolder(date, "chat");
       }
@@ -130,19 +135,17 @@ export const Chatbar = () => {
               prompt: DEFAULT_SYSTEM_PROMPT,
               temperature: conversation.temperature,
               folderId: null,
-              isLocal: getIsLocalStorageSelection() 
+              isLocal: getIsLocalStorageSelection(storageSelection) 
           },
       });
 
       localStorage.removeItem('selectedConversation');
   }
 
-    
-
     homeDispatch({ field: 'conversations', value: updatedConversations });
-    
-    chatDispatch({ field: 'searchTerm', value: '' });
     saveConversations(updatedConversations);
+    chatDispatch({ field: 'searchTerm', value: '' });
+    
   };
 
   const handleToggleChatbar = () => {
@@ -167,7 +170,7 @@ export const Chatbar = () => {
 
       statsService.searchConversationsEvent(searchTerm);
 
-      const results = conversations.filter((conversation) => {
+      const results = conversations.filter((conversation:Conversation) => {
         let messages = '';
         if (isLocalConversation(conversation)) {
           //uncompress messages 
