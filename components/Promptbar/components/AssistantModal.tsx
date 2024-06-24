@@ -11,6 +11,7 @@ import {IconFiles, IconCircleX} from "@tabler/icons-react";
 import {createAssistant} from "@/services/assistantService";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
+import FlagsMap from "@/components/Promptbar/components/FlagsMap";
 
 
 interface Props {
@@ -22,6 +23,44 @@ interface Props {
     loc: string;
 
 }
+
+const dataSourceFlags = [
+    {
+        "label": "Include Attached Documents in RAG",
+        "key": "ragAttachedDocuments",
+        "defaultValue": false
+    },
+    {
+        "label": "Include Attached Documents in Prompt",
+        "key": "insertAttachedDocuments",
+        "defaultValue": true
+    },
+    {
+        "label": "Include Conversation Documents in RAG",
+        "key": "ragConversationDocuments",
+        "defaultValue": true
+    },
+    {
+        "label": "Include Conversation Documents in Prompt",
+        "key": "insertConversationDocuments",
+        "defaultValue": false
+    },
+    {
+        "label": "Include Attached Data Source Metadata in Prompt",
+        "key": "insertAttachedDocumentsMetadata",
+        "defaultValue": false
+    },
+    {
+        "label": "Include Conversation Data Source Metadata in Prompt",
+        "key": "insertConversationDocumentsMetadata",
+        "defaultValue": false
+    },
+    {
+        "label": "Disable Data Source Insertion",
+        "key": "disableDataSources",
+        "defaultValue": false
+    }
+];
 
 
 export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc}) => {
@@ -45,11 +84,22 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         return acc;
     }, {});
 
+    const dataSourceOptionDefaults = dataSourceFlags.reduce((acc:{[key:string]:boolean}, x) => {
+        acc[x.key] = x.defaultValue;
+        return acc;
+    }, {});
+
+    const initialDataSourceOptionState = {
+        ...dataSourceOptionDefaults,
+        ...(definition.data && definition.data.dataSourceOptions || {})
+    }
+
     const [isLoading, setIsLoading] = useState(false);
     const [name, setName] = useState(definition.name);
     const [description, setDescription] = useState(definition.description);
     const [content, setContent] = useState(definition.instructions);
     const [dataSources, setDataSources] = useState(initialDs);
+    const [dataSourceOptions, setDataSourceOptions] = useState<{ [key: string]: boolean }>(initialDataSourceOptionState);
     const [conversationTags, setConversationTags] = useState(cTags);
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
 
@@ -103,7 +153,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         
         //if we were able to get to this assistant modal (only comes up with + assistant and edit buttons)
         //then they must have had read/write access.
-        newAssistant.data.access = {read: true, write: true}; 
+        newAssistant.data.access = {read: true, write: true};
+
+        newAssistant.data.dataSourceOptions = dataSourceOptions;
 
         const {id, assistantId, provider} = await createAssistant(newAssistant, null);
 
@@ -285,6 +337,19 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         value={uri || ""}
                                         onChange={(e) => setUri(e.target.value)}
                                     />
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                        {t('Data Source Options')}
+                                    </div>
+                                    {/*// Documents in past messages*/}
+                                    {/*// Documents attached to prompt*/}
+                                    {/*// Assistant documents*/}
+                                    <FlagsMap flags={dataSourceFlags}
+                                              state={dataSourceOptions}
+                                              flagChanged={
+                                                    (key, value) => {
+                                                        setDataSourceOptions({...dataSourceOptions, [key]: value});
+                                                    }
+                                              }/>
                                 </div>
                             }/>
                         </div>
