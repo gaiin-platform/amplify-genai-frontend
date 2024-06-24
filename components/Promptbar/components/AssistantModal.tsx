@@ -49,6 +49,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [name, setName] = useState(definition.name);
     const [description, setDescription] = useState(definition.description);
     const [content, setContent] = useState(definition.instructions);
+    const [disclaimer, setDisclaimer] = useState(definition.disclaimer ?? "");
     const [dataSources, setDataSources] = useState(initialDs);
     const [conversationTags, setConversationTags] = useState(cTags);
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
@@ -57,7 +58,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const modalRef = useRef<HTMLDivElement>(null);
-
 
     const handleUpdateAssistant = async () => {
         // Check if any data sources are still uploading
@@ -75,6 +75,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         newAssistant.data = newAssistant.data || {provider: "amplify"};
         newAssistant.description = description;
         newAssistant.instructions = content;
+        newAssistant.disclaimer = disclaimer;
 
         if(uri && uri.trim().length > 0){
             // Check that it is a valid uri
@@ -106,6 +107,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         newAssistant.data.access = {read: true, write: true}; 
 
         const {id, assistantId, provider} = await createAssistant(newAssistant, null);
+        if (!id) {
+            alert("Unable to save the assistant at this time, please try again later...");
+            setIsLoading(false);
+            return;
+        }
 
         newAssistant.id = id;
         newAssistant.provider = provider;
@@ -187,6 +193,25 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 rows={10}
                                 disabled={disableEdit}
                             />
+
+                            <div  title={`${disableEdit? "Appended": "Append a"} disclaimer message to the end of every assistant response.`} >
+                                <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
+                                    {t('Appended Disclaimer')}
+                                </div>
+                                <textarea
+                                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                    style={{resize: 'none'}}
+                                    placeholder={
+                                        t(
+                                            'Assistant disclaimer message.',
+                                        ) || ''
+                                    }
+                                    value={disclaimer}
+                                    onChange={(e) => setDisclaimer(e.target.value)}
+                                    rows={2}
+                                    disabled={disableEdit}
+                                />
+                            </div>
 
                             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
                                 {t('Data Sources')}

@@ -92,18 +92,29 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
             signal: abortSignal,
         });
 
-        const result = await response.json();
+        try {
+            const result = await response.json();
 
-        console.log("Create Assistant result:", result);
+            console.log("Create Assistant result:", result);
 
-        return {
-            id: result.data.id,
-            assistantId: result.data.assistantId,
-            provider: 'amplify',
-            dataSources: assistantDefinition.fileKeys || [],
-            name: assistantDefinition.name || "Unnamed Assistant",
-            description: assistantDefinition.description || "No description provided",
-            instructions: assistantDefinition.instructions || assistantDefinition.description,
+            return {
+                id: result.data.id,
+                assistantId: result.data.assistantId,
+                provider: 'amplify',
+                dataSources: assistantDefinition.fileKeys || [],
+                name: assistantDefinition.name || "Unnamed Assistant",
+                description: assistantDefinition.description || "No description provided",
+                instructions: assistantDefinition.instructions || assistantDefinition.description,
+                disclaimer: assistantDefinition.disclaimer || ""
+            }
+        } catch {
+            console.log("Response result failed to parse assistant for correct data");
+            return {
+                id: null,
+                assistantId: null,
+                provider: 'amplify'
+            }
+
         }
     }
 

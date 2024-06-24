@@ -522,9 +522,13 @@ export function useSendService() {
                                 const updatedMessages: Message[] =
                                     updatedConversation.messages.map((message, index) => {
                                         if (index === updatedConversation.messages.length - 1) {
+                                            const disclaimer =  message.data.state.currentAssistantDisclaimer;
+                                            let astMsg = updatedText;
+                                            if (disclaimer) astMsg += "\n\n" + disclaimer
+
                                             return {
                                                 ...message,
-                                                content: updatedText,
+                                                content: astMsg,
                                             };
                                         }
                                         return message;
@@ -607,6 +611,7 @@ export function useSendService() {
                         //reject(error);
                         // Handle any other errors, as required.
                     }
+                    
 
                     //Reset the status display
                     homeDispatch({
