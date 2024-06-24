@@ -66,7 +66,7 @@ const PromptTextArea: React.FC<PromptTextAreaProps> = ({temperature, stopButtonT
             temperature: temperature || 1.0,
         };
 
-        const response = await routeChatRequest(chatBody, null, abortController.signal);
+        const response = await routeChatRequest(chatBody, abortController.signal);
 
         if(response.ok){
             const data = response.body;

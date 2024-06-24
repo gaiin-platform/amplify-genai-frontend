@@ -20,7 +20,7 @@ interface Props {
     onUpdateAssistant: (prompt: Prompt) => void;
     loadingMessage: string;
     loc: string;
-    disableEdit: boolean;
+    disableEdit?: boolean;
 }
 
 
