@@ -248,7 +248,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
                             <div  title={`${disableEdit? "Appended": "Append a"} disclaimer message to the end of every assistant response.`} >
                                 <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
-                                    {t('Appended Disclaimer')}
+                                    {t('Disclaimer to Append to Responses')}
                                 </div>
                                 <textarea
                                     className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
