@@ -183,15 +183,27 @@ const OpBlock: React.FC<OpProps> = ({definition, message}) => {
 
                 const handler = resolveServerHandler(message, id);
 
-                if(handler){
+                let request = null;
+                const assistantId =
+                    getServerSelectedAssistant(message) ||
+                    selectedAssistant?.id;
+
+                if(!handler){
+                    request = {
+                        options: {assistantId},
+                        message: newMessage({
+                            role: "user",
+                            content: "The _id for the specified operation is invalid. Please make sure the _id matches " +
+                                "the ID of one of the allowed ops.",
+                            label: "Operation Result Not Shown"
+                        })
+                    };
+                }
+                else {
                     console.log("Handler is", handler);
                     const result = await handler(args);
 
                     console.log("Result is", result)
-
-                    const assistantId =
-                        getServerSelectedAssistant(message) ||
-                        selectedAssistant?.id;
 
                     if(result) {
 
@@ -204,16 +216,32 @@ const OpBlock: React.FC<OpProps> = ({definition, message}) => {
                             label: "Operation Result Not Shown"
                         })
 
-                        const shouldAbort = () => false;
-                        if (handleSend) {
-                            handleSend(
-                                {
-                                    options:{assistantId},
-                                    message},
-                                shouldAbort);
-                        }
+                        request = {
+                            options: {assistantId},
+                            message
+                        };
                     }
+                    else {
+                        const message = newMessage({
+                            role: "user",
+                            content: "Operation did not produce a result, so it was likely successful.",
+                            label: "Operation Result Not Shown"
+                        })
 
+                        request = {
+                            options: {assistantId},
+                            message
+                        };
+                    }
+                }
+
+                if(request) {
+                    const shouldAbort = () => false;
+                    if (handleSend) {
+                        handleSend(
+                            request,
+                            shouldAbort);
+                    }
                 }
 
 
