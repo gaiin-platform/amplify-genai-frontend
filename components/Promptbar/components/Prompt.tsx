@@ -8,6 +8,7 @@ import {
     IconX,
     IconRobot,
     IconShare,
+    IconEye,
 } from '@tabler/icons-react';
 import {
     DragEvent,
@@ -81,8 +82,6 @@ export const PromptComponent = ({ prompt }: Props) => {
     const canEdit = (!prompt.data || !prompt.data.noEdit);
     const canCopy = (!prompt.data || !prompt.data.noCopy);
     const canShare = (!prompt.data || !prompt.data.noShare);
-
-
 
     const [progressMessage, setProgressMessage] = useState<string|null>(null);
     const [showModal, setShowModal] = useState<boolean>(false);
@@ -283,6 +282,11 @@ export const PromptComponent = ({ prompt }: Props) => {
                                 <IconEdit size={18} />
                             </SidebarActionButton>
                         )}
+                        {!isDeleting && !isRenaming && !canEdit && !isReserved && (
+                            <SidebarActionButton handleClick={() => setShowModal(true)} title="View Template">
+                                <IconEye size={18} />
+                            </SidebarActionButton>
+                        )}
 
                         {!isDeleting && !isRenaming && canShare && (
                             <SidebarActionButton handleClick={() => {
@@ -335,6 +339,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                     }}
                     loadingMessage="Updating assistant..."
                     loc="edit_assistant"
+                    disableEdit={!canEdit}
                 />
             )}
 

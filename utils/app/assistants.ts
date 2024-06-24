@@ -96,7 +96,7 @@ export const createAssistantPrompt = (assistant: AssistantDefinition): Prompt =>
     };
 }
 
-const createAssistantFolder = (folders: FolderInterface[], dispatch: any) => {
+const createAssistantFolder = async (folders: FolderInterface[], dispatch: any) => {
     console.log("Creating assistants folder...")
     const newFolder = {
         id: "assistants",
@@ -107,9 +107,10 @@ const createAssistantFolder = (folders: FolderInterface[], dispatch: any) => {
     const updatedFolders = [...folders, newFolder];
     dispatch({field: 'folders', value: updatedFolders});
     saveFolders(updatedFolders);
+    return 
 }
 
-export const syncAssistants = (assistants: AssistantDefinition[], folders: FolderInterface[], prompts: Prompt[], dispatch: any) => {
+export const syncAssistants = async (assistants: AssistantDefinition[], folders: FolderInterface[], prompts: Prompt[], dispatch: any, featureFlags: any) => {
     // Match assistants by name and only take the one with the highest version number for each name
     const latestAssistants = assistants.reduce((acc: { [key: string]: AssistantDefinition }, assistant: AssistantDefinition) => {
         if (!assistant.version) {
@@ -128,7 +129,7 @@ export const syncAssistants = (assistants: AssistantDefinition[], folders: Folde
     // Make sure the "assistants" folder exists and create it if necessary
     const assistantsFolder = folders.find((f) => f.id === "assistants");
     if (!assistantsFolder) {
-        createAssistantFolder(folders, dispatch);
+        await createAssistantFolder(folders, dispatch);
     }
 
     // would love for it to be like this but we need to offset render or add loading because prompts are jumping 
@@ -155,6 +156,9 @@ export const syncAssistants = (assistants: AssistantDefinition[], folders: Folde
     const assistantIds = new Set(assistants.map(prompt => prompt.id));
                                         // keep the       nonassistants            imported                 still in db 
     updatedPrompts = updatedPrompts.filter(prompt =>  !isAssistant(prompt) || prompt.data?.noShare || assistantIds.has(prompt.id));                            
+    
+    // feature flag considerations
+    if (!featureFlags.apiKeys) updatedPrompts = updatedPrompts.filter(prompt => prompt.id !== 'ast/assistant-api-key-creator');
 
     savePrompts([...updatedPrompts, ...assistantPrompts]);
     dispatch({field: 'prompts', value: [...updatedPrompts, ...assistantPrompts]}); 

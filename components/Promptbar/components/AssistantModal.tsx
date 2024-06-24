@@ -20,11 +20,11 @@ interface Props {
     onUpdateAssistant: (prompt: Prompt) => void;
     loadingMessage: string;
     loc: string;
-
+    disableEdit: boolean;
 }
 
 
-export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc}) => {
+export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc, disableEdit=false}) => {
     const {t} = useTranslation('promptbar');
 
     let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
@@ -155,6 +155,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 placeholder={t('A name for your prompt.') || ''}
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
+                                disabled={disableEdit}
                             />
 
                             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
@@ -167,6 +168,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 rows={3}
+                                disabled={disableEdit}
                             />
 
                             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
@@ -183,12 +185,13 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 value={content}
                                 onChange={(e) => setContent(e.target.value)}
                                 rows={10}
+                                disabled={disableEdit}
                             />
 
                             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
                                 {t('Data Sources')}
                             </div>
-                            <div className="flex flex-row items-center">
+                            {!disableEdit && <div className="flex flex-row items-center">
                                 <button
                                     className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
                                     onClick={(e) => {
@@ -235,7 +238,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 });
                                             }}
                                 />
-                            </div>
+                            </div>}
                             <FileList documents={dataSources} documentStates={documentState} setDocuments={(docs) => {
                                 setDataSources(docs as any[]);
                             }}/>
@@ -284,6 +287,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         placeholder={t('') || ''}
                                         value={uri || ""}
                                         onChange={(e) => setUri(e.target.value)}
+                                        disabled={disableEdit}
                                     />
                                 </div>
                             }/>
@@ -296,9 +300,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     onCancel();
                                 }}
                             >
-                                {t('Cancel')}
+                                {disableEdit ? "Close" : t('Cancel')}
                             </button>
-                            <button
+                            {!disableEdit && <button
                                 type="button"
                                 className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                                 onClick={() => {
@@ -306,7 +310,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 }}
                             >
                                 {t('Save')}
-                            </button>
+                            </button>}
+                            
                         </div>
                     </div>
                 </div>

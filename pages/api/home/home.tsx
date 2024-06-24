@@ -71,14 +71,15 @@ import Loader from "@/components/Loader/Loader";
 import { useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
-import { listAssistants } from '@/services/assistantService';
-import { syncAssistants } from '@/utils/app/assistants';
+import { deleteAssistant, listAssistants } from '@/services/assistantService';
+import { getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
 import { deleteRemoteConversation, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import {killRequest as killReq} from "@/services/chatService";
 import Folder from '@/components/Folder';
 import { DefaultUser } from 'next-auth';
 import { addDateAttribute, getDate, getDateName } from '@/utils/app/date';
 import HomeContext, {  ClickContext, Processor } from './home.context';
+import { ReservedTags } from '@/types/tags';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -143,6 +144,7 @@ const Home = ({
             selectedConversation,
             prompts,
             temperature,
+            selectedAssistant,
             page,
             statsService,
             latestDataDisclosureUrlPDF,
@@ -248,7 +250,7 @@ const Home = ({
                 let assistants = await listAssistants(session?.user?.email);
 
                 if (assistants) {
-                    syncAssistants(assistants, folders, prompts, dispatch);
+                    syncAssistants(assistants, folders, prompts, dispatch, featureFlags);
                     setloadedAssistants(true);
                     setLoadingAmplify(false);
                 }
@@ -492,14 +494,24 @@ const Home = ({
 
         const updatedPrompts: Prompt[] =  promptsRef.current.map((p:Prompt) => {
             if (p.folderId === folderId) {
-                return {
-                    ...p,
-                    folderId: null,
-                };
-            }
+                const isReserved = (isAssistant(p) && p?.data?.assistant?.definition?.tags?.includes(ReservedTags.SYSTEM));
+                if (isReserved) {
+                    return {
+                        ...p,
+                        folderId: null,
+                    };
+                }
+                const canDelete = (!p.data || !p.data.noDelete); 
 
+                if (selectedAssistant && p?.data?.assistant?.definition.assistantId === selectedAssistant.definition.assistantId) dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT }); 
+                if(isAssistant(p) && canDelete ){
+                   const assistant = getAssistant(p);
+                   if (assistant && assistant.assistantId) deleteAssistant(assistant.assistantId);
+                }
+                return undefined;
+            }
             return p;
-        });
+        }).filter((p): p is Prompt => p !== undefined);;
 
         dispatch({ field: 'prompts', value: updatedPrompts });
         savePrompts(updatedPrompts);
