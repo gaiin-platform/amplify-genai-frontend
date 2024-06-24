@@ -21,7 +21,7 @@ interface Props {
     onUpdateAssistant: (prompt: Prompt) => void;
     loadingMessage: string;
     loc: string;
-
+    disableEdit?: boolean;
 }
 
 const dataSourceFlags = [
@@ -63,7 +63,7 @@ const dataSourceFlags = [
 ];
 
 
-export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc}) => {
+export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc, disableEdit=false}) => {
     const {t} = useTranslation('promptbar');
 
     let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
@@ -98,6 +98,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [name, setName] = useState(definition.name);
     const [description, setDescription] = useState(definition.description);
     const [content, setContent] = useState(definition.instructions);
+    const [disclaimer, setDisclaimer] = useState(definition.disclaimer ?? "");
     const [dataSources, setDataSources] = useState(initialDs);
     const [dataSourceOptions, setDataSourceOptions] = useState<{ [key: string]: boolean }>(initialDataSourceOptionState);
     const [conversationTags, setConversationTags] = useState(cTags);
@@ -107,7 +108,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const modalRef = useRef<HTMLDivElement>(null);
-
 
     const handleUpdateAssistant = async () => {
         // Check if any data sources are still uploading
@@ -125,6 +125,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         newAssistant.data = newAssistant.data || {provider: "amplify"};
         newAssistant.description = description;
         newAssistant.instructions = content;
+        newAssistant.disclaimer = disclaimer;
 
         if(uri && uri.trim().length > 0){
             // Check that it is a valid uri
@@ -158,6 +159,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         newAssistant.data.dataSourceOptions = dataSourceOptions;
 
         const {id, assistantId, provider} = await createAssistant(newAssistant, null);
+        if (!id) {
+            alert("Unable to save the assistant at this time, please try again later...");
+            setIsLoading(false);
+            return;
+        }
 
         newAssistant.id = id;
         newAssistant.provider = provider;
@@ -207,6 +213,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 placeholder={t('A name for your prompt.') || ''}
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
+                                disabled={disableEdit}
                             />
 
                             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
@@ -219,6 +226,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 rows={3}
+                                disabled={disableEdit}
                             />
 
                             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
@@ -235,12 +243,32 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 value={content}
                                 onChange={(e) => setContent(e.target.value)}
                                 rows={10}
+                                disabled={disableEdit}
                             />
+
+                            <div  title={`${disableEdit? "Appended": "Append a"} disclaimer message to the end of every assistant response.`} >
+                                <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
+                                    {t('Appended Disclaimer')}
+                                </div>
+                                <textarea
+                                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                    style={{resize: 'none'}}
+                                    placeholder={
+                                        t(
+                                            'Assistant disclaimer message.',
+                                        ) || ''
+                                    }
+                                    value={disclaimer}
+                                    onChange={(e) => setDisclaimer(e.target.value)}
+                                    rows={2}
+                                    disabled={disableEdit}
+                                />
+                            </div>
 
                             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
                                 {t('Data Sources')}
                             </div>
-                            <div className="flex flex-row items-center">
+                            {!disableEdit && <div className="flex flex-row items-center">
                                 <button
                                     className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
                                     onClick={(e) => {
@@ -287,7 +315,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 });
                                             }}
                                 />
-                            </div>
+                            </div>}
                             <FileList documents={dataSources} documentStates={documentState} setDocuments={(docs) => {
                                 setDataSources(docs as any[]);
                             }}/>
@@ -336,6 +364,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         placeholder={t('') || ''}
                                         value={uri || ""}
                                         onChange={(e) => setUri(e.target.value)}
+                                        disabled={disableEdit}
                                     />
                                     <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
                                         {t('Data Source Options')}
@@ -361,9 +390,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     onCancel();
                                 }}
                             >
-                                {t('Cancel')}
+                                {disableEdit ? "Close" : t('Cancel')}
                             </button>
-                            <button
+                            {!disableEdit && <button
                                 type="button"
                                 className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                                 onClick={() => {
@@ -371,7 +400,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 }}
                             >
                                 {t('Save')}
-                            </button>
+                            </button>}
+                            
                         </div>
                     </div>
                 </div>

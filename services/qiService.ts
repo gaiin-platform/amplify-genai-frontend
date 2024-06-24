@@ -46,7 +46,7 @@ export const createQiSummary = async (chatEndpoint:string, data:any, type: QiSum
 
         statsService.sendChatEvent(chatBody);
 
-        const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, null, controller.signal);
+        const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, controller.signal);
 
         const responseData = response.body;
         const reader = responseData ? responseData.getReader() : null;

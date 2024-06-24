@@ -20,6 +20,7 @@ export interface AssistantDefinition {
     name:string;
     description:string;
     instructions:string;
+    disclaimer?:string;
     tools:AssistantTool[];
     tags:string[],
     fileKeys:string[];

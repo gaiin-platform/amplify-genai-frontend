@@ -5,7 +5,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import {killRequest as killReq, MetaHandler, sendChatRequestWithDocuments} from '../services/chatService';
 import {ChatBody, Conversation, CustomFunction, JsonSchema, Message, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
-import {Plugin} from '@/types/plugin';
+import {Plugin, PluginID} from '@/types/plugin';
 import {wrapResponse, stringChunkCallback} from "@/utils/app/responseWrapper";
 
 import {getSession} from "next-auth/react"
@@ -150,13 +150,7 @@ export function useSendService() {
                                     skipRag: true,
                                     ragOnly: true
                                 };
-                            } else if (selectedConversation.tags.includes("NoRag")) {
-                                options = {
-                                    ...(options || {}),
-                                    skipRag: true,
-                                    ragOnly: false
-                                };
-                            }
+                            } 
                     }
 
                     if (!featureFlags.ragEnabled) {
@@ -248,6 +242,20 @@ export function useSendService() {
                     }
 
 
+                    //PLUGINS 
+                    if (plugin?.id === PluginID.CODE_INTERPRETER) {
+                        options =  {...(options || {}), codeInterpreterOnly: true};
+                    } else if (plugin?.id === PluginID.NO_RAG) {
+                        options = {
+                            ...(options || {}),
+                            skipRag: true,
+                            ragOnly: false
+                        };
+                    } else if (plugin?.id === PluginID.RAG_EVAL) {
+                        //
+                    }
+                
+
                     if (options) {
                         Object.assign(chatBody, options);
                     }
@@ -303,9 +311,9 @@ export function useSendService() {
 
                         const generateJsonLoose = (): Promise<Response> => {
                             if (options.length === 0) {
-                                return sendJsonChatRequest(chatBody, plugin, controller.signal);
+                                return sendJsonChatRequest(chatBody, controller.signal);
                             } else {
-                                return sendJsonChatRequestWithSchemaLoose(chatBody, options as JsonSchema, plugin, controller.signal)
+                                return sendJsonChatRequestWithSchemaLoose(chatBody, options as JsonSchema, controller.signal)
                             }
                         }
 
@@ -334,11 +342,11 @@ export function useSendService() {
                         };
 
                         const invokers = {
-                            "fn": () => sendFunctionChatRequest(chatBody, options.functions as CustomFunction[], options.call, plugin, controller.signal, metaHandler),
-                            "chat": () => sendChatRequest(chatBody, plugin, controller.signal, metaHandler),
-                            "csv": () => sendCSVChatRequest(chatBody, options as ColumnsSpec, plugin, controller.signal, metaHandler),
+                            "fn": () => sendFunctionChatRequest(chatBody, options.functions as CustomFunction[], options.call, controller.signal, metaHandler),
+                            "chat": () => sendChatRequest(chatBody, controller.signal, metaHandler),
+                            "csv": () => sendCSVChatRequest(chatBody, options as ColumnsSpec, controller.signal, metaHandler),
                             "json": () => generateJsonLoose(),
-                            "json!": () => sendJsonChatRequestWithSchema(chatBody, options as JsonSchema, plugin, controller.signal, metaHandler)
+                            "json!": () => sendJsonChatRequestWithSchema(chatBody, options as JsonSchema, controller.signal, metaHandler)
                         }
 
                         const response = (existingResponse) ?
@@ -358,7 +366,7 @@ export function useSendService() {
                             homeDispatch({field: 'messageIsStreaming', value: false});
                             return;
                         }
-                        if (!plugin) {
+                        // if (!plugin) {
 
 
                             homeDispatch({field: 'loading', value: false});
@@ -500,7 +508,6 @@ export function useSendService() {
 
                             //console.log("Dispatching post procs: " + postProcessingCallbacks.length);
                             postProcessingCallbacks.forEach(callback => callback({
-                                plugin: plugin,
                                 chatBody: chatBody,
                                 response: text
                             }));
@@ -515,9 +522,13 @@ export function useSendService() {
                                 const updatedMessages: Message[] =
                                     updatedConversation.messages.map((message, index) => {
                                         if (index === updatedConversation.messages.length - 1) {
+                                            const disclaimer =  message.data.state.currentAssistantDisclaimer;
+                                            let astMsg = updatedText;
+                                            if (disclaimer) astMsg += "\n\n" + disclaimer
+
                                             return {
                                                 ...message,
-                                                content: updatedText,
+                                                content: astMsg,
                                             };
                                         }
                                         return message;
@@ -552,43 +563,43 @@ export function useSendService() {
                             homeDispatch({field: 'messageIsStreaming', value: false});
 
                             resolve(text);
-                        } else {
-                            const {answer} = await response.json();
-                            const updatedMessages: Message[] = [
-                                ...updatedConversation.messages,
-                                newMessage({role: 'assistant', content: answer}),
-                            ];
-                            updatedConversation = {
-                                ...updatedConversation,
-                                messages: updatedMessages,
-                            };
-                            homeDispatch({
-                                field: 'selectedConversation',
-                                value: updatedConversation,
-                            });
-                            if (selectedConversation.isLocal) {
+                        // } else {
+                        //     const {answer} = await response.json();
+                        //     const updatedMessages: Message[] = [
+                        //         ...updatedConversation.messages,
+                        //         newMessage({role: 'assistant', content: answer}),
+                        //     ];
+                        //     updatedConversation = {
+                        //         ...updatedConversation,
+                        //         messages: updatedMessages,
+                        //     };
+                        //     homeDispatch({
+                        //         field: 'selectedConversation',
+                        //         value: updatedConversation,
+                        //     });
+                        //     if (selectedConversation.isLocal) {
                                 
-                                const updatedConversations: Conversation[] = conversationsRef.current.map(
-                                    (conversation:Conversation) => {
-                                        if (conversation.id === selectedConversation.id) {
-                                            return conversationWithCompressedMessages(updatedConversation);
-                                        }
-                                        return conversation;
-                                    },
-                                );
-                                if (updatedConversations.length === 0) {
-                                    updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-                                }
-                                homeDispatch({field: 'conversations', value: updatedConversations});
-                                saveConversations(updatedConversations);
-                            } else {
-                                uploadConversation(updatedConversation, foldersRef.current);
-                            }
-                            homeDispatch({field: 'loading', value: false});
-                            homeDispatch({field: 'messageIsStreaming', value: false});
+                        //         const updatedConversations: Conversation[] = conversationsRef.current.map(
+                        //             (conversation:Conversation) => {
+                        //                 if (conversation.id === selectedConversation.id) {
+                        //                     return conversationWithCompressedMessages(updatedConversation);
+                        //                 }
+                        //                 return conversation;
+                        //             },
+                        //         );
+                        //         if (updatedConversations.length === 0) {
+                        //             updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                        //         }
+                        //         homeDispatch({field: 'conversations', value: updatedConversations});
+                        //         saveConversations(updatedConversations);
+                        //     } else {
+                        //         uploadConversation(updatedConversation, foldersRef.current);
+                        //     }
+                        //     homeDispatch({field: 'loading', value: false});
+                        //     homeDispatch({field: 'messageIsStreaming', value: false});
 
-                            resolve(answer);
-                        }
+                        //     resolve(answer);
+                        // }
                     } catch (error: any) {
                         homeDispatch({field: 'loading', value: false});
                         homeDispatch({field: 'messageIsStreaming', value: false});
@@ -600,6 +611,7 @@ export function useSendService() {
                         //reject(error);
                         // Handle any other errors, as required.
                     }
+                    
 
                     //Reset the status display
                     homeDispatch({

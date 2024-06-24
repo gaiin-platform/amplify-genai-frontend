@@ -30,7 +30,7 @@ export const callRenameChat = async (chatEndpoint:string, messages: Message[], s
 
         statsService.sendChatEvent(chatBody);
 
-        const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, null, controller.signal);
+        const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, controller.signal);
 
         const responseData = response.body;
         const reader = responseData ? responseData.getReader() : null;
