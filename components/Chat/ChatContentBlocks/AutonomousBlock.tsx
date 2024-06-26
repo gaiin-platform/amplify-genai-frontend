@@ -362,6 +362,8 @@ const AutonomousBlock: React.FC<Props> = (
                         " the name of the op is correct."
                 }
                 if (handler && (!shouldConfirm || confirm("Allow automation to proceed?"))) {
+                    homeDispatch({field: 'loading', value: true});
+                    homeDispatch({field: 'messageIsStreaming', value: true});
                     result = await handler(params);
                 }
 
@@ -379,12 +381,14 @@ const AutonomousBlock: React.FC<Props> = (
                     selectedAssistant?.id;
 
                 if(!shouldStopConversation()) {
+                    homeDispatch({field: 'loading', value: true});
+                    homeDispatch({field: 'messageIsStreaming', value: true});
 
                     handleSend(
                         {
                             options:{assistantId},
                             message: newMessage(
-                                {"role": "user", "content": JSON.stringify(feedbackMessage), label: "API Result"})
+                                {"role": "user", "content": JSON.stringify(feedbackMessage), label: "API Result", data:{actionResult:true}})
                         },
                         shouldStopConversation);
                 }

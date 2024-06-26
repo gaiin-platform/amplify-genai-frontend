@@ -4,6 +4,7 @@ import {
     IconEdit,
     IconRobot,
     IconTrash,
+    IconBolt,
     IconWriting,
     IconDownload,
     IconMail,
@@ -203,13 +204,33 @@ export const ChatMessage: FC<Props> = memo(({
         }
     }
 
+    const isActionResult = message.data && message.data.actionResult;
+    const isAssistant = message.role === 'assistant';
+
+    let msgStyle = 'border-b border-t border-black/10 bg-white text-gray-800 dark:border-gray-900/50 dark:bg-[#343541] dark:text-gray-100';
+    if(isActionResult){
+        msgStyle = 'bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100';
+    }
+    else if(isAssistant){
+        msgStyle = 'bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100';
+    }
+
+    const enableTools = !isActionResult;
+
+    const getIcon = () => {
+        if (isActionResult) {
+            return <IconBolt size={30}/>;
+        } else if (isAssistant) {
+            return <IconRobot size={30}/>;
+        } else {
+            return <IconUser size={30}/>;
+        }
+    }
+
     // @ts-ignore
     return (
         <div
-            className={`group md:px-4 ${message.role === 'assistant'
-                ? 'border-b border-black/10 bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100'
-                : 'border-b border-black/10 bg-white text-gray-800 dark:border-gray-900/50 dark:bg-[#343541] dark:text-gray-100'
-            }`}
+            className={`group md:px-4 ${msgStyle}`}
             style={{overflowWrap: 'anywhere'}}
         >
             {isFileDownloadDatasourceVisible && (
@@ -234,13 +255,9 @@ export const ChatMessage: FC<Props> = memo(({
             )}
 
             <div
-                className="relative m-auto flex p-4 text-base md:max-w-2xl md:gap-6 md:py-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
+                className="relative m-auto flex p-2 text-base md:max-w-2xl md:gap-6 md:py-2 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
                 <div className="min-w-[40px] text-right font-bold">
-                    {message.role === 'assistant' ? (
-                        <IconRobot size={30}/>
-                    ) : (
-                        <IconUser size={30}/>
-                    )}
+                    {getIcon()}
                 </div>
 
                 <div className="prose mt-[-2px] w-full dark:prose-invert">
@@ -264,7 +281,8 @@ export const ChatMessage: FC<Props> = memo(({
                                     <div className="flex flex-col">
                                         <div className="flex flex-row">
                                             <div className="prose whitespace-pre-wrap dark:prose-invert flex-1">
-                                                {assistantRecipient &&
+                                                {!isActionResult &&
+                                                    assistantRecipient &&
                                                  assistantRecipient.definition &&
                                                  assistantRecipient.definition.name &&
                                                  assistantRecipient.definition.assistantId ?
@@ -273,7 +291,7 @@ export const ChatMessage: FC<Props> = memo(({
                                                     </span>
                                                     :
                                                     <span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
-                                                        @Amplify:
+                                                        {!isActionResult ? "@Amplify:" : "@Action Completed:"}
                                                     </span>
                                                 } {message.label || message.content}
                                             </div>
@@ -292,7 +310,7 @@ export const ChatMessage: FC<Props> = memo(({
                                 </div>
                             )}
 
-                            {!isEditing && (
+                            {!isEditing && enableTools && (
                                 <div
                                     className="md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">
                                     {/*<div*/}
@@ -443,13 +461,13 @@ export const ChatMessage: FC<Props> = memo(({
                                     onSendPrompt(p)
                                 }}/>
                             )}
-                            {(messageIsStreaming || isEditing) ? null : (
-                                <Stars starRating={message.data && message.data.rating || 0} setStars={(r) => {
-                                    if (onEdit) {
-                                        onEdit({...message, data: {...message.data, rating: r}});
-                                    }
-                                }}/>
-                            )}
+                            {/*{(messageIsStreaming || isEditing) ? null : (*/}
+                            {/*    <Stars starRating={message.data && message.data.rating || 0} setStars={(r) => {*/}
+                            {/*        if (onEdit) {*/}
+                            {/*            onEdit({...message, data: {...message.data, rating: r}});*/}
+                            {/*        }*/}
+                            {/*    }}/>*/}
+                            {/*)}*/}
                             {(messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1) ?
                                 // <LoadingIcon />
                                 <Loader type="ping" size="48"/>
