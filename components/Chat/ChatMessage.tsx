@@ -291,7 +291,7 @@ export const ChatMessage: FC<Props> = memo(({
                                                     </span>
                                                     :
                                                     <span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
-                                                        {!isActionResult ? "@Amplify:" : "@Action Completed:"}
+                                                        {!isActionResult ? "@Amplify:" : "\u2713 Action Completed:"}
                                                     </span>
                                                 } {message.label || message.content}
                                             </div>
@@ -310,7 +310,7 @@ export const ChatMessage: FC<Props> = memo(({
                                 </div>
                             )}
 
-                            {!isEditing && enableTools && (
+                            {!isEditing && (
                                 <div
                                     className="md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">
                                     {/*<div*/}
@@ -331,6 +331,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             </button>
                                         )}
                                     </div>
+                                    {!isActionResult && (
                                     <div>
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
@@ -339,7 +340,8 @@ export const ChatMessage: FC<Props> = memo(({
                                         >
                                             <IconDownload size={20}/>
                                         </button>
-                                    </div>
+                                    </div>)
+                                    }
                                     <div>
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
@@ -349,6 +351,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             <IconEdit size={20}/>
                                         </button>
                                     </div>
+                                    {!isActionResult && (
                                     <div>
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
@@ -358,6 +361,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             <IconTrash size={20}/>
                                         </button>
                                     </div>
+                                    )}
                                 </div>
                             )}
                         </div>
