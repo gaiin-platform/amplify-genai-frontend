@@ -64,6 +64,7 @@ const addDataToMessages = (messages: Message[], data: { [key: string]: any }) =>
 }
 
 export const createAssistant = async (assistantDefinition: AssistantDefinition, abortSignal = null) => {
+    if (!("disclaimer" in assistantDefinition)) assistantDefinition.disclaimer = '';
 
     if (assistantDefinition.provider === 'openai') {
         if (assistantDefinition.dataSources) {

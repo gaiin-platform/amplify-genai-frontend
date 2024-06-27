@@ -184,7 +184,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
                 if(assistantId) {
                     alert("Assistant created successfully!");
                     const createdAssistantPrompt = createAssistantPrompt(assistantDefinition);
-                    handleUpdateAssistantPrompt(createdAssistantPrompt, promptsRef.current, homeDispatch);
+                    handleUpdateAssistantPrompt(createdAssistantPrompt, prompts, homeDispatch);
                     statsService.createPromptEvent(createdAssistantPrompt);
                 } else {
                     alert("Failed to create assistant. Please try again.");
