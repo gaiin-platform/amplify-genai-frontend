@@ -23,6 +23,7 @@ export enum OpenAIModelID {
   CLAUDE_INSTANT_1_2 = 'anthropic.claude-instant-v1',
   CLAUDE_2_1 = 'anthropic.claude-v2:1',
   CLAUDE_3_SONNET = 'anthropic.claude-3-sonnet-20240229-v1:0',
+  CLAUDE_3_5_SONNET = 'anthropic.claude-3-5-sonnet-20240620-v1:0',
   CLAUDE_3_HAIKU = 'anthropic.claude-3-haiku-20240307-v1:0',
   CLAUDE_3_OPUS = 'anthropic.claude-3-opus-20240229-v1:0',
   MISTRAL_7B = 'mistral.mistral-7b-instruct-v0:2',
@@ -155,6 +156,17 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
     outputCost: 0.01500,
     inputCost: 0.00300,
     description: "Consider for complex tasks requiring advanced understanding and intelligence, while keeping cost low.\nOffers a better balance between cost, speed, and performance compared to Claude 2.1.\nCan perform complex mathematical computations, statistical analyses, coding assistance, think critically, maintain context understanding.\nTrained on information available through August 2023."
+   },
+   [OpenAIModelID.CLAUDE_3_5_SONNET] : { 
+    id: OpenAIModelID.CLAUDE_3_5_SONNET,
+    name: 'Claude-3-5-Sonnet (bedrock)',
+    maxLength: 24000,
+    tokenLimit: 4000,
+    actualTokenLimit: 4096,
+    visible: false,
+    outputCost: 0.015,
+    inputCost: 0.003,
+    description: "Consider for advanced tasks with the most up-to-date information.\nClaude 3.5 is Anthropic's most current, powerful, and cost-efficient model.\nCan write, edit, and execute code with sophisticated reasoning, understands user context, offers orchestrating multi-step workflows, can navigate unstructured data, write creatively, and understand nuance and humor.\nTrained on information available through April 2024."
    },
    [OpenAIModelID.CLAUDE_3_HAIKU]: {
     id: OpenAIModelID.CLAUDE_3_HAIKU,
