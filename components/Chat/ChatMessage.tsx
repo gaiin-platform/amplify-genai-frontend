@@ -227,6 +227,26 @@ export const ChatMessage: FC<Props> = memo(({
         }
     }
 
+    const getAtBlock = () => {
+        if(!isActionResult &&
+            assistantRecipient &&
+            assistantRecipient.definition &&
+            assistantRecipient.definition.name &&
+            assistantRecipient.definition.assistantId) {
+            return (<span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
+                                                        {"@" + assistantRecipient.definition.name + ":"}
+                                                    </span>);
+        } else if(!isActionResult) {
+            return (<span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
+                                                        @Amplify:
+                                                    </span>);
+        } else {
+           return (<span className="bg-yellow-500 dark:bg-yellow-500 text-black rounded-xl py-1.5 pr-1 pl-1">
+                                                        {'\u2713 Action Completed:'}
+                                                    </span>);
+        }
+    }
+
     // @ts-ignore
     return (
         <div
@@ -281,19 +301,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     <div className="flex flex-col">
                                         <div className="flex flex-row">
                                             <div className="prose whitespace-pre-wrap dark:prose-invert flex-1">
-                                                {!isActionResult &&
-                                                    assistantRecipient &&
-                                                 assistantRecipient.definition &&
-                                                 assistantRecipient.definition.name &&
-                                                 assistantRecipient.definition.assistantId ?
-                                                    <span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
-                                                        {"@" + assistantRecipient.definition.name +":"}
-                                                    </span>
-                                                    :
-                                                    <span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
-                                                        {!isActionResult ? "@Amplify:" : "\u2713 Action Completed:"}
-                                                    </span>
-                                                } {message.label || message.content}
+                                                {getAtBlock()} {message.label || message.content}
                                             </div>
                                         </div>
                                         <DataSourcesBlock message={message} handleDownload={handleDownload}/>

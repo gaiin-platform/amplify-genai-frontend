@@ -98,6 +98,20 @@ export const resolveServerHandler = (message:Message, id:string) => {
     return opDef ? remoteOpHandler(opDef) : null;
 }
 
+export const resolveOpDef = (message:Message, id:string) => {
+    const serverResolvedOps = getServerProvidedOps(message);
+
+    if(!serverResolvedOps || serverResolvedOps.length === 0){
+        return null;
+    }
+
+    const opDef = serverResolvedOps.find(
+        (op:any) => op.id === id || op.id === "/"+id
+    );
+
+    return opDef;
+}
+
 export function parseApiCall(str:string):ApiCall  {
     if(str.startsWith("do(") && str.endsWith(")")) {
         const functionName = str.split("(")[0];

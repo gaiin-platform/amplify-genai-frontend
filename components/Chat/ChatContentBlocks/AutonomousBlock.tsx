@@ -11,7 +11,7 @@ import {execOp} from "@/services/opsService";
 import {ApiCall, OpDef} from "@/types/op";
 import {useSession} from "next-auth/react";
 import {getDbsForUser} from "@/services/pdbService";
-import {getServerProvidedOps, parseApiCalls, resolveServerHandler} from "@/utils/app/ops";
+import {getServerProvidedOps, parseApiCalls, resolveOpDef, resolveServerHandler} from "@/utils/app/ops";
 import { FolderInterface } from '@/types/folder';
 import { Prompt } from '@/types/prompt';
 
@@ -100,6 +100,26 @@ const AutonomousBlock: React.FC<Props> = (
         return s;
     }
 
+    const opTitles: { [key: string]: string } = {
+        "/ops": "Listing the available ops",
+        "/chats": "Listing all of the chats",
+        "/searchChats": "Searching all of the chats",
+        "/chat": "Operation for a specific chat",
+        "/chatSamples": "Operation for chat samples",
+        "/folders": "Listing the available folders",
+        "/searchFolders": "Searching all of the folders",
+        "/listDbs": "Listing all of the databases",
+        "/models": "Listing the available models",
+        "/prompts": "Listing the available prompts",
+        "/defaultModelId": "Getting the default model ID",
+        "/featureFlags": "Getting the feature flags",
+        "/workspaceMetadata": "Getting the workspace metadata",
+        "/selectedConversation": "Getting the selected conversation",
+        "/selectedAssistant": "Getting the selected assistant",
+        "/listAssistants": "Listing all assistants",
+        "/createChatFolder": "Creating a chat folder",
+        "/moveChatsToFolder": "Moving chats to a folder",
+    };
 
     const handlers:{[key:string]:(params:any)=>any} = {
 
@@ -301,6 +321,16 @@ const AutonomousBlock: React.FC<Props> = (
         return aid;
     }
 
+    const getOpTitle = (message: Message, url: string) => {
+        const opDef = resolveOpDef(message, url);
+
+        const title =
+            (opDef && opDef.name)
+            || opTitles[url]
+            || opTitles["/" + url];
+
+        return title;
+    }
 
     const runAction = async (action: any) => {
         try{
@@ -335,6 +365,7 @@ const AutonomousBlock: React.FC<Props> = (
             const apiCalls = parseApiCalls(action);
 
             const results = [];
+            let title = "API Result";
 
             for(const apiCall of apiCalls) {
 
@@ -355,6 +386,8 @@ const AutonomousBlock: React.FC<Props> = (
                     resolveServerHandler(message, url)
                     || handlers[url]
                     || handlers["/" + url];
+
+                title = getOpTitle(message, url);
 
                 let result = {
                     success: false, message: "Unknown operation: " + url + ". " +
@@ -388,7 +421,7 @@ const AutonomousBlock: React.FC<Props> = (
                         {
                             options:{assistantId},
                             message: newMessage(
-                                {"role": "user", "content": JSON.stringify(feedbackMessage), label: "API Result", data:{actionResult:true}})
+                                {"role": "user", "content": JSON.stringify(feedbackMessage), label: title || "API Result", data:{actionResult:true}})
                         },
                         shouldStopConversation);
                 }
