@@ -432,7 +432,7 @@ const Home = ({
             type,
         };
 
-        const updatedFolders = [...foldersRef.current, newFolder];
+        const updatedFolders = [...folders, newFolder];
 
         dispatch({ field: 'folders', value: updatedFolders });
         saveFolders(updatedFolders);

@@ -40,7 +40,6 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
         const container = document.querySelector(".container");
         if (container) {
             const containerRect = container.getBoundingClientRect();
-            const draggableRect = draggableRef.current.getBoundingClientRect();
         
             // Calculate boundaries
             const leftBound = 0;
@@ -87,7 +86,7 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
 
     return (
         <>
-            <div className="`relative inline-block z-20"
+            <div className="`relative inline-block z-20 " 
                 draggable="true"
                 onMouseDown={startDragging}
                 onMouseUp={stopDragging}
