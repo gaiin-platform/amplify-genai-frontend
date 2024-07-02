@@ -49,8 +49,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
 
     const { t } = useTranslation('settings');
 
+    const [ownerApiKeys, setOwnerApiKeys] = useState<ApiKey[]>([]);
     const [delegateApiKeys, setDelegateApiKeys] = useState<ApiKey[]>([]);
-
     const [isCreating, setIsCreating] = useState<boolean>(false);
 
     const [appName, setAppName] = useState<string>("");
@@ -91,7 +91,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
     }, [delegateInput]);
 
     useEffect(() => {
-        setDelegateApiKeys(apiKeys.filter((k: ApiKey) => user?.email === k.delegate));
+        setDelegateApiKeys(apiKeys.filter((k: ApiKey) => k.delegate === user?.email));
+        setOwnerApiKeys(apiKeys.filter((k: ApiKey) => k.owner === user?.email));
     }, [apiKeys]);
 
 
@@ -180,7 +181,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
 
     return (
         <>
-         <div className='flex flex-col gap-4 mx-2 overflow-y-auto h-[600px]'> 
+         <div className='flex flex-col gap-4 mx-2 overflow-y-auto' > 
             <div className="text-l text-black dark:text-neutral-200">
                 You can create Api keys for yourself and others. 
                 <div className="mx-5 mt-4 flex items-center p-2 border border-gray-400 dark:border-gray-500 rounded ">
@@ -201,12 +202,11 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                             A System API Key operates independently of any individual user account. It comes with its own set of permissions and behaves as though it is a completely separate account. This type of key is ideal for automated processes or applications that need their own dedicated permissions and do not require access linked to any specific user.
                         </div>
                         <div className='mt-1 flex flex-row gap-2'> 
-                            <IconUser className='flex-shrink-0 text-blue-600' style={{ strokeWidth: 2.5 }} size={16}/>
+                            <IconUser className='flex-shrink-0 text-yellow-500' style={{ strokeWidth: 2.5 }} size={16}/>
                             Delegate Use
                             <br className='mb-1'></br>
                             A Delegate API Key is like a personal key for another Amplify user, but with your account being responsible for the associated payments. This type of key is useful when you want to grant someone else access or certain capabilities within their own Amplify account while ensuring that the billing responsibility falls on your account.
                         </div>
-                        <br className='mb-1'></br>
                         <div className='text-center'> {"*** If your key has been compromised, deactivate it as soon as possible. ***"} </div>
                         
                     </span>
@@ -414,67 +414,55 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                 <div className="text-lg text-black dark:text-neutral-200 border-b">
                         Your API Keys
                 </div>
+                
+
                 <div className='overflow-x-auto'>
-                    {apiKeys.length === 0 ? (
-                            <div className="text-center text-md italic text-black dark:text-neutral-200">
-                                You do not have any API keys set up. Add one above.
-                            </div>) 
-                            :
-                            (<div className="ml-4 text-md text-black dark:text-neutral-200 flex flex-row p-2">
-                                {[["Name", "120px"], ["Account", "140px"], ["Delegate", "80px"], ["Active", "60px"], 
-                                ["Expiration", "100px"], ["Last Accessed", "234px"], ["Rate Limit", "140px"], ["Access Types", "220px"],
-                                ["System ID", "176px"], ["API Key", "184px"]
-                                ].map((col:any, index:number) => ( 
-                                    <div key={index} className="ml-[-1px] px-2 border border-gray-500 flex flex-shrink-0" style={{width: col[1]}}>
-                                        <>{col[0]}</>
-                                    </div>
-                                ))}
-                            </div>)
-                        }
-                        <div className="divide-y divide-gray-400 dark:divide-gray-200 w-full"> 
-                            {apiKeys.map((apiKey:any, index: number) => (
-                                <div key={index} className="flex flex-row items-center py-3">
-                                    <IconUser style={{ strokeWidth: 2.5 }} className={`mb-2 mr-2 flex-shrink-0 ${apiKey.systemId 
-                                                                           ? 'text-green-600' : apiKey.delegate 
-                                                                           ? 'text-blue-600' : 'text-gray-600 dark:text-gray-400'}`} size={20}/>
-                                                                    
-                                    <Label label={apiKey.applicationName} widthPx="120px"></Label>
-                                    <Label label={apiKey.account} widthPx="140px" editable={true}></Label>
-                                    <Label label={apiKey.delegate || "N/A"} widthPx="80px"></Label>
-                                    {<div className='items-center' style={{width: '60px'}}>
-                                        {apiKey.active ? <IconCheck size={18} /> : <IconX size={18} />}
-                                    </div>}
-                                    <Label label={apiKey.expirationDate || "N/A"} widthPx="100px" editable={true}></Label>
-                                    <Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx="234px"></Label>
-                                    <Label label={apiKey.rateLimit.rate ? formatLimits(apiKey.rateLimit) : 'Unlimited'} widthPx="140px" editable={true}></Label>
-                                    <Label label={apiKey.accessTypes.join(', ')} widthPx="220px" editable={true}></Label>
-                                    <Label label={apiKey.systemId || "N/A"} widthPx="176px"></Label>
-                                    
-                                    {!apiKey.delegate && (
-                                        <HiddenAPIKey   
-                                        id={apiKey.api_owner_id} 
-                                        />  
-                                    )}
-                                    <div className="ml-6 mr-2">
-                                        {false ? (
-                                            <button
-                                                type="button"
-                                                className="px-2 py-1.5 text-sm bg-neutral-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                                onClick={() => {}}
-                                            >
-                                                <IconTrashX size={18} />
-                                            </button>
-                                        ) : (
-                                            <div className="px-2 py-1.5 text-sm opacity-0" aria-hidden="true"> {/* Invisible spacer */}
-                                                <IconTrashX size={18} />
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                {ownerApiKeys.length === 0 ? (
+                    <div className="text-center text-md italic text-black dark:text-neutral-200">
+                        You do not have any API keys set up. Add one above.
+                    </div>
+                ) : (
+                    <table className='w-full text-md text-black dark:text-neutral-200'>
+                        <thead>
+                            <tr className="bg-gray-200 dark:bg-[#333]">
+                                <th className="px-2 border border-gray-500" style={{ width: "120px" }}>Name</th>
+                                <th className="px-2 border border-gray-500" style={{ width: "140px" }}>Account</th>
+                                <th className="px-2 border border-gray-500" style={{ width: "80px" }}>Delegate</th>
+                                <th className="px-2 border border-gray-500" style={{ width: "60px" }}>Active</th>
+                                <th className="px-2 border border-gray-500" style={{ width: "100px" }}>Expiration</th>
+                                <th className="px-2 border border-gray-500" style={{ width: "234px" }}>Last Accessed</th>
+                                <th className="px-2 border border-gray-500" style={{ width: "140px" }}>Rate Limit</th>
+                                <th className="px-2 border border-gray-500" style={{ width: "220px" }}>Access Types</th>
+                                <th className="px-2 border border-gray-500" style={{ width: "176px" }}>System ID</th>
+                                <th className="px-2 border border-gray-500" style={{ width: "184px" }}>API Key</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {ownerApiKeys.map((apiKey, index) => (
+                                <tr key={index}>
+                                    <td>{<Label label={apiKey.applicationName} />}</td>
+                                    <td>{<Label label={apiKey.account} />}</td>
+                                    <td>{<Label label={apiKey.delegate || "N/A"} />}</td>
+                                    <td>
+                                        <div className='flex justify-center items-center' style={{width: '60px'}}>
+                                            {apiKey.active ? <IconCheck size={18} /> : <IconX size={18} />}
+                                        </div>
+                                    </td>
+                                    <td>{<Label label={apiKey.expirationDate || "N/A"} />}</td>
+                                    <td>{<Label label={userFriendlyDate(apiKey.lastAccessed)} />}</td>
+                                    <td>{<Label label={apiKey.rateLimit.rate ? formatLimits(apiKey.rateLimit) : 'Unlimited'} />}</td>
+                                    <td>{<Label label={apiKey.accessTypes.join(', ')} />}</td>
+                                    <td>{<Label label={apiKey.systemId || "N/A"} />}</td>
+                                    <td>{!apiKey.delegate && <HiddenAPIKey id={apiKey.api_owner_id} />}</td>
+                                </tr>
                             ))}
-                        </div>
-                        
-                </div>
+                        </tbody>
+                    </table>
+                )}
+            </div>
+
+
+
             </div>
             <div>
                 { delegateApiKeys.length > 0 &&
@@ -482,64 +470,42 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                 <div className="text-lg text-black dark:text-neutral-200 border-b">
                         Delegated API Keys
                 </div>
-                        {/* api_owner_id: string;
-                        owner: string, 
-                        delegate:  string, 
-                        applicationName: string;
-                        applicationDescription: string;
-                        account: string | null;
-                        rateLimit: rateLimit
-                        active: boolean;
-                        expiration: string | null;
-                        accessTypes: string[];
-                        systemId: string;
-                        lastAccessed: string; */}
-                        <div className='flex flex-col overflow-x-auto'>
-                            <div className="ml-4 text-md text-black dark:text-neutral-200 flex flex-row p-2">
-                                {[["Owner", "120px"], ["Name", "120px"], ["Active", "60px"], ["Expiration", "100px"],
-                                  ["Last Accessed", "234px"], ["Rate Limit", "140px"], ["Access Types", "220px"], ["API Key", "184px"]
-                                ].map((col:any, index:number) => ( 
-                                    <div key={index} className="ml-[-1px] px-2 border border-gray-500 flex flex-shrink-0" style={{width: col[1]}}>
-                                        <>{col[0]}</>
-                                    </div>
-                                ))}
-                            </div>
-
-                        <ul className="flex-grow divide-y divide-gray-200 overflow-auto"> 
-                        {/* h-[130px] */}
-                            {delegateApiKeys && delegateApiKeys.map((apiKey:any) => (
-                                <li key={"id"} className="flex flex-row  items-center py-3">
-                                    <Label label={apiKey.owner} widthPx="120px"></Label>
-                                    <Label label={apiKey.applicationName} widthPx="120px"></Label>
-                                    {<div className='items-center' style={{width: '60px'}}>
+            <div>
+            <div style={{ overflowX: 'auto'}}>
+                <table className='w-full mt-1'>
+                    <thead className='dark:text-white border border-gray-500'>
+                        <tr>
+                        <th>Owner</th>
+                        <th>Name</th>
+                        <th>Active</th>
+                        <th>Expiration</th>
+                        <th>Last Accessed</th>
+                        <th>Rate Limit</th>
+                        <th>Access Types</th>
+                        <th>API Key</th>
+                        </tr>
+                    </thead>
+                    <tbody >
+                        {delegateApiKeys.map((apiKey:any) => (
+                        <tr key={apiKey.id}>
+                            <td>{<Label label={apiKey.owner} ></Label>}</td>
+                            <td>{<Label label={apiKey.applicationName} widthPx="120px"></Label>}</td>
+                            <td> {<div className='items-center' style={{width: '60px'}}>
                                         {apiKey.active ? <IconCheck size={18} /> : <IconX size={18} />}
                                     </div>}
-                                    <Label label={apiKey.expirationDate || "N/A"} widthPx="100px" ></Label>
-                                    <Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx="234px"></Label>
-                                    <Label label={apiKey.rateLimit.rate ? formatLimits(apiKey.rateLimit) : 'Unlimited'} widthPx="140px"></Label>
-                                    <Label label={apiKey.accessTypes.join(', ')} widthPx="220px"></Label>
-                                    <HiddenAPIKey   
-                                        id={apiKey.api_owner_id} 
-                                    />  
-                                    <div className="ml-6 mr-2">
-                                        {false ? (
-                                            <button
-                                                type="button"
-                                                className="px-2 py-1.5 text-sm bg-neutral-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                                onClick={() => {}}
-                                            >
-                                                <IconTrashX size={18} />
-                                            </button>
-                                        ) : (
-                                            <div className="px-2 py-1.5 text-sm opacity-0" aria-hidden="true"> {/* Invisible spacer */}
-                                                <IconTrashX size={18} />
-                                            </div>
-                                        )}
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                       </div>
+                            </td>
+                            <td>{<Label label={apiKey.expirationDate || "N/A"} widthPx="100px" ></Label>}</td>
+                            <td>{<Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx="160px"></Label>}</td>
+                            <td>{<Label label={apiKey.rateLimit.rate ? formatLimits(apiKey.rateLimit) : 'Unlimited'} widthPx="140px"></Label>}</td>
+                            <td>{<Label label={apiKey.accessTypes.join(', ')} widthPx="160px" ></Label>}</td>
+                            <td>{<HiddenAPIKey id={apiKey.api_owner_id}/> }
+                            </td>      
+                        </tr>
+                        ))}
+                    </tbody>
+                    </table>
+                    </div>
+                    </div>
                     </>
                     }
             </div>
@@ -657,13 +623,13 @@ const HiddenAPIKey: FC<APIKeyProps> = ({ id}) => {
 
 
 interface LabelProps {
-    label: string;
-    widthPx: string;
+    label:  string| null;
+    widthPx?: string;
     editable?: boolean;
 }
 
 //rateLimit, expiration, accessTypes, account
-const Label: FC<LabelProps> = ({ label, widthPx, editable = false}) => {
+const Label: FC<LabelProps> = ({ label, widthPx='full', editable = false}) => {
     const [isOverflowing, setIsOverflowing] = useState(false);
     const labelRef = useRef<HTMLDivElement>(null);
 
@@ -686,7 +652,7 @@ const Label: FC<LabelProps> = ({ label, widthPx, editable = false}) => {
                     height: '34px',
                     flex:'shrink-0',
                 }}
-                className={`overflow-x-auto overflow-y-hidden mb-2 p-2 flex-1 text-black dark:text-neutral-200 text-sm text-black rounded dark:text-neutral-200 ${isOverflowing ? 'bg-neutral-200 dark:bg-[#40414F]' : 'transparent'}`}
+                className={` overflow-x-auto overflow-y-hidden mb-2 p-2 flex-1 text-black dark:text-neutral-200 text-sm text-black rounded dark:text-neutral-200 ${isOverflowing ? 'bg-neutral-200 dark:bg-[#40414F]' : 'transparent'}`}
             >
                 {label}
             
@@ -699,3 +665,7 @@ const Label: FC<LabelProps> = ({ label, widthPx, editable = false}) => {
  
     );
 }
+
+
+
+

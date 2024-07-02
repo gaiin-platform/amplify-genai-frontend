@@ -171,7 +171,7 @@ useEffect(() => {
                                 </button>}
                     </div>
                      </>           
-                )}
+                )} 
                 {/* *** Accounts Tab *** */}
                             {activeTab === "Accounts" &&
                                 <Accounts
@@ -199,6 +199,7 @@ useEffect(() => {
                             }
                         
                     </div>
+                    
 
                 </div>
 

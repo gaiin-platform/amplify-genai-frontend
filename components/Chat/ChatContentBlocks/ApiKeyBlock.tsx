@@ -1,6 +1,6 @@
 import {useContext, useEffect, useRef, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
-import {IconKey, IconRobot} from "@tabler/icons-react";
+import {IconKey, IconRobot, IconUser} from "@tabler/icons-react";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -210,20 +210,25 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
                 <>
                     <div className="flex flex-col w-full mb-4 overflow-x-hidden gap-0.5">
                         <div className="flex flex-row items-center justify-center">
-                            <div className="text-2xl font-bold">{operationData.OP}</div>
-                            {operationData.OP === 'CREATE' ?
-                            <></>:
-                             (<div className="ml-2"><IconKey size={28}/> </div>) 
+                            { operationData.OP === 'CREATE' && 
+                            <div title={`${operationData.DATA.systemUse ? 'System' : operationData.DATA.delegate ? 'Delegate' : 'Personal'} Use`} >
+                             <IconUser style={{ strokeWidth: 2.5 }} className={`mr-2 flex-shrink-0 ${operationData.DATA.systemUse
+                                ? 'text-green-600' : operationData.DATA.delegate 
+                                ? 'text-yellow-500' : 'text-gray-600 dark:text-gray-400'}`} size={28}
+                            />
+                            </div> 
                             }
+                            <div className="text-2xl font-bold">{operationData.OP}</div>
+                            <IconKey className="ml-2" size={26}/>
                         </div>
 
                         <div style={{ width: '99%' }}>
-                            <ExpansionComponent title={"Instructions"} content={
+                            
                                 <div style={{  wordWrap: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}
                                      className="mb-2 max-h-24 overflow-y-auto text-sm text-gray-500">
                                         {operationData.DATA}
                                     </div>
-                                }/>
+                                
                         </div>
 
                         {/* <div style={{ width: '99%' }}>
