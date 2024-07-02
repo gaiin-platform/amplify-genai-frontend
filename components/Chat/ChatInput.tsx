@@ -538,7 +538,7 @@ const onAssistantChange = (assistant: Assistant) => {
     return (
         <>
         { featureFlags.pluginsOnInput &&
-            <div className='relative z-20'>
+            <div className='relative z-20' style={{height: 0}}>
                 <FeaturePlugins
                 plugin={plugin}
                 setPlugin={setPlugin}

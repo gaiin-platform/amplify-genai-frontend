@@ -15,6 +15,7 @@ import AutonomousBlock from "@/components/Chat/ChatContentBlocks/AutonomousBlock
 import {useContext} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
+import ApiKeyBlock from "./ApiKeyBlock";
 
 // TODO: IMPLEMENT DATA TABLE COMPONENT INTO THIS FILE
 
@@ -100,57 +101,74 @@ const ChatContentBlock: React.FC<Props> = (
             }
 
             let match = /language-(\w+)/.exec(className || '');
+            console.log('match:')
 
-            if (!inline && match && match[1] === 'mermaid') {
-                //console.log("mermaid")
-                //@ts-ignore
-                return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1 }/>);
+            console.log(match)
+
+            if (!inline && match && match[1]) {
+
+                switch (match[1]) {
+                    case 'mermaid':
+                        //console.log("mermaid")
+                        //@ts-ignore
+                        return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1 }/>);
+                    
+                    case 'apiResult':
+                        return (<ExpansionComponent title={"Result"} content={String(children)}/>)
+                    case 'auto':
+                        if (selectedConversation && featureFlags.automation) {
+                            //console.log("mermaid")
+                            //@ts-ignore
+                            return (
+                                <AutonomousBlock
+                                    message={message}
+                                    conversation={selectedConversation}
+                                    onStart={(id, action) => {}}
+                                    onEnd={(id, action) => {}}
+                                    id={message.id}
+                                    isLast={isLast}
+                                    action={String(children)}
+                                    ready={!messageIsStreaming}
+                                />
+                            );
+                        }
+                        break;
+                
+                    case 'op':
+                        if (selectedConversation) {
+                            //@ts-ignore
+                            return (<OpBlock message={message} definition={String(children)} />
+                            );
+                        }
+                        break;
+                
+                    case 'assistant':
+                        //console.log("mermaid")
+                        //@ts-ignore
+                        return (<AssistantBlock definition={String(children)}/>);
+                
+                    case 'toggle':
+                        //console.log("mermaid")
+                        //@ts-ignore
+                        return (<ExpansionComponent content={String(children)} title={"Source"}/>);
+                
+                    case 'APIkey':
+                        console.log('****')
+                        console.log(String(children))
+                         
+                        return (<ApiKeyBlock content={String(children)}/>);
+                
+                    default:
+                        if (match[1].toLowerCase() === 'vega' || match[1].toLowerCase() === 'vegalite') {
+                            //console.log("mermaid")
+                            //@ts-ignore
+                            return (<VegaVis chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1} />);
+                        }
+                        break;
+                }
+                
             }
 
-            if (!inline && match && match[1] === 'apiResult') {
-                return (<ExpansionComponent title={"Result"} content={String(children)}/>)
-            }
-
-            if (!inline && match && match[1] === 'auto' && selectedConversation && featureFlags.automation) {
-                //console.log("mermaid")
-                //@ts-ignore
-                return (<AutonomousBlock
-                    message={message}
-                    conversation={selectedConversation}
-                    onStart={(id, action) => {
-                    }}
-                    onEnd={(id, action) => {}}
-                    id={message.id}
-                    isLast={isLast}
-                    action={String(children)}
-                    ready={!messageIsStreaming}/>);
-            }
-
-            if (!inline && match && match[1] === 'op' && selectedConversation) {
-                //@ts-ignore
-                return (<OpBlock
-                    message={message}
-                    definition={String(children)}
-                    />);
-            }
-
-            if (!inline && match && match[1] === 'assistant') {
-                //console.log("mermaid")
-                //@ts-ignore
-                return (<AssistantBlock definition={String(children)}/>);
-            }
-
-            if (!inline && match && match[1] === 'toggle') {
-                //console.log("mermaid")
-                //@ts-ignore
-                return (<ExpansionComponent content={String(children)} title={"Source"}/>);
-            }
-
-            if (!inline && match && (match[1].toLowerCase() === 'vega' || match[1].toLowerCase() === 'vegalite')) {
-                //console.log("mermaid")
-                //@ts-ignore
-                return (<VegaVis chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1} />);
-            }
 
             return !inline ? (
                 <CodeBlock
@@ -167,10 +185,11 @@ const ChatContentBlock: React.FC<Props> = (
         },
         table({children}) {
             return (
-                <table
-                    className="border-collapse border border-black px-3 py-1 dark:border-white">
-                    {children}
-                </table>
+                <div style={{ overflowX: 'auto'}}>
+                    <table className="w-full border-collapse border border-black px-3 py-1 dark:border-white">
+                        {children}
+                    </table>
+                </div>
             );
         },
         th({children}) {
@@ -181,6 +200,7 @@ const ChatContentBlock: React.FC<Props> = (
             );
         },
         td({children}) {
+
             return (
                 <td className="break-words border border-black px-3 py-1 dark:border-white">
                     {children}

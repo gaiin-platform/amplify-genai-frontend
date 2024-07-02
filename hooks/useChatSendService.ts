@@ -8,7 +8,7 @@ import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
 import {Plugin, PluginID} from '@/types/plugin';
 import {wrapResponse, stringChunkCallback} from "@/utils/app/responseWrapper";
 
-import {getSession} from "next-auth/react"
+import {getSession, useSession} from "next-auth/react"
 import json5 from "json5";
 import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
 import {newStatus} from "@/types/workflow";
@@ -27,6 +27,8 @@ import { DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { uploadConversation } from "@/services/remoteConversationService";
 import { compressMessages } from "@/utils/app/messages";
 import { isRemoteConversation } from "@/utils/app/conversationStorage";
+import { fetchAllApiKeys } from "@/services/apiKeysService";
+import { getAccounts } from "@/services/accountService";
 
 export type ChatRequest = {
     message: Message;
@@ -48,6 +50,9 @@ export function useSendService() {
         postProcessingCallbacks,
         dispatch:homeDispatch,
     } = useContext(HomeContext);
+
+    const { data: session } = useSession();
+    const user = session?.user;
 
     const conversationsRef = useRef(conversations);
 
@@ -139,20 +144,6 @@ export function useSendService() {
                         message.label = label;
                     }
 
-                    if (selectedConversation && selectedConversation.tags) {
-                            if (selectedConversation.tags.includes(ReservedTags.ASSISTANT_BUILDER)) {
-                                // In assistants, this has the effect of
-                                // disabling the use of documents so that we
-                                // can just add the document to the list of documents
-                                // the assistant is using.
-                                options = {
-                                    ...(options || {}),
-                                    skipRag: true,
-                                    ragOnly: true
-                                };
-                            } 
-                    }
-
                     if (!featureFlags.ragEnabled) {
                         options = {...(options || {}), skipRag: true};
                     }
@@ -241,6 +232,47 @@ export function useSendService() {
                         });
                     }
 
+                    if (selectedConversation && selectedConversation.tags) {
+                        const tags = selectedConversation.tags;
+                        if (tags.includes(ReservedTags.ASSISTANT_BUILDER)) {
+                            // In assistants, this has the effect of
+                            // disabling the use of documents so that we
+                            // can just add the document to the list of documents
+                            // the assistant is using.
+                            options = {
+                                ...(options || {}),
+                                skipRag: true,
+                                ragOnly: true
+                            };
+                        } else if (tags.includes(ReservedTags.ASSISTANT_API_KEYS)) {
+                            chatBody.prompt += "\n\n******* Crucial Data to use in your OPs *******"
+                            // need Api keys
+                            const api_keys = await fetchAllApiKeys();
+                            chatBody.prompt += "API KEYS:\n" + JSON.stringify(api_keys.data, null) || "UNAVAILABLE";
+                            // accouts
+                            const accounts = { data: [
+                                {
+                                  name: "No COA On File",
+                                  isDefault: true,
+                                  id: "general_account",
+                                },
+                                {
+                                  name: "test",
+                                  isDefault: false,
+                                  id: "KarelyTEST",
+                                },
+                                {
+                                  name: "mockCOA",
+                                  isDefault: false,
+                                  id: "125.05.12510.6105.000.000.000.RES.0",
+                                },
+                              ]}
+                            //await getAccounts();
+                            chatBody.prompt += "\nACCOUNTS:\n" + JSON.stringify(accounts.data, null) || "UNAVAILABLE";
+                            // user name 
+                            chatBody.prompt += "\nCurrent User: " + user?.email;
+                        }
+                    }
 
                     //PLUGINS 
                     if (plugin?.id === PluginID.CODE_INTERPRETER) {

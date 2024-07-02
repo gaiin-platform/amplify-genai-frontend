@@ -11,7 +11,7 @@ import { SettingDialog } from '@/components/Settings/SettingDialog';
 import { Import } from '../../Settings/Import';
 import { SidebarButton } from '../../Sidebar/SidebarButton';
 import ChatbarContext from '../Chatbar.context';
-import {AccountDialog} from "@/components/Settings/AccountDialog";
+import {AccountDialog} from "@/components/Settings/AccountComponents/AccountDialog";
 import { StorageDialog } from '@/components/Settings/StorageDialog';
 
 

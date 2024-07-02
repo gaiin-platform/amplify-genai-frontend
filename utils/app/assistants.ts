@@ -111,6 +111,9 @@ const createAssistantFolder = async (folders: FolderInterface[], dispatch: any) 
 }
 
 export const syncAssistants = async (assistants: AssistantDefinition[], folders: FolderInterface[], prompts: Prompt[], dispatch: any, featureFlags: any) => {
+
+
+    prompts = prompts.filter(p => p.id !== 'ast/assistant-api-key-manager' && p.id !== 'ast/assistant-api-key-creator')
     // Match assistants by name and only take the one with the highest version number for each name
     const latestAssistants = assistants.reduce((acc: { [key: string]: AssistantDefinition }, assistant: AssistantDefinition) => {
         if (!assistant.version) {
@@ -158,7 +161,7 @@ export const syncAssistants = async (assistants: AssistantDefinition[], folders:
     updatedPrompts = updatedPrompts.filter(prompt =>  !isAssistant(prompt) || prompt.data?.noShare || assistantIds.has(prompt.id));                            
     
     // feature flag considerations
-    if (!featureFlags.apiKeys) updatedPrompts = updatedPrompts.filter(prompt => prompt.id !== 'ast/assistant-api-key-creator');
+    if (!featureFlags.apiKeys) updatedPrompts = updatedPrompts.filter(prompt => prompt.id !== 'ast/assistant-api-key-manager');
 
     savePrompts([...updatedPrompts, ...assistantPrompts]);
     dispatch({field: 'prompts', value: [...updatedPrompts, ...assistantPrompts]}); 
