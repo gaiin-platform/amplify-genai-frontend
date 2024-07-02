@@ -211,7 +211,10 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
                     <div className="flex flex-col w-full mb-4 overflow-x-hidden gap-0.5">
                         <div className="flex flex-row items-center justify-center">
                             <div className="text-2xl font-bold">{operationData.OP}</div>
-                            <div className="ml-2"><IconKey size={28} /></div>
+                            {operationData.OP === 'CREATE' ?
+                            <></>:
+                             (<div className="ml-2"><IconKey size={28}/> </div>) 
+                            }
                         </div>
 
                         <div style={{ width: '99%' }}>
