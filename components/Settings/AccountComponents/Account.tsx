@@ -94,7 +94,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
 
     if (isLoading) return <></>
 
-    return <> 
+    return <div className='flex flex-col h-full'> 
             <div className="mb-4 text-l text-black dark:text-neutral-200">
                     You can add a COA string for billing charges back to a specific account. 
                     Certain features require at least one COA string to be provided.
@@ -149,7 +149,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                 )}
 
                 {/* Accounts List */}
-                    <ul className="divide-y divide-gray-200 h-[224px] overflow-auto">
+                    <ul className="flex-grow divide-y divide-gray-200 overflow-auto">
                         {accounts.map(account => (
                             <li key={account.id} className="flex flex-row justify-between items-center py-3">
                                 <div className="ml-1 w-[120px]">{account.name}</div>
@@ -173,7 +173,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                         ))}
                     </ul>
                 
-
+                
                 <div className="mb-2 text-lg text-black dark:text-neutral-200 border-b-2">
                     Default Account
                 </div>
@@ -208,9 +208,6 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                     </button>
                 </div>
 
-            </>
-              
-
-
+            </div>
                         
 };

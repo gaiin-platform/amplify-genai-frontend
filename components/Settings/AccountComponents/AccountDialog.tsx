@@ -33,9 +33,26 @@ export const AccountDialog: FC<Props> = ({ open, onClose }) => {
  // fetch data
 useEffect(() => {
     const fetchAccounts = async () => {
-        return
-        const result = await getAccounts();
-        console.log(result.data);
+        // const result = await getAccounts();
+        // console.log(result.data);
+        const result = { success: true,
+            data: [
+            {
+              name: "No COA On File",
+              isDefault: true,
+              id: "general_account",
+            },
+            {
+              name: "test",
+              isDefault: false,
+              id: "KarelyTEST",
+            },
+            {
+              name: "mockCOA",
+              isDefault: false,
+              id: "125.05.12510.6105.000.000.000.RES.0",
+            },
+          ] as Account[]}
 
         if (!result.success) {
             alert("Unable to fetch accounts. Please try again.");
@@ -65,22 +82,35 @@ useEffect(() => {
     }
 }, [open]);
 
-   useEffect(() => {
-        const fetchApiKeys = async () => {
-            const result = await fetchAllApiKeys();
+    const fetchApiKeys = async () => {
+        const result = await fetchAllApiKeys();
 
-            if (!result.success) {
-                alert("Unable to fetch your API keys. Please try again.");
-                setIsLoading(false);
-                // onClose();
-            } else {
-                setApiKeys(result.data);
-                console.log(result.data)
-                setIsLoading(false);
-            }
+        if (!result.success) {
+            alert("Unable to fetch your API keys. Please try again.");
+            setIsLoading(false);
+            // onClose();
+        } else {
+            setApiKeys(result.data);
+            console.log(result.data)
+            setIsLoading(false);
         }
+    }
+   useEffect(() => {
         if (open) fetchApiKeys();
     }, [open]);
+
+    useEffect(() => {
+        const handleEvent = (event:any) => {
+            console.log("Create ApiKey was triggered", event.detail);
+            fetchApiKeys();
+        };
+    
+        window.addEventListener('createApiKeys', handleEvent);
+    
+        return () => {
+            window.removeEventListener('createApiKeys', handleEvent);
+        };
+    }, []);
 
 
     const close = () => {
@@ -98,7 +128,6 @@ useEffect(() => {
     if (!open) {
         return <></>;
     }
-console.log(window.innerHeight)
 
     return (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 ">
@@ -111,8 +140,8 @@ console.log(window.innerHeight)
                     />
                     <div
                         ref={modalRef}
-                        className={`dark:border-netural-400 inline-block transform rounded-lg border border-gray-300 bg-white px-4 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-h-[680px] sm:w-full sm:p-4 sm:align-middle`}
-                        style={{width: `${window.innerWidth - 560}px`, height: `636px`}}
+                        className={`dark:border-netural-400 inline-block transform rounded-lg border border-gray-300 bg-white px-4 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:min-h-[636px]  sm:w-full sm:p-4 sm:align-middle`}
+                        style={{width: `${window.innerWidth - 560}px`, height: `${window.innerHeight - 250}px`}}
                         role="dialog">
 
                         {isLoading && (

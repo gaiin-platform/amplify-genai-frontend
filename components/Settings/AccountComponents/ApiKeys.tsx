@@ -6,7 +6,7 @@ import ExpansionComponent from '../../Chat/ExpansionComponent';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
 import { Account } from '@/types/accounts';
-import { createApiKey, fetchApiKey, separateOwnerDelegateApiKeys } from '@/services/apiKeysService';
+import { createApiKey, fetchApiKey } from '@/services/apiKeysService';
 import { ApiKey, ApiRateLimit } from '@/types/apikeys';
 import { useSession } from 'next-auth/react';
 import {styled, keyframes} from "styled-components";
@@ -48,9 +48,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
 
 
     const { t } = useTranslation('settings');
-   
-    const [ownerApiKeys, setOwnerApiKeys] = useState<ApiKey[] | null>(null);
-    const [delegateApiKeys, setDelegateApiKeys] = useState<ApiKey[] | null>(null);
+
+    const [delegateApiKeys, setDelegateApiKeys] = useState<ApiKey[]>([]);
 
     const [isCreating, setIsCreating] = useState<boolean>(false);
 
@@ -73,7 +72,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
             assistants: true,
             chat: true,
             file_Upload: true, // _ will be turned into a ' ' for displaying purposes
-            share: true
+            share: true,
+            dual_embedding: true
         });
 
 
@@ -91,10 +91,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
     }, [delegateInput]);
 
     useEffect(() => {
-       const lists = separateOwnerDelegateApiKeys(apiKeys)
-       setDelegateApiKeys(lists.delegated);
-       setOwnerApiKeys(lists.owner);
-
+        setDelegateApiKeys(apiKeys.filter((k: ApiKey) => user?.email === k.delegate));
     }, [apiKeys]);
 
 
@@ -124,6 +121,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
             setRateLimitType('Unlimited');
             setIncludeExpiration(false);
             setSystemUse(false);
+            // to pull in the updated changes to the ui
+            window.dispatchEvent(new Event('createApiKeys'));
         }
         
         
@@ -181,7 +180,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
 
     return (
         <>
-         <div className='flex flex-col gap-4 mx-2 overflow-y-auto h-[400px]'> 
+         <div className='flex flex-col gap-4 mx-2 overflow-y-auto h-[600px]'> 
             <div className="text-l text-black dark:text-neutral-200">
                 You can create Api keys for yourself and others. 
                 <div className="mx-5 mt-4 flex items-center p-2 border border-gray-400 dark:border-gray-500 rounded ">
@@ -433,8 +432,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                             </div>)
                         }
                         <div className="divide-y divide-gray-400 dark:divide-gray-200 w-full"> 
-                            {ownerApiKeys && [...ownerApiKeys, ...(delegateApiKeys ? delegateApiKeys : [])].map((apiKey:any, index: number) => (
-                                <div key={index} className="flex flex-row justify-between items-center py-3">
+                            {apiKeys.map((apiKey:any, index: number) => (
+                                <div key={index} className="flex flex-row items-center py-3">
                                     <IconUser style={{ strokeWidth: 2.5 }} className={`mb-2 mr-2 flex-shrink-0 ${apiKey.systemId 
                                                                            ? 'text-green-600' : apiKey.delegate 
                                                                            ? 'text-blue-600' : 'text-gray-600 dark:text-gray-400'}`} size={20}/>
@@ -478,7 +477,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                 </div>
             </div>
             <div>
-                { apiKeys.length > 0 &&
+                { delegateApiKeys.length > 0 &&
                 <>
                 <div className="text-lg text-black dark:text-neutral-200 border-b">
                         Delegated API Keys
@@ -495,10 +494,21 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                         accessTypes: string[];
                         systemId: string;
                         lastAccessed: string; */}
-                        <ul className="divide-y divide-gray-200 overflow-auto"> 
+                        <div className='flex flex-col overflow-x-auto'>
+                            <div className="ml-4 text-md text-black dark:text-neutral-200 flex flex-row p-2">
+                                {[["Owner", "120px"], ["Name", "120px"], ["Active", "60px"], ["Expiration", "100px"],
+                                  ["Last Accessed", "234px"], ["Rate Limit", "140px"], ["Access Types", "220px"], ["API Key", "184px"]
+                                ].map((col:any, index:number) => ( 
+                                    <div key={index} className="ml-[-1px] px-2 border border-gray-500 flex flex-shrink-0" style={{width: col[1]}}>
+                                        <>{col[0]}</>
+                                    </div>
+                                ))}
+                            </div>
+
+                        <ul className="flex-grow divide-y divide-gray-200 overflow-auto"> 
                         {/* h-[130px] */}
                             {delegateApiKeys && delegateApiKeys.map((apiKey:any) => (
-                                <li key={"id"} className="flex flex-row justify-between items-center py-3">
+                                <li key={"id"} className="flex flex-row  items-center py-3">
                                     <Label label={apiKey.owner} widthPx="120px"></Label>
                                     <Label label={apiKey.applicationName} widthPx="120px"></Label>
                                     {<div className='items-center' style={{width: '60px'}}>
@@ -529,7 +539,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                                 </li>
                             ))}
                         </ul>
-                        </>
+                       </div>
+                    </>
                     }
             </div>
             </div>
@@ -673,9 +684,9 @@ const Label: FC<LabelProps> = ({ label, widthPx, editable = false}) => {
                     position: 'relative',
                     fontSize: '0.875rem',
                     height: '34px',
-                    flex:'shrink-0'
+                    flex:'shrink-0',
                 }}
-                className={`overflow-x-auto, overflow-y-hidden mb-2 p-2 flex-1 text-black dark:text-neutral-200 text-sm text-black rounded dark:text-neutral-200 ${isOverflowing ? 'bg-neutral-200 dark:bg-[#40414F]' : 'transparent'}`}
+                className={`overflow-x-auto overflow-y-hidden mb-2 p-2 flex-1 text-black dark:text-neutral-200 text-sm text-black rounded dark:text-neutral-200 ${isOverflowing ? 'bg-neutral-200 dark:bg-[#40414F]' : 'transparent'}`}
             >
                 {label}
             
