@@ -305,6 +305,15 @@ export const ChatMessage: FC<Props> = memo(({
                                             </div>
                                         </div>
                                         <DataSourcesBlock message={message} handleDownload={handleDownload}/>
+                                        {isActionResult && (
+                                            <ChatSourceBlock
+                                                messageIsStreaming={messageIsStreaming}
+                                                messageIndex={messageIndex}
+                                                message={message}
+                                                selectedConversation={selectedConversation}
+                                                handleCustomLinkClick={handleCustomLinkClick}
+                                            />
+                                        )}
                                     </div>
                                     <div className="flex flex-row">
                                         {(isEditing || messageIsStreaming) ? null : (
