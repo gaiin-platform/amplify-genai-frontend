@@ -233,7 +233,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
                         </div>
 
                         <div style={{ width: '99%' }}>
-                            <ExpansionComponent title={"Instructions"} content={
+                            <ExpansionComponent title={"Description"} content={
                                 <div style={{  wordWrap: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}
                                      className="mb-2 max-h-24 overflow-y-auto text-sm text-gray-500">
                                         {assistantDescription}
