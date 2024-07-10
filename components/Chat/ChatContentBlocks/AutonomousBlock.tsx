@@ -11,7 +11,14 @@ import {execOp} from "@/services/opsService";
 import {ApiCall, OpDef} from "@/types/op";
 import {useSession} from "next-auth/react";
 import {getDbsForUser} from "@/services/pdbService";
-import {getServerProvidedOps, parseApiCalls, resolveOpDef, resolveServerHandler} from "@/utils/app/ops";
+import {
+    getApiCalls,
+    getServerProvidedOpFormat,
+    getServerProvidedOps,
+    parseApiCalls,
+    resolveOpDef,
+    resolveServerHandler
+} from "@/utils/app/ops";
 import { FolderInterface } from '@/types/folder';
 import { Prompt } from '@/types/prompt';
 import {deepMerge} from "@/utils/app/state";
@@ -363,7 +370,7 @@ const AutonomousBlock: React.FC<Props> = (
                 }
             )
 
-            const apiCalls = parseApiCalls(action);
+            const apiCalls = getApiCalls(message, action);
 
             const results = [];
             let title = "API Result";

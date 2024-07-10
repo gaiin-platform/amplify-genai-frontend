@@ -1,7 +1,12 @@
-import {ApiCall, OpDef} from "@/types/op";
+import {ApiCall, OpDef, Reference} from "@/types/op";
 import JSON5 from "json5";
 import {Message} from "@/types/chat";
 import {execOp} from "@/services/opsService";
+
+// Reference types
+export const DATASOURCE_TYPE = "#$"
+export const OP_TYPE = "#!"
+export const ASSISTANT_TYPE = "#@"
 
 export const remoteOpHandler = (opDef:OpDef) => {
 
@@ -84,6 +89,16 @@ export const getServerProvidedOps = (message:Message) => {
         message.data.state.resolvedOps : [];
 }
 
+export const getServerProvidedOpFormat = (message:Message) => {
+    return (message.data && message.data.state) ?
+        message.data.state.opsConfig : [];
+}
+
+export const getServerProvidedReferences = (message:Message): Reference[] => {
+    return (message.data && message.data.state) ?
+        message.data.state.references : [];
+}
+
 export const resolveServerHandler = (message:Message, id:string) => {
     const serverResolvedOps = getServerProvidedOps(message);
 
@@ -110,6 +125,56 @@ export const resolveOpDef = (message:Message, id:string) => {
     );
 
     return opDef;
+}
+
+export function getApiCalls(message:Message, action:string):ApiCall[] {
+    const opConfig = getServerProvidedOpFormat(message);
+    const apiCalls: ApiCall[] = [];
+
+    if(opConfig && opConfig.opFormat && opConfig.opFormat.type === "regex"){
+            const opFormat = opConfig.opFormat;
+
+            const regex = new RegExp(opFormat.opPattern, 'g');
+            let match;
+
+            while ((match = regex.exec(action)) !== null) {
+                const op = match[opFormat.opIdGroup];
+                let args = match[opFormat.opArgsGroup];
+
+                const refs = getServerProvidedReferences(message) || [];
+
+                refs.forEach(ref => {
+                    const refId = ref.id;
+                    const refType = ref.type || "#$";
+                    const refObject = ref.object;
+
+                    // Check if refId or refType or refObject is undefined
+                    if(refId !== undefined || refType !== undefined || refObject !== undefined) {
+                        args = args.replaceAll("\""+refType + refId+"\"", JSON.stringify(JSON.stringify(refObject)));
+                        args = args.replaceAll(refType + refId, JSON.stringify(JSON.stringify(refObject)));
+                    }
+                });
+
+                let params = [];
+                try {
+                    params = JSON5.parse("[" + args + "]");
+                } catch (e) {
+                    console.error("Error parsing args:", e);
+                    params = args.split(",");
+                }
+
+                const apiCall:ApiCall = {
+                    functionName: op,
+                    params,
+                    code: match[0]
+                }
+                apiCalls.push(apiCall);
+            }
+
+            return apiCalls;
+    } else {
+            return parseApiCalls(action);
+    }
 }
 
 export function parseApiCall(str:string):ApiCall  {
