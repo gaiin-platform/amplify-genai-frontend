@@ -16,6 +16,7 @@ import {useContext} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
 import ApiKeyBlock from "./ApiKeyBlock";
+import { ApiKey } from "@/types/apikeys";
 
 // TODO: IMPLEMENT DATA TABLE COMPONENT INTO THIS FILE
 
@@ -101,9 +102,6 @@ const ChatContentBlock: React.FC<Props> = (
             }
 
             let match = /language-(\w+)/.exec(className || '');
-            console.log('match:')
-
-            console.log(match)
 
             if (!inline && match && match[1]) {
 
@@ -153,9 +151,6 @@ const ChatContentBlock: React.FC<Props> = (
                         return (<ExpansionComponent content={String(children)} title={"Source"}/>);
                 
                     case 'APIkey':
-                        console.log('****')
-                        console.log(String(children))
-                         
                         return (<ApiKeyBlock content={String(children)}/>);
                 
                     default:

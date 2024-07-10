@@ -29,6 +29,7 @@ import { compressMessages } from "@/utils/app/messages";
 import { isRemoteConversation } from "@/utils/app/conversationStorage";
 import { fetchAllApiKeys } from "@/services/apiKeysService";
 import { getAccounts } from "@/services/accountService";
+import { ApiKey } from "@/types/apikeys";
 
 export type ChatRequest = {
     message: Message;
@@ -245,10 +246,19 @@ export function useSendService() {
                                 ragOnly: true
                             };
                         } else if (tags.includes(ReservedTags.ASSISTANT_API_KEYS)) {
-                            chatBody.prompt += "\n\n******* Crucial Data to use in your OPs *******"
+                            let appendMsg = "\n\n******* Crucial Data to use in your OPs *******";
+
                             // need Api keys
-                            const api_keys = await fetchAllApiKeys();
-                            chatBody.prompt += "API KEYS:\n" + JSON.stringify(api_keys.data, null) || "UNAVAILABLE";
+                            const apiKeys = await fetchAllApiKeys();
+                            
+                            if (apiKeys) {
+                                appendMsg += "API KEYS:\n" + JSON.stringify(apiKeys.data);
+                                const delegateKeys = apiKeys.data.filter((k: ApiKey) => k.delegate && (k.delegate !== user?.email));
+                                appendMsg += "\n\n GET OP is NOT allowed for the following Delegate keys (unauthorized): " + delegateKeys.map((k:ApiKey) => k.applicationName);
+                            } else {
+                                appendMsg += "API KEYS: UNAVAILABLE";
+                            }
+
                             // accouts
                             const accounts = { data: [
                                 {
@@ -268,9 +278,10 @@ export function useSendService() {
                                 },
                               ]}
                             //await getAccounts();
-                            chatBody.prompt += "\nACCOUNTS:\n" + JSON.stringify(accounts.data, null) || "UNAVAILABLE";
+                            appendMsg += "\n\nACCOUNTS:\n" + JSON.stringify(accounts.data, null) || "UNAVAILABLE";
                             // user name 
-                            chatBody.prompt += "\nCurrent User: " + user?.email;
+                            appendMsg += "\n\nCurrent User: " + user?.email;
+                            chatBody.prompt += appendMsg;
                         }
                     }
 
@@ -283,9 +294,10 @@ export function useSendService() {
                             skipRag: true,
                             ragOnly: false
                         };
-                    } else if (plugin?.id === PluginID.RAG_EVAL) {
-                        //
-                    }
+                    } 
+                    // else if (plugin?.id === PluginID.RAG_EVAL) {
+                    //     //
+                    // }
                 
 
                     if (options) {

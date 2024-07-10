@@ -3,14 +3,12 @@ import HomeContext from "@/pages/api/home/home.context";
 import {IconKey, IconRobot, IconUser} from "@tabler/icons-react";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
-import ExpansionComponent from "@/components/Chat/ExpansionComponent";
-import {createAssistant} from "@/services/assistantService";
 import { useSession } from "next-auth/react"
-import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
-import {Prompt} from "@/types/prompt";
-import {Conversation} from "@/types/chat";
-import { createAssistantPrompt, handleUpdateAssistantPrompt} from "@/utils/app/assistants";
-import { ApiKey } from "@/types/apikeys";
+import { ApiKey, ApiRateLimit } from "@/types/apikeys";
+import { formatAccessTypes, formatLimits, HiddenAPIKey } from "@/components/Settings/AccountComponents/ApiKeys";
+import ExpansionComponent from "../ExpansionComponent";
+import { Account } from "@/types/accounts";
+import { createApiKey, deactivateApiKey } from "@/services/apiKeysService";
 
 
 
@@ -29,6 +27,19 @@ const LoadingIcon = styled(FiCommand)`
   animation: ${animate} 2s infinite;
 `;
 
+interface KeyData {
+    id: string;
+    name: string;
+}
+
+interface KeyUpdate {
+    id: string;
+    name: string;
+    rateLimit?: ApiRateLimit;
+    expiration?: string;
+    accessTypes?: string[];
+    account?: Account;
+}
 
 interface Props {
     content: string;
@@ -37,220 +48,225 @@ interface Props {
 
 const ApiKeyBlock: React.FC<Props> = ({content}) => {
     const [error, setError] = useState<string | null>(null);
-    const [isIncomplete, setIsIncomplete] = useState<boolean>(false);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-
-
-
-    const [operationData, setOperationData] = useState<any>(JSON.parse(content));
-
-
-    const [loadingMessage, setLoadingMessage] = useState<string>("");
-
+    const [op, setOP] = useState<string>("");
+    const [data, setData] = useState<any>(null);
+    const [requiredCreateKeys, setRequiredCreateKeys] = useState<any>(null);
+    const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
     const {state:{selectedConversation, statsService, messageIsStreaming},  dispatch:homeDispatch} = useContext(HomeContext);
     const { data: session } = useSession();
+
+    const [isCreated, setIsCreated] = useState<boolean>(false);
+    
     const user = session?.user;
 
-    function parsePrefixedLines(text: string): {[key:string]:string} {
-        if (typeof text !== 'string' || text.length === 0) {
-            throw new Error('Input text must be a non-empty string');
-        }
-
-        const resultMap:{[key:string]:string} = {};
-        const lines: string[] = text.split('\n');
-        let currentPrefix: string | null = null;
-        const contentBuffer: string[] = [];
-
-        for (let i = 0; i < lines.length; i++) {
-            const line: string = lines[i].trim();
-            const match: RegExpMatchArray | null = line.match(/^(\s*"?(\w+)"?\s*):(.*)$/);
-            if (match) {
-                // When a new prefix is found, save the previous prefix and its content
-                if (currentPrefix !== null) {
-                    resultMap[currentPrefix] =
-                        contentBuffer.join('\n');
+    useEffect(() => {
+        const extractData = () => {
+            try {
+                const opData = JSON.parse(content);
+                let attr = opData.DATA;
+                if (attr) {
+                    setOP(opData.OP);
+                    setData(attr);
+                    setLoadingMessage(null);
                 }
-                // Extract current prefix from the regex match, removing quotes if present
-                currentPrefix = match[2].replaceAll('"', '');
-                contentBuffer.push(match[3]);
-            } else if (currentPrefix !== null) {
-                // If we are in a prefixed block, accumulate the content
-                contentBuffer.push(line);
-            }
+            } catch {
+                // setLoadingMessage("We are making progress on your request.");
+                console.log("Extract data error")
+            }  
         }
+        if (op === "" || !data) extractData();
+    }, [content]);
 
-        // When the input ends, save the last prefix and its content
-        if (currentPrefix !== null) {
-            resultMap[currentPrefix] = contentBuffer.join('\n');
-        }
 
-        return resultMap;
+    const handleDeactivateAPIKey = async (id: string) => {
+        const result = await deactivateApiKey(id);
+        alert(result ? "Successfuly deactivated the API key" : "Unable to deactivate the API key at this time. Please try again later...");
     }
-
-    const parseAssistant = (definitionStr: string) => {
-
-        try {
-
-            let definition = null;
-            try{
-                definition = JSON.parse(definitionStr);
-            }
-            catch(e) {
-                definition = parsePrefixedLines(definitionStr);
-            }
-
-            if(definition.name){
-                definition.name = definition.name.replace(/[^a-zA-Z0-9]+/g, '').trim();
-            }
-            if(!definition.instructions && definition.description) {
-                definition.instructions = definition.description;
-            }
-            else if(!definition.instructions) {
-                definition.instructions = definitionStr;
-            }
-
-            if(typeof definition.instructions !== "string") {
-                definition.instructions = JSON.stringify(definition.instructions);
-            }
-
-            definition.provider = AssistantProviderID.AMPLIFY;
-            definition.tags = [];
-            definition.tools = [];
-
-            definition.dataSources = 'knowledge';
-            definition.data = {};
-            definition.data.access = {read: true, write:true};
-
-            return definition;
-        } catch (e) {
-            setIsIncomplete(true);
-            return {
-            };
-        }
-    }
-
-
 
     const handleCreateAPIKey = async () => {
+        console.log()
+        if (!requiredCreateKeys.isComplete) {
+            alert("Incomplete key data...\n Missing data: " + requiredCreateKeys.missingKeys.join(''));
+        } else if (data.systemUse && data.delegate) {
+            //check no delegate if system use
+            alert("You cannot have a delegate defined when creating a system key. Specified one or the either as none.");
+        } else {
+            setLoadingMessage("Creating API key...");
+            const result = await createApiKey({...data, owner: user?.email});
+            if (result) setIsCreated(true);
+            setLoadingMessage(null);
+            alert(result ? "Successfuly created the API key" : "Unable to create the API key at this time. Please try again later...");    
+        }
+    }
 
-        if(user?.email) {
+    const handleUpdateAPIKey = async (id: string) => {
 
-            setLoadingMessage("Creating assistant...");
-            setIsLoading(true);
+    }
+    
+    const formatLabel = (label: string, data: any) => {
+        const title = label.replace(/([A-Z])/g, ' $1')
+                    .replace(/^./, function(match) {
+                        return match.toUpperCase(); 
+                    });
+        let dataLabel = data || "N/A";
+        switch (label) {
+            case ('account'):
+                dataLabel = `${data.name}\n\t${data.id}`
+                break;
+            case ('rateLimit'):
+                dataLabel = formatLimits(data);
+                break;
+            case ('accessTypes'):
+                dataLabel = formatAccessTypes(data);
+                break;
+        }
+        return `${title}: ${dataLabel}`;
+    }
 
-            try {
-   
-                if (true) {
-                    
-                } else {
-                    alert("Failed to create assistant. Please try again.");
+    useEffect(() => {
+        const verifyRequiredKeys = () => {
+            const requiredKeys = ['delegate', 'account', 'appName', 'appDescription', 'rateLimit', 'accessTypes', 'systemUse', 'expiration'];
+            if (!data) return {isComplete: false, missingKeys: requiredKeys};
+            
+            // Check if all required keys are present in the data object
+            const missingKeys = requiredKeys.filter((key:string) => {
+                const present = Object.keys(data).includes(key);
+
+                const val = data[key];
+                if ((present && val && typeof val === 'string') && (val.includes("N/A") || val.includes("null"))) {
+                    setData((prevData: any) => ({
+                        ...prevData,
+                        [key]: null
+                    }));
                 }
-            } catch (e) {
-                alert("Failed to create assistant. Please try again.");
-            }
-
-            setLoadingMessage("");
-            setIsLoading(false);
+                return !present;
+            });
+            // If there are no missing keys, the data is considered complete
+            return {isComplete: missingKeys.length === 0, missingKeys: missingKeys};
         }
-    }
-
-    function formatString(str: String) {
-        if (!str) return str; // Handle null, undefined, or empty string
-        return str.charAt(0) + str.slice(1).toLowerCase();
-    }
-
-
-    useEffect(() => {
-        if(!messageIsStreaming) {
-            const assistant = parseAssistant('definition') as AssistantDefinition;
-
-            if(assistant.name && assistant.description && assistant.instructions) {
-                setIsIncomplete(false);
-            }
-
-            // setAssistantName(assistant.name);
-            // setAssistantInstructions(assistant.instructions);
-            // setAssistantDescription(assistant.description);
-            // setAssistantDefinition(assistant);
-            setIsLoading(false);
-        }
-    }, [messageIsStreaming]);
-
-    const verifyRequiredKeys = () => {
-        const requiredKeys = [ 'owner', 'delegate', 'account', 'appName', 'appDescription', 'rateLimit', 'accessTypes', 'systemUse'] 
-        const data = operationData.DATA;
-        // Check if all required keys are present in the data object
-        const missingKeys = requiredKeys.filter(key => {
-            return data[key] === undefined || data[key] === null;
-        });
-        // If there are no missing keys, the data is considered complete
-        return missingKeys.length === 0;
-    }
-
-    useEffect(() => {
-        console.log(operationData)
-        console.log(operationData.OP)
-        console.log(operationData.DATA)
-
-        if(operationData.OP === 'CREATE') {
-            setIsIncomplete(verifyRequiredKeys());
-            setIsLoading(false);
-        }
-    }, [operationData]);
-
+        if (op === 'CREATE') setRequiredCreateKeys(verifyRequiredKeys());
+    }, [data]);
 
     // @ts-ignore
     return error ?
         <div>{error}</div> :
-        isIncomplete ? <div>We are making progress on your request.</div> :
         <div style={{maxHeight: "450px"}}>
-            {isLoading ? (
-                <div className="flex flex-row items-center"><LoadingIcon/> <div className="ml-2">{loadingMessage}</div></div>
-            ) : (
+            {loadingMessage ? (
+                <div className="flex flex-row justify-center items-center"><LoadingIcon/> <div className="ml-2">{loadingMessage}</div></div>
+            ) : ( !data ? ("We are making progres on your request...") : (
                 <>
                     <div className="flex flex-col w-full mb-4 overflow-x-hidden gap-0.5">
                         <div className="flex flex-row items-center justify-center">
-                            { operationData.OP === 'CREATE' && 
-                            <div title={`${operationData.DATA.systemUse ? 'System' : operationData.DATA.delegate ? 'Delegate' : 'Personal'} Use`} >
-                             <IconUser style={{ strokeWidth: 2.5 }} className={`mr-2 flex-shrink-0 ${operationData.DATA.systemUse
-                                ? 'text-green-600' : operationData.DATA.delegate 
+                            { op === 'CREATE' && 
+                            <div title={`${data.systemUse ? 'System' : data.delegate ? 'Delegate' : 'Personal'} Use`} >
+                             <IconUser style={{ strokeWidth: 2.5 }} className={`mr-2 flex-shrink-0 ${data.systemUse
+                                ? 'text-green-600' : data.delegate 
                                 ? 'text-yellow-500' : 'text-gray-600 dark:text-gray-400'}`} size={28}
                             />
                             </div> 
                             }
-                            <div className="text-2xl font-bold">{operationData.OP}</div>
+                            <div className="text-2xl font-bold">{`${op}${isCreated?'D':''}`}</div>
                             <IconKey className="ml-2" size={26}/>
                         </div>
+                        
+                         <div className="flex flex-col gap-4 items-center">
+                            {op === 'GET' && 
+                            data.map((k:KeyData) => (
+                                <div className="flex justify-center items-center w-full max-w-lg" key={k.name}>
+                                    <div className="flex-grow text-right mr-2">{k.name}</div>
+                                    <HiddenAPIKey id={k.id} width="380px" />
+                                </div>
+                            ))
+                            }
+                         </div>   
 
-                        <div style={{ width: '99%' }}>
-                            
-                                <div style={{  wordWrap: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}
-                                     className="mb-2 max-h-24 overflow-y-auto text-sm text-gray-500">
-                                        {operationData.DATA}
-                                    </div>
-                                
+                         
+                        <div className="flex flex-col gap-4">
+                            {op === 'DEACTIVATE' && 
+                            data.map((k: KeyData) => (
+                                <div className="flex items-center w-full max-w-lg" key={k.name}>
+                                    <div className="flex-grow text-right mr-3">{k.name}</div>
+                                     <OpButton 
+                                        op={op}
+                                        handleClick={() => handleDeactivateAPIKey(k.id)}
+                                        color={'red'}
+                                    />
+                                </div>
+                            ))
+                            }
                         </div>
 
-                        {/* <div style={{ width: '99%' }}>
-                            <ExpansionComponent title={"Instructions"} content={
-                                <div  style={{  wordWrap: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }} 
-                                      className="mb-2 max-h-24 overflow-y-auto text-sm text-gray-500">
-                                        {assistantInstructions}
+                        {op === 'UPDATE' && 
+                            data.map((k: KeyUpdate) => (
+                                <div className="ml-12 mb-4 w-full max-w-lg" key={k.name}>
+                                    <ExpansionComponent title={`${k.name} Updates`} 
+                                            content={[
+                                                (k.account && <div > {formatLabel('account', k.account)} </div> ),
+                                                (k.expiration && <div> {formatLabel("expiration", k.expiration)}</div>), 
+                                                (k.accessTypes && <div>{formatLabel("accessTypes", k.accessTypes)}</div>),
+                                                (k.rateLimit && <div>{formatLabel("rateLimit", k.rateLimit)}</div>),
+                                            <div className="absolute right-20 top-50" style={{transform: 'translateY(-100%)'}}>
+                                                <OpButton 
+                                                    op={op}
+                                                    handleClick={async() => {await handleUpdateAPIKey(k.id)}}  
+                                                />
+                                            </div>,
+                                    ]}
+                                    />
+                                </div>
+                            ))
+                        }
+
+                        {op === 'CREATE' && (
+                            <>
+                                <div className="my-4 ml-20 flex justify-center">
+                                    <div className="ml-10 w-full max-w-lg">
+                                        {Object.keys(data).map((k) => (
+                                        <div className='flex-grow text-left' key={k}>
+                                            {formatLabel(k, data[k])}
+                                        </div>
+                                        ))}
                                     </div>
-                                }/>
-                        </div> */}
+                                </div>
+                                { isCreated ? <></> :
+                                    (<OpButton
+                                    op={op}
+                                    handleClick={handleCreateAPIKey} // Assuming data contains id, adjust if needed
+                                    color={requiredCreateKeys && requiredCreateKeys.isComplete ? 'green' : `red`}
+                                    width="w-full"
+                                    />)
+                                }
+                            </>
+                            )}
                         
-                        <button className="mt-4 w-full px-4 py-2 text-white bg-blue-500 rounded hover:bg-green-600"
-                                onClick={handleCreateAPIKey}
-                        >
-                            {`${formatString(operationData.OP)} API Key`}
-                        </button>
                     </div>
                 </>
-            )}
+            ))
+        }
         </div>;
 };
 
 export default ApiKeyBlock;
 
 
+interface buttonProps {
+    op: string;
+    handleClick: (k:any) => void;
+    color?: string;
+    width?: string;
+}
+
+const OpButton: React.FC<buttonProps> = ({op,handleClick, color="green", width=''}) => {
+
+    function formatString(str: String) {
+        if (!str) return str; // Handle null, undefined, or empty string
+        return str.charAt(0) + str.slice(1).toLowerCase();
+    }
+
+    return <button className={`mr-14 px-2 py-1 text-white bg-blue-500 rounded hover:bg-${color}-600 ${width}`}
+                    onClick={handleClick}
+            >
+                {`${formatString(op)} API Key`}
+        </button>
+
+}

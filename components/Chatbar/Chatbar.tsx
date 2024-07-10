@@ -41,6 +41,7 @@ export const Chatbar = () => {
     handleCreateFolder,
     handleNewConversation,
     handleUpdateConversation,
+    handleSelectConversation
   } = useContext(HomeContext);
 
   const conversationsRef = useRef(conversations);
@@ -120,8 +121,8 @@ export const Chatbar = () => {
       selectedConversation = {...newConversation}
     }
 
-    localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation))
-    homeDispatch({ field: 'selectedConversation', value: selectedConversation});
+    localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
+    handleSelectConversation(selectedConversation);
 
     } else {
       defaultModelId &&

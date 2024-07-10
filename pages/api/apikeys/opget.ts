@@ -10,6 +10,7 @@ interface reqPayload {
 
 const getApikeysOp =
     async (req: NextApiRequest, res: NextApiResponse) => {
+        console.log("____________!!!");
 
         const session = await getServerSession(req, res, authOptions);
 
@@ -18,14 +19,20 @@ const getApikeysOp =
         }
 
         let apiUrl = process.env.API_BASE_URL + "/apiKeys" || "";
+        console.log("API url: ", apiUrl);
 
         const queryPath = typeof req.query.path === 'string' ? req.query.path : ""; 
-        const queryapiKeyId = typeof req.query.apiKeyId === 'string' ? req.query.apiKeyId : "";
+        const apikeyId = req.query.apiKeyId;
+        console.log("API url: ", apiUrl);
+
+        const queryapiKeyId = apikeyId && typeof apikeyId === 'string' ? apikeyId: "";
+        console.log("API url: ", apiUrl);
+
         
         if (queryPath) apiUrl += queryPath;
         if (queryapiKeyId) apiUrl += `?apiKeyId=${encodeURIComponent(queryapiKeyId)}`
 
-        // console.log("API url: ", apiUrl);
+        console.log("API url: ", apiUrl);
         // @ts-ignore
         const { accessToken } = session;
 

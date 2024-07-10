@@ -44,7 +44,7 @@ interface Props {
 
     const {
         state: { statsService, selectedAssistant, defaultModelId, checkedItems, folders, prompts, conversations, selectedConversation, checkingItemType}, handleDeleteFolder,
-        dispatch: homeDispatch, handleCreateFolder
+        dispatch: homeDispatch, handleCreateFolder, handleSelectConversation
     } = useContext(HomeContext);
 
     const conversationsRef = useRef(conversations);
@@ -166,7 +166,7 @@ interface Props {
             }
         
             localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
-            homeDispatch({ field: 'selectedConversation', value: selectedConversation});
+            handleSelectConversation(selectedConversation);
     
         } else {
             defaultModelId &&

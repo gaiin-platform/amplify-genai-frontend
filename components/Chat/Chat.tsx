@@ -444,7 +444,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (assistantInUse) {
                     let options = {
                         assistantName: assistantInUse.name,
-                        assistantId: assistantInUse.assistantId,
+                        assistantId: assistantInUse.assistantId ,
                     };
 
                     message.data = {...message.data, assistant: {definition: {

@@ -4,6 +4,7 @@ import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
 import debounce from 'lodash.debounce';
 import { EmailsAutoComplete } from './EmailsAutoComplete';
 import { setEngine } from 'crypto';
+import { fetchAllSystemIds } from '@/services/apiKeysService';
 
 
 interface Props {
@@ -98,7 +99,9 @@ export const EmailsList: FC<Props> = ({
     useEffect(() => {
         const fetchEmails = async () => {
             const emailSuggestions = await fetchEmailSuggestions("*");
-            setAllEmails(emailSuggestions.emails ? emailSuggestions.emails : []);
+            const apiSysIds = await fetchAllSystemIds();
+            console.log(apiSysIds)
+            setAllEmails(emailSuggestions.emails ? [...emailSuggestions.emails, ...apiSysIds] : []);
         };
         if (!allEmails) fetchEmails();
     }, [showModal]);

@@ -8,8 +8,8 @@ import { Account } from "@/types/accounts";
 interface Props {
     accounts: Account[];
     setAccounts: (a: Account[]) => void;
-    defaultAccount: string; 
-    setDefaultAccount: (s:string) => void;
+    defaultAccount: Account; 
+    setDefaultAccount: (s:Account) => void;
     onClose: () => void;
     isLoading: boolean;
     setIsLoading: (e:boolean) => void;
@@ -75,7 +75,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
         setIsLoading(true);
 
         let updatedAccounts = accounts.map(account => {
-            return { ...account, isDefault: account.id === defaultAccount };
+            return { ...account, isDefault: account.id === defaultAccount.id };
         });
 
         let updatedDefaultAccount = updatedAccounts.find((account: any) => account.isDefault);
@@ -149,6 +149,43 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                 )}
 
                 {/* Accounts List */}
+                <table className='mt-[-1px] w-full text-md text-black dark:text-neutral-200'>
+                                    <thead>
+                                        <tr className="bg-gray-200 dark:bg-[#333]">
+                                        { ["Name", "Account"]
+                                        .map((i) => (
+                                            <th key={i} className="p-0.5 border border-gray-400 text-neutral-600 dark:text-neutral-300">
+                                                {i}
+                                            </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                <tbody>
+                                    {[...accounts].map((account, index) => (
+                                        <tr key={index} className='py-1 border border-b-gray-300'>
+                                            <td>{account.name}</td>
+                                            <td> <>
+                                                {account.id}
+                                                {account.id !== noCoaAccount.id ? (
+                                                <button
+                                                    type="button"
+                                                    className="absolute right-4 px-2 py-1.5 text-sm bg-neutral-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                                    onClick={() => handleDeleteAccount(account.id)}
+                                                >
+                                                    <IconTrashX size={18} />
+                                                </button>
+                                            ) : (
+                                                <div className="px-2 py-1.5 text-sm opacity-0" aria-hidden="true"> {/* Invisible spacer */}
+                                                    <IconTrashX size={18} />
+                                                </div>
+                                            )}
+                                                </>
+                                                </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+
                     <ul className="flex-grow divide-y divide-gray-200 overflow-auto">
                         {accounts.map(account => (
                             <li key={account.id} className="flex flex-row justify-between items-center py-3">
@@ -177,18 +214,11 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                 <div className="mb-2 text-lg text-black dark:text-neutral-200 border-b-2">
                     Default Account
                 </div>
-                <select
-                    className="mb-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                    value={defaultAccount}
-                    onChange={(event) => {
-                        setDefaultAccount(event.target.value);
-                    }}
-                >
-                    {accounts.map(account => (
-                        <option key={account.id} value={account.id}>{account.name}
-                        </option>
-                    ))}
-                </select>
+                <AccountSelect
+                    accounts={accounts}
+                    defaultAccount={defaultAccount}
+                    setDefaultAccount={setDefaultAccount}
+                />
 
                 <div className="flex flex-row my-2">
                     {/* Save Button */}
@@ -211,3 +241,34 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
             </div>
                         
 };
+
+
+
+
+interface SelectProps {
+    accounts:  Account[];
+    defaultAccount: Account;
+    setDefaultAccount: (s:Account) => void;
+    showId?: boolean
+}
+
+export const AccountSelect: FC<SelectProps> = ({accounts, defaultAccount, setDefaultAccount, showId=true}) => {
+    return (
+        <select
+            className="mb-2 w-full rounded-lg border border-neutral-500 px-4 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+            value={defaultAccount.name}
+            onChange={(event) => {
+                const selectedAccount = accounts.find(acc => acc.name === event.target.value);
+                if (selectedAccount) {
+                    setDefaultAccount(selectedAccount);
+                }
+            }}
+        >
+            {accounts.map((account) => (
+                <option key={account.name} value={account.name}>
+                    {`${account.name}${showId ? ` - ${account.id}`:""}`}
+                </option>
+            ))}
+        </select>
+    );
+}

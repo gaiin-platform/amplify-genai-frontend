@@ -8,6 +8,8 @@ import { ApiKeys } from './ApiKeys';
 import { getAccounts} from "@/services/accountService";
 import { fetchAllApiKeys } from '@/services/apiKeysService';
 import { ApiKey } from '@/types/apikeys';
+import { IconX } from '@tabler/icons-react';
+import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 
 interface Props {
     open: boolean;
@@ -25,9 +27,8 @@ export const AccountDialog: FC<Props> = ({ open, onClose }) => {
     const [activeTab, setActiveTab] = useState<string>('Accounts');
 
     const [accounts, setAccounts] = useState<Account[]>([]);
-    const [defaultAccount, setDefaultAccount] = useState<string>('');
     const noCoaAccount: Account = { id: 'general_account', name: 'No COA On File' };
-
+    const [defaultAccount, setDefaultAccount] = useState<Account>(noCoaAccount);
     const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
 
  // fetch data
@@ -69,7 +70,7 @@ useEffect(() => {
             const updatedDefaultAccount = result.data.find((account: any) => account.isDefault) || result.data[0];
 
             if (updatedDefaultAccount) {
-                setDefaultAccount(updatedDefaultAccount.id);
+                setDefaultAccount(updatedDefaultAccount);
             }
 
             setIsLoading(false);
@@ -132,10 +133,8 @@ useEffect(() => {
     return (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 ">
             <div className="fixed inset-0 z-10 overflow-hidden">
-                <div
-                    className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                    <div
-                        className="hidden sm:inline-block sm:h-screen sm:align-middle"
+                <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                    <div className="hidden sm:inline-block sm:h-screen sm:align-middle"
                         aria-hidden="true"
                     />
                     <div
@@ -151,53 +150,62 @@ useEffect(() => {
                             </div>
                         )}
 
-                {!isLoading && (
+                        {!isLoading && (
 
-                    <>
-                    <div className="mb-4 flex flex-row gap-1 bg-neutral-100 dark:bg-[#202123] rounded-t border-b dark:border-white/20">
-                                <button
-                                    key={"Accounts"}
-                                    onClick={() => switchTab("Accounts")}
-                                    className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Accounts" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
-                                    <h3 className="text-xl">Accounts</h3> 
-                                </button>
+                        <>
+                            <div className="mb-4 flex flex-row gap-1 bg-neutral-100 dark:bg-[#202123] rounded-t border-b dark:border-white/20">
+                                        <button
+                                            key={"Accounts"}
+                                            onClick={() => switchTab("Accounts")}
+                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Accounts" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
+                                            <h3 className="text-xl">Accounts</h3> 
+                                        </button>
 
-                            {featureFlags.apiKeys && 
-                                <button
-                                    key={"API"}
-                                    onClick={() => switchTab("API")}
-                                    className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "API" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
-                                    <h3 className="text-xl">API Access</h3> 
-                                </button>}
-                    </div>
-                     </>           
-                )} 
-                {/* *** Accounts Tab *** */}
-                            {activeTab === "Accounts" &&
-                                <Accounts
-                                accounts={accounts}
-                                setAccounts={setAccounts}
-                                defaultAccount={defaultAccount}
-                                setDefaultAccount={setDefaultAccount}
-                                onClose={close}
-                                isLoading={isLoading}
-                                setIsLoading={setIsLoading}
-                                setLoadingMessage={setLoadingMessage}
-                                />
-                            }
-                {/* *** Api Keys Tab *** */}
-                            {activeTab === "API" &&
-                            <ApiKeys
-                            apiKeys={apiKeys}
-                            onClose={close}
-                            isLoading={isLoading}
-                            setIsLoading={setIsLoading}
-                            setLoadingMessage={setLoadingMessage}
-                            accounts={accounts}
-                            defaultAccount={defaultAccount}
-                            />
-                            }
-                        
+                                    {featureFlags.apiKeys && 
+                                        <button
+                                            key={"API"}
+                                            onClick={() => switchTab("API")}
+                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "API" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
+                                            <h3 className="text-xl">API Access</h3> 
+                                        </button>}
+
+                                        <div className='ml-auto'>
+                                            <SidebarActionButton
+                                                handleClick={() => onClose()}
+                                                title={"See API key secret"}>
+                                                <IconX size={20}/>
+                                            </SidebarActionButton>
+                                        </div>      
+                            </div>
+                        </>           
+                        )} 
+                            <div className='overflow-y-auto' style={{ maxHeight: 'calc(100% - 60px)'}}>
+                            {/* *** Accounts Tab *** */}
+                                        {activeTab === "Accounts" &&
+                                            <Accounts
+                                            accounts={accounts}
+                                            setAccounts={setAccounts}
+                                            defaultAccount={defaultAccount}
+                                            setDefaultAccount={setDefaultAccount}
+                                            onClose={close}
+                                            isLoading={isLoading}
+                                            setIsLoading={setIsLoading}
+                                            setLoadingMessage={setLoadingMessage}
+                                            />
+                                        }
+                            {/* *** Api Keys Tab *** */}
+                                        {activeTab === "API" &&
+                                        <ApiKeys
+                                        apiKeys={apiKeys}
+                                        onClose={close}
+                                        isLoading={isLoading}
+                                        setIsLoading={setIsLoading}
+                                        setLoadingMessage={setLoadingMessage}
+                                        accounts={accounts}
+                                        defaultAccount={defaultAccount}
+                                        />
+                                        }
+                            </div>    
                     </div>
                     
 

@@ -234,7 +234,7 @@ const Home = ({
 
                 } else {
                     console.log("Failed to import base prompts.");
-                    await fetchAssistants(foldersRef.current, promptsRef.current);
+                    await fetchAssistants(folders, prompts);
                     // so when baseprompts do load, we can sync them up 
                     setloadedAssistants(false);
 
@@ -320,6 +320,7 @@ const Home = ({
     }, [chatEndpoint]);
 
     const handleSelectConversation = async (conversation: Conversation) => {
+        window.dispatchEvent(new Event('cleanupApiKeys'));
         // if we click on the conversation we are already on, then dont do anything
         if (selectedConversation && (conversation.id === selectedConversation.id)) return;
         //loading 

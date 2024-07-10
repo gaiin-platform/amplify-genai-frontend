@@ -17,7 +17,7 @@ interface FileInfo {
 
 interface Data {
     key: string;
-    file_name?: string;
+    fileName?: string;
   }
 
 interface ChatCodeInterpreterProps {
@@ -140,11 +140,12 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
 
     const fileNameMatch = file_key.match(/-FN-([^\/]+)/);
     const fileName = fileNameMatch && fileNameMatch[1] ? fileNameMatch[1] : `Generated_${type.split('/')[1]}_file`;
-
+    console.log("EXPIRED Presigned URL: ", file_key);
     if (isUrlExpired(presigned_url)) {
-      console.log("EXPIRED Presigned URL: ", presigned_url);
+      console.log("EXPIRED Presigned URL ");
+
       //fetch new presigned url and set it 
-       const urlResponse = await getNewPresignedUrl({'key': file_key, "file_name": fileName});
+       const urlResponse = await getNewPresignedUrl({'key': file_key, "fileName": fileName});
        if (urlResponse) {
             presigned_url = urlResponse;
             if (isLowRes) {
@@ -227,7 +228,7 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
             // We need to get the high quality version
             if (isLowRes) {
                 if (isUrlExpired(file_info.values.presigned_url)) {
-                    const urlResponse = await getNewPresignedUrl({'key': file_info.values.file_key, "file_name": fileName});
+                    const urlResponse = await getNewPresignedUrl({'key': file_info.values.file_key, "fileName": fileName});
                     if (urlResponse) {
                         file_info.values.presigned_url = urlResponse;
                         downloadPresignedUrl = urlResponse;
