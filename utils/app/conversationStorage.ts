@@ -221,6 +221,9 @@ export const includeRemoteConversationData = async (localConversations: Conversa
     if (!localConversations) return [];
     // Filter and get the ids of remote conversations
     const remoteConversationIds = localConversations.filter(isRemoteConversation).map(c => c.id);
+    
+    if (remoteConversationIds.length === 0) return localConversations;
+    
     const fetchedRemoteConversations = await fetchMultipleRemoteConversations(remoteConversationIds);
     
     // Create a map of remote conversation ids to fetched conversations for quick lookup

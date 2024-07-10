@@ -11,9 +11,17 @@ import {execOp} from "@/services/opsService";
 import {ApiCall, OpDef} from "@/types/op";
 import {useSession} from "next-auth/react";
 import {getDbsForUser} from "@/services/pdbService";
-import {getServerProvidedOps, parseApiCalls, resolveOpDef, resolveServerHandler} from "@/utils/app/ops";
+import {
+    getApiCalls,
+    getServerProvidedOpFormat,
+    getServerProvidedOps,
+    parseApiCalls,
+    resolveOpDef,
+    resolveServerHandler
+} from "@/utils/app/ops";
 import { FolderInterface } from '@/types/folder';
 import { Prompt } from '@/types/prompt';
+import {deepMerge} from "@/utils/app/state";
 
 interface Props {
     conversation: Conversation;
@@ -362,7 +370,7 @@ const AutonomousBlock: React.FC<Props> = (
                 }
             )
 
-            const apiCalls = parseApiCalls(action);
+            const apiCalls = getApiCalls(message, action);
 
             const results = [];
             let title = "API Result";
@@ -389,21 +397,43 @@ const AutonomousBlock: React.FC<Props> = (
 
                 title = getOpTitle(message, url);
 
-                let result = {
-                    success: false, message: "Unknown operation: " + url + ". " +
+                let result:{[key:string]:any} = {
+                    success: false,
+                    message: "Unknown operation: " + url + ". " +
                         "Please double check that you are using the right format for invoking operations (e.g., do(someOperationName, ...)) and that" +
-                        " the name of the op is correct."
+                        " the name of the op is correct.",
+                    metaEvents:[]
                 }
                 if (handler && (!shouldConfirm || confirm("Allow automation to proceed?"))) {
                     homeDispatch({field: 'loading', value: true});
                     homeDispatch({field: 'messageIsStreaming', value: true});
                     result = await handler(params);
+
+                    console.log("Result of operation:", result);
+
+                    if(result && result.metaEvents){
+                        const metaEvents = result.metaEvents;
+                        delete result.metaEvents;
+
+                        // Find all meta events with a state key
+                        const states = metaEvents.filter((e:any) => e.state).map((e:any) => e.state);
+                        const state  = deepMerge({}, ...states);
+
+                        console.log("Final state from meta", state);
+
+                        if(state.sources){
+                            result.sources = state.sources;
+                        }
+                    }
                 }
 
                 results.push({op:code, ...result});
             }
 
             if(!shouldStopConversation()){
+
+                const sourcesList = deepMerge({}, ...results.map((r:any) => r.sources).filter((s) => s));
+                console.log("Sources list:", sourcesList);
 
                 const feedbackMessage = {
                     resultOfOps: results,
@@ -421,7 +451,17 @@ const AutonomousBlock: React.FC<Props> = (
                         {
                             options:{assistantId},
                             message: newMessage(
-                                {"role": "user", "content": JSON.stringify(feedbackMessage), label: title || "API Result", data:{actionResult:true}})
+                                {
+                                    "role": "user",
+                                    "content": JSON.stringify(feedbackMessage),
+                                    label: title || "API Result",
+                                    data:{
+                                        actionResult:true,
+                                        state: {
+                                            sources: sourcesList
+                                        }
+                                    }
+                                })
                         },
                         shouldStopConversation);
                 }

@@ -15,6 +15,12 @@ export interface ApiCall {
     code: string;
 }
 
+export interface Reference {
+    id: string;
+    type: string;
+    object: any;
+}
+
 export interface OpData {
     shouldConfirm?: boolean;
     includeConversation?: boolean;

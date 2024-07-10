@@ -195,7 +195,8 @@ const OpBlock: React.FC<OpProps> = ({definition, message}) => {
                             role: "user",
                             content: "The _id for the specified operation is invalid. Please make sure the _id matches " +
                                 "the ID of one of the allowed ops.",
-                            label: "Operation Result Not Shown"
+                            label: "Operation Result Not Shown",
+                            data:{actionResult:true}
                         })
                     };
                 }
@@ -213,7 +214,8 @@ const OpBlock: React.FC<OpProps> = ({definition, message}) => {
                         const message = newMessage({
                             role: "user",
                             content: "The result of the operation was:\n\n" + msgStr,
-                            label: "Operation Result Not Shown"
+                            label: "Operation Result Not Shown",
+                            data:{actionResult:true}
                         })
 
                         request = {
@@ -225,7 +227,8 @@ const OpBlock: React.FC<OpProps> = ({definition, message}) => {
                         const message = newMessage({
                             role: "user",
                             content: "Operation did not produce a result, so it was likely successful.",
-                            label: "Operation Result Not Shown"
+                            label: "Operation Result Not Shown",
+                            data:{actionResult:true}
                         })
 
                         request = {
