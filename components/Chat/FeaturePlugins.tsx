@@ -44,7 +44,7 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
             // Calculate boundaries
             const leftBound = 0;
             const rightBound = containerRect.right - containerRect.left - width;
-            let topBound = 0 - containerRect.height;
+            let topBound = 0 - containerRect.height + width;
             const bottomBound =   topBound + window.innerHeight - width;
 
             if (showPluginSelectRef.current) {

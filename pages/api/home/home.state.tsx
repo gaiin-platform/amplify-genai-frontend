@@ -118,7 +118,7 @@ export const initialState: HomeInitialState = {
     workflowRun: true,
     workflowCreate: false,
     rootPromptCreate: true,
-    pluginsOnInput: false, // if all plugin features are disables, then this should be disabled. ex. ragEnabled, codeInterpreterEnabled etc.
+    pluginsOnInput: true, // if all plugin features are disables, then this should be disabled. ex. ragEnabled, codeInterpreterEnabled etc.
     dataSourceSelectorOnInput: true,
     followUpCreate: true,
     marketItemDelete: false,
