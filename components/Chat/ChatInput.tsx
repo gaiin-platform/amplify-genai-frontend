@@ -2,6 +2,7 @@ import {
     IconArrowDown,
     IconPlayerStop,
     IconAt,
+    IconWand,
     IconFiles,
     IconSend,
 } from '@tabler/icons-react';
@@ -42,6 +43,7 @@ import { createQiSummary } from '@/services/qiService';
 import MessageSelectModal from './MesssageSelectModal';
 import cloneDeep from 'lodash/cloneDeep';
 import FeaturePlugins from './FeaturePlugins';
+import {optimizePrompt} from "@/services/promptOptimizerService";
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -90,6 +92,7 @@ export const ChatInput = ({
 
     const [showQiDialog, setShowQiDialog] = useState(false);
     const [isQiLoading, setIsQiLoading] = useState<boolean>(true);
+    const [isPromptOptimizerRunning, setIsPromptOptimizerRunning] = useState<boolean>(false);
     const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
 
 
@@ -680,6 +683,54 @@ const onAssistantChange = (assistant: Assistant) => {
                             >
                                 <IconAt size={20}/>
                             </button>
+                        )}
+
+                        {featureFlags.promptOptimizer && (
+                            <>
+                                {isPromptOptimizerRunning && (
+                                    <LoadingDialog open={isPromptOptimizerRunning} message={"Optimizing Prompt..."}/>
+                                )}
+                            <button
+                                className={buttonClasses}
+                                onClick={ () => {
+
+                                    const value = textareaRef.current?.value;
+                                    if(value) {
+                                        setIsPromptOptimizerRunning(true);
+                                        const optimizeIt = async () => {
+                                            try {
+                                                if(textareaRef.current) {
+                                                    console.log("Calling prompt optimizer...");
+                                                    const result = await optimizePrompt(value);
+                                                    console.log("Optimization result: ", result);
+                                                    setContent(result.data.prompt_template);
+                                                    textareaRef.current.focus();
+                                                }
+
+
+                                            } catch (e) {
+                                                console.log(e);
+                                                alert("Error optimizing prompt. Please try again.")
+                                            }
+                                            finally {
+                                                setIsPromptOptimizerRunning(false);
+                                            }
+                                        };
+
+                                        optimizeIt();
+
+                                    }
+                                }
+                                }
+                                onKeyDown={(e) => {
+
+                                }}
+                                title="Optimize Prompt"
+
+                            >
+                                <IconWand size={20}/>
+                            </button>
+                            </>
                         )}
 
                         {showAssistantSelect && (

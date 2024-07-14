@@ -104,6 +104,7 @@ export const initialState: HomeInitialState = {
 
   featureFlags: {
     assistantsEnabled: true,
+    promptOptimizer: true,
     ragEnabled: true,
     sourcesEnabled: true,
     uploadDocuments: true,
