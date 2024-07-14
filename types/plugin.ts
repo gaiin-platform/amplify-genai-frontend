@@ -13,7 +13,6 @@ export enum PluginID {
   // GOOGLE_SEARCH = 'google-search',
   CODE_INTERPRETER = 'code-interpreter', 
   NO_RAG = 'no-rag',
-  RAG_EVAL = 'rag-eval'
 }
 
 
@@ -34,12 +33,6 @@ export const Plugins: Record<PluginID, Plugin> = {
     title: "No Retrieval-Augmented Generation will be performed on the files. This means the entire file will be given to the model.",
     iconComponent: IconPencilOff
   },
-  [PluginID.RAG_EVAL]: {
-    id: PluginID.RAG_EVAL,
-    name: "Rag Evaluation",
-    title: "",
-    iconComponent: IconChartBar
-  }
 };
 
 export const PluginList = Object.values(Plugins);

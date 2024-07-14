@@ -251,9 +251,7 @@ export function useSendService() {
                             skipRag: true,
                             ragOnly: false
                         };
-                    } else if (plugin?.id === PluginID.RAG_EVAL) {
-                        //
-                    }
+                    } 
                 
 
                     if (options) {
