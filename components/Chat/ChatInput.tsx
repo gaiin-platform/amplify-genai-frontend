@@ -44,6 +44,7 @@ import MessageSelectModal from './MesssageSelectModal';
 import cloneDeep from 'lodash/cloneDeep';
 import FeaturePlugins from './FeaturePlugins';
 import {optimizePrompt} from "@/services/promptOptimizerService";
+import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -687,49 +688,14 @@ const onAssistantChange = (assistant: Assistant) => {
 
                         {featureFlags.promptOptimizer && (
                             <>
-                                {isPromptOptimizerRunning && (
-                                    <LoadingDialog open={isPromptOptimizerRunning} message={"Optimizing Prompt..."}/>
-                                )}
-                            <button
-                                className={buttonClasses}
-                                onClick={ () => {
-
-                                    const value = textareaRef.current?.value;
-                                    if(value) {
-                                        setIsPromptOptimizerRunning(true);
-                                        const optimizeIt = async () => {
-                                            try {
-                                                if(textareaRef.current) {
-                                                    console.log("Calling prompt optimizer...");
-                                                    const result = await optimizePrompt(value, 0);
-                                                    console.log("Optimization result: ", result);
-                                                    setContent(result.data.prompt_template);
-                                                    textareaRef.current.focus();
-                                                }
-
-
-                                            } catch (e) {
-                                                console.log(e);
-                                                alert("Error optimizing prompt. Please try again.")
-                                            }
-                                            finally {
-                                                setIsPromptOptimizerRunning(false);
-                                            }
-                                        };
-
-                                        optimizeIt();
-
-                                    }
-                                }
-                                }
-                                onKeyDown={(e) => {
-
-                                }}
-                                title="Optimize Prompt"
-
-                            >
-                                <IconWand size={20}/>
-                            </button>
+                                <PromptOptimizerButton
+                                    maxPlaceholders={0}
+                                    prompt={content || ""}
+                                    onOptimized={(prompt:string, optimizedPrompt:string) => {
+                                        setContent(optimizedPrompt);
+                                        textareaRef.current?.focus();
+                                    }}
+                                />
                             </>
                         )}
 
