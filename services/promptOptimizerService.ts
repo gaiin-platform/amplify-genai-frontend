@@ -41,12 +41,13 @@ const doOptimizerOp = async (opName:string, data:any, errorHandler=(e:any)=>{}) 
     }
 }
 
-export const optimizePrompt = async (prompt:string) => {
+export const optimizePrompt = async (prompt:string, maxPlaceholders:number) => {
 
     const {success, message, data} = await doOptimizerOp(
         '/prompt',
         {
-            query: prompt
+            prompt: prompt,
+            maxPlaceholders: maxPlaceholders
         });
 
     if(!success){

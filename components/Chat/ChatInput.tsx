@@ -701,7 +701,7 @@ const onAssistantChange = (assistant: Assistant) => {
                                             try {
                                                 if(textareaRef.current) {
                                                     console.log("Calling prompt optimizer...");
-                                                    const result = await optimizePrompt(value);
+                                                    const result = await optimizePrompt(value, 0);
                                                     console.log("Optimization result: ", result);
                                                     setContent(result.data.prompt_template);
                                                     textareaRef.current.focus();
