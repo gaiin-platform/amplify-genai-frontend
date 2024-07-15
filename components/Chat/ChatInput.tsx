@@ -2,6 +2,7 @@ import {
     IconArrowDown,
     IconPlayerStop,
     IconAt,
+    IconWand,
     IconFiles,
     IconSend,
 } from '@tabler/icons-react';
@@ -42,6 +43,8 @@ import { createQiSummary } from '@/services/qiService';
 import MessageSelectModal from './MesssageSelectModal';
 import cloneDeep from 'lodash/cloneDeep';
 import FeaturePlugins from './FeaturePlugins';
+import {optimizePrompt} from "@/services/promptOptimizerService";
+import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -90,6 +93,7 @@ export const ChatInput = ({
 
     const [showQiDialog, setShowQiDialog] = useState(false);
     const [isQiLoading, setIsQiLoading] = useState<boolean>(true);
+    const [isPromptOptimizerRunning, setIsPromptOptimizerRunning] = useState<boolean>(false);
     const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
 
 
@@ -676,6 +680,19 @@ const onAssistantChange = (assistant: Assistant) => {
                             >
                                 <IconAt size={20}/>
                             </button>
+                        )}
+
+                        {featureFlags.promptOptimizer && (
+                            <>
+                                <PromptOptimizerButton
+                                    maxPlaceholders={0}
+                                    prompt={content || ""}
+                                    onOptimized={(prompt:string, optimizedPrompt:string) => {
+                                        setContent(optimizedPrompt);
+                                        textareaRef.current?.focus();
+                                    }}
+                                />
+                            </>
                         )}
 
                         {showAssistantSelect && (
