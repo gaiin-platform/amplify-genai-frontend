@@ -150,19 +150,19 @@ export const syncAssistants = async (assistants: AssistantDefinition[], folders:
     }, []);
     
     const assistantNames = new Set(assistantPrompts.map(prompt => prompt.name));
-    // we want the updated assistant versions so we filter and old versions from our original prompts list 
+    // we want the updated assistant versions so we filter out old versions from our original prompts list 
     let updatedPrompts: Prompt[] = assistantNames.size > 0 ? prompts.filter(prompt => !assistantNames.has(prompt.name)) : prompts;
     
     // filter out any assistants that are no longer in the back end while keeping imported ones 
     const assistantIds = new Set(assistants.map(prompt => prompt.id));
                                         // keep the       nonassistants            imported                 still in db 
-    updatedPrompts = updatedPrompts.filter(prompt =>  !isAssistant(prompt) || prompt.data?.noShare || assistantIds.has(prompt.id));                            
+    updatedPrompts = updatedPrompts.filter(prompt =>  !isAssistant(prompt) || prompt.data?.noShare || assistantIds.has(prompt.id));                      
     
     // feature flag considerations
     if (!featureFlags.apiKeys) updatedPrompts = updatedPrompts.filter(prompt => prompt.id !== 'ast/assistant-api-key-manager');
 
-    savePrompts([...updatedPrompts, ...assistantPrompts]);
-    dispatch({field: 'prompts', value: [...updatedPrompts, ...assistantPrompts]}); 
+    savePrompts([...assistantPrompts, ...updatedPrompts]);
+    dispatch({field: 'prompts', value: [...assistantPrompts, ...updatedPrompts]}); 
    
 }
 

@@ -10,7 +10,6 @@ interface reqPayload {
 
 const getApikeysOp =
     async (req: NextApiRequest, res: NextApiResponse) => {
-        console.log("____________!!!");
 
         const session = await getServerSession(req, res, authOptions);
 
@@ -19,20 +18,17 @@ const getApikeysOp =
         }
 
         let apiUrl = process.env.API_BASE_URL + "/apiKeys" || "";
-        console.log("API url: ", apiUrl);
 
         const queryPath = typeof req.query.path === 'string' ? req.query.path : ""; 
         const apikeyId = req.query.apiKeyId;
-        console.log("API url: ", apiUrl);
 
         const queryapiKeyId = apikeyId && typeof apikeyId === 'string' ? apikeyId: "";
-        console.log("API url: ", apiUrl);
 
         
         if (queryPath) apiUrl += queryPath;
         if (queryapiKeyId) apiUrl += `?apiKeyId=${encodeURIComponent(queryapiKeyId)}`
 
-        console.log("API url: ", apiUrl);
+        // console.log("API url: ", apiUrl);
         // @ts-ignore
         const { accessToken } = session;
 
@@ -55,7 +51,7 @@ const getApikeysOp =
             res.status(200).json(data);
         } catch (error) {
             console.error("Error calling get api key(s): ", error);
-            res.status(500).json({ error: `Could not perform api keys op` });
+            res.status(500).json({ error: `Could not perform api keys opget` });
         }
     };
 

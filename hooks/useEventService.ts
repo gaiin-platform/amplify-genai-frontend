@@ -7,6 +7,7 @@ import {ConversionOptions} from "@/services/downloadService";
 import {getType, parsePromptVariables} from "@/utils/app/prompts";
 import {useSession} from "next-auth/react";
 import { uncompressMessages } from "@/utils/app/messages";
+import { ApiKey } from "@/types/apikeys";
 
 let eventServiceReady = false;
 
@@ -437,6 +438,45 @@ const useEventService = (mixPanelToken:string) => {
                 });
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
+            }
+        }),
+        getApiKey: ifReady(  (id: string) => {
+            try {
+                mixpanel.track('Get API key ', {
+                    ...toEventData("API Key id", id)
+                });
+            } catch (e) {
+                console.error("Error tracking Get API key ", e);
+            }
+        }),
+
+        deactivateApiKey: ifReady( (id: string) => {
+            try {
+                mixpanel.track('Deactivate API key ', {
+                    ...toEventData("API KeyID ", id)
+                });
+            } catch (e) {
+                console.error("Error tracking Deactivate API key ", e);
+            }
+        }),
+    
+        updateApiKey: ifReady( (keyEdits: any) => {
+            try {
+                mixpanel.track('Update API key(s) ', {
+                    ...toEventData("API Key(s) edits ", keyEdits)
+                });
+            } catch (e) {
+                console.error("Error tracking Update API key ", e);
+            }
+        }),
+    
+        createApiKey: ifReady(  (keyData: any) => {
+            try {
+                mixpanel.track('Create API key(s) ', {
+                    ...toEventData("API Key data", keyData)
+                });
+            } catch (e) {
+                console.error("Error tracking Create API key ", e);
             }
         }),
     }

@@ -95,7 +95,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
     if (isLoading) return <></>
 
     return <div className='flex flex-col h-full'> 
-            <div className="mb-4 text-l text-black dark:text-neutral-200">
+            <div className="mb-4 text-l text-black dark:text-neutral-200 px-2">
                     You can add a COA string for billing charges back to a specific account. 
                     Certain features require at least one COA string to be provided.
             </div>
@@ -162,53 +162,25 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                                     </thead>
                                 <tbody>
                                     {[...accounts].map((account, index) => (
-                                        <tr key={index} className='py-1 border border-b-gray-300'>
-                                            <td>{account.name}</td>
-                                            <td> <>
+                                        <tr key={index} >
+                                            <td> {account.name}</td>
+                                            <td> <div className='flex justify-between items-center p-3 w-full '>
                                                 {account.id}
-                                                {account.id !== noCoaAccount.id ? (
+                                                {account.id !== noCoaAccount.id && (
                                                 <button
                                                     type="button"
-                                                    className="absolute right-4 px-2 py-1.5 text-sm bg-neutral-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                                    className="ml-auto mt-[-4px] px-2 py-1.5 text-sm bg-neutral-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                                                     onClick={() => handleDeleteAccount(account.id)}
                                                 >
                                                     <IconTrashX size={18} />
                                                 </button>
-                                            ) : (
-                                                <div className="px-2 py-1.5 text-sm opacity-0" aria-hidden="true"> {/* Invisible spacer */}
-                                                    <IconTrashX size={18} />
-                                                </div>
                                             )}
-                                                </>
+                                                </div>
                                                 </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-
-                    <ul className="flex-grow divide-y divide-gray-200 overflow-auto">
-                        {accounts.map(account => (
-                            <li key={account.id} className="flex flex-row justify-between items-center py-3">
-                                <div className="ml-1 w-[120px]">{account.name}</div>
-                                <div className="w-65 truncate">{account.id}</div>
-                                <div className="ml-6 mr-2">
-                                    {account.id !== noCoaAccount.id ? (
-                                        <button
-                                            type="button"
-                                            className="px-2 py-1.5 text-sm bg-neutral-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                            onClick={() => handleDeleteAccount(account.id)}
-                                        >
-                                            <IconTrashX size={18} />
-                                        </button>
-                                    ) : (
-                                        <div className="px-2 py-1.5 text-sm opacity-0" aria-hidden="true"> {/* Invisible spacer */}
-                                            <IconTrashX size={18} />
-                                        </div>
-                                    )}
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
                 
                 
                 <div className="mb-2 text-lg text-black dark:text-neutral-200 border-b-2">
@@ -220,7 +192,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                     setDefaultAccount={setDefaultAccount}
                 />
 
-                <div className="flex flex-row my-2">
+                <div className="flex flex-row my-2 w-full fixed bottom-0 left-0 px-4 py-2">
                     {/* Save Button */}
                     <button
                         type="button"

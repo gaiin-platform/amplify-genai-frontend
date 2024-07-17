@@ -17,6 +17,7 @@ import HomeContext from "@/pages/api/home/home.context";
 import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
 import ApiKeyBlock from "./ApiKeyBlock";
 import { ApiKey } from "@/types/apikeys";
+import { ApiDocBlock } from "./APIDocBlock";
 
 // TODO: IMPLEMENT DATA TABLE COMPONENT INTO THIS FILE
 
@@ -152,6 +153,9 @@ const ChatContentBlock: React.FC<Props> = (
                 
                     case 'APIkey':
                         return (<ApiKeyBlock content={String(children)}/>);
+
+                    case 'APIdoc':
+                        return (<ApiDocBlock content={String(children)}/>);
                 
                     default:
                         if (match[1].toLowerCase() === 'vega' || match[1].toLowerCase() === 'vegalite') {

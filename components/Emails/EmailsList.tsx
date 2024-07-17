@@ -98,10 +98,11 @@ export const EmailsList: FC<Props> = ({
 
     useEffect(() => {
         const fetchEmails = async () => {
-            const emailSuggestions = await fetchEmailSuggestions("*");
+            const emailSuggestions =  await fetchEmailSuggestions("*");
             const apiSysIds = await fetchAllSystemIds();
-            console.log(apiSysIds)
-            setAllEmails(emailSuggestions.emails ? [...emailSuggestions.emails, ...apiSysIds] : []);
+            const sysIds = apiSysIds.map((k: any) => k.systemId).filter((k: any) => k);
+            setAllEmails(emailSuggestions.emails ? [...emailSuggestions.emails,
+                                                    ...sysIds] : []);
         };
         if (!allEmails) fetchEmails();
     }, [showModal]);
@@ -110,7 +111,8 @@ export const EmailsList: FC<Props> = ({
     const handleAddEmails = () => {
         const newEmails = input.split(',')
             .map(email => email.trim())
-            .filter(email => /^\S+@\S+\.\S+$/.test(email) && !emails.includes(email));
+            .filter(email => (/^\S+@\S+\.\S+$/.test(email) || 
+                             /^[a-zA-Z0-9-]+-\d{6}$/.test(email)) && !emails.includes(email));
         setEmails([...emails, ...newEmails]);
         setInput('');
         setShowModal(false);

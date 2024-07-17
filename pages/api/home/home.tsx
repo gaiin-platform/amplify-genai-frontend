@@ -618,10 +618,17 @@ const Home = ({
         conversation: Conversation,
         data: KeyValuePair,
     ) => {
+
+        console.log("Previous Conversation: ", conversation)
+        console.log("Updating data: ", data)
+
         const updatedConversation = {
             ...conversation,
             [data.key]: data.value,
         };
+
+        console.log("Updated Conversation", updatedConversation)
+
 
         const { single, all } = updateConversation(
             updatedConversation,

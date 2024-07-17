@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import {
   IconDownload
 } from '@tabler/icons-react';
+import { DownloadFileButton } from '@/components/Download/DownloadFileButton';
 
 interface FileInfo {
   type: string;
@@ -24,6 +25,7 @@ interface ChatCodeInterpreterProps {
   file_info: FileInfo;
 }
 
+
 const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) => {
   const [fileContent, setFileContent] = useState<React.ReactNode>(<div>Loading...</div>);
 
@@ -33,29 +35,6 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
   const [pdfError, setPdfError] = useState(false);
   
 
-  const downloadButton = (fileName: string, presigned_url: string) => {
-    return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className='text-lg font-bold'>{fileName}</span>
-            <button
-                className=" text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                onClick={(e) => {
-                    e.preventDefault();
-                    const link = document.createElement('a');
-                    link.href = presigned_url;
-                    link.download = fileName;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                }}
-                title={`Download ${fileName}`}
-                aria-label={`Download ${fileName}`}
-                style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
-                <IconDownload size={24} />
-            </button>
-        </div>
-    );
-};
 
   useEffect(() => {
     const fetchAndSetCsvContent = async (presignedUrl: string, fileSize: number) => {
@@ -189,7 +168,10 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
             };
             setFileContent (
             <div className='mb-6'>
-                {downloadButton(fileName, presigned_url)}
+                <DownloadFileButton
+                fileName={fileName}
+                presigned_url={presigned_url}
+                />
                 { !csvPreview ? <div>Loading...</div> : csvPreview.length > 0 
                             ? <div >{renderCsvTable()} {csvOverflow && <>{'Download to see full content'}</>} </div> 
                             : <div>Unfortunately, we are unable to display the file contents at this time...</div>}
@@ -200,7 +182,10 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
             const pdfUrl = await fetchPdfAndDisplay(presigned_url)
             setFileContent(
                 <div className='mb-6'>
-                    {downloadButton(fileName, presigned_url)}
+                    <DownloadFileButton
+                    fileName={fileName}
+                    presigned_url={presigned_url}
+                    />
                     {pdfError ? ( <div>Unfortunately, we are unable to display the PDF at this time...</div>) 
                               : pdfUrl && pdfUrl !== "" ? 
                                         (<iframe
@@ -218,7 +203,10 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
         case 'binary/octet-stream': 
             setFileContent(
             <div>
-                {downloadButton(fileName, presigned_url)}
+                <DownloadFileButton
+                fileName={fileName}
+                presigned_url={presigned_url}
+                />
                 Please download to view the file contents
             </div>
             );
@@ -238,7 +226,10 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
 
             setFileContent(
                 <div>
-                {downloadButton(fileName, downloadPresignedUrl)}
+                <DownloadFileButton
+                fileName={fileName}
+                presigned_url={presigned_url}
+                />
                 <img 
                     src={presigned_url} 
                     alt={fileName} 

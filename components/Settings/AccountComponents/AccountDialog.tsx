@@ -92,7 +92,7 @@ useEffect(() => {
             // onClose();
         } else {
             setApiKeys(result.data);
-            console.log(result.data)
+            // console.log(result.data)
             setIsLoading(false);
         }
     }
@@ -116,6 +116,7 @@ useEffect(() => {
 
     const close = () => {
         onClose();
+        setApiKeys([]);
         window.dispatchEvent(new Event('cleanupApiKeys'));
     }
 
@@ -139,8 +140,8 @@ useEffect(() => {
                     />
                     <div
                         ref={modalRef}
-                        className={`dark:border-netural-400 inline-block transform rounded-lg border border-gray-300 bg-white px-4 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:min-h-[636px]  sm:w-full sm:p-4 sm:align-middle`}
-                        style={{width: `${window.innerWidth - 560}px`, height: `${window.innerHeight - 250}px`}}
+                        className={`dark:border-netural-400 inline-block transform rounded-lg border border-gray-300 bg-neutral-100 px-4 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:min-h-[636px]  sm:w-full sm:p-4 sm:align-middle`}
+                        style={{width: `${window.innerWidth - 560}px`, height: `${window.innerHeight * 0.9}px`}}
                         role="dialog">
 
                         {isLoading && (
@@ -172,7 +173,7 @@ useEffect(() => {
                                         <div className='ml-auto'>
                                             <SidebarActionButton
                                                 handleClick={() => onClose()}
-                                                title={"See API key secret"}>
+                                                title={"Close"}>
                                                 <IconX size={20}/>
                                             </SidebarActionButton>
                                         </div>      
@@ -197,6 +198,7 @@ useEffect(() => {
                                         {activeTab === "API" &&
                                         <ApiKeys
                                         apiKeys={apiKeys}
+                                        setApiKeys={setApiKeys}
                                         onClose={close}
                                         isLoading={isLoading}
                                         setIsLoading={setIsLoading}

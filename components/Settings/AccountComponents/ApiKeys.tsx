@@ -1,12 +1,12 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
-import { IconTrashX, IconPlus, IconInfoCircle, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit } from "@tabler/icons-react";
+import { IconPlus, IconInfoCircle, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, IconArticle, IconRobot } from "@tabler/icons-react";
 import HomeContext from '@/pages/api/home/home.context';
 import ExpansionComponent from '../../Chat/ExpansionComponent';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
 import { Account } from '@/types/accounts';
-import { createApiKey, fetchApiKey, updateApiKeys } from '@/services/apiKeysService';
+import { createApiKey, deactivateApiKey, fetchApiDoc, fetchApiKey, updateApiKeys } from '@/services/apiKeysService';
 import { ApiKey, ApiRateLimit } from '@/types/apikeys';
 import { useSession } from 'next-auth/react';
 import {styled, keyframes} from "styled-components";
@@ -15,9 +15,15 @@ import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import { formatDateYMDToMDY, userFriendlyDate } from '@/utils/app/date';
 import { AccountSelect } from './Account';
 import { RatePeriodLimit } from './RateLimit';
+import cloneDeep from 'lodash/cloneDeep';
+import { Prompt } from '@/types/prompt';
+import { isAssistant } from '@/utils/app/assistants';
+import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
+import { APIDownloadFile, fetchFile } from '@/components/Chat/ChatContentBlocks/APIDocBlock';
 
 interface Props {
     apiKeys: ApiKey[];
+    setApiKeys: (k:ApiKey[]) => void;
     onClose: () => void;
     isLoading: boolean;
     setIsLoading: (e:boolean) => void;
@@ -42,6 +48,17 @@ const LoadingIcon = styled(FiCommand)`
   animation: ${animate} 2s infinite;
 `;
 
+const today = new Date().toISOString().split('T')[0];
+
+// current api access choices
+const optionChoices = {
+    assistants: true,
+    chat: true,
+    file_upload: true, // _ will be turned into a ' ' for displaying purposes
+    share: true,
+    dual_embedding: true
+}
+
 export const formatLimits = (limits: ApiRateLimit) =>  {
     if (limits.rate === null) return 'Unlimited';
     return `$${limits.rate}${limits.rate.toString().includes('.') ? '' : '.00'}/${limits.period}`
@@ -54,12 +71,11 @@ export const formatAccessTypes = (accessTypes: string[]) => {
 }
 
 const formatAccessType = (accessType: string) => {
-    return String(accessType).replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
-                                                              
+    return String(accessType).replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())                                                          
 }
 
-export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, setLoadingMessage, accounts, defaultAccount}) => {
-    const { state: {featureFlags}, dispatch: homeDispatch } = useContext(HomeContext);
+export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, setIsLoading, setLoadingMessage, accounts, defaultAccount}) => {
+    const { state: {featureFlags, statsService}, dispatch: homeDispatch } = useContext(HomeContext);
 
     const { data: session } = useSession();
     const user = session?.user;
@@ -82,21 +98,14 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
     const [systemUse, setSystemUse] = useState<boolean>(false);
     const noCoaAccount: Account = { id: 'general_account', name: 'No COA On File' };
     const [selectedAccount, setSelectedAccount] = useState<Account | null>(defaultAccount.name === noCoaAccount.name ? null : defaultAccount);
-    const today = new Date().toISOString().split('T')[0];
-
-    const [fullAccess, setFullAccess] = useState<boolean>(true);
 
     const [editedKeys, setEditedKeys] = useState<any>({});
 
 
-    
-    const [options, setOptions] = useState<Record<string, boolean>>({
-            assistants: true,
-            chat: true,
-            file_upload: true, // _ will be turned into a ' ' for displaying purposes
-            share: true,
-            dual_embedding: true
-        });
+    const [fullAccess, setFullAccess] = useState<boolean>(true);
+    const [options, setOptions] = useState<Record<string, boolean>>(cloneDeep(optionChoices));
+
+    const [docsIsOpen, setDocsIsOpen] = useState<boolean>(false);
 
     
     useEffect(() => {
@@ -104,7 +113,10 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
             console.log("editedApiKey was triggered", event.detail);
             const apiKeyId = event.detail.id;
             const updates = event.detail.edits; 
-            console.log(event.detail)
+
+            if (updates.accessTypes && Array.isArray(updates.accessTypes)) {
+                updates.accessTypes = updates.accessTypes.flat();
+            }
     
             setEditedKeys((prevKeys: any) => {
                 // Ensuring that updates for each key are structured correctly
@@ -121,15 +133,15 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                     }
                 };
             });
-            console.log(editedKeys);
 
         };
     
         window.addEventListener('editedApiKey', handleEvent);
-    
+        
         return () => {
             window.removeEventListener('editedApiKey', handleEvent);
         };
+        
     }, []);
 
 
@@ -156,14 +168,14 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
         setIsCreating(true);
         
         const data = {
-            'owner' : user,
+            'owner' : user?.email,
             'account' : selectedAccount,
             'delegate': delegateInput.length > 0 ? delegateInput : null,
             'appName' : appName,
             'appDescription' : appDescription,
             'rateLimit' : {'period' : rateLimitType, 'rate': ( rateLimitType === 'Unlimited' ? null : parseFloat(costAmount.replace('$', '')))},
             'expiration' : includeExpiration ? selectedDate : null,
-            'accessTypes': [fullAccess ? "full_access" :  Object.keys(options).filter((key) => options[key]) ],
+            'accessTypes': fullAccess ? ["full_access"] :  Object.keys(options).filter((key) => options[key]),
             'systemUse' : systemUse && delegateInput.length === 0
         }
         const result = await createApiKey(data)
@@ -172,12 +184,15 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
         alert(result ? "Successfuly created the API key" : "Unable to create the API key at this time. Please try again later...");
         // empty out all the create key fields
         if (result) {
+            statsService.createApiKey(data);
             setAppName('');
             setAppDescriptione('');
             setDelegateInput('');
             setRateLimitType('Unlimited');
             setIncludeExpiration(false);
             setSystemUse(false);
+            setOptions(optionChoices);
+            setFullAccess(true);
             // to pull in the updated changes to the ui
             window.dispatchEvent(new Event('createApiKeys'));
         }
@@ -185,20 +200,34 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
         
     };
 
-    const handleDeactivateApikey = (accountToDelete: string) => {
-
+    const handleDeactivateApikey = async (apiKeyId: string, name: string) => {
+        if (confirm(`Are you sure you want to deactivate API key: ${name}?\nOnce deactivate, it cannot be undone.`)) {
+            const result = await deactivateApiKey(apiKeyId);
+            if (result) {
+                setApiKeys(apiKeys.map((k: ApiKey) => {;
+                    if (k.api_owner_id === apiKeyId) return {...k, active: false}
+                    return k;
+                }))
+                statsService.deactivateApiKey(apiKeyId);
+            } else {
+                alert('Failed to deactivate key at this time. Please try again later...');
+            }
+        }
     };
 
     const handleApplyEdits = async () => {
         // call handle edits 
-        const result = await updateApiKeys(editedKeys);
+        console.log("Final edits: ", editedKeys);
+        const result = await updateApiKeys(Object.values(editedKeys));
         if (!result.success) {
             alert('failedKeys' in result ? `API keys: ${result.failedKeys.join(", ")} failed to update. Please try again.` : "We are unable to update your key(s) at this time...")
+        } else {
+            statsService.updateApiKey(Object.values(editedKeys));
         }
     };
 
     const handleSave = async () => {
-        if (Object.keys(editedKeys).length === 0) handleApplyEdits();
+        if (Object.keys(editedKeys).length !== 0) handleApplyEdits();
         onClose();
     };
 
@@ -207,12 +236,6 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
         return new Date(date) <= new Date()
     }
 
-    useEffect(() => {
-        const allSelected = Object.keys(options).every(key => options[key]);
-        if (allSelected) setFullAccess(allSelected);
-    }, [options]);
-
-
     if (isLoading) return <></>
 
 
@@ -220,11 +243,11 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
         <div className='flex flex-col'>
          <div className='flex flex-col gap-4 mx-2' > 
             <div className="text-l text-black dark:text-neutral-200">
-                You can create Api keys for yourself and others. 
+               API keys are used to authenticate and authorize access to specific Amplify services. You can create API keys for yourself and others.
                 <div className="mx-5 mt-4 flex items-center p-2 border border-gray-400 dark:border-gray-500 rounded ">
                     <IconInfoCircle size={16} className='mx-2 mb-1 flex-shrink-0 text-gray-600 dark:text-gray-400' />
                     <span className="ml-2 text-xs text-gray-600 dark:text-gray-400"> 
-                        <div className='mb-2 ml-5 '> {"Types of API Keys"}</div>
+                        <div className='mb-2 ml-5 text-[0.8rem]'> {"Types of API Keys"}</div>
                         {/* <br className='mb-1'></br> */}
                         <div className='mt-1 flex flex-row gap-2'>          
                             <IconUser className='flex-shrink-0' style={{ strokeWidth: 2.5}} size={16}/>
@@ -248,6 +271,10 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                         
                     </span>
                 </div>
+                <div className='z-100'> 
+                   <APITools setDocsIsOpen={setDocsIsOpen} onClose={onClose}/> 
+                </div>
+                
 
             </div>
             <div className='border p-2 border-gray-400 dark:border-gray-700 rounded' >
@@ -367,33 +394,12 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                                     <ExpansionComponent 
                                                 title={'Access Controls'} 
                                                 content={ 
-                                                    <div className='flex flex-row gap-2' >
-                                                        <input type="checkbox" checked={fullAccess} onChange={(e) => {
-                                                                const checked = e.target.checked;
-                                                                setFullAccess(checked);
-                                                                setOptions(prevOptions => 
-                                                                    Object.keys(prevOptions).reduce((acc, key) => {
-                                                                        acc[key] = checked;
-                                                                        return acc;
-                                                                    }, {} as Record<string, boolean>)
-                                                                );
-                                                            }} />
-                                                        <label className="text-sm mr-3" htmlFor="FullAccess">Full Access</label>
-                                                        {Object.keys(options).map((key: string) => (
-                                                            <>
-                                                            <input type="checkbox" checked={options[key]} onChange={() => {
-                                                                setOptions((prevOptions:any) => {
-                                                                    const newOptions = { ...prevOptions, [key]: !prevOptions[key] };
-                                                                    if (!newOptions[key]) setFullAccess(false);
-                                                                    return newOptions;
-                                                                })
-                                                            }}/>
-
-                                                            <label className="text-sm mr-3" htmlFor={key}>{formatAccessType(key)}</label>
-
-                                                            </>
-                                                        ))}
-                                                    </div>
+                                                    <AccessTypesCheck
+                                                     fullAccess={fullAccess}
+                                                     setFullAccess={setFullAccess}
+                                                     options={options}
+                                                     setOptions={setOptions}
+                                                    />
                                                 }
                                     />
                                 </div>
@@ -437,11 +443,11 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                     <div className="text-center text-md italic text-black dark:text-neutral-200">
                         You do not have any API keys set up. Add one above.
                     </div>
-                ) : (
+                ) : ( !docsIsOpen && 
                     <table className='mt-[-1px] w-full text-md text-black dark:text-neutral-200'>
                         <thead>
                             <tr className="bg-gray-200 dark:bg-[#333]">
-                                <th className='bg-white dark:bg-[#202123]'></th>
+                                <th className='bg-neutral-100 dark:bg-[#202123]'></th>
                                { ["Name", "Active", "Account", "Delegate", "Expiration", "Last Accessed", "Rate Limit", "Access Types", "System ID", "API Key"
                             ].map((i) => (
                                 <th
@@ -462,7 +468,10 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                                     <td>{<Label label={apiKey.applicationName} />}</td>
                                     <td>
                                         <div className='flex justify-center items-center' style={{width: '60px'}}>
-                                            {apiKey.active ? <IconCheck className= 'text-green-600' size={18} /> : <IconX className='text-red-600' size={18} />}
+                                            {apiKey.active ? <button title='Deactivate Key' onClick={() => handleDeactivateApikey(apiKey.api_owner_id, apiKey.applicationName)}>
+                                                                 <IconCheck className= 'text-green-600 hover:text-gray-400' size={18} /> 
+                                                            </button> 
+                                                           : <IconX className='text-red-600' size={18} />}
                                         </div>
                                     </td>
                                     <td>{<Label label={apiKey.account ? `${apiKey.account.name + " - "} ${apiKey.account.id}` : ''} widthPx='180px' editableField={apiKey.active ? 'account' : undefined} apiKey={apiKey} accounts={accounts.filter((a: Account) => a.id !== noCoaAccount.id)}/>}</td>
@@ -470,10 +479,10 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                                     <td>{ apiKey.expirationDate ?  <Label label={formatDateYMDToMDY(apiKey.expirationDate)} 
                                                                           textColor={isExpired(apiKey.expirationDate) ? "text-red-600": undefined} 
                                                                           editableField={apiKey.active ? 'expirationDate': undefined} apiKey={apiKey}/> 
-                                                                : <NALabel /> }</td>
+                                                                : <Label label={null} editableField={apiKey.active ? 'expirationDate': undefined} apiKey={apiKey}/>  }</td>
                                     <td>{<Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx={"104px"} isDate={true}/>}</td>
                                     <td>{<Label label={formatLimits(apiKey.rateLimit)} editableField={apiKey.active ? 'rateLimit' : undefined} apiKey={apiKey}/>}</td>
-                                    <td>{<Label label={formatAccessTypes(apiKey.accessTypes)} widthPx="160px" editableField={apiKey.active ? 'accessTypes' : undefined} apiKey={apiKey}/>}</td>
+                                    <td>{<Label label={formatAccessTypes(apiKey.accessTypes).replaceAll(',', ', ')} widthPx="180px" editableField={apiKey.active ? 'accessTypes' : undefined} apiKey={apiKey}/>}</td>
                                     <td>{apiKey.systemId ? <Label label={apiKey.systemId } />:   <NALabel />}</td>
                                     <td>{!apiKey.delegate ? <HiddenAPIKey id={apiKey.api_owner_id} width='184px'/>: <NALabel label={"Not Viewable"}/>}</td>
                                 </tr>
@@ -493,7 +502,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                         Delegated API Keys
                 </div>
             <div>
-                <div style={{ overflowX: 'auto'}}>
+                { !docsIsOpen &&  <div style={{ overflowX: 'auto'}}>
                 <table className='mt-[-1px] w-full text-md text-black dark:text-neutral-200'>
                     <thead>
                             <tr className="bg-gray-200 dark:bg-[#333]">
@@ -512,7 +521,10 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                         <tr key={apiKey.id}>
                             <td>{<Label label={apiKey.applicationName} widthPx="120px"></Label>}</td>
                             <td> {<div className='flex justify-center items-center' style={{width: '60px'}}>
-                                        {apiKey.active ? <IconCheck className= 'text-green-600' size={18} /> : <IconX  className='text-red-600' size={18} />}
+                                        {apiKey.active ? <button title='Deactivate Key' onClick={() => handleDeactivateApikey(apiKey.api_owner_id, apiKey.applicationName)}>
+                                                                 <IconCheck className= 'text-green-600 hover:text-neutral-700' size={18} /> 
+                                                          </button> 
+                                                       : <IconX  className='text-red-600' size={18} />}
                                     </div>}
                             </td>
                             <td>{<Label label={apiKey.owner} ></Label>}</td>
@@ -520,32 +532,32 @@ export const ApiKeys: FC<Props> = ({ apiKeys, onClose, isLoading, setIsLoading, 
                                                         : <NALabel /> }</td>
                             <td>{<Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx="104px" isDate={true}></Label>}</td>
                             <td>{<Label label={formatLimits(apiKey.rateLimit)} widthPx="140px"></Label>}</td>
-                            <td>{<Label label={formatAccessTypes(apiKey.accessTypes)} widthPx="160px" ></Label>}</td>
+                            <td>{<Label label={formatAccessTypes(apiKey.accessTypes).replaceAll(',', ', ')} widthPx="180px" ></Label>}</td>
                             <td>{<HiddenAPIKey id={apiKey.api_owner_id} width='184px'/> }
                             </td>      
                         </tr>
                         ))}
                     </tbody>
                     </table>
-                    </div>
+                    </div> }
                     </div>
                     </>
                     }
                 </div>
             </div>
 
-            <div className="flex-shrink-0 flex flex-row mt-auto">
+            <div className="flex-shrink-0 flex flex-row mt-auto w-full"> 
                 <button
                     type="button"
-                    className="mr-2 w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                    className="mr-2 w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                     onClick={onClose}
                 >
                     {t('Cancel')}
                 </button>
                 <button
                     type="button"
-                    className="w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                    onClick={handleApplyEdits}
+                    className="w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                    onClick={handleSave}
                 >
                     {t('Save Edits')}
                 </button>
@@ -564,6 +576,8 @@ interface APIKeyProps {
 }
 
 export const HiddenAPIKey: FC<APIKeyProps> = ({ id, width=''}) => {
+
+    const { state: {statsService}} = useContext(HomeContext);
 
     const defaultStr = "****************************************";
     const [keyText, setKeyText] = useState<string>(defaultStr);
@@ -593,7 +607,9 @@ export const HiddenAPIKey: FC<APIKeyProps> = ({ id, width=''}) => {
             alert(result.error || "Unable to retrieve your API key at this time...");
             setIsLoading(false);
             return;
-        } 
+        }  else {
+            statsService.getApiKey(id);
+        }
         setIsLoading(false);
         setKeyText(result.data);
     }
@@ -660,7 +676,7 @@ interface LabelProps {
 
 //rateLimit, expiration, accessTypes, account
 const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField, isDate=false, apiKey, accounts}) => {
-    const [displayLabel, setDisplayLabel] = useState(label);
+    const [displayLabel, setDisplayLabel] = useState<string | null>(label);
     const [isOverflowing, setIsOverflowing] = useState(false);
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [isHovered, setIsHovered,] = useState(false);
@@ -670,12 +686,31 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
     const [rateLimitType, setRateLimitType] = useState<string>(apiKey ? apiKey.rateLimit.period : 'Unlimited');
     const [costAmount, setCostAmount] = useState<string>(apiKey && apiKey.rateLimit.rate ? String(apiKey.rateLimit.rate) : '0');
     const [selectedDate, setSelectedDate] = useState<string>(apiKey?.expirationDate || '');
-
+    const [fullAccess, setFullAccess] = useState<boolean>(true);
+    const [options, setOptions] = useState<Record<string, boolean>>(cloneDeep(optionChoices));
+    const [translateX, setTranslateX] = useState(0);
+    const [isScrolling, setIsScrolling] = useState(false);
 
     useEffect(() => {
         const element = labelRef.current;
+        let scrollTimeout: any;
         if (element) {
             setIsOverflowing(element.scrollWidth > element.clientWidth);
+
+            const handleScroll = () => {
+                setTranslateX(element.scrollLeft);
+                setIsScrolling(true);
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(() => {
+                    setIsScrolling(false);
+                }, 150);
+            };
+
+            element.addEventListener('scroll', handleScroll);
+            return () => {
+                element.removeEventListener('scroll', handleScroll);
+                clearTimeout(scrollTimeout);
+            };
         }
     }, [displayLabel]);
 
@@ -683,6 +718,7 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
         let editedData = null;
         switch (editableField) {
             case("expirationDate"):
+                setDisplayLabel(selectedDate)
                 editedData = selectedDate;
                 break;
             case("account"):
@@ -697,7 +733,8 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
                 setDisplayLabel(formatLimits(editedData));
                 break;
             case("accessTypes"): 
-                editedData = null
+                editedData = [fullAccess ? "full_access" :  Object.keys(options).filter((key) => options[key])];
+                setDisplayLabel(formatAccessTypes((editedData as string[])).replaceAll(',', ', '));
                 break;
         }
 
@@ -711,7 +748,7 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
         }
     }
 
-    const formattedLabel = isDate ? displayLabel?.replace(' at ', ' \n at ') : displayLabel;
+    const formattedLabel = displayLabel && isDate? displayLabel?.replace(' at ', ' \n at ') : displayLabel;
 
     return (
         <div
@@ -729,14 +766,24 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
             }}
             className={`overflow-auto mb-2 p-2 flex-1 text-sm rounded flex flex-row ${textColor || 'text-black dark:text-neutral-200'} ${isOverflowing || isDate ? 'bg-neutral-200 dark:bg-[#40414F]' : 'transparent'}`}
         >
-        {!isEditing && formattedLabel}
+        {!isEditing && 
+            <> {displayLabel ? formattedLabel :  <div className='ml-8'><NALabel/></div>}</>
+        }
 
         {isEditing && editableField && (
             <>
             {editableField && editableField === 'expirationDate' && (<>
+                <input
+                    className="rounded border-gray-300 p-0.5 text-neutral-900 dark:text-neutral-100 shadow-sm bg-neutral-200 dark:bg-[#40414F] focus:border-neutral-700 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
+                    type="date"
+                    id="expiration"
+                    value={selectedDate}
+                    min={today}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                />
             </>)}
             {accounts && selectedAccount && editableField === 'account' && (
-                <div>
+                <div className='w-full'>
                 <AccountSelect
                     accounts={accounts}
                     defaultAccount={selectedAccount}
@@ -754,13 +801,20 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
                 />
             </>)}
             {editableField && editableField === 'accessTypes' && (<>
+                <AccessTypesCheck
+                    fullAccess={fullAccess}
+                    setFullAccess={setFullAccess}
+                    options={options}
+                    setOptions={setOptions}
+                />
             </>)}
             </>
         )}
 
         {isEditing && (
             (
-                <div className="absolute right-0 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
+                <div className="ml-2 relative z-40 flex bg-neutral-200 dark:bg-[#343541]/90 rounded"  
+               >
                   <SidebarActionButton
                     handleClick={(e) => {
                         e.stopPropagation();
@@ -783,9 +837,10 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
 
         )}
 
-        {editableField && isHovered && !isEditing && (
+        {editableField && isHovered  && !isEditing && !isScrolling && (
             <div
-            className="absolute top-1 right-0 ml-auto  z-10 flex-shrink-0 bg-neutral-200 dark:bg-[#343541]/90 rounded">
+            className="absolute top-1 right-0 ml-auto z-10 flex-shrink-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"
+           style={{ transform: `translateX(${translateX}px)` }}> 
                 <SidebarActionButton
                     handleClick={() => {setIsEditing(true)}}
                     title="Edit">
@@ -795,6 +850,7 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
         )}
         
         </div>
+       
     );
 }
 
@@ -806,5 +862,286 @@ interface NALabel {
 const NALabel: FC<NALabel> = ({label="N/A"}) => {
     return (
          <div className='text-center text-gray-400 dark:text-gray-500'>{label}</div>
+    );
+}
+
+interface AccessProps {
+    fullAccess: boolean,
+    setFullAccess: (e:boolean) => void;
+    options: Record<string, boolean>;
+    setOptions: (options: any) => void;
+}
+
+const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, setOptions}) => {
+    useEffect(() => {
+        const allSelected = Object.keys(options).every(key => options[key]);
+        if (allSelected) setFullAccess(allSelected);
+    }, [options]);
+
+    return (
+         <div className='flex flex-row gap-2' >
+            <input type="checkbox" checked={fullAccess} onChange={(e) => {
+                    const checked = e.target.checked;
+                    setFullAccess(checked);
+                    setOptions((prevOptions: any)=> 
+                        Object.keys(prevOptions).reduce((acc, key) => {
+                            acc[key] = checked;
+                            return acc;
+                        }, {} as Record<string, boolean>)
+                    );
+                }} />
+            <label className="text-sm mr-3" htmlFor="FullAccess">Full Access</label>
+            {Object.keys(options).map((key: string) => (
+                <>
+                <input type="checkbox" checked={options[key]} onChange={() => {
+                    setOptions((prevOptions:any) => {
+                        const newOptions = { ...prevOptions, [key]: !prevOptions[key] };
+                        if (!newOptions[key]) setFullAccess(false);
+                        return newOptions;
+                    })
+                }}/>
+
+                <label className="text-sm mr-3" htmlFor={key}>{formatAccessType(key)}</label>
+
+                </>
+            ))}
+        </div>
+    );
+}
+
+
+
+interface ToolsProps {
+    setDocsIsOpen: (e: boolean) => void;
+    onClose: () => void;
+}
+
+
+const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
+    const { state: {prompts, statsService}, dispatch: homeDispatch, handleNewConversation} = useContext(HomeContext);
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
+
+    const [isLoading, setIsLoading] = useState(false);
+
+    const [activeTab, setActiveTab] = useState<string | null>(null);
+    const [showApiDoc, setShowApiDoc] = useState(false);
+    const [docUrl, setDocUrl] = useState<string | undefined>(undefined);
+    const [csvUrl, setCsvUrl] = useState<string | undefined>(undefined);
+    const [postmanUrl, setPostmanUrl] = useState<string | undefined>(undefined);
+    const [fileContents, setFileContents] = useState<any>(undefined);
+
+
+
+    const [keyManager, setKeyManager] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.id === "ast/assistant-api-key-manager"));
+    const [apiAst, setApiAst] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.id === "ast/assistant-api-doc-helper"));
+
+
+    const isUrlExpired = (url: string): boolean => {
+        const regex = /Expires=(\d+)/;
+        const matches = regex.exec(url);
+    
+        if (matches && matches[1]) {
+            const expiry = matches[1];
+            const expiryDate = new Date(parseInt(expiry) * 1000);
+            return expiryDate <= new Date();
+        }
+        return true;
+      };
+
+    const handleShowDocs = (val: boolean) => {
+        setDocsIsOpen(val);
+        setShowApiDoc(val);
+    }
+
+    const handleShowApiDoc = async () => {
+            //check if expired 
+        const isExpired = docUrl ? isUrlExpired(docUrl) : true;
+        if (isExpired) {
+            setIsLoading(true);
+            const result = await fetchApiDoc();
+            if (result.success) {
+                handleShowDocs(true);
+                setDocUrl(result.doc_url);
+                setCsvUrl(result.csv_url);
+                setPostmanUrl(result.postman_url);
+            } else {
+                docError();
+            }
+        } else {
+            handleShowDocs(true);
+        }
+        
+        
+    }
+
+    useEffect( () => {
+        if (docUrl || csvUrl) {
+            const tabToSwitch = docUrl ? 'Doc' : csvUrl ? "Downloads" : null;
+            handleTabSwitch(tabToSwitch);
+            setIsLoading(false);
+        }
+    }, [docUrl]);
+
+    const docError = () => {
+        handleShowDocs(false);
+        alert("Unable to display API documentation at this time. Please try again later...");
+        setIsLoading(false);
+    }
+
+    const handleStartConversation = (startPrompt: Prompt) => {
+        if(isAssistant(startPrompt) && startPrompt.data){
+            homeDispatch({field: 'selectedAssistant', value: startPrompt.data.assistant});
+        }
+        statsService.startConversationEvent(startPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt);
+        onClose();
+    }
+
+    const handleTabSwitch = async (tab: string | null) => {
+        if (!tab) return;
+        if (docUrl && tab === "Doc") {
+                    const file = await fetchFile(docUrl);
+                    setFileContents(file);
+        }
+        setActiveTab(tab);
+        console.log("Active tab: ", tab)
+    }
+
+    return (
+        <>
+            <div className='mt-2 ml-5 flex flex-row gap-2 mx-2 flex justify-center '>
+                <div className='mt-[-3px] text-sm py-2 mr-2 text-[0.8]'>API Tools and Resources</div>
+                <label className='mt-2 text-xs '>|</label>
+                    <SidebarActionButton
+                    handleClick={() => handleShowApiDoc()}
+                    title='View Amplify API Documentation'>
+                      <div className='flex flex-row gap-1 text-[0.8]'>
+                        Amplify API Documentation
+                        <IconArticle size={18}/>
+                      </div>  
+                     </SidebarActionButton> 
+                { keyManager && ( 
+                    <>
+                    <label className='mt-2 text-xs '>|</label>
+                     <SidebarActionButton
+                        handleClick={()=> handleStartConversation(keyManager)}
+                        title='Chat with Amplify API Key Manager'>
+                        <div className='flex flex-row gap-1 text-[0.8]'>
+                            Amplify API Key Manager
+                            <IconRobot size={20}/>
+                        </div>  
+                     </SidebarActionButton> 
+                    </>
+                )}
+
+                { apiAst && ( 
+                    <>
+                    <label className='mt-2 text-xs '>|</label>
+                     <SidebarActionButton
+                        handleClick={()=> handleStartConversation(apiAst)}
+                        title='Chat with Amplify API Assistant'>
+                        <div className='flex flex-row gap-1 text-[0.8]'>
+                            Amplify API Assistant
+                            <IconRobot size={20}/>
+                        </div>  
+                     </SidebarActionButton> 
+                     </>
+                )}
+
+                </div>
+
+            {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-25 z-100">
+                    <div className="p-3 flex flex-row items-center  border border-gray-500 dark:bg-[#202123]">
+                        <LoadingIcon style={{ width: "24px", height: "24px" }}/>
+                        <span className="text-lg font-bold ml-2 text-white">Loading API Documentation...</span>
+                    </div>
+                </div>
+            )
+            }
+
+
+            {showApiDoc && !isLoading &&  (
+                <div className="absolute inset-0 flex items-center justify-start z-100">
+                    <div className="p-3 flex flex-col items-center  border border-gray-500 dark:bg-[#202123]"
+                        style={{width: `${window.innerWidth}px`, height: `${window.innerHeight * 0.9}px`}}>
+                            
+                            <div className="mb-auto w-full flex flex-row gap-1 bg-neutral-100 dark:bg-[#202123] rounded-t border-b dark:border-white/20 z-100">
+                                    {docUrl && (
+                                        <button
+                                            key={"Doc"}
+                                            onClick={() => handleTabSwitch("Doc")}
+                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Doc" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
+                                            <h3 className="text-xl">View Amplify API</h3> 
+                                        </button> )}
+
+                                    {csvUrl && (
+                                        <button
+                                            key={"Downloads"}
+                                            onClick={() => handleTabSwitch("Downloads")}
+                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Downloads" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
+                                            <h3 className="text-xl">Downloads</h3> 
+                                        </button> )}
+
+                                        <div className='ml-auto'>
+                                            <SidebarActionButton
+                                                handleClick={() => handleShowDocs(false)}
+                                                title={"Close"}>
+                                                <IconX size={20}/>
+                                            </SidebarActionButton>
+                                        </div>      
+                            </div> 
+
+                        { fileContents && activeTab === "Doc" &&
+                            <iframe
+                                src={fileContents}
+                                width={`${window.innerWidth * 0.6 }px`}
+                                height={`${window.innerHeight * 0.85}px`}
+                                onError={() => docError}
+                                style={{ border: 'none' }} />   
+                            }  
+
+                { activeTab === "Downloads" && 
+                    <div className='absolute top-20 flex justify-center mt-4  flex-col text-lg'>
+                    <label className='text-xl'> Available Amplify API Documentation Formats</label>
+                    <div className='ml-6'>
+                        {docUrl &&
+                                <APIDownloadFile
+                                label="Amplify API PDF"
+                                presigned_url={docUrl}
+                                IconSize={24}
+                                />
+                        }
+                        {csvUrl && 
+                            <APIDownloadFile
+                                label="Amplify API CSV"
+                                presigned_url={csvUrl}
+                                IconSize={24}
+                            />
+                        }
+                        {postmanUrl &&
+                                <APIDownloadFile
+                                label="Amplify API Postman Collection"
+                                presigned_url={postmanUrl}
+                                IconSize={24}
+                                />
+                        }
+                    </div>
+                    </div>
+                        
+                    } 
+
+                
+
+                    </div>
+                </div>
+            )}
+    
+        </>
     );
 }

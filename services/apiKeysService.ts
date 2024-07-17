@@ -17,13 +17,7 @@ export const createApiKey = async (data: any,  abortSignal = null) => {
     const result = await response.json();
 
     try {
-
-        if (result.success) {
-            return true;
-        } else {
-            console.error("Error creating new apikey: ", result.message);
-            return false;
-        }
+        return 'success' in result ? result.success : false;
     } catch (e) {
         console.error("Error making post request: ", e);
         return false;
@@ -98,12 +92,12 @@ export const fetchAllSystemIds = async (abortSignal = null) => {
 
 export const deactivateApiKey = async (apiKeyId: string,  abortSignal = null) => {
     const op = {
-        data: {apiKeyId: apiKeyId},
+        data: {'apiKeyId': apiKeyId},
         op: '/deactivate_key'
     };
 
     const response = await fetch('/api/apikeys/op', {
-        method: 'PUT',
+        method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
@@ -111,11 +105,10 @@ export const deactivateApiKey = async (apiKeyId: string,  abortSignal = null) =>
         signal: abortSignal,
     });
 
-    const result = await response.json();
-
     try {
-        const res = JSON.parse(result.body)
-        return res.success ? res.success : false;
+        const result = await response.json();
+        return 'success' in result ? result.success : false;
+
     } catch (e) {
         console.error("Error deactivating api key request: ", e);
         return false;
@@ -127,7 +120,7 @@ export const deactivateApiKey = async (apiKeyId: string,  abortSignal = null) =>
 export const updateApiKeys = async (data: any,  abortSignal = null) => {
     const op = {
         data: data,
-        op: '/update_key"'
+        op: "/update_keys"
     };
 
     const response = await fetch('/api/apikeys/op', {
@@ -140,11 +133,33 @@ export const updateApiKeys = async (data: any,  abortSignal = null) => {
     });
 
     const res = await response.json();
+    console.log(res)
     try {
         return 'success' in res ? res : {success: false};
     } catch (e) {
         console.error("Error making post request: ", e);
         return {success: false};
 ;
+    }
+};
+
+
+
+export const fetchApiDoc = async (abortSignal = null) => {
+    
+    const response = await fetch('/api/apikeys/opget' + `?path=${encodeURIComponent("/api_documentation")}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        signal: abortSignal,
+    });
+
+    const result = await response.json();
+    try {
+        return 'success' in result ? result : {success: false};
+    } catch (e) {
+        console.error("Error making get api doc request: ", e);
+        return {success: false};
     }
 };

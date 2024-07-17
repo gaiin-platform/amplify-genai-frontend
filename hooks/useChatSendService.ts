@@ -245,16 +245,16 @@ export function useSendService() {
                                 skipRag: true,
                                 ragOnly: true
                             };
-                        } else if (tags.includes(ReservedTags.ASSISTANT_API_KEYS)) {
-                            let appendMsg = "\n\n******* Crucial Data to use in your OPs *******";
+                        } else if (tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER)) {
+                            let appendMsg = "\n\n******* Crucial Data to use in your OPs, this is for your knowledge - answer the users prompt above only *******";
 
                             // need Api keys
                             const apiKeys = await fetchAllApiKeys();
                             
-                            if (apiKeys) {
+                            if (apiKeys.success) {
                                 appendMsg += "API KEYS:\n" + JSON.stringify(apiKeys.data);
                                 const delegateKeys = apiKeys.data.filter((k: ApiKey) => k.delegate && (k.delegate !== user?.email));
-                                appendMsg += "\n\n GET OP is NOT allowed for the following Delegate keys (unauthorized): " + delegateKeys.map((k:ApiKey) => k.applicationName);
+                                appendMsg += "\n\n Sharing any details nor GET OP is NOT allowed for the following Delegate keys (unauthorized): " + delegateKeys.map((k:ApiKey) => k.applicationName);
                             } else {
                                 appendMsg += "API KEYS: UNAVAILABLE";
                             }
@@ -281,6 +281,8 @@ export function useSendService() {
                             appendMsg += "\n\nACCOUNTS:\n" + JSON.stringify(accounts.data, null) || "UNAVAILABLE";
                             // user name 
                             appendMsg += "\n\nCurrent User: " + user?.email;
+                            // this will be used to append data to the user message in the back end. 
+                            options =  {...(options || {}), addMsgContent: appendMsg}; 
                             chatBody.prompt += appendMsg;
                         }
                     }

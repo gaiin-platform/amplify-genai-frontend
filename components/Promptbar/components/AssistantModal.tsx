@@ -318,7 +318,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>}
                             <FileList documents={dataSources} documentStates={documentState} setDocuments={(docs) => {
                                 setDataSources(docs as any[]);
-                            }}/>
+                            }} allowRemoval={false}/>
                             {showDataSourceSelector && (
                                 <div
                                     className="flex flex-col justify-center"
@@ -376,7 +376,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                               state={dataSourceOptions}
                                               flagChanged={
                                                     (key, value) => {
-                                                        setDataSourceOptions({...dataSourceOptions, [key]: value});
+                                                        if (!disableEdit) setDataSourceOptions({...dataSourceOptions, [key]: value});
                                                     }
                                               }/>
                                 </div>

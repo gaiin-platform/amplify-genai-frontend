@@ -8,7 +8,7 @@ import { ApiKey, ApiRateLimit } from "@/types/apikeys";
 import { formatAccessTypes, formatLimits, HiddenAPIKey } from "@/components/Settings/AccountComponents/ApiKeys";
 import ExpansionComponent from "../ExpansionComponent";
 import { Account } from "@/types/accounts";
-import { createApiKey, deactivateApiKey } from "@/services/apiKeysService";
+import { createApiKey, deactivateApiKey, updateApiKeys } from "@/services/apiKeysService";
 
 
 
@@ -36,7 +36,7 @@ interface KeyUpdate {
     id: string;
     name: string;
     rateLimit?: ApiRateLimit;
-    expiration?: string;
+    expirationDate?: string;
     accessTypes?: string[];
     account?: Account;
 }
@@ -52,10 +52,16 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
     const [data, setData] = useState<any>(null);
     const [requiredCreateKeys, setRequiredCreateKeys] = useState<any>(null);
     const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
-    const {state:{selectedConversation, statsService, messageIsStreaming},  dispatch:homeDispatch} = useContext(HomeContext);
+    const {state:{statsService, messageIsStreaming},  dispatch:homeDispatch} = useContext(HomeContext);
     const { data: session } = useSession();
 
     const [isCreated, setIsCreated] = useState<boolean>(false);
+    const [deactivatedKeys, setDeactivatedKeys] = useState<string[]>([]);
+    const [updatedKeys, setUpdatedKeys] =useState<string[]>([]);
+    const [isUpdating, setIsUpdating] =useState<string | null>(null);
+
+
+
     
     const user = session?.user;
 
@@ -78,29 +84,42 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
     }, [content]);
 
 
-    const handleDeactivateAPIKey = async (id: string) => {
-        const result = await deactivateApiKey(id);
-        alert(result ? "Successfuly deactivated the API key" : "Unable to deactivate the API key at this time. Please try again later...");
+    const handleDeactivateAPIKey = async (id: string, name: string) => {
+        if (confirm(`Are you sure you want to deactivate API key: ${name}?\nOnce deactivate, it cannot be undone.`)) {
+            const result = await deactivateApiKey(id);
+            statsService.deactivateApiKey(id);
+            alert(result ? "Successfuly deactivated the API key" : "Unable to deactivate the API key at this time. Please try again later...");
+            if (result) setDeactivatedKeys([...deactivatedKeys,id]);
+        }
     }
 
     const handleCreateAPIKey = async () => {
-        console.log()
         if (!requiredCreateKeys.isComplete) {
             alert("Incomplete key data...\n Missing data: " + requiredCreateKeys.missingKeys.join(''));
         } else if (data.systemUse && data.delegate) {
             //check no delegate if system use
             alert("You cannot have a delegate defined when creating a system key. Specified one or the either as none.");
         } else {
+            const keyData = {...data, owner: user?.email};
             setLoadingMessage("Creating API key...");
-            const result = await createApiKey({...data, owner: user?.email});
+            const result = await createApiKey(keyData);
             if (result) setIsCreated(true);
+            statsService.createApiKey(keyData);
             setLoadingMessage(null);
             alert(result ? "Successfuly created the API key" : "Unable to create the API key at this time. Please try again later...");    
         }
     }
 
-    const handleUpdateAPIKey = async (id: string) => {
-
+    const handleUpdateAPIKey = async (keyData: KeyUpdate) => {
+        setIsUpdating(keyData.id);
+        const result = await updateApiKeys([{ "apiKeyId" : keyData.id, "updates" : keyData}]);
+        if (!result.success) {
+            alert('failedKeys' in result ? `API keys: ${result.failedKeys.join(", ")} failed to update. Please try again.` : "We are unable to update your key(s) at this time...")
+        } else {
+            statsService.updateApiKey(keyData);
+            setUpdatedKeys([...updatedKeys, keyData.id]);
+        }
+        setIsUpdating(null);
     }
     
     const formatLabel = (label: string, data: any) => {
@@ -186,11 +205,14 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
                             data.map((k: KeyData) => (
                                 <div className="flex items-center w-full max-w-lg" key={k.name}>
                                     <div className="flex-grow text-right mr-3">{k.name}</div>
-                                     <OpButton 
-                                        op={op}
-                                        handleClick={() => handleDeactivateAPIKey(k.id)}
-                                        color={'red'}
-                                    />
+                                    {deactivatedKeys.includes(k.id) ? 
+                                        <div className="text-md mr-20 ml-9 px-2 py-1 text-green-500">Deactivated</div> :
+                                        <OpButton 
+                                            op={op}
+                                            handleClick={() => handleDeactivateAPIKey(k.id, k.name)}
+                                            color={'red'}
+                                        />
+                                    }
                                 </div>
                             ))
                             }
@@ -202,14 +224,22 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
                                     <ExpansionComponent title={`${k.name} Updates`} 
                                             content={[
                                                 (k.account && <div > {formatLabel('account', k.account)} </div> ),
-                                                (k.expiration && <div> {formatLabel("expiration", k.expiration)}</div>), 
-                                                (k.accessTypes && <div>{formatLabel("accessTypes", k.accessTypes)}</div>),
-                                                (k.rateLimit && <div>{formatLabel("rateLimit", k.rateLimit)}</div>),
+                                                (k.expirationDate && <div> {formatLabel("expiration", k.expirationDate)}</div>), 
+                                                (k.accessTypes && <div>{" " + formatLabel("accessTypes", k.accessTypes)}</div>),
+                                                (k.rateLimit && <div>{" " + formatLabel("rateLimit", k.rateLimit)}</div>),
                                             <div className="absolute right-20 top-50" style={{transform: 'translateY(-100%)'}}>
-                                                <OpButton 
-                                                    op={op}
-                                                    handleClick={async() => {await handleUpdateAPIKey(k.id)}}  
-                                                />
+                                                {updatedKeys.includes(k.id) ? 
+                                                    <div className="text-md mr-20 px-6 py-1 text-green-500">Updated</div> :
+                                                    ( isUpdating == k.id ?  
+                                                        <div className="flex flex-row justify-center items-center mr-16"><LoadingIcon/> 
+                                                        <div className="ml-2">{"Updating..."}</div></div>  :
+                                                        <OpButton 
+                                                            op={op}
+                                                            handleClick={async() => {
+                                                                handleUpdateAPIKey(k)
+                                                            }}  
+                                                        /> )
+                                                }
                                             </div>,
                                     ]}
                                     />

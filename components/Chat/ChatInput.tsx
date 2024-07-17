@@ -140,26 +140,23 @@ export const ChatInput = ({
    
 
 const onAssistantChange = (assistant: Assistant) => {
-    homeDispatch({field: 'selectedAssistant', value: assistant});
     setShowAssistantSelect(false);
 
     if (selectedConversation) {
-        const tags = assistant.definition.data?.conversationTags || [];
-        if (tags) {
-            selectedConversation.tags = selectedConversation.tags ?
-                                    [...selectedConversation.tags, ...tags] :
-                                    [...tags];
-        }
-        //remove duplicates if any
-        selectedConversation.tags = Array.from(new Set(selectedConversation.tags));
+        const oldAstTags = selectedAssistant?.definition.data?.conversationTags || [];
+        let updatedTags = selectedConversation.tags?.filter((t: string) => !oldAstTags.includes(t));
 
+        const astTags = assistant ? assistant.definition.data?.conversationTags || [] : [];
+
+        updatedTags = updatedTags ? [...updatedTags, ...astTags] : [...astTags];
+        
+        //remove duplicates if any
+        selectedConversation.tags = Array.from(new Set(updatedTags));
+        
+        homeDispatch({field: 'selectedAssistant', value: assistant ? assistant : DEFAULT_ASSISTANT});
         let assistantPrompt: Prompt | undefined = undefined;
 
-        // if (assistant.definition?.tags.includes('amplify:system')) {
-        //     assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt.id === assistant.id);
-        // } else {  
-        assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
-        // }    
+        if (assistant) assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId); 
         
          //I do not get the impression that promptTemplates are currently used nonetheless the bases are covered in case they ever come into play (as taken into account in handleStartConversationWithPrompt)
         selectedConversation.promptTemplate = assistantPrompt ?? null;
@@ -216,6 +213,12 @@ const onAssistantChange = (assistant: Assistant) => {
     }
 
     const handleSend = () => {
+        console.log(
+            "**", selectedConversation?.model
+        )
+        console.log(
+            "**", selectedConversation
+        )
         setShowDataSourceSelector(false);
 
         if (messageIsStreaming) {

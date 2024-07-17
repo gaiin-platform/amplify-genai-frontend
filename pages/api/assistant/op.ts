@@ -28,7 +28,7 @@ const assistantOp =
             console.log("Calling assistant: ", apiUrl, payload);
 
             const response = await fetch(apiUrl, {
-                method: "POST",
+                method: req.method,
                 body: JSON.stringify({data:payload}),
                 headers: {
                     "Content-Type": "application/json",
