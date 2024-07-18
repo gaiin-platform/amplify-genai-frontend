@@ -30,6 +30,7 @@ import { isRemoteConversation } from "@/utils/app/conversationStorage";
 import { fetchAllApiKeys } from "@/services/apiKeysService";
 import { getAccounts } from "@/services/accountService";
 import { ApiKey } from "@/types/apikeys";
+import { Account } from "@/types/accounts";
 
 export type ChatRequest = {
     message: Message;
@@ -255,13 +256,20 @@ export function useSendService() {
                                 appendMsg += "API KEYS:\n" + JSON.stringify(apiKeys.data);
                                 const delegateKeys = apiKeys.data.filter((k: ApiKey) => k.delegate && (k.delegate !== user?.email));
                                 appendMsg += "\n\n Sharing any details nor GET OP is NOT allowed for the following Delegate keys (unauthorized): " + delegateKeys.map((k:ApiKey) => k.applicationName);
+
+                                const delegatedKeys = apiKeys.filter((k: ApiKey) => k.delegate === user?.email);
+                                appendMsg += "\n\n UPDATE OP is NOT allowed for the following Delegated keys (unauthorized): " + delegatedKeys.map((k:ApiKey) => k.applicationName);
+
+                                 appendMsg += "\n\n Remember to Never show the owner_api_id"
+
                             } else {
                                 appendMsg += "API KEYS: UNAVAILABLE";
                             }
 
                             // accouts
                             const accounts = await getAccounts();
-                            appendMsg += "\n\nACCOUNTS:\n" + JSON.stringify(accounts.data, null) || "UNAVAILABLE";
+                            
+                            appendMsg += "\n\nACCOUNTS:\n" + JSON.stringify(accounts.data.filter((a: Account) => a.id !== 'general_account'), null) || "UNAVAILABLE";
                             // user name 
                             appendMsg += "\n\nCurrent User: " + user?.email;
                             // this will be used to append data to the user message in the back end. 

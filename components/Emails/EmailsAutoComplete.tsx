@@ -100,8 +100,8 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEm
                                 />
                                 {suggestions.length > 0 && (
                                     <div ref={suggestionRef}  
-                                    className="sm:w-full sm:max-w-[440px] fixed z-50 border border-neutral-300 rounded overflow-y-auto bg-white dark:border-neutral-600 bg-neutral-100 dark:bg-[#202123]"
-                                    style={{ height: `${calculateHeight(suggestions.length)}px` }}>
+                                    className="sm:w-full sm:max-w-[440px] z-50 border border-neutral-300 rounded overflow-y-auto bg-white dark:border-neutral-600 bg-neutral-100 dark:bg-[#202123]"
+                                    style={{ height: `${calculateHeight(suggestions.length)}px` , top: '100%' }}>
                                         <ul className="suggestions-list">
                                         {suggestions.map((suggestion, index) => (
                                             <li key={index} onClick={() => handleSuggestionClick(suggestion)}

@@ -34,6 +34,8 @@ export const AccountDialog: FC<Props> = ({ open, onClose }) => {
  // fetch data
 useEffect(() => {
     const fetchAccounts = async () => {
+        setIsLoading(false);
+        return
         const result = await getAccounts();
         if (!result.success) {
             alert("Unable to fetch accounts. Please try again.");
@@ -64,6 +66,7 @@ useEffect(() => {
 }, [open]);
 
     const fetchApiKeys = async () => {
+        return
         const result = await fetchAllApiKeys();
 
         if (!result.success) {

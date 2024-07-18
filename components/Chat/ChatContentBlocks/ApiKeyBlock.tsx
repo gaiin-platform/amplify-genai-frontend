@@ -144,7 +144,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
 
     useEffect(() => {
         const verifyRequiredKeys = () => {
-            const requiredKeys = ['delegate', 'account', 'appName', 'appDescription', 'rateLimit', 'accessTypes', 'systemUse', 'expiration'];
+            const requiredKeys = ['delegate', 'account', 'appName', 'appDescription', 'rateLimit', 'accessTypes', 'systemUse', 'expirationDate'];
             if (!data) return {isComplete: false, missingKeys: requiredKeys};
             
             // Check if all required keys are present in the data object
@@ -172,7 +172,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
         <div style={{maxHeight: "450px"}}>
             {loadingMessage ? (
                 <div className="flex flex-row justify-center items-center"><LoadingIcon/> <div className="ml-2">{loadingMessage}</div></div>
-            ) : ( !data ? ("We are making progres on your request...") : (
+            ) : ( !data ? ("We are making progress on your request...") : (
                 <>
                     <div className="flex flex-col w-full mb-4 overflow-x-hidden gap-0.5">
                         <div className="flex flex-row items-center justify-center">
