@@ -1,10 +1,10 @@
-import {useContext, useEffect, useRef, useState} from "react";
+import {useContext, useEffect, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
-import {IconKey, IconRobot, IconUser} from "@tabler/icons-react";
+import {IconKey, IconUser} from "@tabler/icons-react";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import { useSession } from "next-auth/react"
-import { ApiKey, ApiRateLimit } from "@/types/apikeys";
+import { ApiRateLimit } from "@/types/apikeys";
 import { formatAccessTypes, formatLimits, HiddenAPIKey } from "@/components/Settings/AccountComponents/ApiKeys";
 import ExpansionComponent from "../ExpansionComponent";
 import { Account } from "@/types/accounts";
@@ -191,7 +191,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
                          <div className="flex flex-col gap-4 items-center">
                             {op === 'GET' && 
                             data.map((k:KeyData) => (
-                                <div className="flex justify-center items-center w-full max-w-lg" key={k.name}>
+                                <div className="flex justify-center items-center w-full max-w-lg" key={k.id}>
                                     <div className="flex-grow text-right mr-2">{k.name}</div>
                                     <HiddenAPIKey id={k.id} width="380px" />
                                 </div>
@@ -202,8 +202,8 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
                          
                         <div className="flex flex-col gap-4">
                             {op === 'DEACTIVATE' && 
-                            data.map((k: KeyData) => (
-                                <div className="flex items-center w-full max-w-lg" key={k.name}>
+                            data.map((k: KeyData, index:number) => (
+                                <div className="flex items-center w-full max-w-lg" key={index}>
                                     <div className="flex-grow text-right mr-3">{k.name}</div>
                                     {deactivatedKeys.includes(k.id) ? 
                                         <div className="text-md mr-20 ml-9 px-2 py-1 text-green-500">Deactivated</div> :
@@ -220,14 +220,14 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
 
                         {op === 'UPDATE' && 
                             data.map((k: KeyUpdate) => (
-                                <div className="ml-12 mb-4 w-full max-w-lg" key={k.name}>
+                                <div className="ml-12 mb-4 w-full max-w-lg" key={k.id}>
                                     <ExpansionComponent title={`${k.name} Updates`} 
                                             content={[
                                                 (k.account && <div > {formatLabel('account', k.account)} </div> ),
                                                 (k.expirationDate && <div> {formatLabel("expiration", k.expirationDate)}</div>), 
                                                 (k.accessTypes && <div>{" " + formatLabel("accessTypes", k.accessTypes)}</div>),
                                                 (k.rateLimit && <div>{" " + formatLabel("rateLimit", k.rateLimit)}</div>),
-                                            <div className="absolute right-20 top-50" style={{transform: 'translateY(-100%)'}}>
+                                            <div className="absolute right-20 top-50" style={{transform: 'translateY(-100%)'}} key={k.id}>
                                                 {updatedKeys.includes(k.id) ? 
                                                     <div className="text-md mr-20 px-6 py-1 text-green-500">Updated</div> :
                                                     ( isUpdating == k.id ?  
@@ -251,8 +251,8 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
                             <>
                                 <div className="my-4 ml-20 flex justify-center">
                                     <div className="ml-10 w-full max-w-lg">
-                                        {Object.keys(data).map((k) => (
-                                        <div className='flex-grow text-left' key={k}>
+                                        {Object.keys(data).map((k, index) => (
+                                        <div className='flex-grow text-left' key={index}>
                                             {formatLabel(k, data[k])}
                                         </div>
                                         ))}

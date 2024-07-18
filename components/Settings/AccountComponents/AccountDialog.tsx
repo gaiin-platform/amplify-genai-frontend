@@ -34,27 +34,7 @@ export const AccountDialog: FC<Props> = ({ open, onClose }) => {
  // fetch data
 useEffect(() => {
     const fetchAccounts = async () => {
-        // const result = await getAccounts();
-        // console.log(result.data);
-        const result = { success: true,
-            data: [
-            {
-              name: "No COA On File",
-              isDefault: true,
-              id: "general_account",
-            },
-            {
-              name: "test",
-              isDefault: false,
-              id: "KarelyTEST",
-            },
-            {
-              name: "mockCOA",
-              isDefault: false,
-              id: "125.05.12510.6105.000.000.000.RES.0",
-            },
-          ] as Account[]}
-
+        const result = await getAccounts();
         if (!result.success) {
             alert("Unable to fetch accounts. Please try again.");
             setIsLoading(false);
@@ -132,6 +112,15 @@ useEffect(() => {
     }
 
     return (
+        isLoading ?(
+            <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-25 z-60">
+                    <div className="p-6 flex flex-row items-center  border border-gray-500 dark:bg-[#202123]">
+                    <Loader size="48" />
+                    <div className="text-xl">{loadingMessage}</div>
+                    </div>
+                </div>
+
+        ) :
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 ">
             <div className="fixed inset-0 z-10 overflow-hidden">
                 <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -144,12 +133,6 @@ useEffect(() => {
                         style={{width: `${window.innerWidth - 560}px`, height: `${window.innerHeight * 0.9}px`}}
                         role="dialog">
 
-                        {isLoading && (
-                            <div className="flex flex-col items-center">
-                                <Loader size="48" />
-                                <div className="text-xl">{loadingMessage}</div>
-                            </div>
-                        )}
 
                         {!isLoading && (
 

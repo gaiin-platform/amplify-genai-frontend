@@ -260,24 +260,7 @@ export function useSendService() {
                             }
 
                             // accouts
-                            const accounts = { data: [
-                                {
-                                  name: "No COA On File",
-                                  isDefault: true,
-                                  id: "general_account",
-                                },
-                                {
-                                  name: "test",
-                                  isDefault: false,
-                                  id: "KarelyTEST",
-                                },
-                                {
-                                  name: "mockCOA",
-                                  isDefault: false,
-                                  id: "125.05.12510.6105.000.000.000.RES.0",
-                                },
-                              ]}
-                            //await getAccounts();
+                            const accounts = await getAccounts();
                             appendMsg += "\n\nACCOUNTS:\n" + JSON.stringify(accounts.data, null) || "UNAVAILABLE";
                             // user name 
                             appendMsg += "\n\nCurrent User: " + user?.email;

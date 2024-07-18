@@ -7,7 +7,7 @@ import {
 interface Props {
     fileName?: string;
     presigned_url: string;
-    children?: ReactElement;
+    children: ReactElement;
     textSize?: string;
 }
 
@@ -30,7 +30,7 @@ export const DownloadFileButton: React.FC<Props> = ({fileName="", presigned_url,
                     title={`Download ${fileName}`}
                     aria-label={`Download ${fileName}`}
                     style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
-                    {children ? (children) : <IconDownload size={24} />}
+                    {children}
                 </button>
             </div>
         );

@@ -169,9 +169,11 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
             setFileContent (
             <div className='mb-6'>
                 <DownloadFileButton
-                fileName={fileName}
-                presigned_url={presigned_url}
-                />
+                  fileName={fileName}
+                  presigned_url={presigned_url}>
+                  <IconDownload size={24}/>
+                </DownloadFileButton>
+                
                 { !csvPreview ? <div>Loading...</div> : csvPreview.length > 0 
                             ? <div >{renderCsvTable()} {csvOverflow && <>{'Download to see full content'}</>} </div> 
                             : <div>Unfortunately, we are unable to display the file contents at this time...</div>}
@@ -184,8 +186,9 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                 <div className='mb-6'>
                     <DownloadFileButton
                     fileName={fileName}
-                    presigned_url={presigned_url}
-                    />
+                    presigned_url={presigned_url}>
+                      <IconDownload size={24}/>
+                    </DownloadFileButton>
                     {pdfError ? ( <div>Unfortunately, we are unable to display the PDF at this time...</div>) 
                               : pdfUrl && pdfUrl !== "" ? 
                                         (<iframe
@@ -204,9 +207,10 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
             setFileContent(
             <div>
                 <DownloadFileButton
-                fileName={fileName}
-                presigned_url={presigned_url}
-                />
+                  fileName={fileName}
+                  presigned_url={presigned_url}>
+                    <IconDownload size={24}/>
+                </DownloadFileButton>
                 Please download to view the file contents
             </div>
             );
@@ -228,8 +232,9 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                 <div>
                 <DownloadFileButton
                 fileName={fileName}
-                presigned_url={presigned_url}
-                />
+                presigned_url={presigned_url}>
+                  <IconDownload size={24}/>
+                </DownloadFileButton>
                 <img 
                     src={presigned_url} 
                     alt={fileName} 

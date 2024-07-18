@@ -112,14 +112,12 @@ export const APIDownloadFile: React.FC<DownloadProps> = ({ label, presigned_url,
     return (
     <div className="flex justify-start mt-2">
         <DownloadFileButton
-            presigned_url={presigned_url}
-            children={
+            presigned_url={presigned_url}>
             <div className="flex flex-row gap-2 p-1 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"> 
                 <IconDownload size={IconSize} />
                 {label}
-            </div> 
-            }
-        />
+            </div>  
+        </DownloadFileButton>
     </div>    
     )
 }

@@ -271,7 +271,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
                         
                     </span>
                 </div>
-                <div className='z-100'> 
+                <div className='z-60'> 
                    <APITools setDocsIsOpen={setDocsIsOpen} onClose={onClose}/> 
                 </div>
                 
@@ -1056,7 +1056,7 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
                 </div>
 
             {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-25 z-100">
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-25 z-60">
                     <div className="p-3 flex flex-row items-center  border border-gray-500 dark:bg-[#202123]">
                         <LoadingIcon style={{ width: "24px", height: "24px" }}/>
                         <span className="text-lg font-bold ml-2 text-white">Loading API Documentation...</span>
@@ -1067,11 +1067,11 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
 
 
             {showApiDoc && !isLoading &&  (
-                <div className="absolute inset-0 flex items-center justify-start z-100">
+                <div className="absolute inset-0 flex items-center justify-start z-60">
                     <div className="p-3 flex flex-col items-center  border border-gray-500 dark:bg-[#202123]"
                         style={{width: `${window.innerWidth}px`, height: `${window.innerHeight * 0.9}px`}}>
                             
-                            <div className="mb-auto w-full flex flex-row gap-1 bg-neutral-100 dark:bg-[#202123] rounded-t border-b dark:border-white/20 z-100">
+                            <div className="mb-auto w-full flex flex-row gap-1 bg-neutral-100 dark:bg-[#202123] rounded-t border-b dark:border-white/20 z-60">
                                     {docUrl && (
                                         <button
                                             key={"Doc"}
