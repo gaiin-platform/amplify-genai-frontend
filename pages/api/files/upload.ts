@@ -41,8 +41,8 @@ const getPresignedUrl =
                 key: data.key });
 
         } catch (error) {
-            console.error("Error calling share: ", error);
-            res.status(500).json({ error: "Could share the item(s)" });
+            console.error("Error calling files upload: ", error);
+            res.status(500).json({ error: "Could not upload the item(s)" });
         }
     };
 
