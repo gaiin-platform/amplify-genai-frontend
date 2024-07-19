@@ -150,8 +150,13 @@ export function getApiCalls(message:Message, action:string):ApiCall[] {
 
                     // Check if refId or refType or refObject is undefined
                     if(refId !== undefined || refType !== undefined || refObject !== undefined) {
-                        args = args.replaceAll("\""+refType + refId+"\"", JSON.stringify(JSON.stringify(refObject)));
-                        args = args.replaceAll(refType + refId, JSON.stringify(JSON.stringify(refObject)));
+                        const jsonValueStr = JSON.stringify(JSON.stringify(refObject));
+                        args = args.replaceAll("\""+refType + refId+"\"", jsonValueStr);
+                        args = args.replaceAll(refType + refId, jsonValueStr);
+
+                        const linesEscaped = jsonValueStr.split("\n").join("\\n");
+                        args = args.replaceAll("\"\\"+refType + refId+"\"", linesEscaped);
+                        args = args.replaceAll("\\"+refType + refId, linesEscaped);
                     }
                 });
 
