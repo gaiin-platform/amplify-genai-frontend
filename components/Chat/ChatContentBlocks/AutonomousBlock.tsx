@@ -427,10 +427,34 @@ const AutonomousBlock: React.FC<Props> = (
                     }
                 }
 
-                results.push({op:code, ...result});
+                results.push({op:code, ...result} as any);
             }
 
-            if(!shouldStopConversation()){
+            // If the result returns a pause, we should stop sending messages to the assistant
+            const pauseMessage = results.find((r:any) => r.data.pause);
+            if(pauseMessage){
+
+                homeDispatch({field: 'loading', value: false});
+                homeDispatch({field: 'messageIsStreaming', value: false});
+
+                if(pauseMessage.data.pause.message) {
+                    // check if pauseMessage.pause.message is a string
+                    if (typeof pauseMessage.data.pause.message === "string") {
+                        // Add the message to the conversation
+                        handleAddMessages(selectedConversation, [newMessage({
+                            role: "assistant",
+                            content: pauseMessage.data.pause.message
+                        })]);
+                    } else {
+                        // Add the message to the conversation
+                        handleAddMessages(selectedConversation, [pauseMessage.data.pause.message]);
+                    }
+                }
+                else {
+                    alert("Pause message is missing from the result of the operation.");
+                }
+            }
+            else if(!shouldStopConversation()){
 
                 const sourcesList = deepMerge({}, ...results.map((r:any) => r.sources).filter((s) => s));
                 console.log("Sources list:", sourcesList);

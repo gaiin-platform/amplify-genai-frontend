@@ -71,6 +71,7 @@ type ChatRequest = {
     options?: { [key: string]: any };
     assistantId?: string;
     prompt?: Prompt;
+    conversationId?: string;
 };
 
 export const Chat = memo(({stopConversationRef}: Props) => {
@@ -234,6 +235,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 uri?: string | null,
                 options?: { [key: string]: any }
             ): ChatRequest => {
+
+                const conversationId = selectedConversation?.id;
+
                 return {
                     message,
                     deleteCount,
@@ -243,6 +247,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     documents,
                     uri,
                     options,
+                    conversationId,
                 };
         };
 

@@ -40,6 +40,7 @@ export type ChatRequest = {
     options?: { [key: string]: any };
     assistantId?: string;
     prompt?: Prompt;
+    conversationId?: string;
 };
 
 export function useSendService() {
@@ -129,6 +130,7 @@ export function useSendService() {
                         documents,
                         uri,
                         options,
+                        conversationId
                     } = request;
 
                     // console.log("Sending msg:", message)
@@ -206,7 +208,8 @@ export function useSendService() {
                         messages: updatedConversation.messages,
                         prompt: rootPrompt || updatedConversation.prompt || "",
                         temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
-                        maxTokens: updatedConversation.maxTokens || 1000
+                        maxTokens: updatedConversation.maxTokens || 1000,
+                        conversationId
                     };
 
                     if (uri) {
