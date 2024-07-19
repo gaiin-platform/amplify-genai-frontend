@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
+import HomeContext from "@/pages/api/home/home.context";
 import ExpansionComponent from "../ExpansionComponent";
 import { fetchApiDoc } from "@/services/apiKeysService";
 import SidebarActionButton from "@/components/Buttons/SidebarActionButton";
@@ -29,7 +30,7 @@ export async function fetchFile(presignedUrl: string) {
 
 
 export const ApiDocBlock: React.FC<Props> = ({content}) => {
-
+    const {state:{statsService, messageIsStreaming},  dispatch:homeDispatch} = useContext(HomeContext);
     const [docFileContents, setDocxFileContents] = useState<any>(null);
     const [csvUrl, setCsvUrl] = useState<string | undefined>(undefined);
     const [postmanUrl, setPostmanUrl] = useState<string | undefined>(undefined);
@@ -46,11 +47,11 @@ export const ApiDocBlock: React.FC<Props> = ({content}) => {
                 setPostmanUrl(result.postman_url);
             }
         }
-        if (!docFileContents) getUrls();
+        if (!docFileContents && !messageIsStreaming) getUrls();
     }, [content]);
 
-       useEffect(() => {
-        setIsLoading(false);
+    useEffect(() => {
+        if (!messageIsStreaming) setIsLoading(false);
     }, [postmanUrl, csvUrl, docFileContents]);
 
 

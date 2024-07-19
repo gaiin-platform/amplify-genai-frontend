@@ -83,6 +83,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
 
     const { t } = useTranslation('settings');
 
+    const [keysLoading, setKeysLoaded] = useState(true);
+
     const [ownerApiKeys, setOwnerApiKeys] = useState<ApiKey[]>([]);
     const [delegateApiKeys, setDelegateApiKeys] = useState<ApiKey[]>([]);
     const [isCreating, setIsCreating] = useState<boolean>(false);
@@ -163,6 +165,10 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
         setOwnerApiKeys(apiKeys.filter((k: ApiKey) => k.owner === user?.email));
     }, [apiKeys]);
 
+    useEffect(() => {
+        setKeysLoaded(false);
+    }, [ownerApiKeys]);
+
 
     const handleCreateApiKey = async () => {
         setIsCreating(true);
@@ -174,7 +180,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
             'appName' : appName,
             'appDescription' : appDescription,
             'rateLimit' : {'period' : rateLimitType, 'rate': ( rateLimitType === 'Unlimited' ? null : parseFloat(costAmount.replace('$', '')))},
-            'expiration' : includeExpiration ? selectedDate : null,
+            'expirationDate' : includeExpiration ? selectedDate : null,
             'accessTypes': fullAccess ? ["full_access"] :  Object.keys(options).filter((key) => options[key]),
             'systemUse' : systemUse && delegateInput.length === 0
         }
@@ -245,7 +251,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
             <div className="text-l text-black dark:text-neutral-200">
                API keys are used to authenticate and authorize access to specific Amplify services. You can create API keys for yourself and others.  
                <br className='mb-1'></br>
-               The following fields are editable for your active API keys: Account, Expiration Rate Limit, and Access Types.
+               The following fields are editable for your active API keys: Account, Expiration, Rate Limit, and Access Types.
                <br className='mb-1'></br>
                You can deactive any active API key by hovering the green check mark.
 
@@ -277,7 +283,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
                     </span>
                 </div>
                 <div className='z-60'> 
-                   <APITools setDocsIsOpen={setDocsIsOpen} onClose={onClose}/> 
+                   <APITools isLoading={keysLoading} setIsLoading={setKeysLoaded} setDocsIsOpen={setDocsIsOpen} onClose={onClose}/> 
                 </div>
                 
 
@@ -481,7 +487,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
                                                            : <IconX className='text-red-600' size={18} />}
                                         </div>
                                     </td>
-                                    <td>{<Label label={apiKey.account ? `${apiKey.account.name + " - "} ${apiKey.account.id}` : ''} widthPx='180px' editableField={apiKey.active ? 'account' : undefined} apiKey={apiKey} accounts={accounts.filter((a: Account) => a.id !== noCoaAccount.id)}/>}</td>
+                                    <td>{<Label label={apiKey.account ? `${apiKey.account.name + " - "} ${apiKey.account.id}` : ''} widthPx='180px' editableField={apiKey.active && (user?.email !== apiKey.delegate)? 'account' : undefined} apiKey={apiKey} accounts={accounts.filter((a: Account) => a.id !== noCoaAccount.id)}/>}</td>
                                     <td>{apiKey.delegate ? <Label label={apiKey.delegate} /> :  <NALabel />}</td>
                                     <td>{ apiKey.expirationDate ?  <Label label={formatDateYMDToMDY(apiKey.expirationDate)} 
                                                                           textColor={isExpired(apiKey.expirationDate) ? "text-red-600": undefined} 
@@ -555,7 +561,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
 
             <br className='mb-20'></br>
 
-            <div className="flex-shrink-0 flex flex-row fixed bottom-0 left-0 w-full px-4 py-2 mb-2"> 
+            { !docsIsOpen && <div className="flex-shrink-0 flex flex-row fixed bottom-0 left-0 w-full px-4 py-2 mb-2"> 
                 <button
                     type="button"
                     className="mr-2 w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
@@ -570,7 +576,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
                 >
                     {t('Save Edits')}
                 </button>
-            </div>
+            </div>}
            
 
         </div>
@@ -921,12 +927,14 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
 
 
 interface ToolsProps {
+    isLoading: boolean;
+    setIsLoading: (e: boolean) => void;
     setDocsIsOpen: (e: boolean) => void;
     onClose: () => void;
 }
 
 
-const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
+const APITools: FC<ToolsProps> = ({isLoading, setIsLoading, setDocsIsOpen, onClose}) => {
     const { state: {prompts, statsService}, dispatch: homeDispatch, handleNewConversation} = useContext(HomeContext);
 
     const promptsRef = useRef(prompts);
@@ -934,8 +942,6 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
     useEffect(() => {
         promptsRef.current = prompts;
       }, [prompts]);
-
-    const [isLoading, setIsLoading] = useState(false);
 
     const [activeTab, setActiveTab] = useState<string | null>(null);
     const [showApiDoc, setShowApiDoc] = useState(false);
@@ -1065,10 +1071,11 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
                 </div>
 
             {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-25 z-60">
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-25 z-60"
+                    style={{ transform: `translateY(-25%)` }}>
                     <div className="p-3 flex flex-row items-center  border border-gray-500 dark:bg-[#202123]">
                         <LoadingIcon style={{ width: "24px", height: "24px" }}/>
-                        <span className="text-lg font-bold ml-2 text-white">Loading API Documentation...</span>
+                        <span className="text-lg font-bold ml-2 text-white">Loading API Resources...</span>
                     </div>
                 </div>
             )

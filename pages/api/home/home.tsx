@@ -632,7 +632,7 @@ const Home = ({
 
         const { single, all } = updateConversation(
             updatedConversation,
-            conversationsRef.current, 
+            conversations, 
         );
 
         if ((selectedConversation && selectedConversation.id) === updatedConversation.id) {
