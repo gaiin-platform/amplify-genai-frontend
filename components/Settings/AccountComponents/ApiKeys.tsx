@@ -548,6 +548,9 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
                 </div>
             </div>
 
+            <br className='mb-16'></br>
+
+
             <div className="flex-shrink-0 flex flex-row fixed bottom-0 left-0 w-full px-4 py-2 mb-2"> 
                 <button
                     type="button"
