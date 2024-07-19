@@ -34,7 +34,7 @@ export const newMessage = (data: any) => {
   }
 }
 
-export type Role = 'assistant' | 'user';
+export type Role = 'assistant' | 'user' | 'system';
 
 export type CustomFunction = {
   name: string;

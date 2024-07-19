@@ -370,7 +370,11 @@ const AutonomousBlock: React.FC<Props> = (
                 }
             )
 
-            const apiCalls = getApiCalls(message, action);
+            const context = {
+                conversation,
+            }
+
+            const apiCalls = getApiCalls(context, message, action);
 
             const results = [];
             let title = "API Result";
@@ -431,7 +435,7 @@ const AutonomousBlock: React.FC<Props> = (
             }
 
             // If the result returns a pause, we should stop sending messages to the assistant
-            const pauseMessage = results.find((r:any) => r.data.pause);
+            const pauseMessage = results.find((r:any) => r.data && r.data.pause);
             if(pauseMessage){
 
                 homeDispatch({field: 'loading', value: false});

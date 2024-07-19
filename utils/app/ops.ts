@@ -127,7 +127,7 @@ export const resolveOpDef = (message:Message, id:string) => {
     return opDef;
 }
 
-export function getApiCalls(message:Message, action:string):ApiCall[] {
+export function getApiCalls(context:{[key:string]:any}, message:Message, action:string):ApiCall[] {
     const opConfig = getServerProvidedOpFormat(message);
     const apiCalls: ApiCall[] = [];
 
@@ -142,6 +142,27 @@ export function getApiCalls(message:Message, action:string):ApiCall[] {
                 let args = match[opFormat.opArgsGroup];
 
                 const refs = getServerProvidedReferences(message) || [];
+
+                const messageIdMapping = message.data &&
+                                         message.data.state &&
+                                         message.data.state.messageIdMapping ?
+                    message.data.state.messageIdMapping : null;
+
+                if(context.conversation && messageIdMapping) {
+
+                    Object.keys(messageIdMapping).forEach((shortMsgId:string) => {
+
+                        const refMessageId = messageIdMapping[shortMsgId];
+                        const refMessage = context.conversation.messages.find((m:Message) => m.id === refMessageId);
+
+                        if(refMessage) {
+                            const messageText = refMessage.content;
+                            const escaped = JSON.stringify(messageText);
+                            const trimmed = escaped.substring(1, escaped.length - 1);
+                            args = args.replaceAll(`%^${shortMsgId}`, trimmed);
+                        }
+                    })
+                }
 
                 refs.forEach(ref => {
                     const refId = ref.id;
@@ -158,11 +179,15 @@ export function getApiCalls(message:Message, action:string):ApiCall[] {
                         args = args.replaceAll("\"\\"+refType + refId+"\"", linesEscaped);
                         args = args.replaceAll("\\"+refType + refId, linesEscaped);
                     }
+
                 });
+
 
                 let params = [];
                 try {
+                    console.log("Raw params:", args)
                     params = JSON5.parse("[" + args + "]");
+                    console.log("Resolved params:", params);
                 } catch (e) {
                     console.error("Error parsing args:", e);
                     params = args.split(",");
