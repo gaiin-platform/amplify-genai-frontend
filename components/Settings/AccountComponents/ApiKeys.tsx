@@ -295,8 +295,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
 
                             <div className='flex flex-col  gap-2 w-full '>
 
-                                   <div className='flex flex-row gap-20'>
-                                        <div className='flex flex-col pb-1 w-[340px] '>
+                                   <div className='flex flex-row justify-between'>
+                                        <div className='flex flex-col pb-1 sm:min-w-[340px]' style={{width: `${window.innerWidth * 0.35 }px` }}>
                                             <div className="text-sm text-black dark:text-neutral-200">
                                                 {t('Application Name')}
                                             </div>
@@ -311,23 +311,23 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
                                             />
                                         </div>
 
-                                        <div className='mr-8' style={{width: '300px'}}>
+                                        <div className='ml-8 mr-8 relative sm:min-w-[300px] sm:max-w-[440px]' style={{width: `${window.innerWidth * 0.35 }px` }}>
 
-                                        <ExpansionComponent 
-                                            title={'Add Delegate'} 
-                                            content={ 
-                                                <div>
-                                                    <EmailsAutoComplete
-                                                        input = {delegateInput}
-                                                        setInput =  {setDelegateInput}
-                                                        allEmails = {allEmails}
-                                                        addMultipleUsers={false}
+                                            <ExpansionComponent 
+                                                title={'Add Delegate'} 
+                                                content={ 
+                                                    <div >
+                                                        <EmailsAutoComplete
+                                                            input = {delegateInput}
+                                                            setInput =  {setDelegateInput}
+                                                            allEmails = {allEmails}
+                                                            addMultipleUsers={false}
 
-                                                    />
-                                                </div>
-                                            }
-                                            closedWidget= { <IconPlus size={18} />}
-                                        />
+                                                        />
+                                                    </div>
+                                                }
+                                                closedWidget= { <IconPlus size={18} />}
+                                            />
                                       </div>
                                    </div>
 
@@ -381,12 +381,14 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
                                         />}
                                 </div>
 
-                                {delegateInput.length == 0 && (
-                                    <div className='mt-1 mr-4' title='If the API key is not for personal use'>
-                                        <input className="mr-2 mt-1.5" type="checkbox" checked={systemUse} onChange={(e) => setSystemUse(e.target.checked)} />
-                                        <label className="m-1 pt-0.5 text-sm" htmlFor="expiration">For System Use</label>
-                                    </div>)
-                                }
+                                
+                                <div className='mt-1 mr-6 w-[140px]' title='If the API key is not for personal use' >
+                                   {delegateInput.length === 0 ?
+                                    <> <input className="mr-2 mt-1.5" type="checkbox" checked={systemUse} onChange={(e) => setSystemUse(e.target.checked)} />
+                                       <label className="m-1 pt-0.5 text-sm" htmlFor="expiration">For System Use</label></>
+                                    : <></>}
+                                </div>
+                                
                                 
                             </div>
                             <div className='flex flex-row py-1 '>

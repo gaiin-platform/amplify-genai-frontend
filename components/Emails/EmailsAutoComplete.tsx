@@ -9,13 +9,15 @@ interface EmailModalProps {
     allEmails: string[] | null;
     alreadyAddedEmails?: string[];
     addMultipleUsers?: boolean;
+    top?: string
 }
 
 
-export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEmails, alreadyAddedEmails=[], addMultipleUsers=true}) => {
+export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEmails, alreadyAddedEmails=[], addMultipleUsers=true, top='50%'}) => {
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const suggestionRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -68,6 +70,20 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEm
         setSuggestions(suggestions);  
     }
 
+    useEffect(() => {
+        const calculatePosition = () => {
+            if (inputRef.current) {
+                const rect = inputRef.current.getBoundingClientRect();
+                setPosition({ top: rect.bottom, left: rect.left, width: rect.width });
+            }
+        };
+
+        calculatePosition();
+        window.addEventListener('resize', calculatePosition);
+        return () => window.removeEventListener('resize', calculatePosition);
+    }, [inputRef]);
+
+
     const calculateHeight = (rows: number) => rows <= 2 ? rows * 30 : 60;
 
 
@@ -100,8 +116,8 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEm
                                 />
                                 {suggestions.length > 0 && (
                                     <div ref={suggestionRef}  
-                                    className="sm:w-full sm:max-w-[440px] z-50 border border-neutral-300 rounded overflow-y-auto bg-white dark:border-neutral-600 bg-neutral-100 dark:bg-[#202123]"
-                                    style={{ height: `${calculateHeight(suggestions.length)}px` , top: '100%' }}>
+                                    className="sm:w-full sm:max-w-[440px] absolute z-50 border border-neutral-300 rounded overflow-y-auto bg-white dark:border-neutral-600 bg-neutral-100 dark:bg-[#202123]"
+                                    style={{ height: `${calculateHeight(suggestions.length)}px`}}>
                                         <ul className="suggestions-list">
                                         {suggestions.map((suggestion, index) => (
                                             <li key={index} onClick={() => handleSuggestionClick(suggestion)}

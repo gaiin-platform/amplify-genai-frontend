@@ -142,14 +142,12 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                     Your Accounts
                 </div>
 
-                {accounts.length === 0 && (
-                    <div className="text-center mb-2 text-md italic text-black dark:text-neutral-200">
+                {accounts.length === 0 ? (
+                    <div className="text-center mb-10 text-md italic text-black dark:text-neutral-200">
                         You do not have any accounts set up. Add one above.
                     </div>
-                )}
-
-                {/* Accounts List */}
-                <table className='mt-[-1px] w-full text-md text-black dark:text-neutral-200'>
+                ) : 
+                (<table className='mt-[-1px] w-full text-md text-black dark:text-neutral-200'>
                                     <thead>
                                         <tr className="bg-gray-200 dark:bg-[#333]">
                                         { ["Name", "Account"]
@@ -180,8 +178,8 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                                         </tr>
                                     ))}
                                 </tbody>
-                            </table>
-                
+                            </table>)
+                    }
                 
                 <div className="mb-2 text-lg text-black dark:text-neutral-200 border-b-2">
                     Default Account
@@ -225,9 +223,11 @@ interface SelectProps {
 }
 
 export const AccountSelect: FC<SelectProps> = ({accounts, defaultAccount, setDefaultAccount, showId=true}) => {
+    const cn = "mb-2 w-full rounded-lg border border-neutral-500 px-4 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100";
     return (
-        <select
-            className="mb-2 w-full rounded-lg border border-neutral-500 px-4 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+        <> 
+        {accounts.length > 0 ? 
+        <select className={cn}
             value={defaultAccount.name}
             onChange={(event) => {
                 const selectedAccount = accounts.find(acc => acc.name === event.target.value);
@@ -235,12 +235,18 @@ export const AccountSelect: FC<SelectProps> = ({accounts, defaultAccount, setDef
                     setDefaultAccount(selectedAccount);
                 }
             }}
-        >
+        > 
             {accounts.map((account) => (
                 <option key={account.name} value={account.name}>
                     {`${account.name}${showId ? ` - ${account.id}`:""}`}
                 </option>
             ))}
         </select>
+
+        :
+            <div className={cn}>YOU HAVE NO VALID ACCOUNTS TO LIST</div>
+        }
+        
+        </>
     );
 }

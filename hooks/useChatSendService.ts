@@ -254,22 +254,30 @@ export function useSendService() {
                             
                             if (apiKeys.success) {
                                 appendMsg += "API KEYS:\n" + JSON.stringify(apiKeys.data);
-                                const delegateKeys = apiKeys.data.filter((k: ApiKey) => k.delegate && (k.delegate !== user?.email));
-                                appendMsg += "\n\n Sharing any details nor GET OP is NOT allowed for the following Delegate keys (unauthorized): " + delegateKeys.map((k:ApiKey) => k.applicationName);
+                                const { delegateKeys, delegatedKeys } = apiKeys.data.reduce((accumulator:any, k: ApiKey) => {
+                                    const curUser:string = user?.email || "";
+                                    if (k.delegate) {
+                                      if (k.delegate !== curUser) {
+                                        accumulator.delegateKeys.push(k);
+                                      } else if (k.delegate === curUser && k.owner !== curUser) {
+                                        accumulator.delegatedKeys.push(k);
+                                      }
+                                    }
+                                    return accumulator;
+                                  }, { delegateKeys: [], delegatedKeys: [] });
+                                if (delegateKeys.length > 0) appendMsg += "\n\n Sharing any details nor GET OP is NOT allowed for the following Delegate keys (unauthorized): " + delegateKeys.map((k:ApiKey) => k.applicationName);
+                                if (delegatedKeys.length > 0) appendMsg += "\n\n UPDATE OP is NOT allowed for the following Delegated keys (unauthorized): " + delegatedKeys.map((k:ApiKey) => k.applicationName);
 
-                                const delegatedKeys = apiKeys.filter((k: ApiKey) => k.delegate === user?.email);
-                                appendMsg += "\n\n UPDATE OP is NOT allowed for the following Delegated keys (unauthorized): " + delegatedKeys.map((k:ApiKey) => k.applicationName);
-
-                                 appendMsg += "\n\n Remember to Never show the owner_api_id"
+                                 appendMsg += "\n\n Do not write any key's owner_api_id"
 
                             } else {
                                 appendMsg += "API KEYS: UNAVAILABLE";
                             }
 
-                            // accouts
+                            // accounts
                             const accounts = await getAccounts();
-                            
                             appendMsg += "\n\nACCOUNTS:\n" + JSON.stringify(accounts.data.filter((a: Account) => a.id !== 'general_account'), null) || "UNAVAILABLE";
+                            
                             // user name 
                             appendMsg += "\n\nCurrent User: " + user?.email;
                             // this will be used to append data to the user message in the back end. 
