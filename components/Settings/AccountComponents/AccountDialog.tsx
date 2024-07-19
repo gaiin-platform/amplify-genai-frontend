@@ -38,7 +38,7 @@ useEffect(() => {
         if (!result.success) {
             alert("Unable to fetch accounts. Please try again.");
             setIsLoading(false);
-            onClose();
+            // onClose();
         } else {
             // Add "No COA" account to the list if not present
             if (!result.data.some((account: any) => account.id === noCoaAccount.id)) {
