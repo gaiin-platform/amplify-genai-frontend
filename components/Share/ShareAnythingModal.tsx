@@ -8,7 +8,7 @@ import {shareItems} from "@/services/shareService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {useSession} from "next-auth/react";
-import { EmailsAutocompleteList } from "../Chat/EmailsAutocompleteList";
+import { EmailsList } from "../Emails/EmailsList";
 
 export interface SharingModalProps {
     open: boolean;
@@ -305,7 +305,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
                                 <div className="overflow-y-auto" style={{maxHeight: "calc(100vh - 200px)"}}>
 
-                                    <EmailsAutocompleteList label={"People"}
+                                    <EmailsList label={"People"}
                                               addMessage={"Email addresses of people to share with:"}
                                               emails={selectedPeople}
                                               setEmails={setSelectedPeople}/>

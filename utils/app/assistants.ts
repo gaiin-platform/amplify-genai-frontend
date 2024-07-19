@@ -119,6 +119,7 @@ export const syncAssistants = async (assistants: AssistantDefinition[], folders:
 
         // @ts-ignore
         if (!acc[assistant.assistantId] || acc[assistant.assistantId].version < assistant.version) {
+            if (!assistant.assistantId) assistant.assistantId = assistant.id;
             acc[assistant.assistantId || ""] = assistant;
         }
         return acc;
@@ -136,11 +137,12 @@ export const syncAssistants = async (assistants: AssistantDefinition[], folders:
     //const assistantPrompts: Prompt[] = assistants.map(createAssistantPrompt);    
     // const updatedPrompts = prompts.filter(prompt =>  !isAssistant(prompt) || prompt.data?.noShare);
 
-
     //create Assistant prompts for new assistants only since we already have them in our prompts list 
+    // note updated versions are 'new' and will replace the old ones. 
     const assistantPrompts: Prompt[] = assistants.reduce((acc: Prompt[], ast) => {
             const existingAssistant = prompts.find(prompt => prompt.id === ast.id);
-            if (!existingAssistant) {
+                                   // always get a fresh copy of system assistants
+            if (!existingAssistant || ast.tags.includes(ReservedTags.SYSTEM)) {
                 const newPrompt = createAssistantPrompt(ast);
                 acc.push(newPrompt);
             } 
@@ -148,20 +150,19 @@ export const syncAssistants = async (assistants: AssistantDefinition[], folders:
     }, []);
     
     const assistantNames = new Set(assistantPrompts.map(prompt => prompt.name));
-    // we want the updated assistant versions so we filter and old versions from our original prompts list 
+    // we want the updated assistant versions so we filter out old versions from our original prompts list 
     let updatedPrompts: Prompt[] = assistantNames.size > 0 ? prompts.filter(prompt => !assistantNames.has(prompt.name)) : prompts;
     
-
     // filter out any assistants that are no longer in the back end while keeping imported ones 
     const assistantIds = new Set(assistants.map(prompt => prompt.id));
                                         // keep the       nonassistants            imported                 still in db 
-    updatedPrompts = updatedPrompts.filter(prompt =>  !isAssistant(prompt) || prompt.data?.noShare || assistantIds.has(prompt.id));                            
+    updatedPrompts = updatedPrompts.filter(prompt =>  !isAssistant(prompt) || prompt.data?.noShare || assistantIds.has(prompt.id));                      
     
     // feature flag considerations
-    if (!featureFlags.apiKeys) updatedPrompts = updatedPrompts.filter(prompt => prompt.id !== 'ast/assistant-api-key-creator');
+    if (!featureFlags.apiKeys) updatedPrompts = updatedPrompts.filter(prompt => prompt.id !== 'ast/assistant-api-key-manager');
 
-    savePrompts([...updatedPrompts, ...assistantPrompts]);
-    dispatch({field: 'prompts', value: [...updatedPrompts, ...assistantPrompts]}); 
+    savePrompts([...assistantPrompts, ...updatedPrompts]);
+    dispatch({field: 'prompts', value: [...assistantPrompts, ...updatedPrompts]}); 
    
 }
 

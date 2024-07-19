@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import {
   IconDownload
 } from '@tabler/icons-react';
+import { DownloadFileButton } from '@/components/Download/DownloadFileButton';
 
 interface FileInfo {
   type: string;
@@ -17,12 +18,13 @@ interface FileInfo {
 
 interface Data {
     key: string;
-    file_name?: string;
+    fileName?: string;
   }
 
 interface ChatCodeInterpreterProps {
   file_info: FileInfo;
 }
+
 
 const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) => {
   const [fileContent, setFileContent] = useState<React.ReactNode>(<div>Loading...</div>);
@@ -33,29 +35,6 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
   const [pdfError, setPdfError] = useState(false);
   
 
-  const downloadButton = (fileName: string, presigned_url: string) => {
-    return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className='text-lg font-bold'>{fileName}</span>
-            <button
-                className=" text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                onClick={(e) => {
-                    e.preventDefault();
-                    const link = document.createElement('a');
-                    link.href = presigned_url;
-                    link.download = fileName;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                }}
-                title={`Download ${fileName}`}
-                aria-label={`Download ${fileName}`}
-                style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
-                <IconDownload size={24} />
-            </button>
-        </div>
-    );
-};
 
   useEffect(() => {
     const fetchAndSetCsvContent = async (presignedUrl: string, fileSize: number) => {
@@ -140,11 +119,12 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
 
     const fileNameMatch = file_key.match(/-FN-([^\/]+)/);
     const fileName = fileNameMatch && fileNameMatch[1] ? fileNameMatch[1] : `Generated_${type.split('/')[1]}_file`;
-
+    console.log("EXPIRED Presigned URL: ", file_key);
     if (isUrlExpired(presigned_url)) {
-      console.log("EXPIRED Presigned URL: ", presigned_url);
+      console.log("EXPIRED Presigned URL ");
+
       //fetch new presigned url and set it 
-       const urlResponse = await getNewPresignedUrl({'key': file_key, "file_name": fileName});
+       const urlResponse = await getNewPresignedUrl({'key': file_key, "fileName": fileName});
        if (urlResponse) {
             presigned_url = urlResponse;
             if (isLowRes) {
@@ -188,7 +168,12 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
             };
             setFileContent (
             <div className='mb-6'>
-                {downloadButton(fileName, presigned_url)}
+                <DownloadFileButton
+                  fileName={fileName}
+                  presigned_url={presigned_url}>
+                  <IconDownload size={24}/>
+                </DownloadFileButton>
+                
                 { !csvPreview ? <div>Loading...</div> : csvPreview.length > 0 
                             ? <div >{renderCsvTable()} {csvOverflow && <>{'Download to see full content'}</>} </div> 
                             : <div>Unfortunately, we are unable to display the file contents at this time...</div>}
@@ -199,7 +184,11 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
             const pdfUrl = await fetchPdfAndDisplay(presigned_url)
             setFileContent(
                 <div className='mb-6'>
-                    {downloadButton(fileName, presigned_url)}
+                    <DownloadFileButton
+                    fileName={fileName}
+                    presigned_url={presigned_url}>
+                      <IconDownload size={24}/>
+                    </DownloadFileButton>
                     {pdfError ? ( <div>Unfortunately, we are unable to display the PDF at this time...</div>) 
                               : pdfUrl && pdfUrl !== "" ? 
                                         (<iframe
@@ -217,7 +206,11 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
         case 'binary/octet-stream': 
             setFileContent(
             <div>
-                {downloadButton(fileName, presigned_url)}
+                <DownloadFileButton
+                  fileName={fileName}
+                  presigned_url={presigned_url}>
+                    <IconDownload size={24}/>
+                </DownloadFileButton>
                 Please download to view the file contents
             </div>
             );
@@ -227,7 +220,7 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
             // We need to get the high quality version
             if (isLowRes) {
                 if (isUrlExpired(file_info.values.presigned_url)) {
-                    const urlResponse = await getNewPresignedUrl({'key': file_info.values.file_key, "file_name": fileName});
+                    const urlResponse = await getNewPresignedUrl({'key': file_info.values.file_key, "fileName": fileName});
                     if (urlResponse) {
                         file_info.values.presigned_url = urlResponse;
                         downloadPresignedUrl = urlResponse;
@@ -237,7 +230,11 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
 
             setFileContent(
                 <div>
-                {downloadButton(fileName, downloadPresignedUrl)}
+                <DownloadFileButton
+                fileName={fileName}
+                presigned_url={presigned_url}>
+                  <IconDownload size={24}/>
+                </DownloadFileButton>
                 <img 
                     src={presigned_url} 
                     alt={fileName} 

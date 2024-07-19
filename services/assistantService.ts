@@ -131,12 +131,11 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
 
 
 export const listAssistants = async (user: string, abortSignal = null) => {
-    const response = await fetch('/api/assistant/op', {
-        method: 'POST',
+    const response = await fetch('/api/assistant/list', {
+        method: 'GET',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({op: "/list", data: {}}),
         signal: abortSignal,
     });
 
