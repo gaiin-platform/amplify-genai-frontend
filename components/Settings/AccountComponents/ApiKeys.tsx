@@ -83,8 +83,6 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
 
     const { t } = useTranslation('settings');
 
-    const [keysLoading, setKeysLoaded] = useState(true);
-
     const [ownerApiKeys, setOwnerApiKeys] = useState<ApiKey[]>([]);
     const [delegateApiKeys, setDelegateApiKeys] = useState<ApiKey[]>([]);
     const [isCreating, setIsCreating] = useState<boolean>(false);
@@ -166,7 +164,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
     }, [apiKeys]);
 
     useEffect(() => {
-        setKeysLoaded(false);
+        // setKeysLoaded(false);
     }, [ownerApiKeys]);
 
 
@@ -283,7 +281,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
                     </span>
                 </div>
                 <div className='z-60'> 
-                   <APITools isLoading={keysLoading} setIsLoading={setKeysLoaded} setDocsIsOpen={setDocsIsOpen} onClose={onClose}/> 
+                   <APITools setDocsIsOpen={setDocsIsOpen} onClose={onClose}/> 
                 </div>
                 
 
@@ -295,8 +293,9 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
                         <div className='flex flex-col gap-2 '>
                                                  <>
                         {isCreating && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-25">
-                                <div className="p-3 flex flex-row items-center  border border-gray-500 dark:bg-[#202123]">
+                            <div className="absolute inset-0 flex items-center justify-center" 
+                            style={{ transform: `translateY(-25%)`}}>
+                                <div className="p-3 flex flex-row items-center  border border-gray-500 bg-[#202123]">
                                     <LoadingIcon style={{ width: "24px", height: "24px" }}/>
                                     <span className="text-lg font-bold ml-2 text-white">Creating API Key...</span>
                                 </div>
@@ -564,14 +563,14 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
             { !docsIsOpen && <div className="flex-shrink-0 flex flex-row fixed bottom-0 left-0 w-full px-4 py-2 mb-2"> 
                 <button
                     type="button"
-                    className="mr-2 w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                    className="mr-2 w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-white dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                     onClick={onClose}
                 >
                     {t('Cancel')}
                 </button>
                 <button
                     type="button"
-                    className="w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                    className="w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-white dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                     onClick={handleSave}
                 >
                     {t('Save Edits')}
@@ -927,14 +926,12 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
 
 
 interface ToolsProps {
-    isLoading: boolean;
-    setIsLoading: (e: boolean) => void;
     setDocsIsOpen: (e: boolean) => void;
     onClose: () => void;
 }
 
 
-const APITools: FC<ToolsProps> = ({isLoading, setIsLoading, setDocsIsOpen, onClose}) => {
+const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
     const { state: {prompts, statsService}, dispatch: homeDispatch, handleNewConversation} = useContext(HomeContext);
 
     const promptsRef = useRef(prompts);
@@ -949,7 +946,8 @@ const APITools: FC<ToolsProps> = ({isLoading, setIsLoading, setDocsIsOpen, onClo
     const [csvUrl, setCsvUrl] = useState<string | undefined>(undefined);
     const [postmanUrl, setPostmanUrl] = useState<string | undefined>(undefined);
     const [fileContents, setFileContents] = useState<any>(undefined);
-
+    const [isLoading, setIsLoading] = useState(false);
+    
 
 
     const [keyManager, setKeyManager] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.id === "ast/assistant-api-key-manager"));
@@ -1029,7 +1027,7 @@ const APITools: FC<ToolsProps> = ({isLoading, setIsLoading, setDocsIsOpen, onClo
 
     return (
         <>
-            <div className='mt-2 ml-5 flex flex-row gap-2 mx-2 flex justify-center '>
+            <div className='mt-2 ml-5 flex flex-row gap-2 mx-2 flex justify-center'>
                 <div className='mt-[-3px] text-sm py-2 mr-2 text-[0.8]'>API Tools and Resources</div>
                 <label className='mt-2 text-xs '>|</label>
                     <SidebarActionButton
@@ -1071,11 +1069,11 @@ const APITools: FC<ToolsProps> = ({isLoading, setIsLoading, setDocsIsOpen, onClo
                 </div>
 
             {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-25 z-60"
-                    style={{ transform: `translateY(-25%)` }}>
-                    <div className="p-3 flex flex-row items-center  border border-gray-500 dark:bg-[#202123]">
+                <div className="absolute inset-0 flex items-center justify-center z-60"
+                    style={{ transform: `translateY(-25%)`}}>
+                    <div className="p-3 flex flex-row items-center  border border-gray-500 bg-[#202123]">
                         <LoadingIcon style={{ width: "24px", height: "24px" }}/>
-                        <span className="text-lg font-bold ml-2 text-white">Loading API Resources...</span>
+                        <span className="text-lg font-bold ml-2 text-white">Loading API Documentation...</span>
                     </div>
                 </div>
             )
@@ -1084,7 +1082,7 @@ const APITools: FC<ToolsProps> = ({isLoading, setIsLoading, setDocsIsOpen, onClo
 
             {showApiDoc && !isLoading &&  (
                 <div className="absolute inset-0 flex items-center justify-start z-60">
-                    <div className="p-3 flex flex-col items-center  border border-gray-500 dark:bg-[#202123]"
+                    <div className="p-3 flex flex-col items-center  border border-gray-500 bg-neutral-100 dark:bg-[#202123]"
                         style={{width: `${window.innerWidth}px`, height: `${window.innerHeight * 0.9}px`}}>
                             
                             <div className="mb-auto w-full flex flex-row gap-1 bg-neutral-100 dark:bg-[#202123] rounded-t border-b dark:border-white/20 z-60">
@@ -1123,7 +1121,7 @@ const APITools: FC<ToolsProps> = ({isLoading, setIsLoading, setDocsIsOpen, onClo
                             }  
 
                 { activeTab === "Downloads" && 
-                    <div className='absolute top-20 flex justify-center mt-4  flex-col text-lg'>
+                    <div className='absolute top-20 flex justify-center mt-4 flex-col text-lg'>
                     <label className='text-xl'> Available Amplify API Documentation Formats</label>
                     <div className='ml-6'>
                         {docUrl &&
