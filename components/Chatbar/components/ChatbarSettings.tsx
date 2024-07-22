@@ -14,7 +14,7 @@ import ChatbarContext from '../Chatbar.context';
 import {AccountDialog} from "@/components/Settings/AccountComponents/AccountDialog";
 import { StorageDialog } from '@/components/Settings/StorageDialog';
 
-import { AdminUI } from '@/components/Admin/AdminUI';
+import {AdminUI} from '../../Admin/AdminUI';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
