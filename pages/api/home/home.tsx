@@ -70,6 +70,7 @@ import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import { useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
+import { AdminUI } from "@/components/Admin/AdminUI";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants } from '@/services/assistantService';
 import { getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
@@ -1160,6 +1161,9 @@ const Home = ({
                                 )}
                                 {page === 'home' && (
                                     <MyHome />
+                                )}
+                                {page === 'admin' && (
+                                    <AdminUI open={true} onClose={} />
                                 )}
                             </div>
 
