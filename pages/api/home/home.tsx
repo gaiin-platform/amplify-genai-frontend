@@ -162,6 +162,10 @@ const Home = ({
 
     const promptsRef = useRef(prompts);
 
+    const handleAdminUIClose = () => {
+        dispatch({ field: 'page', value: 'chat' });
+    };
+
     useEffect(() => {
         promptsRef.current = prompts;
       }, [prompts]);
@@ -1163,7 +1167,7 @@ const Home = ({
                                     <MyHome />
                                 )}
                                 {page === 'admin' && (
-                                    <AdminUI open={true} onClose={} />
+                                    <AdminUI open={true} onClose={handleAdminUIClose} />
                                 )}
                             </div>
 
