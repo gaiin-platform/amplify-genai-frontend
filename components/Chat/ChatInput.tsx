@@ -283,7 +283,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
         onSend(msg, plugin, updatedDocuments || []);
         setContent('');
-        setPlugin(null);
+        // setPlugin(null);
         setDocuments([]);
         setDocumentState({});
         setDocumentMetadata({});
