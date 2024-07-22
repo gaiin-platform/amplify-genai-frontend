@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useContext } from 'react';
 import { GetServerSideProps } from 'next';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
@@ -70,6 +70,7 @@ import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import { useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
+import { AccountDialog } from "@/components/Settings/AccountDialog"; // MTDCOST
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants } from '@/services/assistantService';
 import { getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
@@ -158,6 +159,11 @@ const Home = ({
         },
         dispatch,
     } = contextValue;
+
+    // MTDCOST
+    const handleAccountDialogClose = () => {
+        dispatch({ field: 'page', value: 'chat' });
+    };
 
     const promptsRef = useRef(prompts);
 
@@ -1152,6 +1158,10 @@ const Home = ({
                                 )}
                                 {page === 'home' && (
                                     <MyHome />
+                                )}
+                                {/* MTDCOST */}
+                                {page === 'cost' && (
+                                    <AccountDialog open={true} onClose={handleAccountDialogClose} />
                                 )}
                             </div>
 
