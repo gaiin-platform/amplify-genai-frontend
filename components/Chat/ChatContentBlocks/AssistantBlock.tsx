@@ -250,15 +250,17 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
                                 }/>
                         </div>
                         
-                        <ExpansionComponent title={"Data Sources"} content={
-                            <div>
-                                <div className="text-sm text-gray-500 max-h-24 overflow-y-auto">
-                                    {dataSources.map((source, index) => {
-                                        return <div key={index}>{source.name}</div>
-                                    })}
+                        {dataSources.length > 0 ?
+                            <ExpansionComponent title={"Data Sources"} content={
+                                <div>
+                                    <div className="text-sm text-gray-500 max-h-24 overflow-y-auto">
+                                        {dataSources.map((source, index) => {
+                                            return <div key={index}>{source.name}</div>
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
-                        }/>
+                            }/> : <div className="ml-2">No data sources attached</div>
+                        }
                         <button className="mt-4 w-full px-4 py-2 text-white bg-blue-500 rounded hover:bg-green-600"
                                 onClick={handleCreateAssistant}
                         >

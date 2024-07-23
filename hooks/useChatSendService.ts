@@ -8,7 +8,7 @@ import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
 import {Plugin, PluginID} from '@/types/plugin';
 import {wrapResponse, stringChunkCallback} from "@/utils/app/responseWrapper";
 
-import {getSession} from "next-auth/react"
+import {getSession, useSession} from "next-auth/react"
 import json5 from "json5";
 import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
 import {newStatus} from "@/types/workflow";
@@ -27,6 +27,10 @@ import { DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { uploadConversation } from "@/services/remoteConversationService";
 import { compressMessages } from "@/utils/app/messages";
 import { isRemoteConversation } from "@/utils/app/conversationStorage";
+import { fetchAllApiKeys } from "@/services/apiKeysService";
+import { getAccounts } from "@/services/accountService";
+import { ApiKey } from "@/types/apikeys";
+import { Account } from "@/types/accounts";
 
 export type ChatRequest = {
     message: Message;
@@ -40,6 +44,7 @@ export type ChatRequest = {
     options?: { [key: string]: any };
     assistantId?: string;
     prompt?: Prompt;
+    conversationId?: string;
 };
 
 export function useSendService() {
@@ -48,6 +53,9 @@ export function useSendService() {
         postProcessingCallbacks,
         dispatch:homeDispatch,
     } = useContext(HomeContext);
+
+    const { data: session } = useSession();
+    const user = session?.user;
 
     const conversationsRef = useRef(conversations);
 
@@ -129,6 +137,7 @@ export function useSendService() {
                         documents,
                         uri,
                         options,
+                        conversationId
                     } = request;
 
                     // console.log("Sending msg:", message)
@@ -137,20 +146,6 @@ export function useSendService() {
                     if (content) {
                         message.content = content + " " + message.content;
                         message.label = label;
-                    }
-
-                    if (selectedConversation && selectedConversation.tags) {
-                            if (selectedConversation.tags.includes(ReservedTags.ASSISTANT_BUILDER)) {
-                                // In assistants, this has the effect of
-                                // disabling the use of documents so that we
-                                // can just add the document to the list of documents
-                                // the assistant is using.
-                                options = {
-                                    ...(options || {}),
-                                    skipRag: true,
-                                    ragOnly: true
-                                };
-                            } 
                     }
 
                     if (!featureFlags.ragEnabled) {
@@ -206,7 +201,8 @@ export function useSendService() {
                         messages: updatedConversation.messages,
                         prompt: rootPrompt || updatedConversation.prompt || "",
                         temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
-                        maxTokens: updatedConversation.maxTokens || 1000
+                        maxTokens: updatedConversation.maxTokens || 1000,
+                        conversationId
                     };
 
                     if (uri) {
@@ -241,6 +237,61 @@ export function useSendService() {
                         });
                     }
 
+                    if (selectedConversation && selectedConversation.tags) {
+                        const tags = selectedConversation.tags;
+                        if (tags.includes(ReservedTags.ASSISTANT_BUILDER)) {
+                            // In assistants, this has the effect of
+                            // disabling the use of documents so that we
+                            // can just add the document to the list of documents
+                            // the assistant is using.
+                            options = {
+                                ...(options || {}),
+                                skipRag: true,
+                                ragOnly: true
+                            };
+                        } else if (tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER)) {
+                            let appendMsg = "\n\n******* Crucial Data to use in your OPs, this is for your knowledge - answer the users prompt above only *******";
+
+                            // need Api keys
+                            const apiKeys = await fetchAllApiKeys();
+                            
+                            if (apiKeys.success) {
+                                const keys = apiKeys.data;
+                                appendMsg += keys.length > 0 ? "API KEYS:\n" + JSON.stringify(keys): "No current existing keys";
+                                if (keys.length > 0) {
+                                    appendMsg += `\n\n There are a total of ${keys.length}. When asked to list keys, always list ALL ${keys.length} of the 'API KEYS'`
+                                    const { delegateKeys, delegatedKeys } = keys.reduce((accumulator:any, k: ApiKey) => {
+                                    const curUser:string = user?.email || "";
+                                    if (k.delegate) {
+                                      if (k.delegate !== curUser) {
+                                        accumulator.delegateKeys.push(k);
+                                      } else if (k.delegate === curUser && k.owner !== curUser) {
+                                        accumulator.delegatedKeys.push(k);
+                                      }
+                                    }
+                                    return accumulator;
+                                  }, { delegateKeys: [], delegatedKeys: [] });
+                                    if (delegateKeys.length > 0) appendMsg += "\n\n Sharing any details nor GET OP is NOT allowed for the following Delegate keys (unauthorized): " + delegateKeys.map((k:ApiKey) => k.applicationName);
+                                    if (delegatedKeys.length > 0) appendMsg += "\n\n UPDATE OP is NOT allowed for the following Delegated keys (unauthorized): " + delegatedKeys.map((k:ApiKey) => k.applicationName);
+
+                                }
+    
+                                appendMsg += "\n\n Do not write any key's owner_api_id"
+
+                            } else {
+                                appendMsg += "API KEYS: UNAVAILABLE";
+                            }
+
+                            // accounts
+                            const accounts = await getAccounts();
+                            if (accounts.success && accounts.data) appendMsg += "\n\nACCOUNTS:\n" + JSON.stringify(accounts.data.filter((a: Account) => a.id !== 'general_account'), null) || "UNAVAILABLE";
+                            
+                            // user name 
+                            appendMsg += "\n\nCurrent User: " + user?.email;
+                            // this will be used to append data to the user message in the back end. 
+                            options =  {...(options || {}), addMsgContent: appendMsg}; 
+                        }
+                    }
 
                     //PLUGINS 
                     if (plugin?.id === PluginID.CODE_INTERPRETER) {
@@ -251,9 +302,10 @@ export function useSendService() {
                             skipRag: true,
                             ragOnly: false
                         };
-                    } else if (plugin?.id === PluginID.RAG_EVAL) {
-                        //
-                    }
+                    } 
+                    // else if (plugin?.id === PluginID.RAG_EVAL) {
+                    //     //
+                    // }
                 
 
                     if (options) {

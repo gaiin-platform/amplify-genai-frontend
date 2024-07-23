@@ -2,6 +2,7 @@ import {
     IconArrowDown,
     IconPlayerStop,
     IconAt,
+    IconWand,
     IconFiles,
     IconSend,
 } from '@tabler/icons-react';
@@ -42,6 +43,8 @@ import { createQiSummary } from '@/services/qiService';
 import MessageSelectModal from './MesssageSelectModal';
 import cloneDeep from 'lodash/cloneDeep';
 import FeaturePlugins from './FeaturePlugins';
+import {optimizePrompt} from "@/services/promptOptimizerService";
+import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -90,6 +93,7 @@ export const ChatInput = ({
 
     const [showQiDialog, setShowQiDialog] = useState(false);
     const [isQiLoading, setIsQiLoading] = useState<boolean>(true);
+    const [isPromptOptimizerRunning, setIsPromptOptimizerRunning] = useState<boolean>(false);
     const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
 
 
@@ -136,31 +140,24 @@ export const ChatInput = ({
    
 
 const onAssistantChange = (assistant: Assistant) => {
-    homeDispatch({field: 'selectedAssistant', value: assistant});
     setShowAssistantSelect(false);
 
     if (selectedConversation) {
-        const tags = assistant.definition.data?.conversationTags || [];
-        if (tags) {
-            selectedConversation.tags = selectedConversation.tags ?
-                                    [...selectedConversation.tags, ...tags] :
-                                    [...tags];
-        }
-        //remove duplicates if any
-        selectedConversation.tags = Array.from(new Set(selectedConversation.tags));
+        const oldAstTags = selectedAssistant?.definition.data?.conversationTags || [];
+        let updatedTags = selectedConversation.tags?.filter((t: string) => !oldAstTags.includes(t));
 
-        let assistantPrompt: Prompt | undefined = undefined;
-        // Assistant creator is treated differently in the backend, so we need to treat it differently here
-        // User defined assistants are retrieved and applied to the conversation in the back end as a UserDefinedAssistant whereas assistant creator is not user defined per say
-        // when you click on assistant creator on the right hand side, it triggers handleStartConversationWithPrompt in utils/app/prompts.ts
-        // where it creates a new conversation with the root prompt being the assistant creator. This is what is missing here.
+        const astTags = assistant ? assistant.definition.data?.conversationTags || [] : [];
+
+        updatedTags = updatedTags ? [...updatedTags, ...astTags] : [...astTags];
         
-        if (assistant.id === 'ast/assistant-builder') {
-            assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt.id === assistant.id);
-            selectedConversation.prompt += "\n\nCURRENT ASSISTANT CREATOR CUSTOM INSTRUCTIONS: " + assistantPrompt?.content + "Address only the Current Assistant Creator custom Instructions.";
-        } else {  
-            assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
-        }      
+        //remove duplicates if any
+        selectedConversation.tags = Array.from(new Set(updatedTags));
+        
+        homeDispatch({field: 'selectedAssistant', value: assistant ? assistant : DEFAULT_ASSISTANT});
+        let assistantPrompt: Prompt | undefined = undefined;
+
+        if (assistant) assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId); 
+        
          //I do not get the impression that promptTemplates are currently used nonetheless the bases are covered in case they ever come into play (as taken into account in handleStartConversationWithPrompt)
         selectedConversation.promptTemplate = assistantPrompt ?? null;
         
@@ -216,6 +213,12 @@ const onAssistantChange = (assistant: Assistant) => {
     }
 
     const handleSend = () => {
+        console.log(
+            "**", selectedConversation?.model
+        )
+        console.log(
+            "**", selectedConversation
+        )
         setShowDataSourceSelector(false);
 
         if (messageIsStreaming) {
@@ -280,7 +283,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
         onSend(msg, plugin, updatedDocuments || []);
         setContent('');
-        setPlugin(null);
+        // setPlugin(null);
         setDocuments([]);
         setDocumentState({});
         setDocumentMetadata({});
@@ -538,7 +541,7 @@ const onAssistantChange = (assistant: Assistant) => {
     return (
         <>
         { featureFlags.pluginsOnInput &&
-            <div className='relative z-20'>
+            <div className='relative z-20' style={{height: 0}}>
                 <FeaturePlugins
                 plugin={plugin}
                 setPlugin={setPlugin}
@@ -680,6 +683,19 @@ const onAssistantChange = (assistant: Assistant) => {
                             >
                                 <IconAt size={20}/>
                             </button>
+                        )}
+
+                        {featureFlags.promptOptimizer && (
+                            <>
+                                <PromptOptimizerButton
+                                    maxPlaceholders={0}
+                                    prompt={content || ""}
+                                    onOptimized={(prompt:string, optimizedPrompt:string) => {
+                                        setContent(optimizedPrompt);
+                                        textareaRef.current?.focus();
+                                    }}
+                                />
+                            </>
                         )}
 
                         {showAssistantSelect && (

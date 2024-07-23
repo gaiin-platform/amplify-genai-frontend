@@ -42,14 +42,26 @@ export const addDateAttribute = (folder: FolderInterface) => {
 export const userFriendlyDate = (date: string) => {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     date = updateTimeByZone(date, timeZone)
-    return  new Date(date).toLocaleString('en-US', {
-        weekday: 'short',
+    const newDate = new Date(date);
+    return  newDate.toLocaleDateString('en-US', {
         year: 'numeric',
-        month: 'long',
-        day: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    }) + ' at ' + newDate.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
         second: '2-digit',
         timeZoneName: 'short'
     });
+}
+
+
+export const formatDateYMDToMDY = (date: string) => {
+    const newDate = new Date(date);
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+    return formatter.format(newDate);
 }

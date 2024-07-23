@@ -9,6 +9,7 @@ import {variableTypeOptions, parsePromptVariableValues, parsePromptVariables, ge
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import EditableField from "@/components/Promptbar/components/EditableField";
 import { DEFAULT_SYSTEM_PROMPT } from "@/utils/app/const";
+import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
 
 
 interface Props {
@@ -275,6 +276,18 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               onChange={(e) => handleUpdateTemplate(e.target.value)}
               rows={10}
             />
+            {featureFlags.promptOptimizer && (
+                <>
+                  <PromptOptimizerButton
+                      maxPlaceholders={3}
+                      prompt={content || ""}
+                      onOptimized={(prompt:string, optimizedPrompt:string) => {
+                        setContent(optimizedPrompt);
+                        handleUpdateTemplate(optimizedPrompt);
+                      }}
+                  />
+                </>
+            )}
 
             { variableOptions.length > 0 && (
                 <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">

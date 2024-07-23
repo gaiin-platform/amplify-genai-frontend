@@ -72,6 +72,7 @@ type ChatRequest = {
     options?: { [key: string]: any };
     assistantId?: string;
     prompt?: Prompt;
+    conversationId?: string;
 };
 
 export const Chat = memo(({stopConversationRef}: Props) => {
@@ -236,6 +237,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 uri?: string | null,
                 options?: { [key: string]: any }
             ): ChatRequest => {
+
+                const conversationId = selectedConversation?.id;
+
                 return {
                     message,
                     deleteCount,
@@ -245,6 +249,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     documents,
                     uri,
                     options,
+                    conversationId,
                 };
         };
 
@@ -446,7 +451,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (assistantInUse) {
                     let options = {
                         assistantName: assistantInUse.name,
-                        assistantId: assistantInUse.assistantId,
+                        assistantId: assistantInUse.assistantId ,
                     };
 
                     message.data = {...message.data, assistant: {definition: {
@@ -931,7 +936,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             }}/>
                                     )}
                                     <div
-                                        className="items-center sticky top-0 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 py-2 text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
+                                       className={`items-center sticky ${featureFlags.pluginsOnInput ? "top-6 py-3" : 'top-0 py-2'} z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200`}>
 
                                         {/* MTDCOST START */}
                                         <button

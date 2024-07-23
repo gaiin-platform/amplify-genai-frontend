@@ -11,7 +11,9 @@ interface Props {
     setDocuments: (documents: AttachedDocument[]) => void;
     documentStates?: {[key:string]:number}
     onCancelUpload?: (document:AttachedDocument) => void;
+    allowRemoval?: boolean;
 }
+
 
 const animate = keyframes`
   0% {
@@ -29,7 +31,7 @@ const LoadingIcon = styled(FiCommand)`
   animation: ${animate} 2s infinite;
 `;
 
-export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, onCancelUpload}) => {
+export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, onCancelUpload, allowRemoval = true}) => {
 
     const isComplete = (document:AttachedDocument) => {
         return !documentStates || (documentStates && documentStates[document.id] == 100);
@@ -86,7 +88,7 @@ export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, 
                     {isComplete(document) ?
                         <IconCheck className="text-green-500" /> : ''
                     }
-                   <button
+                   { allowRemoval && <button
                             className="text-gray-400 hover:text-gray-600 transition-all"
                             onClick={(e) =>{
                                 e.preventDefault();
@@ -98,7 +100,7 @@ export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, 
                             }}
                         >
                             <IconCircleX/>
-                   </button>
+                   </button>}
 
                     <div className="ml-1">
                         <p className={`truncate font-medium text-sm ${isComplete(document) ? 'text-gray-800' : 'text-gray-800'}`}

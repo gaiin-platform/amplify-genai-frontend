@@ -62,6 +62,24 @@ const dataSourceFlags = [
     }
 ];
 
+const messageOptionFlags = [
+    {
+        "label": "Include Message IDs in Messages",
+        "key": "includeMessageIds",
+        "defaultValue": false
+    },
+    {
+        "label": "Insert Line Numbers in User Messages",
+        "key": "includeUserLineNumbers",
+        "defaultValue": false
+    },
+    {
+        "label": "Insert Line Numbers in Assistant Messages",
+        "key": "includeAssistantLineNumbers",
+        "defaultValue": false
+    },
+];
+
 
 export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc, disableEdit=false}) => {
     const {t} = useTranslation('promptbar');
@@ -77,6 +95,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         }
     });
 
+
     const initialStates: { [key: string]: number } = initialDs.map(ds => {
         return {[ds.id]: 100}
     }).reduce((acc, x) => {
@@ -89,9 +108,18 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         return acc;
     }, {});
 
+    const messageOptionDefaults = messageOptionFlags.reduce((acc:{[key:string]:boolean}, x) => {
+        acc[x.key] = x.defaultValue;
+        return acc;
+    }, {});
+
     const initialDataSourceOptionState = {
         ...dataSourceOptionDefaults,
         ...(definition.data && definition.data.dataSourceOptions || {})
+    }
+    const initialMessageOptionState = {
+        ...messageOptionDefaults,
+        ...(definition.data && definition.data.messageOptions || {})
     }
 
     const [isLoading, setIsLoading] = useState(false);
@@ -101,6 +129,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [disclaimer, setDisclaimer] = useState(definition.disclaimer ?? "");
     const [dataSources, setDataSources] = useState(initialDs);
     const [dataSourceOptions, setDataSourceOptions] = useState<{ [key: string]: boolean }>(initialDataSourceOptionState);
+    const [messageOptions, setMessageOptions] = useState<{ [key: string]: boolean }>(initialMessageOptionState);
+
     const [conversationTags, setConversationTags] = useState(cTags);
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
 
@@ -157,6 +187,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         newAssistant.data.access = {read: true, write: true};
 
         newAssistant.data.dataSourceOptions = dataSourceOptions;
+
+        newAssistant.data.messageOptions = messageOptions;
 
         const {id, assistantId, provider} = await createAssistant(newAssistant, null);
         if (!id) {
@@ -318,7 +350,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>}
                             <FileList documents={dataSources} documentStates={documentState} setDocuments={(docs) => {
                                 setDataSources(docs as any[]);
-                            }}/>
+                            }} allowRemoval={false}/>
                             {showDataSourceSelector && (
                                 <div
                                     className="flex flex-col justify-center"
@@ -376,8 +408,18 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                               state={dataSourceOptions}
                                               flagChanged={
                                                     (key, value) => {
-                                                        setDataSourceOptions({...dataSourceOptions, [key]: value});
+                                                        if (!disableEdit) setDataSourceOptions({...dataSourceOptions, [key]: value});
                                                     }
+                                              }/>
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                        {t('Message Options')}
+                                    </div>
+                                    <FlagsMap flags={messageOptionFlags}
+                                              state={messageOptions}
+                                              flagChanged={
+                                                  (key, value) => {
+                                                      if (!disableEdit) setMessageOptions({...messageOptions, [key]: value});
+                                                  }
                                               }/>
                                 </div>
                             }/>
