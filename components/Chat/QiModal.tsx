@@ -147,7 +147,7 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type, c
 
                         {isSubmitting && (
                             <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-25">
-                                <div className="p-3 flex flex-row items-center  border border-gray-500 dark:bg-[#202123]">
+                                <div className="p-3 flex flex-row items-center  border border-gray-500 bg-[#202123]">
                                     <LoadingIcon style={{ width: "30px", height: "30px" }}/>
                                     <span className="text-lg font-bold ml-2 text-white">Submitting...</span>
                                 </div>
