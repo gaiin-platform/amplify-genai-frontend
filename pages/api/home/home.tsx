@@ -70,7 +70,7 @@ import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import { useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
-import { AccountDialog } from "@/components/Settings/AccountDialog"; // MTDCOST
+import { AccountDialog } from "@/components/Settings/AccountComponents/AccountDialog"; // MTDCOST
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants } from '@/services/assistantService';
 import { getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';

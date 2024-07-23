@@ -1,32 +1,28 @@
-// MTDCOST FILE
-
 import { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 
-const mtdCostOp = 
-    async (req: NextApiRequest, res: NextApiResponse) => {
-
+const mtdCostOp = async (req: NextApiRequest, res: NextApiResponse) => {
     const session = await getServerSession(req, res, authOptions);
 
     if (!session) {
-        // Unauthorized access, no session found
         console.log("No session found");
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { accessToken } = session;
     const userEmail = session.user.email;
-    
-    let apiUrl = process.env.API_BASE_URL + "/billing/mtd-cost" || "";
 
-    // console.log("API Url:", apiUrl);
-    // console.log("User Email:", userEmail);
+    let apiUrl = process.env.API_BASE_URL + "/billing/mtd-cost" || "";
 
     try {
         const response = await fetch(apiUrl, {
             method: "POST",
-            body: JSON.stringify({ email: userEmail }),
+            body: JSON.stringify({
+                data: {
+                    email: userEmail
+                }
+            }),
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${accessToken}`
