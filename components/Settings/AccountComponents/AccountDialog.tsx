@@ -37,7 +37,6 @@ useEffect(() => {
         const result = await getAccounts();
         if (!result.success) {
             alert("Unable to fetch accounts. Please try again.");
-            setIsLoading(false);
             // onClose();
         } else {
             // Add "No COA" account to the list if not present
@@ -53,8 +52,9 @@ useEffect(() => {
                 setDefaultAccount(updatedDefaultAccount);
             }
 
-            setIsLoading(false);
+            
         }
+        setIsLoading(false);
     }
     if (open) {
         setLoadingMessage('Loading...');
@@ -68,13 +68,12 @@ useEffect(() => {
 
         if (!result.success) {
             alert("Unable to fetch your API keys. Please try again.");
-            setIsLoading(false);
             // onClose();
         } else {
             setApiKeys(result.data);
-            // console.log(result.data)
-            setIsLoading(false);
+            // console.log(result.data)   
         }
+        setIsLoading(false);
     }
    useEffect(() => {
         if (open) fetchApiKeys();
@@ -114,7 +113,7 @@ useEffect(() => {
     return (
         isLoading ?(
             <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-25 z-60">
-                    <div className="p-6 flex flex-row items-center  border border-gray-500 dark:bg-[#202123]">
+                    <div className="px-6 py-2 flex flex-row items-center  border border-gray-500 bg-neutral-200 dark:bg-[#202123]">
                     <Loader size="48" />
                     <div className="text-xl">{loadingMessage}</div>
                     </div>
