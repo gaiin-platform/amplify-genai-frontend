@@ -13,4 +13,5 @@ export interface Prompt {
     rootPromptId?:string,
     code?:string | null,
   }
+  groupId? : string;
 }
