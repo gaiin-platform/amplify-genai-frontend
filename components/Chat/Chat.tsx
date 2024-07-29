@@ -807,7 +807,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 ) : (
                     <>
                         <div
-                            className="container max-h-full overflow-x-hidden"
+                            className="container max-h-full overflow-x-hidden" style={{height: window.innerHeight * 0.95}}
                             ref={chatContainerRef}
                             onScroll={handleScroll}
                         >
@@ -936,7 +936,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             }}/>
                                     )}
                                     <div
-                                       className={`items-center sticky ${featureFlags.pluginsOnInput ? "top-6 py-3" : 'top-0 py-2'} z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200`}>
+                                       className="items-center sticky top-0 py-2 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
 
                                         {/* MTDCOST START */}
                                         <button
@@ -948,8 +948,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             }}
                                             title="Month-To-Date Cost"
                                         >
-                                            <div className="flex flex-row items-center ml-2
-                    bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
+                                            <div className="flex flex-row items-center ml-2 bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
                                                 <div className="ml-1">MTD Cost: {mtdCost}</div>
                                             </div>
                                         </button>
@@ -1026,33 +1025,27 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     <div ref={modelSelectRef}></div>
                                     {showSettings && (
                                         <div
-                                            className="flex flex-col space-y-10 md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
+                                            className="flex flex-col md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
                                             <div
-                                                className="flex h-full flex-col space-y-4 border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border">
+                                                className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border">
                                                 <ModelSelect/>
                                             </div>
-                                        </div>
-                                    )}
+                                            <div
+                                                className="border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border">
+                                                <TagsList tags={selectedConversation?.tags || []} setTags={
+                                                    (tags) => {
+                                                        if (selectedConversation) {
+                                                            handleUpdateConversation(selectedConversation, {
+                                                                key: 'tags',
+                                                                value: tags,
+                                                            });
 
-                                    <div
-                                        className="flex flex-col space-y-10 md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
-
-                                        <div
-                                            className="flex h-full flex-col space-y-4 border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border">
-
-                                            <TagsList tags={selectedConversation?.tags || []} setTags={
-                                                (tags) => {
-                                                    if (selectedConversation) {
-                                                        handleUpdateConversation(selectedConversation, {
-                                                            key: 'tags',
-                                                            value: tags,
-                                                        });
-
+                                                        }
                                                     }
-                                                }
                                             }/>
                                         </div>
-                                    </div>
+                                        </div>
+                                    )}
 
 
                                     {selectedConversation?.messages.map((message: Message, index: number) => (
