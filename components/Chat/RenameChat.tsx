@@ -16,10 +16,18 @@ export const callRenameChat = async (chatEndpoint:string, messages: Message[], s
 
     try {
         const updatedMessages = cloneDeep(messages);
+        // remove ds 
+        updatedMessages.forEach(m => {
+            if (m.data) {
+                if (m.data.dataSources) m.data.dataSources = null;
+                if (m.data.state && m.data.state.sources) m.data.state.sources = null;
+            }
+        })
+        
         updatedMessages[0].content = `Look at the following prompt: "${updatedMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`
         const chatBody = {
             model: OpenAIModels[OpenAIModelID.CLAUDE_3_HAIKU],
-            messages: messages,
+            messages: updatedMessages,
             key: accessToken,
             prompt: "Respond with only the title name and nothing else.",
             temperature: 0.5,

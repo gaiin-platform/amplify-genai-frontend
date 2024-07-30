@@ -240,7 +240,7 @@ const handleFile = async (file:any,
 
                         // Check if document.metadata exists and has the key "totalItems"
                         if(document.metadata) {
-                            if(!(document.metadata.totalItems) || document.metadata.totalItems < 1) {
+                            if(!document.metadata.isImage && (!(document.metadata.totalItems) || document.metadata.totalItems < 1)) {
                                 alert("I was unable to extract any text from the provided document. If this is a PDF, please " +
                                     "OCR the PDF before uploading it.");
                             }
@@ -319,7 +319,7 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
                   alert('This file type is not supported. Please save the file as pptx.');
                   return;
                 }
-    
+                
                 if (disallowedFileExtensions && disallowedFileExtensions.includes(extension)) {
                   alert('This file type is not supported.');
                   return;

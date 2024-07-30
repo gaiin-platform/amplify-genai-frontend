@@ -28,7 +28,7 @@ import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
 import HomeContext from '@/pages/api/home/home.context';
 import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
-import {OpenAIModel} from "@/types/openai";
+import {OpenAIModel, OpenAIModelID} from "@/types/openai";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
@@ -659,8 +659,10 @@ const onAssistantChange = (assistant: Assistant) => {
                         {/*    <IconRobot size={20}/>*/}
                         {/*</button>*/}
 
-                        <AttachFile id="__attachFile"
-                                    disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
+                        <AttachFile id="__attachFile"                                                     //  Mistral and pgt 3.5 do not support image files 
+                                    disallowedFileExtensions={[ ...COMMON_DISALLOWED_FILE_EXTENSIONS, ...(selectedConversation?.model.id.startsWith("misral") ||
+                                                                                                          selectedConversation?.model.id === OpenAIModelID.GPT_3_5_AZ 
+                                                                                                                              ? ["jpg","png","gif", "jpeg", "webp"] : []) ]} 
                                     onAttach={addDocument}
                                     onSetMetadata={handleSetMetadata}
                                     onSetKey={handleSetKey}
