@@ -3,8 +3,9 @@
     WORKDIR /app
     COPY package*.json ./
     
-    # Create a new user "appuser" and give ownership of the "/app" directory
-    RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+    # Update and upgrade packages to ensure patching
+    RUN apk update && apk upgrade && \
+        addgroup -S appgroup && adduser -S appuser -G appgroup && \
         chown -R appuser:appgroup /app
     
     # ---- Dependencies ----
@@ -19,8 +20,10 @@
     
     # ---- Production ----
     FROM --platform=linux/amd64 node:19-alpine AS production
-    # Recreate the "appuser" and "appgroup" in the production stage
-    RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+    
+    # Update and upgrade packages to ensure patching in the production stage
+    RUN apk update && apk upgrade && \
+        addgroup -S appgroup && adduser -S appuser -G appgroup
     WORKDIR /app
     
     # Copy node_modules from the "dependencies" stage
