@@ -7,7 +7,8 @@ import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
 import { Account } from '@/types/accounts';
 import { createApiKey, deactivateApiKey, fetchApiDoc, fetchApiKey, updateApiKeys } from '@/services/apiKeysService';
-import { ApiKey, ApiRateLimit } from '@/types/apikeys';
+import { ApiKey } from '@/types/apikeys';
+import { RateLimit } from '@/types/rateLimit'
 import { useSession } from 'next-auth/react';
 import {styled, keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
@@ -59,7 +60,7 @@ const optionChoices = {
     dual_embedding: true
 }
 
-export const formatLimits = (limits: ApiRateLimit) =>  {
+export const formatLimits = (limits: RateLimit) =>  {
     if (limits.rate === null) return 'Unlimited';
     return `$${limits.rate}${limits.rate.toString().includes('.') ? '' : '.00'}/${limits.period}`
 }

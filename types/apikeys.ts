@@ -1,4 +1,5 @@
 import { Account } from "./accounts";
+import { RateLimit } from "./rateLimit";
 
 export interface ApiKey {
     api_owner_id: string;
@@ -7,7 +8,7 @@ export interface ApiKey {
     applicationName: string;
     applicationDescription: string;
     account: Account;
-    rateLimit: ApiRateLimit
+    rateLimit: RateLimit
     active: boolean;
     expirationDate: string | null;
     accessTypes: string[];
@@ -15,10 +16,6 @@ export interface ApiKey {
     lastAccessed: string;
 }
 
-export interface ApiRateLimit {
-    period: string, 
-    rate: number | null
-}
 
 export interface ApiKeyList {
     keyOwner: ApiKey[], 

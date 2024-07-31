@@ -4,7 +4,7 @@ import {IconKey, IconUser} from "@tabler/icons-react";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import { useSession } from "next-auth/react"
-import { ApiRateLimit } from "@/types/apikeys";
+import { RateLimit } from "@/types/rateLimit";
 import { formatAccessTypes, formatLimits, HiddenAPIKey } from "@/components/Settings/AccountComponents/ApiKeys";
 import ExpansionComponent from "../ExpansionComponent";
 import { Account } from "@/types/accounts";
@@ -35,7 +35,7 @@ interface KeyData {
 interface KeyUpdate {
     id: string;
     name: string;
-    rateLimit?: ApiRateLimit;
+    rateLimit?: RateLimit;
     expirationDate?: string;
     accessTypes?: string[];
     account?: Account;
@@ -144,7 +144,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
 
     useEffect(() => {
         const verifyRequiredKeys = () => {
-            const requiredKeys = ['delegate', 'account', 'appName', 'appDescription', 'rateLimit', 'accessTypes', 'systemUse', 'expirationDate'];
+            const requiredKeys = ['account', 'appName', 'accessTypes', 'rateLimit'];
             if (!data) return {isComplete: false, missingKeys: requiredKeys};
             
             // Check if all required keys are present in the data object
