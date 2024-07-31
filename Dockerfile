@@ -1,5 +1,5 @@
 # ---- Base Node ----
-    FROM --platform=linux/amd64 node:lts-alpine3.19 AS base
+    FROM --platform=linux/amd64 node:lts-alpine3.20 AS base
     WORKDIR /app
     COPY package*.json ./
     
@@ -22,7 +22,7 @@
     RUN npm run build
     
     # ---- Production ----
-    FROM --platform=linux/amd64 node:lts-alpine3.19 AS production
+    FROM --platform=linux/amd64 node:lts-alpine3.20 AS production
     
     # Update and upgrade packages to ensure patching in the production stage
     RUN apk update && apk upgrade && \
