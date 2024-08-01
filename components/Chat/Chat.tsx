@@ -807,7 +807,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 ) : (
                     <>
                         <div
-                            className="container max-h-full overflow-x-hidden" style={{height: window.innerHeight * 0.95}}
+                            className="container max-h-full overflow-x-hidden" style={{height: window.innerHeight * 0.94}}
                             ref={chatContainerRef}
                             onScroll={handleScroll}
                         >
@@ -936,7 +936,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             }}/>
                                     )}
                                     <div
-                                       className="items-center sticky top-0 py-2 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
+                                       className="items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
 
                                         {/* MTDCOST START */}
                                         <button

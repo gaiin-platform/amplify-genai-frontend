@@ -61,7 +61,7 @@ const optionChoices = {
 }
 
 export const formatLimits = (limits: RateLimit) =>  {
-    if (limits.rate === null) return 'Unlimited';
+    if (!limits.rate) return 'Unlimited';
     return `$${limits.rate}${limits.rate.toString().includes('.') ? '' : '.00'}/${limits.period}`
 }
 
