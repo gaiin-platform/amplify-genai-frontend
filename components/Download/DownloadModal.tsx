@@ -103,7 +103,6 @@ export const DownloadModal: FC<DownloadModalProps> = (
 
     const powerPointTemplateOptions = [
         "none",
-        "vanderbilt_1.pptx",
         "celestial.pptx",
         "frame.pptx",
         "gallery.pptx",
@@ -111,7 +110,6 @@ export const DownloadModal: FC<DownloadModalProps> = (
         "ion.pptx",
         "parcel.pptx",
         "vapor.pptx",
-        "vusn.pptx",
     ];
 
     const wordTemplateOptions = [

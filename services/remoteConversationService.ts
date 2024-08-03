@@ -94,8 +94,10 @@ export const fetchAllRemoteConversations = async (abortSignal = null) => {
 };
 
 
-export const fetchMultipleRemoteConversations = async (ConversationIds: string[], abortSignal = null) => {
-    const data = {op: "/get_multiple", data: {conversationIds: ConversationIds}}
+export const fetchMultipleRemoteConversations = async (conversationIds: string[], abortSignal = null) => {
+    if (conversationIds.length === 0) return [];
+
+    const data = {op: "/get_multiple", data: {conversationIds: conversationIds}}
 
     const response = await fetch('/api/remoteconversation/op', {
         method: 'POST',
