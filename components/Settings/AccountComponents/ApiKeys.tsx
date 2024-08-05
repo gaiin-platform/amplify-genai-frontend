@@ -160,10 +160,6 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
         setOwnerApiKeys(apiKeys.filter((k: ApiKey) => k.owner === user?.email));
     }, [apiKeys]);
 
-    useEffect(() => {
-        // setKeysLoaded(false);
-    }, [ownerApiKeys]);
-
 
     const handleCreateApiKey = async () => {
         setIsCreating(true);
@@ -182,10 +178,17 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
         const result = await createApiKey(data)
         setIsCreating(false);
 
+        //done first for preloadeding keys while user handles alert 
+        if (result) {
+            statsService.createApiKey(data);
+            setDelegateApiKeys([]);
+            setOwnerApiKeys([]);
+            // to pull in the updated changes to the ui     
+            window.dispatchEvent(new Event('createApiKeys'));
+        }
         alert(result ? "Successfuly created the API key" : "Unable to create the API key at this time. Please try again later...");
         // empty out all the create key fields
         if (result) {
-            statsService.createApiKey(data);
             setAppName('');
             setAppDescriptione('');
             setDelegateInput('');
@@ -194,11 +197,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
             setSystemUse(false);
             setOptions(optionChoices);
             setFullAccess(true);
-            // to pull in the updated changes to the ui
-            window.dispatchEvent(new Event('createApiKeys'));
-        }
-        
-        
+           
+        } 
     };
 
     const handleDeactivateApikey = async (apiKeyId: string, name: string) => {
