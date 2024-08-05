@@ -35,9 +35,9 @@ const getPresignedUrl =
 
             res.status(200).json({
                 url: data.uploadUrl,
-                statusUrl: data.statusUrl,
-                contentUrl: data.contentUrl,
-                metadataUrl: data.metadataUrl,
+                statusUrl: data.statusUrl || null,
+                contentUrl: data.contentUrl || null,
+                metadataUrl: data.metadataUrl || null,
                 key: data.key });
 
         } catch (error) {

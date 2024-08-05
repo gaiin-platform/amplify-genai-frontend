@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useContext } from 'react';
 import { GetServerSideProps } from 'next';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
@@ -70,6 +70,7 @@ import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import { useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
+import { AccountDialog } from "@/components/Settings/AccountComponents/AccountDialog"; // MTDCOST
 import {AdminUI} from "@/components/Admin/AdminUI";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants } from '@/services/assistantService';
@@ -81,6 +82,8 @@ import { DefaultUser } from 'next-auth';
 import { addDateAttribute, getDate, getDateName } from '@/utils/app/date';
 import HomeContext, {  ClickContext, Processor } from './home.context';
 import { ReservedTags } from '@/types/tags';
+import { noCoaAccount } from '@/types/accounts';
+import { noRateLimit } from '@/types/rateLimit';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -160,6 +163,11 @@ const Home = ({
         dispatch,
     } = contextValue;
 
+    // MTDCOST
+    const handleAccountDialogClose = () => {
+        dispatch({ field: 'page', value: 'chat' });
+    };
+
     const promptsRef = useRef(prompts);
 
     const handleAdminUIClose = () => {
@@ -208,9 +216,9 @@ const Home = ({
                 const response = await getAccounts();
                 if (response.success) {
                     const defaultAccount = response.data.find((account: any) => account.isDefault);
-                    if (defaultAccount) {
-                        dispatch({ field: 'defaultAccount', value: defaultAccount });
-                    }
+                    if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
+                    dispatch({ field: 'defaultAccount', value: defaultAccount || noCoaAccount});
+                    
                     setloadedAccounts(true);  
                     if (featureFlags.storeCloudConversations && initialRemoteCall) syncConversations(); 
                 }
@@ -218,7 +226,7 @@ const Home = ({
 
             if (!loadedAccounts && session?.user) {
                 fetchAccounts();
-                console.log("FETCH ACCOUNTS")
+                // console.log("FETCH ACCOUNTS")
             }
         }
 
@@ -1165,6 +1173,10 @@ const Home = ({
                                 )}
                                 {page === 'home' && (
                                     <MyHome />
+                                )}
+                                {/* MTDCOST */}
+                                {page === 'cost' && (
+                                    <AccountDialog open={true} onClose={handleAccountDialogClose} />
                                 )}
                                 {page === 'admin' && (
                                     <AdminUI open={true} onClose={handleAdminUIClose} />

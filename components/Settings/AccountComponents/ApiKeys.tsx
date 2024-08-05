@@ -5,16 +5,17 @@ import HomeContext from '@/pages/api/home/home.context';
 import ExpansionComponent from '../../Chat/ExpansionComponent';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
-import { Account } from '@/types/accounts';
+import { Account, noCoaAccount } from '@/types/accounts';
 import { createApiKey, deactivateApiKey, fetchApiDoc, fetchApiKey, updateApiKeys } from '@/services/apiKeysService';
-import { ApiKey, ApiRateLimit } from '@/types/apikeys';
+import { ApiKey } from '@/types/apikeys';
+import { PeriodType, formatRateLimit, UNLIMITED, rateLimitObj} from '@/types/rateLimit'
 import { useSession } from 'next-auth/react';
 import {styled, keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import { formatDateYMDToMDY, userFriendlyDate } from '@/utils/app/date';
 import { AccountSelect } from './Account';
-import { RatePeriodLimit } from './RateLimit';
+import { RateLimiter} from './RateLimit';
 import cloneDeep from 'lodash/cloneDeep';
 import { Prompt } from '@/types/prompt';
 import { isAssistant } from '@/utils/app/assistants';
@@ -24,10 +25,8 @@ import { APIDownloadFile, fetchFile } from '@/components/Chat/ChatContentBlocks/
 interface Props {
     apiKeys: ApiKey[];
     setApiKeys: (k:ApiKey[]) => void;
+    setUnsavedChanged: (b: boolean) => void;
     onClose: () => void;
-    isLoading: boolean;
-    setIsLoading: (e:boolean) => void;
-    setLoadingMessage: (s:string) => void;
     accounts: Account[];
     defaultAccount: Account;
 }
@@ -59,10 +58,6 @@ const optionChoices = {
     dual_embedding: true
 }
 
-export const formatLimits = (limits: ApiRateLimit) =>  {
-    if (limits.rate === null) return 'Unlimited';
-    return `$${limits.rate}${limits.rate.toString().includes('.') ? '' : '.00'}/${limits.period}`
-}
 
 
 export const formatAccessTypes = (accessTypes: string[]) => {
@@ -74,7 +69,7 @@ const formatAccessType = (accessType: string) => {
     return String(accessType).replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())                                                          
 }
 
-export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, setIsLoading, setLoadingMessage, accounts, defaultAccount}) => {
+export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onClose, accounts, defaultAccount}) => {
     const { state: {featureFlags, statsService}, dispatch: homeDispatch } = useContext(HomeContext);
 
     const { data: session } = useSession();
@@ -83,22 +78,21 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
 
     const { t } = useTranslation('settings');
 
-    const [keysLoading, setKeysLoaded] = useState(true);
-
     const [ownerApiKeys, setOwnerApiKeys] = useState<ApiKey[]>([]);
     const [delegateApiKeys, setDelegateApiKeys] = useState<ApiKey[]>([]);
     const [isCreating, setIsCreating] = useState<boolean>(false);
+    const [isSaving, setIsSaving ] = useState(false);
 
     const [appName, setAppName] = useState<string>("");
     const [appDescription, setAppDescriptione] = useState<string>("");
     const [delegateInput, setDelegateInput] = useState<string>('');
     const [allEmails, setAllEmails] = useState<Array<string> | null>(null);
-    const [rateLimitType, setRateLimitType] = useState<string>('Unlimited');
-    const [costAmount, setCostAmount] = useState<string>('');
+    const [rateLimitPeriod, setRateLimitPeriod] = useState<PeriodType>(UNLIMITED);
+    const [rateLimitRate, setRateLimitRate] = useState<string>('');
     const [selectedDate, setSelectedDate] = useState<string>('');
     const [includeExpiration, setIncludeExpiration] = useState<boolean>(false);
     const [systemUse, setSystemUse] = useState<boolean>(false);
-    const noCoaAccount: Account = { id: 'general_account', name: 'No COA On File' };
+    
     const [selectedAccount, setSelectedAccount] = useState<Account | null>(defaultAccount.name === noCoaAccount.name ? null : defaultAccount);
 
     const [editedKeys, setEditedKeys] = useState<any>({});
@@ -112,6 +106,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
     
     useEffect(() => {
         const handleEvent = (event: any) => {
+            setUnsavedChanged(true);
             console.log("editedApiKey was triggered", event.detail);
             const apiKeyId = event.detail.id;
             const updates = event.detail.edits; 
@@ -166,7 +161,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
     }, [apiKeys]);
 
     useEffect(() => {
-        setKeysLoaded(false);
+        // setKeysLoaded(false);
     }, [ownerApiKeys]);
 
 
@@ -179,7 +174,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
             'delegate': delegateInput.length > 0 ? delegateInput : null,
             'appName' : appName,
             'appDescription' : appDescription,
-            'rateLimit' : {'period' : rateLimitType, 'rate': ( rateLimitType === 'Unlimited' ? null : parseFloat(costAmount.replace('$', '')))},
+            'rateLimit' : rateLimitObj(rateLimitPeriod, rateLimitRate),
             'expirationDate' : includeExpiration ? selectedDate : null,
             'accessTypes': fullAccess ? ["full_access"] :  Object.keys(options).filter((key) => options[key]),
             'systemUse' : systemUse && delegateInput.length === 0
@@ -194,7 +189,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
             setAppName('');
             setAppDescriptione('');
             setDelegateInput('');
-            setRateLimitType('Unlimited');
+            setRateLimitPeriod(UNLIMITED);
             setIncludeExpiration(false);
             setSystemUse(false);
             setOptions(optionChoices);
@@ -233,16 +228,16 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
     };
 
     const handleSave = async () => {
+        setIsSaving(true);
         if (Object.keys(editedKeys).length !== 0) handleApplyEdits();
-        onClose();
+        setUnsavedChanged(false);
+        setIsSaving(false);
     };
 
 
     const isExpired = (date: string) => {
         return new Date(date) <= new Date()
     }
-
-    if (isLoading) return <></>
 
 
     return (
@@ -283,7 +278,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
                     </span>
                 </div>
                 <div className='z-60'> 
-                   <APITools isLoading={keysLoading} setIsLoading={setKeysLoaded} setDocsIsOpen={setDocsIsOpen} onClose={onClose}/> 
+                   <APITools setDocsIsOpen={setDocsIsOpen} onClose={onClose}/> 
                 </div>
                 
 
@@ -295,8 +290,9 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
                         <div className='flex flex-col gap-2 '>
                                                  <>
                         {isCreating && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-25">
-                                <div className="p-3 flex flex-row items-center  border border-gray-500 dark:bg-[#202123]">
+                            <div className="absolute inset-0 flex items-center justify-center" 
+                            style={{ transform: `translateY(-25%)`}}>
+                                <div className="p-3 flex flex-row items-center  border border-gray-500 bg-[#202123]">
                                     <LoadingIcon style={{ width: "24px", height: "24px" }}/>
                                     <span className="text-lg font-bold ml-2 text-white">Creating API Key...</span>
                                 </div>
@@ -370,11 +366,11 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
                             <div className='flex flex-row justify-between mx-8 py-1'>
                                 <div className='flex flex-row gap-4' style={{ width: '240px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}>
                                     <label className="text-sm mt-1" htmlFor="rateLimitType">Rate Limit</label>
-                                    <RatePeriodLimit
-                                        rateLimitType={rateLimitType}
-                                        setRateLimitType={setRateLimitType}
-                                        costAmount={costAmount}
-                                        setCostAmount={setCostAmount}
+                                    <RateLimiter
+                                        period={rateLimitPeriod}
+                                        setPeriod={setRateLimitPeriod}
+                                        rate={rateLimitRate}
+                                        setRate={setRateLimitRate}
                                     />
                                  </div>
 
@@ -494,7 +490,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
                                                                           editableField={apiKey.active ? 'expirationDate': undefined} apiKey={apiKey}/> 
                                                                 : <Label label={null} editableField={apiKey.active ? 'expirationDate': undefined} apiKey={apiKey}/>  }</td>
                                     <td>{<Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx={"110px"} isDate={true}/>}</td>
-                                    <td>{<Label label={formatLimits(apiKey.rateLimit)} editableField={apiKey.active ? 'rateLimit' : undefined} apiKey={apiKey}/>}</td>
+                                    <td>{<Label label={formatRateLimit(apiKey.rateLimit)} editableField={apiKey.active ? 'rateLimit' : undefined} apiKey={apiKey}/>}</td>
                                     <td>{<Label label={formatAccessTypes(apiKey.accessTypes).replaceAll(',', ', ')} widthPx="180px" editableField={apiKey.active ? 'accessTypes' : undefined} apiKey={apiKey}/>}</td>
                                     <td>{apiKey.systemId ? <Label label={apiKey.systemId } />:   <NALabel />}</td>
                                     <td>{!apiKey.delegate ? <HiddenAPIKey id={apiKey.api_owner_id} width='184px'/>: <NALabel label={"Not Viewable"}/>}</td>
@@ -544,7 +540,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
                             <td>{ apiKey.expirationDate ? <Label label={formatDateYMDToMDY(apiKey.expirationDate)} textColor={isExpired(apiKey.expirationDate) ? "text-red-600": undefined} /> 
                                                         : <NALabel /> }</td>
                             <td>{<Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx="110px" isDate={true}></Label>}</td>
-                            <td>{<Label label={formatLimits(apiKey.rateLimit)} widthPx="140px"></Label>}</td>
+                            <td>{<Label label={formatRateLimit(apiKey.rateLimit)} widthPx="140px"></Label>}</td>
                             <td>{<Label label={formatAccessTypes(apiKey.accessTypes).replaceAll(',', ', ')} widthPx="180px" ></Label>}</td>
                             <td>{<HiddenAPIKey id={apiKey.api_owner_id} width='184px'/> }
                             </td>      
@@ -560,21 +556,22 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, onClose, isLoading, se
             </div>
 
             <br className='mb-20'></br>
+            <br className='mb-20'></br>
 
             { !docsIsOpen && <div className="flex-shrink-0 flex flex-row fixed bottom-0 left-0 w-full px-4 py-2 mb-2"> 
                 <button
                     type="button"
-                    className="mr-2 w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                    className="mr-2 w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-white dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                     onClick={onClose}
                 >
                     {t('Cancel')}
                 </button>
                 <button
                     type="button"
-                    className="w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                    className="w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-white dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                     onClick={handleSave}
                 >
-                    {t('Save Edits')}
+                    {isSaving? 'Saving Edits...' :'Save Edits'}
                 </button>
             </div>}
            
@@ -698,8 +695,8 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
     const labelRef = useRef<HTMLDivElement>(null);
 
     const [selectedAccount, setSelectedAccount] = useState<Account | null>(apiKey ? apiKey.account : null);
-    const [rateLimitType, setRateLimitType] = useState<string>(apiKey ? apiKey.rateLimit.period : 'Unlimited');
-    const [costAmount, setCostAmount] = useState<string>(apiKey && apiKey.rateLimit.rate ? String(apiKey.rateLimit.rate) : '0');
+    const [rateLimitPeriod, setRateLimitPeriod] = useState<PeriodType>(apiKey ? apiKey.rateLimit.period : UNLIMITED);
+    const [rateLimitRate, setRateLimitRate] = useState<string>(apiKey && apiKey.rateLimit.rate ? String(apiKey.rateLimit.rate) : '0');
     const [selectedDate, setSelectedDate] = useState<string>(apiKey?.expirationDate || '');
     const [fullAccess, setFullAccess] = useState<boolean>(true);
     const [options, setOptions] = useState<Record<string, boolean>>(cloneDeep(optionChoices));
@@ -744,8 +741,8 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
                 
                 break;
             case("rateLimit"): 
-                editedData = {'period' : rateLimitType, 'rate': ( rateLimitType === 'Unlimited' ? null : parseFloat(costAmount.replace('$', '')))}
-                setDisplayLabel(formatLimits(editedData));
+                editedData = rateLimitObj(rateLimitPeriod, rateLimitRate);
+                setDisplayLabel(formatRateLimit(editedData));
                 break;
             case("accessTypes"): 
                 editedData = [fullAccess ? "full_access" :  Object.keys(options).filter((key) => options[key])];
@@ -808,11 +805,11 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
                 </div>
             )}
             {editableField && editableField === 'rateLimit' && (<>
-                <RatePeriodLimit
-                    rateLimitType={rateLimitType}
-                    setRateLimitType={setRateLimitType}
-                    costAmount={costAmount}
-                    setCostAmount={setCostAmount}
+                <RateLimiter
+                    period={rateLimitPeriod as PeriodType}
+                    setPeriod={setRateLimitPeriod}
+                    rate={rateLimitRate}
+                    setRate={setRateLimitRate}
                 />
             </>)}
             {editableField && editableField === 'accessTypes' && (<>
@@ -927,14 +924,12 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
 
 
 interface ToolsProps {
-    isLoading: boolean;
-    setIsLoading: (e: boolean) => void;
     setDocsIsOpen: (e: boolean) => void;
     onClose: () => void;
 }
 
 
-const APITools: FC<ToolsProps> = ({isLoading, setIsLoading, setDocsIsOpen, onClose}) => {
+const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
     const { state: {prompts, statsService}, dispatch: homeDispatch, handleNewConversation} = useContext(HomeContext);
 
     const promptsRef = useRef(prompts);
@@ -949,7 +944,8 @@ const APITools: FC<ToolsProps> = ({isLoading, setIsLoading, setDocsIsOpen, onClo
     const [csvUrl, setCsvUrl] = useState<string | undefined>(undefined);
     const [postmanUrl, setPostmanUrl] = useState<string | undefined>(undefined);
     const [fileContents, setFileContents] = useState<any>(undefined);
-
+    const [isLoading, setIsLoading] = useState(false);
+    
 
 
     const [keyManager, setKeyManager] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.id === "ast/assistant-api-key-manager"));
@@ -1029,7 +1025,7 @@ const APITools: FC<ToolsProps> = ({isLoading, setIsLoading, setDocsIsOpen, onClo
 
     return (
         <>
-            <div className='mt-2 ml-5 flex flex-row gap-2 mx-2 flex justify-center '>
+            <div className='mt-2 ml-5 flex flex-row gap-2 mx-2 flex justify-center'>
                 <div className='mt-[-3px] text-sm py-2 mr-2 text-[0.8]'>API Tools and Resources</div>
                 <label className='mt-2 text-xs '>|</label>
                     <SidebarActionButton
@@ -1071,11 +1067,11 @@ const APITools: FC<ToolsProps> = ({isLoading, setIsLoading, setDocsIsOpen, onClo
                 </div>
 
             {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-25 z-60"
-                    style={{ transform: `translateY(-25%)` }}>
-                    <div className="p-3 flex flex-row items-center  border border-gray-500 dark:bg-[#202123]">
+                <div className="absolute inset-0 flex items-center justify-center z-60"
+                    style={{ transform: `translateY(-25%)`}}>
+                    <div className="p-3 flex flex-row items-center  border border-gray-500 bg-[#202123]">
                         <LoadingIcon style={{ width: "24px", height: "24px" }}/>
-                        <span className="text-lg font-bold ml-2 text-white">Loading API Resources...</span>
+                        <span className="text-lg font-bold ml-2 text-white">Loading API Documentation...</span>
                     </div>
                 </div>
             )
@@ -1084,7 +1080,7 @@ const APITools: FC<ToolsProps> = ({isLoading, setIsLoading, setDocsIsOpen, onClo
 
             {showApiDoc && !isLoading &&  (
                 <div className="absolute inset-0 flex items-center justify-start z-60">
-                    <div className="p-3 flex flex-col items-center  border border-gray-500 dark:bg-[#202123]"
+                    <div className="p-3 flex flex-col items-center  border border-gray-500 bg-neutral-100 dark:bg-[#202123]"
                         style={{width: `${window.innerWidth}px`, height: `${window.innerHeight * 0.9}px`}}>
                             
                             <div className="mb-auto w-full flex flex-row gap-1 bg-neutral-100 dark:bg-[#202123] rounded-t border-b dark:border-white/20 z-60">
@@ -1123,7 +1119,7 @@ const APITools: FC<ToolsProps> = ({isLoading, setIsLoading, setDocsIsOpen, onClo
                             }  
 
                 { activeTab === "Downloads" && 
-                    <div className='absolute top-20 flex justify-center mt-4  flex-col text-lg'>
+                    <div className='absolute top-20 flex justify-center mt-4 flex-col text-lg'>
                     <label className='text-xl'> Available Amplify API Documentation Formats</label>
                     <div className='ml-6'>
                         {docUrl &&

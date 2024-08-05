@@ -54,6 +54,7 @@ import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection, isRemoteConversation } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import { callRenameChat } from './RenameChat';
+import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -175,6 +176,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [showScrollDownButton, setShowScrollDownButton] =
             useState<boolean>(false);
         const [promptTemplate, setPromptTemplate] = useState<Prompt | null>(null);
+        const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
 
         const messagesEndRef = useRef<HTMLDivElement>(null);
         const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -761,6 +763,41 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 }
             };
         }, [messagesEndRef]);
+    
+        // MTDCOST START
+        // for MTD cost UI component
+        useEffect(() => {
+            let isFetching = false;
+
+            const fetchMtdCost = async () => {
+                if (isFetching) return;
+
+                isFetching = true;
+                console.log("FETCHING UPDATED MTD COST");
+
+                try {
+                    const result = await doMtdCostOp();
+                    console.log("UPDATED MTD COST FETCHED");
+                    if (result && result.item && result.item["MTD Cost"] !== undefined) {
+                        setMtdCost(`$${result.item["MTD Cost"].toFixed(2)}`);
+                    } else {
+                        setMtdCost('Error');
+                    }
+                } catch (error) {
+                    console.error("Error fetching MTD cost:", error);
+                    setMtdCost('Error');
+                } finally {
+                    isFetching = false;
+                }
+            };
+
+            fetchMtdCost();
+
+            return () => {
+                isFetching = false;
+            };
+        }, [messageIsStreaming]);
+        // MTDCOST END
 
 // @ts-ignore
         return (
@@ -770,7 +807,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 ) : (
                     <>
                         <div
-                            className="container max-h-full overflow-x-hidden"
+                            className="container max-h-full overflow-x-hidden" style={{height: window.innerHeight * 0.94}}
                             ref={chatContainerRef}
                             onScroll={handleScroll}
                         >
@@ -899,9 +936,25 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             }}/>
                                     )}
                                     <div
-                                       className={`items-center sticky ${featureFlags.pluginsOnInput ? "top-6 py-3" : 'top-0 py-2'} z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200`}>
+                                       className="items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
 
-                                        {t('Workspace: ' + workspaceMetadata.name)} | {selectedConversation?.model.name} | {t('Temp')}
+                                        {/* MTDCOST START */}
+                                        <button
+                                            className="ml-2 mr-2 cursor-pointer hover:opacity-50"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                homeDispatch({ field: 'page', value: 'cost' });
+                                            }}
+                                            title="Month-To-Date Cost"
+                                        >
+                                            <div className="flex flex-row items-center ml-2 bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
+                                                <div className="ml-1">MTD Cost: {mtdCost}</div>
+                                            </div>
+                                        </button>
+                                        |
+                                        {/* MTDCOST END */}
+                                        {t(' Workspace: ' + workspaceMetadata.name)} | {selectedConversation?.model.name} | {t('Temp')}
                                         : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
@@ -960,45 +1013,39 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 e.stopPropagation();
                                                 homeDispatch({field: 'page', value: 'home'});
                                             }}
-                                            title="Files"
+                                            title="Data Sources"
                                         >
                                             <div className="flex flex-row items-center ml-2
                                             bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
                                                 <div><IconRocket size={18}/></div>
-                                                <div className="ml-1">Files </div>
+                                                <div className="ml-1">Data Sources </div>
                                             </div>
                                         </button>
                                     </div>
                                     <div ref={modelSelectRef}></div>
                                     {showSettings && (
                                         <div
-                                            className="flex flex-col space-y-10 md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
+                                            className="flex flex-col md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
                                             <div
-                                                className="flex h-full flex-col space-y-4 border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border">
+                                                className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border">
                                                 <ModelSelect/>
                                             </div>
-                                        </div>
-                                    )}
+                                            <div
+                                                className="border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border">
+                                                <TagsList tags={selectedConversation?.tags || []} setTags={
+                                                    (tags) => {
+                                                        if (selectedConversation) {
+                                                            handleUpdateConversation(selectedConversation, {
+                                                                key: 'tags',
+                                                                value: tags,
+                                                            });
 
-                                    <div
-                                        className="flex flex-col space-y-10 md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
-
-                                        <div
-                                            className="flex h-full flex-col space-y-4 border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border">
-
-                                            <TagsList tags={selectedConversation?.tags || []} setTags={
-                                                (tags) => {
-                                                    if (selectedConversation) {
-                                                        handleUpdateConversation(selectedConversation, {
-                                                            key: 'tags',
-                                                            value: tags,
-                                                        });
-
+                                                        }
                                                     }
-                                                }
                                             }/>
                                         </div>
-                                    </div>
+                                        </div>
+                                    )}
 
 
                                     {selectedConversation?.messages.map((message: Message, index: number) => (

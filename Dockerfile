@@ -1,15 +1,19 @@
 # ---- Base Node ----
-    FROM --platform=linux/amd64 node:19-alpine AS base
+    FROM --platform=linux/amd64 node:lts-alpine3.20 AS base
     WORKDIR /app
     COPY package*.json ./
     
-    # Create a new user "appuser" and give ownership of the "/app" directory
-    RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+    # Update and upgrade packages to ensure patching
+    RUN apk update && apk upgrade && \
+        addgroup -S appgroup && adduser -S appuser -G appgroup && \
         chown -R appuser:appgroup /app
     
     # ---- Dependencies ----
     FROM base AS dependencies
     USER appuser
+
+    
+    # Install dependencies and update packages
     RUN npm ci
     
     # ---- Build ----
@@ -18,9 +22,11 @@
     RUN npm run build
     
     # ---- Production ----
-    FROM --platform=linux/amd64 node:19-alpine AS production
-    # Recreate the "appuser" and "appgroup" in the production stage
-    RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+    FROM --platform=linux/amd64 node:lts-alpine3.20 AS production
+    
+    # Update and upgrade packages to ensure patching in the production stage
+    RUN apk update && apk upgrade && \
+        addgroup -S appgroup && adduser -S appuser -G appgroup
     WORKDIR /app
     
     # Copy node_modules from the "dependencies" stage
@@ -32,6 +38,8 @@
     COPY --chown=appuser:appgroup --from=build /app/package*.json ./
     COPY --chown=appuser:appgroup --from=build /app/next.config.js ./next.config.js
     COPY --chown=appuser:appgroup --from=build /app/next-i18next.config.js ./next-i18next.config.js
+    
+    # Cleanup virtual builds dependencies in production image
     
     # Use the new "appuser"
     USER appuser

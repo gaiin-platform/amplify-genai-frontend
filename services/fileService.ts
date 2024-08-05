@@ -143,9 +143,9 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
 
     const key = result.key;
     const uploadUrl = result.url;
-    const contentUrl = result.contentUrl;
-    const statusUrl = result.statusUrl;
-    const metadataUrl = result.metadataUrl;
+    const contentUrl = result.contentUrl || null;
+    const statusUrl = result.statusUrl || null;
+    const metadataUrl = result.metadataUrl || null 
 
     // console.log("contentUrl", contentUrl);
     // console.log("statusUrl", statusUrl);

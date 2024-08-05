@@ -44,7 +44,7 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
             // Calculate boundaries
             const leftBound = 0;
             const rightBound = containerRect.right - containerRect.left - width;
-            let topBound = 0 - containerRect.height + width;
+            let topBound = 0 - containerRect.height;
             const bottomBound =   topBound + window.innerHeight - width;
 
             if (showPluginSelectRef.current) {
@@ -86,14 +86,14 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
 
     return (
         <>
-            <div className="`relative inline-block z-20 " 
+            <div className="`relative inline-block z-20 max-h-full" 
                 draggable="true"
                 onMouseDown={startDragging}
                 onMouseUp={stopDragging}
                 style={{
                     cursor: isDragging? "grabbing": "move",
                     transform: `translate(${positionRef.current.x}px, ${positionRef.current.y}px)`,
-                    background: 'transparent', 
+                    background: 'transparent'
                 }}
                 ref={draggableRef}
             >

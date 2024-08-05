@@ -43,7 +43,7 @@ export const handleStartConversationWithPrompt = (handleNewConversation:any, pro
       description: rootPromptObj.description,
       folderId: null,
       id: uuidv4(),
-      name: "Conversation Started with "+rootPromptObj.name,
+      name: "Chat with "+rootPromptObj.name,
       type: MessageType.PROMPT,
       content: "Tell me about what you can help me with.",
       data: {
