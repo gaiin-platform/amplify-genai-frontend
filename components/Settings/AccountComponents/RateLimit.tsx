@@ -2,25 +2,26 @@
 
 // for future rate limit tab
 
+import { PeriodType, UNLIMITED } from "@/types/rateLimit";
 import { FC } from "react";
 
 
 
 interface RateLimitProps {
-    rateLimitType: string;
-    setRateLimitType: (s:string) => void;
-    costAmount: string;
-    setCostAmount: (s:string) => void;
+    period: PeriodType;
+    setPeriod: (s:PeriodType) => void;
+    rate: string;
+    setRate: (s:string) => void; 
 }
 
-export const RatePeriodLimit: FC<RateLimitProps> = ({rateLimitType, setRateLimitType, costAmount, setCostAmount}) => {
+export const RateLimiter: FC<RateLimitProps> = ({period, setPeriod, rate, setRate}) => {
     
     const calcCostWidth = () => {
-        return Math.max(44 + ((costAmount.length - 5) * 9), 44);
+        return Math.max(44 + ((rate.length - 5) * 9), 44);
     }
 
     const formatDollar = (value: string) => {
-        if (value.length > 8)return costAmount;
+        if (value.length > 8)return rate;
         const numericValue = value.replace(/[^\d]/g, '');
         const integerValue = parseInt(numericValue, 10);
         if (isNaN(integerValue)) {
@@ -37,24 +38,24 @@ export const RatePeriodLimit: FC<RateLimitProps> = ({rateLimitType, setRateLimit
                 id="rateLimitType"
                 className="rounded border-gray-300 p-0.5 text-neutral-900 dark:text-neutral-100 shadow-sm dark:bg-[#40414F] focus:border-neutral-700 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
                 style={{ width: '85px'}}
-                value={rateLimitType}
-                onChange={(e) => setRateLimitType(e.target.value)}
+                value={period}
+                onChange={(e) => setPeriod(e.target.value as PeriodType)}
             >
                 <option className="ml-6" value="Unlimited">Unlimited</option>
                 <option className="ml-6" value="Monthly">Monthly</option>
-                <option className="ml-6" value="Weekly">Weekly</option>
+                <option className="ml-6" value="Daily">Daily</option>
                 <option className="ml-6" value="Hourly">Hourly</option>
             </select>
 
-            {rateLimitType !== 'Unlimited' && (
+            {period !== UNLIMITED && (
                 <div className='mt-1'>
                     <input
                         style={{ width: `${calcCostWidth()}px`, textAlign: 'right' }}
                         type="text"
                         placeholder="$0.00"
                         className="rounded border-gray-300  text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50 w-full"
-                        value={costAmount}
-                        onChange={(e) => setCostAmount(formatDollar(e.target.value))}
+                        value={rate}
+                        onChange={(e) => setRate(formatDollar(e.target.value))}
                     />
 
                 </div>

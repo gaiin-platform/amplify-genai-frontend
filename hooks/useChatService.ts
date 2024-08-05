@@ -126,6 +126,7 @@ export function useChatService() {
 
         if (defaultAccount && defaultAccount.id) {
             chatBody.accountId = defaultAccount.id;
+            chatBody.rateLimit = defaultAccount.rateLimit;
         }
 
         metaHandler = metaHandler || {

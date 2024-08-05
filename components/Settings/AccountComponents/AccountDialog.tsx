@@ -2,7 +2,7 @@ import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import HomeContext from '@/pages/api/home/home.context';
 import Loader from "@/components/Loader/Loader";
-import { Account } from "@/types/accounts";
+import { Account, noCoaAccount } from "@/types/accounts";
 import { Accounts } from './Account';
 import { ApiKeys } from './ApiKeys';
 import { getAccounts} from "@/services/accountService";
@@ -10,6 +10,7 @@ import { fetchAllApiKeys } from '@/services/apiKeysService';
 import { ApiKey } from '@/types/apikeys';
 import { IconX } from '@tabler/icons-react';
 import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
+import { noRateLimit, RateLimit } from '@/types/rateLimit';
 
 interface Props {
     open: boolean;
@@ -27,9 +28,12 @@ export const AccountDialog: FC<Props> = ({ open, onClose }) => {
     const [activeTab, setActiveTab] = useState<string>('Accounts');
 
     const [accounts, setAccounts] = useState<Account[]>([]);
-    const noCoaAccount: Account = { id: 'general_account', name: 'No COA On File' };
     const [defaultAccount, setDefaultAccount] = useState<Account>(noCoaAccount);
     const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+
+    const [accountsUnsavedChanges, setAccountsUnsavedChanges] = useState(false);
+    const [apiUnsavedChanges, setApiUnsavedChanges] = useState(false);
+
 
  // fetch data
 useEffect(() => {
@@ -37,6 +41,7 @@ useEffect(() => {
         const result = await getAccounts();
         if (!result.success) {
             alert("Unable to fetch accounts. Please try again.");
+            setIsLoading(false);
             // onClose();
         } else {
             // Add "No COA" account to the list if not present
@@ -44,17 +49,18 @@ useEffect(() => {
                 result.data.unshift(noCoaAccount);
             }
 
+            result.data.forEach((account: any) => {
+                if (!account.rateLimit) account.rateLimit =  noRateLimit;
+            })
+
             setAccounts(result.data);
 
-            const updatedDefaultAccount = result.data.find((account: any) => account.isDefault) || result.data[0];
+            const updatedDefaultAccount = result.data.find((account: Account) => account.isDefault) || result.data[0];
 
             if (updatedDefaultAccount) {
                 setDefaultAccount(updatedDefaultAccount);
             }
-
-            
         }
-        setIsLoading(false);
     }
     if (open) {
         setLoadingMessage('Loading...');
@@ -68,16 +74,19 @@ useEffect(() => {
 
         if (!result.success) {
             alert("Unable to fetch your API keys. Please try again.");
-            // onClose();
+            setIsLoading(false);
         } else {
             setApiKeys(result.data);
             // console.log(result.data)   
         }
-        setIsLoading(false);
     }
    useEffect(() => {
         if (open) fetchApiKeys();
     }, [open]);
+
+    useEffect(() => {
+        if (accounts && apiKeys) setIsLoading(false);
+    }, [accounts, apiKeys])
 
     useEffect(() => {
         const handleEvent = (event:any) => {
@@ -94,9 +103,15 @@ useEffect(() => {
 
 
     const close = () => {
-        onClose();
-        setApiKeys([]);
-        window.dispatchEvent(new Event('cleanupApiKeys'));
+        if (( (accountsUnsavedChanges || apiUnsavedChanges) && confirm("You have unsaved changes!\n\nYou will lose any unsaved data, would you still like to close Manage Accounts?")) ||
+            (!accountsUnsavedChanges && !apiUnsavedChanges)) {
+            onClose();
+            setApiKeys([]);
+            window.dispatchEvent(new Event('cleanupApiKeys'));
+            setAccountsUnsavedChanges(false);
+            setApiUnsavedChanges(false);
+        }
+       
     }
 
     const switchTab = (tabName : string) => {
@@ -141,7 +156,7 @@ useEffect(() => {
                                             key={"Accounts"}
                                             onClick={() => switchTab("Accounts")}
                                             className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Accounts" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
-                                            <h3 className="text-xl">Accounts</h3> 
+                                            <h3 className="text-xl">{`Accounts${accountsUnsavedChanges ? " *" : "  "}`}</h3> 
                                         </button>
 
                                     {featureFlags.apiKeys && 
@@ -149,7 +164,7 @@ useEffect(() => {
                                             key={"API"}
                                             onClick={() => switchTab("API")}
                                             className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "API" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
-                                            <h3 className="text-xl">API Access</h3> 
+                                            <h3 className="text-xl">{`API Access${apiUnsavedChanges ? " *" : "  "}`}</h3> 
                                         </button>}
 
                                         <div className='ml-auto'>
@@ -170,10 +185,8 @@ useEffect(() => {
                                             setAccounts={setAccounts}
                                             defaultAccount={defaultAccount}
                                             setDefaultAccount={setDefaultAccount}
+                                            setUnsavedChanged={setAccountsUnsavedChanges}
                                             onClose={close}
-                                            isLoading={isLoading}
-                                            setIsLoading={setIsLoading}
-                                            setLoadingMessage={setLoadingMessage}
                                             />
                                         }
                             {/* *** Api Keys Tab *** */}
@@ -181,10 +194,8 @@ useEffect(() => {
                                         <ApiKeys
                                         apiKeys={apiKeys}
                                         setApiKeys={setApiKeys}
+                                        setUnsavedChanged={setApiUnsavedChanges}
                                         onClose={close}
-                                        isLoading={isLoading}
-                                        setIsLoading={setIsLoading}
-                                        setLoadingMessage={setLoadingMessage}
                                         accounts={accounts}
                                         defaultAccount={defaultAccount}
                                         />

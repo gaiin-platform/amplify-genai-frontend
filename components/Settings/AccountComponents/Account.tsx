@@ -1,22 +1,23 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
-import { IconTrashX, IconPlus} from "@tabler/icons-react";
+import { IconTrashX, IconPlus, IconCheck, IconX, IconEdit} from "@tabler/icons-react";
 import HomeContext from '@/pages/api/home/home.context';
 import { saveAccounts } from "@/services/accountService";
-import { Account } from "@/types/accounts";
+import { Account, noCoaAccount } from "@/types/accounts";
+import { RateLimiter } from './RateLimit';
+import { formatRateLimit, PeriodType, RateLimit, rateLimitObj, UNLIMITED } from '@/types/rateLimit';
+import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 
 interface Props {
     accounts: Account[];
     setAccounts: (a: Account[]) => void;
     defaultAccount: Account; 
     setDefaultAccount: (s:Account) => void;
+    setUnsavedChanged: (b: boolean) => void;
     onClose: () => void;
-    isLoading: boolean;
-    setIsLoading: (e:boolean) => void;
-    setLoadingMessage: (s:string) => void;
 }
 
-export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, setDefaultAccount,  onClose, isLoading,  setIsLoading, setLoadingMessage }) => {
+export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, setDefaultAccount, setUnsavedChanged, onClose}) => {
     const {  dispatch: homeDispatch } = useContext(HomeContext);
 
     const { t } = useTranslation('settings');
@@ -24,7 +25,15 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
     const accountIdRef = useRef<HTMLInputElement>(null);
     const accountNameRef = useRef<HTMLInputElement>(null);
 
-    const noCoaAccount: Account = { id: 'general_account', name: 'No COA On File' };
+    const [accountRateLimitPeriod, setAccountRateLimitPeriod] = useState<PeriodType>(UNLIMITED);
+    const [accountRateLimitRate, setAccountRateLimitRate] = useState<string>('');
+
+    const [isSaving, setIsSaving ] = useState(false);
+    
+    // helps keep track of cases like added act (unsavechanges) -> delete newly addded act (no unsavedchanges)
+    const [addedAccounts, setAddedAccounts ] = useState<string[]>([]);
+    const [hasEdits, setHasEdits ] = useState(false);
+
 
     const validateCOA = (coa:string) => {
         const pattern = /^(\w{3}\.\w{2}\.\w{5}\.\w{4}\.\w{3}\.\w{3}\.\w{3}\.\w{3}\.\w{1})$/;
@@ -39,14 +48,25 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
         const newAccountId = accountIdRef.current?.value;
         const newAccountName = accountNameRef.current?.value;
         if (newAccountId && newAccountName && validateCOA(newAccountId)) {
-            const updatedAccounts = [...accounts, { id: newAccountId, name: newAccountName }];
+            if (accounts.find((a:Account) => a.name === newAccountName)) {
+                alert("Account name must be unique.\n\nPlease rename the current account you are trying to add.");
+                return 
+            }
+            const updatedAccounts = [...accounts, { id: newAccountId, name: newAccountName, rateLimit: rateLimitObj(accountRateLimitPeriod, accountRateLimitRate)}];
             setAccounts(updatedAccounts);
+            setAddedAccounts([...addedAccounts, newAccountName]);
 
             // Clear input fields after adding an account
             if (accountIdRef.current) accountIdRef.current.value = '';
             if (accountNameRef.current) accountNameRef.current.value = '';
+            setAccountRateLimitPeriod(UNLIMITED);
+            setAccountRateLimitRate('');
         } 
     };
+
+    useEffect(() => {
+        setUnsavedChanged(!(addedAccounts.length === 0 && !hasEdits));
+    }, [addedAccounts, hasEdits]);
 
     const handleDeleteAccount = (accountToDelete: string) => {
         // Prevent deletion of "No COA" account
@@ -54,28 +74,35 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
             alert('The "No COA" account cannot be deleted.');
             return;
         }
-
-        const updatedAccounts = accounts.filter(account => account.id !== accountToDelete);
+        if (addedAccounts.includes(accountToDelete)) {
+            setAddedAccounts(addedAccounts.filter((name:string) => name !== accountToDelete));
+        } else {
+            // old acct is deleted
+            setHasEdits(true);
+        }
+        const updatedAccounts = accounts.filter(account => account.name !== accountToDelete);
         setAccounts(updatedAccounts);
-    };
 
-    const handleSaveSettings = () => {
-        handleSave();
-        //onClose();
     };
+    const handleEdit = (accountName: string, rateLimit: RateLimit) => {
+        setHasEdits(true);
+        setAccounts(accounts.map((a: Account) => {
+            if (a.name === accountName) return {...a, rateLimit: rateLimit}
+            return a;
+        }));
+    }
 
     const handleSave = async () => {
+        console.log("accts saved: ", accounts)
 
         if (accounts.length === 0) {
             alert("You must have at least one account.");
             return;
         }
-
-        setLoadingMessage('Saving...');
-        setIsLoading(true);
+        setIsSaving(true);
 
         let updatedAccounts = accounts.map(account => {
-            return { ...account, isDefault: account.id === defaultAccount.id };
+            return { ...account, isDefault: account.name === defaultAccount.name };
         });
 
         let updatedDefaultAccount = updatedAccounts.find((account: any) => account.isDefault);
@@ -84,15 +111,16 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
 
         if (!result.success) {
             alert("Unable to save accounts. Please try again.");
-            setIsLoading(false);
         } else {
             homeDispatch({ field: 'defaultAccount', value: updatedDefaultAccount || accounts[0] });
-            setIsLoading(false);
-            onClose();
+            setUnsavedChanged(false);
+            setHasEdits(false);
+            setAddedAccounts([]);
         }
+        setIsSaving(false);
+        
     };
 
-    if (isLoading) return <></>
 
     return <div className='flex flex-col h-full'> 
             <div className="mb-4 text-l text-black dark:text-neutral-200 px-2">
@@ -105,8 +133,18 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                     <li key={"header"} className="flex flex-row items-center">
                         <div className="text-left text-lg  text-black dark:text-neutral-200 ">Add Account</div>
                     </li>
-                    <li key={"header2"} className="flex flex-row items-center py-3">
-                        <div className="text-left flex-grow"
+                    <li key={"header2"} className="flex flex-row py-3">
+                        <div className="flex-shrink-0 ml-[-6px] mr-2">
+                            <button
+                                type="button"
+                                title='Add Account'
+                                className="ml-2 mt-2.5 px-3 py-1.5 text-white rounded bg-neutral-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
+                                onClick={handleAddAccount}
+                            >
+                                <IconPlus size={18} />
+                            </button>
+                        </div>
+                        <div className="text-left flex-grow py-2 mt-1"
                             style={{width: '120px'}}>
                             <input
                             ref={accountNameRef}
@@ -115,7 +153,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                             className="rounded border-gray-300 p-1 text-neutral-900 shadow-sm focus:border-neutral-500 w-full"
 
                         /></div>
-                        <div className="text-left ml-2 flex-grow min-w-0">
+                        <div className="text-left ml-2 flex-grow min-w-0 py-2 mt-1">
                             <input
                                 ref={accountIdRef}
                                 type="text"
@@ -124,16 +162,17 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
 
                             />
                         </div>
-                        <div className="flex-shrink-0 ml-auto">
-                            <button
-                                type="button"
-                                title='Add Account'
-                                className="ml-2 px-3 py-1.5 text-white rounded bg-neutral-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
-                                onClick={handleAddAccount}
-                            >
-                                <IconPlus size={18} />
-                            </button>
+                        
+                        <div className='relative ml-2 flex flex-col gap-1 mt-[-14px]' style={{ height: '68px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}>
+                            <label className="text-sm mt-1" htmlFor="rateLimitType">Rate Limit</label>
+                                <RateLimiter
+                                period={accountRateLimitPeriod}
+                                setPeriod= {setAccountRateLimitPeriod}
+                                rate={accountRateLimitRate}
+                                setRate={setAccountRateLimitRate}
+                                />  
                         </div>
+                        
                     </li>
                 </ul>
 
@@ -150,7 +189,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                 (<table className='mt-[-1px] w-full text-md text-black dark:text-neutral-200'>
                                     <thead>
                                         <tr className="bg-gray-200 dark:bg-[#333]">
-                                        { ["Name", "Account"]
+                                        { ["Name", "Account", "Rate Limit"]
                                         .map((i) => (
                                             <th key={i} className="p-0.5 border border-gray-400 text-neutral-600 dark:text-neutral-300">
                                                 {i}
@@ -161,20 +200,27 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                                 <tbody>
                                     {[...accounts].map((account, index) => (
                                         <tr key={index} >
-                                            <td> {account.name}</td>
-                                            <td> <div className='flex justify-between items-center p-3 w-full '>
+                                            <td className='w-full'> {account.name}</td>
+                                            <td className='w-full pr-20'> 
                                                 {account.id}
-                                                {account.id !== noCoaAccount.id && (
-                                                <button
-                                                    type="button"
-                                                    className="ml-auto mt-[-4px] px-2 py-1.5 text-sm bg-neutral-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                                    onClick={() => handleDeleteAccount(account.id)}
-                                                >
-                                                    <IconTrashX size={18} />
-                                                </button>
-                                            )}
+                                            </td>
+                                            <td>
+                                                <div className='flex justify-between items-center p-3 w-[320px]'>
+                                                    <EditableRateLimit 
+                                                    account={account}
+                                                    handleAccountEdit={handleEdit}
+                                                    />
+                                                        <button
+                                                            type="button"
+                                                            className={`ml-auto mt-[-4px] px-2 py-1.5 text-sm bg-neutral-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${account.id === noCoaAccount.id ? 'invisible' : 'visible'}`}
+                                                            onClick={() => handleDeleteAccount(account.name)}
+                                                        >
+                                                            <IconTrashX size={18} />
+                                                        </button>
                                                 </div>
-                                                </td>
+                                              
+                                            </td>
+                                            
                                         </tr>
                                     ))}
                                 </tbody>
@@ -187,7 +233,10 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                 <AccountSelect
                     accounts={accounts}
                     defaultAccount={defaultAccount}
-                    setDefaultAccount={setDefaultAccount}
+                    setDefaultAccount={(a:Account) => {
+                        setHasEdits(true);
+                        setDefaultAccount(a);
+                    }}
                 />
 
                 <div className="flex flex-row my-2 w-full fixed bottom-0 left-0 px-4 py-2">
@@ -202,9 +251,10 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                     <button
                         type="button"
                         className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                        onClick={handleSaveSettings}
+                        onClick={handleSave}
                     >
-                        {t('Save')}
+                        {isSaving ? "Saving..."
+                                  : "Save"}
                     </button>
                 </div>
 
@@ -248,5 +298,95 @@ export const AccountSelect: FC<SelectProps> = ({accounts, defaultAccount, setDef
         }
         
         </>
+    );
+}
+
+
+
+
+interface LabelProps {
+    account: Account;
+    handleAccountEdit: (name: string, rateLimit: RateLimit) => void;
+}
+
+//rateLimit, expiration, accessTypes, account
+const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
+    const [displayLabel, setDisplayLabel] = useState<string | null>(formatRateLimit(account.rateLimit));
+    const [isEditing, setIsEditing] = useState<boolean>(false);
+    const [isHovered, setIsHovered,] = useState(false);
+    const labelRef = useRef<HTMLDivElement>(null);
+
+    const [rateLimitPeriod, setRateLimitPeriod] = useState<PeriodType>(account.rateLimit.period);
+    const [rateLimitRate, setRateLimitRate] = useState<string>(account.rateLimit.rate ? String(account.rateLimit.rate) : '0');
+
+
+    const handleEdit = () => {
+        const updatedRateLimit = rateLimitObj(rateLimitPeriod, rateLimitRate);
+        handleAccountEdit(account.name, updatedRateLimit);
+        setDisplayLabel(formatRateLimit(updatedRateLimit));
+        setIsEditing(false);
+    }
+
+    return (
+        <div
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            ref={labelRef}
+            style={{
+                whiteSpace:'nowrap',
+                overflowWrap: 'break-word',
+                position: 'relative',
+                flex: 'shrink-0',
+            }}
+            className={`overflow-auto mb-2 p-2 flex-1 text-sm rounded flex flex-row `}
+        >
+        {!isEditing && <> {displayLabel}</>}
+
+        {isEditing && (
+            (
+                <div className="flex flex-row gap-2 relative z-40"  >
+                 <RateLimiter
+                    period={rateLimitPeriod as PeriodType}
+                    setPeriod={setRateLimitPeriod}
+                    rate={rateLimitRate}
+                    setRate={setRateLimitRate}
+                />
+                <div className='bg-neutral-200 dark:bg-[#343541]/90 rounded'>
+                    <SidebarActionButton
+                        handleClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit();
+                        }}
+                    >
+                        <IconCheck size={18} />
+
+                    </SidebarActionButton>
+                    <SidebarActionButton
+                        handleClick={(e) => {
+                        e.stopPropagation();
+                        setIsEditing(false);
+                        }}
+                    >
+                        <IconX size={18} />
+                    </SidebarActionButton>
+                    </div>
+                </div>
+              )
+
+        )}
+
+        { isHovered  && !isEditing && (
+            <div
+            className="absolute top-1 right-0 mr-6 z-10 flex-shrink-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"> 
+                <SidebarActionButton
+                    handleClick={() => {setIsEditing(true)}}
+                    title="Edit">
+                    <IconEdit size={18} />
+                </SidebarActionButton>
+            </div>
+        )}
+        
+        </div>
+       
     );
 }

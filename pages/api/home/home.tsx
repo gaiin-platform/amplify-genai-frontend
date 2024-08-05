@@ -81,6 +81,8 @@ import { DefaultUser } from 'next-auth';
 import { addDateAttribute, getDate, getDateName } from '@/utils/app/date';
 import HomeContext, {  ClickContext, Processor } from './home.context';
 import { ReservedTags } from '@/types/tags';
+import { noCoaAccount } from '@/types/accounts';
+import { noRateLimit } from '@/types/rateLimit';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -209,9 +211,9 @@ const Home = ({
                 const response = await getAccounts();
                 if (response.success) {
                     const defaultAccount = response.data.find((account: any) => account.isDefault);
-                    if (defaultAccount) {
-                        dispatch({ field: 'defaultAccount', value: defaultAccount });
-                    }
+                    if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
+                    dispatch({ field: 'defaultAccount', value: defaultAccount || noCoaAccount});
+                    
                     setloadedAccounts(true);  
                     if (featureFlags.storeCloudConversations && initialRemoteCall) syncConversations(); 
                 }
@@ -219,7 +221,7 @@ const Home = ({
 
             if (!loadedAccounts && session?.user) {
                 fetchAccounts();
-                console.log("FETCH ACCOUNTS")
+                // console.log("FETCH ACCOUNTS")
             }
         }
 
