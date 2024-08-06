@@ -17,6 +17,12 @@ interface Props {
     onClose: () => void;
 }
 
+export const isValidCOA = (coa:any) => {
+    if (!coa) return false;
+    const pattern = /^(\w{3}\.\w{2}\.\w{5}\.\w{4}\.\w{3}\.\w{3}\.\w{3}\.\w{3}\.\w{1})$/;
+    return pattern.test(coa);
+}
+
 export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, setDefaultAccount, setUnsavedChanged, onClose}) => {
     const {  dispatch: homeDispatch } = useContext(HomeContext);
 
@@ -34,15 +40,6 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
     const [addedAccounts, setAddedAccounts ] = useState<string[]>([]);
     const [hasEdits, setHasEdits ] = useState(false);
 
-
-    const validateCOA = (coa:string) => {
-        const pattern = /^(\w{3}\.\w{2}\.\w{5}\.\w{4}\.\w{3}\.\w{3}\.\w{3}\.\w{3}\.\w{1})$/;
-        const isValid = pattern.test(coa);
-
-        if (!isValid) alert("Invalid COA\n\nPlease ensure you have correctly typed out your COA.");
-        return isValid;
-        
-    }
 
     const handleAddAccount = () => {
         const newAccountId = accountIdRef.current?.value;
@@ -63,6 +60,12 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
             setAccountRateLimitRate('');
         } 
     };
+
+    const validateCOA = (coa:string) => {
+        const isValid = isValidCOA(coa);
+        if (!isValid) alert("Invalid COA\n\nPlease ensure you have correctly typed out your COA.");
+        return isValid;
+    }
 
     useEffect(() => {
         setUnsavedChanged(!(addedAccounts.length === 0 && !hasEdits));
@@ -125,9 +128,8 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
     return <div className='flex flex-col h-full'> 
             <div className="mb-4 text-l text-black dark:text-neutral-200 px-2">
                     You can add a COA string for billing charges back to a specific account. 
-                    Certain features require at least one COA string to be provided.
+                    Certain features require at least one COA string to be provided. You can always edit the Rate Limit set for an account. Always remember to confirm and save your changes. 
             </div>
-
 
                 <ul className="divide-y divide-gray-200 max-h-40 overflow-y-auto overflow-x-hidden mb-2">
                     <li key={"header"} className="flex flex-row items-center">
@@ -138,7 +140,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                             <button
                                 type="button"
                                 title='Add Account'
-                                className="ml-2 mt-2.5 px-3 py-1.5 text-white rounded bg-neutral-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
+                                className="ml-2 mt-2.5 px-3 py-1.5 text-white rounded bg-neutral-500 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
                                 onClick={handleAddAccount}
                             >
                                 <IconPlus size={18} />
@@ -176,8 +178,20 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                     </li>
                 </ul>
 
+                <div className="mb-2 text-lg text-black dark:text-neutral-200 border-b">
+                    Default Account
+                </div>
+                <AccountSelect
+                    accounts={accounts}
+                    defaultAccount={defaultAccount}
+                    setDefaultAccount={(a:Account) => {
+                        setHasEdits(true);
+                        setDefaultAccount(a);
+                    }}
+                />
 
-                <div className=" text-lg text-black dark:text-neutral-200 border-b-2">
+
+                <div className="mt-6 text-lg text-black dark:text-neutral-200 border-b-2">
                     Your Accounts
                 </div>
 
@@ -186,7 +200,8 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                         You do not have any accounts set up. Add one above.
                     </div>
                 ) : 
-                (<table className='mt-[-1px] w-full text-md text-black dark:text-neutral-200'>
+                (
+                    <table className='mt-[-1px] w-full text-md text-black dark:text-neutral-200'>
                                     <thead>
                                         <tr className="bg-gray-200 dark:bg-[#333]">
                                         { ["Name", "Account", "Rate Limit"]
@@ -212,7 +227,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                                                     />
                                                         <button
                                                             type="button"
-                                                            className={`ml-auto mt-[-4px] px-2 py-1.5 text-sm bg-neutral-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${account.id === noCoaAccount.id ? 'invisible' : 'visible'}`}
+                                                            className={`ml-auto mt-[-4px] px-2 py-1.5 text-sm bg-neutral-500 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${account.id === noCoaAccount.id ? 'invisible' : 'visible'}`}
                                                             onClick={() => handleDeleteAccount(account.name)}
                                                         >
                                                             <IconTrashX size={18} />
@@ -227,18 +242,8 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                             </table>)
                     }
                 
-                <div className="mb-2 text-lg text-black dark:text-neutral-200 border-b-2">
-                    Default Account
-                </div>
-                <AccountSelect
-                    accounts={accounts}
-                    defaultAccount={defaultAccount}
-                    setDefaultAccount={(a:Account) => {
-                        setHasEdits(true);
-                        setDefaultAccount(a);
-                    }}
-                />
-
+                <br className='mb-20'></br>
+                
                 <div className="flex flex-row my-2 w-full fixed bottom-0 left-0 px-4 py-2">
                     {/* Save Button */}
                     <button
@@ -253,8 +258,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                         className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                         onClick={handleSave}
                     >
-                        {isSaving ? "Saving..."
-                                  : "Save"}
+                        {isSaving ? 'Saving Changes...' :'Save Changes'}
                     </button>
                 </div>
 
@@ -353,6 +357,7 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
                 />
                 <div className='bg-neutral-200 dark:bg-[#343541]/90 rounded'>
                     <SidebarActionButton
+                        title='Confirm Change'
                         handleClick={(e) => {
                             e.stopPropagation();
                             handleEdit();
@@ -362,6 +367,7 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
 
                     </SidebarActionButton>
                     <SidebarActionButton
+                        title='Discard Change'
                         handleClick={(e) => {
                         e.stopPropagation();
                         setIsEditing(false);
