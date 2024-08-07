@@ -228,12 +228,19 @@ interface Props {
 
     const handleDeleteFolders = () => {
         handleSearchTerm('');
-        const conversationInFolders: Conversation[] = [];
-        checkedItemsRef.current.forEach((f: FolderInterface) => {
-                                        conversationInFolders.push(...conversationsRef.current.filter((c:Conversation) => c.folderId === f.id));
-                                        handleDeleteFolder(f.id);
-                                    });
-        handleDeleteConversations(conversationInFolders)
+        console.log(checkedItemsRef.current)
+       
+        if (isConvSide) {
+            
+            const conversationInFolders: Conversation[] = [];
+            checkedItemsRef.current.forEach((f: FolderInterface) => {
+                                            conversationInFolders.push(...conversationsRef.current.filter((c:Conversation) => c.folderId === f.id));
+                                            handleDeleteFolder(f.id);
+                                        });
+            handleDeleteConversations(conversationInFolders)
+        } else {
+            checkedItemsRef.current.forEach((f: FolderInterface) => handleDeleteFolder(f.id));
+        }
         clear();
     }
 
@@ -326,9 +333,9 @@ interface Props {
                         {isConvSide  && <KebabActionItem label="Tag" type={label as CheckItemType} handleAction={()=>{setIsTagsDialogVisible(true)}} 
                                          setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTags size={14} />} />}
                         
-                        <KebabMenuItems label="Folders" xShift={176} minWidth={86}>
+                        <KebabMenuItems label="Folders" xShift={175} minWidth={86}>
 
-                            <KebabMenuItems label="Sort" xShift={162}>
+                            <KebabMenuItems label="Sort" xShift={160}>
                                 <KebabItem label="Name" handleAction={() => {setFolderSort('name')}} icon={<IconAbc size={18}/>} />
                                 <KebabItem label="Date" handleAction={() => { setFolderSort('date') } } icon={<IconCalendar size={14}/>} />
                             </KebabMenuItems>

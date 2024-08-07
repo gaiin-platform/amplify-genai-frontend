@@ -445,99 +445,112 @@ const Home = ({
 
         dispatch({ field: 'folders', value: updatedFolders });
         saveFolders(updatedFolders);
-
+        foldersRef.current = updatedFolders;
         return newFolder;
     };
 
     const handleDeleteFolder = (folderId: string) => {
+        const folderType : FolderType | undefined= foldersRef.current.find((f:FolderInterface) => f.id === folderId)?.type;
+        
+        console.log("Deleting folder of type: ", folderType);
 
+        switch (folderType) {
+            case 'chat':
+            const updatedConversations = conversationsRef.current.reduce((acc: Conversation[], c:Conversation) => {
+                                            if (c.folderId === folderId) {
+                                                statsService.deleteConversationEvent(c);
+                                                if (isRemoteConversation(c)) deleteRemoteConversation(c.id);
+                                            } else {
+                                                acc.push(c);
+                                            }
+                                            return acc;
+                                        }, [] as Conversation[]);
+
+            dispatch({ field: 'conversations', value: updatedConversations });
+            saveConversations(updatedConversations);
+
+            if (updatedConversations.length > 0) {
+                const selectedNotDeleted = selectedConversation ?
+                    updatedConversations.some((conversation:Conversation) =>
+                        conversation.id === selectedConversation.id) : false;
+                if (!selectedNotDeleted) { // was deleted
+                    const newSelectedConversation = updatedConversations[updatedConversations.length - 1];
+                    dispatch({
+                        field: 'selectedConversation',
+                        value: newSelectedConversation,
+                    });
+                    localStorage.setItem('selectedConversation', JSON.stringify(newSelectedConversation));
+                }
+
+            } else {
+                defaultModelId &&
+                    dispatch({
+                        field: 'selectedConversation',
+                        value: {
+                            id: uuidv4(),
+                            name: t('New Conversation'),
+                            messages: [],
+                            model: OpenAIModels[defaultModelId],
+                            prompt: DEFAULT_SYSTEM_PROMPT,
+                            temperature: DEFAULT_TEMPERATURE,
+                            folderId: null,
+                            isLocal: getIsLocalStorageSelection(storageSelection)
+
+                        },
+                    });
+
+                localStorage.removeItem('selectedConversation');
+            }
+                break
+            case 'prompt':
+                const updatedPrompts: Prompt[] =  promptsRef.current.map((p:Prompt) => {
+                    if (p.folderId === folderId) {
+                        const isReserved = (isAssistant(p) && p?.data?.assistant?.definition?.tags?.includes(ReservedTags.SYSTEM));
+                        if (isReserved) {
+                            return {
+                                ...p,
+                                folderId: null,
+                            };
+                        }
+                        const canDelete = (!p.data || !p.data.noDelete); 
+        
+                        if (selectedAssistant && p?.data?.assistant?.definition.assistantId === selectedAssistant.definition.assistantId) dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT }); 
+                        if(isAssistant(p) && canDelete ){
+                           const assistant = getAssistant(p);
+                           if (assistant && assistant.assistantId) deleteAssistant(assistant.assistantId);
+                        }
+                        return undefined;
+                    }
+                    return p;
+                }).filter((p): p is Prompt => p !== undefined);;
+        
+                dispatch({ field: 'prompts', value: updatedPrompts });
+                savePrompts(updatedPrompts);
+                    break
+            case 'workflow':
+                const updatedWorkflows: WorkflowDefinition[] = workflows.map((p:WorkflowDefinition) => {
+                    if (p.folderId === folderId) {
+                        return {
+                            ...p,
+                            folderId: null,
+                        };
+                    }
+                    return p;
+                });
+        
+                dispatch({ field: 'workflows', value: updatedWorkflows });
+                saveWorkflowDefinitions(updatedWorkflows);
+                break
+        }
         const updatedFolders = foldersRef.current.filter((f:FolderInterface) => (f.id !== folderId));
+        console.log("Deleting folder ", folderId, "of type: ", updatedFolders);
+
+        foldersRef.current = updatedFolders;
         dispatch({ field: 'folders', value: updatedFolders });
         saveFolders(updatedFolders);
 
-        const updatedConversations = conversationsRef.current.reduce((acc: Conversation[], c:Conversation) => {
-                                        if (c.folderId === folderId) {
-                                            statsService.deleteConversationEvent(c);
-                                            if (isRemoteConversation(c)) deleteRemoteConversation(c.id);
-                                        } else {
-                                            acc.push(c);
-                                        }
-                                        return acc;
-                                    }, [] as Conversation[]);
-
-        dispatch({ field: 'conversations', value: updatedConversations });
-        saveConversations(updatedConversations);
-
-        if (updatedConversations.length > 0) {
-            const selectedNotDeleted = selectedConversation ?
-                updatedConversations.some((conversation:Conversation) =>
-                    conversation.id === selectedConversation.id) : false;
-            if (!selectedNotDeleted) { // was deleted
-                const newSelectedConversation = updatedConversations[updatedConversations.length - 1];
-                dispatch({
-                    field: 'selectedConversation',
-                    value: newSelectedConversation,
-                });
-                localStorage.setItem('selectedConversation', JSON.stringify(newSelectedConversation));
-            }
-
-        } else {
-            defaultModelId &&
-                dispatch({
-                    field: 'selectedConversation',
-                    value: {
-                        id: uuidv4(),
-                        name: t('New Conversation'),
-                        messages: [],
-                        model: OpenAIModels[defaultModelId],
-                        prompt: DEFAULT_SYSTEM_PROMPT,
-                        temperature: DEFAULT_TEMPERATURE,
-                        folderId: null,
-                        isLocal: getIsLocalStorageSelection(storageSelection)
-
-                    },
-                });
-
-            localStorage.removeItem('selectedConversation');
-        }
-
-        const updatedPrompts: Prompt[] =  promptsRef.current.map((p:Prompt) => {
-            if (p.folderId === folderId) {
-                const isReserved = (isAssistant(p) && p?.data?.assistant?.definition?.tags?.includes(ReservedTags.SYSTEM));
-                if (isReserved) {
-                    return {
-                        ...p,
-                        folderId: null,
-                    };
-                }
-                const canDelete = (!p.data || !p.data.noDelete); 
-
-                if (selectedAssistant && p?.data?.assistant?.definition.assistantId === selectedAssistant.definition.assistantId) dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT }); 
-                if(isAssistant(p) && canDelete ){
-                   const assistant = getAssistant(p);
-                   if (assistant && assistant.assistantId) deleteAssistant(assistant.assistantId);
-                }
-                return undefined;
-            }
-            return p;
-        }).filter((p): p is Prompt => p !== undefined);;
-
-        dispatch({ field: 'prompts', value: updatedPrompts });
-        savePrompts(updatedPrompts);
-
-        const updatedWorkflows: WorkflowDefinition[] = workflows.map((p:WorkflowDefinition) => {
-            if (p.folderId === folderId) {
-                return {
-                    ...p,
-                    folderId: null,
-                };
-            }
-            return p;
-        });
-
-        dispatch({ field: 'workflows', value: updatedWorkflows });
-        saveWorkflowDefinitions(updatedWorkflows);
     };
+
 
     const handleUpdateFolder = (folderId: string, name: string) => {
         const updatedFolders = foldersRef.current.map((f:FolderInterface) => {
