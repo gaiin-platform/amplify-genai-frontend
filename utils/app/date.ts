@@ -57,11 +57,14 @@ export const userFriendlyDate = (date: string) => {
 
 
 export const formatDateYMDToMDY = (date: string) => {
-    const newDate = new Date(date);
+    const dateInUTC = `${date}T00:00:00Z`;
+    const newDate = new Date(dateInUTC);
+
     const formatter = new Intl.DateTimeFormat('en-US', {
         year: 'numeric',
         month: 'short',
-        day: 'numeric'
+        day: 'numeric',
+        timeZone: 'UTC' // Make sure to format the date in UTC
     });
     return formatter.format(newDate);
 }

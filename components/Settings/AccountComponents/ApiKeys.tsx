@@ -14,7 +14,7 @@ import {styled, keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import { formatDateYMDToMDY, userFriendlyDate } from '@/utils/app/date';
-import { AccountSelect } from './Account';
+import { AccountSelect, isValidCOA } from './Account';
 import { RateLimiter} from './RateLimit';
 import cloneDeep from 'lodash/cloneDeep';
 import { Prompt } from '@/types/prompt';
@@ -77,6 +77,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
 
 
     const { t } = useTranslation('settings');
+    const [validAccounts, setValidAccounts] = useState<any>(accounts.filter((a: Account) => a.id !== noCoaAccount.id && isValidCOA(a.id)));
 
     const [ownerApiKeys, setOwnerApiKeys] = useState<ApiKey[]>([]);
     const [delegateApiKeys, setDelegateApiKeys] = useState<ApiKey[]>([]);
@@ -93,7 +94,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
     const [includeExpiration, setIncludeExpiration] = useState<boolean>(false);
     const [systemUse, setSystemUse] = useState<boolean>(false);
     
-    const [selectedAccount, setSelectedAccount] = useState<Account | null>(defaultAccount.name === noCoaAccount.name ? null : defaultAccount);
+    const [selectedAccount, setSelectedAccount] = useState<Account | null>(defaultAccount.name === noCoaAccount.name || !isValidCOA(defaultAccount.id)? validAccounts[0] || null : defaultAccount);
 
     const [editedKeys, setEditedKeys] = useState<any>({});
 
@@ -160,10 +161,6 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
         setOwnerApiKeys(apiKeys.filter((k: ApiKey) => k.owner === user?.email));
     }, [apiKeys]);
 
-    useEffect(() => {
-        // setKeysLoaded(false);
-    }, [ownerApiKeys]);
-
 
     const handleCreateApiKey = async () => {
         setIsCreating(true);
@@ -180,12 +177,20 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
             'systemUse' : systemUse && delegateInput.length === 0
         }
         const result = await createApiKey(data)
+        const sucess = result.success;
         setIsCreating(false);
 
-        alert(result ? "Successfuly created the API key" : "Unable to create the API key at this time. Please try again later...");
-        // empty out all the create key fields
-        if (result) {
+        //done first for preloadeding keys while user handles alert 
+        if (sucess) {
             statsService.createApiKey(data);
+            setDelegateApiKeys([]);
+            setOwnerApiKeys([]);
+            // to pull in the updated changes to the ui     
+            window.dispatchEvent(new Event('createApiKeys'));
+        }
+        alert(sucess ? "Successfuly created the API key" : `Unable to create the API key at this time. \n\n Error message: ${result.message}`);
+        // empty out all the create key fields
+        if (sucess) {
             setAppName('');
             setAppDescriptione('');
             setDelegateInput('');
@@ -194,11 +199,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
             setSystemUse(false);
             setOptions(optionChoices);
             setFullAccess(true);
-            // to pull in the updated changes to the ui
-            window.dispatchEvent(new Event('createApiKeys'));
-        }
-        
-        
+           
+        } 
     };
 
     const handleDeactivateApikey = async (apiKeyId: string, name: string) => {
@@ -245,10 +247,9 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
          <div className='flex flex-col gap-4 mx-2' > 
             <div className="text-l text-black dark:text-neutral-200">
                API keys are used to authenticate and authorize access to specific Amplify services. You can create API keys for yourself and others.  
+               <br className='mb-2'></br>
+               The following fields are editable for your active API keys: Account, Expiration, Rate Limit, and Access Types. Remove an expiration date by clearing the date in the calendar. Always remember to confirm and save your changes. You can automatically deactive any active API key by clicking the green check mark. 
                <br className='mb-1'></br>
-               The following fields are editable for your active API keys: Account, Expiration, Rate Limit, and Access Types.
-               <br className='mb-1'></br>
-               You can deactive any active API key by hovering the green check mark.
 
                 <div className="mx-5 mt-4 flex items-center p-2 border border-gray-400 dark:border-gray-500 rounded ">
                     <IconInfoCircle size={16} className='mx-2 mb-1 flex-shrink-0 text-gray-600 dark:text-gray-400' />
@@ -357,7 +358,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                             <div className='flex flex-row gap-2 mr-6'>
                                 <label className="text-sm mt-1 w-[48px] ml-2 " htmlFor="BillTo">Bill To</label>
                                 <AccountSelect
-                                    accounts={accounts.filter((a: Account) => a.id !== noCoaAccount.id)}
+                                    accounts={validAccounts}
                                     defaultAccount={defaultAccount}
                                     setDefaultAccount={setSelectedAccount}
                                 />
@@ -483,7 +484,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                                            : <IconX className='text-red-600' size={18} />}
                                         </div>
                                     </td>
-                                    <td>{<Label label={apiKey.account ? `${apiKey.account.name + " - "} ${apiKey.account.id}` : ''} widthPx='180px' editableField={apiKey.active && (user?.email !== apiKey.delegate)? 'account' : undefined} apiKey={apiKey} accounts={accounts.filter((a: Account) => a.id !== noCoaAccount.id)}/>}</td>
+                                    <td>{<Label label={apiKey.account ? `${apiKey.account.name + " - "} ${apiKey.account.id}` : ''} widthPx='180px' editableField={apiKey.active && (user?.email !== apiKey.delegate)? 'account' : undefined} apiKey={apiKey} accounts={validAccounts}/>}</td>
                                     <td>{apiKey.delegate ? <Label label={apiKey.delegate} /> :  <NALabel />}</td>
                                     <td>{ apiKey.expirationDate ?  <Label label={formatDateYMDToMDY(apiKey.expirationDate)} 
                                                                           textColor={isExpired(apiKey.expirationDate) ? "text-red-600": undefined} 
@@ -571,7 +572,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                     className="w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-white dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                     onClick={handleSave}
                 >
-                    {isSaving? 'Saving Edits...' :'Save Edits'}
+                    {isSaving? 'Saving Changes...' :'Save Changes'}
                 </button>
             </div>}
            
@@ -731,14 +732,13 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
         switch (editableField) {
             case("expirationDate"):
                 setDisplayLabel(selectedDate)
-                editedData = selectedDate;
+                editedData = selectedDate ? selectedDate : "None";
                 break;
             case("account"):
                 if (selectedAccount) {
                     setDisplayLabel(`${selectedAccount.name + " - "} ${selectedAccount.id}`);
                     editedData = selectedAccount;
                 }
-                
                 break;
             case("rateLimit"): 
                 editedData = rateLimitObj(rateLimitPeriod, rateLimitRate);
@@ -754,7 +754,7 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
             window.dispatchEvent(new CustomEvent('editedApiKey', {
                 detail: {
                     id: apiKey?.api_owner_id,
-                    edits: { [editableField] : editedData }
+                    edits: { [editableField] : editedData === "None" ? null : editedData}
                 }
                 }));
         }
@@ -825,9 +825,10 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
 
         {isEditing && (
             (
-                <div className="ml-2 relative z-40 flex bg-neutral-200 dark:bg-[#343541]/90 rounded"  
+                <div className="ml-2 relative z-5 flex bg-neutral-200 dark:bg-[#343541]/90 rounded"  
                >
                   <SidebarActionButton
+                  title='Confirm Change'
                     handleClick={(e) => {
                         e.stopPropagation();
                         handleEdit();
@@ -837,6 +838,7 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
                     <IconCheck size={18} />
                   </SidebarActionButton>
                   <SidebarActionButton
+                    title='Discard Change'
                     handleClick={(e) => {
                       e.stopPropagation();
                       setIsEditing(false);
@@ -851,7 +853,7 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
 
         {editableField && isHovered  && !isEditing && !isScrolling && (
             <div
-            className="absolute top-1 right-0 ml-auto z-10 flex-shrink-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"
+            className="absolute top-1 right-0 ml-auto z-5 flex-shrink-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"
            style={{ transform: `translateX(${translateX}px)` }}> 
                 <SidebarActionButton
                     handleClick={() => {setIsEditing(true)}}

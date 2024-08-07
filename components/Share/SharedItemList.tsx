@@ -283,13 +283,13 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                             className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "SWY" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
                             <h3 className="text-lg">Shared With You</h3> 
                         </button>
-                        <button
+                        {/* <button
                             key={"youShared"}
                             disabled={isLoading}
                             onClick={() => setActiveTab("YS")}
                             className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "YS" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
                             <h3 className="text-lg">You Shared</h3> 
-                        </button>
+                        </button> */}
             </div>
            
 
@@ -316,7 +316,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                             }
                             }
                                 key={index}
-                                className={`flex cursor-pointer items-center gap-2 rounded-lg pb-2 pt-3 pr-2 text-sm transition-colors duration-200 ${isButtonHover ? "hover:bg-neutral-200 dark:hover:bg-[#343541]/90": ""}`}
+                                className={`w-full flex cursor-pointer items-center gap-2 rounded-lg pb-2 pt-3 pr-2 text-sm transition-colors duration-200 ${isButtonHover ? "hover:bg-neutral-200 dark:hover:bg-[#343541]/90": ""}`}
                                 onClick={() => {
                                     setSharedBy(item.sharedBy);
                                     handleFetchShare(item);
@@ -339,10 +339,10 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                                         setIsButtonHover(false)
                                     }}
                                     onMouseLeave={() => setIsButtonHover(true)}>
-                                    {!deletingItem && (
-                                        <SidebarActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
-                                            <IconTrash size={18} />
-                                        </SidebarActionButton>
+                                    {!deletingItem && ( <></>
+                                        // <SidebarActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
+                                        //     <IconTrash size={18} />
+                                        // </SidebarActionButton>
                                     )}
 
                                     {deletingItem && (

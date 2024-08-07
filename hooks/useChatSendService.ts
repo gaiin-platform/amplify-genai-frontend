@@ -30,7 +30,8 @@ import { isRemoteConversation } from "@/utils/app/conversationStorage";
 import { fetchAllApiKeys } from "@/services/apiKeysService";
 import { getAccounts } from "@/services/accountService";
 import { ApiKey } from "@/types/apikeys";
-import { Account } from "@/types/accounts";
+import { Account, noCoaAccount } from "@/types/accounts";
+import { isValidCOA } from "@/components/Settings/AccountComponents/Account";
 
 export type ChatRequest = {
     message: Message;
@@ -284,7 +285,7 @@ export function useSendService() {
 
                             // accounts
                             const accounts = await getAccounts();
-                            if (accounts.success && accounts.data) appendMsg += "\n\nACCOUNTS:\n" + JSON.stringify(accounts.data.filter((a: Account) => a.id !== 'general_account'), null) || "UNAVAILABLE";
+                            if (accounts.success && accounts.data) appendMsg += "\n\nAVAILABLE ACCOUNTS for OPS:\n" + JSON.stringify(accounts.data.filter((a: Account) => a.id !== noCoaAccount.id && isValidCOA(a.id)), null) || "UNAVAILABLE";
                             
                             // user name 
                             appendMsg += "\n\nCurrent User: " + user?.email;

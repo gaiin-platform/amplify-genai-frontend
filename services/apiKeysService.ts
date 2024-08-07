@@ -17,10 +17,10 @@ export const createApiKey = async (data: any,  abortSignal = null) => {
     const result = await response.json();
 
     try {
-        return 'success' in result ? result.success : false;
+        return 'success' in result ? result : {"success":false, "message" : "Unkown Internal Error"};
     } catch (e) {
         console.error("Error making post request: ", e);
-        return false;
+        return {"success": false, "message": "Unkown Internal Error"};
     }
 };
 
