@@ -933,7 +933,7 @@ const Home = ({
     const handleScroll = (event: any) => {
         const scrollableElement = event.currentTarget;
         const hasScrollableContent = scrollableElement.scrollHeight > scrollableElement.clientHeight;
-        const isAtBottom = scrollableElement.scrollHeight - scrollableElement.scrollTop === scrollableElement.clientHeight;
+        const isAtBottom = scrollableElement.scrollHeight - scrollableElement.scrollTop <= scrollableElement.clientHeight + 1;
         if (hasScrollableContent && isAtBottom) {
             dispatch({ field: 'hasScrolledToBottom', value: true });
         } else if (!hasScrollableContent) {
