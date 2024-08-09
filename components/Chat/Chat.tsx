@@ -764,40 +764,37 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             };
         }, [messagesEndRef]);
     
-        // MTDCOST START
-        // for MTD cost UI component
         useEffect(() => {
-            let isFetching = false;
+            if (featureFlags.mtdCost) {
+                let isFetching = false;
 
-            const fetchMtdCost = async () => {
-                if (isFetching) return;
+                const fetchMtdCost = async () => {
+                    if (isFetching) return;
 
-                isFetching = true;
-                console.log("FETCHING UPDATED MTD COST");
+                    isFetching = true;
 
-                try {
-                    const result = await doMtdCostOp();
-                    console.log("UPDATED MTD COST FETCHED");
-                    if (result && result.item && result.item["MTD Cost"] !== undefined) {
-                        setMtdCost(`$${result.item["MTD Cost"].toFixed(2)}`);
-                    } else {
+                    try {
+                        const result = await doMtdCostOp();
+                        if (result && result.item && result.item["MTD Cost"] !== undefined) {
+                            setMtdCost(`$${result.item["MTD Cost"].toFixed(2)}`);
+                        } else {
+                            setMtdCost('Error');
+                        }
+                    } catch (error) {
+                        console.error("Error fetching MTD cost:", error);
                         setMtdCost('Error');
+                    } finally {
+                        isFetching = false;
                     }
-                } catch (error) {
-                    console.error("Error fetching MTD cost:", error);
-                    setMtdCost('Error');
-                } finally {
+                };
+
+                fetchMtdCost();
+
+                return () => {
                     isFetching = false;
-                }
-            };
-
-            fetchMtdCost();
-
-            return () => {
-                isFetching = false;
-            };
-        }, [messageIsStreaming]);
-        // MTDCOST END
+                };
+            }
+        }, [messageIsStreaming, featureFlags.mtdCost]);
 
 // @ts-ignore
         return (
@@ -937,23 +934,24 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     )}
                                     <div
                                        className="items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
-
-                                        {/* MTDCOST START */}
-                                        <button
-                                            className="ml-2 mr-2 cursor-pointer hover:opacity-50"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                homeDispatch({ field: 'page', value: 'cost' });
-                                            }}
-                                            title="Month-To-Date Cost"
-                                        >
-                                            <div className="flex flex-row items-center ml-2 bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
-                                                <div className="ml-1">MTD Cost: {mtdCost}</div>
-                                            </div>
-                                        </button>
-                                        |
-                                        {/* MTDCOST END */}
+                                        {featureFlags.mtdCost && (
+                                            <>
+                                                <button
+                                                    className="ml-2 mr-2 cursor-pointer hover:opacity-50"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        homeDispatch({ field: 'page', value: 'cost' });
+                                                    }}
+                                                    title="Month-To-Date Cost"
+                                                >
+                                                    <div className="flex flex-row items-center ml-2 bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
+                                                        <div className="ml-1">MTD Cost: {mtdCost}</div>
+                                                    </div>
+                                                </button>
+                                                |
+                                            </>
+                                        )}
                                         {t(' Workspace: ' + workspaceMetadata.name)} | {selectedConversation?.model.name} | {t('Temp')}
                                         : {selectedConversation?.temperature} |
                                         <button
