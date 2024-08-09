@@ -1,7 +1,7 @@
 import { Conversation } from "@/types/chat";
 import { FolderInterface } from "@/types/folder";
 import { compressConversation, saveConversations, uncompressConversation } from "@/utils/app/conversation";
-import { remoteConvData } from "@/utils/app/conversationStorage";
+import { CloudConvAttr, pickConversationAttributes, remoteConvData } from "@/utils/app/conversationStorage";
 
 
 export const uploadConversation = async (conversation: Conversation, folders: FolderInterface[], abortSignal = null) => {
@@ -69,7 +69,7 @@ export const fetchRemoteConversation = async (conversationId: string, conversati
         return null;
     }
 };
-
+// only used for the initial sync conversations 
 export const fetchAllRemoteConversations = async (abortSignal = null) => {
     const response = await fetch(`/api/remoteconversation/op?path=${encodeURIComponent("/get_all")}`, {
         method: 'GET',
@@ -81,15 +81,14 @@ export const fetchAllRemoteConversations = async (abortSignal = null) => {
 
     const result = await response.json();
     const resultBody = result ? JSON.parse(result.body || '{}') : {"success": false};
-    console.log("Result body: ", resultBody);
 
     if (resultBody.success) { // folders needed for first fetch 
-        console.log("uncompress retrieved conversations");
+        console.log("uncompress retrieved conversations len: ", resultBody.conversationsData.length);
         const remoteConversations = resultBody.conversationsData.map((cd: any) => ({
-                          conversation: uncompressConversation(cd.conversation) as Conversation,
+                          conversation: pickConversationAttributes(uncompressConversation(cd.conversation) as Conversation, CloudConvAttr)  as Conversation, 
+                        //    uncompressConversation(cd.conversation) as Conversation,
                           folder: cd.folder as FolderInterface
                         }))as remoteConvData[];
-        console.log("return: ", remoteConversations);
         return remoteConversations.filter((cd: remoteConvData)  => cd.conversation !== undefined) 
     } else {
         console.error("Error fetching conversations: ", result.message);

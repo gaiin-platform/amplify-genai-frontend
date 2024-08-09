@@ -203,7 +203,8 @@ const Home = ({
         else {
             const syncConversations = async () => {
                 setInitialRemoteCall(false);
-                await updateWithRemoteConversations(conversationsRef.current, foldersRef.current, dispatch);
+                console.log("convs len: ", conversations.length);
+                await updateWithRemoteConversations(conversations, foldersRef.current, dispatch);
                 setLoadingAmplify(false);
             }
 
