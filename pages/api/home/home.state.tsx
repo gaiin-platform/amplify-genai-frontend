@@ -129,7 +129,7 @@ export const initialState: HomeInitialState = {
     storeCloudConversations: true,
     qiSummary: true,
     apiKeys: true,
-    mtdCost: false
+    mtdCost: true
   },
 
   statsService: noOpStatsServices,
