@@ -986,43 +986,41 @@ const Home = ({
 
     if (session) {
         if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
-            if (hasAcceptedDataDisclosure === null) { // Decision is still being checked, render a loading indicator
+            if (hasAcceptedDataDisclosure === null) {
                 return (
-                    <main
-                        className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
-                    >
-                        <div
-                            className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                    <main className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}>
+                        <div className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
                             <Loader />
-                            <h1 className="mb-4 text-2xl font-bold">
-                                Loading...
-                            </h1>
+                            <h1 className="mb-4 text-2xl font-bold">Loading...</h1>
                         </div>
-                    </main>);
-            } else if (!hasAcceptedDataDisclosure) { // User has not accepted the data disclosure agreement, do not render page content
+                    </main>
+                );
+            } else if (!hasAcceptedDataDisclosure) {
                 return (
-                    <main
-                        className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}
-                    >
-                        <div
-                            className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
-                            <h1 className="text-2xl font-bold dark:text-white">
-                                Amplify Data Disclosure Agreement
-                            </h1>
+                    <main className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}>
+                        <div className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
+                            <h1 className="text-2xl font-bold dark:text-white">Amplify Data Disclosure Agreement</h1>
                             <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', marginBottom: '10px' }}>Download the data disclosure agreement</a>
-                            <div
-                                className="data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black text-left"
-                                style={{
-                                    overflowY: 'scroll',
-                                    border: '1px solid #ccc',
-                                    padding: '20px',
-                                    marginBottom: '10px',
-                                    height: '500px',
-                                    width: '30%',
-                                }}
-                                onScroll={handleScroll}
-                                dangerouslySetInnerHTML={{ __html: latestDataDisclosureHTML || '' }}
-                            />
+                            {latestDataDisclosureHTML ? (
+                                <div
+                                    className="data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black text-left"
+                                    style={{
+                                        overflowY: 'scroll',
+                                        border: '1px solid #ccc',
+                                        padding: '20px',
+                                        marginBottom: '10px',
+                                        height: '500px',
+                                        width: '30%',
+                                    }}
+                                    onScroll={handleScroll}
+                                    dangerouslySetInnerHTML={{ __html: latestDataDisclosureHTML }}
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center" style={{ height: '500px', width: '30%' }}>
+                                    <Loader />
+                                    <p className="mt-4">Loading agreement...</p>
+                                </div>
+                            )}
                             <input
                                 type="email"
                                 placeholder="Enter your email"
@@ -1040,7 +1038,6 @@ const Home = ({
                                 }}
                                 onKeyPress={(e) => {
                                     if (e.key === 'Enter') {
-                                        // Duplicated logic from the button's onClick handler
                                         if (session && session.user && session.user.email) {
                                             if (inputEmail.toLowerCase() === session.user.email.toLowerCase()) {
                                                 if (hasScrolledToBottom) {
@@ -1065,8 +1062,7 @@ const Home = ({
                                             if (hasScrolledToBottom) {
                                                 saveDataDisclosureDecision(session.user.email, true);
                                                 dispatch({ field: 'hasAcceptedDataDisclosure', value: true });
-                                            }
-                                            else {
+                                            } else {
                                                 alert('You must scroll to the bottom of the disclosure before accepting.');
                                             }
                                         } else {
