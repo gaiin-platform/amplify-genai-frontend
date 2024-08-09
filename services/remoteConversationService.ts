@@ -81,11 +81,15 @@ export const fetchAllRemoteConversations = async (abortSignal = null) => {
 
     const result = await response.json();
     const resultBody = result ? JSON.parse(result.body || '{}') : {"success": false};
+    console.log("Result body: ", resultBody);
+
     if (resultBody.success) { // folders needed for first fetch 
+        console.log("uncompress retrieved conversations");
         const remoteConversations = resultBody.conversationsData.map((cd: any) => ({
                           conversation: uncompressConversation(cd.conversation) as Conversation,
                           folder: cd.folder as FolderInterface
                         }))as remoteConvData[];
+        console.log("return: ", remoteConversations);
         return remoteConversations.filter((cd: remoteConvData)  => cd.conversation !== undefined) 
     } else {
         console.error("Error fetching conversations: ", result.message);
