@@ -4,8 +4,14 @@ import {Message, MessageType} from "@/types/chat";
 import {FolderInterface} from "@/types/folder";
 import {ReservedTags} from "@/types/tags";
 import { saveFolders } from '@/utils/app/folders';
-import { getPrompts, savePrompts } from "./prompts";
+import { savePrompts } from "./prompts";
+import { getDate } from "./date";
 
+export const isAssistantById = (promptId: string, prompts: Prompt[]) => {
+    const prompt = prompts.find((p: Prompt) => p.id === promptId);
+    if (prompt) return isAssistant(prompt);
+    return false;
+}
 
 export const isAssistant = (prompt: Prompt) => {
     return prompt.data && prompt.data.assistant;
@@ -90,20 +96,21 @@ export const createAssistantPrompt = (assistant: AssistantDefinition): Prompt =>
     };
 }
 
-const createAssistantFolder = (folders: FolderInterface[], dispatch: any) => {
+const createAssistantFolder = async (folders: FolderInterface[], dispatch: any) => {
     console.log("Creating assistants folder...")
     const newFolder = {
         id: "assistants",
-        date: new Date().toISOString().slice(0, 10),
+        date: getDate(),
         name: "Assistants",
         type: "prompt",
     } as FolderInterface;
     const updatedFolders = [...folders, newFolder];
     dispatch({field: 'folders', value: updatedFolders});
     saveFolders(updatedFolders);
+    return 
 }
 
-export const syncAssistants = (assistants: AssistantDefinition[], folders: FolderInterface[], prompts: Prompt[], dispatch: any) => {
+export const syncAssistants = async (assistants: AssistantDefinition[], folders: FolderInterface[], prompts: Prompt[], dispatch: any, featureFlags: any) => {
     // Match assistants by name and only take the one with the highest version number for each name
     const latestAssistants = assistants.reduce((acc: { [key: string]: AssistantDefinition }, assistant: AssistantDefinition) => {
         if (!assistant.version) {
@@ -112,6 +119,7 @@ export const syncAssistants = (assistants: AssistantDefinition[], folders: Folde
 
         // @ts-ignore
         if (!acc[assistant.assistantId] || acc[assistant.assistantId].version < assistant.version) {
+            if (!assistant.assistantId) assistant.assistantId = assistant.id;
             acc[assistant.assistantId || ""] = assistant;
         }
         return acc;
@@ -122,18 +130,19 @@ export const syncAssistants = (assistants: AssistantDefinition[], folders: Folde
     // Make sure the "assistants" folder exists and create it if necessary
     const assistantsFolder = folders.find((f) => f.id === "assistants");
     if (!assistantsFolder) {
-        createAssistantFolder(folders, dispatch);
+        await createAssistantFolder(folders, dispatch);
     }
 
     // would love for it to be like this but we need to offset render or add loading because prompts are jumping 
     //const assistantPrompts: Prompt[] = assistants.map(createAssistantPrompt);    
     // const updatedPrompts = prompts.filter(prompt =>  !isAssistant(prompt) || prompt.data?.noShare);
 
-
     //create Assistant prompts for new assistants only since we already have them in our prompts list 
+    // note updated versions are 'new' and will replace the old ones. 
     const assistantPrompts: Prompt[] = assistants.reduce((acc: Prompt[], ast) => {
             const existingAssistant = prompts.find(prompt => prompt.id === ast.id);
-            if (!existingAssistant) {
+                                   // always get a fresh copy of system assistants
+            if (!existingAssistant || ast.tags.includes(ReservedTags.SYSTEM)) {
                 const newPrompt = createAssistantPrompt(ast);
                 acc.push(newPrompt);
             } 
@@ -141,26 +150,28 @@ export const syncAssistants = (assistants: AssistantDefinition[], folders: Folde
     }, []);
     
     const assistantNames = new Set(assistantPrompts.map(prompt => prompt.name));
-    // we want the updated assistant versions so we filter and old versions from our original prompts list 
+    // we want the updated assistant versions so we filter out old versions from our original prompts list 
     let updatedPrompts: Prompt[] = assistantNames.size > 0 ? prompts.filter(prompt => !assistantNames.has(prompt.name)) : prompts;
     
-
     // filter out any assistants that are no longer in the back end while keeping imported ones 
     const assistantIds = new Set(assistants.map(prompt => prompt.id));
                                         // keep the       nonassistants            imported                 still in db 
-    updatedPrompts = updatedPrompts.filter(prompt =>  !isAssistant(prompt) || prompt.data?.noShare || assistantIds.has(prompt.id));                            
+    updatedPrompts = updatedPrompts.filter(prompt =>  !isAssistant(prompt) || prompt.data?.noShare || assistantIds.has(prompt.id));                      
+    
+    // feature flag considerations
+    if (!featureFlags.apiKeys) updatedPrompts = updatedPrompts.filter(prompt => prompt.id !== 'ast/assistant-api-key-manager');
 
-    savePrompts([...updatedPrompts, ...assistantPrompts]);
-    dispatch({field: 'prompts', value: [...updatedPrompts, ...assistantPrompts]}); 
+    savePrompts([...assistantPrompts, ...updatedPrompts]);
+    dispatch({field: 'prompts', value: [...assistantPrompts, ...updatedPrompts]}); 
    
 }
 
 
 
-export const handleUpdateAssistantPrompt = async (assistantPrompt: Prompt, dispatch: any) => {
-    const prompts: Prompt[] = getPrompts().filter((curPrompt: Prompt) => curPrompt?.data?.assistant?.definition.assistantId !== 
+export const handleUpdateAssistantPrompt = async (assistantPrompt: Prompt, prompts: Prompt[], dispatch: any) => {
+    const filteredPrompts: Prompt[] = prompts.filter((curPrompt: Prompt) => curPrompt?.data?.assistant?.definition.assistantId !== 
                                                                          assistantPrompt.data?.assistant?.definition.assistantId)
-    const updatedPrompts = [...prompts, assistantPrompt]
+    const updatedPrompts = [...filteredPrompts, assistantPrompt]
     dispatch({ field: 'prompts', value: updatedPrompts });
     savePrompts(updatedPrompts);
 }

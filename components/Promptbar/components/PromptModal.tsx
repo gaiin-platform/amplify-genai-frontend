@@ -9,6 +9,7 @@ import {variableTypeOptions, parsePromptVariableValues, parsePromptVariables, ge
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import EditableField from "@/components/Promptbar/components/EditableField";
 import { DEFAULT_SYSTEM_PROMPT } from "@/utils/app/const";
+import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
 
 
 interface Props {
@@ -43,6 +44,12 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
     state: { featureFlags, prompts },
   } = useContext(HomeContext);
 
+  const promptsRef = useRef(prompts);
+
+  useEffect(() => {
+      promptsRef.current = prompts;
+    }, [prompts]);
+
   let workflowRoot:Prompt = {
     id: "default",
     name: "Default custom instructions",
@@ -52,11 +59,11 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
     folderId: null,
   };
 
-  let rootPrompts = [workflowRoot, ...prompts.filter((p) => p.type === MessageType.ROOT)];
+  let rootPrompts = [workflowRoot, ...promptsRef.current.filter((p: Prompt) => p.type === MessageType.ROOT)];
 
   if(rootPrompts.length > 0) {
     workflowRoot =
-        rootPrompts.filter(p => p.id === prompt.data?.rootPromptId)[0]
+        rootPrompts.filter((p:Prompt) => p.id === prompt.data?.rootPromptId)[0]
         || rootPrompts[0];
   }
 
@@ -93,7 +100,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
 
   const handleUpdateRootPrompt = (rootPromptId:string) => {
     try {
-      let root = rootPrompts.filter((p) => p.id === rootPromptId)[0];
+      let root = rootPrompts.filter((p:Prompt) => p.id === rootPromptId)[0];
       setRootPrompt(root);
     }catch (e) {
     }
@@ -269,6 +276,18 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               onChange={(e) => handleUpdateTemplate(e.target.value)}
               rows={10}
             />
+            {featureFlags.promptOptimizer && (
+                <>
+                  <PromptOptimizerButton
+                      maxPlaceholders={3}
+                      prompt={content || ""}
+                      onOptimized={(prompt:string, optimizedPrompt:string) => {
+                        setContent(optimizedPrompt);
+                        handleUpdateTemplate(optimizedPrompt);
+                      }}
+                  />
+                </>
+            )}
 
             { variableOptions.length > 0 && (
                 <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">

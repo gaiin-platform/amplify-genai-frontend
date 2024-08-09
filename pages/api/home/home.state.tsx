@@ -1,6 +1,6 @@
 import { Conversation, Message } from '@/types/chat';
 import { ErrorMessage } from '@/types/error';
-import { FolderInterface, SortType } from '@/types/folder';
+import { FolderInterface} from '@/types/folder';
 import { OpenAIModel, OpenAIModelID } from '@/types/openai';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
@@ -11,6 +11,8 @@ import { Assistant } from "@/types/assistant";
 import { noOpStatsServices, StatsServices } from "@/types/stats";
 import { Account } from "@/types/accounts";
 import {Op} from "@/types/op";
+import {CheckItemType} from "@/types/checkItem";
+import { PluginLocation } from '@/types/plugin';
 
 
 type HandleSend = (request: any) => void;
@@ -51,14 +53,13 @@ export interface HomeInitialState {
   inputEmail: string;
   hasAcceptedDataDisclosure: boolean | null;
   hasScrolledToBottom: boolean;
+  storageSelection: string | null;
   ops: { [key: string]: Op };
-  checkFolders: boolean;
   allFoldersOpenConvs: boolean;
-  checkConversations: boolean;
-  convFolderSort: SortType;
   allFoldersOpenPrompts: boolean;
-  checkPrompts: boolean;
-  promptFolderSort: SortType;
+  checkedItems: Array<any>;
+  checkingItemType: CheckItemType | null;
+  pluginLocation: PluginLocation;
 }
 
 export const initialState: HomeInitialState = {
@@ -74,10 +75,8 @@ export const initialState: HomeInitialState = {
   models: [],
   folders: [],
   conversations: [],
+  workflows: [],
   ops: {},
-  workflows: [
-
-  ],
   workspaceMetadata: {
     name: '',
     description: '',
@@ -105,6 +104,7 @@ export const initialState: HomeInitialState = {
 
   featureFlags: {
     assistantsEnabled: true,
+    promptOptimizer: true,
     ragEnabled: true,
     sourcesEnabled: true,
     uploadDocuments: true,
@@ -119,14 +119,17 @@ export const initialState: HomeInitialState = {
     workflowRun: true,
     workflowCreate: false,
     rootPromptCreate: true,
-    pluginsOnInput: false,
+    pluginsOnInput: true, // if all plugin features are disables, then this should be disabled. ex. ragEnabled, codeInterpreterEnabled etc.
     dataSourceSelectorOnInput: true,
     followUpCreate: true,
     marketItemDelete: false,
     automation: true,
     codeInterpreterEnabled: true,
-    dataDisclosure: false,
-    inCognitoGroup: true
+    dataDisclosure: true,
+    storeCloudConversations: true,
+    qiSummary: true,
+    apiKeys: true,
+    mtdCost: true
   },
 
   statsService: noOpStatsServices,
@@ -136,12 +139,10 @@ export const initialState: HomeInitialState = {
   inputEmail: '',
   hasAcceptedDataDisclosure: null,
   hasScrolledToBottom: false,
-  checkFolders: false,
+  storageSelection: null,
   allFoldersOpenConvs: false,
-  checkConversations: false,
-  convFolderSort: 'date',
   allFoldersOpenPrompts: false,
-  checkPrompts: false,
-  promptFolderSort: 'name'
-
+  checkedItems: [],
+  checkingItemType: null,
+  pluginLocation: {x:100, y:-250}
 };

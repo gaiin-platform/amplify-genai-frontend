@@ -1,6 +1,5 @@
 // chatService.js
 import {ChatBody, newMessage} from "@/types/chat";
-import {Plugin} from '@/types/plugin';
 import {createParser, ParsedEvent, ReconnectInterval} from "eventsource-parser";
 import {v4 as uuidv4} from 'uuid';
 
@@ -24,7 +23,7 @@ export async function killRequest(endpoint: string, accessToken: string, request
     return res.status === 200;
 }
 
-export async function sendChatRequestWithDocuments(endpoint: string, accessToken: string, chatBody: ChatBody, plugin?: Plugin | null, abortSignal?: AbortSignal, metaHandler?: MetaHandler) {
+export async function sendChatRequestWithDocuments(endpoint: string, accessToken: string, chatBody: ChatBody, abortSignal?: AbortSignal, metaHandler?: MetaHandler) {
 
     if (chatBody.response_format && chatBody.response_format.type === 'json_object') {
         if (!chatBody.messages.some(m => m.content.indexOf('json') > -1)) {
@@ -256,7 +255,8 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
             } catch (e) {
                 controller.error(e);
             } finally {
-                reader.releaseLock();
+                await reader.cancel();
+                reader.releaseLock(); 
             }
 
             controller.close();

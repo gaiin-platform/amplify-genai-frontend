@@ -1,0 +1,1 @@
+export type CheckItemType =  'Conversations' | 'Prompts' | 'ChatFolders' | 'PromptFolders';

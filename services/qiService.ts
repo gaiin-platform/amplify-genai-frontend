@@ -1,10 +1,10 @@
-import { Conversation } from "@/types/chat";
+import {  Message } from "@/types/chat";
 import { OpenAIModelID, OpenAIModels } from "@/types/openai";
 import { QiSummary, QiSummaryType } from "@/types/qi";
 import {getSession} from "next-auth/react"
 import {v4 as uuidv4} from 'uuid';
 import { sendChatRequestWithDocuments } from "./chatService";
-import { Message } from "ai";
+
 
 const qiConversationPrompt = 
     `Generate a focused summary based on user and system exchanges, emphasizing the user's task: 
@@ -41,38 +41,44 @@ export const createQiSummary = async (chatEndpoint:string, data:any, type: QiSum
             temperature: 0.5,
             maxTokens: 500,
             skipRag: true,
+            skipCodeInterpreter: true
         };
 
         statsService.sendChatEvent(chatBody);
 
-        const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, null, controller.signal);
+        const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, controller.signal);
 
         const responseData = response.body;
         const reader = responseData ? responseData.getReader() : null;
         const decoder = new TextDecoder();
         let done = false;
         let text = '';
-    
-        while (!done) {
-    
-            // @ts-ignore
-            const {value, done: doneReading} = await reader.read();
-            done = doneReading;
-            const chunkValue = decoder.decode(value);
-    
-            if (done) {
-                break;
+        try {
+            while (!done) {
+        
+                // @ts-ignore
+                const {value, done: doneReading} = await reader.read();
+                done = doneReading;
+                const chunkValue = decoder.decode(value);
+        
+                if (done) break;
+        
+                text += chunkValue;
             }
-    
-            text += chunkValue;
-        }
 
-        return parseToQiSummary(text, type);
+            return parseToQiSummary(text, type);
+        } finally {
+            if (reader) {
+                await reader.cancel(); 
+                reader.releaseLock();
+            }
+        }
 
     } catch (e) {
         console.error("Error prompting for qi summary: ", e);
         return createEmptyQiSummary(type);
-    }
+    } 
+    
 }
 
 const parseToQiSummary = (text: string, type: QiSummaryType) => {

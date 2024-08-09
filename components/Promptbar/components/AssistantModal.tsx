@@ -1,9 +1,8 @@
-import {FC, useContext, useRef, useState} from 'react';
+import {FC, useRef, useState} from 'react';
 
 import {useTranslation} from 'next-i18next';
 import {Prompt} from '@/types/prompt';
-import HomeContext from "@/pages/api/home/home.context";
-import {COMMON_DISALLOWED_FILE_EXTENSIONS, DEFAULT_SYSTEM_PROMPT} from "@/utils/app/const";
+import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant} from "@/utils/app/assistants";
@@ -12,6 +11,7 @@ import {IconFiles, IconCircleX} from "@tabler/icons-react";
 import {createAssistant} from "@/services/assistantService";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
+import FlagsMap from "@/components/Promptbar/components/FlagsMap";
 
 
 interface Props {
@@ -21,15 +21,68 @@ interface Props {
     onUpdateAssistant: (prompt: Prompt) => void;
     loadingMessage: string;
     loc: string;
-
+    disableEdit?: boolean;
 }
 
+const dataSourceFlags = [
+    {
+        "label": "Include Attached Documents in RAG",
+        "key": "ragAttachedDocuments",
+        "defaultValue": false
+    },
+    {
+        "label": "Include Attached Documents in Prompt",
+        "key": "insertAttachedDocuments",
+        "defaultValue": true
+    },
+    {
+        "label": "Include Conversation Documents in RAG",
+        "key": "ragConversationDocuments",
+        "defaultValue": true
+    },
+    {
+        "label": "Include Conversation Documents in Prompt",
+        "key": "insertConversationDocuments",
+        "defaultValue": false
+    },
+    {
+        "label": "Include Attached Data Source Metadata in Prompt",
+        "key": "insertAttachedDocumentsMetadata",
+        "defaultValue": false
+    },
+    {
+        "label": "Include Conversation Data Source Metadata in Prompt",
+        "key": "insertConversationDocumentsMetadata",
+        "defaultValue": false
+    },
+    {
+        "label": "Disable Data Source Insertion",
+        "key": "disableDataSources",
+        "defaultValue": false
+    }
+];
 
-export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc}) => {
+const messageOptionFlags = [
+    {
+        "label": "Include Message IDs in Messages",
+        "key": "includeMessageIds",
+        "defaultValue": false
+    },
+    {
+        "label": "Insert Line Numbers in User Messages",
+        "key": "includeUserLineNumbers",
+        "defaultValue": false
+    },
+    {
+        "label": "Insert Line Numbers in Assistant Messages",
+        "key": "includeAssistantLineNumbers",
+        "defaultValue": false
+    },
+];
+
+
+export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc, disableEdit=false}) => {
     const {t} = useTranslation('promptbar');
-    const {
-        state: {featureFlags, prompts},
-    } = useContext(HomeContext);
 
     let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
 
@@ -42,6 +95,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         }
     });
 
+
     const initialStates: { [key: string]: number } = initialDs.map(ds => {
         return {[ds.id]: 100}
     }).reduce((acc, x) => {
@@ -49,11 +103,34 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         return acc;
     }, {});
 
+    const dataSourceOptionDefaults = dataSourceFlags.reduce((acc:{[key:string]:boolean}, x) => {
+        acc[x.key] = x.defaultValue;
+        return acc;
+    }, {});
+
+    const messageOptionDefaults = messageOptionFlags.reduce((acc:{[key:string]:boolean}, x) => {
+        acc[x.key] = x.defaultValue;
+        return acc;
+    }, {});
+
+    const initialDataSourceOptionState = {
+        ...dataSourceOptionDefaults,
+        ...(definition.data && definition.data.dataSourceOptions || {})
+    }
+    const initialMessageOptionState = {
+        ...messageOptionDefaults,
+        ...(definition.data && definition.data.messageOptions || {})
+    }
+
     const [isLoading, setIsLoading] = useState(false);
     const [name, setName] = useState(definition.name);
     const [description, setDescription] = useState(definition.description);
     const [content, setContent] = useState(definition.instructions);
+    const [disclaimer, setDisclaimer] = useState(definition.disclaimer ?? "");
     const [dataSources, setDataSources] = useState(initialDs);
+    const [dataSourceOptions, setDataSourceOptions] = useState<{ [key: string]: boolean }>(initialDataSourceOptionState);
+    const [messageOptions, setMessageOptions] = useState<{ [key: string]: boolean }>(initialMessageOptionState);
+
     const [conversationTags, setConversationTags] = useState(cTags);
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
 
@@ -61,7 +138,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const modalRef = useRef<HTMLDivElement>(null);
-
 
     const handleUpdateAssistant = async () => {
         // Check if any data sources are still uploading
@@ -79,6 +155,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         newAssistant.data = newAssistant.data || {provider: "amplify"};
         newAssistant.description = description;
         newAssistant.instructions = content;
+        newAssistant.disclaimer = disclaimer;
 
         if(uri && uri.trim().length > 0){
             // Check that it is a valid uri
@@ -107,9 +184,18 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         
         //if we were able to get to this assistant modal (only comes up with + assistant and edit buttons)
         //then they must have had read/write access.
-        newAssistant.data.access = {read: true, write: true}; 
+        newAssistant.data.access = {read: true, write: true};
+
+        newAssistant.data.dataSourceOptions = dataSourceOptions;
+
+        newAssistant.data.messageOptions = messageOptions;
 
         const {id, assistantId, provider} = await createAssistant(newAssistant, null);
+        if (!id) {
+            alert("Unable to save the assistant at this time, please try again later...");
+            setIsLoading(false);
+            return;
+        }
 
         newAssistant.id = id;
         newAssistant.provider = provider;
@@ -159,6 +245,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 placeholder={t('A name for your prompt.') || ''}
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
+                                disabled={disableEdit}
                             />
 
                             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
@@ -171,6 +258,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 rows={3}
+                                disabled={disableEdit}
                             />
 
                             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
@@ -187,12 +275,32 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 value={content}
                                 onChange={(e) => setContent(e.target.value)}
                                 rows={10}
+                                disabled={disableEdit}
                             />
+
+                            <div  title={`${disableEdit? "Appended": "Append a"} disclaimer message to the end of every assistant response.`} >
+                                <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
+                                    {t('Disclaimer to Append to Responses')}
+                                </div>
+                                <textarea
+                                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                    style={{resize: 'none'}}
+                                    placeholder={
+                                        t(
+                                            'Assistant disclaimer message.',
+                                        ) || ''
+                                    }
+                                    value={disclaimer}
+                                    onChange={(e) => setDisclaimer(e.target.value)}
+                                    rows={2}
+                                    disabled={disableEdit}
+                                />
+                            </div>
 
                             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
                                 {t('Data Sources')}
                             </div>
-                            <div className="flex flex-row items-center">
+                            {!disableEdit && <div className="flex flex-row items-center">
                                 <button
                                     className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
                                     onClick={(e) => {
@@ -239,10 +347,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 });
                                             }}
                                 />
-                            </div>
+                            </div>}
                             <FileList documents={dataSources} documentStates={documentState} setDocuments={(docs) => {
                                 setDataSources(docs as any[]);
-                            }}/>
+                            }} allowRemoval={false}/>
                             {showDataSourceSelector && (
                                 <div
                                     className="flex flex-col justify-center"
@@ -288,7 +396,31 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         placeholder={t('') || ''}
                                         value={uri || ""}
                                         onChange={(e) => setUri(e.target.value)}
+                                        disabled={disableEdit}
                                     />
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                        {t('Data Source Options')}
+                                    </div>
+                                    {/*// Documents in past messages*/}
+                                    {/*// Documents attached to prompt*/}
+                                    {/*// Assistant documents*/}
+                                    <FlagsMap flags={dataSourceFlags}
+                                              state={dataSourceOptions}
+                                              flagChanged={
+                                                    (key, value) => {
+                                                        if (!disableEdit) setDataSourceOptions({...dataSourceOptions, [key]: value});
+                                                    }
+                                              }/>
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                        {t('Message Options')}
+                                    </div>
+                                    <FlagsMap flags={messageOptionFlags}
+                                              state={messageOptions}
+                                              flagChanged={
+                                                  (key, value) => {
+                                                      if (!disableEdit) setMessageOptions({...messageOptions, [key]: value});
+                                                  }
+                                              }/>
                                 </div>
                             }/>
                         </div>
@@ -300,9 +432,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     onCancel();
                                 }}
                             >
-                                {t('Cancel')}
+                                {disableEdit ? "Close" : t('Cancel')}
                             </button>
-                            <button
+                            {!disableEdit && <button
                                 type="button"
                                 className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                                 onClick={() => {
@@ -310,7 +442,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 }}
                             >
                                 {t('Save')}
-                            </button>
+                            </button>}
+                            
                         </div>
                     </div>
                 </div>

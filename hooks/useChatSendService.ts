@@ -1,28 +1,37 @@
 // src/hooks/useChatService.js
 import {incrementalJSONtoCSV} from "@/utils/app/incrementalCsvParser";
-import {useCallback, useContext} from 'react';
+import {useCallback, useContext, useEffect, useRef} from 'react';
 import HomeContext from '@/pages/api/home/home.context';
 import {killRequest as killReq, MetaHandler, sendChatRequestWithDocuments} from '../services/chatService';
 import {ChatBody, Conversation, CustomFunction, JsonSchema, Message, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
-import {Plugin} from '@/types/plugin';
+import {Plugin, PluginID} from '@/types/plugin';
 import {wrapResponse, stringChunkCallback} from "@/utils/app/responseWrapper";
 
-import {getSession} from "next-auth/react"
+import {getSession, useSession} from "next-auth/react"
 import json5 from "json5";
 import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
 import {newStatus} from "@/types/workflow";
 import {ReservedTags} from "@/types/tags";
 import {deepMerge} from "@/utils/app/state";
 import toast from "react-hot-toast";
-import callRenameChatApi from "@/components/Chat/RenameChat";
+import {callRenameChat} from "@/components/Chat/RenameChat";
 import {OutOfOrderResults} from "@/utils/app/outOfOrder";
-import {saveConversation, saveConversations, updateConversation} from "@/utils/app/conversation";
+import {conversationWithCompressedMessages, saveConversations} from "@/utils/app/conversation";
 import {getHook} from "@/utils/app/chathooks";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {Prompt} from "@/types/prompt";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {useChatService} from "@/hooks/useChatService";
+import { DEFAULT_TEMPERATURE } from "@/utils/app/const";
+import { uploadConversation } from "@/services/remoteConversationService";
+import { compressMessages } from "@/utils/app/messages";
+import { isRemoteConversation } from "@/utils/app/conversationStorage";
+import { fetchAllApiKeys } from "@/services/apiKeysService";
+import { getAccounts } from "@/services/accountService";
+import { ApiKey } from "@/types/apikeys";
+import { Account, noCoaAccount } from "@/types/accounts";
+import { isValidCOA } from "@/components/Settings/AccountComponents/Account";
 
 export type ChatRequest = {
     message: Message;
@@ -36,14 +45,33 @@ export type ChatRequest = {
     options?: { [key: string]: any };
     assistantId?: string;
     prompt?: Prompt;
+    conversationId?: string;
 };
 
 export function useSendService() {
     const {
-        state: {selectedConversation, conversations, featureFlags},
+        state: {selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService},
         postProcessingCallbacks,
         dispatch:homeDispatch,
     } = useContext(HomeContext);
+
+    const { data: session } = useSession();
+    const user = session?.user;
+
+    const conversationsRef = useRef(conversations);
+
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
+
 
     const {
         sendChatRequest,
@@ -110,26 +138,15 @@ export function useSendService() {
                         documents,
                         uri,
                         options,
+                        conversationId
                     } = request;
 
-                    console.log("Sending msg:", message)
+                    // console.log("Sending msg:", message)
 
                     const {content, label} = getPrefix(selectedConversation, message);
                     if (content) {
                         message.content = content + " " + message.content;
                         message.label = label;
-                    }
-
-                    if (selectedConversation && selectedConversation.tags && selectedConversation.tags.includes(ReservedTags.ASSISTANT_BUILDER)) {
-                        // In assistants, this has the effect of
-                        // disabling the use of documents so that we
-                        // can just add the document to the list of documents
-                        // the assistant is using.
-                        options = {
-                            ...(options || {}),
-                            skipRag: true,
-                            ragOnly: true
-                        };
                     }
 
                     if (!featureFlags.ragEnabled) {
@@ -177,14 +194,16 @@ export function useSendService() {
                         field: 'selectedConversation',
                         value: updatedConversation,
                     });
+
                     homeDispatch({field: 'loading', value: true});
                     homeDispatch({field: 'messageIsStreaming', value: true});
                     const chatBody: ChatBody = {
                         model: updatedConversation.model,
                         messages: updatedConversation.messages,
-                        prompt: rootPrompt || updatedConversation.prompt,
-                        temperature: updatedConversation.temperature,
-                        maxTokens: updatedConversation.maxTokens || 1000
+                        prompt: rootPrompt || updatedConversation.prompt || "",
+                        temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
+                        maxTokens: updatedConversation.maxTokens || 1000,
+                        conversationId
                     };
 
                     if (uri) {
@@ -193,10 +212,11 @@ export function useSendService() {
 
                     if (!featureFlags.codeInterpreterEnabled) {
                         //check if we need
-                        options =  {...(options || {}), skipCodeInterpreter: true};//skipCodeInterpreter isnt used rn
+                        options =  {...(options || {}), skipCodeInterpreter: true};
                     } else{
                         if (updatedConversation.codeInterpreterAssistantId) {
                             chatBody.codeInterpreterAssistantId = updatedConversation.codeInterpreterAssistantId;
+                            options =  {...(options || {}), skipRag: true};
                         }
                     }
 
@@ -218,6 +238,76 @@ export function useSendService() {
                         });
                     }
 
+                    if (selectedConversation && selectedConversation.tags) {
+                        const tags = selectedConversation.tags;
+                        if (tags.includes(ReservedTags.ASSISTANT_BUILDER)) {
+                            // In assistants, this has the effect of
+                            // disabling the use of documents so that we
+                            // can just add the document to the list of documents
+                            // the assistant is using.
+                            options = {
+                                ...(options || {}),
+                                skipRag: true,
+                                ragOnly: true
+                            };
+                        } else if (tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER)) {
+                            let appendMsg = "\n\n******* Crucial Data to use in your OPs, this is for your knowledge - answer the users prompt above only *******";
+
+                            // need Api keys
+                            const apiKeys = await fetchAllApiKeys();
+                            
+                            if (apiKeys.success) {
+                                const keys = apiKeys.data;
+                                appendMsg += keys.length > 0 ? "API KEYS:\n" + JSON.stringify(keys): "No current existing keys";
+                                if (keys.length > 0) {
+                                    appendMsg += `\n\n There are a total of ${keys.length}. When asked to list keys, always list ALL ${keys.length} of the 'API KEYS'`
+                                    const { delegateKeys, delegatedKeys } = keys.reduce((accumulator:any, k: ApiKey) => {
+                                    const curUser:string = user?.email || "";
+                                    if (k.delegate) {
+                                      if (k.delegate !== curUser) {
+                                        accumulator.delegateKeys.push(k);
+                                      } else if (k.delegate === curUser && k.owner !== curUser) {
+                                        accumulator.delegatedKeys.push(k);
+                                      }
+                                    }
+                                    return accumulator;
+                                  }, { delegateKeys: [], delegatedKeys: [] });
+                                    if (delegateKeys.length > 0) appendMsg += "\n\n Sharing any details nor GET OP is NOT allowed for the following Delegate keys (unauthorized): " + delegateKeys.map((k:ApiKey) => k.applicationName);
+                                    if (delegatedKeys.length > 0) appendMsg += "\n\n UPDATE OP is NOT allowed for the following Delegated keys (unauthorized): " + delegatedKeys.map((k:ApiKey) => k.applicationName);
+
+                                }
+    
+                                appendMsg += "\n\n Do not write any key's owner_api_id"
+
+                            } else {
+                                appendMsg += "API KEYS: UNAVAILABLE";
+                            }
+
+                            // accounts
+                            const accounts = await getAccounts();
+                            if (accounts.success && accounts.data) appendMsg += "\n\nAVAILABLE ACCOUNTS for OPS:\n" + JSON.stringify(accounts.data.filter((a: Account) => a.id !== noCoaAccount.id && isValidCOA(a.id)), null) || "UNAVAILABLE";
+                            
+                            // user name 
+                            appendMsg += "\n\nCurrent User: " + user?.email;
+                            // this will be used to append data to the user message in the back end. 
+                            options =  {...(options || {}), addMsgContent: appendMsg}; 
+                        }
+                    }
+
+                    //PLUGINS 
+                    if (plugin?.id === PluginID.CODE_INTERPRETER) {
+                        options =  {...(options || {}), codeInterpreterOnly: true};
+                    } else if (plugin?.id === PluginID.NO_RAG) {
+                        options = {
+                            ...(options || {}),
+                            skipRag: true,
+                            ragOnly: false
+                        };
+                    } 
+                    // else if (plugin?.id === PluginID.RAG_EVAL) {
+                    //     //
+                    // }
+                
 
                     if (options) {
                         Object.assign(chatBody, options);
@@ -274,9 +364,9 @@ export function useSendService() {
 
                         const generateJsonLoose = (): Promise<Response> => {
                             if (options.length === 0) {
-                                return sendJsonChatRequest(chatBody, plugin, controller.signal);
+                                return sendJsonChatRequest(chatBody, controller.signal);
                             } else {
-                                return sendJsonChatRequestWithSchemaLoose(chatBody, options as JsonSchema, plugin, controller.signal)
+                                return sendJsonChatRequestWithSchemaLoose(chatBody, options as JsonSchema, controller.signal)
                             }
                         }
 
@@ -305,11 +395,11 @@ export function useSendService() {
                         };
 
                         const invokers = {
-                            "fn": () => sendFunctionChatRequest(chatBody, options.functions as CustomFunction[], options.call, plugin, controller.signal, metaHandler),
-                            "chat": () => sendChatRequest(chatBody, plugin, controller.signal, metaHandler),
-                            "csv": () => sendCSVChatRequest(chatBody, options as ColumnsSpec, plugin, controller.signal, metaHandler),
+                            "fn": () => sendFunctionChatRequest(chatBody, options.functions as CustomFunction[], options.call, controller.signal, metaHandler),
+                            "chat": () => sendChatRequest(chatBody, controller.signal, metaHandler),
+                            "csv": () => sendCSVChatRequest(chatBody, options as ColumnsSpec, controller.signal, metaHandler),
                             "json": () => generateJsonLoose(),
-                            "json!": () => sendJsonChatRequestWithSchema(chatBody, options as JsonSchema, plugin, controller.signal, metaHandler)
+                            "json!": () => sendJsonChatRequestWithSchema(chatBody, options as JsonSchema, controller.signal, metaHandler)
                         }
 
                         const response = (existingResponse) ?
@@ -329,26 +419,8 @@ export function useSendService() {
                             homeDispatch({field: 'messageIsStreaming', value: false});
                             return;
                         }
-                        if (!plugin) {
-                            if (updatedConversation.messages.length === 1) {
-                                const {content} = message;
-                                callRenameChatApi(content).then(customName => {
-                                    updatedConversation = {
-                                        ...updatedConversation,
-                                        name: customName, // Use the name returned by Lambda
-                                    };
-                                }).catch(error => {
-                                    console.error('Failed to rename conversation:', error);
-                                    // fallback to default naming convention
-                                    const {content} = message;
-                                    const customName =
-                                        content.length > 30 ? content.substring(0, 30) + '...' : content;
-                                    updatedConversation = {
-                                        ...updatedConversation,
-                                        name: customName,
-                                    };
-                                });
-                            }
+                        // if (!plugin) {
+
 
                             homeDispatch({field: 'loading', value: false});
                             const reader = data.getReader();
@@ -357,6 +429,8 @@ export function useSendService() {
                             let isFirst = true;
                             let text = '';
                             let codeInterpreterData = {};
+                            // i find once a run on a thread is marked incomplete/failed/requires_action etc it will not work if you try again right away, better to just start with a new thread
+                            let codeInterpreterNeedsNewThread = false;
 
                             // Reset the status display
                             homeDispatch({
@@ -418,6 +492,7 @@ export function useSendService() {
 
                                             } else {
                                                 console.log(responseData.error);
+                                                if (responseData.error.includes("Error with run status")) codeInterpreterNeedsNewThread = true;
                                                 text += "Something went wrong with code interpreter... please try again.";
                                             }
 
@@ -444,11 +519,10 @@ export function useSendService() {
                                                         content: text,
                                                         data: {...(message.data || {}), state: currentState}
                                                     };
-                                                if (Object.keys(codeInterpreterData).length !== 0) {
-                                                    assistantMessage['codeInterpreterMessageData'] = codeInterpreterData;
-                                                }
+                                                if (Object.keys(codeInterpreterData).length !== 0)  assistantMessage['codeInterpreterMessageData'] = codeInterpreterData;
                                                 return assistantMessage
                                             }
+                                            if (codeInterpreterNeedsNewThread && message.codeInterpreterMessageData && 'threadId' in message.codeInterpreterMessageData)  delete message.codeInterpreterMessageData.threadId
                                             return message;
                                         });
                                     updatedConversation = {
@@ -460,20 +534,23 @@ export function useSendService() {
                                         value: updatedConversation,
                                     });
                                 } catch (error: any) {
-                                    saveConversation(updatedConversation);
-                                    const updatedConversations: Conversation[] = conversations.map(
-                                        (conversation) => {
-                                            if (conversation.id === selectedConversation.id) {
-                                                return updatedConversation;
-                                            }
-                                            return conversation;
-                                        },
-                                    );
-                                    if (updatedConversations.length === 0) {
-                                        updatedConversations.push(updatedConversation);
+                                    if (selectedConversation.isLocal) {
+                                        const updatedConversations: Conversation[] = conversationsRef.current.map(
+                                            (conversation:Conversation) => {
+                                                if (conversation.id === selectedConversation.id) {
+                                                    return conversationWithCompressedMessages(updatedConversation);
+                                                }
+                                                return conversation;
+                                            },
+                                        );
+                                        if (updatedConversations.length === 0) {
+                                            updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                                        }
+                                        homeDispatch({field: 'conversations', value: updatedConversations});
+                                        saveConversations(updatedConversations);
+                                    } else {
+                                        uploadConversation(updatedConversation, foldersRef.current);
                                     }
-                                    homeDispatch({field: 'conversations', value: updatedConversations});
-                                    saveConversations(updatedConversations);
                                     homeDispatch({field: 'messageIsStreaming', value: false});
                                     homeDispatch({field: 'loading', value: false});
                                     homeDispatch({field: 'status', value: []});
@@ -484,7 +561,6 @@ export function useSendService() {
 
                             //console.log("Dispatching post procs: " + postProcessingCallbacks.length);
                             postProcessingCallbacks.forEach(callback => callback({
-                                plugin: plugin,
                                 chatBody: chatBody,
                                 response: text
                             }));
@@ -499,9 +575,13 @@ export function useSendService() {
                                 const updatedMessages: Message[] =
                                     updatedConversation.messages.map((message, index) => {
                                         if (index === updatedConversation.messages.length - 1) {
+                                            const disclaimer =  message.data.state.currentAssistantDisclaimer;
+                                            let astMsg = updatedText;
+                                            if (disclaimer) astMsg += "\n\n" + disclaimer
+
                                             return {
                                                 ...message,
-                                                content: updatedText,
+                                                content: astMsg,
                                             };
                                         }
                                         return message;
@@ -516,56 +596,63 @@ export function useSendService() {
                                 });
                             }
 
-                            saveConversation(updatedConversation);
-                            const updatedConversations: Conversation[] = conversations.map(
-                                (conversation) => {
-                                    if (conversation.id === selectedConversation.id) {
-                                        return updatedConversation;
-                                    }
-                                    return conversation;
-                                },
-                            );
-                            if (updatedConversations.length === 0) {
-                                updatedConversations.push(updatedConversation);
+                            if (selectedConversation.isLocal) {
+                                const updatedConversations: Conversation[] = conversationsRef.current.map(
+                                    (conversation:Conversation) => {
+                                        if (conversation.id === selectedConversation.id) {
+                                            return conversationWithCompressedMessages(updatedConversation);
+                                        }
+                                        return conversation;
+                                    },
+                                );
+                                if (updatedConversations.length === 0) {
+                                    updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                                }
+                                homeDispatch({field: 'conversations', value: updatedConversations});
+                                saveConversations(updatedConversations);
+                            } else {
+                                uploadConversation(updatedConversation, foldersRef.current);
                             }
-                            homeDispatch({field: 'conversations', value: updatedConversations});
-                            saveConversations(updatedConversations);
                             homeDispatch({field: 'messageIsStreaming', value: false});
 
                             resolve(text);
-                        } else {
-                            const {answer} = await response.json();
-                            const updatedMessages: Message[] = [
-                                ...updatedConversation.messages,
-                                newMessage({role: 'assistant', content: answer}),
-                            ];
-                            updatedConversation = {
-                                ...updatedConversation,
-                                messages: updatedMessages,
-                            };
-                            homeDispatch({
-                                field: 'selectedConversation',
-                                value: updateConversation,
-                            });
-                            saveConversation(updatedConversation);
-                            const updatedConversations: Conversation[] = conversations.map(
-                                (conversation) => {
-                                    if (conversation.id === selectedConversation.id) {
-                                        return updatedConversation;
-                                    }
-                                    return conversation;
-                                },
-                            );
-                            if (updatedConversations.length === 0) {
-                                updatedConversations.push(updatedConversation);
-                            }
-                            homeDispatch({field: 'conversations', value: updatedConversations});
-                            saveConversations(updatedConversations);
-                            homeDispatch({field: 'loading', value: false});
-                            homeDispatch({field: 'messageIsStreaming', value: false});
+                        // } else {
+                        //     const {answer} = await response.json();
+                        //     const updatedMessages: Message[] = [
+                        //         ...updatedConversation.messages,
+                        //         newMessage({role: 'assistant', content: answer}),
+                        //     ];
+                        //     updatedConversation = {
+                        //         ...updatedConversation,
+                        //         messages: updatedMessages,
+                        //     };
+                        //     homeDispatch({
+                        //         field: 'selectedConversation',
+                        //         value: updatedConversation,
+                        //     });
+                        //     if (selectedConversation.isLocal) {
+                                
+                        //         const updatedConversations: Conversation[] = conversationsRef.current.map(
+                        //             (conversation:Conversation) => {
+                        //                 if (conversation.id === selectedConversation.id) {
+                        //                     return conversationWithCompressedMessages(updatedConversation);
+                        //                 }
+                        //                 return conversation;
+                        //             },
+                        //         );
+                        //         if (updatedConversations.length === 0) {
+                        //             updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                        //         }
+                        //         homeDispatch({field: 'conversations', value: updatedConversations});
+                        //         saveConversations(updatedConversations);
+                        //     } else {
+                        //         uploadConversation(updatedConversation, foldersRef.current);
+                        //     }
+                        //     homeDispatch({field: 'loading', value: false});
+                        //     homeDispatch({field: 'messageIsStreaming', value: false});
 
-                            resolve(answer);
-                        }
+                        //     resolve(answer);
+                        // }
                     } catch (error: any) {
                         homeDispatch({field: 'loading', value: false});
                         homeDispatch({field: 'messageIsStreaming', value: false});
@@ -577,6 +664,7 @@ export function useSendService() {
                         //reject(error);
                         // Handle any other errors, as required.
                     }
+                    
 
                     //Reset the status display
                     homeDispatch({
@@ -587,7 +675,7 @@ export function useSendService() {
             });
         },
         [
-            conversations,
+            conversationsRef.current,
             selectedConversation
         ],
     );

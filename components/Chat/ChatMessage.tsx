@@ -4,6 +4,7 @@ import {
     IconEdit,
     IconRobot,
     IconTrash,
+    IconBolt,
     IconWriting,
     IconDownload,
     IconMail,
@@ -14,7 +15,7 @@ import {FiCommand} from "react-icons/fi";
 import styled, {keyframes} from 'styled-components';
 import React, {FC, memo, useContext, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'next-i18next';
-import {updateConversation} from '@/utils/app/conversation';
+import {conversationWithUncompressedMessages, updateConversation} from '@/utils/app/conversation';
 import {DataSource, Message} from '@/types/chat';
 import {useChatService} from "@/hooks/useChatService";
 import HomeContext from '@/pages/api/home/home.context';
@@ -35,6 +36,8 @@ import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 import PromptingStatusDisplay from "@/components/Status/PromptingStatusDisplay";
 import ChatSourceBlock from "@/components/Chat/ChatContentBlocks/ChatSourcesBlock";
 import DataSourcesBlock from "@/components/Chat/ChatContentBlocks/DataSourcesBlock";
+import ChatCodeInterpreterFileBlock from './ChatContentBlocks/ChatCodeInterpreterFilesBlock';import { uploadConversation } from '@/services/remoteConversationService';
+import { isRemoteConversation } from '@/utils/app/conversationStorage';
 
 
 export interface Props {
@@ -74,10 +77,23 @@ export const ChatMessage: FC<Props> = memo(({
     const {t} = useTranslation('chat');
 
     const {
-        state: {selectedConversation, conversations, currentMessage, messageIsStreaming, status},
+        state: {selectedConversation, conversations,messageIsStreaming, status, folders},
         dispatch: homeDispatch,
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
+
+    const conversationsRef = useRef(conversations);
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
 
 
     const markdownComponentRef = useRef<HTMLDivElement>(null);
@@ -113,7 +129,7 @@ export const ChatMessage: FC<Props> = memo(({
         if (!selectedConversation) return;
 
         const {messages} = selectedConversation;
-        const findIndex = messages.findIndex((elm) => elm === message);
+        const findIndex = messages.findIndex((elm:Message) => elm === message);
 
         if (findIndex < 0) return;
 
@@ -150,10 +166,10 @@ export const ChatMessage: FC<Props> = memo(({
 
         const {single, all} = updateConversation(
             updatedConversation,
-            conversations,
+            conversationsRef.current,
         );
-        homeDispatch({field: 'selectedConversation', value: single});
-        homeDispatch({field: 'conversations', value: all});
+        homeDispatch({ field: 'selectedConversation', value: updatedConversation });
+        if (isRemoteConversation(updatedConversation)) uploadConversation(updatedConversation, foldersRef.current);
     };
 
     const copyOnClick = () => {
@@ -188,13 +204,53 @@ export const ChatMessage: FC<Props> = memo(({
         }
     }
 
+    const isActionResult = message.data && message.data.actionResult;
+    const isAssistant = message.role === 'assistant';
+
+    let msgStyle = 'border-b border-t border-black/10 bg-white text-gray-800 dark:border-gray-900/50 dark:bg-[#343541] dark:text-gray-100';
+    if(isActionResult){
+        msgStyle = 'bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100';
+    }
+    else if(isAssistant){
+        msgStyle = 'bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100';
+    }
+
+    const enableTools = !isActionResult;
+
+    const getIcon = () => {
+        if (isActionResult) {
+            return <IconBolt size={30}/>;
+        } else if (isAssistant) {
+            return <IconRobot size={30}/>;
+        } else {
+            return <IconUser size={30}/>;
+        }
+    }
+
+    const getAtBlock = () => {
+        if(!isActionResult &&
+            assistantRecipient &&
+            assistantRecipient.definition &&
+            assistantRecipient.definition.name &&
+            assistantRecipient.definition.assistantId) {
+            return (<span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
+                                                        {"@" + assistantRecipient.definition.name + ":"}
+                                                    </span>);
+        } else if(!isActionResult) {
+            return (<span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
+                                                        @Amplify:
+                                                    </span>);
+        } else {
+           return (<span className="bg-yellow-500 dark:bg-yellow-500 text-black rounded-xl py-1.5 pr-1 pl-1">
+                                                        {'\u2713 Action Completed:'}
+                                                    </span>);
+        }
+    }
+
     // @ts-ignore
     return (
         <div
-            className={`group md:px-4 ${message.role === 'assistant'
-                ? 'border-b border-black/10 bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100'
-                : 'border-b border-black/10 bg-white text-gray-800 dark:border-gray-900/50 dark:bg-[#343541] dark:text-gray-100'
-            }`}
+            className={`group md:px-4 ${msgStyle}`}
             style={{overflowWrap: 'anywhere'}}
         >
             {isFileDownloadDatasourceVisible && (
@@ -219,13 +275,9 @@ export const ChatMessage: FC<Props> = memo(({
             )}
 
             <div
-                className="relative m-auto flex p-4 text-base md:max-w-2xl md:gap-6 md:py-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
+                className="relative m-auto flex p-2 text-base md:max-w-2xl md:gap-6 md:py-2 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
                 <div className="min-w-[40px] text-right font-bold">
-                    {message.role === 'assistant' ? (
-                        <IconRobot size={30}/>
-                    ) : (
-                        <IconUser size={30}/>
-                    )}
+                    {getIcon()}
                 </div>
 
                 <div className="prose mt-[-2px] w-full dark:prose-invert">
@@ -249,21 +301,19 @@ export const ChatMessage: FC<Props> = memo(({
                                     <div className="flex flex-col">
                                         <div className="flex flex-row">
                                             <div className="prose whitespace-pre-wrap dark:prose-invert flex-1">
-                                                {assistantRecipient &&
-                                                 assistantRecipient.definition &&
-                                                 assistantRecipient.definition.name &&
-                                                 assistantRecipient.definition.assistantId ?
-                                                    <span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
-                                                        {"@" + assistantRecipient.definition.name +":"}
-                                                    </span>
-                                                    :
-                                                    <span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
-                                                        @Amplify:
-                                                    </span>
-                                                } {message.label || message.content}
+                                                {getAtBlock()} {message.label || message.content}
                                             </div>
                                         </div>
                                         <DataSourcesBlock message={message} handleDownload={handleDownload}/>
+                                        {isActionResult && (
+                                            <ChatSourceBlock
+                                                messageIsStreaming={messageIsStreaming}
+                                                messageIndex={messageIndex}
+                                                message={message}
+                                                selectedConversation={selectedConversation}
+                                                handleCustomLinkClick={handleCustomLinkClick}
+                                            />
+                                        )}
                                     </div>
                                     <div className="flex flex-row">
                                         {(isEditing || messageIsStreaming) ? null : (
@@ -298,6 +348,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             </button>
                                         )}
                                     </div>
+                                    {!isActionResult && (
                                     <div>
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
@@ -306,7 +357,8 @@ export const ChatMessage: FC<Props> = memo(({
                                         >
                                             <IconDownload size={20}/>
                                         </button>
-                                    </div>
+                                    </div>)
+                                    }
                                     <div>
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
@@ -316,6 +368,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             <IconEdit size={20}/>
                                         </button>
                                     </div>
+                                    {!isActionResult && (
                                     <div>
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
@@ -325,6 +378,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             <IconTrash size={20}/>
                                         </button>
                                     </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -347,6 +401,15 @@ export const ChatMessage: FC<Props> = memo(({
                                                 handleCustomLinkClick={handleCustomLinkClick}
                                             />
                                         </div>
+                                    )}
+                                    {!isEditing && (
+                                        <ChatCodeInterpreterFileBlock
+                                            messageIsStreaming={messageIsStreaming}
+                                            messageIndex={messageIndex}
+                                            message={message}
+                                            selectedConversation={selectedConversation}
+                                            handleCustomLinkClick={handleCustomLinkClick}
+                                        />
                                     )}
                                     {!isEditing && (
                                         <ChatSourceBlock
@@ -419,13 +482,13 @@ export const ChatMessage: FC<Props> = memo(({
                                     onSendPrompt(p)
                                 }}/>
                             )}
-                            {(messageIsStreaming || isEditing) ? null : (
-                                <Stars starRating={message.data && message.data.rating || 0} setStars={(r) => {
-                                    if (onEdit) {
-                                        onEdit({...message, data: {...message.data, rating: r}});
-                                    }
-                                }}/>
-                            )}
+                            {/*{(messageIsStreaming || isEditing) ? null : (*/}
+                            {/*    <Stars starRating={message.data && message.data.rating || 0} setStars={(r) => {*/}
+                            {/*        if (onEdit) {*/}
+                            {/*            onEdit({...message, data: {...message.data, rating: r}});*/}
+                            {/*        }*/}
+                            {/*    }}/>*/}
+                            {/*)}*/}
                             {(messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1) ?
                                 // <LoadingIcon />
                                 <Loader type="ping" size="48"/>

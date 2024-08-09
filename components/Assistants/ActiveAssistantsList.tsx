@@ -7,6 +7,7 @@ import HomeContext from "@/pages/api/home/home.context";
 import {Assistant} from "@/types/assistant";
 import {DEFAULT_SYSTEM_PROMPT} from "@/utils/app/const";
 import {MessageType} from "@/types/chat";
+import { Prompt } from '@/types/prompt';
 
 interface Props {
 }
@@ -55,14 +56,13 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
         if(prompts) {
 
             const all:Assistant[] = prompts.filter(
-                (prompt) => prompt.type === MessageType.ROOT && prompt.data?.assistant)
-                .map((prompt) => prompt.data?.assistant as Assistant);
-
+                ((prompt:Prompt) => prompt.type === MessageType.ROOT && prompt.data?.assistant))
+                .map((prompt:Prompt) => prompt.data?.assistant as Assistant);
             const assistants = [baseAssistant, ...all];
 
             setAvailableAssistants(assistants);
         }
-    }, [prompts]);
+    }, [prompts, baseAssistant]);
 
     useEffect(() => {
         if(selectedAssistant){

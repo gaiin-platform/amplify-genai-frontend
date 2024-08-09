@@ -59,7 +59,7 @@ In this example, the JSON schema ensures that the output will be an object with 
 Build locally:
 
 ```shell
-docker build -t chatgpt-ui .
+docker build -t dev-gen-ai-image .
 docker run -p 3000:3000 dev-gen-ai-image
 docker run --env-file ./.env.local  -p 3000:3000 dev-gen-ai-image to pull in env file for multiple azure variables needed
 ```

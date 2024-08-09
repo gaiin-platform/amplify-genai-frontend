@@ -3,6 +3,7 @@ import {ConversionOptions} from "@/services/downloadService";
 import {MarketItem} from "@/types/market";
 import {Prompt} from "@/types/prompt";
 import {ChatBody, Conversation, Message} from "@/types/chat";
+import { ApiKey } from "./apikeys";
 
 export interface StatsServices {
     marketItemPublishEvent: (
@@ -67,6 +68,10 @@ export interface StatsServices {
 
     createConversationEvent: (conversation: Conversation) => void;
 
+    moveConversationRemoteEvent: (conversation: Conversation) => void;
+
+    moveConversationFromRemoteEvent: (conversation: Conversation) => void;
+
     sendChatEvent: (chatBody: ChatBody) => void;
 
     sendChatRewriteEvent: (chatBody: ChatBody, updateIndex: number) => void;
@@ -84,6 +89,14 @@ export interface StatsServices {
     editPromptCanceledEvent: (prompt: Prompt) => void;
 
     editPromptCompletedEvent: (prompt: Prompt) => void;
+    
+    getApiKey: (id: string) => void;
+
+    deactivateApiKey: (id: string) => void;
+
+    updateApiKey: (keyEdits: any) => void;
+
+    createApiKey: (keyData: any) => void;
 }
 
 
@@ -151,6 +164,10 @@ export const noOpStatsServices:StatsServices = {
 
     createConversationEvent: (conversation: Conversation) => {},
 
+    moveConversationRemoteEvent: (conversation: Conversation) => {},
+
+    moveConversationFromRemoteEvent: (conversation: Conversation) => {},
+
     sendChatEvent: (chatBody: ChatBody) => {},
 
     sendChatRewriteEvent: (chatBody: ChatBody, updateIndex: number) => {},
@@ -168,4 +185,13 @@ export const noOpStatsServices:StatsServices = {
     editPromptCanceledEvent: (prompt: Prompt) => {},
 
     editPromptCompletedEvent: (prompt: Prompt) => {},
+
+    getApiKey: (id: string) => {},
+
+    deactivateApiKey: (id: string) => {},
+
+    updateApiKey: (keyEdits: any) => {},
+
+    createApiKey: (keyData: any) => {},
+
 }

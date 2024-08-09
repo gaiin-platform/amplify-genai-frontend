@@ -23,8 +23,8 @@ export const ModelSelect = () => {
       handleUpdateConversation(selectedConversation, {
         key: 'model',
         value: models.find(
-          (model) => model.id === e.target.value,
-        ) as OpenAIModel,
+          (model: OpenAIModel) => model.id === e.target.value,
+        ),
       });
   };
   
@@ -40,7 +40,7 @@ export const ModelSelect = () => {
           value={selectedConversation?.model?.id || defaultModelId}
           onChange={handleChange}
         >
-          {models.map((model) => (
+          {models.map((model: OpenAIModel) => (
             <option
               key={model.id}
               value={model.id}

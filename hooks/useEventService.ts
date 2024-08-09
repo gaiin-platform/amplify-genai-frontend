@@ -6,6 +6,8 @@ import {ExportFormatV4} from "@/types/export";
 import {ConversionOptions} from "@/services/downloadService";
 import {getType, parsePromptVariables} from "@/utils/app/prompts";
 import {useSession} from "next-auth/react";
+import { uncompressMessages } from "@/utils/app/messages";
+import { ApiKey } from "@/types/apikeys";
 
 let eventServiceReady = false;
 
@@ -111,7 +113,7 @@ const useEventService = (mixPanelToken:string) => {
                     selectedTags: selectedTags,
                 });
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking Item Published to Market", e);
             }
         }),
         downloadItemEvent: ifReady( (conversionOptions: ConversionOptions, sharedData: ExportFormatV4) => {
@@ -121,7 +123,7 @@ const useEventService = (mixPanelToken:string) => {
                     ...toEventData("Conversion Options", conversionOptions),
                 });
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking Export Downloaded", e);
             }
         }),
         sharedItemEvent: ifReady( (sharedBy: string, sharedWith: string[], sharingNote: string, sharedData: ExportFormatV4) => {
@@ -133,7 +135,7 @@ const useEventService = (mixPanelToken:string) => {
                     sharingNote: sharingNote
                 });
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking Item Shared", e);
             }
         }),
         sharedItemAcceptedEvent: ifReady( (sharedBy: string, sharingNote: string, sharedData: ExportFormatV4) => {
@@ -144,7 +146,7 @@ const useEventService = (mixPanelToken:string) => {
                     sharingNote: sharingNote
                 });
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking Shared Item Imported", e);
             }
         }),
         setThemeEvent: ifReady( (theme: string) => {
@@ -152,7 +154,7 @@ const useEventService = (mixPanelToken:string) => {
                 mixpanel.track('Theme Set',
                     {...toEventData("Theme", {name: theme})});
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking Theme Set", e);
             }
         }),
         attachFileEvent: ifReady( (file: File, maxFileSizeEnforced: boolean, uploadDocuments: boolean) => {
@@ -167,7 +169,7 @@ const useEventService = (mixPanelToken:string) => {
                 mixpanel.track('File Attached',
                     {...toEventData("File", data)})
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking File Attached", e);
             }
         }),
         searchConversationsEvent: ifReady( (searchTerm: string) => {
@@ -175,7 +177,7 @@ const useEventService = (mixPanelToken:string) => {
                 mixpanel.track('Conversations Searched',
                     {})
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking Conversations Searched", e);
             }
         }),
         searchPromptsEvent: ifReady( (searchTerm: string) => {
@@ -183,7 +185,7 @@ const useEventService = (mixPanelToken:string) => {
                 mixpanel.track('Prompts Searched',
                     {})
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking Prompts Searched", e);
             }
         }),
         tryMarketItemEvent: ifReady( (item: MarketItem) => {
@@ -194,7 +196,7 @@ const useEventService = (mixPanelToken:string) => {
                     ),
                 })
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking Market Item Tried", e);
             }
         }),
         installMarketItemEvent: ifReady( (item: MarketItem) => {
@@ -205,7 +207,7 @@ const useEventService = (mixPanelToken:string) => {
                     ),
                 })
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking 'Market Item Installed", e);
             }
         }),
         viewMarketItemEvent: ifReady( (item: MarketItem) => {
@@ -216,49 +218,49 @@ const useEventService = (mixPanelToken:string) => {
                     ),
                 })
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking Market Item View", e);
             }
         }),
         openMarketEvent: ifReady( () => {
             try {
                 mixpanel.track('Market Opened', {});
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking Market Opened", e);
             }
         }),
         openSharedItemsEvent: ifReady( () => {
             try {
                 mixpanel.track('Shared Items Opened', {});
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking Shared Items Opened", e);
             }
         }),
         openSettingsEvent: ifReady( () => {
             try {
                 mixpanel.track('Settings Opened', {});
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking open settings", e);
             }
         }),
         openWorkspacesEvent: ifReady( () => {
             try {
                 mixpanel.track('Workspaces Opened', {});
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking open workspace", e);
             }
         }),
         openConversationsEvent: ifReady( () => {
             try {
                 mixpanel.track('Conversations Opened', {});
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking open conversation", e);
             }
         }),
         newConversationEvent: ifReady( () => {
             try {
                 mixpanel.track('Conversation Started', {});
             } catch (e) {
-                console.error("Error tracking conversation started", e);
+                console.error("Error tracking new conversation ", e);
             }
         }),
         startConversationEvent: ifReady( (prompt: Prompt) => {
@@ -267,14 +269,15 @@ const useEventService = (mixPanelToken:string) => {
                     ...promptStats(prompt)
                 })
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking start conversation with prompt", e);
             }
         }),
         deleteConversationEvent: ifReady( (conversation: Conversation) => {
             try {
+                const convMessages = conversation.compressedMessages ? uncompressMessages(conversation.compressedMessages) : conversation.messages;
                 const data = {
-                    messageCount: conversation.messages.length,
-                    messagesCharacters: conversation.messages.reduce((acc, m) => acc + m.content.length, 0),
+                    messageCount: convMessages.length,
+                    messagesCharacters: convMessages.reduce((acc, m) => acc + m.content.length, 0),
                     temperature: conversation.temperature
                 }
 
@@ -282,15 +285,16 @@ const useEventService = (mixPanelToken:string) => {
                     ...toEventData("Conversation", data)
                 });
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking delete conversation", e);
             }
         }),
         createConversationEvent: ifReady( (conversation: Conversation) => {
             try {
+                const convMessages = conversation.compressedMessages ? uncompressMessages(conversation.compressedMessages) : conversation.messages;;
                 const data = {
-                    messageCount: conversation.messages.length,
+                    messageCount: convMessages.length,
                     modelId: conversation.model.id,
-                    messagesCharacters: conversation.messages.reduce((acc, m) => acc + m.content.length, 0),
+                    messagesCharacters: convMessages.reduce((acc, m) => acc + m.content.length, 0),
                     temperature: conversation.temperature
                 }
 
@@ -301,6 +305,45 @@ const useEventService = (mixPanelToken:string) => {
                 console.error("Error tracking prompt edit completed", e);
             }
         }),
+
+        moveConversationRemoteEvent: ifReady( (conversation: Conversation) => {
+            try {
+                const convMessages = conversation.compressedMessages ? uncompressMessages(conversation.compressedMessages) : conversation.messages;;
+                const data = {
+                    messageCount: convMessages.length,
+                    modelId: conversation.model.id,
+                    messagesCharacters: convMessages.reduce((acc, m) => acc + m.content.length, 0),
+                    temperature: conversation.temperature
+                }
+
+                mixpanel.track('Conversation Moved Remote', {
+                    ...toEventData("Conversation", data)
+                });
+            } catch (e) {
+                console.error("Error tracking Conversation Moved Remote", e);
+            }
+        }),
+
+        moveConversationFromRemoteEvent: ifReady( (conversation: Conversation) => {
+            try {
+                const convMessages = conversation.compressedMessages ? uncompressMessages(conversation.compressedMessages) : conversation.messages;
+                const data = {
+                    messageCount: convMessages.length,
+                    modelId: conversation.model.id,
+                    messagesCharacters: convMessages.reduce((acc, m) => acc + m.content.length, 0),
+                    temperature: conversation.temperature
+                }
+
+                mixpanel.track('Conversation Moved From Remote to Local', {
+                    ...toEventData("Conversation", data)
+                });
+            } catch (e) {
+                console.error("Error tracking Conversation Moved From Remote to Local", e);
+            }
+
+        }),
+
+
         sendChatEvent: ifReady( (chatBody: ChatBody) => {
             try {
                 const data = {
@@ -395,6 +438,45 @@ const useEventService = (mixPanelToken:string) => {
                 });
             } catch (e) {
                 console.error("Error tracking prompt edit completed", e);
+            }
+        }),
+        getApiKey: ifReady(  (id: string) => {
+            try {
+                mixpanel.track('Get API key ', {
+                    ...toEventData("API Key id", id)
+                });
+            } catch (e) {
+                console.error("Error tracking Get API key ", e);
+            }
+        }),
+
+        deactivateApiKey: ifReady( (id: string) => {
+            try {
+                mixpanel.track('Deactivate API key ', {
+                    ...toEventData("API KeyID ", id)
+                });
+            } catch (e) {
+                console.error("Error tracking Deactivate API key ", e);
+            }
+        }),
+    
+        updateApiKey: ifReady( (keyEdits: any) => {
+            try {
+                mixpanel.track('Update API key(s) ', {
+                    ...toEventData("API Key(s) edits ", keyEdits)
+                });
+            } catch (e) {
+                console.error("Error tracking Update API key ", e);
+            }
+        }),
+    
+        createApiKey: ifReady(  (keyData: any) => {
+            try {
+                mixpanel.track('Create API key(s) ', {
+                    ...toEventData("API Key data", keyData)
+                });
+            } catch (e) {
+                console.error("Error tracking Create API key ", e);
             }
         }),
     }

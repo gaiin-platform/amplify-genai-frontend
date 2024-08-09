@@ -1,16 +1,27 @@
 import {
     IconFileCheck,
 } from '@tabler/icons-react';
-import React, {useContext, useEffect} from "react";
+import React, {useContext, useEffect, useRef} from "react";
 import JSON5 from "json5";
 import HomeContext from "@/pages/api/home/home.context";
 import {useSendService} from "@/hooks/useChatSendService";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {execOp} from "@/services/opsService";
-import {OpDef} from "@/types/op";
+import {ApiCall, OpDef} from "@/types/op";
 import {useSession} from "next-auth/react";
 import {getDbsForUser} from "@/services/pdbService";
+import {
+    getApiCalls,
+    getServerProvidedOpFormat,
+    getServerProvidedOps,
+    parseApiCalls,
+    resolveOpDef,
+    resolveServerHandler
+} from "@/utils/app/ops";
+import { FolderInterface } from '@/types/folder';
+import { Prompt } from '@/types/prompt';
+import {deepMerge} from "@/utils/app/state";
 
 interface Props {
     conversation: Conversation;
@@ -22,6 +33,7 @@ interface Props {
     id: string;
     isLast: boolean;
 }
+
 
 const hasExecuted:{[key:string]:boolean} = {
 
@@ -51,16 +63,33 @@ const AutonomousBlock: React.FC<Props> = (
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
 
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
+
+
+    const conversationsRef = useRef(conversations);
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
+
+
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
+
     const { data: session, status } = useSession();
 
     const {handleSend} = useSendService();
 
-    function parseApiCall(str:string) {
-        const functionName = str.split("(")[0];
-        const paramsStr = str.substring(str.indexOf('(') + 1, str.lastIndexOf(')'));
-        const params = JSON5.parse("["+paramsStr+"]");
-        return { functionName, params };
-    }
+
 
     const stripQuotes = (s:string) => {
 
@@ -79,18 +108,38 @@ const AutonomousBlock: React.FC<Props> = (
         return s;
     }
 
+    const opTitles: { [key: string]: string } = {
+        "/ops": "Listing the available ops",
+        "/chats": "Listing all of the chats",
+        "/searchChats": "Searching all of the chats",
+        "/chat": "Operation for a specific chat",
+        "/chatSamples": "Operation for chat samples",
+        "/folders": "Listing the available folders",
+        "/searchFolders": "Searching all of the folders",
+        "/listDbs": "Listing all of the databases",
+        "/models": "Listing the available models",
+        "/prompts": "Listing the available prompts",
+        "/defaultModelId": "Getting the default model ID",
+        "/featureFlags": "Getting the feature flags",
+        "/workspaceMetadata": "Getting the workspace metadata",
+        "/selectedConversation": "Getting the selected conversation",
+        "/selectedAssistant": "Getting the selected assistant",
+        "/listAssistants": "Listing all assistants",
+        "/createChatFolder": "Creating a chat folder",
+        "/moveChatsToFolder": "Moving chats to a folder",
+    };
 
     const handlers:{[key:string]:(params:any)=>any} = {
 
         "/ops": async (params:any) => {
-            const tag = params[1];
+            const tag = params[0];
             const result = await execOp("/ops/get", {
                 tag
             });
             return result;
         },
         "/chats": (params:any) => {
-            return conversations.map((c:any) => {
+            return conversationsRef.current.map((c:any) => {
                 return {
                     id: c.id,
                     name: c.name,
@@ -105,13 +154,12 @@ const AutonomousBlock: React.FC<Props> = (
         },
         "/searchChats": (params:string[]) => {
             const thisId = selectedConversation?.id || "";
-            params = params.slice(1);
 
             console.log('Searching for keywords', params);
 
-            const results = conversations
-                .filter((c) => c.id !== thisId)
-                .filter((c) => {
+            const results = conversationsRef.current
+                .filter((c: Conversation) => c.id !== thisId)
+                .filter((c: Conversation) => {
                     const matches =  c.messages.filter((m) => {
                         return params.some((k: string) => m.content.includes(k));
                     });
@@ -135,7 +183,7 @@ const AutonomousBlock: React.FC<Props> = (
             console.log("/chat params:", params)
 
             const id = params[1];
-            const chat = conversations.find((c:any) => c.id === id);
+            const chat = conversationsRef.current.find((c:Conversation) => c.id === id);
 
             if(!chat){
                 return {error: "Conversation not found, try listing all of the chats to find a valid conversation id."};
@@ -149,7 +197,20 @@ const AutonomousBlock: React.FC<Props> = (
             console.log("/chat params:", params)
 
             const ids = params.slice(1);
-            const chats = conversations.filter((c:any) => ids.includes(c.id));
+            const chats = conversationsRef.current.filter((c:any) => ids.includes(c.id));
+
+            if(chats.length === 0){
+                console.log("No conversations found for the given ids. Searching for folders with the specified ids.");
+                const matchedFolders = folders.filter((f) => ids.includes(f.id));
+
+                console.log("Matched folders:", matchedFolders);
+
+                matchedFolders.forEach((f) => {
+                    const folderChats = conversations.filter((c) => c.folderId === f.id);
+                    console.log("Folder chats:", folderChats);
+                    chats.push(...folderChats);
+                });
+            }
 
             if(chats.length === 0){
                 return {error: "No conversations found for the given ids. Try listing the chats to find valid ids."};
@@ -168,11 +229,12 @@ const AutonomousBlock: React.FC<Props> = (
             return sampledMessagesPerChat;
         },
         "/folders": (params:any) => {
-            return folders;
+            return foldersRef.current;
         },
         "/searchFolders": (params:string[]) => {
+
             params = params.slice(1);
-            const found = folders.filter((f) => {
+            const found = foldersRef.current.filter((f:FolderInterface) => {
                 return params.some((k: string) => f.name.includes(k));
             });
 
@@ -189,7 +251,7 @@ const AutonomousBlock: React.FC<Props> = (
             return models;
         },
         "/prompts": (params:any) => {
-            return prompts;
+            return promptsRef.current;
         },
         "/defaultModelId": (params:any) => {
             return defaultModelId;
@@ -207,12 +269,12 @@ const AutonomousBlock: React.FC<Props> = (
             return selectedAssistant;
         },
         "/listAssistants": (params:any) => {
-            return prompts
-                .filter(p => p.data && p.data.assistant)
-                .map(p => p.data?.assistant);
+            return promptsRef.current
+                .filter((p:Prompt) => p.data && p.data.assistant)
+                .map((p:Prompt) => p.data?.assistant);
         },
         "/createChatFolder": (params:any) => {
-            params = params.slice(1);
+
             const name = params[0];
 
             if(!name){
@@ -223,14 +285,14 @@ const AutonomousBlock: React.FC<Props> = (
             return folder;
         },
         "/moveChatsToFolder": (params:any) => {
-            params = params.slice(1);
+
             const folderId = params[0];
             const chatIds = params.slice(1);
-            const folder = folders.find((f) => f.id === folderId);
+            const folder = foldersRef.current.find((f:FolderInterface) => f.id === folderId);
             if(folder){
                 const moved:{[key:string]:string} = {};
                 for(const chatId of chatIds){
-                    const chat = conversations.find((c) => c.id === chatId);
+                    const chat = conversationsRef.current.find((c:Conversation) => c.id === chatId);
                     if(chat){
                         moved[chatId] = "Moved successfully.";
                         chat.folderId = folder.id;
@@ -256,80 +318,6 @@ const AutonomousBlock: React.FC<Props> = (
         },
     }
 
-    const remoteOpHandler = (opDef:OpDef) => {
-
-        console.log("Building remote op handler", opDef);
-
-        const opData = opDef.data || {};
-
-        const url = opDef.url;
-        const method = opDef.method || "POST";
-        const defaultErrorMessage = opData.defaultErrorMessage;
-        const includeMessage = opData.includeMessage;
-        const includeConversation = opData.includeConversation;
-        const includeAccessToken = opData.includeAccessToken;
-        const shouldConfirm = opData.shouldConfirm;
-        const confirmationMessage = opData.confirmationMessage || "Do you want to allow the assistant to perform the specified operation?";
-
-        return async (params:any) => {
-            if(!shouldConfirm || confirm(confirmationMessage)){
-
-                const headers = {
-                    "Content-Type": "application/json"
-                }
-                if (includeAccessToken){
-                    console.log("Including access token");
-                    // @ts-ignore
-                    headers["Authorization"] = `Bearer ${session?.accessToken}` // Assuming the API Gateway/Lambda expects a Bearer token
-                }
-
-                const req:Record<string,any> = {
-                    method,
-                    headers
-                };
-
-                const payload:Record<string,any> = {};
-
-                params = params.slice(1); // The first param is the operation name
-                for (let i = 0; i < opDef.params.length; i++) {
-                    const paramDef = opDef.params[i];
-                    console.log(`paramDef ${i}:`, paramDef);
-                    try {
-                        payload[paramDef.name] = JSON5.parse(params[i]);
-                    } catch (e) {
-                        payload[paramDef.name] = params[i];
-                    }
-                    console.log(`payload ${i}:`, payload[paramDef.name]);
-                }
-
-                try {
-
-                    console.log("Sending remote op request", url, payload);
-
-                    const response = await execOp(url, payload);
-
-                    //const response = await fetch(url, req);
-                    if (response) {
-                        return response;
-                    } else {
-                        return {
-                            success: false,
-                            result: defaultErrorMessage || response.statusText
-                        }
-                    }
-                } catch (e) {
-                    console.error("Error invoking remote op:", e);
-                    return {
-                        success: false,
-                        result: defaultErrorMessage || `${e}`
-                    }
-                }
-            }
-            else {
-                return {success:false, result:"The user canceled the operation and asked you to stop."}
-            }
-        };
-    }
 
     const getServerSelectedAssistant = (message:Message) => {
 
@@ -341,23 +329,15 @@ const AutonomousBlock: React.FC<Props> = (
         return aid;
     }
 
-    const getServerProvidedOps = (message:Message) => {
-        return (message.data && message.data.state) ?
-            message.data.state.resolvedOps : [];
-    }
+    const getOpTitle = (message: Message, url: string) => {
+        const opDef = resolveOpDef(message, url);
 
-    const resolveServerHandler = (message:Message, id:string) => {
-        const serverResolvedOps = getServerProvidedOps(message);
+        const title =
+            (opDef && opDef.name)
+            || opTitles[url]
+            || opTitles["/" + url];
 
-        if(!serverResolvedOps || serverResolvedOps.length === 0){
-            return null;
-        }
-
-        const opDef = serverResolvedOps.find(
-            (op:any) => op.id === id || op.id === "/"+id
-        );
-
-        return opDef ? remoteOpHandler(opDef) : null;
+        return title;
     }
 
     const runAction = async (action: any) => {
@@ -390,37 +370,101 @@ const AutonomousBlock: React.FC<Props> = (
                 }
             )
 
-            const apiCall = parseApiCall(action);
-            console.log("apiCall:", apiCall);
-
-            const shouldConfirm = false;
-            const { functionName, params } = apiCall;
-            const url = stripQuotes(params[0]);
-
-            const remoteOps = getServerProvidedOps(message);
-            console.log("Message:", message);
-            console.log("Searching for operation:", url);
-            console.log(`Known keys: 
-            ${remoteOps ? "Remote:" + remoteOps.map((o:any) => o.id).join(",") : ""}
-            Local:${Object.keys(handlers)}`);
-
-            const handler =
-                resolveServerHandler(message, url)
-                || handlers[url]
-                || handlers["/"+url];
-
-            let result = {success:false, message:"Unknown operation: "+url+ ". " +
-                    "Please double check that you are using the right format for invoking operations (e.g., do(someOperationName, ...)) and that" +
-                    " the name of the op is correct."}
-            if(handler){
-                result = await handler(params);
+            const context = {
+                conversation,
             }
 
-            if(!shouldStopConversation() && handleSend && (!shouldConfirm || confirm("Allow automation to proceed?"))){
+            const apiCalls = getApiCalls(context, message, action);
+
+            const results = [];
+            let title = "API Result";
+
+            for(const apiCall of apiCalls) {
+
+                console.log("apiCall:", apiCall);
+
+                const shouldConfirm = false;
+                const {functionName, params, code} = apiCall;
+                const url = stripQuotes(functionName);
+
+                const remoteOps = getServerProvidedOps(message);
+                console.log("Message:", message);
+                console.log("Searching for operation:", url);
+                console.log(`Known keys: 
+            ${remoteOps ? "Remote:" + remoteOps.map((o: any) => o.id).join(",") : ""}
+            Local:${Object.keys(handlers)}`);
+
+                const handler =
+                    resolveServerHandler(message, url)
+                    || handlers[url]
+                    || handlers["/" + url];
+
+                title = getOpTitle(message, url);
+
+                let result:{[key:string]:any} = {
+                    success: false,
+                    message: "Unknown operation: " + url + ". " +
+                        "Please double check that you are using the right format for invoking operations (e.g., do(someOperationName, ...)) and that" +
+                        " the name of the op is correct.",
+                    metaEvents:[]
+                }
+                if (handler && (!shouldConfirm || confirm("Allow automation to proceed?"))) {
+                    homeDispatch({field: 'loading', value: true});
+                    homeDispatch({field: 'messageIsStreaming', value: true});
+                    result = await handler(params);
+
+                    console.log("Result of operation:", result);
+
+                    if(result && result.metaEvents){
+                        const metaEvents = result.metaEvents;
+                        delete result.metaEvents;
+
+                        // Find all meta events with a state key
+                        const states = metaEvents.filter((e:any) => e.state).map((e:any) => e.state);
+                        const state  = deepMerge({}, ...states);
+
+                        console.log("Final state from meta", state);
+
+                        if(state.sources){
+                            result.sources = state.sources;
+                        }
+                    }
+                }
+
+                results.push({op:code, ...result} as any);
+            }
+
+            // If the result returns a pause, we should stop sending messages to the assistant
+            const pauseMessage = results.find((r:any) => r.data && r.data.pause);
+            if(pauseMessage){
+
+                homeDispatch({field: 'loading', value: false});
+                homeDispatch({field: 'messageIsStreaming', value: false});
+
+                if(pauseMessage.data.pause.message) {
+                    // check if pauseMessage.pause.message is a string
+                    if (typeof pauseMessage.data.pause.message === "string") {
+                        // Add the message to the conversation
+                        handleAddMessages(selectedConversation, [newMessage({
+                            role: "assistant",
+                            content: pauseMessage.data.pause.message
+                        })]);
+                    } else {
+                        // Add the message to the conversation
+                        handleAddMessages(selectedConversation, [pauseMessage.data.pause.message]);
+                    }
+                }
+                else {
+                    alert("Pause message is missing from the result of the operation.");
+                }
+            }
+            else if(!shouldStopConversation()){
+
+                const sourcesList = deepMerge({}, ...results.map((r:any) => r.sources).filter((s) => s));
+                console.log("Sources list:", sourcesList);
 
                 const feedbackMessage = {
-                    op: action,
-                    resultOfOp: result,
+                    resultOfOps: results,
                 }
 
                 const assistantId =
@@ -428,25 +472,29 @@ const AutonomousBlock: React.FC<Props> = (
                     selectedAssistant?.id;
 
                 if(!shouldStopConversation()) {
+                    homeDispatch({field: 'loading', value: true});
+                    homeDispatch({field: 'messageIsStreaming', value: true});
 
                     handleSend(
                         {
                             options:{assistantId},
                             message: newMessage(
-                                {"role": "user", "content": JSON.stringify(feedbackMessage), label: "API Result"})
+                                {
+                                    "role": "user",
+                                    "content": JSON.stringify(feedbackMessage),
+                                    label: title || "API Result",
+                                    data:{
+                                        actionResult:true,
+                                        state: {
+                                            sources: sourcesList
+                                        }
+                                    }
+                                })
                         },
                         shouldStopConversation);
                 }
             }
-            // const handler = handlers[functionName];
-            // if (handler) {
-            //     handler(params).then((result: any) => {
-            //         console.log("result:", result);
-            //     });
-            // }
-            // else {
-            //     console.error("No handler found for function:", functionName);
-            // }
+
         }
         catch (e) {
             console.error(e);

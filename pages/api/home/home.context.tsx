@@ -5,7 +5,7 @@ import { ActionType } from '@/hooks/useHomeReducer';
 
 import {Conversation, Message} from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
-import { FolderType } from '@/types/folder';
+import { FolderInterface, FolderType } from '@/types/folder';
 
 import { HomeInitialState } from './home.state';
 import {Account} from "@/types/accounts";
@@ -22,7 +22,7 @@ export interface HomeContextProps {
   state: HomeInitialState;
   dispatch: Dispatch<ActionType<HomeInitialState>>;
   handleNewConversation: (params: {}) => void;
-  handleCreateFolder: (name: string, type: FolderType) => void;
+  handleCreateFolder: (name: string, type: FolderType) => FolderInterface;
   handleDeleteFolder: (folderId: string) => void;
   handleUpdateFolder: (folderId: string, name: string) => void;
   handleStopConversation: () => Promise<void>;

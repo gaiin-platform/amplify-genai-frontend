@@ -1,4 +1,4 @@
-import { FC, useContext, useState } from 'react';
+import { FC, useContext, useEffect, useRef, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
@@ -18,7 +18,15 @@ export const TemperatureSlider: FC<Props> = ({
   const {
     state: { conversations },
   } = useContext(HomeContext);
-  const lastConversation = conversations[conversations.length - 1];
+
+  const conversationsRef = useRef(conversations);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+}, [conversations]);
+
+
+  const lastConversation =  conversationsRef.current[ conversationsRef.current.length - 1]; 
   const [temperature, setTemperature] = useState(
     lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
   );
