@@ -7,7 +7,8 @@ import { FolderInterface } from "@/types/folder";
 import { saveFolders } from "./folders";
 import { StorageType } from "@mantine/hooks/lib/use-local-storage/create-storage";
 
-const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal'];
+
+export const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal'];
 
 //handle all local, 
 const handleAllLocal = async (conversations: Conversation[], statsService: any) => {
@@ -144,7 +145,7 @@ export const saveStorageSettings = (storage: ConversationStorage) => {
 };
 
 
-function pickConversationAttributes<T extends object, K extends keyof T>(obj: T, props: K[]): Pick<T, K> {
+export function pickConversationAttributes<T extends object, K extends keyof T>(obj: T, props: K[]): Pick<T, K> {
     const result = {} as Pick<T, K>;
     props.forEach(prop => {
         if (prop in obj) {
@@ -182,8 +183,9 @@ export interface remoteConvData {
 }
 
 export const updateWithRemoteConversations = async (conversations: Conversation[], folders:FolderInterface[], dispatch: any) => {
+    let updatedFolders = cloneDeep(folders);
     const allRemoteConvs = await fetchAllRemoteConversations();
-    console.log("If all remote Convs", allRemoteConvs);
+    console.log("Remote len: ", allRemoteConvs?.length);
     if (allRemoteConvs) {
         const currentConversationsMap = new Map();
         conversations.forEach(conv => currentConversationsMap.set(conv.id, conv));
@@ -192,23 +194,32 @@ export const updateWithRemoteConversations = async (conversations: Conversation[
             const remoteConv = cd.conversation;
             // check if there is record of this conversation in the current browser
             const existsLocally = currentConversationsMap.get(remoteConv.id);
-            const folderExists = folders.find((f:FolderInterface) => {
-                            return existsLocally ? f.id === existsLocally.folderId 
-                                                : f.name === cd.folder?.name;
-                            });
-            if (!existsLocally || remoteConv.name !== existsLocally.name || (!folderExists && cd.folder)) {
-                //check folder exists, if not create it
+            let folderExists = updatedFolders.find((f:FolderInterface) => remoteConv.folderId ? f.id === remoteConv.folderId : null);
+            if (!existsLocally || (existsLocally && remoteConv.name !== existsLocally.name) 
+                               || (!folderExists && cd.folder)) {
                 if (!folderExists && cd.folder) {
-                    const updatedFolders = [...folders,  cd.folder];
-                    dispatch({field: 'folders', value: updatedFolders});
-                    saveFolders(updatedFolders);
-                } else {
-                    remoteConv.folderId = folderExists ? folderExists.id : null;
+                    //check folder exists, if not create it
+                    const similarFolderExists = updatedFolders.find((f:FolderInterface) => f.name === cd.folder?.name);
+                    if (!similarFolderExists) {
+                        updatedFolders = [...updatedFolders,  cd.folder];
+                    } else {
+                        remoteConv.folderId = similarFolderExists.id;
+                    }
                 }
-                currentConversationsMap.set(remoteConv.id, existsLocally ? remoteConv : pickConversationAttributes(remoteConv, CloudConvAttr) as Conversation); 
-            }  
+            }   else if  (existsLocally && folderExists && existsLocally.folderId !== folderExists.id) {
+                remoteConv.folderId = folderExists.id;
+            }
+            currentConversationsMap.set(remoteConv.id, {...remoteConv, isLocal: false});  // in case
         });
+       
+        
+        dispatch({field: 'folders', value: updatedFolders});
+        saveFolders(updatedFolders);
+        
+
         const updatedConversations = Array.from(currentConversationsMap.values());
+        console.log("updated conv len: ", updatedConversations.length);
+
         dispatch({field: 'conversations', value: updatedConversations});
         saveConversations(updatedConversations);
     } else {
