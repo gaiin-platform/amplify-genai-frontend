@@ -981,7 +981,6 @@ const Home = ({
             fetchDataDisclosureDecision();
         }
     }, [email,
-        dispatch,
         hasAcceptedDataDisclosure,
         featureFlags.dataDisclosure]);
 

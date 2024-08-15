@@ -778,11 +778,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         if (result && result.item && result.item["MTD Cost"] !== undefined) {
                             setMtdCost(`$${result.item["MTD Cost"].toFixed(2)}`);
                         } else {
-                            setMtdCost('Error');
+                            setMtdCost('$0.00');
                         }
                     } catch (error) {
                         console.error("Error fetching MTD cost:", error);
-                        setMtdCost('Error');
+                        setMtdCost('$0.00');
                     } finally {
                         isFetching = false;
                     }
