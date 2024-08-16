@@ -19,7 +19,7 @@ interface Props {
 
 export const isValidCOA = (coa:any) => {
     if (!coa) return false;
-    const pattern = /^(\w{3}\.\w{2}\.\w{5}\.\w{4}\.\w{3}\.\w{3}\.\w{3}\.\w{3}\.\w{1})$/;
+    const pattern = /^(\w{3}\.\w{2}\.\w{5}\.\w{4}\.\w{3}\.\w{3}\.\w{3}\.\w{1}\.\w{1})$/;
     return pattern.test(coa);
 }
 
