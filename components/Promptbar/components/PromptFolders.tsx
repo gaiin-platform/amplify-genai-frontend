@@ -62,7 +62,7 @@ export const PromptFolders = ({sort}: Props) => {
 
   return (
     <div className="flex w-full flex-col">
-      {foldersRef.current
+      {folders
         .filter((folder: FolderInterface) => folder.type === 'prompt')
         .sort(sort === 'date' ? sortFoldersByDate : sortFoldersByName)
         .map((folder: FolderInterface, index:number) => (

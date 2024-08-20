@@ -546,27 +546,22 @@ const Home = ({
         const updatedFolders = foldersRef.current.filter((f:FolderInterface) => (f.id !== folderId));
         console.log("Deleting folder ", folderId, "of type: ", updatedFolders);
 
-        foldersRef.current = updatedFolders;
+        
         dispatch({ field: 'folders', value: updatedFolders });
         saveFolders(updatedFolders);
-
+        foldersRef.current = updatedFolders;
     };
 
 
     const handleUpdateFolder = (folderId: string, name: string) => {
         const updatedFolders = foldersRef.current.map((f:FolderInterface) => {
             if (f.id === folderId) {
-                return {
-                    ...f,
-                    name,
-                };
+                return {...f, name: name};
             }
-
             return f;
         });
-
+        
         dispatch({ field: 'folders', value: updatedFolders });
-
         saveFolders(updatedFolders);
     };
 
