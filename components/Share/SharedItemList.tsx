@@ -393,7 +393,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
             //                             className="ml-4 flex w-full items-center gap-3 rounded-lg p-2 text-sm">
             //                             {object.type === 'prompt' && isAssistantById(object.id, promptsRef.current) ? <IconRobot size={20} /> : <IconMessage size={18} />}
             //                                 <div
-            //                                     className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">
+            //                                     className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
             //                                     {object.name}
             //                                 </div>
             //                             </label>)   
@@ -411,7 +411,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
             //                     //         className="ml-2 flex w-full items-center gap-3 rounded-lg p-2 text-sm">
             //                     //         {object.type === 'prompt' && isAssistantById(object.id) ? <IconRobot size={20} /> : <IconMessage size={18} />}
             //                     //             <div
-            //                     //                 className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">
+            //                     //                 className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
             //                     //                 {object.name}
             //                     //             </div>
             //                     //         </label>)   

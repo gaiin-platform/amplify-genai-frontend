@@ -248,7 +248,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                             {getIcon(prompt)}
                         </div>
                         <div
-                            className="overflow-hidden flex-1 text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">
+                            className="overflow-hidden flex-1 text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
                             {prompt.name}
                         </div>
                     </div>
