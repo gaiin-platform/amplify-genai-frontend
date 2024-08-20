@@ -490,7 +490,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                                                           textColor={isExpired(apiKey.expirationDate) ? "text-red-600": undefined} 
                                                                           editableField={apiKey.active ? 'expirationDate': undefined} apiKey={apiKey}/> 
                                                                 : <Label label={null} editableField={apiKey.active ? 'expirationDate': undefined} apiKey={apiKey}/>  }</td>
-                                    <td>{<Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx={"110px"} isDate={true}/>}</td>
+                                    <td>{<Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx={"116px"} isDate={true}/>}</td>
                                     <td>{<Label label={formatRateLimit(apiKey.rateLimit)} editableField={apiKey.active ? 'rateLimit' : undefined} apiKey={apiKey}/>}</td>
                                     <td>{<Label label={formatAccessTypes(apiKey.accessTypes).replaceAll(',', ', ')} widthPx="180px" editableField={apiKey.active ? 'accessTypes' : undefined} apiKey={apiKey}/>}</td>
                                     <td>{apiKey.systemId ? <Label label={apiKey.systemId } />:   <NALabel />}</td>
@@ -540,7 +540,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                             <td>{<Label label={apiKey.owner} ></Label>}</td>
                             <td>{ apiKey.expirationDate ? <Label label={formatDateYMDToMDY(apiKey.expirationDate)} textColor={isExpired(apiKey.expirationDate) ? "text-red-600": undefined} /> 
                                                         : <NALabel /> }</td>
-                            <td>{<Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx="110px" isDate={true}></Label>}</td>
+                            <td>{<Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx="116px" isDate={true}></Label>}</td>
                             <td>{<Label label={formatRateLimit(apiKey.rateLimit)} widthPx="140px"></Label>}</td>
                             <td>{<Label label={formatAccessTypes(apiKey.accessTypes).replaceAll(',', ', ')} widthPx="180px" ></Label>}</td>
                             <td>{<HiddenAPIKey id={apiKey.api_owner_id} width='184px'/> }
