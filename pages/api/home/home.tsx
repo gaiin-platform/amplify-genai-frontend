@@ -331,7 +331,7 @@ const Home = ({
     const handleSelectConversation = async (conversation: Conversation) => {
         window.dispatchEvent(new Event('cleanupApiKeys'));
         // if we click on the conversation we are already on, then dont do anything
-        if (selectedConversation && (conversation.id === selectedConversation.id)) return;
+        if (selectedConversation && (conversation.id === selectedConversation.id) && isRemoteConversation(selectedConversation)) return;
         //loading 
         //old conversations that do not have IsLocal are automatically local
         if (!('isLocal' in conversation)) {
