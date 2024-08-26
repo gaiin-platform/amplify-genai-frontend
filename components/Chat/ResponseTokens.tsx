@@ -46,13 +46,13 @@ export const ResponseTokensSlider: FC<Props> = ({
       />
       <ul className="w mt-2 pb-8 flex justify-between px-[24px] text-neutral-900 dark:text-neutral-100">
         <li className="flex justify-center">
-          <span className="absolute">{t('Concise')}</span>
+          <span>{t('Concise')}</span>
         </li>
         <li className="flex justify-center">
-          <span className="absolute">{t('Average')}</span>
+          <span>{t('Average')}</span>
         </li>
         <li className="flex justify-center">
-          <span className="absolute">{t('Verbose')}</span>
+          <span>{t('Verbose')}</span>
         </li>
       </ul>
     </div>

@@ -336,7 +336,7 @@ const Home = ({
     const handleSelectConversation = async (conversation: Conversation) => {
         window.dispatchEvent(new Event('cleanupApiKeys'));
         // if we click on the conversation we are already on, then dont do anything
-        if (selectedConversation && (conversation.id === selectedConversation.id)) return;
+        if (selectedConversation && (conversation.id === selectedConversation.id) && isRemoteConversation(selectedConversation)) return;
         //loading 
         //old conversations that do not have IsLocal are automatically local
         if (!('isLocal' in conversation)) {
@@ -551,27 +551,22 @@ const Home = ({
         const updatedFolders = foldersRef.current.filter((f:FolderInterface) => (f.id !== folderId));
         console.log("Deleting folder ", folderId, "of type: ", updatedFolders);
 
-        foldersRef.current = updatedFolders;
+        
         dispatch({ field: 'folders', value: updatedFolders });
         saveFolders(updatedFolders);
-
+        foldersRef.current = updatedFolders;
     };
 
 
     const handleUpdateFolder = (folderId: string, name: string) => {
         const updatedFolders = foldersRef.current.map((f:FolderInterface) => {
             if (f.id === folderId) {
-                return {
-                    ...f,
-                    name,
-                };
+                return {...f, name: name};
             }
-
             return f;
         });
-
+        
         dispatch({ field: 'folders', value: updatedFolders });
-
         saveFolders(updatedFolders);
     };
 
@@ -986,7 +981,6 @@ const Home = ({
             fetchDataDisclosureDecision();
         }
     }, [email,
-        dispatch,
         hasAcceptedDataDisclosure,
         featureFlags.dataDisclosure]);
 

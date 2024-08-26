@@ -778,11 +778,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         if (result && result.item && result.item["MTD Cost"] !== undefined) {
                             setMtdCost(`$${result.item["MTD Cost"].toFixed(2)}`);
                         } else {
-                            setMtdCost('Error');
+                            setMtdCost('$0.00');
                         }
                     } catch (error) {
                         console.error("Error fetching MTD cost:", error);
-                        setMtdCost('Error');
+                        setMtdCost('$0.00');
                     } finally {
                         isFetching = false;
                     }
@@ -1021,13 +1021,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         </button>
                                     </div>
                                     <div ref={modelSelectRef}></div>
-                                    {showSettings && (
+                                    
                                         <div
                                             className="flex flex-col md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
-                                            <div
-                                                className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border">
-                                                <ModelSelect/>
-                                            </div>
+                                            {showSettings && (
+                                                <div
+                                                    className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border">
+                                                    <ModelSelect/>
+                                                </div>
+                                            )}
                                             <div
                                                 className="border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border">
                                                 <TagsList tags={selectedConversation?.tags || []} setTags={
@@ -1043,7 +1045,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             }/>
                                         </div>
                                         </div>
-                                    )}
+                                    
 
 
                                     {selectedConversation?.messages.map((message: Message, index: number) => (
