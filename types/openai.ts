@@ -56,8 +56,8 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
     tokenLimit: 8000,
     actualTokenLimit: 128000,
     visible: true,
-    outputCost: .03,
-    inputCost: .01,
+    outputCost: .00066,
+    inputCost: .000165,
     description: "GPT-4o Mini is OpenAI’s most cost-efficient small model. \nA compact yet powerful omni model that showcases remarkable abilities in textual intelligence and multimodal reasoning. \nIt surpasses its predecessors and competitors in various academic benchmarks, demonstrating a level of understanding that rivals larger models.\nTrained on information available through October 2023."
   },  
   [OpenAIModelID.GPT_4o_AZ]: {
