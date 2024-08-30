@@ -14,7 +14,7 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
         state: { pluginLocation }, dispatch: homeDispatch
     } = useContext(HomeContext);
 
-
+    const [hide, setHide] = useState(false);
     const [showPluginSelect, setShowPluginSelect] = useState(false);
     const showPluginSelectRef = useRef(showPluginSelect);
     const [isDragging, setIsDragging] = useState(false);
@@ -27,6 +27,19 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
     useEffect(() => {
         showPluginSelectRef.current = showPluginSelect;
       }, [showPluginSelect]);
+
+
+    useEffect(() => {
+        const handleEvent = (event:any) => {
+            const isAdminOpen = event.detail.isOpen;
+            setHide(isAdminOpen);
+        };
+        window.addEventListener('openAstAdminInterfaceTrigger', handleEvent);
+    
+        return () => {
+            window.removeEventListener('openAstAdminInterfaceTrigger', handleEvent);
+        };
+    }, []);
 
     const onMouseDrag = useCallback((event: MouseEvent) => {
         if (!draggableRef.current || !draggableRef.current.parentNode) return;
@@ -84,7 +97,8 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
 
 
 
-    return (
+
+    return ( hide ? <></> :
         <>
             <div className="`relative inline-block z-20 max-h-full" 
                 draggable="true"

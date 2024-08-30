@@ -223,7 +223,7 @@ export const PromptComponent = ({ prompt }: Props) => {
             <div className="relative flex w-full">
                 <button
                     className="w-full  cursor-pointer p-1 items-center gap-1 rounded-lg p-2 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
-                    draggable="true" // assistant does not start with astg
+                    draggable={prompt.id.startsWith("astg") ? false : true} 
                     onClick={(e) => {
                         e.stopPropagation();
 

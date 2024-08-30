@@ -274,7 +274,7 @@ const useEventService = (mixPanelToken:string) => {
         }),
         deleteConversationEvent: ifReady( (conversation: Conversation) => {
             try {
-                const convMessages = conversation.compressedMessages ? uncompressMessages(conversation.compressedMessages) : conversation.messages;
+                const convMessages = conversation.compressedMessages ? uncompressMessages(conversation.compressedMessages) : conversation.messages || [];
                 const data = {
                     messageCount: convMessages.length,
                     messagesCharacters: convMessages.reduce((acc, m) => acc + m.content.length, 0),
@@ -290,7 +290,7 @@ const useEventService = (mixPanelToken:string) => {
         }),
         createConversationEvent: ifReady( (conversation: Conversation) => {
             try {
-                const convMessages = conversation.compressedMessages ? uncompressMessages(conversation.compressedMessages) : conversation.messages;;
+                const convMessages = conversation.compressedMessages ? uncompressMessages(conversation.compressedMessages) : conversation.messages || [];
                 const data = {
                     messageCount: convMessages.length,
                     modelId: conversation.model.id,
@@ -308,7 +308,7 @@ const useEventService = (mixPanelToken:string) => {
 
         moveConversationRemoteEvent: ifReady( (conversation: Conversation) => {
             try {
-                const convMessages = conversation.compressedMessages ? uncompressMessages(conversation.compressedMessages) : conversation.messages;;
+                const convMessages = conversation.compressedMessages ? uncompressMessages(conversation.compressedMessages) : conversation.messages || [];
                 const data = {
                     messageCount: convMessages.length,
                     modelId: conversation.model.id,
@@ -326,7 +326,7 @@ const useEventService = (mixPanelToken:string) => {
 
         moveConversationFromRemoteEvent: ifReady( (conversation: Conversation) => {
             try {
-                const convMessages = conversation.compressedMessages ? uncompressMessages(conversation.compressedMessages) : conversation.messages;
+                const convMessages = conversation.compressedMessages ? uncompressMessages(conversation.compressedMessages) : conversation.messages || [];
                 const data = {
                     messageCount: convMessages.length,
                     modelId: conversation.model.id,
