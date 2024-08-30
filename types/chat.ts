@@ -129,4 +129,5 @@ export interface Conversation {
   data?: {[key:string]:any}
   codeInterpreterAssistantId?: string;
   isLocal?: boolean;
+  groupType?: string;
 }

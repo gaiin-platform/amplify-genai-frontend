@@ -1,5 +1,5 @@
-import React, {FC, MouseEventHandler, useContext, useEffect, useRef, useState} from 'react';
-import {ExportFormatV4, ShareItem, SharedItem} from "@/types/export";
+import React, {FC, useContext, useEffect, useRef, useState} from 'react';
+import {ShareItem, SharedItem} from "@/types/export";
 import {
     IconCaretDown,
     IconCaretRight,
@@ -9,15 +9,10 @@ import {
     IconRefresh,
     IconCheck,
     IconX,
-    IconTrash,
-    IconMessage,
-    IconRobot,
-    IconUser
 } from '@tabler/icons-react';
-import {deleteShareItem, deleteYouSharedItem, getSharedItems, getYouSharedItems, loadSharedItem} from "@/services/shareService";
+import {deleteYouSharedItem, getSharedItems, getYouSharedItems} from "@/services/shareService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
-import styled, {keyframes} from "styled-components";
-import {FiCommand} from "react-icons/fi";
+import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
 import HomeContext from "@/pages/api/home/home.context";
@@ -36,21 +31,6 @@ function groupBy(key: string, array: ShareItem[]): { [key: string]: ShareItem[] 
         return result;
     }, {});
 }
-
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
-
-const LoadingIcon = styled(FiCommand)`
-  color: lightgray;
-  font-size: 1rem;
-  animation: ${animate} 2s infinite;
-`;
 
 const SharedItemsList: FC<SharedItemsListProps> = () => {
 
@@ -85,7 +65,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
         if (name) {
             statsService.openSharedItemsEvent();
             if (!groupedItems) fetchSWYData(name);
-            if (!YSItems) fetchYSData(name);
+            // if (!YSItems) fetchYSData(name);
         }
 
     }, [user]);

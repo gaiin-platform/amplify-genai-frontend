@@ -10,8 +10,7 @@ import { createApiKey, deactivateApiKey, fetchApiDoc, fetchApiKey, updateApiKeys
 import { ApiKey } from '@/types/apikeys';
 import { PeriodType, formatRateLimit, UNLIMITED, rateLimitObj} from '@/types/rateLimit'
 import { useSession } from 'next-auth/react';
-import {styled, keyframes} from "styled-components";
-import {FiCommand} from "react-icons/fi";
+import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import { formatDateYMDToMDY, userFriendlyDate } from '@/utils/app/date';
 import { AccountSelect, isValidCOA } from './Account';
@@ -31,21 +30,6 @@ interface Props {
     defaultAccount: Account;
 }
 
-
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
-
-const LoadingIcon = styled(FiCommand)`
-  color: lightgray;
-  font-size: 1rem;
-  animation: ${animate} 2s infinite;
-`;
 
 const today = new Date().toISOString().split('T')[0];
 
@@ -73,7 +57,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
     const { state: {featureFlags, statsService}, dispatch: homeDispatch } = useContext(HomeContext);
 
     const { data: session } = useSession();
-    const user = session?.user;
+    const user = session?.user?.email;
 
 
     const { t } = useTranslation('settings');
@@ -157,8 +141,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
     }, [delegateInput]);
 
     useEffect(() => {
-        setDelegateApiKeys(apiKeys.filter((k: ApiKey) => k.delegate === user?.email));
-        setOwnerApiKeys(apiKeys.filter((k: ApiKey) => k.owner === user?.email));
+        setDelegateApiKeys(apiKeys.filter((k: ApiKey) => k.delegate === user));
+        setOwnerApiKeys(apiKeys.filter((k: ApiKey) => k.owner === user));
     }, [apiKeys]);
 
 
@@ -166,7 +150,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
         setIsCreating(true);
         
         const data = {
-            'owner' : user?.email,
+            'owner' : user,
             'account' : selectedAccount,
             'delegate': delegateInput.length > 0 ? delegateInput : null,
             'appName' : appName,
@@ -220,7 +204,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
 
     const handleApplyEdits = async () => {
         // call handle edits 
-        console.log("Final edits: ", editedKeys);
+        // console.log("Final edits: ", editedKeys);
         const result = await updateApiKeys(Object.values(editedKeys));
         if (!result.success) {
             alert('failedKeys' in result ? `API keys: ${result.failedKeys.join(", ")} failed to update. Please try again.` : "We are unable to update your key(s) at this time...")
@@ -484,7 +468,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                                            : <IconX className='text-red-600' size={18} />}
                                         </div>
                                     </td>
-                                    <td>{<Label label={apiKey.account ? `${apiKey.account.name + " - "} ${apiKey.account.id}` : ''} widthPx='180px' editableField={apiKey.active && (user?.email !== apiKey.delegate)? 'account' : undefined} apiKey={apiKey} accounts={validAccounts}/>}</td>
+                                    <td>{<Label label={apiKey.account ? `${apiKey.account.name + " - "} ${apiKey.account.id}` : ''} widthPx='180px' editableField={apiKey.active && (user !== apiKey.delegate)? 'account' : undefined} apiKey={apiKey} accounts={validAccounts}/>}</td>
                                     <td>{apiKey.delegate ? <Label label={apiKey.delegate} /> :  <NALabel />}</td>
                                     <td>{ apiKey.expirationDate ?  <Label label={formatDateYMDToMDY(apiKey.expirationDate)} 
                                                                           textColor={isExpired(apiKey.expirationDate) ? "text-red-600": undefined} 

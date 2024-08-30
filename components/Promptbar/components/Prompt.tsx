@@ -39,6 +39,7 @@ import {deleteAssistant} from "@/services/assistantService";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import { ReservedTags } from '@/types/tags';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import { Group } from '@/utils/app/groups';
 
 interface Props {
     prompt: Prompt;
@@ -54,7 +55,7 @@ export const PromptComponent = ({ prompt }: Props) => {
     } = useContext(PromptbarContext);
 
     const {
-        state: { statsService, selectedAssistant, checkingItemType, checkedItems, prompts},
+        state: { statsService, selectedAssistant, checkingItemType, checkedItems, prompts, groups},
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -78,10 +79,11 @@ export const PromptComponent = ({ prompt }: Props) => {
 
     const isReserved = (isAssistant(prompt) && prompt?.data?.assistant?.definition?.tags?.includes(ReservedTags.SYSTEM));
     
-    const canDelete = (!prompt.data || !prompt.data.noDelete);
+    const groupId = prompt.groupId;
+    const canDelete = (!prompt.data || !prompt.data.noDelete) && !groupId;
     const canEdit = (!prompt.data || !prompt.data.noEdit);
-    const canCopy = (!prompt.data || !prompt.data.noCopy);
-    const canShare = (!prompt.data || !prompt.data.noShare);
+    const canCopy = (!prompt.data || !prompt.data.noCopy) && !groupId;
+    const canShare = (!prompt.data || !prompt.data.noShare)  && !groupId;
 
     const [progressMessage, setProgressMessage] = useState<string|null>(null);
     const [showModal, setShowModal] = useState<boolean>(false);
@@ -221,7 +223,7 @@ export const PromptComponent = ({ prompt }: Props) => {
             <div className="relative flex w-full">
                 <button
                     className="w-full  cursor-pointer p-1 items-center gap-1 rounded-lg p-2 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
-                    draggable="true"
+                    draggable="true" // assistant does not start with astg
                     onClick={(e) => {
                         e.stopPropagation();
 
@@ -255,7 +257,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
                 </button>
 
-                { checkPrompts && !isReserved  &&  (
+                { checkPrompts && !isReserved && !prompt.groupId &&  (
                     <div className="relative flex items-center">
                         <div key={prompt.id} className="absolute right-4 z-10">
                             <input
@@ -278,11 +280,26 @@ export const PromptComponent = ({ prompt }: Props) => {
                         )}
 
                         {!isDeleting && !isRenaming && canEdit && (
-                            <SidebarActionButton handleClick={() => setShowModal(true)} title="Edit Template">
+                            <SidebarActionButton title="Edit Template"
+                                handleClick={() => {
+                                    if (groupId) {
+                                        //show admin on ast 
+                                        window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', 
+                                                                            { detail: { isOpen: true, 
+                                                                                        data: { 
+                                                                                            group: groups.find((g:Group) => g.id === groupId),
+                                                                                            assistant: prompt
+                                                                                        } 
+                                                                                      }} ));
+                                    } else {
+                                        setShowModal(true)
+                                    }
+                                }} 
+                            > 
                                 <IconEdit size={18} />
                             </SidebarActionButton>
                         )}
-                        {!isDeleting && !isRenaming && !canEdit && !isReserved && (
+                        {!isDeleting && !isRenaming && !canEdit && !isReserved && !groupId && (
                             <SidebarActionButton handleClick={() => setShowModal(true)} title="View Template">
                                 <IconEye size={18} />
                             </SidebarActionButton>
@@ -296,7 +313,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                             </SidebarActionButton>
                         )}
 
-                        {!isDeleting && !isRenaming && !isReserved && (
+                        {!isDeleting && !isRenaming && !isReserved && !groupId && (
                             <SidebarActionButton handleClick={handleOpenDeleteModal} title="Delete Template">
                                 <IconTrash size={18} />
                             </SidebarActionButton>

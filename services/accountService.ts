@@ -84,25 +84,3 @@ export const saveAccounts = async (accounts:Account[]) => {
 
     return {success:true, message:"Accounts saved successfully.", data:data};
 }
-
-
-export const fetchInCognitoGroup = async () => {
-    try {
-        const response = await fetch('/api/cognito_groups/op', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            return JSON.parse(result.body);
-        } else {
-            return { success: false, error: `Error call to check if in cognito group: ${response.statusText}`};
-        }
-    } catch (e) {
-        console.error("Error call to check if in cognito group: ", e);
-        return { success: false, error: "Error call to check if in cognito group."};
-    }
-}

@@ -20,7 +20,7 @@ const groupOps =
         let apiUrl = process.env.API_BASE_URL + "/groups" || "";
 
         const queryPath = typeof req.query.path === 'string' ? req.query.path : ""; 
-        const groupId = req.query.apiKeyId;
+        const groupId = req.query.group_id;
 
         const queryGroupId = groupId && typeof groupId === 'string' ? groupId: "";
 

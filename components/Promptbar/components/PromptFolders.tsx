@@ -65,6 +65,10 @@ export const PromptFolders = ({sort}: Props) => {
       {folders
         .filter((folder: FolderInterface) => folder.type === 'prompt')
         .sort(sort === 'date' ? sortFoldersByDate : sortFoldersByName)
+        .sort((a, b) => {
+          if (a.isGroupFolder && !b.isGroupFolder) return 1;
+          if (!a.isGroupFolder && b.isGroupFolder) return -1;
+          return 0 })
         .map((folder: FolderInterface, index:number) => (
           <Folder
             key={index}

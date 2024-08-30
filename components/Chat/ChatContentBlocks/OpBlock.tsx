@@ -2,32 +2,14 @@
 import {useContext, useEffect, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import {IconRobot} from "@tabler/icons-react";
-import styled, {keyframes} from "styled-components";
-import {FiCommand} from "react-icons/fi";
-import ExpansionComponent from "@/components/Chat/ExpansionComponent";
+import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { useOpsService} from "@/hooks/useOpsService";
-import { useSession } from "next-auth/react"
-import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
+import { useSession } from "next-auth/react";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import {useSendService} from "@/hooks/useChatSendService";
 import {resolveServerHandler} from "@/utils/app/ops";
 import JsonForm from "@/components/JsonForm/JsonForm";
 
-
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
-
-const LoadingIcon = styled(FiCommand)`
-  color: lightgray;
-  font-size: 1rem;
-  animation: ${animate} 2s infinite;
-`;
 
 
 interface OpProps {

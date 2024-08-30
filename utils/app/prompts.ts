@@ -16,6 +16,17 @@ export interface VariableFillOptions {
     [key: string]: VariableFillOption;
 }
 
+export const createEmptyPrompt = (name: string, folderId: string | null):Prompt => {
+  return {
+    id: uuidv4(),
+    name: name,
+    description: '',
+    content: '',
+    folderId: folderId,
+    type: MessageType.PROMPT
+  };
+}
+
 const dateTimeString = () => {
   let date = new Date();
 

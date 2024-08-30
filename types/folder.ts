@@ -3,6 +3,7 @@ export interface FolderInterface {
   date?: string;
   name: string;
   type: FolderType;
+  isGroupFolder?: boolean;
 }
 
 export type FolderType = 'chat' | 'prompt' | 'workflow';

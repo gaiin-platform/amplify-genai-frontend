@@ -13,6 +13,7 @@ import { Account } from "@/types/accounts";
 import {Op} from "@/types/op";
 import {CheckItemType} from "@/types/checkItem";
 import { PluginLocation } from '@/types/plugin';
+import { Group } from '@/utils/app/groups';
 
 
 type HandleSend = (request: any) => void;
@@ -60,6 +61,10 @@ export interface HomeInitialState {
   checkedItems: Array<any>;
   checkingItemType: CheckItemType | null;
   pluginLocation: PluginLocation;
+  groups: Group[];
+  syncingConversations: boolean;
+  syncingPrompts: boolean;
+
 }
 
 export const initialState: HomeInitialState = {
@@ -129,6 +134,7 @@ export const initialState: HomeInitialState = {
     storeCloudConversations: true,
     qiSummary: true,
     apiKeys: true,
+    assistantAdminInterface: false,
     mtdCost: true
   },
 
@@ -144,5 +150,8 @@ export const initialState: HomeInitialState = {
   allFoldersOpenPrompts: false,
   checkedItems: [],
   checkingItemType: null,
-  pluginLocation: {x:100, y:-250}
+  pluginLocation: {x:100, y:-250},
+  groups: [],
+  syncingConversations: true,
+  syncingPrompts: true
 };

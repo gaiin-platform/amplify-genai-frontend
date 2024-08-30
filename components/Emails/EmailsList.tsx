@@ -1,10 +1,13 @@
-import React, { useState, FC, useCallback, useRef, useEffect } from 'react';
-import { IconCircleX, IconPlus } from '@tabler/icons-react';
+import React, { useState, FC, useCallback, useRef, useEffect, useContext } from 'react';
+import { IconCircleX, IconInfoCircle, IconPlus } from '@tabler/icons-react';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
 import debounce from 'lodash.debounce';
 import { EmailsAutoComplete } from './EmailsAutoComplete';
 import { setEngine } from 'crypto';
 import { fetchAllSystemIds } from '@/services/apiKeysService';
+import HomeContext from '@/pages/api/home/home.context';
+import { Group } from '@/utils/app/groups';
+import { useSession } from 'next-auth/react';
 
 
 interface Props {
@@ -43,6 +46,7 @@ function stringToColor(str: string): string {
 
 
 const EmailModal: FC<EmailModalProps> = ({ isOpen, onClose, onSubmit, input, setInput, message, allEmails, alreadyAddedEmails}) => {
+    const { state: { featureFlags, groups}, dispatch: homeDispatch } = useContext(HomeContext);
     
     if (!isOpen) return null;
     return (
@@ -52,14 +56,22 @@ const EmailModal: FC<EmailModalProps> = ({ isOpen, onClose, onSubmit, input, set
                     <div className="inline-block overflow-y-auto  overflow-x-hidden rounded-lg border border-gray-300 bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:w-full sm:max-w-[480px] sm:align-middle"
                         style={{ transform: 'translateY(+22%)', position: 'relative' }}>
                         <div className="max-h-[calc(100vh-10rem)] p-0.5 overflow-y-auto">
+                            
+                            { featureFlags.assistantAdminInterface && groups.length > 0  && 
+                            <div className='mb-4 flex flex-row gap-2 text-[0.795rem]'>
+                            <IconInfoCircle size={14} className='mt-0.5 flex-shrink-0 text-gray-600 dark:text-gray-400' />
+                            Use the "#" symbol to automatically include all members of the group.
+                            </div>
+                            }
+
                             {message}
+
                             <div className='mt-2'> 
                                 <EmailsAutoComplete
                                 input = {input}
                                 setInput =  {setInput}
                                 allEmails = {allEmails}
                                 alreadyAddedEmails = {alreadyAddedEmails}
-
                                 />
                             </div>  
                             <div className="mt-2 flex flex-row items-center justify-end p-4 bg-white dark:bg-[#202123]">
@@ -92,26 +104,46 @@ export const EmailsList: FC<Props> = ({
     label = "Emails",
     addMessage = "Enter emails separated by commas:",
 }) => {
+    const { state: {groups}, dispatch: homeDispatch } = useContext(HomeContext);
+
     const [input, setInput] = useState<string>('');
     const [showModal, setShowModal] = useState<boolean>(false);
     const [allEmails, setAllEmails] = useState<Array<string> | null>(null)
 
+    const { data: session } = useSession();
+    const user = session?.user?.email;
+
     useEffect(() => {
         const fetchEmails = async () => {
             const emailSuggestions =  await fetchEmailSuggestions("*");
+            //  API sytem users
             const apiSysIds = await fetchAllSystemIds();
             const sysIds = apiSysIds.map((k: any) => k.systemId).filter((k: any) => k);
-            setAllEmails(emailSuggestions.emails ? [...emailSuggestions.emails,
-                                                    ...sysIds] : []);
+            // add groups  #groupName
+            const groupForMembers = groups.map((group:Group) => `#${group.name}`);
+            setAllEmails(emailSuggestions.emails ? [...emailSuggestions.emails, ...groupForMembers, 
+                                                    ...sysIds].filter((e: string) => e !== user)
+                                                    : []);
         };
         if (!allEmails) fetchEmails();
     }, [showModal]);
 
 
     const handleAddEmails = () => {
-        const newEmails = input.split(',')
-            .map(email => email.trim())
-            .filter(email => (/^\S+@\S+\.\S+$/.test(email) || 
+        const entries = input.split(',').map(email => email.trim()).filter(email => email);
+        let entriesWithGroupMembers:string[] = [];
+
+        entries.forEach((e: any) => { 
+            if ( e.startsWith('#')) {
+                const group = groups.find((g:Group) => g.name === e.slice(1));
+                if (group) entriesWithGroupMembers = [...entriesWithGroupMembers, 
+                                                      ...Object.keys(group.members).filter((e: string) => e !== user)]; 
+            } else {
+                entriesWithGroupMembers.push(e);
+            }
+        });
+
+        const newEmails = entriesWithGroupMembers.filter(email => (/^\S+@\S+\.\S+$/.test(email) || 
                              /^[a-zA-Z0-9-]+-\d{6}$/.test(email)) && !emails.includes(email));
         setEmails([...emails, ...newEmails]);
         setInput('');

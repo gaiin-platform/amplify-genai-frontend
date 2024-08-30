@@ -1,31 +1,13 @@
 import {useContext, useEffect, useRef, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import {IconRobot} from "@tabler/icons-react";
-import styled, {keyframes} from "styled-components";
-import {FiCommand} from "react-icons/fi";
+import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {createAssistant} from "@/services/assistantService";
 import { useSession } from "next-auth/react"
 import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
-import {Prompt} from "@/types/prompt";
 import {Conversation} from "@/types/chat";
 import { createAssistantPrompt, handleUpdateAssistantPrompt} from "@/utils/app/assistants";
-
-
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
-
-const LoadingIcon = styled(FiCommand)`
-  color: lightgray;
-  font-size: 1rem;
-  animation: ${animate} 2s infinite;
-`;
 
 
 interface AssistantProps {

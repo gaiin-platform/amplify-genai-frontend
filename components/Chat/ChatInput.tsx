@@ -81,6 +81,16 @@ export const ChatInput = ({
         promptsRef.current = prompts;
       }, [prompts]);
 
+    const [messageIsDisabled, setMessageIsDisabled] = useState<boolean>(false);
+    
+    
+    useEffect(() => {
+        if (selectedConversation && selectedAssistant)
+            setMessageIsDisabled(selectedAssistant?.definition?.data?.groupTypeData && 
+                Object.keys(selectedAssistant?.definition?.data?.groupTypeData).length > 0 &&
+                !selectedConversation?.groupType);
+        }, [selectedAssistant, selectedConversation]);
+
     const [content, setContent] = useState<string>();
     const [isTyping, setIsTyping] = useState<boolean>(false);
     const [showPromptList, setShowPromptList] = useState(false);
@@ -213,12 +223,6 @@ const onAssistantChange = (assistant: Assistant) => {
     }
 
     const handleSend = () => {
-        console.log(
-            "**", selectedConversation?.model
-        )
-        console.log(
-            "**", selectedConversation
-        )
         setShowDataSourceSelector(false);
 
         if (messageIsStreaming) {
@@ -800,9 +804,13 @@ const onAssistantChange = (assistant: Assistant) => {
                         />
 
                         <button
-                            className="right-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                            // className="right-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                            className={`right-2 top-2 rounded-sm p-1 text-neutral-800 
+                                ${messageIsDisabled? 'cursor-not-allowed ' : 'opacity-60 hover:bg-neutral-200 hover:text-neutral-900'} 
+                                dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
                             onClick={handleSend}
-                            title="Send Prompt"
+                            title={messageIsDisabled ? "Please Address Missing Information to Enable Prompting" : "Send Prompt"}
+                            disabled={messageIsDisabled}
                         >
                             {messageIsStreaming ? (
                                 <div

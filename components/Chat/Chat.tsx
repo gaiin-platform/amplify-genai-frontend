@@ -55,6 +55,7 @@ import { getIsLocalStorageSelection, isRemoteConversation } from '@/utils/app/co
 import { deleteRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import { callRenameChat } from './RenameChat';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
+import { GroupTypeSelector } from './GroupTypeSelector';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -140,7 +141,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             field: 'selectedConversation',
                             value: updatedConversation,
                         });
-                        console.log("Rename chat: ", customName)
+                        // console.log("Rename chat: ", customName)
                         
                         if (isRemoteConversation(updatedConversation)) uploadConversation(updatedConversation, foldersRef.current);
 
@@ -165,7 +166,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const {handleSend:handleSendService} = useSendService();
 
-
+        const [selectedModelId, setSelectedModelId] = useState<OpenAIModelID | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id );
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
         const [showSettings, setShowSettings] = useState<boolean>(false);
@@ -182,6 +183,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const chatContainerRef = useRef<HTMLDivElement>(null);
         const textareaRef = useRef<HTMLTextAreaElement>(null);
         const modelSelectRef = useRef<HTMLDivElement>(null);
+
+        useEffect(() =>{
+            if (selectedAssistant?.definition?.data?.model) setSelectedModelId(selectedAssistant?.definition?.data?.model);
+            if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) setSelectedModelId(selectedConversation?.model?.id as OpenAIModelID);
+        }, [selectedAssistant]);
 
         const updateMessage = (selectedConversation: Conversation, updatedMessage: Message, updateIndex: number) => {
             let updatedConversation = {
@@ -451,11 +457,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (assistantInUse) {
                     let options = {
                         assistantName: assistantInUse.name,
-                        assistantId: assistantInUse.assistantId ,
+                        assistantId: assistantInUse.assistantId,
+                        groupId:  selectedAssistant?.definition.groupId,
+                        groupType: selectedConversation?.groupType 
                     };
 
                     message.data = {...message.data, assistant: {definition: {
                         assistantId: assistantInUse.assistantId,
+                        groupId: selectedAssistant?.definition.groupId,
                                 name: assistantInUse.name,
                             ...(assistantInUse.uri ? {uri: assistantInUse.uri} : {}),
                     }}};
@@ -829,7 +838,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 
                                                 <div className="relative flex flex-row w-full items-center"> 
                                                     <div className="flex-grow">
-                                                        <ModelSelect/>
+                                                        <ModelSelect modelId={selectedModelId} isDisabled={selectedAssistant?.definition?.data?.model}/>
                                                     </div>
 
                                                     {featureFlags.storeCloudConversations && <div className="mt-[-5px] absolute top-0 right-0 flex justify-end items-center">
@@ -838,45 +847,61 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     
                                                 </div>
                                                 
-                                                
-                                                <SystemPrompt
-                                                    models={models}
-                                                    handleUpdateModel={handleUpdateModel}
-                                                    conversation={selectedConversation}
-                                                    prompts={promptsRef.current}
-                                                    onChangePrompt={(prompt) =>
-                                                        handleUpdateConversation(selectedConversation, {
-                                                            key: 'prompt',
-                                                            value: prompt,
-                                                        })
-                                                    }
-                                                />
-
-                                                <TemperatureSlider
-                                                    label={t('Temperature')}
-                                                    onChangeTemperature={(temperature) =>
-                                                        handleUpdateConversation(selectedConversation, {
-                                                            key: 'temperature',
-                                                            value: temperature,
-                                                        })
-                                                    }
-                                                />
-
-                                                <ResponseTokensSlider
-                                                    label={t('Response Length')}
-                                                    onResponseTokenRatioChange={(r) => {
-                                                        if (selectedConversation && selectedConversation.model) {
-
-                                                            const tokens = Math.floor(1000 * (r / 3.0)) + 1;
-
+                                                { selectedAssistant?.definition?.data?.groupTypeData && Object.keys(selectedAssistant?.definition?.data?.groupTypeData).length > 0 ? 
+                                                    <>
+                                                        <GroupTypeSelector
+                                                            groupOptionsData={selectedAssistant.definition.data.groupTypeData}
+                                                            setSelected={(type: string | undefined) => {
+                                                                // set selectedConversations with type
+                                                                homeDispatch({ field: 'selectedConversation', value: {...selectedConversation, groupType: type} })
+                                                                handleUpdateConversation(selectedConversation, {
+                                                                    key: 'groupType',
+                                                                    value: type,
+                                                                }) 
+                                                            }}
+                                                        />
+                                                        
+                                                    </> :
+                                                    <>
+                                                    <SystemPrompt
+                                                        models={models}
+                                                        handleUpdateModel={handleUpdateModel}
+                                                        conversation={selectedConversation}
+                                                        prompts={promptsRef.current}
+                                                        onChangePrompt={(prompt) =>
                                                             handleUpdateConversation(selectedConversation, {
-                                                                key: 'maxTokens',
-                                                                value: tokens,
+                                                                key: 'prompt',
+                                                                value: prompt,
                                                             })
                                                         }
-                                                    }}
-                                                />
+                                                    />
 
+                                                    <TemperatureSlider
+                                                        label={t('Temperature')}
+                                                        onChangeTemperature={(temperature) =>
+                                                            handleUpdateConversation(selectedConversation, {
+                                                                key: 'temperature',
+                                                                value: temperature,
+                                                            })
+                                                        }
+                                                    />
+
+                                                    <ResponseTokensSlider
+                                                        label={t('Response Length')}
+                                                        onResponseTokenRatioChange={(r) => {
+                                                            if (selectedConversation && selectedConversation.model) {
+
+                                                                const tokens = Math.floor(1000 * (r / 3.0)) + 1;
+
+                                                                handleUpdateConversation(selectedConversation, {
+                                                                    key: 'maxTokens',
+                                                                    value: tokens,
+                                                                })
+                                                            }
+                                                        }}
+                                                    />
+                                                    </>
+                                                }
                                                 {isPromptTemplateDialogVisible && selectedConversation.promptTemplate && (
                                                     <VariableModal
                                                         models={models}
@@ -1024,12 +1049,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     
                                         <div
                                             className="flex flex-col md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
-                                            {showSettings && (
+                                            { showSettings && !(selectedAssistant?.definition?.data?.model) &&
                                                 <div
                                                     className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border">
-                                                    <ModelSelect/>
+                                                    <ModelSelect modelId={selectedModelId}/>
                                                 </div>
-                                            )}
+                                            }
                                             <div
                                                 className="border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border">
                                                 <TagsList tags={selectedConversation?.tags || []} setTags={

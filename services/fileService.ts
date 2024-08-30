@@ -127,7 +127,8 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
                 name:metadata.name,
                 knowledgeBase:"default",
                 tags:[],
-                data:{}
+                data:{},
+                groupId: metadata.groupId
             }
         }),
         signal: abortSignal,

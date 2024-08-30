@@ -30,7 +30,7 @@ const ChatSourceBlock: React.FC<Props> = (
         return <></>;
     }
 
-    return <div className="mt-3">
+    return <div className="mt-3" key={message.id}>
         <ExpansionComponent title="Sources"
             content={Object.keys(sources).map((source, index) => (
             <ChatSourceList

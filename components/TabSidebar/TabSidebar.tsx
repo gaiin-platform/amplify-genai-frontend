@@ -1,5 +1,7 @@
-import React, { useState, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect, ReactNode, useContext, useRef } from 'react';
 import { CloseSidebarButton, OpenSidebarButton } from "@/components/Sidebar/components/OpenCloseButton";
+import HomeContext from '@/pages/api/home/home.context';
+import { AssistantAdminUI, CreateAdminDialog } from '../Admin/AssistantAdminUI';
 
 interface TabProps {
     icon: ReactNode;
@@ -24,13 +26,39 @@ const isMobileBrowser = () => {
 };
 
 export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerComponent }) => {
+    const { state: { page }, dispatch: homeDispatch } = useContext(HomeContext);
     const [activeTab, setActiveTab] = useState(0);
     // Set the initial state based on whether the user is on a mobile browser
     const [isOpen, setIsOpen] = useState(!isMobileBrowser());
+    const [showAssistantAdmin, setShowAssistantAdmin] = useState<boolean>(false);
+    const [groupModalData, setGroupModalData] = useState<any>(undefined);
+
+
     const childrenArray = React.Children.toArray(children) as React.ReactElement<TabProps>[]; // here we assert that all children are ReactElements
     const toggleOpen = () => setIsOpen(!isOpen);
 
     const isMultipleTabs = childrenArray.length > 1;
+
+
+    useEffect(() => {
+        const handleEvent = (event:any) => {
+            const isAdminOpen = event.detail.isOpen;
+            setGroupModalData(event.detail.data);
+
+            setIsOpen(!isAdminOpen);
+            setShowAssistantAdmin(isAdminOpen);  
+        };
+        window.addEventListener('openAstAdminInterfaceTrigger', handleEvent);
+    
+        return () => {
+            window.removeEventListener('openAstAdminInterfaceTrigger', handleEvent);
+        };
+    }, []);
+
+    useEffect(() => {
+        if ( isOpen) setShowAssistantAdmin(false);
+    }, [isOpen]);
+
     return isOpen ? (
         
         <div className={`fixed top-0 ${side}-0 z-30 flex h-full w-[280px] flex-none ${side === 'left' ? 'border-r dark:border-r-[#202123]' : 'border-l dark:border-l-[#202123]'}
@@ -57,7 +85,17 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
             <CloseSidebarButton onClick={toggleOpen} side={side} />
         </div>
     ) : (
+        //if we are going to use collapse side bars, interface takes up whole page, we can list the item here 
+        <>
         <OpenSidebarButton onClick={toggleOpen} side={side} />
+        
+        <AssistantAdminUI
+            open={showAssistantAdmin && side === 'left'}
+            openToGroup={groupModalData?.group}
+            openToAssistant={groupModalData?.assistant}
+        />
+        </>
+        
     );
 };
 

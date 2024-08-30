@@ -1,5 +1,4 @@
-import {FC, useRef, useState} from 'react';
-
+import {FC, ReactElement, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'next-i18next';
 import {Prompt} from '@/types/prompt';
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
@@ -12,6 +11,8 @@ import {createAssistant} from "@/services/assistantService";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/Promptbar/components/FlagsMap";
+import { AssistantDefinition } from '@/types/assistant';
+import { AstGroupTypeData } from '@/utils/app/groups';
 
 
 interface Props {
@@ -22,6 +23,13 @@ interface Props {
     loadingMessage: string;
     loc: string;
     disableEdit?: boolean;
+    title?: string;
+    onCreateAssistant?: (astDef: AssistantDefinition) => Promise<{ id: string; assistantId: string; provider: string }>;
+    width?: string;
+    height?: string;
+    translateY?: string;
+    blackoutBackground?:boolean;
+    children?: ReactElement;
 }
 
 const dataSourceFlags = [
@@ -81,7 +89,9 @@ const messageOptionFlags = [
 ];
 
 
-export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc, disableEdit=false}) => {
+export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc, 
+                                          disableEdit=false, title, onCreateAssistant,height, width = '770px',
+                                          translateY='-3%', blackoutBackground=true, children}) => {
     const {t} = useTranslation('promptbar');
 
     let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
@@ -134,18 +144,84 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [conversationTags, setConversationTags] = useState(cTags);
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
 
+    const [additionalGroupData, setAdditionalGroupData] = useState<any>({});
+
+    useEffect(() => {
+        const handleEvent = (event:any) => {
+            const detail = event.detail;
+            if (assistant.id === detail.astId) setAdditionalGroupData((prevData:any) => ({ ...prevData, ...detail.data }));
+        };
+        window.addEventListener('astGroupDataUpdate', handleEvent);
+    
+        return () => {
+            window.removeEventListener('astGroupDataUpdate', handleEvent);
+        };
+    }, []);
+
+    useEffect(() => {
+        console.log("____   ", additionalGroupData)
+        console.log("____   ", assistant.id)
+        console.log("____ ast  ", dataSources)
+
+
+    }, [additionalGroupData]);
+
     const [uri, setUri] = useState<string|null>(definition.uri || null);
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const modalRef = useRef<HTMLDivElement>(null);
 
+    const allDocumentsUploaded = (documentStates: { [key: string]: number }) => {
+        return Object.values(documentStates).every(state => state === 100);
+    };
+    
+    const prepAdditionalData = () => {
+        if (!additionalGroupData || !additionalGroupData.groupTypeData) {
+            return additionalGroupData;
+        }
+    
+        // Prepare the transformed groupTypeData, if available
+        const updatedGroupTypeData = Object.fromEntries(
+            Object.entries(additionalGroupData.groupTypeData as AstGroupTypeData).map(([type, info]) => {
+                // Update the dataSources with new id formatting
+                const updatedDataSources = info.dataSources.map(ds => {
+                            const prefix = "s3://";
+                            if (ds.id.startsWith(prefix)) return ds;
+                            return {
+                                ...ds,
+                                id: prefix + ds.key  // Transforming the id by prefixing with 's3://'
+                            }
+                        });
+    
+                // Omit documentState from the info when rebuilding the object
+                const { documentState, ...rest } = info;
+    
+                return [type, {
+                    ...rest,
+                    dataSources: updatedDataSources
+                }];
+            })
+        );
+    
+ 
+         // Create a new object for additionalGroupData that includes the transformed groupTypeData
+         return {
+             ...additionalGroupData,
+             groupTypeData: updatedGroupTypeData
+         };
+        
+    }
+   
+
     const handleUpdateAssistant = async () => {
         // Check if any data sources are still uploading
         const isUploading = Object.values(documentState).some((x) => x < 100);
-        if (isUploading) {
+        const isUploadingGroupDS = additionalGroupData && additionalGroupData.groupTypeData ? Object.entries(additionalGroupData.groupTypeData as AstGroupTypeData).some(([type, info]) => !allDocumentsUploaded(info.documentState)) : false;
+        if (isUploading || isUploadingGroupDS) {
             alert(t('Please wait for all data sources to finish uploading.'));
             return;
         }
+
 
         setIsLoading(true);
 
@@ -157,6 +233,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         newAssistant.instructions = content;
         newAssistant.disclaimer = disclaimer;
 
+        // TODO handle for groupTypes too 
         if(uri && uri.trim().length > 0){
             // Check that it is a valid uri
             if(uri.trim().indexOf("://") === -1){
@@ -169,6 +246,13 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         }
 
         newAssistant.dataSources = dataSources.map(ds => {
+            if (assistant.groupId ) {
+                if (!ds.key) ds.key = ds.id;
+                return {
+                ...ds,
+                id: "s3://"+ds.key
+                }
+            }
             if(ds.key || (ds.id && ds.id.indexOf("://") > 0)){
                 return ds;
             }
@@ -179,6 +263,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 }
             }
         });
+        // do the same for 
         newAssistant.tools = newAssistant.tools || [];
         newAssistant.data.conversationTags = conversationTags ? conversationTags.split(",").map((x: string) => x.trim()) : [];
         
@@ -189,8 +274,12 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         newAssistant.data.dataSourceOptions = dataSourceOptions;
 
         newAssistant.data.messageOptions = messageOptions;
+        
+        const updatedAdditionalGroupData = prepAdditionalData();
 
-        const {id, assistantId, provider} = await createAssistant(newAssistant, null);
+        newAssistant.data = {...newAssistant.data, ...updatedAdditionalGroupData};
+
+        const {id, assistantId, provider} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant, null);
         if (!id) {
             alert("Unable to save the assistant at this time, please try again later...");
             setIsLoading(false);
@@ -218,10 +307,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     return (
         <div
-            className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
-        >
-
-
+            className={`fixed inset-0 flex items-center justify-center ${blackoutBackground ?'bg-black bg-opacity-50 z-50': ""} `}
+            style={translateY !== '-3%' ? { transform: `translateY(${translateY})`}: {}}>
             <div className="fixed inset-0 z-10 overflow-hidden">
                 <div
                     className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -231,12 +318,26 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                     />
 
                     <div
-                        className="dark:border-netural-400 inline-block overflow-hidden rounded-lg border border-gray-300 bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:w-full sm:max-w-[770px] sm:align-middle"
+                        className={` inline-block overflow-hidden ${ blackoutBackground ? 'rounded-lg border border-gray-300 dark:border-netural-400':""} bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:w-full sm:max-w-[${width}] sm:align-middle`}
                         ref={modalRef}
                         role="dialog"
+                        style={{ transform: `translateY(${translateY !== '-3%' ? '-80px': translateY})` }}
                     >
+                        {/* <div className='absolute top-2 right-2'> 
+                                <SidebarActionButton
+                                        handleClick={() => onCancel()}
+                                        title="Close"
+                                    >
+                                        <IconX size={28} />
+                                    </SidebarActionButton> 
+                        </div> */}
+                        <label className='w-full text-xl text-center items-center mb-2 flex justify-center'> {title} </label>  
+                          
+                        
 
-                        <div className="max-h-[calc(100vh-10rem)] overflow-y-auto">
+                        <div className=" max-h-[calc(100vh-10rem)] overflow-y-auto"
+                            style={{ height: height}}>
+                            {children}
                             <div className="text-sm font-bold text-black dark:text-neutral-200">
                                 {t('Assistant Name')}
                             </div>
@@ -302,7 +403,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>
                             {!disableEdit && <div className="flex flex-row items-center">
                                 <button
-                                    className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                                    className={`left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:hover:text-neutral-200 dark:bg-opacity-50 dark:text-neutral-100 `}
                                     onClick={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
@@ -315,6 +416,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     <IconFiles size={20}/>
                                 </button>
                                 <AttachFile id={"__attachFile_assistant_" + loc}
+                                            groupId={assistant.groupId}
                                             disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                             onAttach={(doc) => {
                                                 setDataSources((prev) => {

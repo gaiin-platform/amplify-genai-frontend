@@ -1,26 +1,16 @@
 import {
     IconCheck,
     IconCopy,
-    IconEdit,
     IconRobot,
-    IconTrash,
-    IconWriting,
     IconDownload,
     IconUser,
 } from '@tabler/icons-react';
-import { FiCommand } from "react-icons/fi";
-import styled, { keyframes } from 'styled-components';
 import { FC, memo, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
-import { updateConversation } from '@/utils/app/conversation';
 import { Message } from '@/types/chat';
 import HomeContext from '@/pages/api/home/home.context';
 import ChatFollowups from './ChatFollowups';
-import {VariableModal} from "@/components/Chat/VariableModal";
 import ChatContentBlock from "@/components/Chat/ChatContentBlocks/ChatContentBlock";
-import UserMessageEditor from "@/components/Chat/ChatContentBlocks/UserMessageEditor";
-import AssistantMessageEditor from "@/components/Chat/ChatContentBlocks/AssistantMessageEditor";
-import {Style} from "css-to-react-native";
 import { Prompt } from "@/types/prompt";
 import { Stars } from "@/components/Chat/Stars";
 import {DownloadModal} from "@/components/Download/DownloadModal";
@@ -38,20 +28,6 @@ export interface Props {
     handleCustomLinkClick: (message: Message, href: string) => void,
 }
 
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
-
-const LoadingIcon = styled(FiCommand)`
-  color: lightgray;
-  font-size: 1rem;
-  animation: ${animate} 2s infinite;
-`;
 
 export const RemoteMessage: FC<Props> = memo(({
                                                 message,

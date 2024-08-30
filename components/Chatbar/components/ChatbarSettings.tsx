@@ -14,14 +14,11 @@ import ChatbarContext from '../Chatbar.context';
 import {AccountDialog} from "@/components/Settings/AccountComponents/AccountDialog";
 import { StorageDialog } from '@/components/Settings/StorageDialog';
 
-import {AdminUI} from '../../Admin/AdminUI';
-
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
     const [isSettingDialogOpen, setIsSettingDialog] = useState<boolean>(false);
     const [isAccountDialogVisible, setIsAccountDialogVisible] = useState<boolean>(false);
     const [isStorageDialogVisible, setIsStorageDialogVisible] = useState<boolean>(false);
-    const [isAdminUIVisible, setIsAdminUIVisible] = useState<boolean>(false);
 
 
     const {
@@ -52,12 +49,14 @@ export const ChatbarSettings = () => {
                 }}
             />
 
-            {true && // TODO: update this so that admin button is only shown if user is in admin group
+            {featureFlags.assistantAdminInterface && 
                 <SidebarButton
-                    text={t('Admin')}
+                    text={t('Assistant Admin Interface')}
                     icon={<IconSettings size={18} />}
                     onClick={() => {
-                        setIsAdminUIVisible(true);
+                        // send trigger to close side bars and open the interface 
+                        window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: true }} ));
+                      
                     }}
                 />
             }
@@ -105,24 +104,18 @@ export const ChatbarSettings = () => {
                 }}
             />
 
-            <AdminUI
-                open={isAdminUIVisible}
-                onClose={() => {
-                    setIsAdminUIVisible(false);
-                }}
-            />
-
             <AccountDialog
                 open={isAccountDialogVisible}
                 onClose={() => {
                     setIsAccountDialogVisible(false);
                 }}
             />
-            { featureFlags.storeCloudConversations && <StorageDialog
-                open={isStorageDialogVisible}
-                onClose={() => {
-                    setIsStorageDialogVisible(false);
-                }}
+            { featureFlags.storeCloudConversations && 
+                <StorageDialog
+                    open={isStorageDialogVisible}
+                    onClose={() => {
+                        setIsStorageDialogVisible(false);
+                    }}
             />}
 
         </div>

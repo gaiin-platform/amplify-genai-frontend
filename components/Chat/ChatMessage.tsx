@@ -5,34 +5,24 @@ import {
     IconRobot,
     IconTrash,
     IconBolt,
-    IconWriting,
     IconDownload,
     IconMail,
-    IconFileCheck,
     IconUser,
 } from '@tabler/icons-react';
-import {FiCommand} from "react-icons/fi";
-import styled, {keyframes} from 'styled-components';
 import React, {FC, memo, useContext, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'next-i18next';
-import {conversationWithUncompressedMessages, updateConversation} from '@/utils/app/conversation';
+import {updateConversation} from '@/utils/app/conversation';
 import {DataSource, Message} from '@/types/chat';
-import {useChatService} from "@/hooks/useChatService";
 import HomeContext from '@/pages/api/home/home.context';
 import ChatFollowups from './ChatFollowups';
-import {VariableModal} from "@/components/Chat/VariableModal";
 import ChatContentBlock from "@/components/Chat/ChatContentBlocks/ChatContentBlock";
 import UserMessageEditor from "@/components/Chat/ChatContentBlocks/UserMessageEditor";
 import AssistantMessageEditor from "@/components/Chat/ChatContentBlocks/AssistantMessageEditor";
-import {Style} from "css-to-react-native";
 import {Prompt} from "@/types/prompt";
-import {Stars} from "@/components/Chat/Stars";
 import {DownloadModal} from "@/components/Download/DownloadModal";
 import Loader from "@/components/Loader/Loader";
 import {getFileDownloadUrl} from "@/services/fileService"
-import {FileList} from "@/components/Chat/FileList";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
-import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
 import PromptingStatusDisplay from "@/components/Status/PromptingStatusDisplay";
 import ChatSourceBlock from "@/components/Chat/ChatContentBlocks/ChatSourcesBlock";
 import DataSourcesBlock from "@/components/Chat/ChatContentBlocks/DataSourcesBlock";
@@ -50,20 +40,6 @@ export interface Props {
     handleCustomLinkClick: (message: Message, href: string) => void,
 }
 
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
-
-const LoadingIcon = styled(FiCommand)`
-  color: lightgray;
-  font-size: 1rem;
-  animation: ${animate} 2s infinite;
-`;
 
 export const ChatMessage: FC<Props> = memo(({
                                                 message,

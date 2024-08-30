@@ -59,7 +59,7 @@ export const callRenameChat = async (chatEndpoint:string, messages: Message[], s
         
                 text += chunkValue;
             }
-            console.log(text)
+            // console.log(text)
             return text;
         } finally {
             if (reader) {
