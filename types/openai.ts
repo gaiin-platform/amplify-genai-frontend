@@ -19,6 +19,7 @@ export enum OpenAIModelID {
   GPT_3_5_AZ = 'gpt-35-turbo',
   GPT_4 = 'gpt-4',
   GPT_4o_AZ = 'gpt-4o',
+  GPT_4o_MINI = 'gpt-4o-mini',
   GPT_4_FN = 'gpt-4-0613',
   CLAUDE_INSTANT_1_2 = 'anthropic.claude-instant-v1',
   CLAUDE_2_1 = 'anthropic.claude-v2:1',
@@ -47,6 +48,18 @@ export const OpenAIModels: Record<OpenAIModelID, OpenAIModel> = {
     inputCost: .01,
     description: "This is an omni model which can be used for complex tasks requiring advanced understanding.\nIncreased speed with similar understanding in line with its predecessors at a reduced cost. \nCan carry out complex mathematical operations, code assistance, analyze intricate documents and datasets, demonstrates critical thinking, in-depth context understanding, and supports images as input.\nTrained on information available through October 2023."
   },
+
+  [OpenAIModelID.GPT_4o_MINI]: {
+    id: OpenAIModelID.GPT_4o_MINI,
+    name: 'GPT-4o-Mini',
+    maxLength: 24000,
+    tokenLimit: 8000,
+    actualTokenLimit: 128000,
+    visible: true,
+    outputCost: .00066,
+    inputCost: .000165,
+    description: "GPT-4o Mini is OpenAI’s most cost-efficient small model. \nA compact yet powerful omni model that showcases remarkable abilities in textual intelligence and multimodal reasoning. \nIt surpasses its predecessors and competitors in various academic benchmarks, demonstrating a level of understanding that rivals larger models.\nTrained on information available through October 2023."
+  },  
   [OpenAIModelID.GPT_4o_AZ]: {
     id: OpenAIModelID.GPT_4o_AZ,
     name: 'GPT-4o (Azure)',
