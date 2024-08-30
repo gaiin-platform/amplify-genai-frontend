@@ -60,7 +60,7 @@ const EmailModal: FC<EmailModalProps> = ({ isOpen, onClose, onSubmit, input, set
                             { featureFlags.assistantAdminInterface && groups.length > 0  && 
                             <div className='mb-4 flex flex-row gap-2 text-[0.795rem]'>
                             <IconInfoCircle size={14} className='mt-0.5 flex-shrink-0 text-gray-600 dark:text-gray-400' />
-                            Use the "#" symbol to automatically include all members of the group.
+                            {'Use the "#" symbol to automatically include all members of the group.'}
                             </div>
                             }
 

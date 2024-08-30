@@ -1362,7 +1362,7 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
                 Add Members 
                 <div className='mb-2 flex flex-row gap-2 text-[0.795rem]'>
                     <IconInfoCircle size={14} className='mt-0.5 flex-shrink-0 text-gray-600 dark:text-gray-400' />
-                    Use the "#" symbol to automatically include all members of the group.
+                    {'Use the "#" symbol to automatically include all members of the group.'}
                 </div>
                 <div className='flex flex-row gap-2'>
                     <div className='w-full relative'>
@@ -1748,6 +1748,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
                 .filter(([type]) => selectedTypes.includes(type))
                 .map(([type, data]) => (
                     <ExpansionComponent 
+                    key={type}
                     isOpened={true}
                     title={type}
                     content={
