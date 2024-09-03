@@ -20,6 +20,7 @@ import { Prompt } from '@/types/prompt';
 import { isAssistant } from '@/utils/app/assistants';
 import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
 import { APIDownloadFile, fetchFile } from '@/components/Chat/ChatContentBlocks/APIDocBlock';
+import { ReservedTags } from '@/types/tags';
 
 interface Props {
     apiKeys: ApiKey[];
@@ -934,8 +935,8 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
     
 
 
-    const [keyManager, setKeyManager] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.id === "ast/assistant-api-key-manager"));
-    const [apiAst, setApiAst] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.id === "ast/assistant-api-doc-helper"));
+    const [keyManager, setKeyManager] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.data?.tags && a.data.tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER)));
+    const [apiAst, setApiAst] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.data?.tags && a.data.tags.includes(ReservedTags.ASSISTANT_API_HELPER)));
 
 
     const isUrlExpired = (url: string): boolean => {
