@@ -1,17 +1,8 @@
 import {Assistant, AssistantDefinition, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {Prompt} from "@/types/prompt";
 import {Message, MessageType} from "@/types/chat";
-import {FolderInterface} from "@/types/folder";
 import {ReservedTags} from "@/types/tags";
-import { saveFolders } from '@/utils/app/folders';
 import { savePrompts } from "./prompts";
-import { getDate } from "./date";
-
-export enum SytemAssistants {
-    AssistantCreator = 'ast/assistant-builder',
-    APIKeyManager = 'ast/assistant-api-key-manager',
-    APIDocHelper = 'ast/assistant-api-doc-helper',
-}
 
 export const isAssistantById = (promptId: string, prompts: Prompt[]) => {
     const prompt = prompts.find((p: Prompt) => p.id === promptId);
@@ -109,7 +100,7 @@ const isSystemAssistant = (prompt: Prompt) => {
 
 }
 
-export const syncAssistants = async (assistants: AssistantDefinition[], prompts: Prompt[], featureFlags: any) => {
+export const syncAssistants = async (assistants: AssistantDefinition[], prompts: Prompt[]) => {
     // Match assistants by name and only take the one with the highest version number for each name
     const latestAssistants = assistants.reduce((acc: { [key: string]: AssistantDefinition }, assistant: AssistantDefinition) => {
         if (!assistant.version) {
@@ -128,24 +119,12 @@ export const syncAssistants = async (assistants: AssistantDefinition[], prompts:
     const assistantNames = new Set(assistants.map(prompt => prompt.name));
 
     let assistantPrompts: Prompt[] = assistants.map(createAssistantPrompt);  
-    if (!featureFlags.apiKeys) assistantPrompts = assistantPrompts.filter(prompt => prompt.id !== SytemAssistants.APIKeyManager && prompt.id !== SytemAssistants.APIDocHelper);
     
     // keep imported Assistants
     const importedAssistants = prompts.filter(prompt =>  isAssistant(prompt) && prompt.data?.noShare && 
-                                                        !assistantNames.has(prompt.name) && !prompt.groupId);                           
+                                                        !assistantNames.has(prompt.name) && !prompt.groupId && !isSystemAssistant(prompt)) ;                           
     const sortedAssistants = [...assistantPrompts, ...importedAssistants];
-    sortedAssistants.sort((a, b) => {
-        // Check for SYSTEM tag in each
-        const aIsSystem = isSystemAssistant(a);
-        const bIsSystem = isSystemAssistant(b);
-      
-        // Prioritize SYSTEM tagged items first
-        if (aIsSystem && !bIsSystem) return -1;
-        if (!aIsSystem && bIsSystem) return 1;
-      
-        // If both are SYSTEM or neither, sort by name
-        return a.name.localeCompare(b.name);
-      });
+    sortedAssistants.sort((a, b) =>  a.name.localeCompare(b.name));
     return sortedAssistants;
 }
 

@@ -1,12 +1,13 @@
-import {FC, ReactElement, useEffect, useRef, useState} from 'react';
+import {FC, useContext, ReactElement, useEffect, useRef, useState} from 'react';
+import HomeContext from '@/pages/api/home/home.context';
 import {useTranslation} from 'next-i18next';
 import {Prompt} from '@/types/prompt';
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
-import {createAssistantPrompt, getAssistant} from "@/utils/app/assistants";
+import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile} from "@/components/Chat/AttachFile";
-import {IconFiles, IconCircleX} from "@tabler/icons-react";
+import {IconFiles, IconCircleX, IconArrowRight} from "@tabler/icons-react";
 import {createAssistant} from "@/services/assistantService";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -29,6 +30,8 @@ interface Props {
     height?: string;
     translateY?: string;
     blackoutBackground?:boolean;
+    additionalTemplates?:Prompt[];
+    autofillOn?:boolean;
     children?: ReactElement;
 }
 
@@ -91,10 +94,10 @@ const messageOptionFlags = [
 
 export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc, 
                                           disableEdit=false, title, onCreateAssistant,height, width = '770px',
-                                          translateY='-3%', blackoutBackground=true, children}) => {
+                                          translateY='-3%', blackoutBackground=true, additionalTemplates, autofillOn=false, children}) => {
     const {t} = useTranslation('promptbar');
 
-    let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
+    const { state: { prompts} } = useContext(HomeContext);
 
     const definition = getAssistant(assistant);
 
@@ -139,10 +142,23 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [disclaimer, setDisclaimer] = useState(definition.disclaimer ?? "");
     const [dataSources, setDataSources] = useState(initialDs);
     const [dataSourceOptions, setDataSourceOptions] = useState<{ [key: string]: boolean }>(initialDataSourceOptionState);
+     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
     const [messageOptions, setMessageOptions] = useState<{ [key: string]: boolean }>(initialMessageOptionState);
-
+ 
+    let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
+    const [tags, setTags] = useState((assistant.data && assistant.data.tags) ? assistant.data.tags.join(",") : "");
     const [conversationTags, setConversationTags] = useState(cTags);
-    const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
+
+   
+    const getTemplates = () => {
+        let templates = prompts.filter((p:Prompt) => isAssistant(p) && (!p.groupId));
+        if (additionalTemplates) templates = [...templates, ...additionalTemplates];
+        return templates.map((p:Prompt) => p.data?.assistant?.definition);
+    }
+
+    const [templates, setTemplates] =  useState<AssistantDefinition[]>(getTemplates());
+    const [selectTemplateId, setSelectTemplateId] =  useState<any>("");
+
 
     const [additionalGroupData, setAdditionalGroupData] = useState<any>({});
 
@@ -157,14 +173,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             window.removeEventListener('astGroupDataUpdate', handleEvent);
         };
     }, []);
-
-    useEffect(() => {
-        console.log("____   ", additionalGroupData)
-        console.log("____   ", assistant.id)
-        console.log("____ ast  ", dataSources)
-
-
-    }, [additionalGroupData]);
 
     const [uri, setUri] = useState<string|null>(definition.uri || null);
 
@@ -210,6 +218,19 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
              groupTypeData: updatedGroupTypeData
          };
         
+    }
+
+    const handleTemplateChange = () => {
+        if (!selectTemplateId) return;
+        const ast = templates.find((p:AssistantDefinition) => p.id === selectTemplateId);
+        if (ast) {
+            setName(ast.name + " (Copy)")
+            setDescription(ast.description);
+            setContent(ast.instructions);
+            // setDataSources([...dataSources, ...ast.dataSources]);
+            //setDataSourceState
+            if (ast.disclaimer) setDisclaimer(ast.disclaimer);
+        }
     }
    
 
@@ -265,6 +286,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         });
         // do the same for 
         newAssistant.tools = newAssistant.tools || [];
+        const tagsList = tags.split(",").map((x: string) => x.trim());
+        newAssistant.tags = tagsList
+        newAssistant.data.tags = tagsList;
         newAssistant.data.conversationTags = conversationTags ? conversationTags.split(",").map((x: string) => x.trim()) : [];
         
         //if we were able to get to this assistant modal (only comes up with + assistant and edit buttons)
@@ -318,7 +342,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                     />
 
                     <div
-                        className={` inline-block overflow-hidden ${ blackoutBackground ? 'rounded-lg border border-gray-300 dark:border-netural-400':""} bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:w-full sm:max-w-[${width}] sm:align-middle`}
+                        className={`text-black dark:text-neutral-200 inline-block overflow-hidden ${ blackoutBackground ? 'rounded-lg border border-gray-300 dark:border-netural-400':""} bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:w-full sm:max-w-[${width}] sm:align-middle`}
                         ref={modalRef}
                         role="dialog"
                         style={{ transform: `translateY(${translateY !== '-3%' ? '-80px': translateY})` }}
@@ -338,7 +362,39 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                         <div className=" max-h-[calc(100vh-10rem)] overflow-y-auto"
                             style={{ height: height}}>
                             {children}
+
+
+                            { autofillOn &&
+                            <>
                             <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                {t('Auto-Populate from Existing Assistant')}
+                            </div>
+                            <div className="flex flex-row gap-2">
+                                <select
+                                    className="my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                    value={selectTemplateId}
+                                    onChange={(e) => setSelectTemplateId(e.target.value ?? '')}
+                                    >
+                                    <option key={-1} value={''}>
+                                            {'None'}
+                                    </option>  
+                                    {templates.map((ast, index) => (
+                                        <option key={index} value={ast.id}>
+                                            {ast.name}
+                                        </option>
+                                        ))}
+                                </select>
+                                <button
+                                className={`mt-2 px-1 h-[36px] rounded border border-neutral-900 dark:border-neutral-500 px-4 py-2 text-neutral-500 dark:text-neutral-300 dark:bg-[#40414F]
+                                            ${selectTemplateId ? "cursor-pointer  hover:text-neutral-900 dark:hover:text-neutral-100"  : ""}`}
+                                disabled={!selectTemplateId}
+                                onClick={() => handleTemplateChange()}
+                                title={"Fill-In Template"}
+                                >
+                                    <IconArrowRight size={18} />
+                                </button>
+                            </div> </>}
+                            <div className="mt-2 text-sm font-bold text-black dark:text-neutral-200">
                                 {t('Assistant Name')}
                             </div>
                             <input
@@ -489,7 +545,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             )}
 
                             <ExpansionComponent title={"Advanced"} content={
-                                <div>
+                                <div className='text-black dark:text-neutral-200'>
                                     <div className="text-sm font-bold text-black dark:text-neutral-200">
                                         {t('URI')}
                                     </div>
@@ -523,6 +579,39 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                       if (!disableEdit) setMessageOptions({...messageOptions, [key]: value});
                                                   }
                                               }/>
+                                            
+
+                                    <div className="mt-2 mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
+                                        <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                            {t('Tags')}
+                                        </div>
+                                        <input
+                                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                            placeholder={t('Tag names separated by commas.') || ''}
+                                            value={tags}
+                                            title={"Tags for conversations created with this template."}
+                                            onChange={(e) => {
+                                                setTags(e.target.value);
+                                            }}
+                                        />
+                                    </div>
+
+                                    <div className="mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
+                                        <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                            {t('Conversation Tags')}
+                                        </div>
+                                        <input
+                                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                            placeholder={t('Tag names separated by commas.') || ''}
+                                            value={conversationTags}
+                                            title={"Tags for conversations created with this template."}
+                                            onChange={(e) => {
+                                                setConversationTags(e.target.value);
+                                            }}
+                                        />
+                                    </div>
+
+
                                 </div>
                             }/>
                         </div>

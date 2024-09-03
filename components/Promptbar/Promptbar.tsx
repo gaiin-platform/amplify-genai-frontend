@@ -287,6 +287,7 @@ const Promptbar = () => {
               handleUpdateAssistantPrompt(assistantPrompt, promptsRef.current, homeDispatch);
             }}
         loadingMessage='Creating assistant...'
+        autofillOn={true}
         loc="add_assistant"
         />
       )}

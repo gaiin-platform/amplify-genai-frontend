@@ -83,7 +83,6 @@ export const fetchAllRemoteConversations = async (abortSignal = null) => {
     const resultBody = result ? JSON.parse(result.body || '{}') : {"success": false};
     if (resultBody.success) { // folders needed for first fetch 
         console.log("uncompress retrieved conversations len: ", resultBody.conversationsData.length);
-        console.log(resultBody.conversationsData);
         return resultBody.conversationsData;
     } else {
         console.error("Error fetching conversations: ", result.message);

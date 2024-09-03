@@ -1,3 +1,4 @@
+import { PathType } from "@/components/Chat/JsPDF";
 
 
 const failureResponse = (reason: string) => {
@@ -79,5 +80,30 @@ export const execOp = async (path:string, data:any, errorHandler=(e:any)=>{}) =>
     }
     else {
         return {success:false, message:`Error in exec op: ${response.statusText} .`}
+    }
+}
+
+export const execOpGet = async (path:string, errorHandler=(e:any)=>{}) => {
+    
+    const response = await fetch('/api/ops/execGet' + `?path=${encodeURIComponent(path)}` , {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        signal: null,
+    });
+
+
+    if (response.ok){
+        try {
+            const result = await response.json();
+
+            return result;
+        } catch (e){
+            return {success:false, message:"Error parsing op exec get response."};
+        }
+    }
+    else {
+        return {success:false, message:`Error in exec get op: ${response.statusText} .`}
     }
 }

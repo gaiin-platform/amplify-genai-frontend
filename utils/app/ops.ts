@@ -1,7 +1,7 @@
 import {ApiCall, OpDef, Reference} from "@/types/op";
 import JSON5 from "json5";
 import {Message} from "@/types/chat";
-import {execOp} from "@/services/opsService";
+import {execOp, execOpGet} from "@/services/opsService";
 
 // Reference types
 export const DATASOURCE_TYPE = "#$"
@@ -57,8 +57,7 @@ export const remoteOpHandler = (opDef:OpDef) => {
             try {
 
                 console.log("Sending remote op request", url)//, payload);
-
-                const response = await execOp(url, payload);
+                const response = method === 'GET' ? await execOpGet(url) : await execOp(url, payload);
 
                 //const response = await fetch(url, req);
                 if (response) {

@@ -60,16 +60,29 @@ const serviceHook = (opName: string) => {
 }
 
 export const getAccounts = async () => {
+    const response = await fetch('/api/accounts/get' + `?path=${encodeURIComponent("/get")}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        signal: null,
+    });
 
-    const {success, message, data} = await doAccountOp(
-        '/accounts/get',
-        {});
-
-    if(!success){
-        return failureResponse(message);
+    if (response.ok){
+        try {
+            const result = await response.json();
+            if(!result.success){
+                return failureResponse(result.message);
+            }
+            return {success:true, message:"Accounts fetched successfully.", data: result.data};
+        } catch (e){
+            return failureResponse("Error parsing response.");
+        }
+    }
+    else {
+        return failureResponse(`Error calling accounts: ${response.statusText} .`);
     }
 
-    return {success:true, message:"Accounts fetched successfully.", data:data};
 }
 
 export const saveAccounts = async (accounts:Account[]) => {

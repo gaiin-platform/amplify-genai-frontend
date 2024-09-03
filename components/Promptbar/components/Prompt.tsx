@@ -77,7 +77,7 @@ export const PromptComponent = ({ prompt }: Props) => {
         setShowShareModal(false);
     };
 
-    const isReserved = (isAssistant(prompt) && prompt?.data?.assistant?.definition?.tags?.includes(ReservedTags.SYSTEM));
+    // const isReserved = (isAssistant(prompt) && prompt?.data?.assistant?.definition?.tags?.includes(ReservedTags.SYSTEM));
     
     const groupId = prompt.groupId;
     const canDelete = (!prompt.data || !prompt.data.noDelete) && !groupId;
@@ -257,7 +257,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
                 </button>
 
-                { checkPrompts && !isReserved && !prompt.groupId &&  (
+                { checkPrompts && !prompt.groupId &&  ( //&& !isReserved
                     <div className="relative flex items-center">
                         <div key={prompt.id} className="absolute right-4 z-10">
                             <input
@@ -299,7 +299,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                                 <IconEdit size={18} />
                             </SidebarActionButton>
                         )}
-                        {!isDeleting && !isRenaming && !canEdit && !isReserved && !groupId && (
+                        {!isDeleting && !isRenaming && !canEdit && !groupId && ( // && !isReserved
                             <SidebarActionButton handleClick={() => setShowModal(true)} title="View Template">
                                 <IconEye size={18} />
                             </SidebarActionButton>
@@ -313,7 +313,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                             </SidebarActionButton>
                         )}
 
-                        {!isDeleting && !isRenaming && !isReserved && !groupId && (
+                        {!isDeleting && !isRenaming && !groupId && ( //&& !isReserved 
                             <SidebarActionButton handleClick={handleOpenDeleteModal} title="Delete Template">
                                 <IconTrash size={18} />
                             </SidebarActionButton>

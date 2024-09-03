@@ -39,7 +39,7 @@ interface Conversation {
 
 const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversations }) => {
     return (
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse text-black dark:text-white ">
             <thead>
                 <tr>
                     <th className="border px-4 py-2">User</th>
@@ -80,7 +80,7 @@ interface DashboardMetrics {
 
 const Dashboard: FC<{ metrics: DashboardMetrics }> = ({ metrics }) => {
     return (
-        <div className="p-4">
+        <div className="p-4 text-black dark:text-white">
             <h2 className="text-2xl font-bold mb-4">Dashboard Metrics</h2>
 
             <div className="grid grid-cols-2 gap-4">
@@ -442,42 +442,20 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
     };
 
     return (
-        <div className="px-4 flex flex-col gap-4 overflow overflow-y-auto"
+        <div className="px-4 flex flex-col gap-4 overflow overflow-y-auto text-black dark:text-white"
         style={{ height: `${window.innerHeight * 0.7}px` }}
         >
             <h2 className="text-2xl font-bold">Group Management</h2>
-            <div className=''> 
-            
+
                 <GroupTypesAst 
                     groupTypes={groupTypes}
                     setGroupTypes={setGroupTypes}
                     canAddTags={hasAdminAccess}
+                    showControlButtons = {!arraysEqual(groupTypes, selectedGroup.groupTypes)}
+                    onConfirm={() => onUpdateTypes()}
+                    onCancel={() => setGroupTypes(selectedGroup.groupTypes)}
                 />
-                { !arraysEqual(groupTypes, selectedGroup.groupTypes) &&
-             <div className="ml-10 flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 w-[36px]">
-                <button 
-                        className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100" 
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onUpdateTypes();
-                        }}
-                        title={"Confirm Changes"} 
-                    >
-                        <IconCheck size={16} />
-                    </button>
-                
-                <button
-                    className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setGroupTypes(selectedGroup.groupTypes);
-                    }}
-                    title={"Cancel"}
-                >
-                    <IconX size={16} />
-                </button> 
-            </div> }
-            </div>    
+               
             { isAddingUsers && 
                 <div className='mx-10'>
                      <AddMemberAccess
@@ -493,6 +471,7 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
                 </div>
                 }
             <label className="text-2lg font-bold">Group Members</label>
+            
             <div className="flex justify-between gap-6 items-center">
                 <Search
                 placeholder={'Search...'}
@@ -589,6 +568,7 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
                 </>}
 
             </div>
+            { isEditingAccess && accessInfoBox}
             
             { users.length === 0 ? <div className='ml-4'> No members to display</div> :
                 <table className="w-full border-collapse">
@@ -738,6 +718,12 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         homeDispatch({ field: 'groups', value: [...adminGroups, ...nonAdminGroups]});
     }, [adminGroups]);
 
+    const allAssistants = () => {
+        return  adminGroups.reduce((accumulator:Prompt[], group:Group) => {
+                return accumulator.concat(group.assistants);
+            }, []);
+    }
+
     // if selectedGroup changes then set to conversation tab
     useEffect(() => {
         if (selectedAssistant) {
@@ -875,14 +861,14 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     const renderSubTabs = () => (
         <div className="flex flex-col w-full text-[1.05rem]">
             <div className="flex flex-row gap-6 mb-4 px-4 w-full">
-                {selectedGroup?.assistants.length === 0 && <> You currently do not have any assistants in this group, please create one.</> }
+                {selectedGroup?.assistants.length === 0 && <label className='text-black dark:text-white'> You currently do not have any assistants in this group, please create one.</label> }
                 {subTabs.map((label: SubTabType) => 
                      label === 'group' ? (
                         <>
                         {selectedAssistant &&
                         <button
                             type="button"
-                            className={`flex flex-row gap-2 p-2 bg-neutral-500 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500`}
+                            className={`flex flex-row gap-2 p-2 bg-neutral-200 dark:bg-gray-600  text-black dark:text-white hover:text-white dark:hover:bg-red-700 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500`}
                             onClick={() => handleDeleteAssistant(selectedAssistant?.data?.assistant?.definition.assistantId)}>
                             {/* <IconTrashX size={18} /> */}
                             Delete Assistant
@@ -891,7 +877,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                         onClick={() => setActiveSubTab( label )}
                         title="Manage users and assistant group types"
                         >
-                            <div className={`flex flex-row gap-1 text-sm px-2 bg-blue-500 hover:bg-blue-600 transition-colors py-2 rounded`}> 
+                            <div className={`flex flex-row gap-1 text-sm text-white px-2 bg-blue-500 hover:bg-blue-600 transition-colors py-2 rounded`}> 
                                 <IconSettings className='mt-0.5' size={16}/>
                                 Group Management
                             </div>
@@ -916,7 +902,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
             case 'conversations':
                 return ( selectedAssistant ? <ConversationTable conversations={conversations} /> : <></>);
             case 'dashboard':
-                return ( selectedAssistant ? dashboardMetrics[selectedAssistant?.id || ''] ? (
+                return (
+                // ( selectedAssistant ? dashboardMetrics[selectedAssistant?.id || ''] 
+                //         : (<div className="text-black dark:text-white">No dashboard data available for {selectedAssistant?.name}</div>)
+                   
                     <Dashboard metrics={ 
                         {
                             categories: ['General', 'Technical', 'Support'],
@@ -934,12 +923,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             users: ['User1', 'User2', 'User3', 'User4', 'User5']
                         }
                     }
-                        // dashboardMetrics[selectedAssistant?.id || '']
                         />
-                ) : (
-                    <div className="text-black dark:text-white">No dashboard data available for {selectedAssistant?.name}</div>
-                )
-                : <></>)
+            )
+                
+               
             case 'edit_assistant':
                 return ( selectedAssistant ? <>
                     <AssistantModal
@@ -975,13 +962,15 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                             return curPrompt;
                                                             });
                                 homeDispatch({ field: 'prompts', value: updatedPrompts });
+                                setActiveSubTab('edit_assistant'); 
                             } else {
                                 alert("Something went wrong, please close and reopen the admin interface before trying again.")
                             }
 
                         }}
                          loadingMessage={`Updating Assistant '${selectedAssistant.name}'...`}
-                         loc={"adminUpdate"} 
+                         disableEdit={!!showCreateGroupAssistant}
+                         loc={"admin_update"} 
                         //  title={selectedGroup?.name + " Assistant"}
                          width={`${window.innerWidth - 100}px`}
                          height={`500px`}
@@ -1089,15 +1078,14 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                 homeDispatch({ field: 'prompts', value: [...prompts, astprompt] });
                                                 setShowCreateGroupAssistant(null);
                                                 setActiveSubTab('edit_assistant');           
-                                            
                                             }}
                                                                     
-                                            loadingMessage = {`Creating Assistant for Group ${selectedGroup.name}`}
-                                            loc={"AdminAdd"}
-                                            // title={selectedGroup?.name + " Assistant"}
+                                            loadingMessage = {`Creating Assistant for Group '${selectedGroup.name}'`}
+                                            loc={"admin_add"}
                                             title={`Creating New Assistant for ${selectedGroup.name}`}
-                                            // width={`${window.innerWidth - 300}px`}
                                             height="600px"
+                                            additionalTemplates={allAssistants()}
+                                            autofillOn={true}
                                             onCreateAssistant={(astDef:AssistantDefinition) => { return handleCreateAssistant(astDef, GroupUpdateType.ADD)}}
                                             >
                                                 <div className='flex flex-col'> 
@@ -1140,8 +1128,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
                             { selectedGroup && 
                             <>
-                                <div key={selectedGroup.id}>
-                                    <div className="mb-4 flex flex-row items-center justify-between bg-neutral-100 dark:bg-[#202123] rounded-t border-b dark:border-white/20">
+                                <div>
+                                    <div className="mb-4 flex flex-row items-center justify-between bg-neutral-100 dark:bg-[#202123] rounded-t border-b border-neutral-400  dark:border-white/20">
                                         <div className="overflow-y-auto">
                                             <div className="flex flex-row gap-1">
                                                 {selectedGroup.assistants.length > 0 && selectedGroup.assistants.map((ast: Prompt) => (
@@ -1151,7 +1139,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                             setSelectedAssistant(ast)
                                                             setActiveSubTab("conversations");
                                                         }}
-                                                        className={`p-2 rounded-t flex flex-shrink-0 ${activeAstTab && activeAstTab === ast.id ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}
+                                                        className={`p-2 rounded-t flex flex-shrink-0 ${activeAstTab && activeAstTab === ast.id ? 'border-l border-t border-r border-neutral-400 text-black dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}
                                                     >
                                                         <h3 className="text-xl">{ast.name.charAt(0).toUpperCase() + ast.name.slice(1)}</h3>
                                                     </button>
@@ -1243,14 +1231,12 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
                             role="dialog" >
         
                 
-                <div className='max-h-[calc(100vh-10rem)] h-full flex flex-col overflow overflow-y-auto'>  
+                <div className='max-h-[calc(100vh-10rem)] h-full flex flex-col overflow overflow-y-auto text-black dark:text-white'>  
                     <div className="text-lg font-bold text-black dark:text-neutral-200 flex items-center">
                             Assistant Admin Interface 
                     </div> 
-                    {"You will be able to manage assistants and see metrics of the use."}
+                    {"You will be able to manage assistants and view key metrics related to user engagement and conversation."}
                             <div className="text-sm mb-4 text-black dark:text-neutral-200">{message}</div>
-                            
-                            {memberAccessInfo}
 
                             <div className='flex flex-col gap-2 font-bold '>
                                 <>
@@ -1270,7 +1256,7 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
                                     groupTypes={groupTypes}
                                     setGroupTypes={setGroupTypes}
                                 />
-                                <div className=''>
+                                <div className='mt-2'>
                                     <AddMemberAccess
                                         groupMembers={groupMembers}
                                         setGroupMembers={setGroupMembers}
@@ -1318,23 +1304,6 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
 
 
 
-const memberAccessInfo = <div className="flex items-center p-2 border border-gray-400 dark:border-gray-500 rounded mb-6">
-                    <IconInfoCircle size={16} className='ml-1 mb-1 flex-shrink-0 text-gray-600 dark:text-gray-400' />
-                    <span className="ml-2 text-xs text-gray-600 dark:text-gray-400"> 
-                    {/* <br className='mb-1'></br> */}
-                    List group members and their permission levels. 
-                        <br className='mb-1'></br>
-                        <div className='ml-4'>
-                        
-                        Read-Only Users can view assistants in the prompt bar and participate in chats. They do not have access to the admin interface.
-                        <br className='mb-1'></br>
-                        {"Moderators (write) have the ability to view and chat with assistants. They can also create and edit assistants and have access to the admin interface."}
-                        <br className='mb-1'></br>
-                        Admins have full administrative control. They can delete the group, manage members, and modify access levels. Admins are responsible for all aspects of group management and inherit all permissions available to Moderators.
-                        </div>
-                    </span>
-                </div>
-
 
 interface MemberAccessProps {
     groupMembers: Members;
@@ -1348,6 +1317,20 @@ interface MemberAccessProps {
 
 }
 
+const accessInfoBox =  <div className="font-normal flex items-center p-2 border border-gray-400 dark:border-gray-500 rounded mb-2">
+<IconInfoCircle size={16} className='ml-1 mb-1 flex-shrink-0 text-gray-600 dark:text-gray-400' />
+<span className="ml-2 text-xs text-gray-600 dark:text-gray-400"> 
+    <label className='font-bold text-[0.8rem]'> Read Access </label>
+    can view assistants in the prompt bar and engage in conversation. They do not have access to the admin interface.
+    <br className='mb-2'></br>
+    <label className='font-bold text-[0.8rem'> Write Access </label>
+    have the ability to view and chat with assistants. They can also create and edit assistants and have access to the admin interface.
+    <br className='mb-2'></br>
+    <label className='font-bold text-[0.8rem'> Admin Access </label> have full administrative control. They can delete the group, manage members, and modify access levels. Admins are responsible for all aspects of group management and inherit all permissions from above.
+    
+</span>
+</div>
+
 export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupMembers, input, setInput, allEmails, handleAddEmails, width='500px'}) => {
     const [hoveredUser, setHoveredUser] = useState<string | null>(null);
 
@@ -1359,7 +1342,9 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
     }
 
     return <div className='flex flex-col gap-2 mb-6'>
+                {accessInfoBox}
                 Add Members 
+                <label className='text-sm font-normal'>List group members and their permission levels.</label>
                 <div className='mb-2 flex flex-row gap-2 text-[0.795rem]'>
                     <IconInfoCircle size={14} className='mt-0.5 flex-shrink-0 text-gray-600 dark:text-gray-400' />
                     {'Use the "#" symbol to automatically include all members of the group.'}
@@ -1573,6 +1558,7 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
                 window.dispatchEvent(new CustomEvent('astGroupDataUpdate', { detail: { astId: astId, data: {model: model} }} ));
             }}
         />
+        <br className='my-1'></br>
         <GroupTypesAstData
             groupId={groupId}
             astPromptId={astId}
@@ -1586,9 +1572,12 @@ interface TypeProps {
     groupTypes: string[];
     setGroupTypes: (gt: string[]) => void;
     canAddTags?: boolean;
+    showControlButtons?:boolean;
+    onConfirm?: () => void;
+    onCancel?: () => void;
 }
 
-export const GroupTypesAst: FC<TypeProps> = ({groupTypes, setGroupTypes, canAddTags=true}) => {
+export const GroupTypesAst: FC<TypeProps> = ({groupTypes, setGroupTypes, canAddTags=true, showControlButtons=false, onConfirm, onCancel}) => {
     return <>
         <div className="text-md pb-1 font-bold text-black dark:text-neutral-200 flex items-center">
                 Group Types
@@ -1596,19 +1585,58 @@ export const GroupTypesAst: FC<TypeProps> = ({groupTypes, setGroupTypes, canAddT
         <div className="flex items-center font-normal p-2 border border-gray-400 dark:border-gray-500 rounded mb-1">
                     <IconInfoCircle size={16} className='ml-1 mb-1 flex-shrink-0 text-gray-600 dark:text-gray-400' />
                     <span className="ml-2 text-xs text-gray-600 dark:text-gray-400"> 
-                    Creating group types allows you to subdivide users in the group into subgroups when interacting with an assistant.
-                    <br className='mb-1'></br>
+                    Creating group types enables the subdivision of users into subgroups when interacting with an assistant.
+                    <br className='mb-2'></br>
+                    When creating or editing an assistant, you can select which group types to apply. This allows you to incorporate specific custom instructions and data sources tailored to each group.
+                    
+                    Additionally, you can specify which group types should have chat disabled, and provide reasons for this restriction.
+                    <br className='mb-2'></br>
+                    Before engaging with an assistant that has group types defined, users must identify their subgroup by selecting which group they belong to. 
+                    
+                    This ensures that the interaction is customized with the appropriate instructions and data sources specific to their group type.
+
+                    {/* Creating group types allows you to subdivide users in the group into subgroups when interacting with an assistant.
+                   
                     You can choose which assistants will apply when creating or editing an assistant
-                    <br className='mb-1'></br>
-                    Before chatting with an assistant that has group types defined, the user will need to identify themselves by click which group that belong to customize the results based on the group type
+                    
+                    Before chatting with an assistant that has group types defined, the user will need to identify themselves by click which group that belong to customize the results based on the group type */}
                     </span>
         </div>
+        <div className='flex flex-row gap-2'>
+
+            {showControlButtons && onConfirm && onCancel && 
+                    <div className="mt-1.5 flex flex-row gap-0.5 h-[20px] bg-neutral-200 dark:bg-[#343541]/90 w-[36px]">
+                        <button 
+                                className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100" 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onConfirm();
+                                }}
+                                title={"Confirm Changes"} 
+                            >
+                                <IconCheck size={18} />
+                            </button>
+                        
+                        <button
+                            className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onCancel();
+                            }}
+                            title={"Cancel"}
+                        >
+                            <IconX size={18} />
+                        </button> 
+                    </div> 
+            }
+
             <TagsList label={"Types"}
                     addMessage={"List group types:"}
                     tags={groupTypes}
                     setTags={(tags) => setGroupTypes(tags)}
                     removeTag={(tag) =>  setGroupTypes(groupTypes.filter((t:string) => t !== tag))}
                     isDisabled={!canAddTags}/>
+        </div>
     </>
 }
 
@@ -1672,15 +1700,12 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
 
     useEffect(() => {
-        console.log("gt:", groupTypes)
         const filteredGroupTypeData = Object.entries(groupTypeData).reduce((acc:any, [key, value]) => {
             if (selectedTypes.includes(key)) {    
                 acc[key] = value; 
             }
             return acc;
         }, {});
-
-        console.log("gt:", filteredGroupTypeData)
 
         window.dispatchEvent(new CustomEvent('astGroupDataUpdate', { detail: { astId: astPromptId, 
                                                                                 data: {groupTypeData: filteredGroupTypeData} 
@@ -1717,8 +1742,8 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
     //on save we will only save the grouptype data that is in the selected types
     if (groupTypes.length === 0) return <></>
 
-    return <div className='my-4'>
-        <div className="text-md font-bold text-black dark:text-neutral-200 flex items-center">
+    return <div className='my-4 text-black dark:text-neutral-200text-black dark:text-neutral-200'>
+        <div className="text-md font-bold flex items-center">
                 Group Types
         </div>
         Select applicable group types for this assistant. These will appear to the user as an option to choose from before chatting.
@@ -1753,7 +1778,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
                     title={type}
                     content={
                         
-                        <div className='flex flex-col gap-2 my-4' key={type}> 
+                        <div className='flex flex-col gap-2 my-4 text-black dark:text-neutral-200' key={type}> 
                             <div className='flex flex-row'>
                                 {data.isDisabled ? "Disable Message For User" : "Additional Instructions" }
                                 <div className='ml-auto mr-4 flex flex-row gap-2'>

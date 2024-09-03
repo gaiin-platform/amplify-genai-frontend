@@ -59,7 +59,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
     folderId: null,
   };
 
-  let rootPrompts = [workflowRoot, ...promptsRef.current.filter((p: Prompt) => p.type === MessageType.ROOT)];
+  let rootPrompts = [workflowRoot, ...promptsRef.current.filter((p: Prompt) => p.type === MessageType.ROOT && !p.groupId)];
 
   if(rootPrompts.length > 0) {
     workflowRoot =
@@ -388,7 +388,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                     onChange={() => setSelectedTemplate(MessageType.PROMPT)}
                 />
                 <label className="ml-2">
-                  Prompt template
+                  Prompt Template
                 </label>
               </div>
 
@@ -403,7 +403,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                           onChange={() => setSelectedTemplate(MessageType.ROOT)}
                       />
                       <label className="ml-2">
-                        Custom instructions
+                        Custom Instructions
                       </label>
                     </div>
                 )}
@@ -451,7 +451,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                           onChange={() => setSelectedTemplate(MessageType.FOLLOW_UP)}
                       />
                       <label className="ml-2">
-                        Follow-up button
+                        Follow-up Button
                       </label>
                     </div>
                 )}
@@ -467,7 +467,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                     onChange={() => setSelectedTemplate(MessageType.AUTOMATION)}
                 />
                 <label className="ml-2">
-                  Automation template
+                  Automation Template
                 </label>
               </div>
               )}

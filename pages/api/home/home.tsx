@@ -422,7 +422,7 @@ const Home = ({
             case 'prompt':
                 const updatedPrompts: Prompt[] =  promptsRef.current.map((p:Prompt) => {
                     if (p.folderId === folderId) {
-                        const isReserved = (isAssistant(p) && p?.data?.assistant?.definition?.tags?.includes(ReservedTags.SYSTEM));
+                        const isReserved = (isAssistant(p) && p?.data?.tags?.includes(ReservedTags.SYSTEM));
                         if (isReserved) {
                             return {
                                 ...p,
@@ -694,14 +694,14 @@ const Home = ({
                     const result = await checkInAmplifyCognitoGroups(groups);
                     if (result.success) {
                         const inGroups = result.data;
-                        return {assistantAdminInterface : !!inGroups.amplify_groups[AmplifyGroups.AST_ADMIN_INTERFACE]};
+                        dispatch({ field: 'featureFlags', 
+                                   value: {...featureFlags, assistantAdminInterface : !!inGroups.amplify_groups[AmplifyGroups.AST_ADMIN_INTERFACE]}});
                     } else {
                         console.log("Failed to verify in ampifly/cognito groups: ", result);
                     }
                 } catch (e) {
                     console.log("Failed to verify in ampifly/cognito groups: ", e);
                 }
-                return  {assistantAdminInterface: false};
             }
 
             const syncConversations = async (conversations: Conversation[], folders: FolderInterface[]) => {
@@ -755,8 +755,7 @@ const Home = ({
                 console.log("Fetching Assistants...");
                 try {
                     const assistants = await listAssistants(userEmail);
-                    // if (assistants) return syncAssistants(assistants, promptList, featureFlags);
-                    if (assistants) return syncAssistants(assistants, promptList, featureFlags);
+                    if (assistants) return syncAssistants(assistants, promptList);
                 } catch (e) {
                     console.log("Failed to  list assistants: ", e);
                 }
@@ -767,17 +766,13 @@ const Home = ({
 
             // On Load Data
             const handleOnLoadData = async (userEmail:string) => {
-                let updatedFeatureFlags = featureFlags;
-                fetchInAmpCognGroup()
-                    .then(anyfeatureFlags => {
-                        updatedFeatureFlags = {...featureFlags, ...anyfeatureFlags};
-                });
 
                 // Fetch base prompts
                 let { updatedConversations, updatedFolders, updatedPrompts} = await fetchPrompts();
 
                 let assistantLoaded = false;
                 let groupsLoaded = false;
+
 
                 const checkAndFinalizeUpdates = () => {
                     if (assistantLoaded && groupsLoaded) {
@@ -841,45 +836,43 @@ const Home = ({
                             assistantLoaded = true;
                         });
                         
-
-                console.log("featureFlags", updatedFeatureFlags)
                 // Sync groups
-                if (updatedFeatureFlags.assistantAdminInterface) {
-                    syncGroups()
-                        .then(groupsResult => {
-                            updatedFolders = [...updatedFolders.filter((f:FolderInterface) => !f.isGroupFolder), 
-                                              ...groupsResult.groupFolders]
-                            dispatch({field: 'folders', value: updatedFolders});
-                            saveFolders(updatedFolders);
-                            updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ), 
-                                              ...groupsResult.groupPrompts]
-                            groupsLoaded = true;
-                            console.log('sync groups complete');
-                            checkAndFinalizeUpdates();
-                            
-                        })
-                        .catch(error => {
-                            console.log("Error syncing groups:", error); 
-                            groupsLoaded = true;
-                        });
-                }  else {
-                    updatedFolders = updatedFolders.filter((f:FolderInterface) => !f.isGroupFolder)
-                    dispatch({field: 'folders', value: updatedFolders});
-                    saveFolders(updatedFolders);
-                    updatedPrompts = updatedPrompts.filter((p : Prompt) => !p.groupId )
-                    groupsLoaded = true;
-                }
+                syncGroups()
+                    .then(groupsResult => {
+                        updatedFolders = [...updatedFolders.filter((f:FolderInterface) => !f.isGroupFolder), 
+                                            ...groupsResult.groupFolders]
+                        dispatch({field: 'folders', value: updatedFolders});
+                        saveFolders(updatedFolders);
 
+                        let groupPrompts = groupsResult.groupPrompts;
+                        if (!featureFlags.apiKeys) groupPrompts = groupPrompts.filter(prompt =>{
+                                                        const tags = prompt.data?.tags;
+                                                        return !(
+                                                            tags && 
+                                                            (tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER) || tags.includes(ReservedTags.ASSISTANT_API_HELPER))
+                                                        );
+                                                    });
+                        updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ), 
+                                            ...groupPrompts];
+                        
+                        groupsLoaded = true;
+                        console.log('sync groups complete');
+                        checkAndFinalizeUpdates();
+                        
+                    })
+                    .catch(error => {
+                        console.log("Error syncing groups:", error); 
+                        groupsLoaded = true;
+                    });
 
-                dispatch({ field: 'featureFlags', value: {...featureFlags, ...updatedFeatureFlags}});
             }
 
 
             if (user && user.email && initialRender) {
                 setInitialRender(false);
-                
                 // need fetch accounts for chatting charging
-                fetchAccounts();           
+                fetchAccounts();  
+                fetchInAmpCognGroup()         
                 handleOnLoadData(user.email);
             }
         }
