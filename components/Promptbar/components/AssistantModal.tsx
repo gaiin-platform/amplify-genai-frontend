@@ -13,7 +13,7 @@ import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/Promptbar/components/FlagsMap";
 import { AssistantDefinition } from '@/types/assistant';
-import { AstGroupTypeData } from '@/utils/app/groups';
+import { AstGroupTypeData } from '@/types/groups';
 
 
 interface Props {
@@ -142,7 +142,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [disclaimer, setDisclaimer] = useState(definition.disclaimer ?? "");
     const [dataSources, setDataSources] = useState(initialDs);
     const [dataSourceOptions, setDataSourceOptions] = useState<{ [key: string]: boolean }>(initialDataSourceOptionState);
-     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
+    const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
     const [messageOptions, setMessageOptions] = useState<{ [key: string]: boolean }>(initialMessageOptionState);
  
     let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
@@ -173,6 +173,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             window.removeEventListener('astGroupDataUpdate', handleEvent);
         };
     }, []);
+
+    // useEffect(() => {
+    //     console.log(additionalGroupData);
+    // }, [additionalGroupData]);
 
     const [uri, setUri] = useState<string|null>(definition.uri || null);
 
@@ -227,8 +231,21 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             setName(ast.name + " (Copy)")
             setDescription(ast.description);
             setContent(ast.instructions);
-            // setDataSources([...dataSources, ...ast.dataSources]);
-            //setDataSourceState
+            setDataSources([...ast.dataSources.map(ds => {
+                                return {
+                                    ...ds,
+                                    key: (ds.key || ds.id)
+                                }
+                            })
+            ]);
+            setDocumentState(ast.dataSources.map(ds => {
+                                return {[ds.id]: 100}
+                            }).reduce((acc, x) => {
+                                acc = {...acc, ...x};
+                                return acc;
+                            }, {})
+                        );
+
             if (ast.disclaimer) setDisclaimer(ast.disclaimer);
         }
     }
@@ -298,6 +315,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         newAssistant.data.dataSourceOptions = dataSourceOptions;
 
         newAssistant.data.messageOptions = messageOptions;
+
+        if (assistant.groupId) newAssistant.data.groupId = assistant.groupId;
         
         const updatedAdditionalGroupData = prepAdditionalData();
 
@@ -367,7 +386,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             { autofillOn &&
                             <>
                             <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                {t('Auto-Populate from Existing Assistant')}
+                                {t('Auto-Populate From Existing Assistant')}
                             </div>
                             <div className="flex flex-row gap-2">
                                 <select

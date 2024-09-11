@@ -1,14 +1,15 @@
 import { FC, useState } from 'react';
 
-import { AstGroupTypeData } from '@/utils/app/groups';
+import { AstGroupTypeData } from '@/types/groups';
 import { IconExclamationCircle, IconExclamationMark } from '@tabler/icons-react';
 
 interface Props {
   groupOptionsData: AstGroupTypeData;
   setSelected: (type: string | undefined) => void;
+  groupUserTypeQuestion?: string;
 }
 
-export const GroupTypeSelector: FC<Props> = ({ groupOptionsData, setSelected}) => {
+export const GroupTypeSelector: FC<Props> = ({ groupOptionsData, setSelected, groupUserTypeQuestion}) => {
     const [groupOptions, setGroupOptions] = useState<string[]>(Object.keys(groupOptionsData));
     const [selectedOption, setSelectedOption] = useState<string | null>(null);
 
@@ -19,7 +20,7 @@ export const GroupTypeSelector: FC<Props> = ({ groupOptionsData, setSelected}) =
 
     return (
         <div className='flex flex-col'>
-            Please select the group you best identify with to start chatting.
+            {groupUserTypeQuestion ?? "Please select the group you best identify with to start chatting."}
             {groupOptions.map((option) => (
                 <div key={option} className="mt-2 radio-option">
                     <label>

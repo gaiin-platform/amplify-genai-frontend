@@ -130,7 +130,7 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
 };
 
 
-export const listAssistants = async (user: string, abortSignal = null) => {
+export const listAssistants = async (abortSignal = null) => {
     const response = await fetch('/api/assistant/list', {
         method: 'GET',
         headers: {

@@ -6,7 +6,7 @@ import { EmailsAutoComplete } from './EmailsAutoComplete';
 import { setEngine } from 'crypto';
 import { fetchAllSystemIds } from '@/services/apiKeysService';
 import HomeContext from '@/pages/api/home/home.context';
-import { Group } from '@/utils/app/groups';
+import { Group } from '@/types/groups';
 import { useSession } from 'next-auth/react';
 
 

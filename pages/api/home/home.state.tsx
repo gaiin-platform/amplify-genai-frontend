@@ -13,7 +13,8 @@ import { Account } from "@/types/accounts";
 import {Op} from "@/types/op";
 import {CheckItemType} from "@/types/checkItem";
 import { PluginLocation } from '@/types/plugin';
-import { Group } from '@/utils/app/groups';
+import { Group } from '@/types/groups';
+// import { Artifact } from '@/types/artifacts';
 
 
 type HandleSend = (request: any) => void;
@@ -30,6 +31,7 @@ export interface HomeInitialState {
   models: OpenAIModel[];
   folders: FolderInterface[];
   conversations: Conversation[];
+  // artifacts: Artifact[];
   workflows: WorkflowDefinition[];
   selectedConversation: Conversation | undefined;
   currentMessage: Message | undefined;
@@ -80,6 +82,7 @@ export const initialState: HomeInitialState = {
   models: [],
   folders: [],
   conversations: [],
+  // artifacts:[],
   workflows: [],
   ops: {},
   workspaceMetadata: {

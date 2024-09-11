@@ -891,7 +891,7 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
                 }} />
             <label className="text-sm mr-3" htmlFor="FullAccess">Full Access</label>
             {Object.keys(options).map((key: string) => (
-                <>
+                <div key={key}>
                 <input type="checkbox" checked={options[key]} onChange={() => {
                     setOptions((prevOptions:any) => {
                         const newOptions = { ...prevOptions, [key]: !prevOptions[key] };
@@ -902,7 +902,7 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
 
                 <label className="text-sm mr-3" htmlFor={key}>{formatAccessType(key)}</label>
 
-                </>
+                </div>
             ))}
         </div>
     );

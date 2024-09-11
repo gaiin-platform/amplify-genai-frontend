@@ -81,8 +81,9 @@ import HomeContext, {  ClickContext, Processor } from './home.context';
 import { ReservedTags } from '@/types/tags';
 import { noCoaAccount } from '@/types/accounts';
 import { noRateLimit } from '@/types/rateLimit';
-import { fetchAstAdminGroups, updateWithGroupData as contructGroupData, checkInAmplifyCognitoGroups } from '@/services/groupsService';
-import { AmpCognGroups, AmplifyGroups } from '@/utils/app/groups';
+import { fetchAstAdminGroups, checkInAmplifyCognitoGroups } from '@/services/groupsService';
+import { AmpCognGroups, AmplifyGroups } from '@/types/groups';
+import { contructGroupData } from '@/utils/app/groups';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -663,223 +664,233 @@ const Home = ({
     // Amplify Data Calls - Happens Right After On Load--------------------------------------------
 
     useEffect(() => {
+        const fetchAccounts = async () => {      
+            console.log("Fetching Accounts...");
+            const response = await getAccounts();
+            if (response.success) {
+                const defaultAccount = response.data.find((account: any) => account.isDefault);
+                if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
+                dispatch({ field: 'defaultAccount', value: defaultAccount || noCoaAccount});  
+            } else {
+                console.log("Failed to fetch accounts.");
+            }
+            setLoadingAmplify(false);   
+        };
+
+        const fetchArtifacts = async () => {      
+            // console.log("Fetching Remote Artifacts...");
+            // const response = await getArtifacts();
+            // if (response.success) { 
+            //     dispatch({ field: 'artifacts', value: response.data});  
+            // } else {
+            //     console.log("Failed to fetch remote Artifacts.");
+            // } 
+        };
+
+        const fetchInAmpCognGroup = async () => {
+            // here you define any groups you want to check exist for the user in the cognito users table
+            const groups : AmpCognGroups = {
+                amplifyGroups: [AmplifyGroups.AST_ADMIN_INTERFACE],
+                // cognitoGroups: []
+            }
+            try {
+                // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
+                const result = await checkInAmplifyCognitoGroups(groups);
+                if (result.success) {
+                    const inGroups = result.data;
+                    dispatch({ field: 'featureFlags', 
+                                value: {...featureFlags, assistantAdminInterface : !!inGroups.amplify_groups[AmplifyGroups.AST_ADMIN_INTERFACE]}});
+                } else {
+                    console.log("Failed to verify in ampifly/cognito groups: ", result);
+                }
+            } catch (e) {
+                console.log("Failed to verify in ampifly/cognito groups: ", e);
+            }
+        }
+
+        const syncConversations = async (conversations: Conversation[], folders: FolderInterface[]) => {
+            try {
+                const allRemoteConvs = await fetchAllRemoteConversations();
+                if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch);
+            } catch (e) {
+                console.log("Failed to sync cloud conversations: ", e);
+            }
+            console.log("Failed to sync cloud conversations.");
+            return {newfolders: folders};
+        }
+
+
+        const syncGroups = async () => {
+            console.log("Syncing Groups...");
+            try {
+                const userGroups = await fetchAstAdminGroups();
+                if (userGroups.success) {
+                    const groupData = contructGroupData(userGroups.data);
+                    dispatch({ field: 'groups', value: groupData.groups});
+                    return groupData;
+                } 
+            } catch (e) {
+                console.log("Failed to import group data: ", e);
+            }
+            console.log("Failed to import group data.");
+            return {groups: [], groupFolders: [] as FolderInterface[], groupPrompts: [] as Prompt[]};
+        }
+
+        const fetchPrompts = async () => {
+            try {
+                console.log("Fetching Base Prompts...");
+                const basePrompts = await getBasePrompts();
+                if (basePrompts.success) {
+                    const { history, folders, prompts}: LatestExportFormat = importData(basePrompts.data, conversationsRef.current, promptsRef.current, foldersRef.current);
+                    console.log('sync base prompts complete');
+                    return {updatedConversations: history, updatedFolders: folders, updatedPrompts: prompts};
+                } else {
+                    console.log("Failed to import base prompts.");
+                }
+            } catch (e) {
+                console.log("Failed to import base prompts.", e);
+            }
+            return {updatedConversations: conversationsRef.current, updatedFolders: foldersRef.current, updatedPrompts: promptsRef.current};
+
+        }
+
+        // return list of assistants 
+        const fetchAssistants = async (promptList:Prompt[]) => {
+            console.log("Fetching Assistants...");
+            try {
+                const assistants = await listAssistants();
+                if (assistants) return syncAssistants(assistants, promptList);
+            } catch (e) {
+                console.log("Failed to  list assistants: ", e);
+            }
+            console.log("Failed to list assistants.");
+            return [];
+
+        }
+
+        // On Load Data
+        const handleOnLoadData = async () => {
+            // Fetch base prompts
+            let { updatedConversations, updatedFolders, updatedPrompts} = await fetchPrompts();
+
+            let assistantLoaded = false;
+            let groupsLoaded = false;
+
+
+            const checkAndFinalizeUpdates = () => {
+                if (assistantLoaded && groupsLoaded) {
+                    // Only dispatch when both operations have completed
+                    dispatch({ field: 'prompts', value: updatedPrompts });
+                    dispatch({ field: 'syncingPrompts', value: false });
+                    savePrompts(updatedPrompts);
+                }
+            }
+
+
+            // Handle remote conversations
+            if (featureFlags.storeCloudConversations) {
+                syncConversations(updatedConversations, updatedFolders)
+                    .then(cloudConversationsResult => {
+                        // currently base prompts does not have conversations so we know we are done syncing at this point 
+                        dispatch({field: 'syncingConversations', value: false});
+                        const newCloudFolders = cloudConversationsResult.newfolders;
+                        if (newCloudFolders.length > 0) {
+                            const handleCloudFolderUpdate = () => {
+                                updatedFolders = [...updatedFolders, ...cloudConversationsResult.newfolders];
+                                dispatch({ field: 'folders', value: updatedFolders });
+                                saveFolders(updatedFolders);
+                                console.log('sync conversations complete');
+                            };
+
+                            // to avoid a race condition between this and groups folders. we need to updates folders after groups because sync conversations call will likely take longer in most cases
+                            if (groupsLoaded) {
+                                handleCloudFolderUpdate();
+                            } else {
+                                console.log("Waiting on group folders to update");
+                                // Poll or wait until groups are loaded
+                                const checkGroupsLoaded = setInterval(() => {
+                                    if (groupsLoaded) {
+                                        clearInterval(checkGroupsLoaded);
+                                        handleCloudFolderUpdate();
+                                        console.log("Syncing cloud conversation folders done");
+                                    }
+                                }, 100); // Check every 100 milliseconds
+                            }
+                        }
+                        
+                        console.log('sync conversations complete');
+                    })
+                    .catch(error => console.log("Error syncing conversations:", error));
+            }
+
+            // Fetch assistants
+            fetchAssistants(updatedPrompts)
+                    .then(assistantsResultPrompts => {
+                        // assistantsResultPrompts includes both list assistants and imported assistants
+                        updatedPrompts = [...updatedPrompts.filter((p:Prompt) => !isAssistant(p) || (isAssistant(p) && p.groupId)),
+                                            ...assistantsResultPrompts];
+                        // dispatch({ field: 'prompts', value: updatedPrompts});
+                        console.log('sync assistants complete');
+                        assistantLoaded = true;
+                        checkAndFinalizeUpdates(); 
+                    })
+                    .catch(error => {
+                        console.log("Error fetching assistants:", error);
+                        assistantLoaded = true;
+                    });
+                    
+            // Sync groups
+            syncGroups()
+                .then(groupsResult => {
+                    updatedFolders = [...updatedFolders.filter((f:FolderInterface) => !f.isGroupFolder), 
+                                        ...groupsResult.groupFolders]
+                    dispatch({field: 'folders', value: updatedFolders});
+                    saveFolders(updatedFolders);
+
+                    let groupPrompts = groupsResult.groupPrompts;
+                    if (!featureFlags.apiKeys) groupPrompts = groupPrompts.filter(prompt =>{
+                                                    const tags = prompt.data?.tags;
+                                                    return !(
+                                                        tags && 
+                                                        (tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER) || tags.includes(ReservedTags.ASSISTANT_API_HELPER))
+                                                    );
+                                                });
+                    updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ), 
+                                        ...groupPrompts];
+                    
+                    groupsLoaded = true;
+                    console.log('sync groups complete');
+                    checkAndFinalizeUpdates();
+                    
+                })
+                .catch(error => {
+                    console.log("Error syncing groups:", error); 
+                    groupsLoaded = true;
+                });
+
+        }
+
+
+        if (user && user.email && initialRender) {
+            setInitialRender(false);
+            // independent function calls
+            fetchArtifacts();  // fetch artifacts 
+            fetchAccounts();  // fetch accounts for chatting charging
+            fetchInAmpCognGroup();  // updates ast admin interface featureflag
+
+            //Conversation, prompt, folder dependent calls
+            handleOnLoadData();
+        }
+    
+    }, [user]);
+
+    useEffect(() => {
         // @ts-ignore
-        if (session?.error === "RefreshAccessTokenError") {
+        if (["RefreshAccessTokenError", "SessionExpiredError"].includes(session?.error)) {
             signOut();
             setUser(null);
         }
-        else {
-
-            const fetchAccounts = async () => {      
-                console.log("Fetching Accounts...");
-                const response = await getAccounts();
-                if (response.success) {
-                    const defaultAccount = response.data.find((account: any) => account.isDefault);
-                    if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
-                    dispatch({ field: 'defaultAccount', value: defaultAccount || noCoaAccount});  
-                } else {
-                    console.log("Failed to fetch accounts.");
-                }
-                setLoadingAmplify(false);   
-            };
-
-            const fetchInAmpCognGroup = async () => {
-                // here you define any groups you want to check exist for the user in the cognito users table
-                const groups : AmpCognGroups = {
-                    amplifyGroups: [AmplifyGroups.AST_ADMIN_INTERFACE],
-                    // cognitoGroups: []
-                }
-                try {
-                    // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
-                    const result = await checkInAmplifyCognitoGroups(groups);
-                    if (result.success) {
-                        const inGroups = result.data;
-                        dispatch({ field: 'featureFlags', 
-                                   value: {...featureFlags, assistantAdminInterface : !!inGroups.amplify_groups[AmplifyGroups.AST_ADMIN_INTERFACE]}});
-                    } else {
-                        console.log("Failed to verify in ampifly/cognito groups: ", result);
-                    }
-                } catch (e) {
-                    console.log("Failed to verify in ampifly/cognito groups: ", e);
-                }
-            }
-
-            const syncConversations = async (conversations: Conversation[], folders: FolderInterface[]) => {
-                try {
-                    const allRemoteConvs = await fetchAllRemoteConversations();
-                    if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch);
-                } catch (e) {
-                    console.log("Failed to sync cloud conversations: ", e);
-                }
-                console.log("Failed to sync cloud conversations.");
-                return {newfolders: folders};
-            }
-
-
-            const syncGroups = async () => {
-                console.log("Syncing Groups...");
-                try {
-                    const userGroups = await fetchAstAdminGroups();
-                    if (userGroups.success) {
-                        const groupData = contructGroupData(userGroups.data);
-                        dispatch({ field: 'groups', value: groupData.groups});
-                        return groupData;
-                    } 
-                } catch (e) {
-                    console.log("Failed to import group data: ", e);
-                }
-                console.log("Failed to import group data.");
-                return {groups: [], groupFolders: [] as FolderInterface[], groupPrompts: [] as Prompt[]};
-            }
-
-            const fetchPrompts = async () => {
-                try {
-                    console.log("Fetching Base Prompts...");
-                    const basePrompts = await getBasePrompts();
-                    if (basePrompts.success) {
-                        const { history, folders, prompts}: LatestExportFormat = importData(basePrompts.data, conversationsRef.current, promptsRef.current, foldersRef.current);
-                        console.log('sync base prompts complete');
-                        return {updatedConversations: history, updatedFolders: folders, updatedPrompts: prompts};
-                    } else {
-                        console.log("Failed to import base prompts.");
-                    }
-                } catch (e) {
-                    console.log("Failed to import base prompts.", e);
-                }
-                return {updatedConversations: conversationsRef.current, updatedFolders: foldersRef.current, updatedPrompts: promptsRef.current};
-    
-            }
-
-            // return list of assistants 
-            const fetchAssistants = async (userEmail:string, promptList:Prompt[]) => {
-                console.log("Fetching Assistants...");
-                try {
-                    const assistants = await listAssistants(userEmail);
-                    if (assistants) return syncAssistants(assistants, promptList);
-                } catch (e) {
-                    console.log("Failed to  list assistants: ", e);
-                }
-                console.log("Failed to list assistants.");
-                return [];
-
-            }
-
-            // On Load Data
-            const handleOnLoadData = async (userEmail:string) => {
-
-                // Fetch base prompts
-                let { updatedConversations, updatedFolders, updatedPrompts} = await fetchPrompts();
-
-                let assistantLoaded = false;
-                let groupsLoaded = false;
-
-
-                const checkAndFinalizeUpdates = () => {
-                    if (assistantLoaded && groupsLoaded) {
-                        // Only dispatch when both operations have completed
-                        dispatch({ field: 'prompts', value: updatedPrompts });
-                        dispatch({ field: 'syncingPrompts', value: false });
-                        savePrompts(updatedPrompts);
-                    }
-                }
-
-
-                // Handle remote conversations
-                if (featureFlags.storeCloudConversations) {
-                    syncConversations(updatedConversations, updatedFolders)
-                        .then(cloudConversationsResult => {
-                            // currently base prompts does not have conversations so we know we are done syncing at this point 
-                            dispatch({field: 'syncingConversations', value: false});
-                            const newCloudFolders = cloudConversationsResult.newfolders;
-                            if (newCloudFolders.length > 0) {
-                                const handleCloudFolderUpdate = () => {
-                                    updatedFolders = [...updatedFolders, ...cloudConversationsResult.newfolders];
-                                    dispatch({ field: 'folders', value: updatedFolders });
-                                    saveFolders(updatedFolders);
-                                    console.log('sync conversations complete');
-                                };
-
-                                // to avoid a race condition between this and groups folders. we need to updates folders after groups because sync conversations call will likely take longer in most cases
-                                if (groupsLoaded) {
-                                    handleCloudFolderUpdate();
-                                } else {
-                                    console.log("Waiting on group folders to update");
-                                    // Poll or wait until groups are loaded
-                                    const checkGroupsLoaded = setInterval(() => {
-                                        if (groupsLoaded) {
-                                            clearInterval(checkGroupsLoaded);
-                                            handleCloudFolderUpdate();
-                                            console.log("Syncing cloud conversation folders done");
-                                        }
-                                    }, 100); // Check every 100 milliseconds
-                                }
-                            }
-                            
-                            console.log('sync conversations complete');
-                        })
-                        .catch(error => console.log("Error syncing conversations:", error));
-                }
-
-                // Fetch assistants
-                fetchAssistants(userEmail, updatedPrompts)
-                        .then(assistantsResultPrompts => {
-                            // assistantsResultPrompts includes both list assistants and imported assistants
-                            updatedPrompts = [...updatedPrompts.filter((p:Prompt) => !isAssistant(p) || (isAssistant(p) && p.groupId)),
-                                              ...assistantsResultPrompts];
-                            // dispatch({ field: 'prompts', value: updatedPrompts});
-                            console.log('sync assistants complete');
-                            assistantLoaded = true;
-                            checkAndFinalizeUpdates(); 
-                        })
-                        .catch(error => {
-                            console.log("Error fetching assistants:", error);
-                            assistantLoaded = true;
-                        });
-                        
-                // Sync groups
-                syncGroups()
-                    .then(groupsResult => {
-                        updatedFolders = [...updatedFolders.filter((f:FolderInterface) => !f.isGroupFolder), 
-                                            ...groupsResult.groupFolders]
-                        dispatch({field: 'folders', value: updatedFolders});
-                        saveFolders(updatedFolders);
-
-                        let groupPrompts = groupsResult.groupPrompts;
-                        if (!featureFlags.apiKeys) groupPrompts = groupPrompts.filter(prompt =>{
-                                                        const tags = prompt.data?.tags;
-                                                        return !(
-                                                            tags && 
-                                                            (tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER) || tags.includes(ReservedTags.ASSISTANT_API_HELPER))
-                                                        );
-                                                    });
-                        updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ), 
-                                            ...groupPrompts];
-                        
-                        groupsLoaded = true;
-                        console.log('sync groups complete');
-                        checkAndFinalizeUpdates();
-                        
-                    })
-                    .catch(error => {
-                        console.log("Error syncing groups:", error); 
-                        groupsLoaded = true;
-                    });
-
-            }
-
-
-            if (user && user.email && initialRender) {
-                setInitialRender(false);
-                // need fetch accounts for chatting charging
-                fetchAccounts();  
-                fetchInAmpCognGroup()         
-                handleOnLoadData(user.email);
-            }
-        }
-    }, [user]);
-
-
-
+    }, [session]);
 
     // ON LOAD --------------------------------------------
 

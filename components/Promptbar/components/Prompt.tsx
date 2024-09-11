@@ -39,7 +39,7 @@ import {deleteAssistant} from "@/services/assistantService";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import { ReservedTags } from '@/types/tags';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
-import { Group } from '@/utils/app/groups';
+import { Group } from '@/types/groups';
 
 interface Props {
     prompt: Prompt;
@@ -55,7 +55,7 @@ export const PromptComponent = ({ prompt }: Props) => {
     } = useContext(PromptbarContext);
 
     const {
-        state: { statsService, selectedAssistant, checkingItemType, checkedItems, prompts, groups},
+        state: { statsService, selectedAssistant, checkingItemType, checkedItems, prompts, groups, syncingPrompts},
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -279,7 +279,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                             </SidebarActionButton>
                         )}
 
-                        {!isDeleting && !isRenaming && canEdit && (
+                        {(!isDeleting && !isRenaming && canEdit) && (groupId ? !syncingPrompts : true) && (
                             <SidebarActionButton title="Edit Template"
                                 handleClick={() => {
                                     if (groupId) {

@@ -19,19 +19,17 @@ export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleM
   const {
     state: { selectedConversation, models, defaultModelId },
     handleUpdateConversation,
-    dispatch: homeDispatch,
   } = useContext(HomeContext);
 
   const [selectModel, setSelectModel] = useState<OpenAIModelID | undefined>(modelId ?? defaultModelId);
 
   useEffect(()=>{
     setSelectModel(modelId);
-    if (handleModelChange && modelId) handleModelChange(modelId);
+    if (handleModelChange && !modelId && defaultModelId) setTimeout(() => {handleModelChange(defaultModelId)}, 100); 
   }
   ,[modelId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      // console.log("ModelSelect handleChange", e.target.value);
     const updatedModel = e.target.value;
     if (handleModelChange) {
       handleModelChange(updatedModel);

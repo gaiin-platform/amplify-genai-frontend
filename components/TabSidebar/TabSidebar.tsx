@@ -87,7 +87,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
     ) : (
         //if we are going to use collapse side bars, interface takes up whole page, we can list the item here 
         <>
-        <OpenSidebarButton onClick={toggleOpen} side={side} />
+        <OpenSidebarButton onClick={toggleOpen} side={side} isDisabled={showAssistantAdmin}/>
         
         <AssistantAdminUI
             open={showAssistantAdmin && side === 'left'}

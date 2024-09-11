@@ -452,7 +452,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 const assistantInUse = getAssistantFromMessage(message) ||
                     (selectedAssistant ? selectedAssistant?.definition : null);
 
-                console.log("Assistant in use", assistantInUse, message);
+                // console.log("Assistant in use", assistantInUse, message);
+                // console.log("conv", selectedConversation);
+
 
                 if (assistantInUse) {
                     let options = {
@@ -830,6 +832,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             ) : (
                                                 'Start a new conversation.'
                                             )}
+                                            
                                         </div>
 
                                         {models.length > 0 && (
@@ -859,6 +862,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                                     value: type,
                                                                 }) 
                                                             }}
+                                                            groupUserTypeQuestion={selectedAssistant.definition.data.groupUserTypeQuestion}
                                                         />
                                                         
                                                     </> :
