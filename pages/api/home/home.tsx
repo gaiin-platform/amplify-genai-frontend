@@ -568,7 +568,7 @@ const Home = ({
             conversations, 
         );
 
-        if ((selectedConversation && selectedConversation.id) === updatedConversation.id) {
+        if (selectedConversation && selectedConversation.id === updatedConversation.id) {
             dispatch({field: 'selectedConversation', value: conversationWithUncompressedMessages(single)});
         }
 
@@ -658,6 +658,15 @@ const Home = ({
     useEffect (() => {
         if (!user && session?.user) setUser(session.user as DefaultUser);
     }, [session])
+
+
+    useEffect(() => {
+        // @ts-ignore
+        if (["RefreshAccessTokenError", "SessionExpiredError"].includes(session?.error)) {
+            signOut();
+            setUser(null);
+        }
+    }, [session]);
 
 
 
@@ -884,13 +893,6 @@ const Home = ({
     
     }, [user]);
 
-    useEffect(() => {
-        // @ts-ignore
-        if (["RefreshAccessTokenError", "SessionExpiredError"].includes(session?.error)) {
-            signOut();
-            setUser(null);
-        }
-    }, [session]);
 
     // ON LOAD --------------------------------------------
 

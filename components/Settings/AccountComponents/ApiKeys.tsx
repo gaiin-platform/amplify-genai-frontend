@@ -900,7 +900,7 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
                     })
                 }}/>
 
-                <label className="text-sm mr-3" htmlFor={key}>{formatAccessType(key)}</label>
+                <label className="text-sm ml-2 mr-3" htmlFor={key}>{formatAccessType(key)}</label>
 
                 </div>
             ))}

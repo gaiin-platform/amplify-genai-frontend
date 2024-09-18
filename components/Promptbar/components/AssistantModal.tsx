@@ -28,10 +28,11 @@ interface Props {
     onCreateAssistant?: (astDef: AssistantDefinition) => Promise<{ id: string; assistantId: string; provider: string }>;
     width?: string;
     height?: string;
-    translateY?: string;
-    blackoutBackground?:boolean;
+    translateY?: string;//
+    blackoutBackground?:boolean;//
     additionalTemplates?:Prompt[];
     autofillOn?:boolean;
+    embed?: boolean;
     children?: ReactElement;
 }
 
@@ -94,7 +95,7 @@ const messageOptionFlags = [
 
 export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc, 
                                           disableEdit=false, title, onCreateAssistant,height, width = '770px',
-                                          translateY='-3%', blackoutBackground=true, additionalTemplates, autofillOn=false, children}) => {
+                                          translateY, blackoutBackground=true, additionalTemplates, autofillOn=false, embed=false, children}) => {
     const {t} = useTranslation('promptbar');
 
     const { state: { prompts} } = useContext(HomeContext);
@@ -347,24 +348,12 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         return <LoadingDialog open={isLoading} message={loadingMessage}/>
     }
 
-
-    return (
-        <div
-            className={`fixed inset-0 flex items-center justify-center ${blackoutBackground ?'bg-black bg-opacity-50 z-50': ""} `}
-            style={translateY !== '-3%' ? { transform: `translateY(${translateY})`}: {}}>
-            <div className="fixed inset-0 z-10 overflow-hidden">
-                <div
-                    className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                    <div
-                        className="hidden sm:inline-block sm:h-screen sm:align-middle"
-                        aria-hidden="true"
-                    />
-
-                    <div
+    const assistantModalContainer = () => {
+        return ( <div
                         className={`text-black dark:text-neutral-200 inline-block overflow-hidden ${ blackoutBackground ? 'rounded-lg border border-gray-300 dark:border-netural-400':""} bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:w-full sm:max-w-[${width}] sm:align-middle`}
                         ref={modalRef}
                         role="dialog"
-                        style={{ transform: `translateY(${translateY !== '-3%' ? '-80px': translateY})` }}
+                        style={{ transform: translateY ? `translateY(${translateY})` : '0'}}
                     >
                         {/* <div className='absolute top-2 right-2'> 
                                 <SidebarActionButton
@@ -656,6 +645,24 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             
                         </div>
                     </div>
+
+        )
+
+    }
+
+
+    return ( embed ? assistantModalContainer() :
+        <div
+            className={`fixed inset-0 flex items-center justify-center ${blackoutBackground ?'bg-black bg-opacity-50 z-50': ""} `}
+            >
+            <div className="fixed inset-0 z-10 overflow-hidden">
+                <div
+                    className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                    <div
+                        className="hidden sm:inline-block sm:h-screen sm:align-middle"
+                        aria-hidden="true"/>
+                        {assistantModalContainer()}
+                    
                 </div>
             </div>
         </div>

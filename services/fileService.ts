@@ -105,12 +105,12 @@ export const getFileDownloadUrl = async (key:string) => {
     });
 
     if (!response.ok) {
-        throw new Error(`Failed to get presigned download url: ${response.status}`);
+        return {success: false};
     }
 
     const result = await response.json();
 
-    return {key:key, downloadUrl:result.downloadUrl};
+    return {success: result.success, key:key, downloadUrl:result.downloadUrl};
 }
 
 export const addFile = async (metadata:AttachedDocument, file: File, onProgress?: (progress: number) => void, abortSignal:AbortSignal|null= null) => {

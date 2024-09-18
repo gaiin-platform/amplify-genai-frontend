@@ -49,13 +49,13 @@ import {MemoizedRemoteMessages} from "@/components/Chat/MemoizedRemoteMessages";
 import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
 import {useSendService} from "@/hooks/useChatSendService";
-import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection, isRemoteConversation } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import { callRenameChat } from './RenameChat';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
+// import { Artifacts } from './Artifacts/Artifacts';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -122,8 +122,29 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         useEffect(() => {
             conversationsRef.current = conversations;
         }, [conversations]);
+    
 
+        const {handleSend:handleSendService} = useSendService();
+        const [selectedModelId, setSelectedModelId] = useState<OpenAIModelID | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id );
+        const [currentMessage, setCurrentMessage] = useState<Message>();
+        const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
+        const [showSettings, setShowSettings] = useState<boolean>(false);
+        const [isPromptTemplateDialogVisible, setIsPromptTemplateDialogVisible] = useState<boolean>(false);
+        const [isDownloadDialogVisible, setIsDownloadDialogVisible] = useState<boolean>(false);
+        const [isShareDialogVisible, setIsShareDialogVisible] = useState<boolean>(false);
+        const [variables, setVariables] = useState<string[]>([]);
+        const [showScrollDownButton, setShowScrollDownButton] =
+            useState<boolean>(false);
+        const [promptTemplate, setPromptTemplate] = useState<Prompt | null>(null);
+        const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
+
+        const messagesEndRef = useRef<HTMLDivElement>(null);
+        const chatContainerRef = useRef<HTMLDivElement>(null);
+        const textareaRef = useRef<HTMLTextAreaElement>(null);
+        const modelSelectRef = useRef<HTMLDivElement>(null);
+        const [isArtifactOpen, setIsArtifactOpen] = useState<boolean>(false);
         const [isRenaming, setIsRenaming] = useState<boolean>(false);
+
 
         useEffect(() => {
 
@@ -162,30 +183,30 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (selectedConversation?.messages.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
 
         }, [selectedConversation]);
-    
 
-        const {handleSend:handleSendService} = useSendService();
 
-        const [selectedModelId, setSelectedModelId] = useState<OpenAIModelID | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id );
-        const [currentMessage, setCurrentMessage] = useState<Message>();
-        const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
-        const [showSettings, setShowSettings] = useState<boolean>(false);
-        const [isPromptTemplateDialogVisible, setIsPromptTemplateDialogVisible] = useState<boolean>(false);
-        const [isDownloadDialogVisible, setIsDownloadDialogVisible] = useState<boolean>(false);
-        const [isShareDialogVisible, setIsShareDialogVisible] = useState<boolean>(false);
-        const [variables, setVariables] = useState<string[]>([]);
-        const [showScrollDownButton, setShowScrollDownButton] =
-            useState<boolean>(false);
-        const [promptTemplate, setPromptTemplate] = useState<Prompt | null>(null);
-        const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
+        useEffect(() => {
+            const handleEvent = (event:any) => {
+                const isArtifactsOpen = event.detail.isOpen;
+                setIsArtifactOpen(isArtifactsOpen);  
+            };
+            window.addEventListener('openArtifactsTrigger', handleEvent);
+            return () => {
+                window.removeEventListener('openArtifactsTrigger', handleEvent);
+            };
+        }, []);
 
-        const messagesEndRef = useRef<HTMLDivElement>(null);
-        const chatContainerRef = useRef<HTMLDivElement>(null);
-        const textareaRef = useRef<HTMLTextAreaElement>(null);
-        const modelSelectRef = useRef<HTMLDivElement>(null);
 
         useEffect(() =>{
-            if (selectedAssistant?.definition?.data?.model) setSelectedModelId(selectedAssistant?.definition?.data?.model);
+            if (selectedAssistant?.definition?.data?.model) {
+                setSelectedModelId(selectedAssistant.definition.data.model);
+                selectedConversation && handleUpdateConversation(selectedConversation, {
+                                            key: 'model',
+                                            value: models.find(
+                                            (model: OpenAIModel) => model.id === selectedAssistant?.definition?.data?.model,
+                                            ),
+                                        });
+            }
             if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) setSelectedModelId(selectedConversation?.model?.id as OpenAIModelID);
         }, [selectedAssistant]);
 
@@ -809,11 +830,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
 // @ts-ignore
         return (
+            <>
             <div className="relative flex-1 overflow-hidden bg-neutral-100 dark:bg-[#343541]">
                 { modelError ? (
                     <ErrorMessageDiv error={modelError}/>
                 ) : (
-                    <>
+                    <div >
                         <div
                             className="container max-h-full overflow-x-hidden" style={{height: window.innerHeight * 0.94}}
                             ref={chatContainerRef}
@@ -963,7 +985,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     )}
                                     <div
                                        className="items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
-                                        {featureFlags.mtdCost && (
+                                        {featureFlags.mtdCost && !isArtifactOpen && (
                                             <>
                                                 <button
                                                     className="ml-2 mr-2 cursor-pointer hover:opacity-50"
@@ -981,8 +1003,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 |
                                             </>
                                         )}
-                                        {t(' Workspace: ' + workspaceMetadata.name)} | {selectedConversation?.model.name} | {t('Temp')}
-                                        : {selectedConversation?.temperature} |
+                                        {t(' Workspace: ' + workspaceMetadata.name)} | { selectedAssistant?.definition?.data?.model ? OpenAIModels[selectedAssistant.definition.data.model as OpenAIModelID].name : selectedConversation?.model.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={(e) => {
@@ -1031,23 +1052,26 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         {featureFlags.storeCloudConversations &&
                                         <CloudStorage iconSize={18} />
                                         }
-
-                                        |
-                                        <button
-                                            className="ml-2 mr-2 cursor-pointer hover:opacity-50"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                homeDispatch({field: 'page', value: 'home'});
-                                            }}
-                                            title="Data Sources"
-                                        >
-                                            <div className="flex flex-row items-center ml-2
-                                            bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
-                                                <div><IconRocket size={18}/></div>
-                                                <div className="ml-1">Data Sources </div>
-                                            </div>
-                                        </button>
+                                        {!isArtifactOpen  &&
+                                            <>
+                                            |
+                                            <button
+                                                className="ml-2 mr-2 cursor-pointer hover:opacity-50"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    homeDispatch({field: 'page', value: 'home'});
+                                                }}
+                                                title="Data Sources"
+                                            >
+                                                <div className="flex flex-row items-center ml-2
+                                                bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
+                                                    <div><IconRocket size={18}/></div>
+                                                    <div className="ml-1">Data Sources </div>
+                                                </div>
+                                            </button> 
+                                            </>
+                                        }
                                     </div>
                                     <div ref={modelSelectRef}></div>
                                     
@@ -1175,9 +1199,16 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             }}
                             showScrollDownButton={showScrollDownButton}
                         />
-                    </>
+                    </div>
                 )}
             </div>
+
+            {/* Artifacts */}
+            {/* {isArtifactOpen && (
+                <Artifacts content={""}/>
+            )} */}
+
+            </>
         );
     });
     

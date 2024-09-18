@@ -7,12 +7,14 @@ import {
 } from 'mantine-react-table';
 import {MantineProvider, ScrollArea} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
-import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl} from "@/services/fileService";
+import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import {DataSource} from "@/types/chat";
 import {randomUUID} from "crypto";
 import { v4 as uuidv4 } from 'uuid';
+import SidebarActionButton from '../Buttons/SidebarActionButton';
+import { downloadDataSourceFile } from '@/utils/app/files';
 
 type MimeTypeMapping = {
     [mimeType: string]: string;
@@ -331,19 +333,12 @@ const DataSourcesTableScrolling: FC<Props> = ({
         return date.toLocaleString('en-US', options).toLowerCase();
     }
 
-    const downloadFile = async (id: string) => {
+    const downloadFile = async (id: string, name: string, fileType: string) => {
 
         setIsDownloading(true);
         try {
             // /assistant/files/download
-            const response = await getFileDownloadUrl(id);
-
-            if (response.downloadUrl) {
-                // Download the file at the specified url
-                window
-                    .open(response.downloadUrl, '_blank')
-                    ?.focus();
-            }
+            downloadDataSourceFile({id: id, name: name, type: fileType});
         } finally {
             setIsDownloading(false);
         }
@@ -381,11 +376,15 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 enableColumnActions: false,
                 enableColumnFilter: false,
                 Cell: ({cell}) => (
-                    <span onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        downloadFile(cell.getValue<string>().split("#")[1]);
-                    }}><IconDownload/></span>
+                    <SidebarActionButton
+                        title='Download File'
+                        handleClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            downloadFile(cell.getValue<string>().split("#")[1], cell.row.original.name, cell.row.original.type);
+                        }}> 
+                    <IconDownload/>
+                    </SidebarActionButton>
                 ),
             },
             {
@@ -398,11 +397,15 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 enableColumnActions: false,
                 enableColumnFilter: false,
                 Cell: ({cell}) => (
-                    <span onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        downloadFile(cell.getValue<string>());
-                    }}><IconDownload/></span>
+                    <SidebarActionButton
+                        title='Download File'
+                        handleClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            downloadFile(cell.getValue<string>(), cell.row.original.name, cell.row.original.type)
+                        }}> 
+                    <IconDownload/>
+                    </SidebarActionButton>
                 ),
             },
             {

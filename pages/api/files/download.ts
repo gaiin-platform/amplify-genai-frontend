@@ -34,6 +34,7 @@ const getPresignedDownloadUrl =
             const data = await response.json();
 
             res.status(200).json({
+                success: data.success,
                 downloadUrl: data.downloadUrl
             });
 
