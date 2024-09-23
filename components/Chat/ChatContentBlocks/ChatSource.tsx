@@ -1,7 +1,10 @@
+import { LoadingDialog } from '@/components/Loader/LoadingDialog';
+import { DataSource } from '@/types/chat';
+import { downloadDataSourceFile } from '@/utils/app/files';
 import {
     IconFileCheck,
 } from '@tabler/icons-react';
-import React from "react";
+import React, { useState } from "react";
 
 interface Props {
     source: any;
@@ -76,7 +79,7 @@ function groupArrayValuesByKeys(array: Array<any>) {
                 return x;
             }
 
-            console.log(propertyKey, values);
+            // console.log(propertyKey, values);
 
             return <div key={index}>
                 <div className="text-sm flex flex-row items-center">
@@ -102,9 +105,24 @@ function capitalizeFirstLetter(string: string): string {
 const ChatSourceBlock: React.FC<Props> = (
     {source, index}) => {
 
-    console.log("source", source);
+    const [isDownloading, setIsDownloading] = useState<boolean>(false);
 
-    return <div>
+    const downloadFile = async (dataSource: DataSource, groupId: string | undefined) => {
+
+        setIsDownloading(true);
+        try {
+            // /assistant/files/download
+            await downloadDataSourceFile(dataSource, groupId);
+        } finally {
+            setIsDownloading(false);
+        }
+    }
+
+    
+
+    return <>
+            <LoadingDialog open={isDownloading} message={"Downloading File..."}/>
+    <div>
         <div
             className="rounded-xl text-neutral-600 border-2 dark:border-none dark:text-white bg-neutral-100 dark:bg-[#343541] rounded-md shadow-lg mb-2 mr-2"
         >
@@ -125,9 +143,16 @@ const ChatSourceBlock: React.FC<Props> = (
                     </div>
                 )}
                 {source.name && (
-                    <div className="dark:text-neutral-300">
-                        {source.name}
-                    </div>
+                    (source.contentKey) ? 
+                        <button className="mr-auto text-[#5495ff] cursor-pointer hover:underline" title='Download File'
+                            onClick={() => downloadFile({id: source.contentKey, name: source.name, type: source.type}, source.groupId)}>
+                            {source.name}
+                        </button> 
+                        :
+                        <div className="dark:text-neutral-300">
+                            {source.name}
+                        </div>
+
                 )}
                 {source.locations && Array.isArray(source.locations) && (
                     <div>
@@ -136,7 +161,8 @@ const ChatSourceBlock: React.FC<Props> = (
                 )}
             </div>
         </div>
-    </div>;
+    </div> 
+    </>;
 };
 
 export default ChatSourceBlock;

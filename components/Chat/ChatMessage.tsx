@@ -21,15 +21,16 @@ import AssistantMessageEditor from "@/components/Chat/ChatContentBlocks/Assistan
 import {Prompt} from "@/types/prompt";
 import {DownloadModal} from "@/components/Download/DownloadModal";
 import Loader from "@/components/Loader/Loader";
-import {getFileDownloadUrl} from "@/services/fileService"
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import PromptingStatusDisplay from "@/components/Status/PromptingStatusDisplay";
 import ChatSourceBlock from "@/components/Chat/ChatContentBlocks/ChatSourcesBlock";
 import DataSourcesBlock from "@/components/Chat/ChatContentBlocks/DataSourcesBlock";
 import ChatCodeInterpreterFileBlock from './ChatContentBlocks/ChatCodeInterpreterFilesBlock';import { uploadConversation } from '@/services/remoteConversationService';
 import { isRemoteConversation } from '@/utils/app/conversationStorage';
+import { downloadDataSourceFile } from '@/utils/app/files';
 import { Stars } from './Stars';
 import { saveUserRating } from '@/services/groupAssistantService';
+// import { ArtifactsBlock } from './ChatContentBlocks/ArtifactsBlock';
 
 
 export interface Props {
@@ -55,7 +56,7 @@ export const ChatMessage: FC<Props> = memo(({
     const {t} = useTranslation('chat');
 
     const {
-        state: {selectedConversation, conversations,messageIsStreaming, status, folders},
+        state: {selectedConversation, conversations,messageIsStreaming, status, folders, featureFlags},
         dispatch: homeDispatch,
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
@@ -175,15 +176,15 @@ export const ChatMessage: FC<Props> = memo(({
         //alert("Downloading " + dataSource.name + " from " + dataSource.id);
         try {
             setIsFileDownloadDatasourceVisible(true);
-            const response = await getFileDownloadUrl(dataSource.id);
-            setIsFileDownloadDatasourceVisible(false);
-            window.open(response.downloadUrl, "_blank");
+            downloadDataSourceFile(dataSource);
+            
         } catch (e) {
-            setIsFileDownloadDatasourceVisible(false);
             console.log(e);
             alert("Error downloading file. Please try again.");
         }
+        setIsFileDownloadDatasourceVisible(false);
     }
+
 
     const isActionResult = message.data && message.data.actionResult;
     const isAssistant = message.role === 'assistant';
@@ -328,10 +329,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         {isActionResult && (
                                             <ChatSourceBlock
                                                 messageIsStreaming={messageIsStreaming}
-                                                messageIndex={messageIndex}
                                                 message={message}
-                                                selectedConversation={selectedConversation}
-                                                handleCustomLinkClick={handleCustomLinkClick}
                                             />
                                         )}
                                     </div>
@@ -410,6 +408,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         <PromptingStatusDisplay statusHistory={status}/>
                                     )}
                                     {!isEditing && (
+                                         <> 
                                         <div className="flex flex-grow"
                                              ref={divRef}
                                         >
@@ -421,24 +420,21 @@ export const ChatMessage: FC<Props> = memo(({
                                                 handleCustomLinkClick={handleCustomLinkClick}
                                             />
                                         </div>
-                                    )}
-                                    {!isEditing && (
+                                       
+                                        {/* {featureFlags.artifacts && 
+                                        <ArtifactsBlock 
+                                            message={message}
+                                        />} */}
+
                                         <ChatCodeInterpreterFileBlock
                                             messageIsStreaming={messageIsStreaming}
-                                            messageIndex={messageIndex}
                                             message={message}
-                                            selectedConversation={selectedConversation}
-                                            handleCustomLinkClick={handleCustomLinkClick}
                                         />
-                                    )}
-                                    {!isEditing && (
                                         <ChatSourceBlock
                                             messageIsStreaming={messageIsStreaming}
-                                            messageIndex={messageIndex}
                                             message={message}
-                                            selectedConversation={selectedConversation}
-                                            handleCustomLinkClick={handleCustomLinkClick}
                                         />
+                                        </>
                                     )}
                                     {isEditing && (
                                         <AssistantMessageEditor

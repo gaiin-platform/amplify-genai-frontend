@@ -17,10 +17,7 @@ interface FileInfo {
 
 interface Props {
     messageIsStreaming: boolean;
-    messageIndex: number;
     message: Message;
-    selectedConversation: Conversation|undefined;
-    handleCustomLinkClick: (message:Message, href: string) => void,
 }
 
 const ChatCodeInterpreterFileBlock: React.FC<Props> = (

@@ -15,6 +15,7 @@ import {CheckItemType} from "@/types/checkItem";
 import { PluginLocation } from '@/types/plugin';
 import { Group } from '@/types/groups';
 // import { Artifact } from '@/types/artifacts';
+// import { Artifact } from '@/types/artifacts';
 
 
 type HandleSend = (request: any) => void;
@@ -26,6 +27,7 @@ export interface HomeInitialState {
   loading: boolean;
   lightMode: 'light' | 'dark';
   messageIsStreaming: boolean;
+  artifactIsStreaming: boolean
   modelError: ErrorMessage | null;
   status: Status[];
   models: OpenAIModel[];
@@ -35,6 +37,7 @@ export interface HomeInitialState {
   workflows: WorkflowDefinition[];
   selectedConversation: Conversation | undefined;
   currentMessage: Message | undefined;
+  // selectedArtifacts: Artifact[] | undefined;
   prompts: Prompt[];
   temperature: number;
   showChatbar: boolean;
@@ -78,6 +81,7 @@ export const initialState: HomeInitialState = {
   status: [],
   workspaceDirty: false,
   messageIsStreaming: false,
+  artifactIsStreaming: false,
   modelError: null,
   models: [],
   folders: [],
@@ -98,6 +102,7 @@ export const initialState: HomeInitialState = {
   },
   selectedConversation: undefined,
   currentMessage: undefined,
+  // selectedArtifacts: undefined,
   prompts: [],
   temperature: 1,
   showPromptbar: true,
@@ -138,7 +143,8 @@ export const initialState: HomeInitialState = {
     qiSummary: true,
     apiKeys: true,
     assistantAdminInterface: false,
-    mtdCost: true
+    mtdCost: true,
+    artifacts: false //true
   },
 
   statsService: noOpStatsServices,

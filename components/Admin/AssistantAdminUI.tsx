@@ -765,6 +765,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         return allGroups.filter((g: Group) => [GroupAccessType.ADMIN, GroupAccessType.WRITE ].includes(g.members[user]));
     }
 
+    const [innderWindow, setInnerWindow] = useState({height: window.innerHeight, width: window.innerWidth});
 
     const modalRef = useRef<HTMLDivElement>(null);
 
@@ -787,11 +788,19 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
     const [showCreateNewGroup, setShowCreateNewGroup] = useState<boolean>();
     const [showCreateGroupAssistant, setShowCreateGroupAssistant] = useState<string | null>(null);
-    // const [curNewAstPrompt, setCurNewAstPrompt] = useState<Prompt | null> (null);
 
     const [allEmails, setAllEmails] = useState<Array<string> | null>(null);
 
-    const translateYEditAst = document.querySelector(".editAstContainerRef")?.getBoundingClientRect().top;
+    useEffect(() => {
+        const updateInnerWindow = () => {
+            setInnerWindow({height: window.innerHeight, width: window.innerWidth});
+        }
+        // Listen to window resize to update the size
+        window.addEventListener('resize', updateInnerWindow);
+        return () => {
+          window.removeEventListener('resize', updateInnerWindow);
+        };
+      }, []);
 
     useEffect(() => {
         const fetchEmails = async () => {
@@ -803,6 +812,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         };
         if (!allEmails) fetchEmails();
     }, [open]);
+
 
     useEffect(()=>{
         setActiveAstTab(selectedAssistant?.data?.assistant?.definition.assistantId);
@@ -832,7 +842,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         if (!syncingPrompts) {
             // needs a second for groups to catch up 
             setTimeout(() => {
-                setLoadingMessage('');
+            setAdminGroups((groups.length > 0 ?  filteredForAdminAccess(groups) : []));
+            setLoadingMessage('');
             }, 1000);
         }
     }, [syncingPrompts]);
@@ -1134,9 +1145,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                          disableEdit={!!showCreateGroupAssistant}
                          loc={"admin_update"} 
                         //  title={selectedGroup?.name + " Assistant"}
-                         width={`${window.innerWidth - 100}px`}
-                         height={`500px`}
-                         translateY={ translateYEditAst ? `${translateYEditAst - 12}px` : '20%'}
+                         width={`${innderWindow.width - 100}px`}
+                         height={`${(innderWindow.height * 0.76) - 165}px`}
+                         translateY={'-5%'}
+                         embed={true}
                          blackoutBackground={false}
                          onCreateAssistant={(astDef:AssistantDefinition) => { return handleCreateAssistant(astDef, GroupUpdateType.UPDATE)}}
                          >  
@@ -1194,7 +1206,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                         <div
                             ref={modalRef} key={selectedGroup?.id}
                             className="dark:border-netural-400 inline-block transform rounded-lg border border-gray-300 bg-neutral-100 px-4 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:min-h-[636px] sm:w-full sm:p-4 sm:align-middle"
-                            style={{ width: `${window.innerWidth - 100}px`, height: `${window.innerHeight * 0.95}px` }}
+                            style={{ width: `${innderWindow.width - 100}px`, height: `${innderWindow.height * 0.95}px` }}
                             role="dialog"
                         >
                             {loadingActionMessage && (
@@ -1240,9 +1252,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                             loadingMessage = {`Creating Assistant for Group '${selectedGroup.name}'`}
                                             loc={"admin_add"}
                                             title={`Creating New Assistant for ${selectedGroup.name}`}
-                                            height="600px"
+                                            height={`${innderWindow.height * 0.7}px`}
                                             additionalTemplates={allAssistants()}
                                             autofillOn={true}
+                                            translateY='-4%'
                                             onCreateAssistant={(astDef:AssistantDefinition) => { return handleCreateAssistant(astDef, GroupUpdateType.ADD)}}
                                             >
                                                
@@ -1283,7 +1296,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                 <div key={selectedGroup.id}>
                                     <div className="mb-4 flex flex-row items-center justify-between bg-neutral-100 dark:bg-[#202123] rounded-t border-b border-neutral-400  dark:border-white/20">
                                         {selectedGroup.assistants.length === 0 && <label className='text-center text-black dark:text-white text-lg'
-                                                                                    style={{width: `${window.innerWidth * 0.75}px`}}>
+                                                                                    style={{width: `${innderWindow.width * 0.75}px`}}>
                                                                                    You currently do not have any assistants in this group. </label>}
                                         
                                         <div className="overflow-y-auto">
@@ -1318,7 +1331,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                         </div>
                                     </div>
                                     <div className='overflow-y-auto' style={{ maxHeight: 'calc(100% - 60px)' }}>
-                                        <div className='editAstContainerRef'></div>
                                         {renderSubTabs()}
                                         {renderContent()}
                                     </div>

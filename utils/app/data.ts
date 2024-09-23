@@ -297,7 +297,7 @@ export const describeAsJsonSchema = (obj:any, id = 'root') => {
                 // Object Handling
                 else {
                     // @ts-ignore
-                    const properties = Object.fromEntries(
+                    const properties:any = Object.fromEntries(
                         Object.entries(obj).map(([propertyName, value]) => [
                             propertyName,
                             describeAsJsonSchema(value),

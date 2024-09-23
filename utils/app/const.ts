@@ -13,6 +13,9 @@ export const COMMON_DISALLOWED_FILE_EXTENSIONS = [
     "psd","heic","heif","ico","ps",
 ];
 
+export const IMAGE_FILE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+
+
 
 export const OPENAI_API_HOST =
   process.env.OPENAI_API_HOST || 'https://api.openai.com';
