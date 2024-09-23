@@ -350,7 +350,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             for (const sourceType of sources as any[]) {
                 const sourceValues: any = Object.values(sourceType.sources);
                 for (const subSource of sourceValues) {
-                    if (filename === subSource.name && subSource.contentKey) {
+                    if (subSource.contentKey && filename === subSource.name.replace(/&/g, ' ')) {
                         ds = {id: subSource.contentKey, name: subSource.name, type: subSource.type}
                         if (subSource.groupId) groupId = subSource.groupId;
                         break;
