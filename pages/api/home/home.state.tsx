@@ -13,6 +13,9 @@ import { Account } from "@/types/accounts";
 import {Op} from "@/types/op";
 import {CheckItemType} from "@/types/checkItem";
 import { PluginLocation } from '@/types/plugin';
+import { Group } from '@/types/groups';
+// import { Artifact } from '@/types/artifacts';
+// import { Artifact } from '@/types/artifacts';
 
 
 type HandleSend = (request: any) => void;
@@ -24,14 +27,17 @@ export interface HomeInitialState {
   loading: boolean;
   lightMode: 'light' | 'dark';
   messageIsStreaming: boolean;
+  artifactIsStreaming: boolean
   modelError: ErrorMessage | null;
   status: Status[];
   models: OpenAIModel[];
   folders: FolderInterface[];
   conversations: Conversation[];
+  // artifacts: Artifact[];
   workflows: WorkflowDefinition[];
   selectedConversation: Conversation | undefined;
   currentMessage: Message | undefined;
+  // selectedArtifacts: Artifact[] | undefined;
   prompts: Prompt[];
   temperature: number;
   showChatbar: boolean;
@@ -60,6 +66,10 @@ export interface HomeInitialState {
   checkedItems: Array<any>;
   checkingItemType: CheckItemType | null;
   pluginLocation: PluginLocation;
+  groups: Group[];
+  syncingConversations: boolean;
+  syncingPrompts: boolean;
+
 }
 
 export const initialState: HomeInitialState = {
@@ -71,10 +81,12 @@ export const initialState: HomeInitialState = {
   status: [],
   workspaceDirty: false,
   messageIsStreaming: false,
+  artifactIsStreaming: false,
   modelError: null,
   models: [],
   folders: [],
   conversations: [],
+  // artifacts:[],
   workflows: [],
   ops: {},
   workspaceMetadata: {
@@ -90,6 +102,7 @@ export const initialState: HomeInitialState = {
   },
   selectedConversation: undefined,
   currentMessage: undefined,
+  // selectedArtifacts: undefined,
   prompts: [],
   temperature: 1,
   showPromptbar: true,
@@ -127,8 +140,10 @@ export const initialState: HomeInitialState = {
     codeInterpreterEnabled: true,
     dataDisclosure: true,
     storeCloudConversations: true,
-    qiSummary: true,
+    qiSummary: false,
     apiKeys: true,
+    assistantAdminInterface: false,
+    artifacts: false, //true
     mtdCost: false
   },
 
@@ -144,5 +159,8 @@ export const initialState: HomeInitialState = {
   allFoldersOpenPrompts: false,
   checkedItems: [],
   checkingItemType: null,
-  pluginLocation: {x:100, y:-250}
+  pluginLocation: {x:100, y:-250},
+  groups: [],
+  syncingConversations: true,
+  syncingPrompts: true
 };

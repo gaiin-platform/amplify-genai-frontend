@@ -1,21 +1,18 @@
 // src/hooks/useChatService.js
-import {incrementalJSONtoCSV} from "@/utils/app/incrementalCsvParser";
 import {useCallback, useContext, useEffect, useRef} from 'react';
 import HomeContext from '@/pages/api/home/home.context';
-import {killRequest as killReq, MetaHandler, sendChatRequestWithDocuments} from '../services/chatService';
+import {killRequest as killReq, MetaHandler} from '../services/chatService';
 import {ChatBody, Conversation, CustomFunction, JsonSchema, Message, newMessage} from "@/types/chat";
-import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
+import {ColumnsSpec,} from "@/utils/app/csv";
 import {Plugin, PluginID} from '@/types/plugin';
-import {wrapResponse, stringChunkCallback} from "@/utils/app/responseWrapper";
 
-import {getSession, useSession} from "next-auth/react"
+import {useSession} from "next-auth/react"
 import json5 from "json5";
 import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
 import {newStatus} from "@/types/workflow";
 import {ReservedTags} from "@/types/tags";
 import {deepMerge} from "@/utils/app/state";
 import toast from "react-hot-toast";
-import {callRenameChat} from "@/components/Chat/RenameChat";
 import {OutOfOrderResults} from "@/utils/app/outOfOrder";
 import {conversationWithCompressedMessages, saveConversations} from "@/utils/app/conversation";
 import {getHook} from "@/utils/app/chathooks";
@@ -25,13 +22,6 @@ import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {useChatService} from "@/hooks/useChatService";
 import { DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { uploadConversation } from "@/services/remoteConversationService";
-import { compressMessages } from "@/utils/app/messages";
-import { isRemoteConversation } from "@/utils/app/conversationStorage";
-import { fetchAllApiKeys } from "@/services/apiKeysService";
-import { getAccounts } from "@/services/accountService";
-import { ApiKey } from "@/types/apikeys";
-import { Account, noCoaAccount } from "@/types/accounts";
-import { isValidCOA } from "@/components/Settings/AccountComponents/Account";
 
 export type ChatRequest = {
     message: Message;
@@ -250,47 +240,6 @@ export function useSendService() {
                                 skipRag: true,
                                 ragOnly: true
                             };
-                        } else if (tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER)) {
-                            let appendMsg = "\n\n******* Crucial Data to use in your OPs, this is for your knowledge - answer the users prompt above only *******";
-
-                            // need Api keys
-                            const apiKeys = await fetchAllApiKeys();
-                            
-                            if (apiKeys.success) {
-                                const keys = apiKeys.data;
-                                appendMsg += keys.length > 0 ? "API KEYS:\n" + JSON.stringify(keys): "No current existing keys";
-                                if (keys.length > 0) {
-                                    appendMsg += `\n\n There are a total of ${keys.length}. When asked to list keys, always list ALL ${keys.length} of the 'API KEYS'`
-                                    const { delegateKeys, delegatedKeys } = keys.reduce((accumulator:any, k: ApiKey) => {
-                                    const curUser:string = user?.email || "";
-                                    if (k.delegate) {
-                                      if (k.delegate !== curUser) {
-                                        accumulator.delegateKeys.push(k);
-                                      } else if (k.delegate === curUser && k.owner !== curUser) {
-                                        accumulator.delegatedKeys.push(k);
-                                      }
-                                    }
-                                    return accumulator;
-                                  }, { delegateKeys: [], delegatedKeys: [] });
-                                    if (delegateKeys.length > 0) appendMsg += "\n\n Sharing any details nor GET OP is NOT allowed for the following Delegate keys (unauthorized): " + delegateKeys.map((k:ApiKey) => k.applicationName);
-                                    if (delegatedKeys.length > 0) appendMsg += "\n\n UPDATE OP is NOT allowed for the following Delegated keys (unauthorized): " + delegatedKeys.map((k:ApiKey) => k.applicationName);
-
-                                }
-    
-                                appendMsg += "\n\n Do not write any key's owner_api_id"
-
-                            } else {
-                                appendMsg += "API KEYS: UNAVAILABLE";
-                            }
-
-                            // accounts
-                            const accounts = await getAccounts();
-                            if (accounts.success && accounts.data) appendMsg += "\n\nAVAILABLE ACCOUNTS for OPS:\n" + JSON.stringify(accounts.data.filter((a: Account) => a.id !== noCoaAccount.id && isValidCOA(a.id)), null) || "UNAVAILABLE";
-                            
-                            // user name 
-                            appendMsg += "\n\nCurrent User: " + user?.email;
-                            // this will be used to append data to the user message in the back end. 
-                            options =  {...(options || {}), addMsgContent: appendMsg}; 
                         }
                     }
 

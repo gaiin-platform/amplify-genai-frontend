@@ -1,30 +1,11 @@
-import {useContext, useEffect, useState} from "react";
-import HomeContext from "@/pages/api/home/home.context";
-import {styled, keyframes} from "styled-components";
-import {FiCommand} from "react-icons/fi";
+import { useEffect, useState} from "react";
 import {Conversation} from "@/types/chat";
 import { QiSummary, QiSummaryType } from "@/types/qi";
 import {useTranslation} from 'next-i18next';
 import { uploadToQiS3 } from '@/services/qiService';
 import cloneDeep from 'lodash/cloneDeep';
 import { AttachedDocument } from "@/types/attacheddocument";
-
-
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
-
-const LoadingIcon = styled(FiCommand)`
-  color: lightgray;
-  font-size: 1rem;
-  animation: ${animate} 2s infinite;
-`;
-
+import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 
 interface QiModalProps {
     qiSummary: QiSummary | null;

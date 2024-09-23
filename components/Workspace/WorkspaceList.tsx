@@ -6,8 +6,6 @@ import {
 } from '@tabler/icons-react';
 import {getSharedItems} from "@/services/shareService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
-import styled, {keyframes} from "styled-components";
-import {FiCommand} from "react-icons/fi";
 import {SaveWorkspaceModal} from "@/components/Workspace/SaveWorkspaceModal";
 import {ImportWorkspaceModal} from "@/components/Workspace/ImportWorkspaceModal";
 import HomeContext from "@/pages/api/home/home.context";
@@ -15,6 +13,7 @@ import {saveWorkspaceMetadata} from "@/utils/app/settings";
 import {Workspace} from "@/types/workspace";
 import {v4} from "uuid";
 import {useSession} from "next-auth/react";
+import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 
 type SharedItemsListProps = {};
 
@@ -24,21 +23,6 @@ function groupBy(key: string, array: ShareItem[]): { [key: string]: ShareItem[] 
         return result;
     }, {});
 }
-
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
-
-const LoadingIcon = styled(FiCommand)`
-  color: lightgray;
-  font-size: 1rem;
-  animation: ${animate} 2s infinite;
-`;
 
 const WorkspaceList: FC<SharedItemsListProps> = () => {
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);

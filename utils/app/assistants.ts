@@ -1,11 +1,8 @@
 import {Assistant, AssistantDefinition, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {Prompt} from "@/types/prompt";
 import {Message, MessageType} from "@/types/chat";
-import {FolderInterface} from "@/types/folder";
 import {ReservedTags} from "@/types/tags";
-import { saveFolders } from '@/utils/app/folders';
 import { savePrompts } from "./prompts";
-import { getDate } from "./date";
 
 export const isAssistantById = (promptId: string, prompts: Prompt[]) => {
     const prompt = prompts.find((p: Prompt) => p.id === promptId);
@@ -96,28 +93,21 @@ export const createAssistantPrompt = (assistant: AssistantDefinition): Prompt =>
     };
 }
 
-const createAssistantFolder = async (folders: FolderInterface[], dispatch: any) => {
-    console.log("Creating assistants folder...")
-    const newFolder = {
-        id: "assistants",
-        date: getDate(),
-        name: "Assistants",
-        type: "prompt",
-    } as FolderInterface;
-    const updatedFolders = [...folders, newFolder];
-    dispatch({field: 'folders', value: updatedFolders});
-    saveFolders(updatedFolders);
-    return 
+
+
+const isSystemAssistant = (prompt: Prompt) => {
+    return prompt.data?.assistant?.definition?.tags.includes(ReservedTags.SYSTEM);
+
 }
 
-export const syncAssistants = async (assistants: AssistantDefinition[], folders: FolderInterface[], prompts: Prompt[], dispatch: any, featureFlags: any) => {
+export const syncAssistants = async (assistants: AssistantDefinition[], prompts: Prompt[]) => {
     // Match assistants by name and only take the one with the highest version number for each name
     const latestAssistants = assistants.reduce((acc: { [key: string]: AssistantDefinition }, assistant: AssistantDefinition) => {
         if (!assistant.version) {
             assistant.version = 1;
         }
 
-        // @ts-ignore
+        // @ts-ignore        
         if (!acc[assistant.assistantId] || acc[assistant.assistantId].version < assistant.version) {
             if (!assistant.assistantId) assistant.assistantId = assistant.id;
             acc[assistant.assistantId || ""] = assistant;
@@ -125,45 +115,17 @@ export const syncAssistants = async (assistants: AssistantDefinition[], folders:
         return acc;
     }, {});
     assistants = Object.values(latestAssistants);
-    
 
-    // Make sure the "assistants" folder exists and create it if necessary
-    const assistantsFolder = folders.find((f) => f.id === "assistants");
-    if (!assistantsFolder) {
-        await createAssistantFolder(folders, dispatch);
-    }
+    const assistantNames = new Set(assistants.map(prompt => prompt.name));
 
-    // would love for it to be like this but we need to offset render or add loading because prompts are jumping 
-    //const assistantPrompts: Prompt[] = assistants.map(createAssistantPrompt);    
-    // const updatedPrompts = prompts.filter(prompt =>  !isAssistant(prompt) || prompt.data?.noShare);
-
-    //create Assistant prompts for new assistants only since we already have them in our prompts list 
-    // note updated versions are 'new' and will replace the old ones. 
-    const assistantPrompts: Prompt[] = assistants.reduce((acc: Prompt[], ast) => {
-            const existingAssistant = prompts.find(prompt => prompt.id === ast.id);
-                                   // always get a fresh copy of system assistants
-            if (!existingAssistant || ast.tags.includes(ReservedTags.SYSTEM)) {
-                const newPrompt = createAssistantPrompt(ast);
-                acc.push(newPrompt);
-            } 
-            return acc;
-    }, []);
+    let assistantPrompts: Prompt[] = assistants.map(createAssistantPrompt);  
     
-    const assistantNames = new Set(assistantPrompts.map(prompt => prompt.name));
-    // we want the updated assistant versions so we filter out old versions from our original prompts list 
-    let updatedPrompts: Prompt[] = assistantNames.size > 0 ? prompts.filter(prompt => !assistantNames.has(prompt.name)) : prompts;
-    
-    // filter out any assistants that are no longer in the back end while keeping imported ones 
-    const assistantIds = new Set(assistants.map(prompt => prompt.id));
-                                        // keep the       nonassistants            imported                 still in db 
-    updatedPrompts = updatedPrompts.filter(prompt =>  !isAssistant(prompt) || prompt.data?.noShare || assistantIds.has(prompt.id));                      
-    
-    // feature flag considerations
-    if (!featureFlags.apiKeys) updatedPrompts = updatedPrompts.filter(prompt => prompt.id !== 'ast/assistant-api-key-manager');
-
-    savePrompts([...assistantPrompts, ...updatedPrompts]);
-    dispatch({field: 'prompts', value: [...assistantPrompts, ...updatedPrompts]}); 
-   
+    // keep imported Assistants
+    const importedAssistants = prompts.filter(prompt =>  isAssistant(prompt) && prompt.data?.noShare && 
+                                                        !assistantNames.has(prompt.name) && !prompt.groupId && !isSystemAssistant(prompt)) ;                           
+    const sortedAssistants = [...assistantPrompts, ...importedAssistants];
+    sortedAssistants.sort((a, b) =>  a.name.localeCompare(b.name));
+    return sortedAssistants;
 }
 
 

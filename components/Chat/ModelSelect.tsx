@@ -1,44 +1,64 @@
 import { IconExternalLink } from '@tabler/icons-react';
-import { useContext } from 'react';
+import { useContext, useEffect, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
-import { OpenAIModel } from '@/types/openai';
+import { OpenAIModel, OpenAIModelID } from '@/types/openai';
 
 import HomeContext from '@/pages/api/home/home.context';
+interface Props {
+  modelId: OpenAIModelID | undefined;
+  isDisabled?: boolean;
+  handleModelChange?: (e: string) => void
+  isTitled?: boolean;
+}
 
-export const ModelSelect = () => {
+
+export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleModelChange, isTitled=true}) => {
   const { t } = useTranslation('chat');
-
   const {
     state: { selectedConversation, models, defaultModelId },
     handleUpdateConversation,
-    dispatch: homeDispatch,
   } = useContext(HomeContext);
 
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      console.log("ModelSelect handleChange", e.target.value);
+  const [selectModel, setSelectModel] = useState<OpenAIModelID | undefined>(modelId ?? defaultModelId);
 
-    selectedConversation &&
+  useEffect(()=>{
+    setSelectModel(modelId);
+    if (handleModelChange && !modelId && defaultModelId) setTimeout(() => {handleModelChange(defaultModelId)}, 100); 
+  }
+  ,[modelId]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const updatedModel = e.target.value;
+    if (handleModelChange) {
+      handleModelChange(updatedModel);
+    } else {
+      selectedConversation &&
       handleUpdateConversation(selectedConversation, {
         key: 'model',
         value: models.find(
-          (model: OpenAIModel) => model.id === e.target.value,
+          (model: OpenAIModel) => model.id === updatedModel,
         ),
       });
+    }
+    setSelectModel(updatedModel as OpenAIModelID);
+    
   };
   
   return (
     <div className="flex flex-col">
       <label className="mb-2 text-left text-neutral-700 dark:text-neutral-400">
-        {t('Model')}
+        {isTitled? t('Model'): ""}
       </label>
       <div className="w-full rounded-lg border border-neutral-200 bg-transparent pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white">
         <select
+          disabled={isDisabled}
           className="w-full bg-transparent p-2"
           placeholder={t('Select a model') || ''}
-          value={selectedConversation?.model?.id || defaultModelId}
+          value={selectModel}
           onChange={handleChange}
+          title={isDisabled ? "Model has been predetermined and can not be changed": "Select Model"}
         >
           {models.map((model: OpenAIModel) => (
             <option

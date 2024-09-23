@@ -336,7 +336,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                                                 <h3 className="ml-2 text-black dark:text-white text-lg">Prompts</h3>
                                             </div>
 
-                                            {renderScrollableSection(promptsRef.current.filter((prompt:Prompt) => { return (!prompt.data || !prompt.data.noShare)}), 'Prompt')}
+                                            {renderScrollableSection(promptsRef.current.filter((prompt:Prompt) => { return (!prompt?.data?.noShare) && !prompt.groupId}), 'Prompt')}
                                         </>
                                     )}
 

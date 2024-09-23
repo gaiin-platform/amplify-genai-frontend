@@ -24,6 +24,8 @@ import { isRemoteConversation } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation, fetchMultipleRemoteConversations, uploadConversation } from '@/services/remoteConversationService';
 import { saveConversations } from "@/utils/app/conversation";
 import { getDateName } from "@/utils/app/date";
+import { LoadingIcon } from "@/components/Loader/LoadingIcon";
+
 
 interface Props {
     label: string; 
@@ -43,9 +45,19 @@ interface Props {
     const [allItemsChecked, setAllItemsChecked] = useState<boolean>(false);
 
     const {
-        state: { statsService, selectedAssistant, defaultModelId, checkedItems, folders, prompts, conversations, selectedConversation, checkingItemType}, handleDeleteFolder,
+        state: { statsService, selectedAssistant, defaultModelId, checkedItems, folders, prompts, conversations,
+                 selectedConversation, checkingItemType, syncingConversations, syncingPrompts}, handleDeleteFolder,
         dispatch: homeDispatch, handleCreateFolder, handleSelectConversation
     } = useContext(HomeContext);
+
+    const isConvSide = label === 'Conversations';
+
+    const [isSyncing, setIsSyncing] = useState<boolean>(isConvSide ? syncingConversations : syncingPrompts); 
+    
+
+    useEffect(() => {
+        setIsSyncing(((isConvSide && syncingConversations) || (!isConvSide && syncingPrompts)));
+    }, [syncingConversations, syncingPrompts]);
 
     const conversationsRef = useRef(conversations);
 
@@ -73,8 +85,7 @@ interface Props {
         checkedItemsRef.current = checkedItems;
     }, [checkedItems]);
 
-  
-    const isConvSide = label === 'Conversations';
+
 
     const checkIsActiveSide = () => {
         if (checkingItemType) {
@@ -265,10 +276,15 @@ interface Props {
     }
 
     return (
-        <div>
+        <>
         <div className="flex items-center border-b dark:border-white/20" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}>
           <div className="pb-1 flex w-full text-lg ml-1 text-black dark:text-neutral-200 flex items-center">
             {label} 
+            { isSyncing && 
+                <label className="flex flex-row gap-1 text-xs ml-auto mr-1">
+                    <LoadingIcon style={{ width: "14px", height: "14px" }}/>
+                    Syncing...
+                </label>}
           </div>
             {actionItem && checkIsActiveSide() && (
                 <div className="text-xs flex flex-row gap-1">
@@ -314,6 +330,7 @@ interface Props {
                     />
                 </div> :
                 <button
+                    disabled={isSyncing}
                     className={`outline-none focus:outline-none p-0.5 ${isMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
                     onClick={toggleDropdown}>
                     <IconDotsVertical size={20} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"/>
@@ -438,7 +455,7 @@ interface Props {
             </div>
           </div>
         }
-        </div>
+        </>
       );
       
 }

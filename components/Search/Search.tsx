@@ -7,8 +7,9 @@ interface Props {
   placeholder: string;
   searchTerm: string;
   onSearch: (searchTerm: string) => void;
+  disabled?: boolean;
 }
-const Search: FC<Props> = ({ placeholder, searchTerm, onSearch }) => {
+const Search: FC<Props> = ({ placeholder, searchTerm, onSearch, disabled=false}) => {
   const { t } = useTranslation('sidebar');
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -27,6 +28,7 @@ const Search: FC<Props> = ({ placeholder, searchTerm, onSearch }) => {
         placeholder={t(placeholder) || ''}
         value={searchTerm}
         onChange={handleSearchChange}
+        disabled={disabled}
       />
 
       {searchTerm && (

@@ -11,7 +11,6 @@
     # ---- Dependencies ----
     FROM base AS dependencies
     USER appuser
-
     
     # Install dependencies and update packages
     RUN npm ci
@@ -27,6 +26,7 @@
     # Update and upgrade packages to ensure patching in the production stage
     RUN apk update && apk upgrade && \
         addgroup -S appgroup && adduser -S appuser -G appgroup
+    
     WORKDIR /app
     
     # Copy node_modules from the "dependencies" stage
@@ -39,13 +39,18 @@
     COPY --chown=appuser:appgroup --from=build /app/next.config.js ./next.config.js
     COPY --chown=appuser:appgroup --from=build /app/next-i18next.config.js ./next-i18next.config.js
     
-    # Cleanup virtual builds dependencies in production image
-    
     # Use the new "appuser"
     USER appuser
+    
+    # Set NODE_ENV to production
+    ENV NODE_ENV=production
+    
+    # Create a writable volume for temporary files
+    VOLUME /tmp
     
     # Expose the port the app will run on
     EXPOSE 3000
     
     # Start the application
     CMD ["npm", "start"]
+    

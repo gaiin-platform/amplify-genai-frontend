@@ -1,8 +1,7 @@
 import {useContext, useEffect, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import {IconKey, IconUser} from "@tabler/icons-react";
-import styled, {keyframes} from "styled-components";
-import {FiCommand} from "react-icons/fi";
+import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { useSession } from "next-auth/react"
 import { formatRateLimit, RateLimit } from "@/types/rateLimit";
 import { formatAccessTypes, HiddenAPIKey } from "@/components/Settings/AccountComponents/ApiKeys";
@@ -10,22 +9,6 @@ import ExpansionComponent from "../ExpansionComponent";
 import { Account } from "@/types/accounts";
 import { createApiKey, deactivateApiKey, updateApiKeys } from "@/services/apiKeysService";
 
-
-
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
-
-const LoadingIcon = styled(FiCommand)`
-  color: lightgray;
-  font-size: 1rem;
-  animation: ${animate} 2s infinite;
-`;
 
 interface KeyData {
     id: string;

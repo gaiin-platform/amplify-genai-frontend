@@ -20,7 +20,7 @@ import {useTranslation} from 'next-i18next';
 import { saveConversations} from '@/utils/app/conversation';
 import {throttle} from '@/utils/data/throttle';
 
-import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
+import {Conversation, DataSource, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -49,12 +49,15 @@ import {MemoizedRemoteMessages} from "@/components/Chat/MemoizedRemoteMessages";
 import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
 import {useSendService} from "@/hooks/useChatSendService";
-import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection, isRemoteConversation } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import { callRenameChat } from './RenameChat';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
+import { GroupTypeSelector } from './GroupTypeSelector';
+// import { Artifacts } from './Artifacts/Artifacts';
+import { LoadingDialog } from '../Loader/LoadingDialog';
+import { downloadDataSourceFile } from '@/utils/app/files';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -97,7 +100,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 folders
             },
             handleUpdateConversation,
-            handleCustomLinkClick,
             dispatch: homeDispatch,
             handleAddMessages: handleAddMessages
         } = useContext(HomeContext);
@@ -121,8 +123,32 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         useEffect(() => {
             conversationsRef.current = conversations;
         }, [conversations]);
+    
 
+        const {handleSend:handleSendService} = useSendService();
+        const [selectedModelId, setSelectedModelId] = useState<OpenAIModelID | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id );
+        const [currentMessage, setCurrentMessage] = useState<Message>();
+        const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
+        const [showSettings, setShowSettings] = useState<boolean>(false);
+        const [isPromptTemplateDialogVisible, setIsPromptTemplateDialogVisible] = useState<boolean>(false);
+        const [isDownloadDialogVisible, setIsDownloadDialogVisible] = useState<boolean>(false);
+        const [isShareDialogVisible, setIsShareDialogVisible] = useState<boolean>(false);
+        const [variables, setVariables] = useState<string[]>([]);
+        const [showScrollDownButton, setShowScrollDownButton] =
+            useState<boolean>(false);
+        const [promptTemplate, setPromptTemplate] = useState<Prompt | null>(null);
+        const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
+        const [isDownloadingFile, setIsDownloadingFile] = useState<boolean>(false);
+
+
+        const messagesEndRef = useRef<HTMLDivElement>(null);
+        const chatContainerRef = useRef<HTMLDivElement>(null);
+        const textareaRef = useRef<HTMLTextAreaElement>(null);
+        const modelSelectRef = useRef<HTMLDivElement>(null);
+        const [isArtifactOpen, setIsArtifactOpen] = useState<boolean>(false);
+        const [artifactIndex, setArtifactIndex] = useState<number>(0);
         const [isRenaming, setIsRenaming] = useState<boolean>(false);
+
 
         useEffect(() => {
 
@@ -140,7 +166,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             field: 'selectedConversation',
                             value: updatedConversation,
                         });
-                        console.log("Rename chat: ", customName)
+                        // console.log("Rename chat: ", customName)
                         
                         if (isRemoteConversation(updatedConversation)) uploadConversation(updatedConversation, foldersRef.current);
 
@@ -161,27 +187,33 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (selectedConversation?.messages.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
 
         }, [selectedConversation]);
-    
-
-        const {handleSend:handleSendService} = useSendService();
 
 
-        const [currentMessage, setCurrentMessage] = useState<Message>();
-        const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
-        const [showSettings, setShowSettings] = useState<boolean>(false);
-        const [isPromptTemplateDialogVisible, setIsPromptTemplateDialogVisible] = useState<boolean>(false);
-        const [isDownloadDialogVisible, setIsDownloadDialogVisible] = useState<boolean>(false);
-        const [isShareDialogVisible, setIsShareDialogVisible] = useState<boolean>(false);
-        const [variables, setVariables] = useState<string[]>([]);
-        const [showScrollDownButton, setShowScrollDownButton] =
-            useState<boolean>(false);
-        const [promptTemplate, setPromptTemplate] = useState<Prompt | null>(null);
-        const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
+        useEffect(() => {
+            const handleEvent = (event:any) => {
+                const detail = event.detail;
+                setIsArtifactOpen(detail.isOpen);  
+                setArtifactIndex(detail.artifactIndex);
+            };
+            window.addEventListener('openArtifactsTrigger', handleEvent);
+            return () => {
+                window.removeEventListener('openArtifactsTrigger', handleEvent);
+            };
+        }, []);
 
-        const messagesEndRef = useRef<HTMLDivElement>(null);
-        const chatContainerRef = useRef<HTMLDivElement>(null);
-        const textareaRef = useRef<HTMLTextAreaElement>(null);
-        const modelSelectRef = useRef<HTMLDivElement>(null);
+
+        useEffect(() =>{
+            if (selectedAssistant?.definition?.data?.model) {
+                setSelectedModelId(selectedAssistant.definition.data.model);
+                selectedConversation && handleUpdateConversation(selectedConversation, {
+                                            key: 'model',
+                                            value: models.find(
+                                            (model: OpenAIModel) => model.id === selectedAssistant?.definition?.data?.model,
+                                            ),
+                                        });
+            }
+            if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) setSelectedModelId(selectedConversation?.model?.id as OpenAIModelID);
+        }, [selectedAssistant]);
 
         const updateMessage = (selectedConversation: Conversation, updatedMessage: Message, updateIndex: number) => {
             let updatedConversation = {
@@ -309,37 +341,62 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }
 
-        const onLinkClick = (message: Message, href: string) => {
+        const handleDownloadFile = async (message: Message, filename: string) => {
+            setIsDownloadingFile(true);
 
-            // This should all be refactored into a separate module at some point
-            // ...should really be looking up the handler by category/action and passing
+            const sources = Object.values(message.data.state.sources);
+            let ds: DataSource | undefined= undefined;
+            let groupId = undefined;
+            for (const sourceType of sources as any[]) {
+                const sourceValues: any = Object.values(sourceType.sources);
+                for (const subSource of sourceValues) {
+                    if (subSource.contentKey && filename === subSource.name.replace(/&/g, ' ')) {
+                        ds = {id: subSource.contentKey, name: subSource.name, type: subSource.type}
+                        if (subSource.groupId) groupId = subSource.groupId;
+                        break;
+                    }
+                }
+                if (ds) {
+                    await downloadDataSourceFile(ds, groupId);
+                    break; 
+                }
+            }
 
-            statsService.customLinkClickEvent(message, href);
+            setIsDownloadingFile(false);
+        }
 
-            // it some sort of context
+        // This should all be refactored into a separate module at some point
+        // ...should really be looking up the handler by category/action and passing
+        // --jules
+        const handleCustomLinkClick = (message: Message, href: string) => {
+             statsService.customLinkClickEvent(message, href);
             if (selectedConversation) {
                 let [category, action_path] = href.slice(1).split(":");
-                let [action, path] = action_path.split("/");
 
-                if (category === "chat") {
-                    if (action === "send") {
-                        const content = path;
-                        const request = createChatRequest(newMessage({role: 'user', content: content}), 0, null);
-                        handleSend(request);
-                    } else if (action === "template") {
-                        const name = path;
+                switch (category) {
+                    case ("chat"):
+                        let [action, path] = action_path.split("/");
+                        if (action === "send") {
+                            const content = path;
+                            const request = createChatRequest(newMessage({role: 'user', content: content}), 0, null);
+                            handleSend(request);
+                        } else if (action === "template") {
+                            const name = path;
+                            const prompt = promptsRef.current.find((p:Prompt) => p.name === name);
 
-                        const prompt = promptsRef.current.find((p:Prompt) => p.name === name);
-
-                        if (prompt) {
-                            runPrompt(prompt);
+                            if (prompt) {
+                                runPrompt(prompt);
+                            }
                         }
-                    }
-                } else {
-                    handleCustomLinkClick(selectedConversationRef.current || selectedConversation, href,
-                        {message: message, conversation: selectedConversation}
-                    );
-                }
+                        break;
+                    case ("dataSource"):
+                        handleDownloadFile(message, action_path);
+                        break;
+                    default:
+                        console.log(`handleCustomLinkClick ${category}:${action_path}`);
+
+                } 
+                
             }
         }
 
@@ -446,16 +503,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 const assistantInUse = getAssistantFromMessage(message) ||
                     (selectedAssistant ? selectedAssistant?.definition : null);
 
-                console.log("Assistant in use", assistantInUse, message);
+                // console.log("Assistant in use", assistantInUse, message);
+                // console.log("conv", selectedConversation);
+
 
                 if (assistantInUse) {
                     let options = {
                         assistantName: assistantInUse.name,
-                        assistantId: assistantInUse.assistantId ,
+                        assistantId: assistantInUse.assistantId,
+                        groupId:  selectedAssistant?.definition.groupId,
+                        groupType: selectedConversation?.groupType 
                     };
 
                     message.data = {...message.data, assistant: {definition: {
                         assistantId: assistantInUse.assistantId,
+                        groupId: selectedAssistant?.definition.groupId,
                                 name: assistantInUse.name,
                             ...(assistantInUse.uri ? {uri: assistantInUse.uri} : {}),
                     }}};
@@ -778,11 +840,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         if (result && result.item && result.item["MTD Cost"] !== undefined) {
                             setMtdCost(`$${result.item["MTD Cost"].toFixed(2)}`);
                         } else {
-                            setMtdCost('Error');
+                            setMtdCost('$0.00');
                         }
                     } catch (error) {
                         console.error("Error fetching MTD cost:", error);
-                        setMtdCost('Error');
+                        setMtdCost('$0.00');
                     } finally {
                         isFetching = false;
                     }
@@ -798,11 +860,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
 // @ts-ignore
         return (
+            <>
             <div className="relative flex-1 overflow-hidden bg-neutral-100 dark:bg-[#343541]">
                 { modelError ? (
                     <ErrorMessageDiv error={modelError}/>
                 ) : (
-                    <>
+                    <div >
                         <div
                             className="container max-h-full overflow-x-hidden" style={{height: window.innerHeight * 0.94}}
                             ref={chatContainerRef}
@@ -821,6 +884,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             ) : (
                                                 'Start a new conversation.'
                                             )}
+                                            
                                         </div>
 
                                         {models.length > 0 && (
@@ -829,7 +893,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 
                                                 <div className="relative flex flex-row w-full items-center"> 
                                                     <div className="flex-grow">
-                                                        <ModelSelect/>
+                                                        <ModelSelect modelId={selectedModelId} isDisabled={selectedAssistant?.definition?.data?.model}/>
                                                     </div>
 
                                                     {featureFlags.storeCloudConversations && <div className="mt-[-5px] absolute top-0 right-0 flex justify-end items-center">
@@ -838,45 +902,62 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     
                                                 </div>
                                                 
-                                                
-                                                <SystemPrompt
-                                                    models={models}
-                                                    handleUpdateModel={handleUpdateModel}
-                                                    conversation={selectedConversation}
-                                                    prompts={promptsRef.current}
-                                                    onChangePrompt={(prompt) =>
-                                                        handleUpdateConversation(selectedConversation, {
-                                                            key: 'prompt',
-                                                            value: prompt,
-                                                        })
-                                                    }
-                                                />
-
-                                                <TemperatureSlider
-                                                    label={t('Temperature')}
-                                                    onChangeTemperature={(temperature) =>
-                                                        handleUpdateConversation(selectedConversation, {
-                                                            key: 'temperature',
-                                                            value: temperature,
-                                                        })
-                                                    }
-                                                />
-
-                                                <ResponseTokensSlider
-                                                    label={t('Response Length')}
-                                                    onResponseTokenRatioChange={(r) => {
-                                                        if (selectedConversation && selectedConversation.model) {
-
-                                                            const tokens = Math.floor(1000 * (r / 3.0)) + 1;
-
+                                                { selectedAssistant?.definition?.data?.groupTypeData && Object.keys(selectedAssistant?.definition?.data?.groupTypeData).length > 0 ? 
+                                                    <>
+                                                        <GroupTypeSelector
+                                                            groupOptionsData={selectedAssistant.definition.data.groupTypeData}
+                                                            setSelected={(type: string | undefined) => {
+                                                                // set selectedConversations with type
+                                                                homeDispatch({ field: 'selectedConversation', value: {...selectedConversation, groupType: type} })
+                                                                handleUpdateConversation(selectedConversation, {
+                                                                    key: 'groupType',
+                                                                    value: type,
+                                                                }) 
+                                                            }}
+                                                            groupUserTypeQuestion={selectedAssistant.definition.data.groupUserTypeQuestion}
+                                                        />
+                                                        
+                                                    </> :
+                                                    <>
+                                                    <SystemPrompt
+                                                        models={models}
+                                                        handleUpdateModel={handleUpdateModel}
+                                                        conversation={selectedConversation}
+                                                        prompts={promptsRef.current}
+                                                        onChangePrompt={(prompt) =>
                                                             handleUpdateConversation(selectedConversation, {
-                                                                key: 'maxTokens',
-                                                                value: tokens,
+                                                                key: 'prompt',
+                                                                value: prompt,
                                                             })
                                                         }
-                                                    }}
-                                                />
+                                                    />
 
+                                                    <TemperatureSlider
+                                                        label={t('Temperature')}
+                                                        onChangeTemperature={(temperature) =>
+                                                            handleUpdateConversation(selectedConversation, {
+                                                                key: 'temperature',
+                                                                value: temperature,
+                                                            })
+                                                        }
+                                                    />
+
+                                                    <ResponseTokensSlider
+                                                        label={t('Response Length')}
+                                                        onResponseTokenRatioChange={(r) => {
+                                                            if (selectedConversation && selectedConversation.model) {
+
+                                                                const tokens = Math.floor(1000 * (r / 3.0)) + 1;
+
+                                                                handleUpdateConversation(selectedConversation, {
+                                                                    key: 'maxTokens',
+                                                                    value: tokens,
+                                                                })
+                                                            }
+                                                        }}
+                                                    />
+                                                    </>
+                                                }
                                                 {isPromptTemplateDialogVisible && selectedConversation.promptTemplate && (
                                                     <VariableModal
                                                         models={models}
@@ -918,6 +999,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         includeFolders={false}
                                         selectedConversations={selectedConversation ? [selectedConversation] : []}
                                     />
+
+                                    <LoadingDialog open={isDownloadingFile} message={"Downloading File..."}/>
                                     
                                     {isDownloadDialogVisible && (
                                         <DownloadModal
@@ -934,7 +1017,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     )}
                                     <div
                                        className="items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
-                                        {featureFlags.mtdCost && (
+                                        {featureFlags.mtdCost && !isArtifactOpen && (
                                             <>
                                                 <button
                                                     className="ml-2 mr-2 cursor-pointer hover:opacity-50"
@@ -952,8 +1035,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 |
                                             </>
                                         )}
-                                        {t(' Workspace: ' + workspaceMetadata.name)} | {selectedConversation?.model.name} | {t('Temp')}
-                                        : {selectedConversation?.temperature} |
+                                        {t(' Workspace: ' + workspaceMetadata.name)} | { selectedAssistant?.definition?.data?.model ? OpenAIModels[selectedAssistant.definition.data.model as OpenAIModelID].name : selectedConversation?.model.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={(e) => {
@@ -1002,32 +1084,37 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         {featureFlags.storeCloudConversations &&
                                         <CloudStorage iconSize={18} />
                                         }
-
-                                        |
-                                        <button
-                                            className="ml-2 mr-2 cursor-pointer hover:opacity-50"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                homeDispatch({field: 'page', value: 'home'});
-                                            }}
-                                            title="Data Sources"
-                                        >
-                                            <div className="flex flex-row items-center ml-2
-                                            bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
-                                                <div><IconRocket size={18}/></div>
-                                                <div className="ml-1">Data Sources </div>
-                                            </div>
-                                        </button>
+                                        {!isArtifactOpen  &&
+                                            <>
+                                            |
+                                            <button
+                                                className="ml-2 mr-2 cursor-pointer hover:opacity-50"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    homeDispatch({field: 'page', value: 'home'});
+                                                }}
+                                                title="Data Sources"
+                                            >
+                                                <div className="flex flex-row items-center ml-2
+                                                bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
+                                                    <div><IconRocket size={18}/></div>
+                                                    <div className="ml-1">Data Sources </div>
+                                                </div>
+                                            </button> 
+                                            </>
+                                        }
                                     </div>
                                     <div ref={modelSelectRef}></div>
-                                    {showSettings && (
+                                    
                                         <div
                                             className="flex flex-col md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
-                                            <div
-                                                className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border">
-                                                <ModelSelect/>
-                                            </div>
+                                            { showSettings && !(selectedAssistant?.definition?.data?.model) &&
+                                                <div
+                                                    className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border">
+                                                    <ModelSelect modelId={selectedModelId}/>
+                                                </div>
+                                            }
                                             <div
                                                 className="border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border">
                                                 <TagsList tags={selectedConversation?.tags || []} setTags={
@@ -1043,7 +1130,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             }/>
                                         </div>
                                         </div>
-                                    )}
+                                    
 
 
                                     {selectedConversation?.messages.map((message: Message, index: number) => (
@@ -1059,7 +1146,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     routeMessage(message[0], 0, null, []);
                                                 }}
                                                 onSendPrompt={runPrompt}
-                                                handleCustomLinkClick={onLinkClick}
+                                                handleCustomLinkClick={handleCustomLinkClick}
                                                 onEdit={(editedMessage) => {
                                                     console.log("Editing message", editedMessage);
 
@@ -1085,7 +1172,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     routeMessage(message[0], 0, null, []);
                                                 }}
                                                 onSendPrompt={runPrompt}
-                                                handleCustomLinkClick={onLinkClick}
+                                                handleCustomLinkClick={handleCustomLinkClick}
                                                 onEdit={(editedMessage) => {
                                                     console.log("Editing message", editedMessage);
 
@@ -1144,9 +1231,16 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             }}
                             showScrollDownButton={showScrollDownButton}
                         />
-                    </>
+                    </div>
                 )}
             </div>
+
+            {/* Artifacts */}
+            {/* {(featureFlags.artifacts && isArtifactOpen) &&  (
+                <Artifacts artifactIndex={artifactIndex}/>
+            )} */}
+
+            </>
         );
     });
     

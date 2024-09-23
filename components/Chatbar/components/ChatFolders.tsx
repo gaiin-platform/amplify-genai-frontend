@@ -33,9 +33,9 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
 
 
     const filteredFolders = searchTerm ?
-          foldersRef.current.filter((folder:FolderInterface) => {
-            return conversations.some((conversation) => conversation.folderId === folder.id)})
-                                      : foldersRef.current;
+          folders.filter((folder:FolderInterface) => {
+            return conversations.some((conversation) => conversation.folderId === folder.id)
+          }) : folders;
 
 
 

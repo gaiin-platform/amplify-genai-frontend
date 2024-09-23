@@ -15,7 +15,7 @@ export const saveDataDisclosureDecision = async (email: string, acceptedDataDisc
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, acceptedDataDisclosure }),
+        body: JSON.stringify({data: { email: email, acceptedDataDisclosure: acceptedDataDisclosure }}),
         signal: abortSignal,
     });
 

@@ -137,9 +137,9 @@ const Folder = ({
           {isRenaming ? (
             <div className="flex w-full items-center gap-3 bg-neutral-200 dark:bg-[#343541]/90 p-3 rounded">
               {isOpen ? (
-                <IconCaretDown size={18} />
+                <IconCaretDown className='flex flex-shrink-0' size={18} />
               ) : (
-                <IconCaretRight size={18} />
+                <IconCaretRight className='flex flex-shrink-0' size={18} />
               )}
               <input
                 className="mr-12 flex-1 overflow-hidden overflow-ellipsis border-neutral-400 bg-transparent text-left text-[12.5px] leading-3 dark:text-white outline-none focus:border-neutral-100"
@@ -166,7 +166,7 @@ const Folder = ({
                 <IconCaretRight size={18} />
               )}
 
-              <div className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">
+              <div className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
                 {currentFolder.name}
               </div>
             </button>
@@ -214,7 +214,7 @@ const Folder = ({
             </div>
           )}
 
-          {!isDeleting && !isRenaming && isHovered && !checkFolders && (
+          {!isDeleting && !isRenaming && isHovered && !checkFolders && !currentFolder.isGroupFolder && (
             <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
               <SidebarActionButton
                 handleClick={(e) => {

@@ -14,7 +14,6 @@ import ChatbarContext from '../Chatbar.context';
 import {AccountDialog} from "@/components/Settings/AccountComponents/AccountDialog";
 import { StorageDialog } from '@/components/Settings/StorageDialog';
 
-
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
     const [isSettingDialogOpen, setIsSettingDialog] = useState<boolean>(false);
@@ -49,6 +48,18 @@ export const ChatbarSettings = () => {
                     setIsAccountDialogVisible(true)
                 }}
             />
+
+            {featureFlags.assistantAdminInterface && 
+                <SidebarButton
+                    text={t('Assistant Admin Interface')}
+                    icon={<IconSettings size={18} />}
+                    onClick={() => {
+                        // send trigger to close side bars and open the interface 
+                        window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: true }} ));
+                      
+                    }}
+                />
+            }
 
             <Import onImport={handleImportConversations} />
 
@@ -99,11 +110,12 @@ export const ChatbarSettings = () => {
                     setIsAccountDialogVisible(false);
                 }}
             />
-            { featureFlags.storeCloudConversations && <StorageDialog
-                open={isStorageDialogVisible}
-                onClose={() => {
-                    setIsStorageDialogVisible(false);
-                }}
+            { featureFlags.storeCloudConversations && 
+                <StorageDialog
+                    open={isStorageDialogVisible}
+                    onClose={() => {
+                        setIsStorageDialogVisible(false);
+                    }}
             />}
 
         </div>

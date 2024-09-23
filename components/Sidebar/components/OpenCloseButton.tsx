@@ -3,9 +3,10 @@ import { IconArrowBarLeft, IconArrowBarRight } from '@tabler/icons-react';
 interface Props {
   onClick: any;
   side: 'left' | 'right';
+  isDisabled?:boolean;
 }
 
-export const CloseSidebarButton = ({ onClick, side }: Props) => {
+export const CloseSidebarButton = ({ onClick, side, isDisabled}: Props) => {
   return (
     <>
       <button
@@ -27,7 +28,7 @@ export const CloseSidebarButton = ({ onClick, side }: Props) => {
   );
 };
 
-export const OpenSidebarButton = ({ onClick, side }: Props) => {
+export const OpenSidebarButton = ({ onClick, side, isDisabled }: Props) => {
   return (
     <button
       className={`fixed top-2.5 ${
@@ -37,8 +38,9 @@ export const OpenSidebarButton = ({ onClick, side }: Props) => {
       } sm:h-8 sm:w-8 sm:text-neutral-700`}
       onClick={onClick}
       title="Expand Sidebar"
-    >
-      {side === 'right' ? <IconArrowBarLeft /> : <IconArrowBarRight />}
+      disabled={isDisabled}
+    > 
+      { !isDisabled && (side === 'right' ? <IconArrowBarLeft /> : <IconArrowBarRight />)}
     </button>
   );
 };
