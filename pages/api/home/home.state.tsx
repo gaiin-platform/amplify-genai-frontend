@@ -140,11 +140,11 @@ export const initialState: HomeInitialState = {
     codeInterpreterEnabled: true,
     dataDisclosure: true,
     storeCloudConversations: true,
-    qiSummary: true,
+    qiSummary: false,
     apiKeys: true,
     assistantAdminInterface: false,
-    mtdCost: true,
-    artifacts: false //true
+    artifacts: false, //true
+    mtdCost: false
   },
 
   statsService: noOpStatsServices,
