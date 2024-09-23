@@ -25,103 +25,185 @@ import { getDate, getDateName } from '@/utils/app/date';
 import { FolderInterface } from '@/types/folder';
 import { OpenAIModelID } from '@/types/openai';
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
+import { getGroupAssistantConversations } from '@/services/groupAssistantService';
+import { getGroupAssistantDashboards } from '@/services/groupAssistantService';
 
 
 interface Conversation {
-    user: string;
-    timestamp: string;
     assistantName: string;
-    numberOfPrompts: number;
+    user: string;
+    employeeType: string;
+    entryPoint: string;
+    numberPrompts: number;
+    modelUsed: string;
+    timestamp: string;
+    s3Location: string;
+    userRating: number;
+    systemRating: number;
     category: string;
-    rating: number;
-    conversationName: string;
+    userFeedback: string;
+    conversationId: string;
+    assistantId: string;
 }
 
 const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversations }) => {
+    const [sortColumn, setSortColumn] = useState<keyof Conversation | null>(null);
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+    if (conversations.length === 0) {
+        return <p>No conversations available</p>;
+    }
+
+    const columnOrder: (keyof Conversation)[] = [
+        'assistantName',
+        'user',
+        'employeeType',
+        'entryPoint',
+        'numberPrompts',
+        'modelUsed',
+        'timestamp',
+        'userRating',
+        'systemRating',
+        'category',
+        'userFeedback',
+        'conversationId',
+        'assistantId'
+    ];
+
+    const handleSort = (column: keyof Conversation) => {
+        if (sortColumn === column) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortColumn(column);
+            setSortDirection('asc');
+        }
+    };
+
+    const sortedConversations = [...conversations].sort((a, b) => {
+        if (sortColumn) {
+            const aValue = a[sortColumn];
+            const bValue = b[sortColumn];
+
+            // Handle empty, null, or undefined values
+            if (aValue == null && bValue == null) return 0;
+            if (aValue == null) return sortDirection === 'asc' ? 1 : -1;
+            if (bValue == null) return sortDirection === 'asc' ? -1 : 1;
+
+            // Special handling for specific columns
+            if (['modelUsed', 'category'].includes(sortColumn)) {
+                return sortDirection === 'asc'
+                    ? String(aValue).localeCompare(String(bValue))
+                    : String(bValue).localeCompare(String(aValue));
+            }
+
+            if (['userRating', 'systemRating'].includes(sortColumn)) {
+                return sortDirection === 'asc'
+                    ? Number(aValue) - Number(bValue)
+                    : Number(bValue) - Number(aValue);
+            }
+
+            // Default comparison for other columns
+            if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+        }
+        return 0;
+    });
+
     return (
-        <table className="w-full border-collapse text-black dark:text-white ">
-            <thead>
-                <tr>
-                    <th className="border px-4 py-2">User</th>
-                    <th className="border px-4 py-2">Timestamp</th>
-                    <th className="border px-4 py-2">Assistant Name</th>
-                    <th className="border px-4 py-2">Number of Prompts</th>
-                    <th className="border px-4 py-2">Category</th>
-                    <th className="border px-4 py-2">Rating</th>
-                    <th className="border px-4 py-2">Conversation Name</th>
-                </tr>
-            </thead>
-            <tbody>
-                {conversations.map((conv, index) => (
-                    <tr key={index}>
-                        <td className="border px-4 py-2">{conv.user}</td>
-                        <td className="border px-4 py-2">{conv.timestamp}</td>
-                        <td className="border px-4 py-2">{conv.assistantName}</td>
-                        <td className="border px-4 py-2">{conv.numberOfPrompts}</td>
-                        <td className="border px-4 py-2">{conv.category}</td>
-                        <td className="border px-4 py-2">{conv.rating}</td>
-                        <td className="border px-4 py-2">{conv.conversationName}</td>
+        <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
+            <table className="w-full border-collapse text-black dark:text-white">
+                <thead className="sticky top-0 bg-white dark:bg-gray-800">
+                    <tr>
+                        {columnOrder.map((key) => (
+                            <th
+                                key={key}
+                                className="border px-4 py-2 cursor-pointer"
+                                onClick={() => handleSort(key as keyof Conversation)}
+                            >
+                                {key}
+                                {sortColumn === key && (
+                                    <span className="ml-1">
+                                        {sortDirection === 'asc' ? '▲' : '▼'}
+                                    </span>
+                                )}
+                            </th>
+                        ))}
                     </tr>
-                ))}
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    {sortedConversations.map((conv) => (
+                        <tr key={conv.conversationId}>
+                            {columnOrder.map((key) => (
+                                <td key={key} className="border px-4 py-2">
+                                    {conv[key as keyof Conversation] !== undefined
+                                        ? typeof conv[key as keyof Conversation] === 'boolean'
+                                            ? conv[key as keyof Conversation].toString()
+                                            : conv[key as keyof Conversation]
+                                        : '-'}
+                                </td>
+                            ))}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
     );
 };
 
 interface DashboardMetrics {
-    categories: string[];
-    numberOfUsers: number;
-    numberOfConversations: number;
-    averageRating: number;
+    assistantId: string;
+    assistantName: string;
+    numUsers: number;
+    totalConversations: number;
     averagePromptsPerConversation: number;
-    employeeDepartmentDemographics: { [key: string]: number };
-    users: string[];
+    entryPointDistribution: { [key: string]: number };
+    categoryDistribution: { [key: string]: number };
+    employeeTypeDistribution: { [key: string]: number };
+    averageUserRating: number | null;
+    averageSystemRating: number | null;
 }
 
 const Dashboard: FC<{ metrics: DashboardMetrics }> = ({ metrics }) => {
     return (
         <div className="p-4 text-black dark:text-white">
-            <h2 className="text-2xl font-bold mb-4">Dashboard Metrics</h2>
+            <h2 className="text-2xl font-bold mb-4">Dashboard Metrics for {metrics.assistantName}</h2>
 
             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-                    <h3 className="text-lg font-semibold mb-2">Categories</h3>
+                    <h3 className="text-lg font-semibold mb-2">General Stats</h3>
+                    <p>Number of Unique Users: {metrics.numUsers}</p>
+                    <p>Number of Conversations: {metrics.totalConversations}</p>
+                    <p>Average Number of Prompts per Conversation: {metrics.averagePromptsPerConversation.toFixed(2)}</p>
+                    <p>Average User Rating: {metrics.averageUserRating ? metrics.averageUserRating.toFixed(2) : 'N/A'}</p>
+                    <p>Average System Rating: {metrics.averageSystemRating ? metrics.averageSystemRating.toFixed(2) : 'N/A'}</p>
+                </div>
+
+                <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+                    <h3 className="text-lg font-semibold mb-2">Entry Point Distribution</h3>
                     <ul>
-                        {metrics.categories.map((category, index) => (
-                            <li key={index}>{category}</li>
+                        {Object.entries(metrics.entryPointDistribution).map(([entryPoint, count]) => (
+                            <li key={entryPoint}>{entryPoint}: {count}</li>
                         ))}
                     </ul>
                 </div>
 
                 <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-                    <h3 className="text-lg font-semibold mb-2">User Stats</h3>
-                    <p>Number of Users: {metrics.numberOfUsers}</p>
-                    <p>Number of Conversations: {metrics.numberOfConversations}</p>
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-                    <h3 className="text-lg font-semibold mb-2">Conversation Metrics</h3>
-                    <p>Average Rating: {metrics.averageRating.toFixed(2)}</p>
-                    <p>Average Prompts per Conversation: {metrics.averagePromptsPerConversation.toFixed(2)}</p>
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-                    <h3 className="text-lg font-semibold mb-2">Employee Department Demographics</h3>
+                    <h3 className="text-lg font-semibold mb-2">Category Distribution</h3>
                     <ul>
-                        {Object.entries(metrics.employeeDepartmentDemographics).map(([dept, count]) => (
-                            <li key={dept}>{dept}: {count}</li>
+                        {Object.entries(metrics.categoryDistribution).map(([category, count]) => (
+                            <li key={category}>{category}: {count}</li>
                         ))}
                     </ul>
                 </div>
-            </div>
 
-            <div className="mt-4 bg-white dark:bg-gray-800 p-4 rounded shadow">
-                <h3 className="text-lg font-semibold mb-2">List of Users - Last Accessed</h3>
-                <ul className="grid grid-cols-3 gap-2">
-                    {metrics.users.map((user, index) => (
-                        <li key={index}>{`${user} - 2023-06-10`} </li>
-                    ))}
-                </ul>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+                    <h3 className="text-lg font-semibold mb-2">Employee Type Distribution</h3>
+                    <ul>
+                        {Object.entries(metrics.employeeTypeDistribution).map(([employeeType, count]) => (
+                            <li key={employeeType}>{employeeType}: {count}</li>
+                        ))}
+                    </ul>
+                </div>
             </div>
         </div>
     );
@@ -701,8 +783,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
 
     const [conversations, setConversations] = useState<Conversation[]>([]);
-    const [dashboardMetrics, setDashboardMetrics] = useState<{ [key: string]: DashboardMetrics }>({});
-    
+    const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics | null>(null);
 
     const [showCreateNewGroup, setShowCreateNewGroup] = useState<boolean>();
     const [showCreateGroupAssistant, setShowCreateGroupAssistant] = useState<string | null>(null);
@@ -758,22 +839,59 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
 
     useEffect(() => {
-        // this happens when the user has groups they are admin/moderators for
-        if (open) {
-            // setTimeout(() => {
-            
-                // Simulate fetching conversation data
-                setConversations([
-                    { user: 'User1', timestamp: '2023-06-01 10:00', assistantName: 'Assistant1', numberOfPrompts: 5, category: 'General', rating: 4, conversationName: 'Chat1' },
-                    { user: 'User2', timestamp: '2023-06-02 11:30', assistantName: 'Assistant2', numberOfPrompts: 3, category: 'Technical', rating: 5, conversationName: 'Chat2' },
-                    { user: 'User1', timestamp: '2023-06-01 10:00', assistantName: 'Assistant1', numberOfPrompts: 5, category: 'General', rating: 4, conversationName: 'Chat1' },
-                    { user: 'User2', timestamp: '2023-06-02 11:30', assistantName: 'Assistant2', numberOfPrompts: 3, category: 'Technical', rating: 5, conversationName: 'Chat2' },
-                ]);
+        const fetchConversations = async () => {
+            if (open && selectedAssistant) {
+                setLoadingMessage('Fetching conversations...');
+                const assistantId = selectedAssistant.data?.assistant?.definition.assistantId;
+                console.log('Assistant ID:', assistantId);
+                if (assistantId) {
+                    const result = await getGroupAssistantConversations(assistantId);
+                    console.log('Full result from service:', result);
+                    if (result.success) {
+                        let conversationsData;
+                        if (typeof result.data.body === 'string') {
+                            conversationsData = JSON.parse(result.data.body);
+                        } else {
+                            conversationsData = result.data.body;
+                        }
+                        console.log('Parsed conversations data:', conversationsData);
+                        setConversations(Array.isArray(conversationsData) ? conversationsData : []);
+                    } else {
+                        console.error('Failed to fetch conversations:', result.message);
+                        setConversations([]);
+                    }
+                } else {
+                    console.error('Assistant ID is undefined');
+                }
+                setLoadingMessage('');
+            }
+        };
 
-            if (!syncingPrompts) setLoadingMessage('');
-            // }, 1000);
-        }
-    }, [open]);
+        fetchConversations();
+    }, [open, selectedAssistant]);
+
+    useEffect(() => {
+        const fetchDashboardData = async () => {
+            if (open && selectedAssistant) {
+                setLoadingMessage('Fetching dashboard data...');
+                const assistantId = selectedAssistant.data?.assistant?.definition.assistantId;
+                if (assistantId) {
+                    const result = await getGroupAssistantDashboards(assistantId);
+                    if (result && result.success) {
+                        setDashboardMetrics(result.data.dashboardData);
+                    } else {
+                        console.error('Failed to fetch dashboard data:', result?.message || 'Unknown error');
+                        setDashboardMetrics(null);
+                    }
+                } else {
+                    console.error('Assistant ID is undefined');
+                }
+                setLoadingMessage('');
+            }
+        };
+
+        fetchDashboardData();
+    }, [open, selectedAssistant]);
 
 
     const groupCreate = async (group: any) => {
@@ -960,29 +1078,16 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
             case 'conversations':
                 return ( selectedAssistant ? <ConversationTable conversations={conversations} /> : <></>);
             case 'dashboard':
+                console.log('Current dashboardMetrics:', dashboardMetrics);
+                console.log('Current selectedAssistant:', selectedAssistant);
                 return (
-                // ( selectedAssistant ? dashboardMetrics[selectedAssistant?.id || ''] 
-                //         : (<div className="text-black dark:text-white">No dashboard data available for {selectedAssistant?.name}</div>)
-                   
-                    <Dashboard metrics={ 
-                        {
-                            categories: ['General', 'Technical', 'Support'],
-                            numberOfUsers: 100,
-                            numberOfConversations: 500,
-                            averageRating: 4.5,
-                            averagePromptsPerConversation: 7.3,
-                            employeeDepartmentDemographics: {
-                                'IT': 30,
-                                'HR': 15,
-                                'Sales': 25,
-                                'Marketing': 20,
-                                'Finance': 10
-                            },
-                            users: ['User1', 'User2', 'User3', 'User4', 'User5']
-                        }
-                    }
-                        />
-            )
+                    selectedAssistant && dashboardMetrics ?
+                        <Dashboard metrics={dashboardMetrics} /> :
+                        <div className="text-black dark:text-white">
+                            No dashboard data available for {selectedAssistant?.name}
+                            (Assistant ID: {selectedAssistant?.data?.assistant?.definition.assistantId})
+                        </div>
+            );
                 
                
             case 'edit_assistant':
