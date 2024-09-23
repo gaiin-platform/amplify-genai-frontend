@@ -28,6 +28,8 @@ import DataSourcesBlock from "@/components/Chat/ChatContentBlocks/DataSourcesBlo
 import ChatCodeInterpreterFileBlock from './ChatContentBlocks/ChatCodeInterpreterFilesBlock';import { uploadConversation } from '@/services/remoteConversationService';
 import { isRemoteConversation } from '@/utils/app/conversationStorage';
 import { downloadDataSourceFile } from '@/utils/app/files';
+import { Stars } from './Stars';
+import { saveUserRating } from '@/services/groupAssistantService';
 
 
 export interface Props {
@@ -82,6 +84,9 @@ export const ChatMessage: FC<Props> = memo(({
     const [messagedCopied, setMessageCopied] = useState(false);
     const [editSelection, setEditSelection] = useState<string>("");
     const divRef = useRef<HTMLDivElement>(null);
+    const [currentRating, setCurrentRating] = useState<number | undefined>(message.data?.rating);
+    const [showFeedbackInput, setShowFeedbackInput] = useState(false);
+    const [feedbackText, setFeedbackText] = useState('');
 
     const assistantRecipient = (message.role === "user" && message.data && message.data.assistant) ?
         message.data.assistant : null;
@@ -223,6 +228,45 @@ export const ChatMessage: FC<Props> = memo(({
                                                     </span>);
         }
     }
+
+    const handleRatingSubmit = (r: number) => {
+        setCurrentRating(r);
+        if (onEdit && selectedConversation) {
+            const updatedMessage = { ...message, data: { ...message.data, rating: r } };
+            onEdit(updatedMessage);
+
+            saveUserRating(selectedConversation.id, r)
+                .then((result) => {
+                    if (!result.success) {
+                        console.error('Failed to save user rating');
+                    } else {
+                        setShowFeedbackInput(true);
+                    }
+                })
+                .catch((error) => {
+                    console.error('Error saving user rating');
+                });
+        }
+    };
+
+    const handleFeedbackSubmit = () => {
+        if (selectedConversation && currentRating !== undefined) {
+            saveUserRating(selectedConversation.id, currentRating, feedbackText)
+                .then((result) => {
+                    if (result.success) {
+                        setShowFeedbackInput(false);
+                        setFeedbackText('');
+                    } else {
+                        console.error('Failed to save user feedback');
+                    }
+                })
+                .catch((error) => {
+                    console.error('Error saving user feedback');
+                });
+        } else {
+            console.error('No rating available or conversation not selected');
+        }
+    };
 
     // @ts-ignore
     return (
@@ -459,13 +503,33 @@ export const ChatMessage: FC<Props> = memo(({
                                     onSendPrompt(p)
                                 }}/>
                             )}
-                            {/*{(messageIsStreaming || isEditing) ? null : (*/}
-                            {/*    <Stars starRating={message.data && message.data.rating || 0} setStars={(r) => {*/}
-                            {/*        if (onEdit) {*/}
-                            {/*            onEdit({...message, data: {...message.data, rating: r}});*/}
-                            {/*        }*/}
-                            {/*    }}/>*/}
-                            {/*)}*/}
+                            {message.data?.state?.currentAssistantId && message.data?.state?.currentAssistantId.startsWith('astgp') && !messageIsStreaming && !isEditing && (
+                                <>
+                                    <Stars
+                                        starRating={message.data?.rating || 0}
+                                        setStars={handleRatingSubmit}
+                                    />
+                                    {showFeedbackInput && (
+                                        <div className="mt-2">
+                                            <textarea
+                                                className="w-full p-2 border rounded bg-white text-gray-800 dark:bg-gray-700 dark:text-white"
+                                                value={feedbackText}
+                                                onChange={(e) => setFeedbackText(e.target.value)}
+                                                placeholder="Please provide any additional feedback"
+                                            />
+                                            <button
+                                                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded"
+                                                onClick={() => {
+                                                    handleFeedbackSubmit();
+                                                    setShowFeedbackInput(false);
+                                                }}
+                                            >
+                                                Submit Feedback
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
+                            )}
                             {(messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1) ?
                                 // <LoadingIcon />
                                 <Loader type="ping" size="48"/>
