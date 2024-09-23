@@ -54,11 +54,8 @@ const AutonomousBlock: React.FC<Props> = (
             featureFlags,
             workspaceMetadata
         },
-        handleUpdateConversation,
-        handleStopConversation,
         shouldStopConversation,
         handleCreateFolder,
-        handleCustomLinkClick,
         dispatch: homeDispatch,
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);

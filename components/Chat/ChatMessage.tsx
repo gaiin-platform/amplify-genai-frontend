@@ -30,6 +30,7 @@ import { isRemoteConversation } from '@/utils/app/conversationStorage';
 import { downloadDataSourceFile } from '@/utils/app/files';
 import { Stars } from './Stars';
 import { saveUserRating } from '@/services/groupAssistantService';
+// import { ArtifactsBlock } from './ChatContentBlocks/ArtifactsBlock';
 
 
 export interface Props {
@@ -55,7 +56,7 @@ export const ChatMessage: FC<Props> = memo(({
     const {t} = useTranslation('chat');
 
     const {
-        state: {selectedConversation, conversations,messageIsStreaming, status, folders},
+        state: {selectedConversation, conversations,messageIsStreaming, status, folders, featureFlags},
         dispatch: homeDispatch,
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
@@ -174,7 +175,6 @@ export const ChatMessage: FC<Props> = memo(({
     const handleDownload = async (dataSource: DataSource) => {
         //alert("Downloading " + dataSource.name + " from " + dataSource.id);
         try {
-            
             setIsFileDownloadDatasourceVisible(true);
             downloadDataSourceFile(dataSource);
             
@@ -329,10 +329,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         {isActionResult && (
                                             <ChatSourceBlock
                                                 messageIsStreaming={messageIsStreaming}
-                                                messageIndex={messageIndex}
                                                 message={message}
-                                                selectedConversation={selectedConversation}
-                                                handleCustomLinkClick={handleCustomLinkClick}
                                             />
                                         )}
                                     </div>
@@ -411,6 +408,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         <PromptingStatusDisplay statusHistory={status}/>
                                     )}
                                     {!isEditing && (
+                                         <> 
                                         <div className="flex flex-grow"
                                              ref={divRef}
                                         >
@@ -422,24 +420,21 @@ export const ChatMessage: FC<Props> = memo(({
                                                 handleCustomLinkClick={handleCustomLinkClick}
                                             />
                                         </div>
-                                    )}
-                                    {!isEditing && (
+                                       
+                                        {/* {featureFlags.artifacts && 
+                                        <ArtifactsBlock 
+                                            message={message}
+                                        />} */}
+
                                         <ChatCodeInterpreterFileBlock
                                             messageIsStreaming={messageIsStreaming}
-                                            messageIndex={messageIndex}
                                             message={message}
-                                            selectedConversation={selectedConversation}
-                                            handleCustomLinkClick={handleCustomLinkClick}
                                         />
-                                    )}
-                                    {!isEditing && (
                                         <ChatSourceBlock
                                             messageIsStreaming={messageIsStreaming}
-                                            messageIndex={messageIndex}
                                             message={message}
-                                            selectedConversation={selectedConversation}
-                                            handleCustomLinkClick={handleCustomLinkClick}
                                         />
+                                        </>
                                     )}
                                     {isEditing && (
                                         <AssistantMessageEditor

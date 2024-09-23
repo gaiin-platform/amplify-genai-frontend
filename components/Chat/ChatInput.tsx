@@ -43,7 +43,6 @@ import { createQiSummary } from '@/services/qiService';
 import MessageSelectModal from './MesssageSelectModal';
 import cloneDeep from 'lodash/cloneDeep';
 import FeaturePlugins from './FeaturePlugins';
-import {optimizePrompt} from "@/services/promptOptimizerService";
 import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
 
 interface Props {
@@ -70,10 +69,32 @@ export const ChatInput = ({
     const {killRequest} = useChatService();
 
     const {
-        state: {selectedConversation, selectedAssistant, messageIsStreaming, prompts, models, featureFlags, currentRequestId, chatEndpoint, statsService},
+        state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming, prompts, models, featureFlags, currentRequestId, chatEndpoint, statsService},
 
         dispatch: homeDispatch
     } = useContext(HomeContext);
+
+
+    const updateSize = () => {
+        const container = document.querySelector(".container");
+        if (container) {
+          return `${container.getBoundingClientRect().width}px`;
+        }
+        return '100%';
+    };
+
+    const [chatContainerWidth, setChatContainerWidth] = useState(updateSize());
+
+    useEffect(() => {
+        const updateWidth = () => {
+            setChatContainerWidth(updateSize());
+        }
+        // Listen to window resize to update the size
+        window.addEventListener('resize', updateWidth);
+        return () => {
+          window.removeEventListener('resize', updateWidth);
+        };
+      }, []);
 
     const promptsRef = useRef(prompts);
 
@@ -225,7 +246,7 @@ const onAssistantChange = (assistant: Assistant) => {
     const handleSend = () => {
         setShowDataSourceSelector(false);
 
-        if (messageIsStreaming) {
+        if (messageIsStreaming || artifactIsStreaming) {
             return;
         }
 
@@ -552,14 +573,14 @@ const onAssistantChange = (assistant: Assistant) => {
                 />
             </div>
             }
-        <div
-            className="absolute bottom-0 left-0 w-full border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2 z-15">
+        <div style={{width: chatContainerWidth}}
+            className="absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2 z-15">
             
             
             <div
                 className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
                
-               {!showScrollDownButton && !messageIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
+               {!showScrollDownButton && !messageIsStreaming && !artifactIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
                (selectedConversation && selectedConversation.messages.length > 0) &&  (
                <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert  hover:text-neutral-900 dark:hover:text-neutral-100">
                 <button
@@ -587,7 +608,7 @@ const onAssistantChange = (assistant: Assistant) => {
                 <div className='absolute top-0 left-0 right-0 mx-auto flex justify-center items-center gap-2'>
 
 
-                    {messageIsStreaming && (
+                    {messageIsStreaming && !artifactIsStreaming &&  (
                         <>
                             <button
                                 className="mb-3 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 md:mt-2"
@@ -613,8 +634,7 @@ const onAssistantChange = (assistant: Assistant) => {
                 {/*    </button>*/}
                 {/*  )}*/}
 
-                <div
-                    className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4">
+                <div className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4" >
 
                     <div className="flex flex-row items-center">
                         <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
@@ -812,7 +832,7 @@ const onAssistantChange = (assistant: Assistant) => {
                             title={messageIsDisabled ? "Please Address Missing Information to Enable Prompting" : "Send Prompt"}
                             disabled={messageIsDisabled}
                         >
-                            {messageIsStreaming ? (
+                            {messageIsStreaming || artifactIsStreaming ? (
                                 <div
                                     className="h-4 w-4 animate-spin rounded-full border-t-2 border-neutral-800 opacity-60 dark:border-neutral-100"></div>
                             ) : (

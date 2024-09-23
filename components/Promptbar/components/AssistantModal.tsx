@@ -285,8 +285,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         }
 
         newAssistant.dataSources = dataSources.map(ds => {
-            if (assistant.groupId ) {
+            if (assistant.groupId) {
                 if (!ds.key) ds.key = ds.id;
+                if (!ds.groupId) ds.groupId = assistant.groupId;
                 return {
                 ...ds,
                 id: "s3://"+ds.key

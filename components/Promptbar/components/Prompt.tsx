@@ -228,7 +228,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                         e.stopPropagation();
 
                         if(isAssistant(prompt)){
-                            console.log("Assistant selected", prompt);
+                            // console.log("Assistant selected", prompt);
                         }
 
                         if(isAssistant(prompt) && prompt.data && prompt.data.assistant){

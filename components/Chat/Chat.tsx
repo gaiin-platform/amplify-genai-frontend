@@ -20,7 +20,7 @@ import {useTranslation} from 'next-i18next';
 import { saveConversations} from '@/utils/app/conversation';
 import {throttle} from '@/utils/data/throttle';
 
-import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
+import {Conversation, DataSource, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -56,6 +56,8 @@ import { callRenameChat } from './RenameChat';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
 // import { Artifacts } from './Artifacts/Artifacts';
+import { LoadingDialog } from '../Loader/LoadingDialog';
+import { downloadDataSourceFile } from '@/utils/app/files';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -98,7 +100,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 folders
             },
             handleUpdateConversation,
-            handleCustomLinkClick,
             dispatch: homeDispatch,
             handleAddMessages: handleAddMessages
         } = useContext(HomeContext);
@@ -137,12 +138,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             useState<boolean>(false);
         const [promptTemplate, setPromptTemplate] = useState<Prompt | null>(null);
         const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
+        const [isDownloadingFile, setIsDownloadingFile] = useState<boolean>(false);
+
 
         const messagesEndRef = useRef<HTMLDivElement>(null);
         const chatContainerRef = useRef<HTMLDivElement>(null);
         const textareaRef = useRef<HTMLTextAreaElement>(null);
         const modelSelectRef = useRef<HTMLDivElement>(null);
         const [isArtifactOpen, setIsArtifactOpen] = useState<boolean>(false);
+        const [artifactIndex, setArtifactIndex] = useState<number>(0);
         const [isRenaming, setIsRenaming] = useState<boolean>(false);
 
 
@@ -187,8 +191,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         useEffect(() => {
             const handleEvent = (event:any) => {
-                const isArtifactsOpen = event.detail.isOpen;
-                setIsArtifactOpen(isArtifactsOpen);  
+                const detail = event.detail;
+                setIsArtifactOpen(detail.isOpen);  
+                setArtifactIndex(detail.artifactIndex);
             };
             window.addEventListener('openArtifactsTrigger', handleEvent);
             return () => {
@@ -336,37 +341,62 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }
 
-        const onLinkClick = (message: Message, href: string) => {
+        const handleDownloadFile = async (message: Message, filename: string) => {
+            setIsDownloadingFile(true);
 
-            // This should all be refactored into a separate module at some point
-            // ...should really be looking up the handler by category/action and passing
+            const sources = Object.values(message.data.state.sources);
+            let ds: DataSource | undefined= undefined;
+            let groupId = undefined;
+            for (const sourceType of sources as any[]) {
+                const sourceValues: any = Object.values(sourceType.sources);
+                for (const subSource of sourceValues) {
+                    if (filename === subSource.name && subSource.contentKey) {
+                        ds = {id: subSource.contentKey, name: subSource.name, type: subSource.type}
+                        if (subSource.groupId) groupId = subSource.groupId;
+                        break;
+                    }
+                }
+                if (ds) {
+                    await downloadDataSourceFile(ds, groupId);
+                    break; 
+                }
+            }
 
-            statsService.customLinkClickEvent(message, href);
+            setIsDownloadingFile(false);
+        }
 
-            // it some sort of context
+        // This should all be refactored into a separate module at some point
+        // ...should really be looking up the handler by category/action and passing
+        // --jules
+        const handleCustomLinkClick = (message: Message, href: string) => {
+             statsService.customLinkClickEvent(message, href);
             if (selectedConversation) {
                 let [category, action_path] = href.slice(1).split(":");
-                let [action, path] = action_path.split("/");
 
-                if (category === "chat") {
-                    if (action === "send") {
-                        const content = path;
-                        const request = createChatRequest(newMessage({role: 'user', content: content}), 0, null);
-                        handleSend(request);
-                    } else if (action === "template") {
-                        const name = path;
+                switch (category) {
+                    case ("chat"):
+                        let [action, path] = action_path.split("/");
+                        if (action === "send") {
+                            const content = path;
+                            const request = createChatRequest(newMessage({role: 'user', content: content}), 0, null);
+                            handleSend(request);
+                        } else if (action === "template") {
+                            const name = path;
+                            const prompt = promptsRef.current.find((p:Prompt) => p.name === name);
 
-                        const prompt = promptsRef.current.find((p:Prompt) => p.name === name);
-
-                        if (prompt) {
-                            runPrompt(prompt);
+                            if (prompt) {
+                                runPrompt(prompt);
+                            }
                         }
-                    }
-                } else {
-                    handleCustomLinkClick(selectedConversationRef.current || selectedConversation, href,
-                        {message: message, conversation: selectedConversation}
-                    );
-                }
+                        break;
+                    case ("dataSource"):
+                        handleDownloadFile(message, action_path);
+                        break;
+                    default:
+                        console.log(`handleCustomLinkClick ${category}:${action_path}`);
+
+                } 
+                
             }
         }
 
@@ -969,6 +999,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         includeFolders={false}
                                         selectedConversations={selectedConversation ? [selectedConversation] : []}
                                     />
+
+                                    <LoadingDialog open={isDownloadingFile} message={"Downloading File..."}/>
                                     
                                     {isDownloadDialogVisible && (
                                         <DownloadModal
@@ -1114,7 +1146,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     routeMessage(message[0], 0, null, []);
                                                 }}
                                                 onSendPrompt={runPrompt}
-                                                handleCustomLinkClick={onLinkClick}
+                                                handleCustomLinkClick={handleCustomLinkClick}
                                                 onEdit={(editedMessage) => {
                                                     console.log("Editing message", editedMessage);
 
@@ -1140,7 +1172,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     routeMessage(message[0], 0, null, []);
                                                 }}
                                                 onSendPrompt={runPrompt}
-                                                handleCustomLinkClick={onLinkClick}
+                                                handleCustomLinkClick={handleCustomLinkClick}
                                                 onEdit={(editedMessage) => {
                                                     console.log("Editing message", editedMessage);
 
@@ -1204,8 +1236,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             </div>
 
             {/* Artifacts */}
-            {/* {isArtifactOpen && (
-                <Artifacts content={""}/>
+            {/* {(featureFlags.artifacts && isArtifactOpen) &&  (
+                <Artifacts artifactIndex={artifactIndex}/>
             )} */}
 
             </>

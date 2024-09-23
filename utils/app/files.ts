@@ -2,8 +2,8 @@ import { getFileDownloadUrl } from "@/services/fileService";
 import { DataSource } from "@/types/chat";
 import { IMAGE_FILE_TYPES } from "./const";
 
-export const downloadDataSourceFile = async (dataSource: DataSource) => {
-    const response = await getFileDownloadUrl(dataSource.id); // support images too 
+export const downloadDataSourceFile = async (dataSource: DataSource, groupId: string | undefined = undefined) => {
+    const response = await getFileDownloadUrl(dataSource.id, groupId); // support images too 
     if (!response.success) {
         alert("Error downloading file. Please try again.");
         return;
@@ -11,7 +11,12 @@ export const downloadDataSourceFile = async (dataSource: DataSource) => {
     if (dataSource.type && IMAGE_FILE_TYPES.includes(dataSource.type)) {
         downloadImageFromPresignedUrl(response.downloadUrl, dataSource.name || 'image', dataSource.type || '');
     } else {
-        window.open(response.downloadUrl, "_blank");
+        const link = document.createElement('a');
+        link.href = response.downloadUrl;
+        link.download = dataSource.name || 'File';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 }
 

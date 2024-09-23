@@ -530,22 +530,6 @@ const Home = ({
         dispatch({ field: 'loading', value: false });
     };
 
-    const handleCustomLinkClick = (conversation: Conversation, href: string, context: ClickContext) => {
-
-        try {
-
-            if (href.startsWith("#")) {
-
-                let [category, action_path] = href.slice(1).split(":");
-                let [action, path] = action_path.split("/");
-
-                console.log(`handleCustomLinkClick ${category}:${action}/${path}`);
-
-            }
-        } catch (e) {
-            console.log("Error handling custom link", e);
-        }
-    }
 
     const handleUpdateConversation = (
         conversation: Conversation,
@@ -1268,7 +1252,6 @@ const Home = ({
                     handleUpdateFolder,
                     handleSelectConversation,
                     handleUpdateConversation,
-                    handleCustomLinkClick,
                     preProcessingCallbacks,
                     postProcessingCallbacks,
                     addPreProcessingCallback,

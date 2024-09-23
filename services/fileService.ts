@@ -90,7 +90,7 @@ export function checkContentReady(url: string, maxSeconds: number): Promise<any>
     });
 }
 
-export const getFileDownloadUrl = async (key:string) => {
+export const getFileDownloadUrl = async (key:string, groupId: string | undefined) => {
     const response = await fetch('/api/files/download', {
         method: 'POST',
         headers: {
@@ -98,7 +98,8 @@ export const getFileDownloadUrl = async (key:string) => {
         },
         body: JSON.stringify({
             data:{
-                key:key
+                key:key,
+                groupId:groupId
             }
         }),
         signal: null,
