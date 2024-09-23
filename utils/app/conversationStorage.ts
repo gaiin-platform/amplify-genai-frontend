@@ -8,7 +8,8 @@ import { saveFolders } from "./folders";
 import { StorageType } from "@mantine/hooks/lib/use-local-storage/create-storage";
 
 
-export const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType', 'artifacts'];
+export const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType'];
+//export const CloudConvAttr: (keyof Conversation)[] = ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType', 'artifacts'];
 
 //handle all local, 
 const handleAllLocal = async (conversations: Conversation[], statsService: any) => {
