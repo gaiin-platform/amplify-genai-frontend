@@ -203,16 +203,19 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
 
         useEffect(() =>{
-            if (selectedAssistant?.definition?.data?.model) {
-                setSelectedModelId(selectedAssistant.definition.data.model);
-                selectedConversation && handleUpdateConversation(selectedConversation, {
-                                            key: 'model',
-                                            value: models.find(
-                                            (model: OpenAIModel) => model.id === selectedAssistant?.definition?.data?.model,
-                                            ),
-                                        });
+            const astModel = selectedAssistant?.definition?.data?.model;
+            
+            if (astModel && selectedModelId !== astModel) setSelectedModelId(astModel);
+            if (astModel && selectedConversation && selectedConversation.model.id !== astModel) handleUpdateConversation(selectedConversation, {
+                                        key: 'model',
+                                        value: models.find(
+                                        (model: OpenAIModel) => model.id === astModel,
+                                        ),
+                                    });
+            
+            if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) {
+                if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id as OpenAIModelID);
             }
-            if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) setSelectedModelId(selectedConversation?.model?.id as OpenAIModelID);
         }, [selectedAssistant, selectedConversation]);
 
         const updateMessage = (selectedConversation: Conversation, updatedMessage: Message, updateIndex: number) => {
