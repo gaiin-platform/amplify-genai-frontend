@@ -27,6 +27,7 @@ import { OpenAIModelID } from '@/types/openai';
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { getGroupAssistantConversations } from '@/services/groupAssistantService';
 import { getGroupAssistantDashboards } from '@/services/groupAssistantService';
+import { getGroupConversationData } from '@/services/groupAssistantService';
 
 
 interface Conversation {
@@ -47,8 +48,13 @@ interface Conversation {
 }
 
 const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversations }) => {
-    const [sortColumn, setSortColumn] = useState<keyof Conversation | null>(null);
-    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+    const [sortColumn, setSortColumn] = useState<keyof Conversation>('timestamp');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+    const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+
+    const openPopup = (conversation: Conversation) => {
+        setSelectedConversation(conversation);
+    };
 
     if (conversations.length === 0) {
         return <p>No conversations available</p>;
@@ -89,6 +95,13 @@ const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversation
             if (aValue == null) return sortDirection === 'asc' ? 1 : -1;
             if (bValue == null) return sortDirection === 'asc' ? -1 : 1;
 
+            // Special handling for timestamp
+            if (sortColumn === 'timestamp') {
+                return sortDirection === 'asc'
+                    ? new Date(aValue as string).getTime() - new Date(bValue as string).getTime()
+                    : new Date(bValue as string).getTime() - new Date(aValue as string).getTime();
+            }
+
             // Special handling for specific columns
             if (['modelUsed', 'category'].includes(sortColumn)) {
                 return sortDirection === 'asc'
@@ -110,42 +123,114 @@ const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversation
     });
 
     return (
-        <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
-            <table className="w-full border-collapse text-black dark:text-white">
-                <thead className="sticky top-0 bg-white dark:bg-gray-800">
-                    <tr>
-                        {columnOrder.map((key) => (
-                            <th
-                                key={key}
-                                className="border px-4 py-2 cursor-pointer"
-                                onClick={() => handleSort(key as keyof Conversation)}
-                            >
-                                {key}
-                                {sortColumn === key && (
-                                    <span className="ml-1">
-                                        {sortDirection === 'asc' ? '▲' : '▼'}
-                                    </span>
-                                )}
-                            </th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody>
-                    {sortedConversations.map((conv) => (
-                        <tr key={conv.conversationId}>
+        <>
+            <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
+                <table className="w-full border-collapse text-black dark:text-white">
+                    <thead className="sticky top-0 bg-white dark:bg-gray-800">
+                        <tr>
                             {columnOrder.map((key) => (
-                                <td key={key} className="border px-4 py-2">
-                                    {conv[key as keyof Conversation] !== undefined
-                                        ? typeof conv[key as keyof Conversation] === 'boolean'
-                                            ? conv[key as keyof Conversation].toString()
-                                            : conv[key as keyof Conversation]
-                                        : '-'}
-                                </td>
+                                <th
+                                    key={key}
+                                    className="border px-4 py-2 cursor-pointer"
+                                    onClick={() => handleSort(key as keyof Conversation)}
+                                >
+                                    {key}
+                                    {sortColumn === key && (
+                                        <span className="ml-1">
+                                            {sortDirection === 'asc' ? '▲' : '▼'}
+                                        </span>
+                                    )}
+                                </th>
                             ))}
                         </tr>
+                    </thead>
+                    <tbody>
+                        {sortedConversations.map((conv) => (
+                            <tr key={conv.conversationId} onClick={() => openPopup(conv)} className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
+                                {columnOrder.map((key) => (
+                                    <td key={key} className="border px-4 py-2">
+                                        {conv[key as keyof Conversation] !== undefined
+                                            ? typeof conv[key as keyof Conversation] === 'boolean'
+                                                ? conv[key as keyof Conversation].toString()
+                                                : conv[key as keyof Conversation]
+                                            : '-'}
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            {selectedConversation && (
+                <ConversationPopup
+                    conversation={selectedConversation}
+                    onClose={() => setSelectedConversation(null)}
+                />
+            )}
+        </>
+    );
+};
+
+const ConversationPopup: FC<{ conversation: Conversation; onClose: () => void }> = ({ conversation, onClose }) => {
+    const [content, setContent] = useState<string>('Loading...');
+
+    useEffect(() => {
+        const fetchContent = async () => {
+            try {
+                const result = await getGroupConversationData(conversation.assistantId, conversation.conversationId);
+                if (result.success) {
+                    const parsedContent = JSON.parse(result.data.body);
+                    const formattedContent = parsedContent.content.replace(/\\n/g, '\n');
+                    setContent(formattedContent);
+
+                } else {
+                    setContent('Error loading conversation content.');
+                }
+            } catch (error) {
+                setContent('Error loading conversation content.');
+            }
+        };
+
+        fetchContent();
+    }, [conversation.assistantId, conversation.conversationId]);
+
+    // Define the fields you want to show and their order
+    const fieldsToShow: (keyof Conversation)[] = [
+        'timestamp',
+        'assistantName',
+        'user',
+        'employeeType',
+        'entryPoint',
+        'numberPrompts',
+        'modelUsed',
+        'userRating',
+        'systemRating',
+        'category'
+    ];
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+                <h2 className="text-xl font-bold mb-4">Conversation Content</h2>
+                <pre className="whitespace-pre-wrap mb-4">{content}</pre>
+
+                <h3 className="text-lg font-semibold mb-2">Conversation Metadata</h3>
+                <div className="grid grid-cols-1 gap-2">
+                    {fieldsToShow.map((key) => (
+                        <div key={key} className="mb-1">
+                            <span className="font-medium">{key}: </span>
+                            <span>{String(conversation[key])}</span>
+                        </div>
                     ))}
-                </tbody>
-            </table>
+                </div>
+
+                <button
+                    onClick={onClose}
+                    className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                >
+                    Close
+                </button>
+            </div>
         </div>
     );
 };
