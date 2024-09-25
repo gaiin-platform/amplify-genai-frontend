@@ -203,17 +203,20 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
 
         useEffect(() =>{
-            if (selectedAssistant?.definition?.data?.model) {
-                setSelectedModelId(selectedAssistant.definition.data.model);
-                selectedConversation && handleUpdateConversation(selectedConversation, {
-                                            key: 'model',
-                                            value: models.find(
-                                            (model: OpenAIModel) => model.id === selectedAssistant?.definition?.data?.model,
-                                            ),
-                                        });
+            const astModel = selectedAssistant?.definition?.data?.model;
+            
+            if (astModel && selectedModelId !== astModel) setSelectedModelId(astModel);
+            if (astModel && selectedConversation && selectedConversation.model.id !== astModel) handleUpdateConversation(selectedConversation, {
+                                        key: 'model',
+                                        value: models.find(
+                                        (model: OpenAIModel) => model.id === astModel,
+                                        ),
+                                    });
+            
+            if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) {
+                if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id as OpenAIModelID);
             }
-            if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) setSelectedModelId(selectedConversation?.model?.id as OpenAIModelID);
-        }, [selectedAssistant]);
+        }, [selectedAssistant, selectedConversation]);
 
         const updateMessage = (selectedConversation: Conversation, updatedMessage: Message, updateIndex: number) => {
             let updatedConversation = {
@@ -350,7 +353,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             for (const sourceType of sources as any[]) {
                 const sourceValues: any = Object.values(sourceType.sources);
                 for (const subSource of sourceValues) {
-                    if (subSource.contentKey && filename === subSource.name.replace(/&/g, ' ')) {
+                    if (subSource.contentKey && !subSource.contentKey.includes("global/") && subSource.name === filename.replace(/&/g, ' ')) {
                         ds = {id: subSource.contentKey, name: subSource.name, type: subSource.type}
                         if (subSource.groupId) groupId = subSource.groupId;
                         break;
@@ -359,6 +362,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (ds) {
                     await downloadDataSourceFile(ds, groupId);
                     break; 
+                } else {
+                    console.log("No content key found")
+                    alert("Unable to provide the document at this time.");
                 }
             }
 
@@ -373,8 +379,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (selectedConversation) {
                 let [category, action_path] = href.slice(1).split(":");
 
-                switch (category) {
-                    case ("chat"):
+                switch (true) {
+                    case (category === "chat"):
                         let [action, path] = action_path.split("/");
                         if (action === "send") {
                             const content = path;
@@ -389,7 +395,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             }
                         }
                         break;
-                    case ("dataSource"):
+                    case (['dataSources', 'dataSource'].includes(category)):
                         handleDownloadFile(message, action_path);
                         break;
                     default:
