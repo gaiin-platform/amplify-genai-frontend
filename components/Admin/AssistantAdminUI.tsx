@@ -27,6 +27,8 @@ import { OpenAIModelID } from '@/types/openai';
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { getGroupAssistantConversations } from '@/services/groupAssistantService';
 import { getGroupAssistantDashboards } from '@/services/groupAssistantService';
+import { getGroupConversationData } from '@/services/groupAssistantService';
+import toast from 'react-hot-toast';
 
 
 interface Conversation {
@@ -47,8 +49,13 @@ interface Conversation {
 }
 
 const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversations }) => {
-    const [sortColumn, setSortColumn] = useState<keyof Conversation | null>(null);
-    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+    const [sortColumn, setSortColumn] = useState<keyof Conversation>('timestamp');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+    const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+
+    const openPopup = (conversation: Conversation) => {
+        setSelectedConversation(conversation);
+    };
 
     if (conversations.length === 0) {
         return <p>No conversations available</p>;
@@ -89,6 +96,13 @@ const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversation
             if (aValue == null) return sortDirection === 'asc' ? 1 : -1;
             if (bValue == null) return sortDirection === 'asc' ? -1 : 1;
 
+            // Special handling for timestamp
+            if (sortColumn === 'timestamp') {
+                return sortDirection === 'asc'
+                    ? new Date(aValue as string).getTime() - new Date(bValue as string).getTime()
+                    : new Date(bValue as string).getTime() - new Date(aValue as string).getTime();
+            }
+
             // Special handling for specific columns
             if (['modelUsed', 'category'].includes(sortColumn)) {
                 return sortDirection === 'asc'
@@ -110,42 +124,114 @@ const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversation
     });
 
     return (
-        <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
-            <table className="w-full border-collapse text-black dark:text-white">
-                <thead className="sticky top-0 bg-white dark:bg-gray-800">
-                    <tr>
-                        {columnOrder.map((key) => (
-                            <th
-                                key={key}
-                                className="border px-4 py-2 cursor-pointer"
-                                onClick={() => handleSort(key as keyof Conversation)}
-                            >
-                                {key}
-                                {sortColumn === key && (
-                                    <span className="ml-1">
-                                        {sortDirection === 'asc' ? '▲' : '▼'}
-                                    </span>
-                                )}
-                            </th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody>
-                    {sortedConversations.map((conv) => (
-                        <tr key={conv.conversationId}>
+        <>
+            <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
+                <table className="w-full border-collapse text-black dark:text-white">
+                    <thead className="sticky top-0 bg-white dark:bg-gray-800">
+                        <tr>
                             {columnOrder.map((key) => (
-                                <td key={key} className="border px-4 py-2">
-                                    {conv[key as keyof Conversation] !== undefined
-                                        ? typeof conv[key as keyof Conversation] === 'boolean'
-                                            ? conv[key as keyof Conversation].toString()
-                                            : conv[key as keyof Conversation]
-                                        : '-'}
-                                </td>
+                                <th
+                                    key={key}
+                                    className="border px-4 py-2 cursor-pointer"
+                                    onClick={() => handleSort(key as keyof Conversation)}
+                                >
+                                    {key}
+                                    {sortColumn === key && (
+                                        <span className="ml-1">
+                                            {sortDirection === 'asc' ? '▲' : '▼'}
+                                        </span>
+                                    )}
+                                </th>
                             ))}
                         </tr>
+                    </thead>
+                    <tbody>
+                        {sortedConversations.map((conv) => (
+                            <tr key={conv.conversationId} onClick={() => openPopup(conv)} className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
+                                {columnOrder.map((key) => (
+                                    <td key={key} className="border px-4 py-2">
+                                        {conv[key as keyof Conversation] !== undefined
+                                            ? typeof conv[key as keyof Conversation] === 'boolean'
+                                                ? conv[key as keyof Conversation].toString()
+                                                : conv[key as keyof Conversation]
+                                            : '-'}
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            {selectedConversation && (
+                <ConversationPopup
+                    conversation={selectedConversation}
+                    onClose={() => setSelectedConversation(null)}
+                />
+            )}
+        </>
+    );
+};
+
+const ConversationPopup: FC<{ conversation: Conversation; onClose: () => void }> = ({ conversation, onClose }) => {
+    const [content, setContent] = useState<string>('Loading...');
+
+    useEffect(() => {
+        const fetchContent = async () => {
+            try {
+                const result = await getGroupConversationData(conversation.assistantId, conversation.conversationId);
+                if (result.success) {
+                    const parsedContent = JSON.parse(result.data.body);
+                    const formattedContent = parsedContent.content.replace(/\\n/g, '\n');
+                    setContent(formattedContent);
+
+                } else {
+                    setContent('Error loading conversation content.');
+                }
+            } catch (error) {
+                setContent('Error loading conversation content.');
+            }
+        };
+
+        fetchContent();
+    }, [conversation.assistantId, conversation.conversationId]);
+
+    // Define the fields you want to show and their order
+    const fieldsToShow: (keyof Conversation)[] = [
+        'timestamp',
+        'assistantName',
+        'user',
+        'employeeType',
+        'entryPoint',
+        'numberPrompts',
+        'modelUsed',
+        'userRating',
+        'systemRating',
+        'category'
+    ];
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+                <h2 className="text-xl font-bold mb-4">Conversation Content</h2>
+                <pre className="whitespace-pre-wrap mb-4">{content}</pre>
+
+                <h3 className="text-lg font-semibold mb-2">Conversation Metadata</h3>
+                <div className="grid grid-cols-1 gap-2">
+                    {fieldsToShow.map((key) => (
+                        <div key={key} className="mb-1">
+                            <span className="font-medium">{key}: </span>
+                            <span>{String(conversation[key])}</span>
+                        </div>
                     ))}
-                </tbody>
-            </table>
+                </div>
+
+                <button
+                    onClick={onClose}
+                    className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                >
+                    Close
+                </button>
+            </div>
         </div>
     );
 };
@@ -296,10 +382,12 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
             "group_id": selectedGroup.id,
             "types": groupTypes
         });
-        alert(result ? `Successfully updated group types.` : `Unable to update group types at this time. Please try again later.`);
         if (!result) {
+            alert(`Unable to update group types at this time. Please try again later.`);
             setLoadingActionMessage('');
             return;
+        } else {
+            toast(`Successfully updated group types.`);
         }
         
         //update groups home dispatch 
@@ -338,8 +426,13 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
         if (confirm("Are you sure you want to delete this group? You will not be able to undo this change.\n\nWould you like to continue?")){
             setLoadingActionMessage('Deleting Group');
             const result = await deleteAstAdminGroup(groupId);
-            alert(result ? `Successfully deleted group.` : `Unable to delete this group at this time. Please try again later.`);
-            if (result)removeUserFromGroup(groupId);
+          
+            if (result) {
+                removeUserFromGroup(groupId);
+                toast(`Successfully deleted group.`);
+            } else {
+                  alert(`Unable to delete this group at this time. Please try again later.`);
+            }
             setLoadingActionMessage('');
         }
     }
@@ -395,7 +488,12 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
             setNewGroupMembers({});
             setInput('');
         }
-        alert(result ? `Successfully added users to the group.` : `Unable to add users to the group at this time. Please try again later.`);
+        if (result) {
+            toast(`Successfully added users to the group.`);
+        } else {
+           alert(`Unable to add users to the group at this time. Please try again later.`); 
+        }
+        
         setLoadingActionMessage('');
     }
 
@@ -441,8 +539,13 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
         }
         setLoadingActionMessage('');
 
-        alert(result ? `Successfully removed users from group.` : `Unable to remove users from the group at this time. Please try again later.`)
+        if (result) {
+            toast(`Successfully removed users from group.`);
+        } else {
+             alert(`Unable to remove users from the group at this time. Please try again later.`)
 
+        }
+       
     };
 
     const isSoleAdmin = (userEmail: string, privileges: Members) => {
@@ -527,7 +630,12 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
             setEditAccessMap({});
             setIsEditingAccess(false);    
         }
-        alert(result ? `Successfully updated users group access.` : `Unable to update users group access at this time. Please try again later.`);
+        if (result) {
+            toast( `Successfully updated users group access.`);
+        } else {
+            alert(`Unable to update users group access at this time. Please try again later.`); 
+        }
+       
         setLoadingActionMessage('');
     };
 
@@ -920,9 +1028,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         } else {
             const resultData = await createAstAdminGroup(group);
             if (!resultData) {
-                alert(resultData ? "Group successfully created.":"We are unable to create the group at this time. Please try again later.");
+                alert("We are unable to create the group at this time. Please try again later.");
                 setShowCreateNewGroup(true);
             } else {
+                toast("Group successfully created.");
                 const newGroup: Group = resultData;
                 setSelectedGroup(newGroup);
                 setAdminGroups([...adminGroups, newGroup]);
@@ -987,8 +1096,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                 "update_type": GroupUpdateType.REMOVE,
                 "assistants": [astpId]
             });
-            alert(result.success ? "Successfully deleted assistant." :"Unable to delete this assistant at this time. Please try again later.");
             if (result.success && selectedGroup) {
+                toast( "Successfully deleted assistant.");
                 const updatedGroupAssistants = selectedGroup.assistants.filter((ast:Prompt) =>  ast?.data?.assistant?.definition.assistantId !== astpId);
                 const updatedGroup = {...selectedGroup, assistants: updatedGroupAssistants?? []};
                 
@@ -1000,6 +1109,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                 setAdminGroups(updatedGroups);
                 // update prompts 
                 homeDispatch({ field: 'prompts', value: prompts.filter((ast:Prompt) =>  ast?.data?.assistant?.definition.assistantId !== astpId)});
+            } else {
+                alert("Unable to delete this assistant at this time. Please try again later.");
             }
             setLoadingActionMessage('');
         }
@@ -1521,14 +1632,6 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
                     {'Use the "#" symbol to automatically include all members of the group.'}
                 </div>
                 <div className='flex flex-row gap-2'>
-                    <div className='w-full relative'>
-                        <EmailsAutoComplete
-                            input = {input}
-                            setInput =  {setInput}
-                            allEmails = {allEmails}
-                            alreadyAddedEmails = {Object.keys(groupMembers)}
-                        /> 
-                    </div>
                     <div className="flex-shrink-0 ml-[-6px] mr-2">
                         <button
                             type="button"
@@ -1538,6 +1641,14 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
                         >
                             <IconPlus size={18} />
                         </button>
+                    </div>
+                    <div className='w-full relative'>
+                        <EmailsAutoComplete
+                            input = {input}
+                            setInput =  {setInput}
+                            allEmails = {allEmails}
+                            alreadyAddedEmails = {Object.keys(groupMembers)}
+                        /> 
                     </div>
                     
                 </div>

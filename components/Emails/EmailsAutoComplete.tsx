@@ -9,11 +9,10 @@ interface EmailModalProps {
     allEmails: string[] | null;
     alreadyAddedEmails?: string[];
     addMultipleUsers?: boolean;
-    top?: string
 }
 
 
-export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEmails, alreadyAddedEmails=[], addMultipleUsers=true, top='50%'}) => {
+export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEmails, alreadyAddedEmails=[], addMultipleUsers=true}) => {
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const suggestionRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -93,7 +92,7 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEm
                                     type="text"
                                     value={input}
                                     onChange={async (e) => {
-                                            setInput(e.target.value)
+                                            setInput(e.target.value.toLowerCase())
                                         }}
 
                                     onKeyUp={async (e: React.KeyboardEvent<HTMLInputElement>) => {

@@ -87,14 +87,23 @@ export const ChatInput = ({
 
     useEffect(() => {
         const updateWidth = () => {
-            setChatContainerWidth(updateSize());
+            if (!messageIsStreaming && !artifactIsStreaming) setChatContainerWidth(updateSize());
         }
-        // Listen to window resize to update the size
         window.addEventListener('resize', updateWidth);
+        window.addEventListener('orientationchange', updateWidth);
+        window.addEventListener('pageshow', updateWidth);
+        window.addEventListener('pagehide', updateWidth);
+        const observer = new MutationObserver(updateWidth);
+        observer.observe(document, { childList: true, subtree: true, attributes: true });
         return () => {
           window.removeEventListener('resize', updateWidth);
+          window.removeEventListener('orientationchange', updateWidth);
+          window.removeEventListener('pageshow', updateWidth);
+          window.removeEventListener('pagehide', updateWidth);
+          observer.disconnect();
         };
       }, []);
+
 
     const promptsRef = useRef(prompts);
 

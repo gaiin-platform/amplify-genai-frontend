@@ -6,6 +6,31 @@ const failureResponse = (reason: string) => {
     }
 }
 
+export const getGroupConversationData = async (assistantId: string, conversationId: string, abortSignal = null) => {
+    try {
+        const response = await fetch('/api/groupAssistants/getConversationData', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ data: { assistantId, conversationId } }),
+            signal: abortSignal,
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            return { success: true, message: "Group conversation data fetched successfully.", data: result };
+        } else {
+            const errorText = await response.text();
+            console.error(`Error response: ${response.status} ${response.statusText}`, errorText);
+            return { success: false, message: `Error calling group conversation data: ${response.statusText}.`, data: {} };
+        }
+    } catch (e) {
+        console.error("Fetch error:", e);
+        return { success: false, message: "Error fetching group conversation data.", data: {} };
+    }
+}
+
 export const getGroupAssistantConversations = async (assistantId: string, abortSignal = null) => {
     try {
         const response = await fetch('/api/groupAssistants/getConversations', {

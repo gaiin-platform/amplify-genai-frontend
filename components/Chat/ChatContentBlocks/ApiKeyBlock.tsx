@@ -8,6 +8,7 @@ import { formatAccessTypes, HiddenAPIKey } from "@/components/Settings/AccountCo
 import ExpansionComponent from "../ExpansionComponent";
 import { Account } from "@/types/accounts";
 import { createApiKey, deactivateApiKey, updateApiKeys } from "@/services/apiKeysService";
+import toast from "react-hot-toast";
 
 
 interface KeyData {
@@ -71,8 +72,14 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
         if (confirm(`Are you sure you want to deactivate API key: ${name}?\nOnce deactivate, it cannot be undone.`)) {
             const result = await deactivateApiKey(id);
             statsService.deactivateApiKey(id);
-            alert(result ? "Successfuly deactivated the API key" : "Unable to deactivate the API key at this time. Please try again later...");
-            if (result) setDeactivatedKeys([...deactivatedKeys,id]);
+            
+           
+            if (result) {
+                toast("Successfuly deactivated the API key");
+                setDeactivatedKeys([...deactivatedKeys,id]);
+            } else {
+                alert("Unable to deactivate the API key at this time. Please try again later...");
+            }
         }
     }
 
@@ -86,10 +93,16 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
             const keyData = {...data, owner: user?.email};
             setLoadingMessage("Creating API key...");
             const result = await createApiKey(keyData);
-            if (result) setIsCreated(true);
+            if (result) {
+                toast("Successfuly created the API key");
+                setIsCreated(true);
+            } else {
+                alert("Unable to create the API key at this time. Please try again later...");    
+            }
             statsService.createApiKey(keyData);
             setLoadingMessage(null);
-            alert(result ? "Successfuly created the API key" : "Unable to create the API key at this time. Please try again later...");    
+            
+           
         }
     }
 

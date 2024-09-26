@@ -38,6 +38,11 @@ interface Props {
 
 const dataSourceFlags = [
     {
+        "label": "Include Download Links for Referenced Documents",
+        "key": "includeDownloadLinks",
+        "defaultValue": false
+    },
+    {
         "label": "Include Attached Documents in RAG",
         "key": "ragAttachedDocuments",
         "defaultValue": false
@@ -71,7 +76,7 @@ const dataSourceFlags = [
         "label": "Disable Data Source Insertion",
         "key": "disableDataSources",
         "defaultValue": false
-    }
+    },
 ];
 
 const messageOptionFlags = [

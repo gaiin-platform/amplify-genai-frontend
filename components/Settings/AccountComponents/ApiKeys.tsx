@@ -21,6 +21,7 @@ import { isAssistant } from '@/utils/app/assistants';
 import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
 import { APIDownloadFile, fetchFile } from '@/components/Chat/ChatContentBlocks/APIDocBlock';
 import { ReservedTags } from '@/types/tags';
+import toast from 'react-hot-toast';
 
 interface Props {
     apiKeys: ApiKey[];
@@ -173,9 +174,10 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
             // to pull in the updated changes to the ui     
             window.dispatchEvent(new Event('createApiKeys'));
         }
-        alert(sucess ? "Successfuly created the API key" : `Unable to create the API key at this time. \n\n Error message: ${result.message}`);
+      
         // empty out all the create key fields
         if (sucess) {
+            toast("Successfuly created the API key");
             setAppName('');
             setAppDescriptione('');
             setDelegateInput('');
@@ -184,8 +186,9 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
             setSystemUse(false);
             setOptions(optionChoices);
             setFullAccess(true);
-           
-        } 
+        }  else {
+              alert(`Unable to create the API key at this time. \n\n Error message: ${result.message}`);
+        }
     };
 
     const handleDeactivateApikey = async (apiKeyId: string, name: string) => {

@@ -4,6 +4,7 @@ import { downloadDataSourceFile } from '@/utils/app/files';
 import {
     IconFileCheck,
 } from '@tabler/icons-react';
+import { useSession } from 'next-auth/react';
 import React, { useState } from "react";
 
 interface Props {
@@ -106,6 +107,8 @@ const ChatSourceBlock: React.FC<Props> = (
     {source, index}) => {
 
     const [isDownloading, setIsDownloading] = useState<boolean>(false);
+    const { data: session } = useSession();
+    const user = session?.user?.email;
 
     const downloadFile = async (dataSource: DataSource, groupId: string | undefined) => {
 
@@ -143,8 +146,8 @@ const ChatSourceBlock: React.FC<Props> = (
                     </div>
                 )}
                 {source.name && (
-                    (source.contentKey) ? 
-                        <button className="mr-auto text-[#5495ff] cursor-pointer hover:underline" title='Download File'
+                    (source.contentKey && !source.contentKey.includes("global/") &&  (source.contentKey.includes(user) ||  source.groupId))  ? 
+                        <button className="mr-auto text-start text-[#5495ff] cursor-pointer hover:underline" title='Download File'
                             onClick={() => downloadFile({id: source.contentKey, name: source.name, type: source.type}, source.groupId)}>
                             {source.name}
                         </button> 

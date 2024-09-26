@@ -9,6 +9,7 @@ import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {useSession} from "next-auth/react";
 import { EmailsList } from "../Emails/EmailsList";
+import toast from "react-hot-toast";
 
 export interface SharingModalProps {
     open: boolean;
@@ -192,7 +193,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                     statsService.sharedItemEvent(sharedBy, sharedWith, sharingNote, sharedData);
 
                     setIsSharing(false);
-                    alert("Shared successfully");
+                    toast("Shared successfully");
                     onShare([...selectedPromptsState, ...selectedConversationsState, ...selectedFoldersState]);
                 } else {
                     setIsSharing(false);
