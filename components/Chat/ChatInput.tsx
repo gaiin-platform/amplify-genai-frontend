@@ -87,7 +87,7 @@ export const ChatInput = ({
 
     useEffect(() => {
         const updateWidth = () => {
-            setChatContainerWidth(updateSize());
+            if (!messageIsStreaming && !artifactIsStreaming) setChatContainerWidth(updateSize());
         }
         window.addEventListener('resize', updateWidth);
         window.addEventListener('orientationchange', updateWidth);
