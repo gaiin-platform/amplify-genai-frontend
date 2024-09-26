@@ -362,10 +362,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (ds) {
                     await downloadDataSourceFile(ds, groupId);
                     break; 
-                } else {
-                    console.log("No content key found")
-                    alert("Unable to provide the document at this time.");
-                }
+                } 
+            }
+
+            if (!ds) {
+                console.log("No content key found")
+                alert("Unable to provide the document at this time.");
             }
 
             setIsDownloadingFile(false);
