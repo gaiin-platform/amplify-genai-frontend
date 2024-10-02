@@ -28,7 +28,7 @@ interface EmailModalProps {
     alreadyAddedEmails: string[]
 }
 
-function stringToColor(str: string): string {
+export function stringToColor(str: string): string {
     const colors = [
         "#fbfbfb", "#979197", "#f69833", "#419bf9", "#f7f7f7",
         "#ee6723", "#fecf33", "#c8cf2d", "#0dcfda", "#edeced",

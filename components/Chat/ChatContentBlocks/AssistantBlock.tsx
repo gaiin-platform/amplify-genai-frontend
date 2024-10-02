@@ -8,6 +8,7 @@ import { useSession } from "next-auth/react"
 import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
 import {Conversation} from "@/types/chat";
 import { createAssistantPrompt, handleUpdateAssistantPrompt} from "@/utils/app/assistants";
+import toast from "react-hot-toast";
 
 
 interface AssistantProps {
@@ -164,7 +165,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
 
 
                 if(assistantId) {
-                    alert("Assistant created successfully!");
+                    toast("Assistant created successfully!");
                     const createdAssistantPrompt = createAssistantPrompt(assistantDefinition);
                     handleUpdateAssistantPrompt(createdAssistantPrompt, prompts, homeDispatch);
                     statsService.createPromptEvent(createdAssistantPrompt);

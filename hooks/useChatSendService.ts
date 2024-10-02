@@ -22,6 +22,8 @@ import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {useChatService} from "@/hooks/useChatService";
 import { DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { uploadConversation } from "@/services/remoteConversationService";
+import { getFocusedMessages } from '@/services/prepareChatService';
+
 
 export type ChatRequest = {
     message: Message;
@@ -41,6 +43,7 @@ export type ChatRequest = {
 export function useSendService() {
     const {
         state: {selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService},
+        handleUpdateConversation,
         postProcessingCallbacks,
         dispatch:homeDispatch,
     } = useContext(HomeContext);
@@ -49,7 +52,6 @@ export function useSendService() {
     const user = session?.user;
 
     const conversationsRef = useRef(conversations);
-
 
     useEffect(() => {
         conversationsRef.current = conversations;
@@ -60,8 +62,6 @@ export function useSendService() {
     useEffect(() => {
         foldersRef.current = folders;
     }, [folders]);
-
-
 
     const {
         sendChatRequest,
@@ -117,7 +117,7 @@ export function useSendService() {
     const handleSend = useCallback(
         async (request:ChatRequest, shouldAbort:()=>boolean) => {
             return new Promise(async (resolve, reject) => {
-                if (selectedConversation) {
+                if (selectedConversation) { 
 
                     let {
                         message,
@@ -131,7 +131,6 @@ export function useSendService() {
                         conversationId
                     } = request;
 
-                    // console.log("Sending msg:", message)
 
                     const {content, label} = getPrefix(selectedConversation, message);
                     if (content) {
@@ -166,7 +165,7 @@ export function useSendService() {
 
                     let updatedConversation: Conversation;
                     if (deleteCount) {
-                        const updatedMessages = [...selectedConversation.messages];
+                        const updatedMessages = [... selectedConversation.messages];
                         for (let i = 0; i < deleteCount; i++) {
                             updatedMessages.pop();
                         }
@@ -177,9 +176,10 @@ export function useSendService() {
                     } else {
                         updatedConversation = {
                             ...selectedConversation,
-                            messages: [...selectedConversation.messages, message],
+                            messages: [... selectedConversation.messages, message],
                         };
                     }
+                    console.log("updated: ", updatedConversation.messages);
                     homeDispatch({
                         field: 'selectedConversation',
                         value: updatedConversation,
@@ -187,9 +187,13 @@ export function useSendService() {
 
                     homeDispatch({field: 'loading', value: true});
                     homeDispatch({field: 'messageIsStreaming', value: true});
+
+                    // if updatedConversation.messages is on len 1 then we dont need to do this.
+                    const prepMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService, homeDispatch);
+
                     const chatBody: ChatBody = {
-                        model: updatedConversation.model,
-                        messages: updatedConversation.messages,
+                        model: updatedConversation.model, 
+                        messages: prepMessages, //updatedConversation.messages,
                         prompt: rootPrompt || updatedConversation.prompt || "",
                         temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
                         maxTokens: updatedConversation.maxTokens || 1000,
@@ -368,9 +372,6 @@ export function useSendService() {
                             homeDispatch({field: 'messageIsStreaming', value: false});
                             return;
                         }
-                        // if (!plugin) {
-
-
                             homeDispatch({field: 'loading', value: false});
                             const reader = data.getReader();
                             const decoder = new TextDecoder();
@@ -562,46 +563,11 @@ export function useSendService() {
                             } else {
                                 uploadConversation(updatedConversation, foldersRef.current);
                             }
+
                             homeDispatch({field: 'messageIsStreaming', value: false});
 
                             resolve(text);
-                        // } else {
-                        //     const {answer} = await response.json();
-                        //     const updatedMessages: Message[] = [
-                        //         ...updatedConversation.messages,
-                        //         newMessage({role: 'assistant', content: answer}),
-                        //     ];
-                        //     updatedConversation = {
-                        //         ...updatedConversation,
-                        //         messages: updatedMessages,
-                        //     };
-                        //     homeDispatch({
-                        //         field: 'selectedConversation',
-                        //         value: updatedConversation,
-                        //     });
-                        //     if (selectedConversation.isLocal) {
-                                
-                        //         const updatedConversations: Conversation[] = conversationsRef.current.map(
-                        //             (conversation:Conversation) => {
-                        //                 if (conversation.id === selectedConversation.id) {
-                        //                     return conversationWithCompressedMessages(updatedConversation);
-                        //                 }
-                        //                 return conversation;
-                        //             },
-                        //         );
-                        //         if (updatedConversations.length === 0) {
-                        //             updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-                        //         }
-                        //         homeDispatch({field: 'conversations', value: updatedConversations});
-                        //         saveConversations(updatedConversations);
-                        //     } else {
-                        //         uploadConversation(updatedConversation, foldersRef.current);
-                        //     }
-                        //     homeDispatch({field: 'loading', value: false});
-                        //     homeDispatch({field: 'messageIsStreaming', value: false});
 
-                        //     resolve(answer);
-                        // }
                     } catch (error: any) {
                         homeDispatch({field: 'loading', value: false});
                         homeDispatch({field: 'messageIsStreaming', value: false});
@@ -614,7 +580,6 @@ export function useSendService() {
                         // Handle any other errors, as required.
                     }
                     
-
                     //Reset the status display
                     homeDispatch({
                         field: 'status',

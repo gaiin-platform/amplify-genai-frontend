@@ -5,8 +5,9 @@ import { PluginSelect } from './PluginSelect';
 import HomeContext from '@/pages/api/home/home.context';
 
 interface Props {
-    plugin: Plugin | null,
-    setPlugin: (p: Plugin | null) => void
+    plugin: Plugin | null;
+    setPlugin: (p: Plugin | null) => void;
+
 }
 
 const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
@@ -28,18 +29,26 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
         showPluginSelectRef.current = showPluginSelect;
       }, [showPluginSelect]);
 
+    //   //ensures within bounds 
+    //   useEffect(() => {
+        
+    //   }, [showPluginSelect]);
+
 
     useEffect(() => {
         const handleEvent = (event:any) => {
-            const isAdminOpen = event.detail.isOpen;
-            setHide(isAdminOpen);
+            const isInterfaceOpen = event.detail.isOpen;
+            setHide(isInterfaceOpen);
         };
         window.addEventListener('openAstAdminInterfaceTrigger', handleEvent);
+        window.addEventListener('openArtifactsTrigger', handleEvent);
     
         return () => {
             window.removeEventListener('openAstAdminInterfaceTrigger', handleEvent);
+            window.removeEventListener('openArtifactsTrigger', handleEvent);
         };
     }, []);
+
 
     const onMouseDrag = useCallback((event: MouseEvent) => {
         if (!draggableRef.current || !draggableRef.current.parentNode) return;

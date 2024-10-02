@@ -445,7 +445,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 }
                                 value={content}
                                 onChange={(e) => setContent(e.target.value)}
-                                rows={10}
+                                rows={15}
                                 disabled={disableEdit}
                             />
 

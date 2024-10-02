@@ -2,6 +2,8 @@ import { OpenAIModel } from './openai';
 import {Prompt} from "@/types/prompt";
 import { v4 as uuidv4 } from 'uuid';
 import {WorkflowDefinition} from "@/types/workflow";
+import { Artifact } from './artifacts';
+import { messageTopicData } from './topics';
 
 export interface Message {
   role: Role;
@@ -10,7 +12,8 @@ export interface Message {
   type: string | undefined;
   data: any | undefined;
   label?: string;
-  codeInterpreterMessageData?: any | undefined
+  codeInterpreterMessageData?: any | undefined;
+  topicData?: messageTopicData;
 }
 
 export enum MessageType {
@@ -130,4 +133,5 @@ export interface Conversation {
   codeInterpreterAssistantId?: string;
   isLocal?: boolean;
   groupType?: string;
+  artifacts?:  { [key: string]: Artifact[]};
 }

@@ -55,9 +55,10 @@ import { deleteRemoteConversation, uploadConversation } from '@/services/remoteC
 import { callRenameChat } from './RenameChat';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
-// import { Artifacts } from './Artifacts/Artifacts';
+import { Artifacts } from '../Artifacts/Artifacts';
 import { LoadingDialog } from '../Loader/LoadingDialog';
 import { downloadDataSourceFile } from '@/utils/app/files';
+import { ArtifactsSaved } from './ArtifactsSaved';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -150,8 +151,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [isRenaming, setIsRenaming] = useState<boolean>(false);
 
 
-        useEffect(() => {
+        const [selectedConversationState, setSelectedConversationState] = useState<Conversation | undefined>(selectedConversation);
 
+        useEffect(() => {
+            setSelectedConversationState(selectedConversation);
+            
             const renameConversation = async() => {
                 setIsRenaming(true);
                 if (selectedConversation) {
@@ -185,7 +189,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 }
             }
             if (selectedConversation?.messages.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
-
         }, [selectedConversation]);
 
 
@@ -297,17 +300,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             [stopConversationRef, handleSendService]
         );
 
-        const selectedConversationRef = useRef<Conversation>(null);
-
-        useEffect(() => {
-            // In your useEffect, you should keep your ref in sync with the state.
-            // @ts-ignore
-            selectedConversationRef.current = selectedConversation;
-        }, [selectedConversation]);
-
-        const asyncSafeHandleAddMessages = async (messages: Message[]) => {
-            await handleAddMessages(selectedConversationRef.current || selectedConversation, messages)
-        };
+    
 
         const handlePromptSelect = (prompt: Prompt) => {
             if (selectedConversation) {
@@ -345,6 +338,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
         const handleDownloadFile = async (message: Message, filename: string) => {
+            if (!message.data.state.sources) return;
+
             setIsDownloadingFile(true);
 
             const sources = Object.values(message.data.state.sources);
@@ -1005,7 +1000,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         includePrompts={false}
                                         includeConversations={true}
                                         includeFolders={false}
-                                        selectedConversations={selectedConversation ? [selectedConversation] : []}
+                                        selectedConversations={selectedConversationState ? [selectedConversationState] : []}
                                     />
 
                                     <LoadingDialog open={isDownloadingFile} message={"Downloading File..."}/>
@@ -1015,7 +1010,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             includeConversations={true}
                                             includePrompts={false}
                                             includeFolders={false}
-                                            selectedConversations={selectedConversation ? [selectedConversation] : []}
+                                            selectedConversations={selectedConversationState ? [selectedConversationState] : []}
                                             onCancel={() => {
                                                 setIsDownloadDialogVisible(false);
                                             }}
@@ -1089,6 +1084,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         >
                                             <IconDownload size={18}/>
                                         </button>
+                                        {featureFlags.artifacts && 
+                                        <ArtifactsSaved iconSize={18}/>}
                                         {featureFlags.storeCloudConversations &&
                                         <CloudStorage iconSize={18} />
                                         }
@@ -1141,7 +1138,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     
 
 
-                                    {selectedConversation?.messages.map((message: Message, index: number) => (
+                                    {selectedConversationState?.messages.map((message: Message, index: number) => (
                                         (message.type === MessageType.REMOTE) ?
                                             <MemoizedRemoteMessages
                                                 key={index}
@@ -1161,10 +1158,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     setCurrentMessage(editedMessage);
 
                                                     if (editedMessage.role != "assistant") {
-                                                        routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
+                                                        routeMessage(editedMessage, selectedConversationState?.messages.length - index, null, []);
                                                     } else {
                                                         console.log("updateMessage");
-                                                        updateMessage(selectedConversation, editedMessage, index);
+                                                        updateMessage(selectedConversationState, editedMessage, index);
                                                     }
                                                 }}
                                             />
@@ -1187,10 +1184,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     setCurrentMessage(editedMessage);
 
                                                     if (editedMessage.role != "assistant") {
-                                                        routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
+                                                        routeMessage(editedMessage, selectedConversationState?.messages.length - index, null, []);
                                                     } else {
                                                         console.log("updateMessage");
-                                                        updateMessage(selectedConversation, editedMessage, index);
+                                                        updateMessage(selectedConversationState, editedMessage, index);
                                                     }
                                                 }}
                                             />
@@ -1244,9 +1241,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             </div>
 
             {/* Artifacts */}
-            {/* {(featureFlags.artifacts && isArtifactOpen) &&  (
+            {(featureFlags.artifacts && isArtifactOpen) &&  (
                 <Artifacts artifactIndex={artifactIndex}/>
-            )} */}
+            )}
 
             </>
         );

@@ -84,6 +84,7 @@ import { noRateLimit } from '@/types/rateLimit';
 import { fetchAstAdminGroups, checkInAmplifyCognitoGroups } from '@/services/groupsService';
 import { AmpCognGroups, AmplifyGroups } from '@/types/groups';
 import { contructGroupData } from '@/utils/app/groups';
+import { getAllArtifacts } from '@/services/artifactsService';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -245,7 +246,9 @@ const Home = ({
         if (chatEndpoint) dispatch({ field: 'chatEndpoint', value: chatEndpoint });
     }, [chatEndpoint]);
 
+
     const handleSelectConversation = async (conversation: Conversation) => {
+        window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false}} ));
         window.dispatchEvent(new Event('cleanupApiKeys'));
         // if we click on the conversation we are already on, then dont do anything
         if (selectedConversation && (conversation.id === selectedConversation.id) && isRemoteConversation(selectedConversation)) return;
@@ -536,15 +539,15 @@ const Home = ({
         data: KeyValuePair,
     ) => {
 
-        console.log("Previous Conversation: ", conversation)
-        console.log("Updating data: ", data)
+        // console.log("Previous Conversation: ", conversation)
+        // console.log("Updating data: ", data)
 
         const updatedConversation = {
             ...conversation,
             [data.key]: data.value,
         };
 
-        console.log("Updated Conversation", updatedConversation)
+        // console.log("Updated Conversation", updatedConversation)
 
 
         const { single, all } = updateConversation(
@@ -671,13 +674,13 @@ const Home = ({
         };
 
         const fetchArtifacts = async () => {      
-            // console.log("Fetching Remote Artifacts...");
-            // const response = await getArtifacts();
-            // if (response.success) { 
-            //     dispatch({ field: 'artifacts', value: response.data});  
-            // } else {
-            //     console.log("Failed to fetch remote Artifacts.");
-            // } 
+            console.log("Fetching Remote Artifacts...");
+            const response = await getAllArtifacts();
+            if (response.success) { 
+                dispatch({ field: 'artifacts', value: response.data});  
+            } else {
+                console.log("Failed to fetch remote Artifacts.");
+            } 
         };
 
         const fetchInAmpCognGroup = async () => {
@@ -866,10 +869,10 @@ const Home = ({
 
         if (user && user.email && initialRender) {
             setInitialRender(false);
-            // independent function calls
-            fetchArtifacts();  // fetch artifacts 
+            // independent function call high priority
             fetchAccounts();  // fetch accounts for chatting charging
             fetchInAmpCognGroup();  // updates ast admin interface featureflag
+            if (featureFlags.artifacts) fetchArtifacts(); // fetch artifacts 
 
             //Conversation, prompt, folder dependent calls
             handleOnLoadData();

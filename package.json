@@ -12,6 +12,7 @@
     "coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@codesandbox/sandpack-react": "^2.19.9",
     "@dqbd/tiktoken": "^1.0.2",
     "@emotion/react": "^11.11.4",
     "@mantine/core": "^6.0.21",

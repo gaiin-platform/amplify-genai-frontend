@@ -30,7 +30,7 @@ import { isRemoteConversation } from '@/utils/app/conversationStorage';
 import { downloadDataSourceFile } from '@/utils/app/files';
 import { Stars } from './Stars';
 import { saveUserRating } from '@/services/groupAssistantService';
-// import { ArtifactsBlock } from './ChatContentBlocks/ArtifactsBlock';
+import { ArtifactsBlock } from './ChatContentBlocks/ArtifactsBlock';
 
 
 export interface Props {
@@ -56,10 +56,11 @@ export const ChatMessage: FC<Props> = memo(({
     const {t} = useTranslation('chat');
 
     const {
-        state: {selectedConversation, conversations,messageIsStreaming, status, folders, featureFlags},
+        state: {selectedConversation, conversations, messageIsStreaming, artifactIsStreaming, status, folders, featureFlags},
         dispatch: homeDispatch,
         handleAddMessages: handleAddMessages
     } = useContext(HomeContext);
+
 
     const conversationsRef = useRef(conversations);
 
@@ -307,11 +308,8 @@ export const ChatMessage: FC<Props> = memo(({
                             {isEditing ? (
 
                                 <UserMessageEditor
-                                    messageIsStreaming={messageIsStreaming}
-                                    messageIndex={messageIndex}
                                     message={message}
                                     handleEditMessage={handleEditMessage}
-                                    selectedConversation={selectedConversation}
                                     setIsEditing={setIsEditing}
                                     isEditing={isEditing}
                                     messageContent={messageContent}
@@ -421,10 +419,11 @@ export const ChatMessage: FC<Props> = memo(({
                                             />
                                         </div>
                                        
-                                        {/* {featureFlags.artifacts && 
+                                        {featureFlags.artifacts && 
                                         <ArtifactsBlock 
                                             message={message}
-                                        />} */}
+                                            messageIndex={messageIndex}
+                                        />}
 
                                         <ChatCodeInterpreterFileBlock
                                             messageIsStreaming={messageIsStreaming}
@@ -438,11 +437,8 @@ export const ChatMessage: FC<Props> = memo(({
                                     )}
                                     {isEditing && (
                                         <AssistantMessageEditor
-                                            messageIsStreaming={messageIsStreaming}
-                                            messageIndex={messageIndex}
                                             message={message}
                                             handleEditMessage={handleEditMessage}
-                                            selectedConversation={selectedConversation}
                                             setIsEditing={setIsEditing}
                                             isEditing={isEditing}
                                             messageContent={messageContent}
@@ -525,7 +521,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     )}
                                 </>
                             )}
-                            {(messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1) ?
+                            {((messageIsStreaming || artifactIsStreaming) && messageIndex == (selectedConversation?.messages.length ?? 0) - 1) ?
                                 // <LoadingIcon />
                                 <Loader type="ping" size="48"/>
                                 : null}

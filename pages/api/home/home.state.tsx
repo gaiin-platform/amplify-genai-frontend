@@ -14,8 +14,6 @@ import {Op} from "@/types/op";
 import {CheckItemType} from "@/types/checkItem";
 import { PluginLocation } from '@/types/plugin';
 import { Group } from '@/types/groups';
-// import { Artifact } from '@/types/artifacts';
-// import { Artifact } from '@/types/artifacts';
 
 
 type HandleSend = (request: any) => void;
@@ -33,11 +31,11 @@ export interface HomeInitialState {
   models: OpenAIModel[];
   folders: FolderInterface[];
   conversations: Conversation[];
-  // artifacts: Artifact[];
+  artifacts: any[];
   workflows: WorkflowDefinition[];
   selectedConversation: Conversation | undefined;
   currentMessage: Message | undefined;
-  // selectedArtifacts: Artifact[] | undefined;
+  selectedArtifacts: any[] | undefined;
   prompts: Prompt[];
   temperature: number;
   showChatbar: boolean;
@@ -86,7 +84,7 @@ export const initialState: HomeInitialState = {
   models: [],
   folders: [],
   conversations: [],
-  // artifacts:[],
+  artifacts:[], // for saved/remote artifacts
   workflows: [],
   ops: {},
   workspaceMetadata: {
@@ -102,7 +100,7 @@ export const initialState: HomeInitialState = {
   },
   selectedConversation: undefined,
   currentMessage: undefined,
-  // selectedArtifacts: undefined,
+  selectedArtifacts: undefined,
   prompts: [],
   temperature: 1,
   showPromptbar: true,
@@ -143,7 +141,7 @@ export const initialState: HomeInitialState = {
     qiSummary: false,
     apiKeys: true,
     assistantAdminInterface: false,
-    artifacts: false, //true
+    artifacts: true,
     mtdCost: true
   },
 

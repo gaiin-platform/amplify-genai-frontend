@@ -15,7 +15,7 @@ import HomeContext from "@/pages/api/home/home.context";
 import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
 import ApiKeyBlock from "./ApiKeyBlock";
 import { ApiDocBlock } from "./APIDocBlock";
-// import AutoArtifactsBlock from "./AutoArtifactBlock";
+import AutoArtifactsBlock from "./AutoArtifactBlock";
 import DOMPurify from  "dompurify";
 
 
@@ -159,11 +159,11 @@ const ChatContentBlock: React.FC<Props> = (
                             );
                         }
                         break;
-                    // case 'autoArtifacts':
-                    //     if (featureFlags.artifacts) {
-                    //         return (<AutoArtifactsBlock content={String(children)} ready={!messageIsStreaming} message={message}/>);
-                    //     }
-                    //     break;
+                    case 'autoArtifacts':
+                        if (featureFlags.artifacts) {
+                            return (<AutoArtifactsBlock content={String(children)} ready={!messageIsStreaming} message={message}/>);
+                        }
+                        break;
                     case 'assistant':
                         return (<AssistantBlock definition={String(children)}/>);
 

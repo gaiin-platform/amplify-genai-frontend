@@ -32,7 +32,7 @@ interface Props {
 
 export const ConversationComponent = ({ conversation}: Props) => {
   const {
-    state: { selectedConversation, messageIsStreaming, checkingItemType, checkedItems, folders},
+    state: { selectedConversation, messageIsStreaming, artifactIsStreaming, checkingItemType, checkedItems, folders},
     handleSelectConversation,
     handleUpdateConversation,
     dispatch: homeDispatch
@@ -160,14 +160,14 @@ export const ConversationComponent = ({ conversation}: Props) => {
       ) : (
         <button
           className={`flex w-full cursor-pointer items-center gap-3 rounded-lg p-3 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90 ${
-            messageIsStreaming ? 'disabled:cursor-not-allowed' : ''
+            messageIsStreaming || artifactIsStreaming? 'disabled:cursor-not-allowed' : ''
           } ${
             selectedConversation?.id === conversation.id
               ? 'bg-neutral-200 dark:bg-[#343541]/90'
               : ''
           }`}
           onClick={() => handleSelectConversation(conversation)}
-          disabled={messageIsStreaming}
+          disabled={messageIsStreaming || artifactIsStreaming}
           draggable="true"
           onDragStart={(e) => handleDragStart(e, conversation)}
           title="View Conversation"

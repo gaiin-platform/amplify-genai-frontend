@@ -2,6 +2,10 @@ interface languageMap {
   [key: string]: string | undefined;
 }
 
+export const getFileExtensionFromLanguage = (language: string): string => {
+  return programmingLanguages[language.toLowerCase()] || '.txt'; // Default to .txt if language is not found
+};
+
 export const programmingLanguages: languageMap = {
   javascript: '.js',
   python: '.py',
@@ -26,7 +30,11 @@ export const programmingLanguages: languageMap = {
   sql: '.sql',
   html: '.html',
   css: '.css',
-  // add more file extensions here, make sure the key is same as language prop in CodeBlock.tsx component
+  json: '.json', 
+  yaml: '.yaml', 
+  markdown: '.md', 
+  plaintext: '.txt', // Added
+  xml: '.xml', // add more file extensions here, make sure the key is same as language prop in CodeBlock.tsx component
 };
 
 export const generateRandomString = (length: number, lowercase = false) => {
@@ -37,3 +45,4 @@ export const generateRandomString = (length: number, lowercase = false) => {
   }
   return lowercase ? result.toLowerCase() : result;
 };
+

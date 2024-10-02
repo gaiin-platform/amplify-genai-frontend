@@ -105,6 +105,7 @@ export const getFileDownloadUrl = async (key:string, groupId: string | undefined
         signal: null,
     });
 
+
     if (!response.ok) {
         return {success: false};
     }
@@ -114,7 +115,7 @@ export const getFileDownloadUrl = async (key:string, groupId: string | undefined
     return {success: result.success, key:key, downloadUrl:result.downloadUrl};
 }
 
-export const addFile = async (metadata:AttachedDocument, file: File, onProgress?: (progress: number) => void, abortSignal:AbortSignal|null= null) => {
+export const addFile = async (metadata:AttachedDocument, file: File, onProgress?: (progress: number) => void, abortSignal:AbortSignal|null= null, tags: string[] = []) => {
 
     const response = await fetch('/api/files/upload', {
         method: 'POST',
@@ -127,7 +128,7 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
                 type:metadata.type,
                 name:metadata.name,
                 knowledgeBase:"default",
-                tags:[],
+                tags:tags,
                 data:{},
                 groupId: metadata.groupId
             }
