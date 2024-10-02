@@ -11,10 +11,11 @@ interface Props {
   isDisabled?: boolean;
   handleModelChange?: (e: string) => void
   isTitled?: boolean;
+  disableMessage?: string;
 }
 
 
-export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleModelChange, isTitled=true}) => {
+export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleModelChange, isTitled=true, disableMessage = "Model has been predetermined and can not be changed"}) => {
   const { t } = useTranslation('chat');
   const {
     state: { selectedConversation, models, defaultModelId },
@@ -25,9 +26,9 @@ export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleM
 
   useEffect(()=>{
     setSelectModel(modelId);
-    if (handleModelChange && !modelId && defaultModelId) setTimeout(() => {handleModelChange(defaultModelId)}, 100); 
+    if (!isDisabled && handleModelChange && !modelId && defaultModelId) setTimeout(() => {handleModelChange(defaultModelId)}, 100); 
   }
-  ,[modelId]);
+  ,[modelId, isDisabled]);
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const updatedModel = e.target.value;
@@ -58,7 +59,7 @@ export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleM
           placeholder={t('Select a model') || ''}
           value={selectModel}
           onChange={handleChange}
-          title={isDisabled ? "Model has been predetermined and can not be changed": "Select Model"}
+          title={isDisabled ? disableMessage : "Select Model"}
         >
           {models.map((model: OpenAIModel) => (
             <option

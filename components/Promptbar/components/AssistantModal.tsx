@@ -14,6 +14,7 @@ import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/Promptbar/components/FlagsMap";
 import { AssistantDefinition } from '@/types/assistant';
 import { AstGroupTypeData } from '@/types/groups';
+import React from 'react';
 
 
 interface Props {
@@ -180,9 +181,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         };
     }, []);
 
-    // useEffect(() => {
-    //     console.log(additionalGroupData);
-    // }, [additionalGroupData]);
+    useEffect(() => {
+        console.log(additionalGroupData);
+    }, [additionalGroupData]);
 
     const [uri, setUri] = useState<string|null>(definition.uri || null);
 

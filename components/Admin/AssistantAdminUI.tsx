@@ -973,7 +973,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                         } else {
                             conversationsData = result.data.body;
                         }
-                        console.log('Parsed conversations data:', conversationsData);
+                        // console.log('Parsed conversations data:', conversationsData);
                         setConversations(Array.isArray(conversationsData) ? conversationsData : []);
                     } else {
                         console.error('Failed to fetch conversations:', result.message);
@@ -1200,8 +1200,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
             case 'conversations':
                 return ( selectedAssistant ? <ConversationTable conversations={conversations} /> : <></>);
             case 'dashboard':
-                console.log('Current dashboardMetrics:', dashboardMetrics);
-                console.log('Current selectedAssistant:', selectedAssistant);
+                // console.log('Current dashboardMetrics:', dashboardMetrics);
+                // console.log('Current selectedAssistant:', selectedAssistant);
                 return (
                     selectedAssistant && dashboardMetrics ?
                         <Dashboard metrics={dashboardMetrics} /> :
@@ -1831,6 +1831,8 @@ interface AssistantModalProps {
 // To add more configuarations to the assistant, add components here and ensure the change is sent through CustomEvent 'astGroupDataUpdate'
 export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId, astData = {}, groupTypes=[]}) => {
     const [isPublished, setIsPublished] = useState<boolean>(astData.isPublished ?? false);
+    const [enforceModel, setEnforceModel] = useState<boolean>(!!astData.model);
+
     
     return <div className='flex flex-col' key={astId}> 
             <div className='mb-4 flex flex-row gap-3 text-[1.05rem]'>
@@ -1845,16 +1847,30 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
                         />
                         Publish assistant to read-access members
             </div>
-        
-        <label className='font-bold text-black dark:text-neutral-200'> {"Model"}</label>
-        All conversations will be set to this model and unable to be changed by the user.
-        <ModelSelect
-            isTitled={false}
-            modelId={astData.model}
-            handleModelChange={(model:string) => {
-                window.dispatchEvent(new CustomEvent('astGroupDataUpdate', { detail: { astId: astId, data: {model: model} }} ));
-            }}
-        />
+            <div className='mb-1 flex flex-row gap-3 text-[1rem]'>
+                <input
+                    type="checkbox"
+                    checked={enforceModel}
+                    onChange={(e) => {
+                        const isChecked = e.target.checked;
+                        if (!isChecked)  window.dispatchEvent(new CustomEvent('astGroupDataUpdate', { detail: { astId: astId, data: {model: undefined} }} ));
+                        setEnforceModel(isChecked);
+                    }}
+                />
+                Enforce Model
+            </div>
+        <div className={`ml-6 flex flex-col ${enforceModel ? "" :'opacity-40'}`}>
+            All conversations will be set to this model and unable to be changed by the user.
+            <ModelSelect
+                isTitled={false}
+                modelId={astData.model}
+                isDisabled={!enforceModel}
+                disableMessage=''
+                handleModelChange={(model:string) => {
+                    window.dispatchEvent(new CustomEvent('astGroupDataUpdate', { detail: { astId: astId, data: {model: model} }} ));
+                }}
+            />
+        </div>
         <br className='my-1'></br>
         <GroupTypesAstData
             groupId={groupId}
