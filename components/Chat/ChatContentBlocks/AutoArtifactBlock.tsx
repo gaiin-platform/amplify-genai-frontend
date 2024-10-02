@@ -56,7 +56,7 @@ const endMarker = '</>';
 
 
 const ARTIFACT_CUSTOM_INSTRUCTIONS = `Follow these structural guidelines strictly:
-    - Follow markdown, vega block, and other formatting guidelines as applicable.
+    - IMPORTANT" Respond in valid markdown for any code blocks ex. ${"```html  <your code> ```"}  If you are asked to draw a diagram, you can use Mermaid diagrams using mermaid.js syntax in a ${"```mermaid code block. If you are asked to visualize something, you can use a ```"}vega code block with Vega-lite. 
     - If you need to say anything to the user that is not part of the artifact, wrap it in a ${startMarker} <your comments not part of the artifact> ${endMarker} tag.
     
     Example: ${startMarker} Sure! I can create an artifact for you! ${endMarker}
@@ -82,9 +82,9 @@ useEffect(() => {
         homeDispatch({field: 'messageIsStreaming', value: true}); 
         homeDispatch({field: 'artifactIsStreaming', value: true});
         setLlmPrompted(true);
-        const data = JSON.parse(content)
+        
         try {
-
+            const data = JSON.parse(content)
             const artifactDetail = {
                 artifactId: data.id,
                 name: data.name, 
@@ -98,11 +98,11 @@ useEffect(() => {
 
             const additionalContent =  appendRelevantArtifacts(includeArtifactsId, data.id);
             // includeArtifactsId
-            console.log("TYPE: ", data.type);
             getArtifactMessages(instr + additionalContent,  artifactDetail as ArtifactBlockDetail, data.type);
 
         } catch {
-            console.log("error parsing auto artifacts bloack ")
+            console.log("error parsing auto artifacts bloack ");
+            alert("Unfortunately, we were unable to produce your artifact at this time. Please resend your last prompt to try again.");
         }        
     }
 }, [ready]);

@@ -550,7 +550,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                             /> 
                             
                         )} 
-                        { isPreviewing && !isEditing  && 
+                        { isPreviewing  && 
                             <ArtifactPreview content={lzwUncompress(selectArtifactList[versionIndex].contents)} type={selectArtifactList[versionIndex].type} height={innerHeight - 155}/>
                         }
                         {selectArtifactList && 
@@ -588,17 +588,18 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                         {isPreviewing ?
                             <button
                             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                            onClick={() => {setIsPreviewing(false)}}
+                            onClick={() => {
+                                setIsPreviewing(false)}}
                             title="View Code"
-                            disabled={isEditing}
+                            // disabled={isEditing}
                             >
                             <IconCode size={24}/>
                             </button> :             
                             <button
                                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                onClick={() => {setIsPreviewing(true)}}
+                                onClick={() => {setIsEditing(false); setIsPreviewing(true);}}
                                 title="Preview Artifact"
-                                disabled={isEditing}
+                                // disabled={isEditing}
                             >
                                 <IconPresentation size={24}/>
                             </button> }

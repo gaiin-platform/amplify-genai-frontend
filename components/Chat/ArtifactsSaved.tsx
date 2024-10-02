@@ -144,6 +144,7 @@ const handleDeleteArtifact = async (key: string, index:number) => {
         alert("Unable to delete the artifact at this time. Please try again later.");
       }
     }
+    setIsLoading(false);
 }
 
 if (artifacts.length === 0) return <></>;
@@ -161,7 +162,7 @@ return (
         {isOpen &&
         <div ref={artifactsRef}  
             className="overflow-auto fixed z-50 border border-neutral-300 rounded bg-neutral-100 dark:border-neutral-600 bg-neutral-100 dark:bg-[#444654]"
-            style={{maxHeight: `200px`, top: 50}}>
+            style={{maxHeight: `200px`, top: 40}}>
                 <ul className="suggestions-list ">
                 {artifacts.map((artifact, index) => (
                     <li key={index} onClick={() => { if (!isLoading) handleAddArtifactToConversation(artifact.key)}} 
@@ -169,15 +170,18 @@ return (
                     title={`${artifact.description}\n - ${artifact.sharedBy ? `Shared by: ${artifact.sharedBy}` : artifact.createdAt}`}
                     className="p-2.5 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-[#343541]/90 flex flex-row gap-2">
                       <label className='truncate flex-grow' style={{maxWidth: hoveredItem === index || isLoading ? '200px' : '224px', cursor: isLoading ? 'default': 'pointer'}}> {artifact.name}</label>
-                      
-                      { isLoading ? 
+                
+                      { isLoading && hoveredItem === index ? 
                         <LoadingIcon/>
                         :
                         <button
                           type="button"
                           style={{ display: hoveredItem === index ? 'block' : 'none' }}
                           className={` ml-auto text-sm  rounded  text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100`}
-                          onClick={() => (handleDeleteArtifact(artifact.key, index))}
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevents triggering the li click event
+                            handleDeleteArtifact(artifact.key, index);
+                          }}
                       >
                           <IconTrash size={16} />
                         </button> 

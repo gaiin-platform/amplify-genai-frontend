@@ -9,6 +9,7 @@ import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
 import {Conversation} from "@/types/chat";
 import { createAssistantPrompt, handleUpdateAssistantPrompt} from "@/utils/app/assistants";
 import toast from "react-hot-toast";
+import React from "react";
 
 
 interface AssistantProps {
