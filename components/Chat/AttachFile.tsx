@@ -185,8 +185,9 @@ const handleFile = async (file:any,
         let type:string = file.type;
 
         let size = file.size;
+        const fileName = file.name.replace(/[_\s]+/g, '_');;
 
-        let document:AttachedDocument = {id:uuidv4(), name:file.name, type:file.type, raw:"", data:"", groupId:groupId};
+        let document:AttachedDocument = {id:uuidv4(), name: fileName, type:file.type, raw:"", data:"", groupId:groupId};
 
 
 
@@ -212,7 +213,7 @@ const handleFile = async (file:any,
         if(uploadDocuments) {
             try {
 
-                const {key, response, statusUrl, metadataUrl, contentUrl, abortController} = await addFile({id: uuidv4(), name: file.name, raw: "", type: file.type, data: "", groupId}, file,
+                const {key, response, statusUrl, metadataUrl, contentUrl, abortController} = await addFile({id: uuidv4(), name: fileName, raw: "", type: file.type, data: "", groupId}, file,
                     (progress: number) => {
                         if (onUploadProgress && progress < 95) {
                             onUploadProgress(document, progress);
