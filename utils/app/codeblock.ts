@@ -67,7 +67,7 @@ export const getFileExtensionFromLanguage = (language: string): string => {
 };
 
 
- const programmingLanguages: languageMap = {
+ export const programmingLanguages: languageMap = {
   javascript: '.js',
   python: '.py',
   java: '.java',
