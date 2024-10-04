@@ -2,6 +2,7 @@ import { Conversation } from "@/types/chat";
 import { FolderInterface } from "@/types/folder";
 import { compressConversation, saveConversations, uncompressConversation } from "@/utils/app/conversation";
 import { CloudConvAttr, pickConversationAttributes, remoteConvData } from "@/utils/app/conversationStorage";
+import { lzwUncompress } from "@/utils/app/lzwCompression";
 
 
 export const uploadConversation = async (conversation: Conversation, folders: FolderInterface[], abortSignal = null) => {
@@ -82,8 +83,8 @@ export const fetchAllRemoteConversations = async (abortSignal = null) => {
     const result = await response.json();
     const resultBody = result ? JSON.parse(result.body || '{}') : {"success": false};
     if (resultBody.success) { // folders needed for first fetch 
-        console.log("uncompress retrieved conversations len: ", resultBody.conversationsData.length);
-        return resultBody.conversationsData;
+        // console.log("uncompress retrieved conversations len: ", JSON.parse(lzwUncompress(resultBody.conversationsData)).length);
+        return JSON.parse(lzwUncompress(resultBody.conversationsData));
     } else {
         console.error("Error fetching conversations: ", result.message);
         return null;
