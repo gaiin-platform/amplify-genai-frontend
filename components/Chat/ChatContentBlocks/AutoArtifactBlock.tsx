@@ -56,21 +56,57 @@ const endMarker = '</>';
 
 
 const ARTIFACT_CUSTOM_INSTRUCTIONS = `Follow these structural guidelines strictly:
-    - IMPORTANT" Respond in valid markdown for any code blocks ex. ${"```html  <your code> ```"}  If you are asked to draw a diagram, you can use Mermaid diagrams using mermaid.js syntax in a ${"```mermaid code block. If you are asked to visualize something, you can use a ```"}vega code block with Vega-lite. 
-    - If you need to say anything to the user that is not part of the artifact, wrap it in a ${startMarker} <your comments not part of the artifact> ${endMarker} tag.
+    - IMPORTANT" Respond in valid markdown for any CODE blocks ex. ${"```html  <your code> ```"}  If you are asked to draw a diagram, you can use Mermaid diagrams using mermaid.js syntax in a ${"```mermaid code block. If you are asked to visualize something, you can use a ```"}vega code block with Vega-lite. 
     
-    Example: ${startMarker} Sure! I can create an artifact for you! ${endMarker}
+    - Include File Names in Code Blocks: 
+  All code blocks must include the file name as a comment on the first line. The file name should be appropriate for the context and follow the required naming conventions for Sandpack (if Applicable) based on the type of project.  Ensure that names are consistently used where files are imported or referenced. IMPORTANT: This will not apply to Artifacts of type 'text' 
+
+  For example, in a react artifact type:
+  
+        ${"```javascript"}
+        // App.js
+        import Header from './Header';
+        ${"```"}
+
+        ${"```javascript"}
+        // Header.js
+        export default function Header() { 
+            return <h1>Header Component</h1>;
+        }
+        ${"```"}
+
+    And for a static HTML artifact type:
+        
+        ${"```html"}
+        <!-- index.html -->
+        <html>
+            <body>
+                <script src="index.js"></script>
+            </body>
+        </html>
+        ${"```"}
+
+        ${"```javascript"}
+        // index.js
+        console.log('Hello, World!');
+        ${"```"}
+
+
+    - If you need to say/comment anything to the user that is NOT part of the artifact, wrap it in a ${startMarker} <your comments not part of the artifact> ${endMarker} tag AT THE END OF YOUR ARTIFACT OUTPUT
+    
+    Example: ${startMarker} Enjoy the artifact! ${endMarker}
     
     - **Do not** include explanations, overviews, or guidance outside the ${startMarker} and ${endMarker} tags. Any instructions, comments, or final steps should always be wrapped in these tags.
     - If your artifact consists of only text, place it in a text block. 
-    - **You are forbidden** from using the start and end markers for any other use.
+    - You are forbidden from using the start and end markers for any other use.
     - When creating an extension, new version, or update to an existing artifact, output the entire contents of the artifact.
     - Any code must be enclosed in a valid markdown code block for proper formatting.
     
     **Additional Guidelines:**
     - For interactive components (e.g., HTML, CSS, or widgets), ensure users can preview or download the artifact files if relevant (This will be handled for you). 
     - If any ambiguities exist in the user’s request, provide fallback suggestions within the ${startMarker} and ${endMarker} tags.
-`
+    - ensure your artifacts are as complete as possible.
+`   
 
 
 useEffect(() => {
@@ -93,7 +129,7 @@ useEffect(() => {
                 version: undefined // determined later
             }
             // setArtifactDetails(artifactDetail);
-            const instr = data.instructions;
+            const instr = data.instructions + (data.type ? `This Artifact is expected to be of type: '${data.type}' `: '');
             const includeArtifactsId = data.includeArtifactsId || [];
 
             const additionalContent =  appendRelevantArtifacts(includeArtifactsId, data.id);
@@ -133,6 +169,8 @@ const shouldAbort = ()=>{
 }
 
 const getArtifactMessages = async (llmInstructions: string, artifactDetail: ArtifactBlockDetail, type: string = '') => {
+    const requestId = Math.random().toString(36).substring(7);
+    homeDispatch({field: "currentRequestId", value: requestId});
     if (selectedConversation && selectedConversation?.messages) {
         const controller = new AbortController();
 
@@ -185,13 +223,12 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             skipRag: true,
             skipCodeInterpreter: true,
             artifactsMode: true,
-            requestId: Math.random().toString(36).substring(7)
+            requestId: requestId
             };
 
             // console.log("ArtifactDetails: ", artifactDetail)
 
             statsService.sendChatEvent(chatBody);
-            homeDispatch({field: "currentRequestId", value: chatBody.requestId});
 
             window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: true, artifactIndex:  selectArtifacts.length - 1}} ));
 
@@ -306,10 +343,11 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 uploadConversation(updatedConversation, foldersRef.current);
             }
 
-            homeDispatch({
+            setTimeout( 
+                () => homeDispatch({
                 field: 'selectedConversation',
                 value: updatedConversation,
-            }); 
+            }), 300); 
             
             } finally {
                 if (reader) {

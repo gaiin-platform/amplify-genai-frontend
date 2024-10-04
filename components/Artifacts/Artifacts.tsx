@@ -33,7 +33,7 @@ import toast from "react-hot-toast";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { getAllArtifacts, saveArtifact, shareArtifact } from "@/services/artifactsService";
 import { TagsList } from "../Chat/TagsList";
-import { downloadArtifacts, extractCodeBlocksAndText, uploadArtifact } from "@/utils/app/artifacts";
+import { downloadArtifacts, uploadArtifact } from "@/utils/app/artifacts";
 import { EmailsAutoComplete } from "../Emails/EmailsAutoComplete";
 import { Group } from "@/types/groups";
 import { fetchEmailSuggestions } from "@/services/emailAutocompleteService";
@@ -43,23 +43,35 @@ import { conversationWithCompressedMessages, saveConversations } from "@/utils/a
 import { uploadConversation } from "@/services/remoteConversationService";
 import React from "react";
 import { ArtifactPreview } from "./ArtifactPreview";
+import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codeblock";
 
   interface Props {
     artifactIndex: number;
+    setArtifactIndex?: (i: number) => void;
 }
 
-export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts 
+
+export const Artifacts: React.FC<Props> = ({artifactIndex, setArtifactIndex}) => { //artifacts 
     const {state:{statsService, selectedConversation, selectedArtifacts, artifactIsStreaming, chatEndpoint, currentRequestId, conversations, folders, groups},  dispatch:homeDispatch} = useContext(HomeContext);
 
     const [selectArtifactList, setSelectArtifactList] = useState<Artifact[]>(selectedArtifacts ?? []);
     const [versionIndex, setVersionIndex] = useState<number>(artifactIndex || (selectArtifactList?.length ?? 1) - 1);
+    
+    
+    const getArtifactContents = () => {
+        return selectArtifactList ? lzwUncompress(selectArtifactList[versionIndex].contents) : '';
+    }
+    
+    const [codeBlocks, setCodeBlocks] = useState<CodeBlockDetails[]>([]);
 
-    // const [codeBlocks, setCodeBlocks] = useState< { language: string; code: string }[] >([]);
 
     useEffect(() => {
         setIsPreviewing(false);
         setIsEditing(false);
         setIsSharing(false);
+        
+        if (!artifactIsStreaming)  setCodeBlocks(extractCodeBlocksAndText(getArtifactContents()));
+        console.log(codeBlocks);
     }, [artifactIsStreaming, versionIndex]);
 
 
@@ -79,6 +91,12 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     useEffect(() => {
         setVersionIndex(artifactIndex);
     },[artifactIndex])
+
+    //keep them in sync 
+    // useEffect(() => {
+    //     setArtifactIndex(versionIndex);
+    // },[versionIndex])
+
 
     useEffect(() => {
         if (selectedArtifacts)  setSelectArtifactList(selectedArtifacts);
@@ -104,7 +122,6 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     const [messagedCopied, setMessageCopied] = useState(false);
     const [innerHeight, setInnerHeight] = useState(window.innerHeight);
     const [isLoading, setIsLoading] = useState<string>('');
-    const [highlightedText, setHighlightedText] = useState('');
 
 
     useEffect(() => {
@@ -119,25 +136,6 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     }, [open]);
 
 
-
-  const checkForSelection = () => {
-    const selection = window.getSelection()?.toString();
-    if (selection) {
-      setHighlightedText(selection); 
-      console.log(selectArtifactList);
-    } else {
-      setHighlightedText('');
-    }
-    
-  };
-
-  React.useEffect(() => {
-    document.addEventListener('mouseup', checkForSelection);
-
-    return () => {
-      document.removeEventListener('mouseup', checkForSelection);
-    };
-  }, []);
 
     useEffect(() => {
         if (isSaving || isSharing || isUploading) setIsModalOpen(true);
@@ -208,7 +206,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     const copyOnClick = () => {
         if (!navigator.clipboard) return;
         if (selectArtifactList) {
-            const artifactContent = lzwUncompress(selectArtifactList[versionIndex].contents)
+            const artifactContent = getArtifactContents();
             navigator.clipboard.writeText(artifactContent).then(() => {
                 setMessageCopied(true);
                 setTimeout(() => {
@@ -245,6 +243,8 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
             }
             if (selectedConversation) handleUpdateConversationArtifacts(updatedConversation, currentArtifact.artifactId, updatedArtifacts);
             setVersionIndex(updatedArtifacts.length - 1);
+            setCodeBlocks(extractCodeBlocksAndText(getArtifactContents()));
+
         }
     };
 
@@ -317,8 +317,8 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     const handleDownloadArtifact = () => {
         setIsLoading('Downloading Artifact...');
         const artifact = selectArtifactList[versionIndex];
-        const artifactContent = lzwUncompress(artifact.contents);
-        downloadArtifacts(artifact.name.replace(/\s+/g, '_'), artifactContent);
+        const artifactContent = getArtifactContents();
+        downloadArtifacts(artifact.name.replace(/\s+/g, '_'), artifactContent, codeBlocks);
         setIsLoading('');
 
     }
@@ -327,7 +327,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
         setIsUploading(false);
         setIsLoading('Upload Artifact to Amplify File Manager...');
         const artifact = selectArtifactList[versionIndex];
-        const artifactContent = lzwUncompress(artifact.contents);
+        const artifactContent = getArtifactContents();
         await uploadArtifact(artifact.name.replace(/\s+/g, '_'), artifactContent, tags);
         handleTags();
         setIsLoading('');
@@ -545,13 +545,14 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                                 handleEditArtifact={handleEditArtifact}
                                 setIsEditing={setIsEditing}
                                 isEditing={isEditing}
-                                artifactContent={selectArtifactList? lzwUncompress(selectArtifactList[versionIndex].contents) : ""}
+                                artifactContent={getArtifactContents()}
+                                blocks={codeBlocks}
                                 height={innerHeight - 210}
                             /> 
                             
                         )} 
                         { isPreviewing  && 
-                            <ArtifactPreview content={lzwUncompress(selectArtifactList[versionIndex].contents)} type={selectArtifactList[versionIndex].type} height={innerHeight - 155}/>
+                            <ArtifactPreview codeBlocks={codeBlocks} artifactContent={getArtifactContents()} type={selectArtifactList[versionIndex].type} height={innerHeight - 155}/>
                         }
                         {selectArtifactList && 
                             <div className='mt-4 flex flex-row w-full'  title={`${versionIndex + 1} of ${selectArtifactList?.length}`}> 
@@ -591,7 +592,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                             onClick={() => {
                                 setIsPreviewing(false)}}
                             title="View Code"
-                            // disabled={isEditing}
+                            disabled={artifactIsStreaming}
                             >
                             <IconCode size={24}/>
                             </button> :             
@@ -599,7 +600,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                 onClick={() => {setIsEditing(false); setIsPreviewing(true);}}
                                 title="Preview Artifact"
-                                // disabled={isEditing}
+                                disabled={artifactIsStreaming}
                             >
                                 <IconPresentation size={24}/>
                             </button> }
@@ -613,6 +614,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                                 handleSaveArtifact();
                             }}
                             title="Save Artifact"
+                            disabled={artifactIsStreaming}
                         >
                             <IconDeviceFloppy size={24}/>
                         </button>
@@ -627,6 +629,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                                 handleUploadAsFile();
                             }}
                             title="Upload Artifact To Amplify File Manager"
+                            disabled={artifactIsStreaming}
                         >
                             <IconFileUpload size={24}/>
                         </button>
@@ -641,7 +644,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                 onClick={copyOnClick}
                                 title="Copy Artifact"
-                                disabled={isEditing}
+                                disabled={artifactIsStreaming}
                             >
                                 <IconCopy size={24}/>
                             </button>
@@ -652,7 +655,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                             onClick={handleDownloadArtifact}
                             title="Download Artifact"
-                            disabled={isEditing}
+                            disabled={artifactIsStreaming}
                         >
                             <IconDownload size={24}/>
                         </button>
@@ -660,10 +663,10 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                         <button
                             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                             title="Email Artifact"
-                            disabled={isEditing}
+                            disabled={artifactIsStreaming}
                         >
                             <a className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                href={`mailto:?body=${encodeURIComponent( lzwUncompress(selectArtifactList[versionIndex].contents) )}`}>
+                                href={`mailto:?body=${encodeURIComponent( getArtifactContents() )}`}>
                                 <IconMail size={24}/>
                             </a>
                         </button>
@@ -676,14 +679,16 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                                 setIsSharing(true);
                                 }}
                             title="Share Artifact"
+                            disabled={artifactIsStreaming}
                         >
                             <IconShare size={24}/>
                         </button>
 
                         <button
                             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                            onClick={() => {setIsEditing(!isEditing)} }
+                            onClick={() => {setIsPreviewing(false); setIsEditing(!isEditing)} }
                             title="Edit Artifact"
+                            disabled={artifactIsStreaming}
                         >
                             <IconEdit size={24}/>
                         </button>
@@ -692,6 +697,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                             onClick={handleDeleteArtifact}
                             title="Delete Version"
+                            disabled={artifactIsStreaming}
                         >
                             <IconTrash size={24}/>
                         </button>

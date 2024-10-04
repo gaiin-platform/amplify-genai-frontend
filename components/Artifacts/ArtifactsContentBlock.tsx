@@ -12,6 +12,7 @@ import HomeContext from "@/pages/api/home/home.context";
 import { Artifact } from "@/types/artifacts";
 import { lzwUncompress } from "@/utils/app/lzwCompression";
 import DOMPurify from "dompurify";
+import React from "react";
 
 interface Props {
     artifactIsStreaming: boolean;

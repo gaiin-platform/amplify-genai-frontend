@@ -52,7 +52,7 @@ export const ArtifactsSaved: FC<Props> = ({
   const [artifactList, setSetArtifactList] = useState<any>(artifacts);
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [hoveredItem, setHoveredItem] = useState<number>(-1);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadingItem, setLoadingItem] = useState<number>(-1);
 
   const artifactsRef = useRef<HTMLDivElement>(null);
 
@@ -116,8 +116,8 @@ const handleUpdateConversation = (updatedConversation: Conversation, artifact: A
 
 }
 
-const handleAddArtifactToConversation = async (key: string,) => {
-    setIsLoading(true);
+const handleAddArtifactToConversation = async (key: string, index:number) => {
+    setLoadingItem(index);
     const result = await getArtifact(key);
     if (result.success) {
       const artifact:Artifact = result.data;
@@ -125,27 +125,27 @@ const handleAddArtifactToConversation = async (key: string,) => {
     } else {
       alert("Unable to retrieve the artifact at this time. Please try again later.");
     } 
-    setIsLoading(false);
+    setLoadingItem(-1);
     setIsOpen(false);
 }
 
 
 const handleDeleteArtifact = async (key: string, index:number) => {
-    setIsLoading(true);
+    setLoadingItem(index);
     if (confirm("Are you sure you want to delete this artifact? You will not be able to undo this change.")) {
       const result = await deleteArtifact(key);
       if (result) {
         toast("Artifact successfully deleted");
         const updatedList = artifactList.filter((_:any, i:number) => i !== index);;
         homeDispatch({field: "artifacts", value: updatedList});
-        setIsLoading(false);
+        setLoadingItem(-1);
         setSetArtifactList(updatedList);
         setHoveredItem(-1);
       } else {
         alert("Unable to delete the artifact at this time. Please try again later.");
       }
     }
-    setIsLoading(false);
+    setLoadingItem(-1);
 }
 
 if (artifacts.length === 0) return <></>;
@@ -166,13 +166,13 @@ return (
             style={{maxHeight: `200px`, top: 40}}>
                 <ul className="suggestions-list ">
                 {artifacts.map((artifact, index) => (
-                    <li key={index} onClick={() => { if (!isLoading) handleAddArtifactToConversation(artifact.key)}} 
+                    <li key={index} onClick={() => { if (loadingItem === -1 ) handleAddArtifactToConversation(artifact.key, index)}} 
                     onMouseEnter={() => setHoveredItem(index)} onMouseLeave={() => setHoveredItem(-1)}
                     title={`${artifact.description}\n - ${artifact.sharedBy ? `Shared by: ${artifact.sharedBy}` : artifact.createdAt}`}
                     className="p-2.5 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-[#343541]/90 flex flex-row gap-2">
-                      <label className='truncate flex-grow' style={{maxWidth: hoveredItem === index || isLoading ? '200px' : '224px', cursor: isLoading ? 'default': 'pointer'}}> {artifact.name}</label>
+                      <label className='truncate flex-grow' style={{maxWidth: hoveredItem === index || loadingItem === index ? '200px' : '224px', cursor: loadingItem === index ? 'default': 'pointer'}}> {artifact.name}</label>
                 
-                      { isLoading && hoveredItem === index ? 
+                      { loadingItem === index ? 
                         <LoadingIcon/>
                         :
                         <button

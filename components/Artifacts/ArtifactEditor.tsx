@@ -1,5 +1,4 @@
-import { extractCodeBlocksAndText } from "@/utils/app/artifacts";
-import { getFileExtensionFromLanguage } from "@/utils/app/codeblock";
+import { CodeBlockDetails, getFileExtensionFromLanguage } from "@/utils/app/codeblock";
 import { getSettings } from "@/utils/app/settings";
 import {
   SandpackCodeEditor,
@@ -7,6 +6,7 @@ import {
   useSandpack,
 } from "@codesandbox/sandpack-react";
 import { IconCode, IconFileText } from "@tabler/icons-react";
+import React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   setIsEditing: (isEditing: boolean) => void;
   isEditing: boolean;
   artifactContent: string;
+  blocks: CodeBlockDetails[];
   height: number;
 }
 
@@ -22,6 +23,7 @@ export const ArtifactEditor: React.FC<Props> = ({
   setIsEditing,
   isEditing,
   artifactContent,
+  blocks,
   height,
 }) => {
 
@@ -29,12 +31,35 @@ export const ArtifactEditor: React.FC<Props> = ({
   const theme = 'dark';//getSettings().theme;
   const [isCodeView, setIsCodeView] = useState(true);
   const [editContent, setEditContent] = useState<string>(artifactContent); // for text only 
-  const [codeBlocks, setCodeBlocks] = useState< { language: string; code: string, fileName:string}[] >([]);
-  const [files, setFiles] = useState<{ [key: string]: { code: string } }>({});
-
-
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isTyping, setIsTyping] = useState<boolean>(false);
+
+  const updateCodeBlocks = () => {
+    let hasIndexHtml = false;
+    const updatedBlocks:CodeBlockDetails[] = blocks.map((block, index) => {
+        const extension = block.extension;
+        if (block.language === 'html') hasIndexHtml = true;
+        let fileName = block.filename ? block.filename : block.language === 'html' && !hasIndexHtml
+                                                           ? 'index.html' : `file${index + 1}${extension}`;
+        return {...block, filename: fileName}
+    });
+    return updatedBlocks;
+}
+
+  const establishFiles = (codeBlocks: CodeBlockDetails[]) => {
+        const newFiles: { [key: string]: any } = {};
+        let hasIndexHtml = false;
+        codeBlocks.forEach((block) => {
+            if (block.language === 'html') hasIndexHtml = true;                                                
+            newFiles[block.filename] = { code: block.code };
+        });
+        if (!hasIndexHtml) newFiles['/index.html'] = { code: '<!--Intentionally left blank. Ignore this file.-->'};
+       return newFiles;
+  }
+
+  const [codeBlocks] = useState<CodeBlockDetails[]>(updateCodeBlocks());
+  const [files] = useState<{ [key: string]: { code: string } }>(establishFiles(codeBlocks));
+
 
     const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
       setEditContent(event.target.value);
@@ -60,52 +85,16 @@ export const ArtifactEditor: React.FC<Props> = ({
     }, [isEditing]);
 
 
-    useEffect(() => {
-      const { textBlocks, codeBlocks: extractedCodeBlocks } =
-        extractCodeBlocksAndText(artifactContent);
-  
-      if (
-        extractedCodeBlocks.length > 0 &&
-        Object.keys(files).length === 0 &&
-        codeBlocks.length === 0
-      ) {
-        const newFiles: { [key: string]: { code: string } } = {};
-  
-        const updatedCodeBlocks = extractedCodeBlocks.map((block, index) => {
-          const extension = getFileExtensionFromLanguage(block.language);
-          const fileName =
-            block.language === 'html'
-              ? '/index.html'
-              : `/file${index + 1}.${extension}`;
-          newFiles[fileName] = { code: block.code };
-  
-          return {
-            ...block,
-            fileName: fileName,
-          };
-        });
-  
-        if (textBlocks.length > 0) {
-          const textContent = textBlocks.join('\n\n');
-          newFiles['/text.txt'] = { code: textContent };
-        }
-  
-        setFiles(newFiles);
-        setCodeBlocks(updatedCodeBlocks);
-      }
-    }, [artifactContent]);
-
   
   const handleSave = () => {
 
     if (Object.keys(files).length > 0 && isCodeView) {
       // Access the latest code from the Sandpack instance
-
       const sandpackFiles = sandpackRef.current.files;
 
       // Update codeBlocks with the code from sandpackFiles
       const updatedCodeBlocks = codeBlocks.map((block) => {
-        const file = sandpackFiles[block.fileName];
+        const file = sandpackFiles['/'+block.filename];
         return {
           ...block,
           code: file?.code || block.code,
@@ -114,21 +103,14 @@ export const ArtifactEditor: React.FC<Props> = ({
 
       // Reconstruct the artifact content
       let newContent = '';
-      let codeBlockIndex = 0;
-
-      const parts = artifactContent.split(/(```\w*\n[\s\S]*?\n```)/g); // Split on code block markers
-
-      for (let part of parts) {
-        if (/^```/.test(part)) {
-          // Replace code block with the updated code from codeBlocks
-          const language = updatedCodeBlocks[codeBlockIndex].language;
-          const code = updatedCodeBlocks[codeBlockIndex].code;
-          newContent += `\`\`\`${language}\n${code}\n\`\`\``; // Rebuild the code block
-          codeBlockIndex++;
+      updatedCodeBlocks.forEach((block: CodeBlockDetails) => {
+        if (block.extension === '.txt') {
+          newContent += block.code;
         } else {
-          newContent += part; // Leave non-code content unchanged
+          newContent += '\n' + `\`\`\`${block.language}\n${block.code}\n\`\`\``;
         }
-      }
+
+      });
 
       handleEditArtifact(newContent);
     } else {
@@ -141,7 +123,6 @@ export const ArtifactEditor: React.FC<Props> = ({
     setIsEditing(false);
   };
 
-  const memoizedFiles = useMemo(() => files, [files]);
 
 
   return (
@@ -174,13 +155,13 @@ export const ArtifactEditor: React.FC<Props> = ({
             {Object.keys(files).length > 0 && isCodeView ? (
                 <SandpackProvider
                   template="static"
-                  files={memoizedFiles}
+                  files={files}
                   customSetup={{ dependencies: {} }}
                   theme={theme} 
                 >
 
                   <SandPackEditor
-                     sandpackRef={sandpackRef}
+                    sandpackRef={sandpackRef}
                     height={`${height - 50}px`}
                   />
                 </SandpackProvider>
@@ -242,6 +223,8 @@ export const SandPackEditor: React.FC<SandPackProps> = ({
   useEffect(() => {
     sandpackRef.current = sandpack;
   }, [sandpack]);
+
+  
 
   return (
     <SandpackCodeEditor

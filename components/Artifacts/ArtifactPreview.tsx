@@ -1,26 +1,26 @@
-import { extractCodeBlocksAndText } from '@/utils/app/artifacts';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     SandpackProvider,
     SandpackLayout,
     SandpackPreview,
   } from "@codesandbox/sandpack-react";
-import { getFileExtensionFromLanguage } from '@/utils/app/codeblock';
+import { CodeBlockDetails, getFileExtensionFromLanguage } from '@/utils/app/codeblock';
 import { getSettings } from '@/utils/app/settings';
 import DOMPurify from 'dompurify';
 
 interface Props {
-    content: string;
+    codeBlocks: CodeBlockDetails[];
+    artifactContent: string;
     type: string;
     height: number;
 }
 
 const theme = 'dark';//getSettings().theme;
 
-export const ArtifactPreview: React.FC<Props> = ({ content, type, height}) => {
-    const { textBlocks, codeBlocks } = extractCodeBlocksAndText(content);
-    console.log(type);
+export const ArtifactPreview: React.FC<Props> = ({ codeBlocks, artifactContent, type, height}) => {
+
     const renderedContent = () => {
+      console.log("code blocks", codeBlocks);
         switch (type) {
             case "vanilla":
             case "static":
@@ -32,12 +32,12 @@ export const ArtifactPreview: React.FC<Props> = ({ content, type, height}) => {
             case "text":
             case "json":
             case "csv":
-                return <TextPreview content={content} height={height} />;
+                return <TextPreview content={artifactContent} height={height} />;
             case "svg":
                 const svgs = codeBlocks.filter(block => block.language === "svg").map(block => block.code)
                 return <SVGPreview svgs={svgs} height={height} />;
             default:
-                return <UnsupportedPreview content={content} />;
+                return <UnsupportedPreview content={artifactContent} />;
         }
     }
 
@@ -59,54 +59,57 @@ const VanillaPreview: React.FC<{ codeBlocks: any; height: number; framework: any
     const [files, setFiles] = useState<{ [key: string]: { code: string } }>({});
   
     const isStaticTemplate = framework === 'static';
+    // console.log(framework);
     useEffect(() => {
       if (codeBlocks.length > 0 && Object.keys(files).length === 0) {
         const newFiles: { [key: string]: { code: string } } = {};
-  
-        let hasHTML = false;
-  
-        codeBlocks.forEach((block: any, index: number) => {
-          const extension = getFileExtensionFromLanguage(block.language);
-          let fileName = '';
-          if (block.language === 'html') {
-            fileName = isStaticTemplate ? 'index.html' : '/index.html';
-            hasHTML = true;
-          } else {
-            fileName = isStaticTemplate
-              ? `file${index + 1}${extension}`
-              : `/file${index + 1}${extension}`;
+
+        codeBlocks.forEach((block: CodeBlockDetails, index: number) => {
+          if (block.language === 'txt') {
+              // Skip text blocks as they are not needed in Sandpack
+              return;
           }
-          newFiles[fileName] = { code: block.code };
+          // CHANGES: Use the provided filename directly
+          let filename = block.filename ? block.filename : `file${index + 1}${block.extension}`
+          if (!isStaticTemplate) filename = `/${filename}`;
+          newFiles[filename] = { code: block.code };
         });
   
-        // If no HTML file is provided, create a default index.html
-        if (!hasHTML) {
-          const defaultHtml = `
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <title>Vanilla Preview</title>
-            </head>
-            <body>
-                <h1>No preview</h1>
-            </body>
-            </html>
-          `.trim();
-          const indexHtmlPath = isStaticTemplate ? 'index.html' : '/index.html';
-          newFiles[indexHtmlPath] = { code: defaultHtml };
-        }
+        // console.log("new" , newFiles);
+        const indexHtmlPath = (isStaticTemplate ? '' : '/') + 'index.html';
+            if (!newFiles.hasOwnProperty(indexHtmlPath)) {
+                const defaultHtml = `
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>Vanilla Preview</title>
+                    </head>
+                    <body>
+                        <h1>No preview available</h1>
+                    </body>
+                    </html>
+                `.trim();
+                newFiles[indexHtmlPath] = { code: defaultHtml };
+            }
+
+            setFiles(newFiles);
   
         // For 'vanilla' template, override default files
-        if (framework === 'vanilla') {
-          newFiles['/index.js'] = { code: '' };
-          newFiles['/styles.css'] = { code: '' };
+        if (!isStaticTemplate) {
+          const clear = ['/styles.css', '/index.js'];
+          clear.forEach((filename:string) => {
+              if (!newFiles.hasOwnProperty(filename)) newFiles[filename] = { code: '' };
+          });
         }
+
   
         setFiles(newFiles);
+        // console.log("new", newFiles);
       }
     }, [codeBlocks, framework]);
   
+
     // Helper function to inject CSS and JS files into the HTML
     const addAssetsToHTML = (
       htmlCode: string,
@@ -142,7 +145,8 @@ const VanillaPreview: React.FC<{ codeBlocks: any; height: number; framework: any
     };
   
     const memoizedFiles = useMemo(() => {
-      if (!files.hasOwnProperty(isStaticTemplate ? 'index.html' : '/index.html')) {
+      const indexHtmlPath = (isStaticTemplate ? '' : '/') + 'index.html';
+      if (!files.hasOwnProperty(indexHtmlPath)) {
         return files;
       }
   
@@ -153,7 +157,6 @@ const VanillaPreview: React.FC<{ codeBlocks: any; height: number; framework: any
         fileName.endsWith('.js')
       );
   
-      const indexHtmlPath = isStaticTemplate ? 'index.html' : '/index.html';
       let updatedHTML = files[indexHtmlPath].code;
   
       updatedHTML = addAssetsToHTML(updatedHTML, cssFiles, jsFiles, isStaticTemplate);
@@ -170,7 +173,7 @@ const VanillaPreview: React.FC<{ codeBlocks: any; height: number; framework: any
       <SandpackProvider files={memoizedFiles} template={'static'} theme={theme}> 
         <SandpackLayout>
           <SandpackPreview
-            showOpenInCodeSandbox={false}
+            showOpenInCodeSandbox={true}
             showRefreshButton={true}
             style={{ height: `${height}px`, overflow: 'auto', width: '100%' }}
           />
@@ -184,253 +187,257 @@ const VanillaPreview: React.FC<{ codeBlocks: any; height: number; framework: any
   
   
 
-  // --- Framework (React, Vue, Angular) Preview Component ---
-  const FrameworkPreview: React.FC<{ codeBlocks: any; height: number; framework: any }> = ({ codeBlocks, height, framework }) => {
-    const [files, setFiles] = useState<{ [key: string]: { code: string } }>({});
-  
-    const setupReactFiles = (codeBlocks: any) => {
-        const newFiles: { [key: string]: { code: string } } = {};
-    
-        let hasTSX = false;
-        let hasCSS = false;
-        let componentIndex = 0;
-        let hasIndexHtml = false;
-    
-        const dependencies = new Set(['react', 'react-dom']); // Start with React dependencies
-        const fileNameMapping: { [key: number]: string } = {}; // Map from code block index to file name
-        const relativeImports: { [key: string]: string } = {}; // Map from relative import path to file name
-    
-        // First pass: Assign file names to code blocks
-        codeBlocks.forEach((block: { code: string; language: string }, index: number) => {
-          const language = block.language.toLowerCase();
-          const code = block.code;
-    
-          let fileName = '';
-          if (language === 'jsx' || language === 'javascript') {
-            // Attempt to infer file name from code comments
-            const inferredFileName = inferFileNameFromCode(code);
-            if (inferredFileName) {
-              fileName = `/src/${inferredFileName}`;
-            } else {
-              // Use 'App.js' for the first component, 'ComponentX.js' for subsequent ones
-              fileName =
-                componentIndex === 0 ? '/src/App.js' : `/src/Component${componentIndex}.js`;
-            }
-            componentIndex++;
-          } else if (language === 'typescript' || language === 'tsx') {
-            hasTSX = true;
-            const inferredFileName = inferFileNameFromCode(code);
-            if (inferredFileName) {
-              fileName = `/src/${inferredFileName}`;
-            } else {
-              fileName =
-                componentIndex === 0 ? '/src/App.tsx' : `/src/Component${componentIndex}.tsx`;
-            }
-            componentIndex++;
-          } else if (language === 'css') {
-            const inferredFileName = inferFileNameFromCode(code);
-            if (inferredFileName) {
-              fileName = `/src/${inferredFileName}`;
-            } else {
-              // Use 'App.css' for the first CSS file, 'stylesX.css' for subsequent ones
-              fileName = hasCSS ? `/src/styles${componentIndex}.css` : '/src/App.css';
-            }
-            hasCSS = true;
-          } else if (language === 'html') {
-            fileName = '/public/index.html';
-            hasIndexHtml = true;
-          } else {
-            // Handle other file types if necessary
-            return;
-          }
-    
-          newFiles[fileName] = { code };
-          fileNameMapping[index] = fileName;
-    
-          // Extract dependencies and relative imports from the code
-          extractDependenciesFromCode(code, dependencies, relativeImports, fileName);
-        });
-    
-        // Second pass: Ensure all relative imports are included in files
-        Object.keys(relativeImports).forEach((importPath) => {
-          const fileName = relativeImports[importPath];
-    
-          // If the file is already included, skip
-          if (newFiles[fileName]) {
-            return;
-          }
-    
-          // Try to find a code block that matches this file
-          const matchingCodeBlock = codeBlocks.find((block: any) => {
-            // Infer file name from code
-            const inferredFileName = inferFileNameFromCode(block.code);
-            if (inferredFileName && `/src/${inferredFileName}` === fileName) {
-              return true;
-            }
-            return false;
-          });
-    
-          if (matchingCodeBlock) {
-            newFiles[fileName] = { code: matchingCodeBlock.code };
-          } else {
-            // If we cannot find the code, create an empty file
-            newFiles[fileName] = { code: '' };
-          }
-        });
-    
-        // Create 'index.js' or 'index.tsx' in the root directory
-        const indexFilename = hasTSX ? '/src/index.tsx' : '/src/index.js';
-    
-        // Generate the index file code
-        const indexCode = `
-          import React from 'react';
-          import { createRoot } from 'react-dom/client';
-          import App from './App';
-    
-          const rootElement = document.getElementById('root');
-          const root = createRoot(rootElement);
-          root.render(<App />);
-        `;
-        newFiles[indexFilename] = { code: indexCode.trim() };
-    
-        // If no 'public/index.html' provided, create a default one
-        if (!hasIndexHtml) {
-          const indexHtmlCode = `
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-              <meta charset="UTF-8">
-              <title>React App</title>
-            </head>
-            <body>
-              <div id="root"></div>
-            </body>
-            </html>
-          `;
-          newFiles['/public/index.html'] = { code: indexHtmlCode.trim() };
-        }
-    
-        // Convert dependencies set to an object with 'latest' as version
-        const dependenciesObj: any = {};
-        dependencies.forEach((dep) => {
-          dependenciesObj[dep] = 'latest';
-        });
-    
-        // Add package.json with dependencies
-        newFiles['/package.json'] = {
-          code: JSON.stringify(
-            {
-              dependencies: dependenciesObj,
-            },
-            null,
-            2
-          ),
-        };
-    
-        return newFiles;
-      };
-    
-      // Helper function to extract dependencies and relative imports from code
-      const extractDependenciesFromCode = (
-        code: string,
-        dependencies: any,
-        relativeImports: any,
-        currentFile: string
-      ) => {
-        // Regular expression to match import statements
-        const importRegex = /import\s+[^'"]*\s+from\s+['"]([^'"]+)['"]/g;
-        let match;
-    
-        while ((match = importRegex.exec(code)) !== null) {
-          const moduleName = match[1];
-          if (moduleName.startsWith('.')) {
-            // Relative import
-            const resolvedPath = resolveRelativePath(currentFile, moduleName);
-            relativeImports[moduleName] = resolvedPath;
-          } else {
-            // External dependency
-            dependencies.add(moduleName);
-          }
-        }
-    
-        // Handle CommonJS require statements
-        const requireRegex = /require\(['"]([^'"]+)['"]\)/g;
-        while ((match = requireRegex.exec(code)) !== null) {
-          const moduleName = match[1];
-          if (moduleName.startsWith('.')) {
-            // Relative import
-            const resolvedPath = resolveRelativePath(currentFile, moduleName);
-            relativeImports[moduleName] = resolvedPath;
-          } else {
-            // External dependency
-            dependencies.add(moduleName);
-          }
-        }
-      };
-    
-      // Helper function to infer file name from code comments
-      const inferFileNameFromCode = (code: string) => {
-        const firstLine = code.split('\n')[0];
-        const fileNameMatch = firstLine.match(/\/\/\s*File:\s*(.+)/);
-        if (fileNameMatch) {
-          return fileNameMatch[1].trim();
-        }
-        return null;
-      };
-    
-      // Helper function to resolve relative paths
-      const resolveRelativePath = (currentFile: string, relativePath: string) => {
-        const path = require('path');
-        const currentDir = path.dirname(currentFile);
-        const fullPath = path.join(currentDir, relativePath);
-        // Ensure the path has an extension
-        if (!path.extname(fullPath)) {
-          return `${fullPath}.js`;
-        }
-        return fullPath;
-      };
-    
-      // Prepare the files based on the selected framework
-      useEffect(() => {
-        if (codeBlocks.length > 0 && Object.keys(files).length === 0) {
-          let newFiles = {};
-          switch (framework) {
-            case 'react':
-              newFiles = setupReactFiles(codeBlocks);
-              break;
-            // Add similar functions for Vue and Angular if needed
-            case 'vue':
-              // newFiles = setupVueFiles(codeBlocks);
-              break;
-            case 'angular':
-              // newFiles = setupAngularFiles(codeBlocks);
-              break;
-            default:
-              break;
-          }
-          setFiles(newFiles);
-        }
-      }, [codeBlocks, framework]);
-    
-    
+const FrameworkPreview: React.FC<{ codeBlocks: any; height: number; framework: any }> = ({ codeBlocks, height, framework }) => {
+  const [files, setFiles] = useState<{ [key: string]: { code: string } }>({});
 
-    return (
-        Object.keys(files).length > 0 ? (
-            <SandpackProvider files={files} template={framework} theme={theme}>
-              <SandpackLayout>
-                <SandpackPreview
-                  showOpenInCodeSandbox={false}
-                  showRefreshButton={true}
-                  style={{ height: `${height}px`, overflow: 'auto', width: '100%' }}
-                />
-              </SandpackLayout>
-            </SandpackProvider>
-          ) : (
-            <>Loading...</>
-          )
-    );
+  const setupReactFiles = (codeBlocks: any) => {
+    const newFiles: { [key: string]: { code: string } } = {};
+    const dependencies = new Set(['react', 'react-dom']); // Only include necessary dependencies
+
+    codeBlocks.forEach((block: CodeBlockDetails) => {
+      if (block.language === 'txt' ||  block.filename === 'package.json') return; // Skip text blocks as they are unnecessary
+      const language = block.language.toLowerCase();
+      const code = block.code;
+      let filename = block.filename;
+
+      if (language === 'html') {
+        filename = `/public/${filename}`;
+      } else {
+        filename = `/src/${filename}`;
+      }
+
+      newFiles[filename] = { code };
+
+      // Extract dependencies from the code
+      extractDependenciesFromCode(code, dependencies);
+    });
+
+    // Ensure '/src/index.js' exists
+    if (!newFiles.hasOwnProperty('/src/index.js')) {
+      const indexCode = `
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+
+const rootElement = document.getElementById('root');
+const root = createRoot(rootElement);
+root.render(<App />);
+      `;
+      newFiles['/src/index.js'] = { code: indexCode.trim() };
+    }
+
+    // Ensure '/public/index.html' exists
+    if (!newFiles.hasOwnProperty('/public/index.html')) {
+      const indexHtmlCode = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>React App</title>
+  <link rel="stylesheet" type="text/css" href="/src/App.css" /> 
+</head>
+<body>
+  <div id="root"></div>
+  <script src="/src/index.js"></script>
+</body>
+</html>
+      `;
+      newFiles['/public/index.html'] = { code: indexHtmlCode.trim() };
+    }
+
+    // Convert dependencies set to an object with 'latest' as version
+    const dependenciesObj: any = {};
+    dependencies.forEach((dep) => {
+      if (dep !== 'react-dom/client') dependenciesObj[dep] = 'latest';
+    });
+
+    // console.log(dependenciesObj);
+    // Add package.json with dependencies
+    newFiles['/package.json'] = {
+      code: JSON.stringify(
+        {
+          dependencies: dependenciesObj,
+        },
+        null,
+        2
+      ),
+    };
+
+    // console.log("new", newFiles);
+
+    return newFiles;
   };
+
+  const setupAngularFiles = (codeBlocks: any) => {
+    const newFiles: { [key: string]: { code: string } } = {};
+    const dependencies = new Set([
+      '@angular/core',
+      '@angular/common',
+      '@angular/compiler',
+      '@angular/platform-browser',
+      '@angular/platform-browser-dynamic',
+      'rxjs',
+      'zone.js',
+    ]);
   
+    // Loop over the code blocks to set up files and extract dependencies
+    codeBlocks.forEach((block: CodeBlockDetails) => {
+      if (block.language === 'txt') return; // Skip unnecessary text blocks
+      const code = block.code;
+      let filename = block.filename;
+  
+      // Adjust the file path based on the file type
+      if (!filename.startsWith('/')) {
+        if (filename === 'app.module.ts' || filename === 'app.component.ts') {
+          filename = '/src/app/' + filename;
+        } else if (filename === 'index.html') {
+          filename = '/src/' + filename;
+        } else {
+          filename = '/src/' + filename;
+        }
+      }
+  
+      newFiles[filename] = { code };
+  
+      // Extract dependencies from the code
+      extractDependenciesFromCode(code, dependencies);
+    });
+  
+    // Ensure '/src/main.ts' exists
+    if (!newFiles.hasOwnProperty('/src/main.ts')) {
+      const mainTsCode = `// main.ts
+  import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
+  import { AppModule } from './app/app.module';
+  
+  platformBrowserDynamic().bootstrapModule(AppModule)
+    .catch(err => console.error(err));
+      `;
+      newFiles['/src/main.ts'] = { code: mainTsCode.trim() };
+    }
+  
+    // Ensure '/src/index.html' exists
+    if (!newFiles.hasOwnProperty('/src/index.html')) {
+      const indexHtmlCode = `<!-- index.html -->
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Angular App</title>
+    <base href="/" />
+  </head>
+  <body>
+    <app-root></app-root>
+  </body>
+  </html>`;
+      newFiles['/src/index.html'] = { code: indexHtmlCode.trim() };
+    }
+  
+   
+  
+    // if (!newFiles.hasOwnProperty('/package.json')) {
+      // Convert dependencies set to an object with 'latest' as version
+          const dependenciesObj: any = {};
+          dependencies.forEach((dep) => {
+            dependenciesObj[dep] = 'latest';
+          });
+
+          console.log(dependenciesObj);
+      // Add package.json with dependencies
+      newFiles['/package.json'] = {
+        code: JSON.stringify(
+          {
+            dependencies: dependenciesObj,
+          },
+          null,
+          2
+        ),
+      };
+    // }
+  
+    // Ensure 'tsconfig.json' exists
+    if (!newFiles.hasOwnProperty('/tsconfig.json')) {
+      const tsconfigCode = `{
+    "compilerOptions": {
+      "outDir": "./out-tsc/app",
+      "sourceMap": true,
+      "declaration": false,
+      "module": "esnext",
+      "moduleResolution": "node",
+      "emitDecoratorMetadata": true,
+      "experimentalDecorators": true,
+      "lib": [
+        "es2020",
+        "dom"
+      ],
+      "target": "es2015",
+      "typeRoots": [
+        "node_modules/@types"
+      ]
+    },
+    "angularCompilerOptions": {
+      "enableIvy": true
+    }
+  }`;
+      newFiles['/tsconfig.json'] = { code: tsconfigCode };
+    }
+  
+    return newFiles;
+  };
+
+  // Helper function to extract dependencies
+  const extractDependenciesFromCode = (
+    code: string,
+    dependencies: Set<string>
+  ) => {
+    const importRegex = /import\s+[^'"]*\s+from\s+['"]([^'"]+)['"]/g;
+    let match;
+
+    while ((match = importRegex.exec(code)) !== null) {
+      const moduleName = match[1];
+      if (!moduleName.startsWith('.')) {
+        // External dependency
+        dependencies.add(moduleName);
+      }
+    }
+  };
+
+  // Prepare the files based on the selected framework
+  useEffect(() => {
+    if (codeBlocks.length > 0 && Object.keys(files).length === 0) {
+      let newFiles = {};
+      switch (framework) {
+        case 'react':
+          newFiles = setupReactFiles(codeBlocks);
+          break;
+        case 'vue':
+          newFiles = setupVueFiles(codeBlocks);
+          break;
+        case 'angular':
+          newFiles = setupAngularFiles(codeBlocks);
+          break;
+        default:
+          break;
+      }
+      setFiles(newFiles);
+    }
+  }, [codeBlocks, framework]);
+
+  return Object.keys(files).length > 0 ? (
+    <SandpackProvider files={files} template={framework} theme={theme}>
+      <SandpackLayout>
+        <SandpackPreview
+          showOpenInCodeSandbox={true}
+          showRefreshButton={true}
+          style={{ height: `${height}px`, overflow: 'auto', width: '100%' }}
+        />
+      </SandpackLayout>
+    </SandpackProvider>
+  ) : (
+    <>Loading...</>
+  );
+};
+
+
   
   // --- Text, JSON, CSV Preview Component ---
   const TextPreview: React.FC<{ content: string; height: number }> = ({ content, height }) => {
@@ -548,43 +555,3 @@ const VanillaPreview: React.FC<{ codeBlocks: any; height: number; framework: any
         return newFiles;
       };
     
-      // Helper function to structure Angular files properly
-      const setupAngularFiles = (codeBlocks: any) => {
-        const newFiles: { [key: string]: { code: string } } = {};
-        codeBlocks.forEach((block: any) => {
-          const extension = getFileExtensionFromLanguage(block.language);
-    
-          // Map Angular code to app.component.ts and app.module.ts
-          if (block.language === 'typescript') {
-            newFiles['/src/app/app.component.ts'] = { code: block.code };
-          } else if (block.language === 'html') {
-            newFiles['/src/app/app.component.html'] = { code: block.code };
-          } else if (block.language === 'css') {
-            newFiles['/src/app/app.component.css'] = { code: block.code };
-          }
-        });
-    
-        // Provide Angular main.ts and app.module.ts files
-        newFiles['/src/main.ts'] = {
-          code: `
-          import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
-          import { AppModule } from './app/app.module';
-          platformBrowserDynamic().bootstrapModule(AppModule);
-          `,
-        };
-        newFiles['/src/app/app.module.ts'] = {
-          code: `
-          import { NgModule } from '@angular/core';
-          import { BrowserModule } from '@angular/platform-browser';
-          import { AppComponent } from './app.component';
-          @NgModule({
-            declarations: [AppComponent],
-            imports: [BrowserModule],
-            providers: [],
-            bootstrap: [AppComponent]
-          })
-          export class AppModule {}
-          `,
-        };
-        return newFiles;
-      };

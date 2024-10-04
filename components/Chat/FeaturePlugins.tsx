@@ -3,6 +3,7 @@ import { IconSparkles } from '@tabler/icons-react';
 import { Plugin } from '@/types/plugin';
 import { PluginSelect } from './PluginSelect';
 import HomeContext from '@/pages/api/home/home.context';
+import React from 'react';
 
 interface Props {
     plugin: Plugin | null;
@@ -50,15 +51,32 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
     }, []);
 
 
-    const onMouseDrag = useCallback((event: MouseEvent) => {
-        if (!draggableRef.current || !draggableRef.current.parentNode) return;
+    useEffect(() => {
+        const ensureWithinBounds = () => {
+            if (!draggableRef.current) return;
     
-        // Calculate new position
-        const newPosition = {
-            x: positionRef.current.x + event.movementX,
-            y: positionRef.current.y + event.movementY
+        const bounds = getBounds();
+        if (bounds) {
+            let {leftBound, rightBound, topBound, bottomBound} = bounds;
+                // Adjust position if it's out of bounds
+                const currentPosition = positionRef.current;
+                currentPosition.x = Math.max(leftBound, Math.min(currentPosition.x, rightBound));
+                currentPosition.y = Math.max(topBound, Math.min(currentPosition.y, bottomBound));
+    
+                positionRef.current = currentPosition;
+                draggableRef.current.style.transform = `translate(${currentPosition.x}px, ${currentPosition.y}px)`;
+            }
         };
+    
+        // Call the function to ensure the plugin is within bounds
+        ensureWithinBounds();
+        // window.addEventListener('resize', ensureWithinBounds);
+        // return () => window.removeEventListener('resize', ensureWithinBounds);
+    }, [width]); // Dependencies array
 
+
+
+    const getBounds = () => {
         const container = document.querySelector(".container");
         if (container) {
             const containerRect = container.getBoundingClientRect();
@@ -68,7 +86,23 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
             const rightBound = containerRect.right - containerRect.left - width;
             let topBound = 0 - containerRect.height;
             const bottomBound =   topBound + window.innerHeight - width;
+            return {leftBound, rightBound, topBound, bottomBound}
+        } 
+        return null;
+    }
 
+    const onMouseDrag = useCallback((event: MouseEvent) => {
+        if (!draggableRef.current || !draggableRef.current.parentNode) return;
+    
+        // Calculate new position
+        const newPosition = {
+            x: positionRef.current.x + event.movementX,
+            y: positionRef.current.y + event.movementY
+        };
+
+        const bounds = getBounds();
+        if (bounds) {
+            let {leftBound, rightBound, topBound, bottomBound} = bounds;
             if (showPluginSelectRef.current) {
                 const pluginSelector = document.querySelector(".pluginSelect");
                 if (pluginSelector) topBound += pluginSelector.getBoundingClientRect().height - width;

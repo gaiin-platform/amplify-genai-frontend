@@ -1,12 +1,16 @@
 // import AutoArtifactsBlock from "./AutoArtifactBlock";
 
 
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext, useRef } from "react";
 import HomeContext from "@/pages/api/home/home.context";
-import { IconLibrary } from "@tabler/icons-react";
-import { Message } from "@/types/chat";
+import { IconLibrary, IconX } from "@tabler/icons-react";
+import { Conversation, Message } from "@/types/chat";
 import { Artifact, ArtifactBlockDetail } from "@/types/artifacts";
 import toast from "react-hot-toast";
+import SidebarActionButton from "@/components/Buttons/SidebarActionButton";
+import React from "react";
+import { conversationWithCompressedMessages, saveConversations } from "@/utils/app/conversation";
+import { uploadConversation } from "@/services/remoteConversationService";
 
 
   interface Props {
@@ -18,10 +22,23 @@ import toast from "react-hot-toast";
 // supports coming from assitant (coming from autoArtifacts block) and from message data (when saved artifact gets introduced to conversation)
 export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
 
-    const {state:{statsService, messageIsStreaming, artifactIsStreaming, selectedConversation},  dispatch:homeDispatch} = useContext(HomeContext);
+    const {state:{statsService, conversations, folders, messageIsStreaming, artifactIsStreaming, selectedConversation},  dispatch:homeDispatch} = useContext(HomeContext);
 
     const [artifacts, setArtifacts] = useState <ArtifactBlockDetail[] | undefined > ((message?.data?.artifacts));
     
+
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
+
+    const conversationsRef = useRef(conversations);
+
+    useEffect(() => {
+        conversationsRef.current = conversations;
+    }, [conversations]);
     
     useEffect(()=> {
         if (!artifacts && message?.data.artifacts) setArtifacts(message.data.artifacts);
@@ -33,7 +50,7 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
             if (msg && msg.data && msg.data.artifacts) setArtifacts(msg.data.artifacts);
         }
 
-        console.log(selectedConversation?.artifacts);
+        // console.log(selectedConversation?.artifacts);
         
     }, [selectedConversation])
 
@@ -47,7 +64,7 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
             //if the version no longer exists then do an alert and open the latest version 
             // make sure the conversation still has the artifact saved.
             const artifactsList = selectedConversation.artifacts[artifact.artifactId];
-            if (artifactsList) {
+            if (artifactsList && artifactsList.length > 0) {
                 homeDispatch({field: "selectedArtifacts", value: artifactsList});
                 let index = artifactsList.length - 1;
                 if (artifact.version) {
@@ -68,8 +85,37 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
         }  
     }
 
-    const handleRemoveArtifacts = (artifact: ArtifactBlockDetail) =>  {
-        // removes it from the message artifacts list only 
+    const handleRemoveArtifact = (artifact: ArtifactBlockDetail) =>  {
+        if (selectedConversation) {
+            const updatedArtifacts = artifacts.filter((a: ArtifactBlockDetail) => JSON.stringify(a) !== JSON.stringify(artifact));
+            const updatedConversation = {...selectedConversation};
+            updatedConversation.messages[messageIndex].data.artifacts = updatedArtifacts;
+
+             homeDispatch({
+                field: 'selectedConversation',
+                value: updatedConversation,
+            });
+    
+            if (updatedConversation.isLocal) {
+                const updatedConversations: Conversation[] = conversationsRef.current.map(
+                    (conversation:Conversation) => {
+                        if (conversation.id === updatedConversation.id) {
+                            return conversationWithCompressedMessages(updatedConversation);
+                        }
+                        return conversation;
+                    },
+                );
+                if (updatedConversations.length === 0) {
+                    updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                }
+                homeDispatch({field: 'conversations', value: updatedConversations});
+                saveConversations(updatedConversations);
+            } else {
+                uploadConversation(updatedConversation, foldersRef.current);
+            }
+
+        }
+            // // Dispatch the updated conversation to the home state
 
     }
 
@@ -102,10 +148,23 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
                             -  Version {artifact.version}
                         </div>}
                     {isHovered === i &&
-                        <div className="mt-3 mr-8 ml-auto text-[14px]">    
-                            {artifact.createdAt}
-                        </div>
+                        <>
+                            <div className="mt-3 mr-2 ml-auto text-[14px]">    
+                                {artifact.createdAt}
+                            </div>
+
+                            <div className="mr-4 mt-3.5 text-gray-500 hover:text-neutral-900"
+                                onClick={(e) => {
+                                    e.stopPropagation(); 
+                                    handleRemoveArtifact(artifact)}}
+                                title="Remove Artifact from Conversation"
+                            >
+                                <IconX size={18} />
+                            </div> 
+                        </>
+                        
                     }
+                               
                 </div>
             </button>)
             ))
