@@ -72,21 +72,42 @@ export const fetchRemoteConversation = async (conversationId: string, conversati
 };
 // only used for the initial sync conversations 
 export const fetchAllRemoteConversations = async (abortSignal = null) => {
-    const response = await fetch(`/api/remoteconversation/op?path=${encodeURIComponent("/get_all")}`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-    });
+    try {
+        const response = await fetch(`/api/remoteconversation/op?path=${encodeURIComponent("/get_all")}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            signal: abortSignal,
+        });
 
-    const result = await response.json();
-    const resultBody = result ? JSON.parse(result.body || '{}') : {"success": false};
-    if (resultBody.success) { // folders needed for first fetch 
-        // console.log("uncompress retrieved conversations len: ", JSON.parse(lzwUncompress(resultBody.conversationsData)).length);
-        return JSON.parse(lzwUncompress(resultBody.conversationsData));
-    } else {
-        console.error("Error fetching conversations: ", result.message);
+        const result = await response.json();
+        const resultBody = result ? JSON.parse(result.body || '{}') : { "success": false };
+
+        // Check if the request was successful
+        if (resultBody.success) {
+            const presignedUrl = resultBody.presignedUrl;
+
+            // Fetch the actual conversation data using the presigned URL
+            const conversationResponse = await fetch(presignedUrl, {
+                method: 'GET',
+                signal: abortSignal,
+            });
+
+            if (!conversationResponse.ok) {
+                console.error("Error fetching conversation data from presigned URL");
+                return null;
+            }
+
+            const conversationData = await conversationResponse.json();
+            // console.log("uncompress retrieved conversations len: ", conversationData.length);
+            return conversationData;
+        } else {
+            console.error("Error fetching presigned URL: ", result.message);
+            return null;
+        }
+    } catch (error) {
+        console.error("Error during fetch: ", error);
         return null;
     }
 };

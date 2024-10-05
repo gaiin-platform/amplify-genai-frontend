@@ -85,6 +85,7 @@ import { fetchAstAdminGroups, checkInAmplifyCognitoGroups } from '@/services/gro
 import { AmpCognGroups, AmplifyGroups } from '@/types/groups';
 import { contructGroupData } from '@/utils/app/groups';
 import { getAllArtifacts } from '@/services/artifactsService';
+import { baseAssistantFolder, basePrompt, isBaseFolder, isOutDatedBaseFolder } from '@/utils/app/basePrompts';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -712,7 +713,7 @@ const Home = ({
                 console.log("Failed to sync cloud conversations: ", e);
             }
             console.log("Failed to sync cloud conversations.");
-            return {newfolders: folders};
+            return {newfolders: []};
         }
 
 
@@ -732,22 +733,16 @@ const Home = ({
             return {groups: [], groupFolders: [] as FolderInterface[], groupPrompts: [] as Prompt[]};
         }
 
-        const fetchPrompts = async () => {
-            try {
-                console.log("Fetching Base Prompts...");
-                const basePrompts = await getBasePrompts();
-                if (basePrompts.success) {
-                    const { history, folders, prompts}: LatestExportFormat = importData(basePrompts.data, conversationsRef.current, promptsRef.current, foldersRef.current);
-                    console.log('sync base prompts complete');
-                    return {updatedConversations: history, updatedFolders: folders, updatedPrompts: prompts};
-                } else {
-                    console.log("Failed to import base prompts.");
-                }
-            } catch (e) {
-                console.log("Failed to import base prompts.", e);
-            }
-            return {updatedConversations: conversationsRef.current, updatedFolders: foldersRef.current, updatedPrompts: promptsRef.current};
 
+        const fetchPrompts = () => {
+            console.log("Fetching Base Prompts...");
+            const updatedFolders:FolderInterface[] = [...foldersRef.current.filter((f:FolderInterface) => !isBaseFolder(f.id) && !isOutDatedBaseFolder(f.id)),
+                                                      ...basePrompt.folders];
+            const updatedPrompts: Prompt[] =  [...promptsRef.current.filter((p: Prompt) => !p.folderId || (!isBaseFolder(p.folderId) && !isOutDatedBaseFolder(p.folderId))),
+                                               ...basePrompt.prompts]
+            
+                    // currently we have no base conversations 
+            return {updatedConversations: conversationsRef.current, updatedFolders, updatedPrompts};
         }
 
         // return list of assistants 
@@ -766,15 +761,17 @@ const Home = ({
 
         // On Load Data
         const handleOnLoadData = async () => {
-            // Fetch base prompts
-            let { updatedConversations, updatedFolders, updatedPrompts} = await fetchPrompts();
+            // new basePrompts no remote call 
+            let { updatedConversations, updatedFolders, updatedPrompts} = fetchPrompts();
 
             let assistantLoaded = false;
             let groupsLoaded = false;
 
-
             const checkAndFinalizeUpdates = () => {
                 if (assistantLoaded && groupsLoaded) {
+
+                    const containsAssistantCreator = false;
+                    if (!containsAssistantCreator) updatedPrompts.push()
                     // Only dispatch when both operations have completed
                     dispatch({ field: 'prompts', value: updatedPrompts });
                     dispatch({ field: 'syncingPrompts', value: false });
@@ -892,7 +889,6 @@ const Home = ({
             });
         }
 
-
         const workspaceMetadataStr = localStorage.getItem('workspaceMetadata');
         if (workspaceMetadataStr) {
             dispatch({ field: 'workspaceMetadata', value: JSON.parse(workspaceMetadataStr) });
@@ -943,15 +939,8 @@ const Home = ({
                                     })
             // Make sure the "assistants" folder exists and create it if necessary
             const assistantsFolder = updatedFolders.find((f:FolderInterface) => f.id === "assistants");
-            if (!assistantsFolder)  {
-                updatedFolders.push(
-                      { id: "assistants",
-                        date: getDate(),
-                        name: "Assistants",
-                        type: "prompt",
-                      } as FolderInterface
-                );
-            }
+            if (!assistantsFolder) updatedFolders.push( baseAssistantFolder );
+            
             dispatch({ field: 'folders', value: updatedFolders});
         }
 

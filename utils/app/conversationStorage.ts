@@ -1,6 +1,6 @@
 import { ConversationStorage } from "@/types/conversationStorage";
 import { Conversation } from "@/types/chat";
-import { deleteMultipleRemoteConversations, deleteRemoteConversation, fetchAllRemoteConversations, fetchMultipleRemoteConversations, uploadConversation } from "@/services/remoteConversationService";
+import { deleteMultipleRemoteConversations, deleteRemoteConversation, fetchMultipleRemoteConversations, uploadConversation } from "@/services/remoteConversationService";
 import cloneDeep from 'lodash/cloneDeep';
 import { conversationWithCompressedMessages, conversationWithUncompressedMessages, saveConversations } from "./conversation";
 import { FolderInterface } from "@/types/folder";

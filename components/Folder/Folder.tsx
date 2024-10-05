@@ -20,6 +20,8 @@ import { FolderInterface } from '@/types/folder';
 import HomeContext from '@/pages/api/home/home.context';
 
 import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
+import React from 'react';
+import { isBaseFolder } from '@/utils/app/basePrompts';
 
 interface Props {
   currentFolder: FolderInterface;
@@ -46,6 +48,8 @@ const Folder = ({
   const [isHovered, setIsHovered] = useState(false);
   const [checkFolders, setCheckFolders] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
+
+  const showEditDelete =  !currentFolder.isGroupFolder && !isBaseFolder(currentFolder.id);
 
   const handleEnterDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {
@@ -214,7 +218,7 @@ const Folder = ({
             </div>
           )}
 
-          {!isDeleting && !isRenaming && isHovered && !checkFolders && !currentFolder.isGroupFolder && (
+          {!isDeleting && !isRenaming && isHovered && !checkFolders && showEditDelete && (
             <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
               <SidebarActionButton
                 handleClick={(e) => {
