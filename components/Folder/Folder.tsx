@@ -21,7 +21,7 @@ import HomeContext from '@/pages/api/home/home.context';
 
 import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import React from 'react';
-import { isBaseFolder } from '@/utils/app/basePrompts';
+import { baseAssistantFolder, isBaseFolder } from '@/utils/app/basePrompts';
 
 interface Props {
   currentFolder: FolderInterface;
@@ -49,7 +49,7 @@ const Folder = ({
   const [checkFolders, setCheckFolders] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
 
-  const showEditDelete =  !currentFolder.isGroupFolder && !isBaseFolder(currentFolder.id);
+  const showEditDelete =  !currentFolder.isGroupFolder && !isBaseFolder(currentFolder.id) && currentFolder.id !== baseAssistantFolder.id;
 
   const handleEnterDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {

@@ -13,7 +13,7 @@ export const isOutDatedBaseFolder = (folderId: string) => {
 
 export const isBaseFolder = (folderId: string) => {
     return basePrompt.folders.map((f: FolderInterface) => f.id)
-                     .includes(folderId) || folderId === baseAssistantFolder.id;
+                             .includes(folderId);
 }
 
 const model = OpenAIModels[fallbackModelID];
