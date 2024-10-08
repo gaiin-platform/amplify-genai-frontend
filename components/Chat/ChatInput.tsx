@@ -2,7 +2,6 @@ import {
     IconArrowDown,
     IconPlayerStop,
     IconAt,
-    IconWand,
     IconFiles,
     IconSend,
 } from '@tabler/icons-react';
@@ -44,6 +43,7 @@ import MessageSelectModal from './MesssageSelectModal';
 import cloneDeep from 'lodash/cloneDeep';
 import FeaturePlugins from './FeaturePlugins';
 import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
+import React from 'react';
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -135,7 +135,8 @@ export const ChatInput = ({
     const [isQiLoading, setIsQiLoading] = useState<boolean>(true);
     const [isPromptOptimizerRunning, setIsPromptOptimizerRunning] = useState<boolean>(false);
     const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
-
+    const [isInputInFocus, setIsInputInFocus] = useState(false);
+    
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const [plugin, setPlugin] = useState<Plugin | null>(null);
@@ -392,7 +393,7 @@ const onAssistantChange = (assistant: Assistant) => {
             } else {
                 setActivePromptIndex(0);
             }
-        } else if (e.key === 'Enter' && !isTyping && !isMobile() && !e.shiftKey) {
+        } else if (e.key === 'Enter' && !isTyping && !isMobile() && !e.shiftKey && !messageIsDisabled) {
             e.preventDefault();
             handleSend();
         } 
@@ -705,7 +706,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
                         {featureFlags.assistants && (
                             <button
-                                className={buttonClasses}
+                                className={buttonClasses + " mr-4"}
                                 onClick={ () => {
                                     handleShowAssistantSelector();
                                     setShowDataSourceSelector(false);
@@ -720,8 +721,8 @@ const onAssistantChange = (assistant: Assistant) => {
                             </button>
                         )}
 
-                        {featureFlags.promptOptimizer && (
-                            <>
+                        {featureFlags.promptOptimizer && isInputInFocus && (
+                            <div className='relative mr-[-32px]'>
                                 <PromptOptimizerButton
                                     maxPlaceholders={0}
                                     prompt={content || ""}
@@ -730,7 +731,7 @@ const onAssistantChange = (assistant: Assistant) => {
                                         textareaRef.current?.focus();
                                     }}
                                 />
-                            </>
+                            </div>
                         )}
 
                         {showAssistantSelect && (
@@ -809,6 +810,8 @@ const onAssistantChange = (assistant: Assistant) => {
 
                         <textarea
                             ref={textareaRef}
+                            onFocus={() => setIsInputInFocus(true)}
+                            onBlur={() => setIsInputInFocus(false)}
                             className="m-0 w-full resize-none border-0 bg-transparent p-0 py-2 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-3 md:pl-10"
                             style={{
                                 resize: 'none',
@@ -834,7 +837,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
                         <button
                             // className="right-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
-                            className={`right-2 top-2 rounded-sm p-1 text-neutral-800 
+                            className={`right-2 top-2 rounded-sm p-1 text-neutral-800 mx-1 
                                 ${messageIsDisabled? 'cursor-not-allowed ' : 'opacity-60 hover:bg-neutral-200 hover:text-neutral-900'} 
                                 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
                             onClick={handleSend}
