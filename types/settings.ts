@@ -1,3 +1,12 @@
 export interface Settings {
-  theme: 'light' | 'dark';
+  theme: Theme;
+  modelOptions: { [key: string]: boolean };
+  featureOptions: { [key: string]: boolean };
+
 }
+
+
+export type Theme = 'light' | 'dark';
+
+
+

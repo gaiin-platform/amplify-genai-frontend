@@ -65,10 +65,6 @@ export const SettingsBar = () => {
     const {
     } = chatBarContextValue;
 
-    useEffect(() => {
-        statsService.openSettingsEvent();
-    },[]);
-
 
     const handleExportData = () => {
         exportData(conversationsRef.current, promptsRef.current, foldersRef.current);
