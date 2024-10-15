@@ -5,7 +5,7 @@ import {Conversation, Message, newMessage} from "@/types/chat";
 import {getSession} from "next-auth/react"
 import {deepMerge} from "@/utils/app/state";
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";
-import { OpenAIModelID, OpenAIModels } from "@/types/openai";
+import { ModelID, Models } from "@/types/model";
 import { IconHammer } from "@tabler/icons-react";
 import { Artifact, ArtifactBlockDetail, validArtifactTypes } from "@/types/artifacts";
 import { lzwCompress, lzwUncompress } from "@/utils/app/lzwCompression";
@@ -108,7 +108,7 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `Follow these structural guidelines strictl
 
 useEffect(() => {
     // ready is !messageIsStreaming
-    if (ready && !message.data.artifactStatus && !llmPrompted && !artifactIsStreaming) {
+    if (ready && (!message.data.artifactStatus || message.data.artifactStatus === 'retry') && !llmPrompted && !artifactIsStreaming) {
         setLlmPrompted(true);
         message.data.artifactStatus = 'running';
 
@@ -135,7 +135,15 @@ useEffect(() => {
 
         } catch {
             console.log("error parsing auto artifacts bloack ");
-            alert("Unfortunately, we were unable to produce your artifact at this time. Please resend your last prompt to try again.");
+            homeDispatch({field: 'messageIsStreaming', value: false}); 
+            homeDispatch({field: 'artifactIsStreaming', value: false});
+            setLlmPrompted(false);
+            if (message.data.artifactStatus === 'retry') {
+                message.data.artifactStatus = 'cancelled';
+                alert("Unfortunately, we were unable to produce your artifact at this time. Please resend your last prompt with a different model to try again.");
+            } else {
+                message.data.artifactStatus = 'retry';
+            }
         }        
     }
 }, [ready]);
@@ -212,7 +220,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             homeDispatch({field: "selectedArtifacts", value: selectArtifacts});
             
             const chatBody = {
-            model: selectedConversation.model || OpenAIModels[OpenAIModelID.GPT_4o_AZ],
+            model: selectedConversation.model || Models[ModelID.GPT_4o_AZ],
             messages: [{role: 'user', content: llmInstructions} as Message],
             key: accessToken,
             prompt: ARTIFACT_CUSTOM_INSTRUCTIONS,

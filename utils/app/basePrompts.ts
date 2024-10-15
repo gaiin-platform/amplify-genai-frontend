@@ -1,7 +1,7 @@
 import { FolderInterface } from "@/types/folder";
 import { DEFAULT_SYSTEM_PROMPT } from "./const";
 import { getDate } from "./date";
-import { fallbackModelID, OpenAIModels } from "@/types/openai";
+import { fallbackModelID, Models } from "@/types/model";
 import { ExportFormatV4 } from "@/types/export";
 import { Prompt } from "@/types/prompt";
 
@@ -16,7 +16,7 @@ export const isBaseFolder = (folderId: string) => {
                              .includes(folderId);
 }
 
-const model = OpenAIModels[fallbackModelID];
+const model = Models[fallbackModelID];
 
 export const basePrompt = {
 "version": 4,

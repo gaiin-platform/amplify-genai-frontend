@@ -4,7 +4,7 @@ import {Prompt} from '@/types/prompt';
 import {AttachFile} from "@/components/Chat/AttachFile";
 import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 import {WorkflowDefinition} from "@/types/workflow";
-import {OpenAIModelID, OpenAIModel} from "@/types/openai";
+import {ModelID, Model} from "@/types/model";
 import HomeContext from "@/pages/api/home/home.context";
 import JSON5 from 'json5'
 import {getType, parsePromptVariableValues, variableTypeOptions} from "@/utils/app/prompts";
@@ -17,11 +17,11 @@ import { Modal } from '../ReusableComponents/Modal';
 import { ModelSelect } from './ModelSelect';
 
 interface Props {
-    models: OpenAIModel[];
+    models: Model[];
     prompt?: Prompt;
     workflowDefinition?: WorkflowDefinition;
     variables: string[];
-    handleUpdateModel: (model: OpenAIModel) => void;
+    handleUpdateModel: (model: Model) => void;
     onSubmit: (updatedVariables: string[], documents: AttachedDocument[] | null, prompt?:Prompt) => void;
     onClose: (canceled:boolean) => void;
     showModelSelector?: boolean;
@@ -119,7 +119,7 @@ export const VariableModal: FC<Props> = ({
 
 
     // @ts-ignore
-    const [selectedModel, setSelectedModel] = useState<OpenAIModel>( (models.length>0) ? models[0] : null );
+    const [selectedModel, setSelectedModel] = useState<Model>( (models.length>0) ? models[0] : null );
     const [isConversationDropdownOpen, setIsConversationDropdownOpen] = useState(false);
     const [files, setFiles] = useState<AttachedDocument[]>([]);
     const [documentKeys, setDocumentKeys] = useState<{[key:string]:string}>({});
@@ -643,7 +643,7 @@ export const VariableModal: FC<Props> = ({
 
                     <ModelSelect
                         isTitled={false}
-                        modelId={selectedModel.id as OpenAIModelID}
+                        modelId={selectedModel.id as ModelID}
                         handleModelChange={(modelId:string) => {
                             handleModelChange(modelId)
                         }}

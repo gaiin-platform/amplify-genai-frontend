@@ -1,5 +1,5 @@
 import {  Message } from "@/types/chat";
-import { OpenAIModelID, OpenAIModels } from "@/types/openai";
+import { ModelID, Models } from "@/types/model";
 import {getSession} from "next-auth/react"
 import { sendChatRequestWithDocuments } from "@/services/chatService";
 import cloneDeep from 'lodash/cloneDeep';
@@ -26,7 +26,7 @@ export const callRenameChat = async (chatEndpoint:string, messages: Message[], s
         
         updatedMessages[0].content = `Look at the following prompt: "${updatedMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`
         const chatBody = {
-            model: OpenAIModels[OpenAIModelID.CLAUDE_3_HAIKU],
+            model: Models[ModelID.CLAUDE_3_HAIKU],
             messages: updatedMessages,
             key: accessToken,
             prompt: "Respond with only the title name and nothing else.",

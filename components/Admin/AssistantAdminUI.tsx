@@ -22,7 +22,7 @@ import {ExistingFileList, FileList} from "@/components/Chat/FileList";
 import { ModelSelect } from '../Chat/ModelSelect';
 import { getDate, getDateName } from '@/utils/app/date';
 import { FolderInterface } from '@/types/folder';
-import { OpenAIModelID } from '@/types/openai';
+import { ModelID } from '@/types/model';
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { getGroupAssistantConversations } from '@/services/groupAssistantService';
 import { getGroupAssistantDashboards } from '@/services/groupAssistantService';

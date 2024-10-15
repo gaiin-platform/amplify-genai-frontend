@@ -33,7 +33,7 @@ import { getAccounts } from "@/services/accountService";
 import { Conversation, Message } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
 import { FolderInterface, FolderType } from '@/types/folder';
-import { OpenAIModelID, OpenAIModels, fallbackModelID, OpenAIModel } from '@/types/openai';
+import { ModelID, Models, fallbackModelID, Model } from '@/types/model';
 import { Prompt } from '@/types/prompt';
 
 
@@ -92,7 +92,7 @@ const LoadingIcon = styled(Icon3dCubeSphere)`
 
 
 interface Props {
-    defaultModelId: OpenAIModelID;
+    defaultModelId: ModelID;
     
   ClientId: string | null;
     cognitoDomain: string | null;
@@ -213,20 +213,20 @@ const Home = ({
         if (availableModels) {
             const modelList = availableModels.split(",");
 
-            const models: OpenAIModel[] = modelList.reduce((result: OpenAIModel[], model: string) => {
+            const models: Model[] = modelList.reduce((result: Model[], model: string) => {
                 const model_name = model;
 
-                for (const [key, value] of Object.entries(OpenAIModelID)) {
+                for (const [key, value] of Object.entries(ModelID)) {
                     if (value === model_name && modelList.includes(model_name)) {
                         result.push({
                             id: model_name,
-                            name: OpenAIModels[value].name,
-                            maxLength: OpenAIModels[value].maxLength,
-                            tokenLimit: OpenAIModels[value].tokenLimit,
-                            actualTokenLimit: OpenAIModels[value].actualTokenLimit,
-                            inputCost: OpenAIModels[value].inputCost,
-                            outputCost: OpenAIModels[value].outputCost,
-                            description: OpenAIModels[value].description
+                            name: Models[value].name,
+                            maxLength: Models[value].maxLength,
+                            tokenLimit: Models[value].tokenLimit,
+                            actualTokenLimit: Models[value].actualTokenLimit,
+                            inputCost: Models[value].inputCost,
+                            outputCost: Models[value].outputCost,
+                            description: Models[value].description
                         });
                     }
                 }
@@ -402,7 +402,7 @@ const Home = ({
                             id: uuidv4(),
                             name: t('New Conversation'),
                             messages: [],
-                            model: OpenAIModels[defaultModelId],
+                            model: Models[defaultModelId],
                             prompt: DEFAULT_SYSTEM_PROMPT,
                             temperature: DEFAULT_TEMPERATURE,
                             folderId: null,
@@ -498,10 +498,10 @@ const Home = ({
             name: t('New Conversation'),
             messages: [],
             model: lastConversation?.model || {
-                id: OpenAIModels[defaultModelId].id,
-                name: OpenAIModels[defaultModelId].name,
-                maxLength: OpenAIModels[defaultModelId].maxLength,
-                tokenLimit: OpenAIModels[defaultModelId].tokenLimit,
+                id: Models[defaultModelId].id,
+                name: Models[defaultModelId].name,
+                maxLength: Models[defaultModelId].maxLength,
+                tokenLimit: Models[defaultModelId].tokenLimit,
             },
             prompt: DEFAULT_SYSTEM_PROMPT,
             temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
@@ -1027,7 +1027,7 @@ const Home = ({
                 id: uuidv4(),
                 name: t('New Conversation'),
                 messages: [],
-                model: OpenAIModels[defaultModelId],
+                model: Models[defaultModelId],
                 prompt: DEFAULT_SYSTEM_PROMPT,
                 temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
                 folderId: folder.id,
@@ -1430,8 +1430,8 @@ export default Home;
 export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
     const defaultModelId =
         (process.env.DEFAULT_MODEL &&
-            Object.values(OpenAIModelID).includes(
-                process.env.DEFAULT_MODEL as OpenAIModelID,
+            Object.values(ModelID).includes(
+                process.env.DEFAULT_MODEL as ModelID,
             ) &&
             process.env.DEFAULT_MODEL) ||
         fallbackModelID;

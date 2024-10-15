@@ -16,16 +16,16 @@ import { Prompt } from '@/types/prompt';
 
 import { PromptList } from './PromptList';
 import { VariableModal } from './VariableModal';
-import {OpenAIModel} from "@/types/openai";
+import {Model} from "@/types/model";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {fillInTemplate} from "@/utils/app/prompts";
 
 interface Props {
-  models: OpenAIModel[];
+  models: Model[];
   conversation: Conversation;
   prompts: Prompt[];
   onChangePrompt: (prompt: string) => void;
-  handleUpdateModel: (model: OpenAIModel) => void;
+  handleUpdateModel: (model: Model) => void;
 }
 
 export const SystemPrompt: FC<Props> = ({

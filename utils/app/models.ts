@@ -1,9 +1,9 @@
-import { OpenAIModel, OpenAIModelID, OpenAIModels } from "@/types/openai";
+import { Model, ModelID, Models } from "@/types/model";
 import cloneDeep from 'lodash/cloneDeep';
 
-export const MINIMAL_AVAILABLE_MODELS:OpenAIModel[] = [OpenAIModels[OpenAIModelID.GPT_4o_MINI],  OpenAIModels[OpenAIModelID.GPT_4o_AZ],  OpenAIModels[OpenAIModelID.CLAUDE_3_HAIKU], OpenAIModels[OpenAIModelID.CLAUDE_3_5_SONNET] ];
+export const MINIMAL_AVAILABLE_MODELS:Model[] = [Models[ModelID.GPT_4o_MINI],  Models[ModelID.GPT_4o_AZ],  Models[ModelID.CLAUDE_3_HAIKU], Models[ModelID.CLAUDE_3_5_SONNET] ];
 
-export const filterModels = (models: OpenAIModel[], modelOptions: { [key: string]: boolean }): OpenAIModel[] => {
+export const filterModels = (models: Model[], modelOptions: { [key: string]: boolean }): Model[] => {
     const minimalModelIds = new Set(cloneDeep(MINIMAL_AVAILABLE_MODELS).map(model => model.id));
     const includedModels = cloneDeep(MINIMAL_AVAILABLE_MODELS);
   

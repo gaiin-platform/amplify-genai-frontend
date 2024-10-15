@@ -177,6 +177,7 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                         { allowRemoval && 
 
                                 <button
+                                key={i}
                                 onMouseEnter={() => setHovered(document.id)}
                                 onMouseLeave={() =>setHovered('')}
                                 title={"Remove"}

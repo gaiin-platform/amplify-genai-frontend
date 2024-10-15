@@ -4,7 +4,7 @@ import {useChatService} from "@/hooks/useChatService";
 import Loader from "@/components/Loader/Loader";
 import {Prompt} from "@/types/prompt";
 import {AttachedDocument} from "@/types/attacheddocument";
-import {OpenAIModel} from "@/types/openai";
+import {Model} from "@/types/model";
 import HomeContext from "@/pages/api/home/home.context";
 import {ChatBody, newMessage} from "@/types/chat";
 import { filterModels } from '@/utils/app/models';
@@ -25,7 +25,7 @@ const PromptTextArea: React.FC<PromptTextAreaProps> = ({temperature, stopButtonT
     const {state: {featureFlags, models}} = useContext(HomeContext);
 
     const [textAreaValue, setTextAreaValue] = useState('');
-    const [selectedModel, setSelectedModel] = useState<OpenAIModel | undefined>(undefined);
+    const [selectedModel, setSelectedModel] = useState<Model | undefined>(undefined);
     const [isGenerating, setIsGenerating] = useState(false);
     const [promptVariables, setPromptVariables] = useState<string[]>([]);
 

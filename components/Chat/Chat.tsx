@@ -37,7 +37,7 @@ import {VariableModal} from "@/components/Chat/VariableModal";
 import {parseEditableVariables} from "@/utils/app/prompts";
 import {v4 as uuidv4} from 'uuid';
 import {fillInTemplate} from "@/utils/app/prompts";
-import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
+import {Model, ModelID, Models} from "@/types/model";
 import {Prompt} from "@/types/prompt";
 import {WorkflowDefinition} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
@@ -133,7 +133,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
 
         const {handleSend:handleSendService} = useSendService();
-        const [selectedModelId, setSelectedModelId] = useState<OpenAIModelID | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id );
+        const [selectedModelId, setSelectedModelId] = useState<ModelID | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id );
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
         const [showSettings, setShowSettings] = useState<boolean>(false);
@@ -204,12 +204,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (astModel && selectedConversation && selectedConversation.model.id !== astModel) handleUpdateConversation(selectedConversation, {
                                         key: 'model',
                                         value: models.find(
-                                        (model: OpenAIModel) => model.id === astModel,
+                                        (model: Model) => model.id === astModel,
                                         ),
                                     });
             
             if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) {
-                if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id as OpenAIModelID);
+                if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id as ModelID);
             }
         }, [selectedAssistant, selectedConversation]);
 
@@ -410,51 +410,53 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             return stopper;
         }
 
-        const calculateTokenCost = (chatModel: OpenAIModel, datasources: AttachedDocument[]) => {
-            let cost = 0;
+        // const calculateTokenCost = (chatModel: Model, datasources: AttachedDocument[]) => {
+        //     let cost = 0;
 
-            datasources.forEach((doc) => {
-                if (doc.metadata?.totalTokens) {
-                    cost += doc.metadata.totalTokens;
-                }
-            });
+        //     datasources.forEach((doc) => {
+        //         if (doc.metadata?.totalTokens) {
+        //             cost += doc.metadata.totalTokens;
+        //         }
+        //     });
 
-            const model = OpenAIModels[chatModel.id as OpenAIModelID];
-            if (!model) {
-                return {
-                    prompts: -1,
-                    inputTokens: cost,
-                    inputCost: -1,
-                    outputCost: -1,
-                    totalCost: -1
-                };
-            }
+        //     const model = Models[chatModel.id as ModelID];
+        //     if (!model) {
+        //         return {
+        //             prompts: -1,
+        //             inputTokens: cost,
+        //             inputCost: -1,
+        //             outputCost: -1,
+        //             totalCost: -1
+        //         };
+        //     }
 
 
-            console.log("Model", model);
-            const contextWindow = model.actualTokenLimit;
-            // calculate cost / context window rounded up
-            const prompts = Math.ceil(cost / contextWindow);
+        //     console.log("Model", model);
+        //     const contextWindow = model.actualTokenLimit;
+        //     // calculate cost / context window rounded up
+        //     const prompts = Math.ceil(cost / contextWindow);
 
-            console.log("Prompts", prompts, "Cost", cost, "Context Window", contextWindow);
+        //     console.log("Prompts", prompts, "Cost", cost, "Context Window", contextWindow);
 
-            const outputCost = prompts * model.outputCost;
-            const inputCost = (cost / 1000) * model.inputCost;
+        //     const outputCost = prompts * model.outputCost;
+        //     const inputCost = (cost / 1000) * model.inputCost;
 
-            console.log("Input Cost", inputCost, "Output Cost", outputCost);
+        //     console.log("Input Cost", inputCost, "Output Cost", outputCost);
 
-            return {
-                prompts: prompts,
-                inputCost: inputCost.toFixed(2),
-                inputTokens: cost,
-                outputCost: outputCost.toFixed(2),
-                totalCost: (inputCost + outputCost).toFixed(2)
-            };
-        }
+        //     return {
+        //         prompts: prompts,
+        //         inputCost: inputCost.toFixed(2),
+        //         inputTokens: cost,
+        //         outputCost: outputCost.toFixed(2),
+        //         totalCost: (inputCost + outputCost).toFixed(2)
+        //     };
+        // }
 
         // This is typically the entry point for messages where the user has typed something
         // into ChatInput or is editing an existing message. Most interactions with chat that
         // do not involve a prompt template start here.
+        
+        
         const routeMessage = (message: Message, deleteCount: number | undefined, plugin: Plugin | null | undefined, documents: AttachedDocument[] | null) => {
 
             if (message.type == MessageType.PROMPT
@@ -626,7 +628,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         };
 
-        const handleUpdateModel = useCallback((model: OpenAIModel) => {
+        const handleUpdateModel = useCallback((model: Model) => {
             if (selectedConversation) {
                 handleUpdateConversation(selectedConversation, {
                     key: 'model',
@@ -729,7 +731,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         id: uuidv4(),
                         name: t('New Conversation'),
                         messages: [],
-                        model: OpenAIModels[defaultModelId as OpenAIModelID],
+                        model: Models[defaultModelId as ModelID],
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
@@ -1027,7 +1029,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 |
                                             </>
                                         )}
-                                        { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' } { selectedAssistant?.definition?.data?.model ? OpenAIModels[selectedAssistant.definition.data.model as OpenAIModelID].name : selectedConversation?.model.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
+                                        { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' } { selectedAssistant?.definition?.data?.model ? Models[selectedAssistant.definition.data.model as ModelID].name : selectedConversation?.model.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={(e) => {

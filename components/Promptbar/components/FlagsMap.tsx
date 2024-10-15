@@ -4,6 +4,7 @@ interface Flag {
     label: string;
     key: string;
     defaultValue: boolean;
+    description?: string;
 }
 
 interface FlagStates {
@@ -24,6 +25,7 @@ export const FlagsMap: React.FC<Props> = ({ id, flags, state, flagChanged }) => 
     return (
       <div>
         {flags.map((flag, index) => (
+          <>
           <Checkbox
             key={flag.key}
             id={`${id}-${flag.key}`}
@@ -31,6 +33,8 @@ export const FlagsMap: React.FC<Props> = ({ id, flags, state, flagChanged }) => 
             checked={state[flag.key]}
             onChange={(checked) => flagChanged(flag.key, checked)}
           />
+          {flag.description && <div className="mb-2 pl-6 pr-2">{flag.description}</div>}
+          </>
         ))}
       </div>
     );

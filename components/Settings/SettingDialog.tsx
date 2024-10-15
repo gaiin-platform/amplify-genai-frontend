@@ -1,4 +1,4 @@
-import { FC, useContext, useEffect, useReducer, useRef, useState } from 'react';
+import { FC, useContext, useEffect, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
@@ -9,12 +9,11 @@ import { Settings, Theme } from '@/types/settings';
 import HomeContext from '@/pages/api/home/home.context';
 import React from 'react';
 import { StorageDialog } from './StorageDialog';
-import { InfoBox } from '../ReusableComponents/InfoBox';
 import FlagsMap from '../Promptbar/components/FlagsMap';
 import { Modal } from '../ReusableComponents/Modal';
 import { saveUserSettings } from '@/services/settingsService';
 import { MINIMAL_AVAILABLE_MODELS } from '@/utils/app/models';
-import { OpenAIModel } from '@/types/openai';
+import { Model } from '@/types/model';
 import cloneDeep from 'lodash/cloneDeep';
 
 
@@ -74,12 +73,12 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
   };
 
   const inDefaultModelList = (modelId: string) => {
-    return cloneDeep(MINIMAL_AVAILABLE_MODELS).map((model: OpenAIModel) => model.id).includes(modelId)
+    return cloneDeep(MINIMAL_AVAILABLE_MODELS).map((model: Model) => model.id).includes(modelId)
   }
 
 
   const getAvailableModels = () => {
-    const sortedModels = models.reduce((accumulator: { anthropic: any[], mistral: any[], gpt: any[] }, model: OpenAIModel) => {
+    const sortedModels = models.reduce((accumulator: { anthropic: any[], mistral: any[], gpt: any[] }, model: Model) => {
         if (model.id.startsWith('anthropic')) {
             accumulator.anthropic.push({ id: model.id, name: model.name });
         } else if (model.id.startsWith('mistral')) {
@@ -111,6 +110,8 @@ const modelLabel = (id: string, name: string) => {
 
   // Render the dialog.
   return <Modal 
+      width={window.innerWidth * 0.62}
+      height={window.innerHeight * 0.88}
       title={`Settings${hasUnsavedChanges ? " * " : ""}`}
       onCancel={() => onClose()} 
       onSubmit={() => handleSave()
@@ -156,37 +157,68 @@ const modelLabel = (id: string, name: string) => {
               <StorageDialog open={open} />
             }
 
-            <div className="mt-2 mb-4 text-lg font-bold text-black dark:text-neutral-200">
+            <div className="mt-2 text-lg font-bold text-black dark:text-neutral-200">
               {t('Models')}
             </div>
 
-            <div className='text-center mb-2 w-[420px]'>
-              <InfoBox size={20}
-              content={
-                  <div className="mr-4 text-center w-full ml-2 text-[1rem]"> 
-                    <div className='flex flex-col text-center'> Available Models 
-                        <label className='ml-2 text-xs mb-2 mt-[-4px]'>{"(Default models are shown in blue)"}</label>
-                    </div> 
-                    {"OpenAI"}
-                    {availableModels.gpt.map((m: {id: string; name: string;}) => <>{modelLabel(m.id, m.name)}</> )}
-                    <br/>
-                    {"Claude"} 
-                    {availableModels.anthropic.map((m: {id: string; name: string;}) => <>{modelLabel(m.id, m.name)}</> )}
-                    <br/>
-                    {"Mistral"}
-                    {availableModels.mistral.map((m: {id: string; name: string;}) => <>{modelLabel(m.id, m.name)}</> )}
-                  </div>
-                } />
-            </div>
 
-            <FlagsMap 
-              id={'modelOptionFlags'}
-              flags={modelOptionFlags}
-              state={modelOptions}
-              flagChanged={(key, value) => {
-                setModelOptions({...modelOptions, [key]: value});
-              }}
-            />            
+            
+              <div className='flex flex-row w-full'>
+                    <label className='ml-5 mt-[12px] text-[0.75rem]'>Include All</label>
+                    <div className='flex-grow'>
+                      <div className='flex flex-col text-center mt-[-4px]'> Available Models 
+                          <label className='ml-2 text-xs mb-2 mt-[-4px]'>{"(Default models are shown in blue)"}</label>
+                      </div>
+                    </div> 
+              </div>      
+            <div className='flex flex-row'>
+              <div className='w-[96px] border border-gray-300 mr-[-1px]  mt-[-2px] dark:border-neutral-700 px-2'>
+              <div className='mt-1'>
+                <FlagsMap 
+                  id={'modelOptionFlags'}
+                  flags={modelOptionFlags}
+                  state={modelOptions}
+                  flagChanged={(key, value) => {
+                    setModelOptions({...modelOptions, [key]: value});
+                  }}
+                /> 
+                </div> 
+              </div>
+              <table className="mt-[-2px] flex-grow mr-4 overflow-x-auto table-auto border-collapse border border-gray-300 dark:border-neutral-700">
+                <tbody>
+                  {/* OpenAI Models */}
+                  <tr>
+                    {/* <td className="text-[1.1rem] px-4 py-2 border border-gray-300 dark:border-neutral-700">OpenAI</td> */}
+                    {availableModels.gpt.map((m: { id: string; name: string }) => (
+                      <td key={m.id} className="px-4 border border-gray-300 dark:border-neutral-700">
+                        {modelLabel(m.id, m.name)}
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* Claude Models */}
+                  <tr>
+                    {/* <td className="text-[1.1rem] px-4 py-2 border border-gray-300 dark:border-neutral-700">Claude</td> */}
+                    {availableModels.anthropic.map((m: { id: string; name: string }) => (
+                      <td key={m.id} className="px-4 border border-gray-300 dark:border-neutral-700">
+                        {modelLabel(m.id, m.name)}
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* Mistral Models */}
+                  <tr>
+                    {/* <td className="text-[1.1rem] px-4 py-2 border border-gray-300 dark:border-neutral-700">Mistral</td> */}
+                    {availableModels.mistral.map((m: { id: string; name: string }) => (
+                      <td key={m.id} className="px-4 border border-gray-300 dark:border-neutral-700">
+                        {modelLabel(m.id, m.name)}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+                  
 
             <div className="mt-4 text-lg font-bold text-black dark:text-neutral-200">
               {t('Features')}
