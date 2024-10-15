@@ -4,8 +4,6 @@ import HomeContext from "@/pages/api/home/home.context";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import {getSession} from "next-auth/react"
 import {deepMerge} from "@/utils/app/state";
-import { conversationWithCompressedMessages, saveConversations } from "@/utils/app/conversation";
-import { uploadConversation } from "@/services/remoteConversationService";
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";
 import { OpenAIModelID, OpenAIModels } from "@/types/openai";
 import { IconHammer } from "@tabler/icons-react";
@@ -30,8 +28,7 @@ const AutoArtifactsBlock: React.FC<Props> = ({content, ready, message}) => {
             artifactIsStreaming
 
         },
-        dispatch: homeDispatch,
-        handleAddMessages: handleAddMessages
+        dispatch: homeDispatch, handleUpdateSelectedConversation
     } = useContext(HomeContext);
 
     // for artifact block
@@ -91,7 +88,7 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `Follow these structural guidelines strictl
         console.log('Hello, World!');
         ${"```"}
 
-
+    - NOT EVERYTHING IS A CODE BLOCK, if you are asked to write a paper for example, and not explicitly told to make a txt or docx file, then you will respond with the text ONLY, NO code block. You must always determine if a \`\`\` code block is necessary or not
     - If you need to say/comment anything to the user that is NOT part of the artifact, wrap it in a ${startMarker} <your comments not part of the artifact> ${endMarker} tag AT THE END OF YOUR ARTIFACT OUTPUT
     
     Example: ${startMarker} Enjoy the artifact! ${endMarker}
@@ -169,6 +166,7 @@ const shouldAbort = ()=>{
 }
 
 const getArtifactMessages = async (llmInstructions: string, artifactDetail: ArtifactBlockDetail, type: string = '') => {
+    statsService.createArtifactEvent(type);
     const requestId = Math.random().toString(36).substring(7);
     homeDispatch({field: "currentRequestId", value: requestId});
     if (selectedConversation && selectedConversation?.messages) {
@@ -324,30 +322,8 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             updatedConversation.messages.slice(-1)[0].data.artifactStatus = 'complete';
             updatedConversation.messages.slice(-1)[0].data.artifacts = [...(lastMessageData.artifacts ?? []), artifactDetail];
 
-            // Final updates for conversation and artifacts
-            if (selectedConversation.isLocal) {
-                const updatedConversations: Conversation[] = conversationsRef.current.map(
-                    (conversation:Conversation) => {
-                        if (conversation.id === selectedConversation.id) {
-                            return conversationWithCompressedMessages(updatedConversation);
-                        }
-                        return conversation;
-                    },
-                );
-                if (updatedConversations.length === 0) {
-                    updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-                }
-                homeDispatch({field: 'conversations', value: updatedConversations});
-                saveConversations(updatedConversations);
-            } else {
-                uploadConversation(updatedConversation, foldersRef.current);
-            }
-
-            setTimeout( 
-                () => homeDispatch({
-                field: 'selectedConversation',
-                value: updatedConversation,
-            }), 300); 
+            
+            handleUpdateSelectedConversation(updatedConversation);
             
             } finally {
                 if (reader) {
@@ -359,6 +335,8 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
         } catch (e) {
             console.error("Error prompting for Artifact Messages: ", e);
         }   
+        const event = new CustomEvent( 'triggerChatReRender' );
+        window.dispatchEvent(event);
     }
 }
 

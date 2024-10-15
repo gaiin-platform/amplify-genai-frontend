@@ -14,6 +14,7 @@ import {Op} from "@/types/op";
 import {CheckItemType} from "@/types/checkItem";
 import { PluginLocation } from '@/types/plugin';
 import { Group } from '@/types/groups';
+import { Artifact } from '@/types/artifacts';
 
 
 type HandleSend = (request: any) => void;
@@ -35,7 +36,7 @@ export interface HomeInitialState {
   workflows: WorkflowDefinition[];
   selectedConversation: Conversation | undefined;
   currentMessage: Message | undefined;
-  selectedArtifacts: any[] | undefined;
+  selectedArtifacts: Artifact[] | undefined;
   prompts: Prompt[];
   temperature: number;
   showChatbar: boolean;
@@ -142,7 +143,8 @@ export const initialState: HomeInitialState = {
     apiKeys: true,
     assistantAdminInterface: false,
     artifacts: true,
-    mtdCost: true
+    mtdCost: true,
+    highlighter: true
   },
 
   statsService: noOpStatsServices,

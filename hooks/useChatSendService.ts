@@ -20,9 +20,10 @@ import {AttachedDocument} from "@/types/attacheddocument";
 import {Prompt} from "@/types/prompt";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {useChatService} from "@/hooks/useChatService";
-import { DEFAULT_TEMPERATURE } from "@/utils/app/const";
+import { ARTIFACTS_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { uploadConversation } from "@/services/remoteConversationService";
 import { getFocusedMessages } from '@/services/prepareChatService';
+import { getSettings } from '@/utils/app/settings';
 
 
 export type ChatRequest = {
@@ -188,17 +189,22 @@ export function useSendService() {
                     homeDispatch({field: 'loading', value: true});
                     homeDispatch({field: 'messageIsStreaming', value: true});
 
-                    // if updatedConversation.messages is on len 1 then we dont need to do this.
-                    const prepMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService, homeDispatch);
+                    const settings = getSettings(featureFlags);
+                    // if both artifact and smart messages is off then it returnes with the messages right away 
+                    const prepareMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService, featureFlags, homeDispatch, settings.featureOptions);
 
                     const chatBody: ChatBody = {
                         model: updatedConversation.model, 
-                        messages: prepMessages, //updatedConversation.messages,
+                        messages: prepareMessages, //updatedConversation.messages,
                         prompt: rootPrompt || updatedConversation.prompt || "",
                         temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
                         maxTokens: updatedConversation.maxTokens || 1000,
                         conversationId
                     };
+
+                    if (featureFlags.artifacts && settings.featureOptions.includeArtifacts) {
+                        chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
+                    }
 
                     if (uri) {
                         chatBody.endpoint = uri;
@@ -250,6 +256,7 @@ export function useSendService() {
                     //PLUGINS 
                     if (plugin?.id === PluginID.CODE_INTERPRETER) {
                         options =  {...(options || {}), codeInterpreterOnly: true};
+                        statsService.codeInterpreterInUseEvent();
                     } else if (plugin?.id === PluginID.NO_RAG) {
                         options = {
                             ...(options || {}),
@@ -438,7 +445,7 @@ export function useSendService() {
                                             const responseData = JSON.parse(responseMatch[1]);
                                             if (responseData['success'] && responseData['data'] && 'textContent' in responseData['data'].data) {
                                                 codeInterpreterData = responseData['data'].data;
-                                                text += responseData['data'].data.textContent; //had to write this way to eliminate error
+                                                text += responseData['data'].data.textContent;
 
                                             } else {
                                                 console.log(responseData.error);

@@ -22,37 +22,35 @@ import {
     IconFileUpload,
     IconCircleX,
     IconCode,
+    IconCopyPlus,
 } from '@tabler/icons-react';
 import { Artifact, ArtifactBlockDetail } from "@/types/artifacts";
 import { ArtifactContentBlock } from "./ArtifactsContentBlock";
 import { lzwCompress, lzwUncompress } from "@/utils/app/lzwCompression";
-import { LoadingDialog } from "@/components/Loader/LoadingDialog";
-import SidebarActionButton from "@/components/Buttons/SidebarActionButton";
 import { ArtifactEditor } from "./ArtifactEditor";
 import toast from "react-hot-toast";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { getAllArtifacts, saveArtifact, shareArtifact } from "@/services/artifactsService";
-import { TagsList } from "../Chat/TagsList";
 import { downloadArtifacts, uploadArtifact } from "@/utils/app/artifacts";
 import { EmailsAutoComplete } from "../Emails/EmailsAutoComplete";
 import { Group } from "@/types/groups";
 import { fetchEmailSuggestions } from "@/services/emailAutocompleteService";
-import { stringToColor } from "../Emails/EmailsList";
+import { includeGroupInfoBox, stringToColor } from "../Emails/EmailsList";
 import { Conversation } from "@/types/chat";
-import { conversationWithCompressedMessages, saveConversations } from "@/utils/app/conversation";
-import { uploadConversation } from "@/services/remoteConversationService";
 import React from "react";
 import { ArtifactPreview } from "./ArtifactPreview";
 import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codeblock";
+import ActionButton from "../ReusableComponents/ActionButton";
+import { getDateName } from "@/utils/app/date";
 
   interface Props {
     artifactIndex: number;
-    setArtifactIndex?: (i: number) => void;
 }
 
 
-export const Artifacts: React.FC<Props> = ({artifactIndex, setArtifactIndex}) => { //artifacts 
-    const {state:{statsService, selectedConversation, selectedArtifacts, artifactIsStreaming, chatEndpoint, currentRequestId, conversations, folders, groups},  dispatch:homeDispatch} = useContext(HomeContext);
+export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts 
+    const {state:{statsService, selectedConversation, selectedArtifacts, artifactIsStreaming, conversations, folders, groups, featureFlags},
+           dispatch:homeDispatch, handleUpdateSelectedConversation} = useContext(HomeContext);
 
     const [selectArtifactList, setSelectArtifactList] = useState<Artifact[]>(selectedArtifacts ?? []);
     const [versionIndex, setVersionIndex] = useState<number>(artifactIndex || (selectArtifactList?.length ?? 1) - 1);
@@ -72,7 +70,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex, setArtifactIndex}) =>
         
         if (!artifactIsStreaming)  setCodeBlocks(extractCodeBlocksAndText(getArtifactContents()));
         console.log(codeBlocks);
-    }, [artifactIsStreaming, versionIndex]);
+    }, [artifactIsStreaming, versionIndex, selectArtifactList]);
 
 
     const conversationsRef = useRef(conversations);
@@ -92,10 +90,6 @@ export const Artifacts: React.FC<Props> = ({artifactIndex, setArtifactIndex}) =>
         setVersionIndex(artifactIndex);
     },[artifactIndex])
 
-    //keep them in sync 
-    // useEffect(() => {
-    //     setArtifactIndex(versionIndex);
-    // },[versionIndex])
 
 
     useEffect(() => {
@@ -204,6 +198,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex, setArtifactIndex}) =>
     };
 
     const copyOnClick = () => {
+        statsService.copyArtifactEvent();
         if (!navigator.clipboard) return;
         if (selectArtifactList) {
             const artifactContent = getArtifactContents();
@@ -217,6 +212,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex, setArtifactIndex}) =>
     };
 
     const handleEditArtifact = (editedContent: string) => {
+        statsService.editArtifactEvent();
         if (selectedConversation) {
             const updatedConversation = { ...selectedConversation };
             let currentArtifact = selectArtifactList[versionIndex];
@@ -235,6 +231,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex, setArtifactIndex}) =>
                 let newVersion = cloneDeep(currentArtifact);
                 newVersion.version = selectArtifactList[curLen - 1].version + 1;
                 newVersion.contents = newContent;
+                newVersion.createdAt = getDateName();
                 updatedArtifacts = [...selectArtifactList, newVersion];
 
                 const lastMessageData = updatedConversation.messages.slice(-1)[0].data;
@@ -248,42 +245,45 @@ export const Artifacts: React.FC<Props> = ({artifactIndex, setArtifactIndex}) =>
         }
     };
 
+    const handleCopyVersion = () => {
+        statsService.addCopyOfArtifactEvent();
+        const curLen = selectArtifactList.length;
+        if (selectedConversation) {
+            const updatedConversation = { ...selectedConversation };
+            let copyArtifact = cloneDeep(selectArtifactList[versionIndex]);
+            copyArtifact.createdAt = getDateName();
+            copyArtifact.version = selectArtifactList[curLen - 1].version + 1;
+            let updatedArtifacts =  [
+                            ...selectArtifactList, 
+                            copyArtifact
+                        ];
+            
+            const lastMessageData = updatedConversation.messages.slice(-1)[0].data;
+            updatedConversation.messages.slice(-1)[0].data.artifacts = [...(lastMessageData.artifacts ?? []), {artifactId: copyArtifact.artifactId,  name: copyArtifact.name, createdAt:  copyArtifact.createdAt, description: copyArtifact.description, version: copyArtifact.version} as ArtifactBlockDetail];
+
+            handleUpdateConversationArtifacts(updatedConversation, copyArtifact.artifactId, updatedArtifacts);
+            setVersionIndex(updatedArtifacts.length - 1);   
+
+        }
+        
+    }
+
+
 
     const handleUpdateConversationArtifacts = (updatedConversation: Conversation, artifactId:string, updatedArtifacts: Artifact[]) => {
         setSelectArtifactList(updatedArtifacts);
-        
+        homeDispatch({field: "selectedArtifacts", value: updatedArtifacts});
         updatedConversation.artifacts = updatedArtifacts.length === 0 ? {...updatedConversation.artifacts} :
                                                                         { ...updatedConversation.artifacts, 
                                                                             [artifactId]: updatedArtifacts
                                                                         };
-        // Dispatch the updated conversation to the home state
-        homeDispatch({
-            field: 'selectedConversation',
-            value: updatedConversation,
-        });
-
-        if (updatedConversation.isLocal) {
-            const updatedConversations: Conversation[] = conversationsRef.current.map(
-                (conversation:Conversation) => {
-                    if (conversation.id === updatedConversation.id) {
-                        return conversationWithCompressedMessages(updatedConversation);
-                    }
-                    return conversation;
-                },
-            );
-            if (updatedConversations.length === 0) {
-                updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-            }
-            homeDispatch({field: 'conversations', value: updatedConversations});
-            saveConversations(updatedConversations);
-        } else {
-            uploadConversation(updatedConversation, foldersRef.current);
-        }
-
+        handleUpdateSelectedConversation(updatedConversation);
+       
     }
 
 
     const handleDeleteArtifact = () => {
+        statsService.deleteArtifactEvent();
         if (selectArtifactList) {
             const updatedArtifacts = selectArtifactList.filter((_, idx) => idx !== versionIndex);
             const artifactId:string = selectArtifactList[versionIndex].artifactId;
@@ -303,6 +303,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex, setArtifactIndex}) =>
     const handleShareArtifact = async () => {
 // add users email model 
         setIsLoading('Sharing Artifact...');
+        statsService.shareArtifactEvent(selectArtifactList[versionIndex], shareWith);
         const result = await shareArtifact(selectArtifactList[versionIndex], shareWith);
         if (result.success) {
             toast("Shared Successfully");
@@ -315,6 +316,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex, setArtifactIndex}) =>
     }
 
     const handleDownloadArtifact = () => {
+        statsService.downloadArtifactEvent();
         setIsLoading('Downloading Artifact...');
         const artifact = selectArtifactList[versionIndex];
         const artifactContent = getArtifactContents();
@@ -324,6 +326,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex, setArtifactIndex}) =>
     }
 
     const handleUploadAsFile = async () => {
+        statsService.uploadArtifactAsFileEvent();
         setIsUploading(false);
         setIsLoading('Upload Artifact to Amplify File Manager...');
         const artifact = selectArtifactList[versionIndex];
@@ -337,6 +340,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex, setArtifactIndex}) =>
         setIsSaving(false);
         setIsLoading('Saving Artifact...');
         const artifact = selectArtifactList[versionIndex];
+        statsService.saveArtifactEvent({...artifact, tags: tags});
         const result = await saveArtifact({...artifact, tags: tags});
         setIsLoading('');
         if (result.success) {
@@ -404,8 +408,8 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                     </div> </div>}
 
                 {(isModalOpen) &&  
-                    <div className="flex justify-center w-full">
-                        <div className="p-4  border border-gray-500 rounded z-50 absolute bg-white dark:bg-[#444654]" style={{ transform: `translateY(100%)`}}>
+                    <div className="shadow-xl flex justify-center w-full">
+                        <div className="p-4  border border-gray-500 rounded z-50 absolute bg-white dark:bg-[#444654]" style={{ transform: `translateY(50%)`}}>
                         {/* {isSaving || isUploading && <>
                         <TagsList tags={selectArtifactList[versionIndex].tags} 
                             setTags={(tags) => {
@@ -423,15 +427,11 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 
                         </>} */}
                         
-                    {isSharing && <div className="flex flex-col" >
+                    {isSharing && <div className="flex flex-col gap-2" >
 
                         {/* <div className="flex w-full flex-wrap pb-2 mt-2"> */}
                         {"Send Amplify Artifact"}
-                        {groups.length > 0 && 
-                            <div className='mb-2 flex flex-row gap-2 text-[0.795rem]'>
-                                <IconInfoCircle size={14} className='mt-0.5 flex-shrink-0 text-gray-600 dark:text-gray-400' />
-                                {'Use the "#" symbol to automatically include all members of the group.'}
-                            </div>}
+                        {featureFlags.assistantAdminInterface && groups.length > 0  &&  <>{includeGroupInfoBox}</>}
                         <div className='flex flex-row gap-2'>
                             <div className="flex-shrink-0 ml-[-6px] mr-2">
                                 <button
@@ -452,30 +452,31 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                             /> 
                             </div>  
                         </div>   
-
-                        {shareWith.map((email, index) => (
-                            <div 
-                                key={index}
-                                className="flex items-center justify-between bg-white dark:bg-neutral-200 rounded-md px-2 py-0 mr-2 mb-2 shadow-lg"
-                                style={{ backgroundColor: stringToColor(email) }}
-                            >
-                                <button
-                                    className="text-gray-800 transition-all"
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setShareWith(shareWith.filter(x => x !== email));
-                                    }}
-                                    title="Remove Email"
+                        <div className="h-[62px] overflow-y-auto "> 
+                            {shareWith.map((email, index) => (
+                                <div 
+                                    key={index}
+                                    className="flex items-center justify-between bg-white dark:bg-neutral-200 rounded-md px-2 py-0 mr-2 mb-2 shadow-lg"
+                                    style={{ backgroundColor: stringToColor(email) }}
                                 >
-                                    <IconCircleX size={17} />
-                                    
-                                </button>
-                                <div className="ml-1">
-                                    <label className="text-gray-800 font-medium text-sm">{email}</label>
+                                    <button
+                                        className="text-gray-800 transition-all"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setShareWith(shareWith.filter(x => x !== email));
+                                        }}
+                                        title="Remove Email"
+                                    >
+                                        <IconCircleX size={17} />
+                                        
+                                    </button>
+                                    <div className="ml-1">
+                                        <label className="text-gray-800 font-medium text-sm">{email}</label>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
 
                         <CancelSubmitButtons
                         submitText="Share"
@@ -516,11 +517,13 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 
             <label className="mt-4 text-[36px] text-center"> Artifacts</label>
             <div className='absolute top-5 mr-auto ml-8 w-[26px]'> 
-                <SidebarActionButton
+                
+                <ActionButton
                         handleClick={handleCloseArtifactMode}
                         title="Close">
                         <IconArrowNarrowLeft size={34} />
-                </SidebarActionButton> 
+                </ActionButton> 
+
             </div>
             
             <div className="flex justify-center items-center ">
@@ -535,7 +538,8 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                                 <ArtifactContentBlock
                                     artifactIsStreaming={artifactIsStreaming}
                                     selectedArtifact={selectArtifactList[versionIndex]}
-                                    // handleCustomLinkClick={handleCustomLinkClick}
+                                    artifactId={selectArtifactList[versionIndex].artifactId}
+                                    versionIndex={versionIndex}
                                 />
                             </div>
                         )}
@@ -585,7 +589,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                     </div>
                     
 
-                    <div className="h-min mt-8 flex flex-col gap-3 items-center p-2 border border-gray-500 dark:border-gray-500">
+                    <div className="h-min mt-8 flex flex-col gap-3 items-center p-2 border border-gray-500 dark:border-gray-500 shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
                         {isPreviewing ?
                             <button
                             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
@@ -598,7 +602,11 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                             </button> :             
                             <button
                                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                onClick={() => {setIsEditing(false); setIsPreviewing(true);}}
+                                onClick={() => {
+                                    setIsEditing(false); 
+                                    setIsPreviewing(true);
+                                    statsService.previewArtifactEvent(selectArtifactList[versionIndex].type);
+                                }}
                                 title="Preview Artifact"
                                 disabled={artifactIsStreaming}
                             >
@@ -633,6 +641,15 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                         >
                             <IconFileUpload size={24}/>
                         </button>
+
+                        <button
+                            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                            onClick={handleCopyVersion}
+                            title="Add Version Copy To Artifact List"
+                            disabled={artifactIsStreaming}
+                        >
+                            <IconCopyPlus size={24}/>
+                        </button>
                         
                         {messagedCopied ? (
                             <IconCheck
@@ -664,11 +681,13 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                             title="Email Artifact"
                             disabled={artifactIsStreaming}
+                            onClick={()=> statsService.mailArtifactEvent()}
                         >
                             <a className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                 href={`mailto:?body=${encodeURIComponent( getArtifactContents() )}`}>
                                 <IconMail size={24}/>
                             </a>
+                            
                         </button>
 
                         <button
@@ -686,12 +705,16 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 
                         <button
                             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                            onClick={() => {setIsPreviewing(false); setIsEditing(!isEditing)} }
+                            onClick={() => {
+                                setIsPreviewing(false); 
+                                setIsEditing(!isEditing);
+                            } }
                             title="Edit Artifact"
                             disabled={artifactIsStreaming}
                         >
                             <IconEdit size={24}/>
                         </button>
+
 
                         <button
                             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"

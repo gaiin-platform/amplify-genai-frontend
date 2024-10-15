@@ -7,10 +7,7 @@ import { IconLibrary, IconX } from "@tabler/icons-react";
 import { Conversation, Message } from "@/types/chat";
 import { Artifact, ArtifactBlockDetail } from "@/types/artifacts";
 import toast from "react-hot-toast";
-import SidebarActionButton from "@/components/Buttons/SidebarActionButton";
 import React from "react";
-import { conversationWithCompressedMessages, saveConversations } from "@/utils/app/conversation";
-import { uploadConversation } from "@/services/remoteConversationService";
 
 
   interface Props {
@@ -22,7 +19,8 @@ import { uploadConversation } from "@/services/remoteConversationService";
 // supports coming from assitant (coming from autoArtifacts block) and from message data (when saved artifact gets introduced to conversation)
 export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
 
-    const {state:{statsService, conversations, folders, messageIsStreaming, artifactIsStreaming, selectedConversation},  dispatch:homeDispatch} = useContext(HomeContext);
+    const {state:{statsService, conversations, folders, messageIsStreaming, artifactIsStreaming, selectedConversation},  
+           dispatch:homeDispatch, handleUpdateSelectedConversation} = useContext(HomeContext);
 
     const [artifacts, setArtifacts] = useState <ArtifactBlockDetail[] | undefined > ((message?.data?.artifacts));
     
@@ -91,32 +89,8 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
             const updatedConversation = {...selectedConversation};
             updatedConversation.messages[messageIndex].data.artifacts = updatedArtifacts;
 
-             homeDispatch({
-                field: 'selectedConversation',
-                value: updatedConversation,
-            });
-    
-            if (updatedConversation.isLocal) {
-                const updatedConversations: Conversation[] = conversationsRef.current.map(
-                    (conversation:Conversation) => {
-                        if (conversation.id === updatedConversation.id) {
-                            return conversationWithCompressedMessages(updatedConversation);
-                        }
-                        return conversation;
-                    },
-                );
-                if (updatedConversations.length === 0) {
-                    updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-                }
-                homeDispatch({field: 'conversations', value: updatedConversations});
-                saveConversations(updatedConversations);
-            } else {
-                uploadConversation(updatedConversation, foldersRef.current);
-            }
-
+            handleUpdateSelectedConversation(updatedConversation);
         }
-            // // Dispatch the updated conversation to the home state
-
     }
 
    return (
@@ -144,7 +118,7 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
                         {artifact.name}
                     </div>
                     {artifact.version && 
-                        <div className="mt-3 ml-2 text-[15px] text-gray-500">    
+                        <div className="mt-3 ml-2 text-[15px] text-gray-500 truncate">    
                             -  Version {artifact.version}
                         </div>}
                     {isHovered === i &&

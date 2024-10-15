@@ -2,15 +2,11 @@ import { IconLibrary,  IconTrash } from '@tabler/icons-react';
 
 import { FC, useContext, useEffect, useRef, useState } from 'react';
 
-import { useTranslation } from 'next-i18next';
-
 import HomeContext from '@/pages/api/home/home.context';
-import { conversationWithCompressedMessages, saveConversations } from '@/utils/app/conversation';
 import { Conversation } from '@/types/chat';
 import { Artifact, ArtifactBlockDetail } from '@/types/artifacts';
 import { deleteArtifact, getArtifact } from '@/services/artifactsService';
 import toast from 'react-hot-toast';
-import { uploadConversation } from '@/services/remoteConversationService';
 import { animate } from '../Loader/LoadingIcon';
 import { FiCommand } from 'react-icons/fi';
 import styled from 'styled-components';
@@ -32,7 +28,7 @@ export const ArtifactsSaved: FC<Props> = ({
   iconSize
 }) => {
   const { 
-    state: { selectedConversation, conversations, folders, artifacts}, dispatch: homeDispatch
+    state: { selectedConversation, conversations, folders, artifacts, statsService}, dispatch: homeDispatch, handleUpdateSelectedConversation
   } = useContext(HomeContext);
 
 
@@ -90,34 +86,13 @@ const handleUpdateConversation = (updatedConversation: Conversation, artifact: A
     const lastMessageData = updatedConversation.messages.slice(-1)[0].data;
     updatedConversation.messages.slice(-1)[0].data.artifacts = [...(lastMessageData.artifacts ?? []), {artifactId: artifact.artifactId, name: artifact.name, createdAt:  artifact.createdAt, description: artifact.description, version: artifact.version === 1 ? undefined : artifact.version} as ArtifactBlockDetail];
 
-    // Final updates for conversation and artifacts
-    if (selectedConversation && selectedConversation.isLocal) {
-        const updatedConversations: Conversation[] = conversationsRef.current.map(
-            (conversation:Conversation) => {
-                if (conversation.id === selectedConversation.id) {
-                    return conversationWithCompressedMessages(updatedConversation);
-                }
-                return conversation;
-            },
-        );
-        if (updatedConversations.length === 0) {
-            updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-        }
-        homeDispatch({field: 'conversations', value: updatedConversations});
-        saveConversations(updatedConversations);
-    } else {
-        uploadConversation(updatedConversation, foldersRef.current);
-    }
-
-    homeDispatch({
-        field: 'selectedConversation',
-        value: updatedConversation,
-    }); 
+    handleUpdateSelectedConversation(updatedConversation);
 
 }
 
 const handleAddArtifactToConversation = async (key: string, index:number) => {
     setLoadingItem(index);
+    statsService.bringArtifactToAnotherConversationEvent(key);
     const result = await getArtifact(key);
     if (result.success) {
       const artifact:Artifact = result.data;
@@ -133,6 +108,7 @@ const handleAddArtifactToConversation = async (key: string, index:number) => {
 const handleDeleteArtifact = async (key: string, index:number) => {
     setLoadingItem(index);
     if (confirm("Are you sure you want to delete this artifact? You will not be able to undo this change.")) {
+      statsService.deleteArtifactFromSavedArtifactsEvent(key);
       const result = await deleteArtifact(key);
       if (result) {
         toast("Artifact successfully deleted");

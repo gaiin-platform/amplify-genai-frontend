@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import {
     SandpackProvider,
     SandpackLayout,
@@ -7,6 +7,7 @@ import {
 import { CodeBlockDetails, getFileExtensionFromLanguage } from '@/utils/app/codeblock';
 import { getSettings } from '@/utils/app/settings';
 import DOMPurify from 'dompurify';
+import HomeContext from '@/pages/api/home/home.context';
 
 interface Props {
     codeBlocks: CodeBlockDetails[];
@@ -15,7 +16,7 @@ interface Props {
     height: number;
 }
 
-const theme = 'dark';//getSettings().theme;
+
 
 export const ArtifactPreview: React.FC<Props> = ({ codeBlocks, artifactContent, type, height}) => {
 
@@ -54,8 +55,95 @@ export const ArtifactPreview: React.FC<Props> = ({ codeBlocks, artifactContent, 
     </div>
 }
 
+
+ 
+  // --- Text, JSON, CSV Preview Component ---
+  const TextPreview: React.FC<{ content: string; height: number }> = ({ content, height }) => {
+    const renderTextInIframe = () => {
+      const iframeSrcDoc = `
+        <html>
+          <head>
+            <style>
+              body {
+                font-family: 'Arial', sans-serif;
+                background-color: #f8f8f8;
+                padding: 20px;
+                color: #333; 
+                line-height: 1.6;
+                font-size: 16px;
+              }
+              p {
+                margin-bottom: 1em;
+              }
+            </style>
+          </head>
+          <body>
+            ${content.replace(/\n/g, '<br/>')}
+          </body>
+        </html>
+      `;
+      return (
+        <iframe
+          srcDoc={iframeSrcDoc}
+          style={{
+            border: "1px solid #ddd", /* Light border for visual separation */
+            borderRadius: "2px", /* Slightly rounded corners */
+            width: "100%",
+            height: `${height}px`,
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)", /* Soft shadow for depth */
+        
+          }}
+          title="Text Preview"
+        />
+      );
+    };
+  
+    return <div>{renderTextInIframe()}</div>;
+  };
+  
+  
+  // --- SVG Preview Component ---
+  
+  const SVGPreview: React.FC<{ svgs: string[]; height: number }> = ({ svgs, height }) => {
+    const sanitizeOptions = {   // Create a DOMPurify instance with custom configuration to allow animations
+        ADD_TAGS: ['animate'], // Allow the animate tag
+        ADD_ATTR: ['attributeName', 'from', 'to', 'dur', 'begin', 'repeatCount'] // Allow attributes used in animations
+    };
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: `${height}px`, width: '100%' }}>
+        {svgs.map((svg, index) => {
+          const sanitizedSVG = DOMPurify.sanitize(svg, sanitizeOptions); // Sanitize with custom options
+          return (
+            <div
+              key={index}
+              dangerouslySetInnerHTML={{ __html: sanitizedSVG }}
+              style={{ marginBottom: '10px', width: '100%' }}
+            />
+          );
+        })}
+      </div>
+    );
+  };
+  
+  
+  // --- Unsupported Type Preview Component ---
+  const UnsupportedPreview: React.FC<{ content: string }> = ({ content }) => (
+    <div>
+      <p>Unsupported artifact type.</p>
+      <pre>{content}</pre>
+    </div>
+  );
+  
+
+
+
+
+
 // --- HTML, CSS, JS Preview Component (Vanilla) ---
 const VanillaPreview: React.FC<{ codeBlocks: any; height: number; framework: any; }> = ({ codeBlocks, height, framework }) => {
+    const { dispatch: homeDispatch, state:{statsService, featureFlags} } = useContext(HomeContext);
+    const theme = getSettings(featureFlags).theme;
     const [files, setFiles] = useState<{ [key: string]: { code: string } }>({});
   
     const isStaticTemplate = framework === 'static';
@@ -187,10 +275,12 @@ const VanillaPreview: React.FC<{ codeBlocks: any; height: number; framework: any
   
   
 
-const FrameworkPreview: React.FC<{ codeBlocks: any; height: number; framework: any }> = ({ codeBlocks, height, framework }) => {
+const FrameworkPreview: React.FC<{ codeBlocks: CodeBlockDetails[]; height: number; framework: any }> = ({ codeBlocks, height, framework }) => {
+  const { dispatch: homeDispatch, state:{statsService, featureFlags} } = useContext(HomeContext);
+  const theme = getSettings(featureFlags).theme;
   const [files, setFiles] = useState<{ [key: string]: { code: string } }>({});
 
-  const setupReactFiles = (codeBlocks: any) => {
+  const setupReactFiles = (codeBlocks: CodeBlockDetails[]) => {
     const newFiles: { [key: string]: { code: string } } = {};
     const dependencies = new Set(['react', 'react-dom']); // Only include necessary dependencies
 
@@ -268,9 +358,165 @@ root.render(<App />);
     return newFiles;
   };
 
-  const setupAngularFiles = (codeBlocks: any) => {
+  const setupAngularFiles = (codeBlocks: CodeBlockDetails[]) => {
     const newFiles: { [key: string]: { code: string } } = {};
-    const dependencies = new Set([
+    const dependencies = new Set<string>();
+  
+    // Iterate over codeBlocks
+    codeBlocks.forEach((block) => {
+      const { code, filename } = block;
+      let adjustedFilename = filename;
+  
+      // Adjust the filename to include the correct path
+      if (['package.json', 'tsconfig.json', 'angular.json'].includes(filename)) {
+        adjustedFilename = `/${filename}`;
+  
+        // Parse dependencies from package.json
+        if (filename === 'package.json') {
+          try {
+            const codeWithoutComments = code.replace(/^\s*\/\/.*\n/gm, '').trim();
+            const packageJsonObj = JSON.parse(codeWithoutComments);
+            if (packageJsonObj.dependencies) {
+              Object.keys(packageJsonObj.dependencies).forEach((dep) => {
+                dependencies.add(dep);
+              });
+            }
+            if (packageJsonObj.devDependencies) {
+              Object.keys(packageJsonObj.devDependencies).forEach((dep) => {
+                dependencies.add(dep);
+              });
+            }
+          } catch (e) {
+            console.error('Failed to parse package.json:', e);
+          }
+        }
+      } else if (['index.html', 'main.ts', 'polyfills.ts'].includes(filename)) {
+        adjustedFilename = `/src/${filename}`;
+      } else if (filename.startsWith('app.')) {
+        adjustedFilename = `/src/app/${filename}`;
+      }  else {
+        // For other files, place them under /src/
+        adjustedFilename = `/src/${filename}`;
+      }
+  
+      // Add the code to newFiles
+      newFiles[adjustedFilename] = { code };
+  
+      // Extract dependencies from the code
+      extractDependenciesFromCode(code, dependencies);
+    });
+  
+    // Ensure essential files exist
+    const ensureFile = (path: string, defaultCode: string) => {
+      if (!newFiles.hasOwnProperty(path)) {
+        newFiles[path] = { code: defaultCode.trim() };
+      } else if (path === "/src/main.ts") {
+        newFiles[path].code = newFiles[path].code.replace("import { AppModule } from './app.module';","import { AppModule } from './app/app.module';");
+      }
+    };
+  
+    ensureFile('/src/main.ts', `// main.ts
+  import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
+  import { AppModule } from './app/app.module';
+  
+  platformBrowserDynamic().bootstrapModule(AppModule)
+    .catch(err => console.error(err));
+  `);
+  
+    ensureFile('/src/index.html', `<!-- index.html -->
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Angular App</title>
+    <base href="/">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head>
+  <body>
+    <app-root></app-root>
+  </body>
+  </html>`);
+  
+    ensureFile('/src/app/app.module.ts', `// app.module.ts
+  import { NgModule } from '@angular/core';
+  import { BrowserModule } from '@angular/platform-browser';
+  
+  import { AppComponent } from './app.component';
+  
+  @NgModule({
+    declarations: [
+      AppComponent
+    ],
+    imports: [
+      BrowserModule
+    ],
+    providers: [],
+    bootstrap: [AppComponent]
+  })
+  export class AppModule { }`);
+  
+    ensureFile('/src/app/app.component.ts', `// app.component.ts
+  import { Component } from '@angular/core';
+  
+  @Component({
+    selector: 'app-root',
+    template: '<h1>Hello Angular</h1>',
+    styles: []
+  })
+  export class AppComponent { }`);
+  
+    ensureFile('/tsconfig.json', `{
+  "compilerOptions": {
+    "target": "es2015",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "lib": [
+      "es2018",
+      "dom"
+    ],
+    "skipLibCheck": true
+  },
+  "angularCompilerOptions": {
+    "enableIvy": true
+  }
+}`);
+  
+    ensureFile('/angular.json', `{
+  "projects": {
+    "app": {
+      "root": "",
+      "sourceRoot": "src",
+      "projectType": "application",
+      "architect": {
+        "build": {
+          "options": {
+            "outputPath": "dist/app",
+            "index": "src/index.html",
+            "main": "src/main.ts",
+            "polyfills": "src/polyfills.ts",
+            "tsConfig": "tsconfig.json",
+            "assets": [],
+            "styles": [],
+            "scripts": []
+          }
+        }
+      }
+    }
+  }
+}
+`);
+  
+    ensureFile('/src/polyfills.ts', `import 'zone.js';  // Included with Angular CLI.`);
+    ensureFile('/src/environments/environment.ts', `// environment.ts
+export const environment = {
+  production: false
+};`);
+
+  
+    // Add essential dependencies
+    const essentialDependencies = [
       '@angular/core',
       '@angular/common',
       '@angular/compiler',
@@ -278,113 +524,239 @@ root.render(<App />);
       '@angular/platform-browser-dynamic',
       'rxjs',
       'zone.js',
-    ]);
+      "core-js",
+    ];
+    essentialDependencies.forEach(dep => dependencies.add(dep));
   
-    // Loop over the code blocks to set up files and extract dependencies
-    codeBlocks.forEach((block: CodeBlockDetails) => {
-      if (block.language === 'txt') return; // Skip unnecessary text blocks
-      const code = block.code;
+    // Convert dependencies set to an object with versions
+    const dependenciesObj: { [key: string]: string } = {};
+    dependencies.forEach((dep) => {
+      dependenciesObj[dep] = 'latest';
+    });
+
+    const defaultScripts = {
+      "ng": "ng",
+      "start": "ng serve",
+      "build": "ng build",
+      "test": "ng test",
+      "lint": "ng lint",
+      "e2e": "ng e2e"
+    };
+  
+    // Ensure package.json exists and include dependencies
+    if (!newFiles.hasOwnProperty('/package.json')) {
+      newFiles['/package.json'] = {
+        code: JSON.stringify(
+          {
+            dependencies: dependenciesObj,
+            private: true,
+            scripts: defaultScripts,
+          },
+          null,
+          2
+        ),
+      };
+    } else {
+     // If package.json exists, merge dependencies and scripts
+    const packageJsonCode = newFiles['/package.json'].code;
+    let packageJsonObj: any;
+    try {
+      const codeWithoutComments = packageJsonCode.replace(/^\s*\/\/.*\n/gm, '').trim();
+      packageJsonObj = JSON.parse(codeWithoutComments);
+    } catch (e) {
+      packageJsonObj = {};
+    }
+    // Merge dependencies
+    packageJsonObj.dependencies = {
+      ...packageJsonObj.dependencies,
+      ...dependenciesObj,
+    };
+    // Merge scripts
+    packageJsonObj.scripts = {
+      ...defaultScripts,
+      ...packageJsonObj.scripts,
+    };
+      newFiles['/package.json'].code = JSON.stringify(packageJsonObj, null, 2);
+    }
+
+    console.log("files", newFiles);
+  
+    return newFiles;
+  };
+  console.log(framework);
+
+
+  
+  const setupVueFiles = (codeBlocks: CodeBlockDetails[]) => {
+    const newFiles : { [key: string]: { code: string } } = {};
+    const dependencies = new Set(['vue']); // Ensure Vue is included
+  
+    codeBlocks.forEach((block) => {
+      if (block.language === 'txt' || block.filename === 'package.json') return; // Skip unnecessary blocks
+      const language = block.language.toLowerCase();
+      let code = block.code;
       let filename = block.filename;
   
-      // Adjust the file path based on the file type
-      if (!filename.startsWith('/')) {
-        if (filename === 'app.module.ts' || filename === 'app.component.ts') {
-          filename = '/src/app/' + filename;
-        } else if (filename === 'index.html') {
-          filename = '/src/' + filename;
-        } else {
-          filename = '/src/' + filename;
-        }
-      }
+      if (language === 'html') {
+        // Place HTML files in /public
+        filename = `/public/${filename}`;
+        // Remove CDN scripts if present, as dependencies are handled via package.json
+        code = code.replace(
+          /<script\s+src="https:\/\/cdn\.jsdelivr\.net\/npm\/vue@[\d.]+\/dist\/vue\.js"><\/script>/g,
+          ''
+        );
+        code = code.replace(
+          /<script\s+src="main\.js"><\/script>/g,
+          '<script src="/src/main.js"></script>'
+        );
+      } else if (language === 'javascript' || language === 'js') {
+        // Place JavaScript files in /src
+        filename = `/src/${filename}`;
+        // Replace global Vue usage with module imports
+        if (code.includes('Vue.component') || code.includes('new Vue')) {
+          code = `
+  import Vue from 'vue';
+  import App from './App.vue';
   
+  Vue.config.productionTip = false;
+  
+  new Vue({
+    render: h => h(App),
+  }).$mount('#app');`;
+          // Ensure App.vue exists
+          if (!newFiles.hasOwnProperty('/src/App.vue')) {
+            newFiles['/src/App.vue'] = {
+              code: `
+  <template>
+    <div id="app">
+      <my-component></my-component>
+    </div>
+  </template>
+  
+  <script>
+  import MyComponent from './MyComponent.vue';
+  
+  export default {
+    name: 'App',
+    components: {
+      MyComponent
+    }
+  };
+  </script>`,
+            };
+          }
+          // Extract component code and place it in MyComponent.vue
+          newFiles['/src/MyComponent.vue'] = {
+            code: `
+  <template>
+    <p>{{ message }}</p>
+  </template>
+  
+  <script>
+  export default {
+    data() {
+      return {
+        message: 'Hello Vue!'
+      };
+    }
+  };
+  </script>`,
+          };
+        }
+      } else if (language === 'vue') {
+        // Place Vue components in /src
+        filename = `/src/${filename}`;
+      } else {
+        // Default to /src for other file types
+        filename = `/src/${filename}`;
+      }
+      code = code.trim();
       newFiles[filename] = { code };
   
       // Extract dependencies from the code
       extractDependenciesFromCode(code, dependencies);
     });
   
-    // Ensure '/src/main.ts' exists
-    if (!newFiles.hasOwnProperty('/src/main.ts')) {
-      const mainTsCode = `// main.ts
-  import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
-  import { AppModule } from './app/app.module';
+    // Ensure '/src/main.js' exists
+    if (!newFiles.hasOwnProperty('/src/main.js')) {
+      newFiles['/src/main.js'] = {
+        code: `
+  import Vue from 'vue';
+  import App from './App.vue';
   
-  platformBrowserDynamic().bootstrapModule(AppModule)
-    .catch(err => console.error(err));
-      `;
-      newFiles['/src/main.ts'] = { code: mainTsCode.trim() };
+  Vue.config.productionTip = false;
+  
+  new Vue({
+    render: h => h(App),
+  }).$mount('#app');`,
+      };
     }
   
-    // Ensure '/src/index.html' exists
-    if (!newFiles.hasOwnProperty('/src/index.html')) {
-      const indexHtmlCode = `<!-- index.html -->
+    // Ensure '/src/App.vue' exists
+    if (!newFiles.hasOwnProperty('/src/App.vue')) {
+      newFiles['/src/App.vue'] = {
+        code: `
+  <template>
+    <div id="app">
+      <h1>Hello Vue!</h1>
+    </div>
+  </template>
+  
+  <script>
+  export default {
+    name: 'App',
+  };
+  </script>
+  
+  <style>
+  #app {
+    font-family: Avenir, Helvetica, Arial, sans-serif;
+  }
+  </style>
+        `.trim(),
+      };
+    }
+  
+    // Ensure '/public/index.html' exists
+    if (!newFiles.hasOwnProperty('/public/index.html')) {
+      newFiles['/public/index.html'] = {
+        code: `
   <!DOCTYPE html>
   <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <title>Angular App</title>
-    <base href="/" />
+    <meta charset="UTF-8">
+    <title>Vue App</title>
   </head>
   <body>
-    <app-root></app-root>
+    <div id="app"></div>
+    <script src="/src/main.js"></script>
   </body>
-  </html>`;
-      newFiles['/src/index.html'] = { code: indexHtmlCode.trim() };
-    }
-  
-   
-  
-    // if (!newFiles.hasOwnProperty('/package.json')) {
-      // Convert dependencies set to an object with 'latest' as version
-          const dependenciesObj: any = {};
-          dependencies.forEach((dep) => {
-            dependenciesObj[dep] = 'latest';
-          });
-
-          console.log(dependenciesObj);
-      // Add package.json with dependencies
-      newFiles['/package.json'] = {
-        code: JSON.stringify(
-          {
-            dependencies: dependenciesObj,
-          },
-          null,
-          2
-        ),
+  </html>`,
       };
-    // }
-  
-    // Ensure 'tsconfig.json' exists
-    if (!newFiles.hasOwnProperty('/tsconfig.json')) {
-      const tsconfigCode = `{
-    "compilerOptions": {
-      "outDir": "./out-tsc/app",
-      "sourceMap": true,
-      "declaration": false,
-      "module": "esnext",
-      "moduleResolution": "node",
-      "emitDecoratorMetadata": true,
-      "experimentalDecorators": true,
-      "lib": [
-        "es2020",
-        "dom"
-      ],
-      "target": "es2015",
-      "typeRoots": [
-        "node_modules/@types"
-      ]
-    },
-    "angularCompilerOptions": {
-      "enableIvy": true
-    }
-  }`;
-      newFiles['/tsconfig.json'] = { code: tsconfigCode };
     }
   
+    // Convert dependencies set to an object with 'latest' as version
+    const dependenciesObj:any = {};
+    dependencies.forEach((dep) => {
+      dependenciesObj[dep] = 'latest';
+    });
+  
+    // Add package.json with dependencies
+    newFiles['/package.json'] = {
+      code: JSON.stringify(
+        {
+          dependencies: dependenciesObj,
+        },
+        null,
+        2
+      ),
+    };
+  
+    console.log(newFiles);
     return newFiles;
   };
-
-  // Helper function to extract dependencies
+  
+  
   const extractDependenciesFromCode = (
     code: string,
     dependencies: Set<string>
@@ -422,6 +794,7 @@ root.render(<App />);
     }
   }, [codeBlocks, framework]);
 
+ 
   return Object.keys(files).length > 0 ? (
     <SandpackProvider files={files} template={framework} theme={theme}>
       <SandpackLayout>
@@ -438,120 +811,9 @@ root.render(<App />);
 };
 
 
-  
-  // --- Text, JSON, CSV Preview Component ---
-  const TextPreview: React.FC<{ content: string; height: number }> = ({ content, height }) => {
-    const renderTextInIframe = () => {
-      const iframeSrcDoc = `
-        <html>
-          <head>
-            <style>
-              body {
-                font-family: 'Arial', sans-serif;
-                background-color: #f8f8f8;
-                padding: 20px;
-                color: #333; 
-                line-height: 1.6;
-                font-size: 16px;
-              }
-              p {
-                margin-bottom: 1em;
-              }
-            </style>
-          </head>
-          <body>
-            ${content.replace(/\n/g, '<br/>')}
-          </body>
-        </html>
-      `;
-      return (
-        <iframe
-          srcDoc={iframeSrcDoc}
-          style={{
-            border: "1px solid #ddd", /* Light border for visual separation */
-            borderRadius: "2px", /* Slightly rounded corners */
-            width: "100%",
-            height: `${height}px`,
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)", /* Soft shadow for depth */
-        
-          }}
-          title="Text Preview"
-        />
-      );
-    };
-  
-    return <div>{renderTextInIframe()}</div>;
-  };
-  
-  
-  // --- SVG Preview Component ---
-  
-  const SVGPreview: React.FC<{ svgs: string[]; height: number }> = ({ svgs, height }) => {
-    const sanitizeOptions = {   // Create a DOMPurify instance with custom configuration to allow animations
-        ADD_TAGS: ['animate'], // Allow the animate tag
-        ADD_ATTR: ['attributeName', 'from', 'to', 'dur', 'begin', 'repeatCount'] // Allow attributes used in animations
-    };
-
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: `${height}px`, width: '100%' }}>
-        {svgs.map((svg, index) => {
-          const sanitizedSVG = DOMPurify.sanitize(svg, sanitizeOptions); // Sanitize with custom options
-          return (
-            <div
-              key={index}
-              dangerouslySetInnerHTML={{ __html: sanitizedSVG }}
-              style={{ marginBottom: '10px', width: '100%' }}
-            />
-          );
-        })}
-      </div>
-    );
-  };
-  
-  
-  // --- Unsupported Type Preview Component ---
-  const UnsupportedPreview: React.FC<{ content: string }> = ({ content }) => (
-    <div>
-      <p>Unsupported artifact type.</p>
-      <pre>{content}</pre>
-    </div>
-  );
-  
+ 
 
 
 
 
 
-
-
-
-
-
-
-
-      // Helper function to structure Vue files properly
-      const setupVueFiles = (codeBlocks: any) => {
-        const newFiles: { [key: string]: { code: string } } = {};
-        codeBlocks.forEach((block: any) => {
-          const extension = getFileExtensionFromLanguage(block.language);
-    
-          // Map Vue code to App.vue
-          if (block.language === 'html' || block.language === 'vue') {
-            newFiles['/src/App.vue'] = { code: block.code };
-          } else if (block.language === 'css') {
-            newFiles['/src/App.css'] = { code: block.code };
-          }
-        });
-    
-        // Set main.js to render the Vue App component
-        newFiles['/src/main.js'] = {
-          code: `
-          import { createApp } from 'vue';
-          import App from './App.vue';
-          import './App.css';
-          createApp(App).mount('#app');
-          `,
-        };
-        return newFiles;
-      };
-    

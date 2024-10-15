@@ -218,23 +218,31 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `
 `;
 
 
-export const getFocusedMessages = async (chatEndpoint:string, conversation:Conversation, statsService: any, homeDispatch:any) => {
+export const getFocusedMessages = async (chatEndpoint:string, conversation:Conversation, statsService: any, featureFlags: any, homeDispatch:any, featureOptions: { [key: string]: boolean }) => {
+    const isSmartMessagesOn = featureOptions.includeFocusedMessages;
+    const isArtifactsOn = featureOptions.includeArtifacts && featureFlags.artifacts;
+
+    if (!isArtifactsOn && !isSmartMessagesOn)  return conversation.messages;
+    
     const controller = new AbortController();
     
     const accessToken = await getSession().then((session) => { 
                                 // @ts-ignore
                                 return session.accessToken
                             })
-    let customInstructions = DIVIDER_CUSTOM_INSTRUCTIONS;
+    let customInstructions = isSmartMessagesOn ? DIVIDER_CUSTOM_INSTRUCTIONS : "";
 
-    const topicData = gatherTopicData(cloneDeep(conversation));
+    const topicData = gatherDataForPrompt(cloneDeep(conversation), isSmartMessagesOn, isArtifactsOn);
     const messageTopicDataOnly = topicData.messages;
     // only if we artifacts defined will we include the instructions 
     if (topicData.artifactLen > 0) customInstructions +=  ARTIFACT_CUSTOM_INSTRUCTIONS;
 
+    // if no artifacts in conversation or smart messages turned on then we can return 
+    if (!customInstructions) return conversation.messages;
+
     try {
         const chatBody = {
-            model: OpenAIModels[OpenAIModelID.CLAUDE_3_5_SONNET],
+            model: OpenAIModels[ isSmartMessagesOn ? OpenAIModelID.CLAUDE_3_5_SONNET : OpenAIModelID.GPT_4o_MINI], 
             messages: messageTopicDataOnly,
             key: accessToken,
             prompt: customInstructions,
@@ -244,6 +252,7 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
             skipCodeInterpreter: true
         };
 
+        
         statsService.sendChatEvent(chatBody);
 
         const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, controller.signal);
@@ -290,7 +299,6 @@ const focusMessages = (selectedConversation: Conversation, llmResponse: string, 
     const tasks = extractMarkers.map((marker) => 
         extractResponseContent(cloneDeep(llmResponse), marker + '_START', marker + '_END')
     );
-    console.log("TASKS", tasks)
     const msgLenIdx = selectedConversation.messages.length - 1;
      // You may not need to call parseTask1Response if you do not use its output directly in this function.
     const messageTopicData = parseResponseForMessageData(tasks[0], currentTopic, currentTopicStart, msgLenIdx);
@@ -316,14 +324,13 @@ const focusMessages = (selectedConversation: Conversation, llmResponse: string, 
 }
 
 
+
+
 // wont ever get here with only 1 message since prepareChatService isnt called unles messages is > 1
 const gatherTopicData = (conversation: Conversation) => {
     let currentTopic: string = '';
     let currentTopicStart = 0;
     const previousTopics:messageTopicDataPast[] = [];
-    const artifacts:any = [];
-    let artifactMap:{ [key: string]: number[] }  = {};
-    let artifactIndexes:{ [key: string]: number }  = {};
 
 
     for (let i = conversation.messages.length - 2; i >= 0; i--) {
@@ -336,8 +343,33 @@ const gatherTopicData = (conversation: Conversation) => {
                 currentTopicStart = i;
             }
         } 
+    }                                               //id no version number
+
+    const slicedMessages = conversation.messages.slice(currentTopicStart);
+    const curIdx = conversation.messages.length - 1;
+    const expectedData = { previousTopics: previousTopics,
+                           currentTopic: currentTopic ? currentTopic : "NO CURRENT TOPIC" ,
+                           currentRange: `${currentTopicStart}-${curIdx === 0 ? 0 : curIdx - 1}`}
+
+    const messageData = `
+         Collected Topic Data:
+        ${JSON.stringify(expectedData)}}
+    `
+
+    return { slicedMessages: slicedMessages, topicMessageData: messageData,
+           currentTopic: currentTopic, currentTopicStart: currentTopicStart };
+}
+
+const gatherArtifactData = (conversation: Conversation) => {
+    const artifacts:any = [];
+    let artifactMap:{ [key: string]: number[] }  = {};
+    let artifactIndexes:{ [key: string]: number }  = {};
+
+
+    for (let i = conversation.messages.length - 2; i >= 0; i--) {
+        const msg = conversation.messages[i];
         if (msg.data.artifacts) {
-            artifacts.forEach((a:ArtifactBlockDetail) => {
+            msg.data.artifacts.forEach((a:ArtifactBlockDetail) => {
                 // so we know it is the most recent version since we are starting from the most recent messages
                 if (!Object.keys(artifactIndexes).includes(a.artifactId)) {
                     artifactIndexes[a.artifactId] = i;
@@ -353,33 +385,54 @@ const gatherTopicData = (conversation: Conversation) => {
             artifactMap[id] = artifact?.contents || [];  
         }
     })
-    const slicedMessages = conversation.messages.slice(currentTopicStart);
-    const curIdx = conversation.messages.length - 1;
-    const expectedData = { previousTopics: previousTopics,
-                           currentTopic: currentTopic ? currentTopic : "NO CURRENT TOPIC" ,
-                           currentRange: `${currentTopicStart}-${curIdx === 0 ? 0 : curIdx - 1}`}
-    console.log("Expected Data: ", expectedData)
-    const lastMsgIndex = slicedMessages.length - 1;
-    const lastIdxContent = slicedMessages[lastMsgIndex].content;
 
-    slicedMessages[lastMsgIndex].content = `
-        USERS CURRENT PROMPT:
-        ${lastIdxContent}
-        "___________________________"
-        Given Data
-
-        Collected Topic Data:
-        ${JSON.stringify(expectedData)}
-
+    const messageData = `
         ${artifacts.length > 0 ? `
         List of Artifact Defitions:
-        ${JSON.stringify(artifacts)}
-        ` :  "" }
+        ${JSON.stringify(artifacts)}` 
+        :  "" }
+    `
+    return {artifactMessageData: messageData, artifactLen: artifacts.length, 
+            artifactMap: artifactMap};
+}
+
+
+
+const gatherDataForPrompt = (conversation: Conversation, isSmartMessagesOn: boolean, isArtifactsOn: boolean) => {
+    let messages = conversation.messages;
+    const lastMsgIndex = messages.length - 1;
+    const lastIdxContent = messages[lastMsgIndex].content;
+
+    let updatedMessageContent = `
+        USERS CURRENT PROMPT:
+        ${lastIdxContent}
+        \n___________________________\n
     `
 
-    return {messages: slicedMessages, artifactLen: artifacts.length, 
-            currentTopic: currentTopic, currentTopicStart: currentTopicStart,
-            artifactMap: artifactMap};
+    let curTopic = '';
+    let curTopicStart = 0;
+    if (isSmartMessagesOn) {
+        const {slicedMessages, topicMessageData, currentTopic, currentTopicStart} = gatherTopicData(conversation);
+        messages = slicedMessages;
+        updatedMessageContent += topicMessageData;
+        curTopic = currentTopic;
+        curTopicStart = currentTopicStart;
+    } 
+
+    let artifactsMap = {};
+    let artifactsLen = 0;
+    if (isArtifactsOn) {
+        const {artifactMessageData, artifactLen, artifactMap} = gatherArtifactData(conversation);
+        updatedMessageContent += artifactMessageData;
+        artifactsMap = artifactMap
+        artifactsLen = artifactLen;
+    }
+
+    messages[lastMsgIndex].content = updatedMessageContent;
+
+    return {messages: messages, 
+            currentTopic: curTopic, currentTopicStart: curTopicStart,
+            artifactMap: artifactsMap, artifactLen: artifactsLen};
 }
 
 
@@ -443,6 +496,7 @@ function relevantMessages(response: string, messages: Message[]) {
 
 // add any artifact contents 
 function relevantArtifactContent(response: string, artifactMap: { [key: string]: number[] }) {
+    console.log("Artifacts: ", response);
     if (!response) return '';
     const idsMatch = response.match(/artifactIds=\{([^}]+)\}/);
     const artifactIds = idsMatch ? idsMatch[1].split(', ') : [];

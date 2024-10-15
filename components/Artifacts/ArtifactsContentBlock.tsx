@@ -7,7 +7,7 @@ import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
 import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
 import {useArtifactPromptFinderService} from "@/hooks/usePromptFinderArtifactService";
 import {parsePartialJson} from "@/utils/app/data";
-import {useContext} from "react";
+import {useContext, useEffect, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import { Artifact } from "@/types/artifacts";
 import { lzwUncompress } from "@/utils/app/lzwCompression";
@@ -17,10 +17,12 @@ import React from "react";
 interface Props {
     artifactIsStreaming: boolean;
     selectedArtifact: Artifact;
+    artifactId: string;
+    versionIndex: number;
     // handleCustomLinkClick: (message:Message, href: string) => void,
 }
 
-export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artifactIsStreaming }) => {
+export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artifactIsStreaming, artifactId, versionIndex}) => {
 
     const { state: { featureFlags} } = useContext(HomeContext);
 
@@ -39,9 +41,30 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
 
     const transformedMessageContent = transformMessageContent(selectedArtifact);
 
+     // Add local state to trigger re-render
+    const [renderKey, setRenderKey] = useState(0);
+
+    useEffect(() => {
+        const handleReRenderEvent = () => {
+            setRenderKey(prev => prev + 1);
+        };
+
+        // Listen for the custom event 'triggerChatReRender'
+        window.addEventListener('triggerArtifactReRender', handleReRenderEvent);
+        return () => {
+            window.removeEventListener('triggerArtifactReRender', handleReRenderEvent);
+        };
+    }, []);
     
-    return (<MemoizedReactMarkdown
-        className="prose dark:prose-invert flex-1"
+    return (
+    <div className="artifactContentBlock" 
+        data-artifact-id={artifactId}
+        data-version-index={versionIndex}
+        data-original-content={transformedMessageContent}
+        >
+    <MemoizedReactMarkdown
+        key={renderKey}
+        className=" prose dark:prose-invert flex-1"
         remarkPlugins={[remarkGfm, remarkMath]}
         //onMouseUp={handleTextHighlight}
         // @ts-ignore
@@ -165,8 +188,9 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
             },
         }}
     >
-        {`${transformedMessageContent}${artifactIsStreaming ? '`▍`' : ''}`}
-    </MemoizedReactMarkdown>);
+        {`${transformedMessageContent}${artifactIsStreaming && !document.querySelector('.highlight-pulse') ? '`▍`' : ''}`}
+    </MemoizedReactMarkdown>
+    </div>);
 
 };
 
