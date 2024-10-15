@@ -6,7 +6,7 @@ import React, { useContext, useEffect, useRef } from "react";
 import { useState } from "react";
 import { HighlightPromptTypes, highlightSource } from "@/types/highlightTextPrompts";
 import { getSession } from "next-auth/react";
-import { OpenAIModelID, OpenAIModels } from "@/types/openai";
+import { ModelID, Models } from "@/types/model";
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";
 import { DEFAULT_ASSISTANT } from "@/types/assistant";
 import { deepMerge } from "@/utils/app/state";
@@ -793,7 +793,7 @@ const handleParagraphSelection = (range: Range) => {
     if (isArtifactSource) homeDispatch({field: 'artifactIsStreaming', value: true});
     try {
         const chatBody = {
-            model: selectedConversation ? selectedConversation.model : OpenAIModels[defaultModelId ?? OpenAIModelID.GPT_4o_MINI],
+            model: selectedConversation ? selectedConversation.model : Models[defaultModelId ?? ModelID.GPT_4o_MINI],
             messages: [message],
             key: accessToken,
             prompt: prompt,
@@ -1154,13 +1154,13 @@ const handleParagraphSelection = (range: Range) => {
                     icon={<IconPencilBolt size={14} />}
                     />
 
-                    {/* <ToggleButton 
+                    <ToggleButton 
                     selected={selected}
                     name={HighlightPromptTypes.COMPOSITE}
                     toggleSwitch={toggleSwitch}
                     title={`Allows for multiple text to be highlighted and requires a marker for text insertion.\nAll highlighted text will be used by Amplify to create and embed text at your selected marker`}
                     icon={<IconTextPlus size={14} />}
-                    /> */}
+                    />
                     
                   </div>
 

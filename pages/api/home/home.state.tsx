@@ -1,7 +1,7 @@
 import { Conversation, Message } from '@/types/chat';
 import { ErrorMessage } from '@/types/error';
 import { FolderInterface} from '@/types/folder';
-import { OpenAIModel, OpenAIModelID } from '@/types/openai';
+import { Model, ModelID } from '@/types/model';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
 import { Status } from "@/types/workflow";
@@ -29,7 +29,7 @@ export interface HomeInitialState {
   artifactIsStreaming: boolean
   modelError: ErrorMessage | null;
   status: Status[];
-  models: OpenAIModel[];
+  models: Model[];
   folders: FolderInterface[];
   conversations: Conversation[];
   artifacts: any[];
@@ -45,7 +45,7 @@ export interface HomeInitialState {
   currentFolder: FolderInterface | undefined;
   messageError: boolean;
   searchTerm: string;
-  defaultModelId: OpenAIModelID | undefined;
+  defaultModelId: ModelID | undefined;
   featureFlags: { [key: string]: boolean },
   workspaceMetadata: Workspace;
   selectedAssistant: Assistant | null;

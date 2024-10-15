@@ -27,7 +27,7 @@ import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
 import HomeContext from '@/pages/api/home/home.context';
 import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
-import {OpenAIModel, OpenAIModelID} from "@/types/openai";
+import {Model, ModelID} from "@/types/model";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
@@ -50,7 +50,7 @@ import { getSettings } from '@/utils/app/settings';
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
     onRegenerate: () => void;
-    handleUpdateModel: (model: OpenAIModel) => void;
+    handleUpdateModel: (model: Model) => void;
     onScrollDownClick: () => void;
     stopConversationRef: MutableRefObject<boolean>;
     textareaRef: MutableRefObject<HTMLTextAreaElement | null>;
@@ -700,7 +700,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
                         <AttachFile id="__attachFile"                                                     //  Mistral and pgt 3.5 do not support image files 
                                     disallowedFileExtensions={[ ...COMMON_DISALLOWED_FILE_EXTENSIONS, ...(selectedConversation?.model.id.startsWith("misral") ||
-                                                                                                          selectedConversation?.model.id === OpenAIModelID.GPT_3_5_AZ 
+                                                                                                          selectedConversation?.model.id === ModelID.GPT_3_5_AZ 
                                                                                                                               ? ["jpg","png","gif", "jpeg", "webp"] : []) ]} 
                                     onAttach={addDocument}
                                     onSetMetadata={handleSetMetadata}

@@ -8,7 +8,7 @@ import {Plugin, PluginID} from '@/types/plugin';
 
 import {useSession} from "next-auth/react"
 import json5 from "json5";
-import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
+import {Model, ModelID, Models} from "@/types/model";
 import {newStatus} from "@/types/workflow";
 import {ReservedTags} from "@/types/tags";
 import {deepMerge} from "@/utils/app/state";
@@ -75,7 +75,7 @@ export function useSendService() {
 
     const {getPrefix} = usePromptFinderService();
 
-    const calculateTokenCost = (chatModel: OpenAIModel, datasources: AttachedDocument[]) => {
+    const calculateTokenCost = (chatModel: Model, datasources: AttachedDocument[]) => {
         let cost = 0;
 
         datasources.forEach((doc) => {
@@ -84,7 +84,7 @@ export function useSendService() {
             }
         });
 
-        const model = OpenAIModels[chatModel.id as OpenAIModelID];
+        const model = Models[chatModel.id as ModelID];
         if (!model) {
             return {
                 prompts: -1,

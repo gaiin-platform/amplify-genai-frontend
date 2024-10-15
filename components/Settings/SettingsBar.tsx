@@ -10,7 +10,7 @@ import { exportData, importData } from '@/utils/app/importExport';
 
 import { Conversation } from '@/types/chat';
 import { LatestExportFormat, SupportedExportFormats } from '@/types/export';
-import { OpenAIModelID, OpenAIModels } from '@/types/openai';
+import { ModelID, Models } from '@/types/model';
 
 import HomeContext from '@/pages/api/home/home.context';
 
@@ -91,7 +91,7 @@ export const SettingsBar = () => {
                 id: uuidv4(),
                 name: t('New Conversation'),
                 messages: [],
-                model: OpenAIModels[defaultModelId as OpenAIModelID],
+                model: Models[defaultModelId as ModelID],
                 prompt: DEFAULT_SYSTEM_PROMPT,
                 temperature: DEFAULT_TEMPERATURE,
                 folderId: null,

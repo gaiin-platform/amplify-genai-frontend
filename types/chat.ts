@@ -1,4 +1,4 @@
-import { OpenAIModel } from './openai';
+import { Model } from './model';
 import {Prompt} from "@/types/prompt";
 import { v4 as uuidv4 } from 'uuid';
 import {WorkflowDefinition} from "@/types/workflow";
@@ -98,7 +98,7 @@ export interface DataSource {
 }
 
 export interface ChatBody {
-  model: OpenAIModel;
+  model: Model;
   messages: Message[];
   prompt: string;
   temperature: number;
@@ -120,7 +120,7 @@ export interface Conversation {
   name: string;
   messages: Message[];
   compressedMessages?: number[];
-  model: OpenAIModel;
+  model: Model;
   prompt?: string;
   temperature?: number;
   folderId: string | null;

@@ -15,7 +15,7 @@ import { DEFAULT_ASSISTANT } from "@/types/assistant";
 import HomeContext from "@/pages/api/home/home.context";
 import { Prompt } from "@/types/prompt";
 import { deleteAssistant } from "@/services/assistantService";
-import { OpenAIModelID, OpenAIModels } from "@/types/openai";
+import { ModelID, Models } from "@/types/model";
 import { FolderInterface, SortType } from "@/types/folder";
 import {v4 as uuidv4} from 'uuid';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
@@ -169,7 +169,7 @@ interface Props {
                     id: uuidv4(),
                     name: 'New Conversation',
                     messages: [],
-                    model: lastConversation?.model ?? OpenAIModels[defaultModelId as OpenAIModelID],
+                    model: lastConversation?.model ?? Models[defaultModelId as ModelID],
                     prompt: DEFAULT_SYSTEM_PROMPT,
                     temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
                     folderId: folder.id,
@@ -190,7 +190,7 @@ interface Props {
                     id: uuidv4(),
                     name: 'New Conversation',
                     messages: [],
-                    model: OpenAIModels[defaultModelId as OpenAIModelID],
+                    model: Models[defaultModelId as ModelID],
                     prompt: DEFAULT_SYSTEM_PROMPT,
                     temperature: DEFAULT_TEMPERATURE,
                     folderId: null,

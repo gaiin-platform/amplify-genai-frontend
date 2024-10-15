@@ -3,13 +3,13 @@ import { useContext, useEffect, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
-import { OpenAIModel, OpenAIModelID } from '@/types/openai';
+import { Model, ModelID } from '@/types/model';
 
 import HomeContext from '@/pages/api/home/home.context';
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 interface Props {
-  modelId: OpenAIModelID | undefined;
+  modelId: ModelID | undefined;
   isDisabled?: boolean;
   handleModelChange?: (e: string) => void
   isTitled?: boolean;
@@ -24,7 +24,7 @@ export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleM
     handleUpdateConversation,
   } = useContext(HomeContext);
 
-  const [selectModel, setSelectModel] = useState<OpenAIModelID | undefined>(modelId ?? defaultModelId);
+  const [selectModel, setSelectModel] = useState<ModelID | undefined>(modelId ?? defaultModelId);
   const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
 
   useEffect(()=>{
@@ -42,11 +42,11 @@ export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleM
       handleUpdateConversation(selectedConversation, {
         key: 'model',
         value: models.find(
-          (model: OpenAIModel) => model.id === updatedModel,
+          (model: Model) => model.id === updatedModel,
         ),
       });
     }
-    setSelectModel(updatedModel as OpenAIModelID);
+    setSelectModel(updatedModel as ModelID);
     
   };
   
@@ -64,7 +64,7 @@ export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleM
           onChange={handleChange}
           title={isDisabled ? disableMessage : "Select Model"}
         >
-          {filteredModels.map((model: OpenAIModel) => (
+          {filteredModels.map((model: Model) => (
             <option
               key={model.id}
               value={model.id}

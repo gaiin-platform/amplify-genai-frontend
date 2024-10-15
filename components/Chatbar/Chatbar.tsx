@@ -9,7 +9,7 @@ import { saveConversations } from '@/utils/app/conversation';
 
 import { Conversation } from '@/types/chat';
 import { SupportedExportFormats } from '@/types/export';
-import { OpenAIModelID, OpenAIModels, fallbackModelID } from '@/types/openai';
+import { ModelID, Models, fallbackModelID } from '@/types/model';
 
 import HomeContext from '@/pages/api/home/home.context';
 
@@ -117,7 +117,7 @@ export const Chatbar = () => {
         id: uuidv4(),
         name: t('New Conversation'),
         messages: [],
-        model: lastConversation?.model ?? OpenAIModels[defaultModelId as OpenAIModelID],
+        model: lastConversation?.model ?? Models[defaultModelId as ModelID],
         prompt: DEFAULT_SYSTEM_PROMPT,
         temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
         folderId: folder.id,

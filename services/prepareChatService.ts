@@ -1,5 +1,5 @@
 import {  Conversation, Message } from "@/types/chat";
-import { OpenAIModelID, OpenAIModels } from "@/types/openai";
+import { ModelID, Models } from "@/types/model";
 import {getSession} from "next-auth/react"
 import { sendChatRequestWithDocuments } from "./chatService";
 import { KeyValuePair } from "@/types/data";
@@ -242,7 +242,7 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
 
     try {
         const chatBody = {
-            model: OpenAIModels[ isSmartMessagesOn ? OpenAIModelID.CLAUDE_3_5_SONNET : OpenAIModelID.GPT_4o_MINI], 
+            model: Models[ isSmartMessagesOn ? ModelID.CLAUDE_3_5_SONNET : ModelID.GPT_4o_MINI], 
             messages: messageTopicDataOnly,
             key: accessToken,
             prompt: customInstructions,
