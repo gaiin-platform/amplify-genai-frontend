@@ -2,17 +2,17 @@ import {
     IconCheck,
     IconCopy,
     IconEdit,
-    IconRobot,
     IconTrash,
     IconBolt,
     IconDownload,
     IconMail,
-    IconUser,
+    IconArrowFork,
+    IconHighlight,
 } from '@tabler/icons-react';
 import React, {FC, memo, useContext, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'next-i18next';
-import {updateConversation} from '@/utils/app/conversation';
-import {DataSource, Message} from '@/types/chat';
+import {saveConversations, updateConversation} from '@/utils/app/conversation';
+import {Conversation, DataSource, Message} from '@/types/chat';
 import HomeContext from '@/pages/api/home/home.context';
 import ChatFollowups from './ChatFollowups';
 import ChatContentBlock from "@/components/Chat/ChatContentBlocks/ChatContentBlock";
@@ -21,7 +21,6 @@ import AssistantMessageEditor from "@/components/Chat/ChatContentBlocks/Assistan
 import {Prompt} from "@/types/prompt";
 import {DownloadModal} from "@/components/Download/DownloadModal";
 import Loader from "@/components/Loader/Loader";
-import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import PromptingStatusDisplay from "@/components/Status/PromptingStatusDisplay";
 import ChatSourceBlock from "@/components/Chat/ChatContentBlocks/ChatSourcesBlock";
 import DataSourcesBlock from "@/components/Chat/ChatContentBlocks/DataSourcesBlock";
@@ -31,7 +30,11 @@ import { downloadDataSourceFile } from '@/utils/app/files';
 import { Stars } from './Stars';
 import { saveUserRating } from '@/services/groupAssistantService';
 import { ArtifactsBlock } from './ChatContentBlocks/ArtifactsBlock';
-
+import { Amplify, User } from './Avatars';
+import cloneDeep from 'lodash/cloneDeep';
+import { v4 as uuidv4 } from 'uuid';
+import AssistantMessageHighlight from './ChatContentBlocks/AssistantMessageHighlight';
+import { getSettings } from '@/utils/app/settings';
 
 export interface Props {
     message: Message;
@@ -52,13 +55,16 @@ export const ChatMessage: FC<Props> = memo(({
                                                 onSendPrompt,
                                                 handleCustomLinkClick,
                                                 onChatRewrite
+                                                
                                             }) => {
     const {t} = useTranslation('chat');
 
     const {
-        state: {selectedConversation, conversations, messageIsStreaming, artifactIsStreaming, status, folders, featureFlags},
+        state: {selectedConversation, conversations, messageIsStreaming, artifactIsStreaming, status, folders, featureFlags, statsService},
         dispatch: homeDispatch,
-        handleAddMessages: handleAddMessages
+        setLoadingMessage,
+        handleUpdateSelectedConversation,
+        handleSelectConversation
     } = useContext(HomeContext);
 
 
@@ -79,7 +85,6 @@ export const ChatMessage: FC<Props> = memo(({
     const markdownComponentRef = useRef<HTMLDivElement>(null);
 
     const [isDownloadDialogVisible, setIsDownloadDialogVisible] = useState<boolean>(false);
-    const [isFileDownloadDatasourceVisible, setIsFileDownloadDatasourceVisible] = useState<boolean>(false);
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [isTyping, setIsTyping] = useState<boolean>(false);
     const [messageContent, setMessageContent] = useState(message.content);
@@ -88,6 +93,8 @@ export const ChatMessage: FC<Props> = memo(({
     const divRef = useRef<HTMLDivElement>(null);
     const [currentRating, setCurrentRating] = useState<number | undefined>(message.data?.rating);
     const [showFeedbackInput, setShowFeedbackInput] = useState(false);
+    const [isHighlightDisplay, setIsHighlightDisplay] = useState(false);
+
     const [feedbackText, setFeedbackText] = useState('');
 
     const assistantRecipient = (message.role === "user" && message.data && message.data.assistant) ?
@@ -173,17 +180,18 @@ export const ChatMessage: FC<Props> = memo(({
     }, [message.content]);
 
 
+
     const handleDownload = async (dataSource: DataSource) => {
         //alert("Downloading " + dataSource.name + " from " + dataSource.id);
         try {
-            setIsFileDownloadDatasourceVisible(true);
+            setLoadingMessage("Preparing to Download...");
             downloadDataSourceFile(dataSource);
             
         } catch (e) {
             console.log(e);
             alert("Error downloading file. Please try again.");
         }
-        setIsFileDownloadDatasourceVisible(false);
+        setLoadingMessage("");
     }
 
 
@@ -204,9 +212,9 @@ export const ChatMessage: FC<Props> = memo(({
         if (isActionResult) {
             return <IconBolt size={30}/>;
         } else if (isAssistant) {
-            return <IconRobot size={30}/>;
+            return <Amplify/>; 
         } else {
-            return <IconUser size={30}/>;
+            return <User/> 
         }
     }
 
@@ -232,10 +240,13 @@ export const ChatMessage: FC<Props> = memo(({
 
     const handleRatingSubmit = (r: number) => {
         setCurrentRating(r);
-        if (onEdit && selectedConversation) {
+        if (selectedConversation) {
             const updatedMessage = { ...message, data: { ...message.data, rating: r } };
-            onEdit(updatedMessage);
+            let updatedConversation: Conversation = { ...selectedConversation };
+            updatedConversation.messages[messageIndex] = updatedMessage;
+            handleUpdateSelectedConversation(updatedConversation);
 
+            statsService.saveUserRatingEvent(selectedConversation.id, r);
             saveUserRating(selectedConversation.id, r)
                 .then((result) => {
                     if (!result.success) {
@@ -250,8 +261,26 @@ export const ChatMessage: FC<Props> = memo(({
         }
     };
 
+    const handleForkConversation = async () => {
+        statsService.forkConversationEvent();
+        if (selectedConversation) {
+            setLoadingMessage("Forking Conversation...");
+            const newConversation = cloneDeep({...selectedConversation,  id: uuidv4(), messages: selectedConversation?.messages.slice(0, messageIndex + 1)});
+            if (isRemoteConversation(newConversation)) await uploadConversation(newConversation, foldersRef.current);
+            statsService.newConversationEvent();
+
+            const updatedConversations = [...conversationsRef.current, newConversation];
+            homeDispatch({ field: 'conversations', value: updatedConversations });
+            saveConversations(updatedConversations);
+            setLoadingMessage("");
+            handleSelectConversation(newConversation);
+        }
+        
+    };
+
     const handleFeedbackSubmit = () => {
         if (selectedConversation && currentRating !== undefined) {
+            statsService.saveUserRatingEvent(selectedConversation.id, currentRating, feedbackText);
             saveUserRating(selectedConversation.id, currentRating, feedbackText)
                 .then((result) => {
                     if (result.success) {
@@ -275,9 +304,6 @@ export const ChatMessage: FC<Props> = memo(({
             className={`group md:px-4 ${msgStyle}`}
             style={{overflowWrap: 'anywhere'}}
         >
-            {isFileDownloadDatasourceVisible && (
-                <LoadingDialog open={true} message={"Preparing to download..."}/>
-            )}
 
             {isDownloadDialogVisible && (
                 <DownloadModal
@@ -302,7 +328,7 @@ export const ChatMessage: FC<Props> = memo(({
                     {getIcon()}
                 </div>
 
-                <div className="prose mt-[-2px] w-full dark:prose-invert">
+                <div className="prose mt-[-2px] w-full dark:prose-invert mr-5">
                     {message.role === 'user' ? (
                         <div className="flex flex-grow">
                             {isEditing ? (
@@ -345,9 +371,7 @@ export const ChatMessage: FC<Props> = memo(({
 
                             {!isEditing && (
                                 <div
-                                    className="md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">
-                                    {/*<div*/}
-                                    {/*    className="md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-row gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">*/}
+                                    className="md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col items-center md:items-start justify-end md:justify-start">
                                     <div>
                                         {messagedCopied ? (
                                             <IconCheck
@@ -384,6 +408,13 @@ export const ChatMessage: FC<Props> = memo(({
                                             <IconEdit size={20}/>
                                         </button>
                                     </div>
+                                    <button
+                                        className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                        onClick={handleForkConversation}
+                                        title="Branch Into A Conversation"
+                                    >
+                                        <IconArrowFork size={20}/>
+                                    </button>
                                     {!isActionResult && (
                                     <div>
                                         <button
@@ -405,7 +436,18 @@ export const ChatMessage: FC<Props> = memo(({
                                     {(selectedConversation?.messages.length === messageIndex + 1) && (
                                         <PromptingStatusDisplay statusHistory={status}/>
                                     )}
-                                    {!isEditing && (
+                                     {featureFlags.highlighter && getSettings(featureFlags).featureOptions.includeHighlighter && 
+                                      isHighlightDisplay && !isEditing && 
+
+                                        <AssistantMessageHighlight
+                                            messageIndex={messageIndex}
+                                            message={message}
+                                            selectedConversation={selectedConversation}
+                                            setIsHighlightDisplay={setIsHighlightDisplay}
+                                        />
+                                        
+                                        }
+                                    {!isEditing && !isHighlightDisplay && (
                                          <> 
                                         <div className="flex flex-grow"
                                              ref={divRef}
@@ -446,7 +488,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     )}
                                 </div>
 
-                                <div
+                                { !isEditing && <div
                                     className="md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">
                                     {messagedCopied ? (
                                         <IconCheck
@@ -478,6 +520,16 @@ export const ChatMessage: FC<Props> = memo(({
                                             <IconMail size={20}/>
                                         </a>
                                     </button>
+                                    {featureFlags.highlighter && 
+                                     getSettings(featureFlags).featureOptions.includeHighlighter && 
+                                        <button
+                                            className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                            onClick={() => {setIsHighlightDisplay(!isHighlightDisplay)}}
+                                            title="Prompt On Highlight"
+                                        >
+                                            <IconHighlight size={20}/>
+                                        </button>
+                                    }
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={toggleEditing}
@@ -485,9 +537,16 @@ export const ChatMessage: FC<Props> = memo(({
                                     >
                                         <IconEdit size={20}/>
                                     </button>
+                                    <button
+                                        className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                        onClick={handleForkConversation}
+                                        title="Branch Into A Conversation"
+                                    >
+                                        <IconArrowFork size={20}/>
+                                    </button>
 
 
-                                </div>
+                                </div>}
                             </div>
                             {(messageIsStreaming || isEditing) ? null : (
                                 <ChatFollowups promptSelected={(p) => {

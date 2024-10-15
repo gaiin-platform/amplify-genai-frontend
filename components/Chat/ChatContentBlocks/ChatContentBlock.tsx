@@ -10,13 +10,14 @@ import AssistantBlock from "@/components/Chat/ChatContentBlocks/AssistantBlock";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {parsePartialJson} from "@/utils/app/data";
 import AutonomousBlock from "@/components/Chat/ChatContentBlocks/AutonomousBlock";
-import {useContext} from "react";
+import {useContext, useEffect, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
 import ApiKeyBlock from "./ApiKeyBlock";
 import { ApiDocBlock } from "./APIDocBlock";
 import AutoArtifactsBlock from "./AutoArtifactBlock";
 import DOMPurify from  "dompurify";
+import React from "react";
 
 
 
@@ -60,11 +61,30 @@ const ChatContentBlock: React.FC<Props> = (
     const transformedMessageContent = selectedConversation ?
         transformMessageContent(selectedConversation, message) :
         message.content;
-
     const isLast = messageIndex == (selectedConversation?.messages.length ?? 0) - 1;
+ 
+  // Add local state to trigger re-render
+  const [renderKey, setRenderKey] = useState(0);
 
-    return (<MemoizedReactMarkdown
-    className="prose dark:prose-invert flex-1"
+  useEffect(() => {
+      const handleReRenderEvent = () => {
+          setRenderKey(prev => prev + 1);
+      };
+
+      // Listen for the custom event 'triggerChatReRender'
+      window.addEventListener('triggerChatReRender', handleReRenderEvent);
+      return () => {
+          window.removeEventListener('triggerChatReRender', handleReRenderEvent);
+      };
+  }, []);
+  
+    return (
+    <div className="chatContentBlock" 
+         data-message-index={messageIndex}
+         data-original-content={transformedMessageContent}>
+    <MemoizedReactMarkdown
+    key={renderKey}
+    className="prose dark:prose-invert flex-1" 
     remarkPlugins={[remarkGfm, remarkMath]}
     //onMouseUp={handleTextHighlight}
     //rehypePlugins={[rehypeRaw]}
@@ -227,9 +247,11 @@ const ChatContentBlock: React.FC<Props> = (
     }}
 >
     {`${transformedMessageContent}${
-        messageIsStreaming && messageIndex == (selectedConversation?.messages.length ?? 0) - 1 ? '`▍`' : ''
+        messageIsStreaming && !document.querySelector('.highlight-pulse') && 
+        messageIndex == (selectedConversation?.messages.length ?? 0) - 1 ? '`▍`' : ''
     }`}
-</MemoizedReactMarkdown>);
+</MemoizedReactMarkdown>
+</div>);
 };
 
 export default ChatContentBlock;
