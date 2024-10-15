@@ -250,7 +250,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
         return (
             <div 
                 className= "border border-neutral-700"
-                style={{height: "100px", overflowY: "scroll"}}>
+                style={{height: "140px", overflowY: "scroll"}}>
                 {items.map((item) =>
                     renderItem(item, itemType)
                 )}
@@ -290,8 +290,8 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                     className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                     <div className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true"/>
                     <div
-                        className="min-w-[500px] border-neutral-400 dark:border-netural-400 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-w-lg sm:p-6 sm:align-middle"
-                        role="dialog"
+                        className=" border-neutral-400 dark:border-neutral-600 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:p-6 sm:align-middle"
+                        role="dialog" style={{width: window.innerWidth /2}}
                     >
                         {isSharing && (
                             <div className="flex flex-col items-center justify-center">

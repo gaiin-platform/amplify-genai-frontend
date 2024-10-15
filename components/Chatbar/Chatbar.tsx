@@ -16,7 +16,6 @@ import HomeContext from '@/pages/api/home/home.context';
 import { ChatFolders } from './components/ChatFolders';
 import { Conversations } from './components/Conversations';
 
-import Sidebar from '../Sidebar';
 import ChatbarContext from './Chatbar.context';
 import { ChatbarInitialState, initialState } from './Chatbar.state';
 
@@ -26,6 +25,8 @@ import { getIsLocalStorageSelection, isLocalConversation, isRemoteConversation }
 import { deleteRemoteConversation } from '@/services/remoteConversationService';
 import { uncompressMessages } from '@/utils/app/messages';
 import { getDateName } from '@/utils/app/date';
+import React from 'react';
+import Sidebar from '../Sidebar/Sidebar';
 
 
 export const Chatbar = () => {
@@ -62,7 +63,12 @@ export const Chatbar = () => {
   } = chatBarContextValue;
 
 
-  const [folderSort, setFolderSort] = useState<SortType>('date');
+  const sortBy = localStorage?.getItem('chatFolderSort');
+  const [folderSort, setFolderSort] = useState<SortType>(sortBy ? sortBy as SortType : 'date');
+
+  useEffect(() => {
+    localStorage.setItem('chatFolderSort', folderSort);
+  }, [folderSort]);
 
 
   const handleShareFolder = (folder: FolderInterface) => {
@@ -219,6 +225,7 @@ export const Chatbar = () => {
         handleSearchTerm={(searchTerm: string) => chatDispatch({ field: 'searchTerm', value: searchTerm })}
         toggleOpen={handleToggleChatbar}
         handleCreateItem={() => {
+          window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false}} ));
           handleNewConversation({});
         } }
         handleCreateFolder={() => {

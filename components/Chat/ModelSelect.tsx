@@ -6,6 +6,8 @@ import { useTranslation } from 'next-i18next';
 import { OpenAIModel, OpenAIModelID } from '@/types/openai';
 
 import HomeContext from '@/pages/api/home/home.context';
+import { filterModels } from '@/utils/app/models';
+import { getSettings } from '@/utils/app/settings';
 interface Props {
   modelId: OpenAIModelID | undefined;
   isDisabled?: boolean;
@@ -18,11 +20,12 @@ interface Props {
 export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleModelChange, isTitled=true, disableMessage = "Model has been predetermined and can not be changed"}) => {
   const { t } = useTranslation('chat');
   const {
-    state: { selectedConversation, models, defaultModelId },
+    state: { selectedConversation, models,  defaultModelId, featureFlags},
     handleUpdateConversation,
   } = useContext(HomeContext);
 
   const [selectModel, setSelectModel] = useState<OpenAIModelID | undefined>(modelId ?? defaultModelId);
+  const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
 
   useEffect(()=>{
     setSelectModel(modelId);
@@ -52,7 +55,7 @@ export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleM
       <label className="mb-2 text-left text-neutral-700 dark:text-neutral-400">
         {isTitled? t('Model'): ""}
       </label>
-      <div className="w-full rounded-lg border border-neutral-200 bg-transparent pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white">
+      <div className="w-full rounded-lg border border-neutral-200 bg-transparent pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
         <select
           disabled={isDisabled}
           className="w-full bg-transparent p-2"
@@ -61,7 +64,7 @@ export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleM
           onChange={handleChange}
           title={isDisabled ? disableMessage : "Select Model"}
         >
-          {models.map((model: OpenAIModel) => (
+          {filteredModels.map((model: OpenAIModel) => (
             <option
               key={model.id}
               value={model.id}

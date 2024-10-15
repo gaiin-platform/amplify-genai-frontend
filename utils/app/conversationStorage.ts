@@ -4,12 +4,9 @@ import { deleteMultipleRemoteConversations, deleteRemoteConversation, fetchMulti
 import cloneDeep from 'lodash/cloneDeep';
 import { conversationWithCompressedMessages, conversationWithUncompressedMessages, saveConversations } from "./conversation";
 import { FolderInterface } from "@/types/folder";
-import { saveFolders } from "./folders";
-import { StorageType } from "@mantine/hooks/lib/use-local-storage/create-storage";
 
 
-export const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType'];
-//export const CloudConvAttr: (keyof Conversation)[] = ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType', 'artifacts'];
+export const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType', 'codeInterpreterAssistantId' ];
 
 //handle all local, 
 const handleAllLocal = async (conversations: Conversation[], statsService: any) => {
@@ -237,7 +234,7 @@ export const includeRemoteConversationData = async (localConversations: Conversa
     if (remoteConversationIds.length === 0) return localConversations;
     
     const fetchedRemoteConversations = await fetchMultipleRemoteConversations(remoteConversationIds);
-    
+    // console.log(fetchedRemoteConversations);
     // Create a map of remote conversation ids to fetched conversations for quick lookup
     const fetchedRemoteConversationsMap = new Map(fetchedRemoteConversations.map((c:Conversation) => [c.id, c]));
 

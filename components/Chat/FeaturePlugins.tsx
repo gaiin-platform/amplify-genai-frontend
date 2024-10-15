@@ -171,7 +171,7 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
                 (
                 <button
                     title={`${!plugin ? "Select Feature\nNote: You will not be able to use at the same time as a selected Assistant" : plugin.name}`}
-                    className="p-1.5 text-neutral-800 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-neutral-600 dark:text-white dark:hover:bg-neutral-500"
+                    className="p-1.5 text-neutral-800 bg-neutral-100 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-neutral-600 dark:text-white dark:hover:bg-neutral-500"
                     style={{
                         cursor: isDragging? "grabbing": "pointer",
                         borderRadius: '50%',

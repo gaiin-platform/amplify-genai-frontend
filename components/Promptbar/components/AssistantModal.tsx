@@ -3,18 +3,18 @@ import HomeContext from '@/pages/api/home/home.context';
 import {useTranslation} from 'next-i18next';
 import {Prompt} from '@/types/prompt';
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
-import {FileList} from "@/components/Chat/FileList";
+import {ExistingFileList, FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile} from "@/components/Chat/AttachFile";
 import {IconFiles, IconCircleX, IconArrowRight} from "@tabler/icons-react";
 import {createAssistant} from "@/services/assistantService";
-import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/Promptbar/components/FlagsMap";
 import { AssistantDefinition } from '@/types/assistant';
 import { AstGroupTypeData } from '@/types/groups';
 import React from 'react';
+import { AttachedDocument } from '@/types/attacheddocument';
 
 
 interface Props {
@@ -100,11 +100,11 @@ const messageOptionFlags = [
 
 
 export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc, 
-                                          disableEdit=false, title, onCreateAssistant,height, width = '770px',
+                                          disableEdit=false, title, onCreateAssistant,height, width = `${window.innerWidth * 0.6}px`,
                                           translateY, blackoutBackground=true, additionalTemplates, autofillOn=false, embed=false, children}) => {
     const {t} = useTranslation('promptbar');
 
-    const { state: { prompts} } = useContext(HomeContext);
+    const { state: { prompts} , setLoadingMessage} = useContext(HomeContext);
 
     const definition = getAssistant(assistant);
 
@@ -141,6 +141,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         ...messageOptionDefaults,
         ...(definition.data && definition.data.messageOptions || {})
     }
+
+
+    const preexistingDocumentIds = (definition.dataSources || []).map(ds => ds.id); 
 
     const [isLoading, setIsLoading] = useState(false);
     const [name, setName] = useState(definition.name);
@@ -269,6 +272,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
 
         setIsLoading(true);
+        setLoadingMessage(loadingMessage);
 
         let newAssistant = getAssistant(assistant);
         newAssistant.name = name;
@@ -284,6 +288,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             if(uri.trim().indexOf("://") === -1){
                 alert("Invalid URI, please update and try again.");
                 setIsLoading(false);
+                setLoadingMessage("");
+
                 return;
             }
 
@@ -334,6 +340,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         if (!id) {
             alert("Unable to save the assistant at this time, please try again later...");
             setIsLoading(false);
+            setLoadingMessage("");
+
             return;
         }
 
@@ -347,29 +355,22 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         onUpdateAssistant(aPrompt);
 
         setIsLoading(false);
+        setLoadingMessage("");
+
 
         onSave();
     }
 
-    if(isLoading){
-        return <LoadingDialog open={isLoading} message={loadingMessage}/>
-    }
+    if (isLoading) return <></>;
+    
 
     const assistantModalContainer = () => {
         return ( <div
-                        className={`text-black dark:text-neutral-200 inline-block overflow-hidden ${ blackoutBackground ? 'rounded-lg border border-gray-300 dark:border-netural-400':""} bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:w-full sm:max-w-[${width}] sm:align-middle`}
+                        className={`text-black dark:text-neutral-200 inline-block overflow-hidden ${ blackoutBackground ? 'rounded-lg border border-gray-300 dark:border-neutral-600':""} bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:align-middle`}
                         ref={modalRef}
                         role="dialog"
-                        style={{ transform: translateY ? `translateY(${translateY})` : '0'}}
+                        style={{ transform: translateY ? `translateY(${translateY})` : '0' , width: width}}
                     >
-                        {/* <div className='absolute top-2 right-2'> 
-                                <SidebarActionButton
-                                        handleClick={() => onCancel()}
-                                        title="Close"
-                                    >
-                                        <IconX size={28} />
-                                    </SidebarActionButton> 
-                        </div> */}
                         <label className='w-full text-xl text-center items-center mb-2 flex justify-center'> {title} </label>  
                           
                         
@@ -384,9 +385,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             <div className="text-sm font-bold text-black dark:text-neutral-200">
                                 {t('Auto-Populate From Existing Assistant')}
                             </div>
-                            <div className="flex flex-row gap-2">
+                            <div className="flex flex-row gap-2 ">
                                 <select
-                                    className="my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                    className="my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
                                     value={selectTemplateId}
                                     onChange={(e) => setSelectTemplateId(e.target.value ?? '')}
                                     >
@@ -401,7 +402,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 </select>
                                 <button
                                 className={`mt-2 px-1 h-[36px] rounded border border-neutral-900 dark:border-neutral-500 px-4 py-2 text-neutral-500 dark:text-neutral-300 dark:bg-[#40414F]
-                                            ${selectTemplateId ? "cursor-pointer  hover:text-neutral-900 dark:hover:text-neutral-100"  : ""}`}
+                                            ${selectTemplateId ? "cursor-pointer  hover:text-neutral-900 dark:hover:text-neutral-100"  : "cursor-not-allowed"}`}
                                 disabled={!selectTemplateId}
                                 onClick={() => handleTemplateChange()}
                                 title={"Fill-In Template"}
@@ -469,11 +470,12 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 />
                             </div>
 
-                            <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
-                                {t('Data Sources')}
+                            <div className="mt-6 mb-2 font-bold text-black dark:text-neutral-200">
+                                {t('Upload Data Sources')}
                             </div>
                             {!disableEdit && <div className="flex flex-row items-center">
                                 <button
+                                    title='Add Files'
                                     className={`left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:hover:text-neutral-200 dark:bg-opacity-50 dark:text-neutral-100 `}
                                     onClick={(e) => {
                                         e.preventDefault();
@@ -521,27 +523,27 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             }}
                                 />
                             </div>}
-                            <FileList documents={dataSources} documentStates={documentState} setDocuments={(docs) => {
+                            <FileList documents={dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)))} documentStates={documentState}
+                                setDocuments={(docs) => {
                                 setDataSources(docs as any[]);
                             }} allowRemoval={!disableEdit}/>
                             {showDataSourceSelector && (
-                                <div
-                                    className="flex flex-col justify-center"
-                                >
-                                    <div className="flex flex-row justify-end">
+                                <div className="mt-[-34px] flex flex-col justify-center overflow-hidden">
+                                    <div className="relative top-[306px] left-1">
                                         <button
-                                            type="button"
-                                            className="rounded-t-xl dark:text-white border-neutral-500 text-neutral-900 focus:outline-none dark:border-neutral-800 dark:bg-[#343541] dark:text-black"
+                                            type="button" style={{width: "100px"}}
+                                            className="px-4 py-3 rounded-lg hover:text-gray-900 hover:bg-blue-100 bg-gray-100 w-full dark:hover:bg-gray-700 dark:hover:text-white bg-50 dark:bg-gray-800"
                                             onClick={() => {
                                                 setShowDataSourceSelector(false);
                                             }}
                                         >
-                                            <IconCircleX/>
+                                            Close
                                         </button>
                                     </div>
-                                    <div className="rounded bg-white dark:bg-[#343541]">
+                                    <div className="rounded bg-white dark:bg-[#343541] mb-4">
                                         <DataSourceSelector
                                             minWidth="500px"
+                                            height='310px'
                                             onDataSourceSelected={(d) => {
                                                 const doc = {
                                                     id: d.id,
@@ -559,6 +561,16 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 </div>
                             )}
 
+                            { definition.dataSources.length > 0  &&
+                                <ExistingFileList 
+                                    label={'Assistant Data Sources'}
+                                    allowRemoval={!disableEdit}
+                                    documents={definition.dataSources} 
+                                    setDocuments={(docs) => {
+                                        setDataSources(docs as any[]);
+                                }} />
+                            }
+                            
                             <ExpansionComponent title={"Advanced"} content={
                                 <div className='text-black dark:text-neutral-200'>
                                     <div className="text-sm font-bold text-black dark:text-neutral-200">
@@ -587,7 +599,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     {/*// Documents in past messages*/}
                                     {/*// Documents attached to prompt*/}
                                     {/*// Assistant documents*/}
-                                    <FlagsMap flags={dataSourceFlags}
+                                    <FlagsMap id={'dataSourceFlags'}
+                                              flags={dataSourceFlags}
                                               state={dataSourceOptions}
                                               flagChanged={
                                                     (key, value) => {
@@ -597,7 +610,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
                                         {t('Message Options')}
                                     </div>
-                                    <FlagsMap flags={messageOptionFlags}
+                                    <FlagsMap id={'messageOptionFlags'}
+                                              flags={messageOptionFlags}
                                               state={messageOptions}
                                               flagChanged={
                                                   (key, value) => {
@@ -640,7 +654,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 </div>
                             }/>
                         </div>
-                        <div className="flex flex-row items-center justify-end p-4 bg-white dark:bg-[#202123]">
+                        <div className="flex flex-row items-center justify-end p-4 bg-white dark:bg-[#22232b]">
                             <button
                                 type="button"
                                 className="mr-2 w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"

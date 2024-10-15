@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 
 import { FolderInterface, SortType } from '@/types/folder';
 
@@ -9,6 +9,7 @@ import { PromptComponent } from '@/components/Promptbar/components/Prompt';
 
 import PromptbarContext from '../PromptBar.context';
 import { sortFoldersByDate, sortFoldersByName } from '@/utils/app/folders';
+import { IconCirclePlus } from '@tabler/icons-react';
 
 
 interface Props {
@@ -34,13 +35,15 @@ export const PromptFolders = ({sort}: Props) => {
     handleShareFolder,
   } = useContext(PromptbarContext);
 
-  const handleDrop = (e: any, folder: FolderInterface) => {
+  const [isNullFolderHovered, setIsNullFolderHovered] = useState<boolean>(false);
+
+  const handleDrop = (e: any, folder?: FolderInterface) => {
     if (e.dataTransfer) {
       const prompt = JSON.parse(e.dataTransfer.getData('prompt'));
 
       const updatedPrompt = {
         ...prompt,
-        folderId: folder.id,
+        folderId: folder? folder.id : null,
       };
 
       handleUpdatePrompt(updatedPrompt);
@@ -64,7 +67,16 @@ export const PromptFolders = ({sort}: Props) => {
     <div className="flex w-full flex-col">
       {folders
         .filter((folder: FolderInterface) => folder.type === 'prompt')
-        .sort(sort === 'date' ? sortFoldersByDate : sortFoldersByName)
+        .sort((a, b) => {
+          if (a.pinned && !b.pinned) {
+              return -1;
+          }
+          if (!a.pinned && b.pinned) {
+              return 1;
+          }
+          // If both are pinned or neither is pinned, use the original sort criteria
+          return sort === 'date' ? sortFoldersByDate(a, b) : sortFoldersByName(a, b);
+      })
         .sort((a, b) => {
           if (a.isGroupFolder && !b.isGroupFolder) return 1;
           if (!a.isGroupFolder && b.isGroupFolder) return -1;
@@ -78,6 +90,19 @@ export const PromptFolders = ({sort}: Props) => {
             folderComponent={PromptFolders(folder)}
           />
         ))}
+
+      <div
+        onDragEnter={() => setIsNullFolderHovered(true)}
+        onDragLeave={() => setIsNullFolderHovered(false)}
+        onMouseLeave={() => setIsNullFolderHovered(false)}
+
+        className="h-[4px]" style={{transform: "translateY(6px)"}}
+        onDrop={(e) => handleDrop(e, undefined)} 
+        onDragOver={(e) => e.preventDefault()} 
+      >
+          {isNullFolderHovered &&  <IconCirclePlus className="text-green-400"  size={16}/>}
+      </div>
+
     </div>
   );
 };

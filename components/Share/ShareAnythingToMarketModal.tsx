@@ -11,6 +11,7 @@ import {getCategories, getCategory, publish} from "@/services/marketService";
 import {v4} from "uuid";
 import {useSession} from "next-auth/react";
 import { getDate } from "@/utils/app/date";
+import toast from "react-hot-toast";
 
 export interface SharingModalProps {
     open: boolean;
@@ -253,7 +254,7 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
                     );
 
                     setIsPublishing(false);
-                    alert("Published successfully");
+                    toast("Published successfully");
                     onShare([...selectedPromptsState, ...selectedConversationsState, ...selectedFoldersState]);
                 } else {
                     setIsPublishing(false);
@@ -368,7 +369,7 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
                     className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                     <div className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true"/>
                     <div
-                        className="border-neutral-400 dark:border-netural-400 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-w-lg sm:p-6 sm:align-middle"
+                        className="border-neutral-400 dark:border-neutral-600 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:max-w-lg sm:p-6 sm:align-middle"
                         role="dialog"
                     >
                         {isPublishing && (

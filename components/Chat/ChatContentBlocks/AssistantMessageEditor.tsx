@@ -1,11 +1,4 @@
-import {MemoizedReactMarkdown} from "@/components/Markdown/MemoizedReactMarkdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import ExpansionComponent from "@/components/Chat/ExpansionComponent";
-import {CodeBlock} from "@/components/Markdown/CodeBlock";
-import {Conversation, Message} from "@/types/chat";
-import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
-import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
+import {Message} from "@/types/chat";
 import {useEffect, useRef, useState} from "react";
 import {useTranslation} from "next-i18next";
 
@@ -70,22 +63,22 @@ const AssistantMessageEditor: React.FC<Props> = (
                                             overflow: 'hidden',
                                         }}
                                     />
-        <div className="mt-10 flex justify-center space-x-4">
+        <div className="my-6 flex justify-center space-x-4">
             <button
-                className="h-[40px] rounded-md bg-blue-500 px-4 py-1 text-sm font-medium text-white enabled:hover:bg-blue-600 disabled:opacity-50"
-                onClick={handleEditMessage}
-                disabled={messageContent.trim().length <= 0}
-            >
-                {t('Save')}
-            </button>
-            <button
-                className="h-[40px] rounded-md border border-neutral-300 px-4 py-1 text-sm font-medium text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                className="h-[40px] rounded-md border border-neutral-300 px-10 py-1 text-sm font-medium text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800 shadow-lg"
                 onClick={() => {
                     setMessageContent(message.content);
                     setIsEditing(false);
                 }}
             >
                 {t('Cancel')}
+            </button>
+            <button
+                className="h-[40px] rounded-md bg-blue-500 px-10 py-1 text-sm font-medium text-white enabled:hover:bg-blue-600 disabled:opacity-50  shadow-lg"
+                onClick={handleEditMessage}
+                disabled={messageContent.trim().length <= 0}
+            >
+                {t('Save')}
             </button>
         </div>
     </div>);

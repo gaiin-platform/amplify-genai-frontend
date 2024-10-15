@@ -1,11 +1,8 @@
-import { LoadingDialog } from '@/components/Loader/LoadingDialog';
+import HomeContext from '@/pages/api/home/home.context';
 import { DataSource } from '@/types/chat';
 import { downloadDataSourceFile } from '@/utils/app/files';
-import {
-    IconFileCheck,
-} from '@tabler/icons-react';
 import { useSession } from 'next-auth/react';
-import React, { useState } from "react";
+import React, { useContext,  } from "react";
 
 interface Props {
     source: any;
@@ -105,27 +102,26 @@ function capitalizeFirstLetter(string: string): string {
 
 const ChatSourceBlock: React.FC<Props> = (
     {source, index}) => {
-
-    const [isDownloading, setIsDownloading] = useState<boolean>(false);
     const { data: session } = useSession();
     const user = session?.user?.email;
 
+    const { state: {}, setLoadingMessage
+    } = useContext(HomeContext);
+
     const downloadFile = async (dataSource: DataSource, groupId: string | undefined) => {
 
-        setIsDownloading(true);
+        setLoadingMessage("Downloading File...");
         try {
             // /assistant/files/download
             await downloadDataSourceFile(dataSource, groupId);
         } finally {
-            setIsDownloading(false);
+            setLoadingMessage("");
         }
     }
 
     
 
-    return <>
-            <LoadingDialog open={isDownloading} message={"Downloading File..."}/>
-    <div>
+    return  <div>
         <div
             className="rounded-xl text-neutral-600 border-2 dark:border-none dark:text-white bg-neutral-100 dark:bg-[#343541] rounded-md shadow-lg mb-2 mr-2"
         >
@@ -165,7 +161,6 @@ const ChatSourceBlock: React.FC<Props> = (
             </div>
         </div>
     </div> 
-    </>;
 };
 
 export default ChatSourceBlock;

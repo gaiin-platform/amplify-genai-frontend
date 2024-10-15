@@ -9,6 +9,7 @@ import {Conversation, Message, newMessage} from "@/types/chat";
 import {useSendService} from "@/hooks/useChatSendService";
 import {resolveServerHandler} from "@/utils/app/ops";
 import JsonForm from "@/components/JsonForm/JsonForm";
+import React from "react";
 
 
 

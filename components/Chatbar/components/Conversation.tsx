@@ -21,10 +21,10 @@ import { Conversation } from '@/types/chat';
 
 import HomeContext from '@/pages/api/home/home.context';
 
-import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import ChatbarContext from '@/components/Chatbar/Chatbar.context';
 import { uploadConversation } from '@/services/remoteConversationService';
 import { isLocalConversation, isRemoteConversation } from '@/utils/app/conversationStorage';
+import ActionButton from '@/components/ReusableComponents/ActionButton';
 
 interface Props {
   conversation: Conversation;
@@ -191,12 +191,12 @@ export const ConversationComponent = ({ conversation}: Props) => {
       {(isDeleting || isRenaming) &&
         selectedConversation?.id === conversation.id && (
           <div className="absolute right-1 z-10 flex text-gray-300">
-            <SidebarActionButton handleClick={handleConfirm}>
+            <ActionButton handleClick={handleConfirm}>
               <IconCheck size={18} />
-            </SidebarActionButton>
-            <SidebarActionButton handleClick={handleCancel}>
+            </ActionButton>
+            <ActionButton handleClick={handleCancel}>
               <IconX size={18} />
-            </SidebarActionButton>
+            </ActionButton>
           </div>
         )}
 
@@ -216,12 +216,12 @@ export const ConversationComponent = ({ conversation}: Props) => {
       {selectedConversation?.id === conversation.id &&
         !isDeleting && !isRenaming && !checkConversations &&
         ( <div className="absolute right-1 z-10 flex text-gray-300">
-            <SidebarActionButton handleClick={handleOpenRenameModal} title="Rename Conversation">
+            <ActionButton handleClick={handleOpenRenameModal} title="Rename Conversation">
               <IconPencil size={18} />
-            </SidebarActionButton>
-            <SidebarActionButton handleClick={handleOpenDeleteModal} title="Delete Conversation">
+            </ActionButton>
+            <ActionButton handleClick={handleOpenDeleteModal} title="Delete Conversation">
               <IconTrash size={18} />
-            </SidebarActionButton>
+            </ActionButton>
           </div>
         )}
     </div>

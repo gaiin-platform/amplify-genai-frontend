@@ -10,6 +10,8 @@ import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import EditableField from "@/components/Promptbar/components/EditableField";
 import { DEFAULT_SYSTEM_PROMPT } from "@/utils/app/const";
 import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
+import React from 'react';
+import { Modal } from '@/components/ReusableComponents/Modal';
 
 
 interface Props {
@@ -203,21 +205,17 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
 
 
   return (
-    <div
-      className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
-    >
-      <div className="fixed inset-0 z-10 overflow-hidden">
-        <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-          <div
-            className="hidden sm:inline-block sm:h-screen sm:align-middle"
-            aria-hidden="true"
-          />
-
-          <div
-            ref={modalRef}
-            className="dark:border-netural-400 inline-block max-h-[400px] transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 pt-5 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-h-[600px] sm:w-full sm:max-w-lg sm:p-6 sm:align-middle"
-            role="dialog"
-          >
+    <Modal 
+      title={"Prompt Template"}
+      onCancel={() =>{
+        onCancel();
+      }} 
+      onSubmit={() => {
+        handleUpdatePrompt();
+        onSave();
+      }}
+      submitLabel={"Save"}
+      content={ <>
             <div className="text-sm font-bold text-black dark:text-neutral-200">
               {t('Name')}
             </div>
@@ -248,7 +246,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                   {t('Custom Instructions')}
                 </div>
               <select
-              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 "
               value={rootPrompt.id}
               onChange={(e) => handleUpdateRootPrompt(e.target.value)}
               >
@@ -377,7 +375,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
               {t('Template Type')}
             </div>
-              <div className="mt-2">
+              <div className="mt-2 flex flex-col gap-3">
               <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100 mr-8">
                 <input
                     type="radio"
@@ -474,30 +472,10 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
 
             </div>
 
-          <div className="flex flex-row items-center">
-            <button
-                type="button"
-                className="mr-2 w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                onClick={() => {
-                  onCancel();
-                }}
-            >
-              {t('Cancel')}
-            </button>
-            <button
-              type="button"
-              className="w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-              onClick={() => {
-                handleUpdatePrompt();
-                onSave();
-              }}
-            >
-              {t('Save')}
-            </button>
-          </div>
-          </div>
-        </div>
-      </div>
-    </div>
+
+
+            </>
+          }
+        />
   );
 };

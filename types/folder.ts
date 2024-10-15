@@ -4,6 +4,7 @@ export interface FolderInterface {
   name: string;
   type: FolderType;
   isGroupFolder?: boolean;
+  pinned?: boolean;
 }
 
 export type FolderType = 'chat' | 'prompt' | 'workflow';

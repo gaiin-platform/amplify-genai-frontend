@@ -22,7 +22,6 @@ export enum MessageType {
   ROOT = 'root_prompt',
   PREFIX_PROMPT = 'prefix_prompt',
   FOLLOW_UP = 'follow_up',
-  REMOTE = 'remote',
   OUTPUT_TRANSFORMER = 'output_transformer',
 }
 

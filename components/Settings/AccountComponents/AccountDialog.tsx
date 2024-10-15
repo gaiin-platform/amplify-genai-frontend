@@ -1,7 +1,6 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import HomeContext from '@/pages/api/home/home.context';
-import Loader from "@/components/Loader/Loader";
 import { Account, noCoaAccount } from "@/types/accounts";
 import { Accounts } from './Account';
 import { ApiKeys } from './ApiKeys';
@@ -9,8 +8,8 @@ import { getAccounts} from "@/services/accountService";
 import { fetchAllApiKeys } from '@/services/apiKeysService';
 import { ApiKey } from '@/types/apikeys';
 import { IconX } from '@tabler/icons-react';
-import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import { noRateLimit, RateLimit } from '@/types/rateLimit';
+import ActionButton from '@/components/ReusableComponents/ActionButton';
 
 interface Props {
     open: boolean;
@@ -18,13 +17,12 @@ interface Props {
 }
 
 export const AccountDialog: FC<Props> = ({ open, onClose }) => {
-    const { state: {featureFlags}, dispatch: homeDispatch } = useContext(HomeContext);
+    const { state: {featureFlags}, dispatch: homeDispatch, setLoadingMessage } = useContext(HomeContext);
 
     const { t } = useTranslation('settings');
 
     const modalRef = useRef<HTMLDivElement>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [loadingMessage, setLoadingMessage] = useState<string>('Loading...');
     const [activeTab, setActiveTab] = useState<string>('Accounts');
 
     const [accounts, setAccounts] = useState<Account[]>([]);
@@ -34,6 +32,24 @@ export const AccountDialog: FC<Props> = ({ open, onClose }) => {
     const [accountsUnsavedChanges, setAccountsUnsavedChanges] = useState(false);
     const [apiUnsavedChanges, setApiUnsavedChanges] = useState(false);
 
+    useEffect(() => {
+        const handleMouseDown = (e: MouseEvent) => {
+          if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+            window.addEventListener('mouseup', handleMouseUp);
+          }
+        };
+    
+        const handleMouseUp = (e: MouseEvent) => {
+          window.removeEventListener('mouseup', handleMouseUp);
+          onClose();
+        };
+    
+        window.addEventListener('mousedown', handleMouseDown);
+    
+        return () => {
+          window.removeEventListener('mousedown', handleMouseDown);
+        };
+      }, [onClose]);
 
  // fetch data
 useEffect(() => {
@@ -42,7 +58,7 @@ useEffect(() => {
         if (!result.success) {
             alert("Unable to fetch accounts. Please try again.");
             setIsLoading(false);
-            // onClose();
+            setLoadingMessage("");
         } else {
             // Add "No COA" account to the list if not present
             if (!result.data.some((account: any) => account.id === noCoaAccount.id)) {
@@ -63,8 +79,7 @@ useEffect(() => {
         }
     }
     if (open) {
-        setLoadingMessage('Loading...');
-        setIsLoading(true);
+        setLoadingMessage('Loading Accounts...');
         fetchAccounts();
     }
 }, [open]);
@@ -75,9 +90,10 @@ useEffect(() => {
         if (!result.success) {
             alert("Unable to fetch your API keys. Please try again.");
             setIsLoading(false);
+            setLoadingMessage("");
+
         } else {
-            setApiKeys(result.data);
-            // console.log(result.data)   
+            setApiKeys(result.data); 
         }
     }
    useEffect(() => {
@@ -85,7 +101,10 @@ useEffect(() => {
     }, [open]);
 
     useEffect(() => {
-        if (accounts && apiKeys) setIsLoading(false);
+            if (accounts && apiKeys) {
+                setLoadingMessage("");
+                setIsLoading(false);
+            }
     }, [accounts, apiKeys])
 
     useEffect(() => {
@@ -121,20 +140,11 @@ useEffect(() => {
     }
 
     // Render nothing if the dialog is not open.
-    if (!open) {
+    if (!open || isLoading) {
         return <></>;
     }
 
     return (
-        isLoading ?(
-            <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-25 z-60">
-                    <div className="px-6 py-2 flex flex-row items-center  border border-gray-500 bg-neutral-200 dark:bg-[#202123]">
-                    <Loader size="48" />
-                    <div className="text-xl">{loadingMessage}</div>
-                    </div>
-                </div>
-
-        ) :
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 ">
             <div className="fixed inset-0 z-10 overflow-hidden">
                 <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -143,7 +153,7 @@ useEffect(() => {
                     />
                     <div
                         ref={modalRef}
-                        className={`dark:border-netural-400 inline-block transform rounded-lg border border-gray-300 bg-neutral-100 px-4 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:min-h-[636px]  sm:w-full sm:p-4 sm:align-middle`}
+                        className={`dark:border-neutral-600 inline-block transform rounded-lg border border-gray-300 bg-neutral-100 px-4 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:min-h-[636px]  sm:w-full sm:p-4 sm:align-middle`}
                         style={{width: `${window.innerWidth - 560}px`, height: `${window.innerHeight * 0.9}px`}}
                         role="dialog">
 
@@ -151,11 +161,11 @@ useEffect(() => {
                         {!isLoading && (
 
                         <>
-                            <div className="mb-4 flex flex-row gap-1 bg-neutral-100 dark:bg-[#202123] rounded-t border-b dark:border-white/20">
+                            <div className="text-black dark:text-white mb-4 flex flex-row gap-1 bg-transparent rounded-t border-b dark:border-white/20">
                                         <button
                                             key={"Accounts"}
                                             onClick={() => switchTab("Accounts")}
-                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Accounts" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
+                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Accounts" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
                                             <h3 className="text-xl">{`Accounts${accountsUnsavedChanges ? " *" : "  "}`}</h3> 
                                         </button>
 
@@ -163,16 +173,16 @@ useEffect(() => {
                                         <button
                                             key={"API"}
                                             onClick={() => switchTab("API")}
-                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "API" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
+                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "API" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
                                             <h3 className="text-xl">{`API Access${apiUnsavedChanges ? " *" : "  "}`}</h3> 
                                         </button>}
 
                                         <div className='ml-auto'>
-                                            <SidebarActionButton
+                                            <ActionButton
                                                 handleClick={() => onClose()}
                                                 title={"Close"}>
                                                 <IconX size={20}/>
-                                            </SidebarActionButton>
+                                            </ActionButton>
                                         </div>      
                             </div>
                         </>           

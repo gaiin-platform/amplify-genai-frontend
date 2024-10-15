@@ -22,6 +22,8 @@ import {
 import { FolderInterface } from '@/types/folder';
 import { Prompt } from '@/types/prompt';
 import {deepMerge} from "@/utils/app/state";
+import { getSettings } from '@/utils/app/settings';
+import { filterModels } from '@/utils/app/models';
 
 interface Props {
     conversation: Conversation;
@@ -245,7 +247,7 @@ const AutonomousBlock: React.FC<Props> = (
             return await getDbsForUser();
         },
         "/models": (params:any) => {
-            return models;
+            return  filterModels(models, getSettings(featureFlags).modelOptions);
         },
         "/prompts": (params:any) => {
             return promptsRef.current;

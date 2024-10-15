@@ -5,8 +5,6 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
-import useErrorService from '@/services/errorService';
-import useApiService from '@/services/useApiService';
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
 import { getIsLocalStorageSelection, isRemoteConversation, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import cloneDeep from 'lodash/cloneDeep';
@@ -25,10 +23,11 @@ import {
     updateConversation,
     compressAllConversationMessages,
     conversationWithUncompressedMessages,
+    conversationWithCompressedMessages,
 } from '@/utils/app/conversation';
 import { saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
-import { getSettings } from '@/utils/app/settings';
+import { getSettings, saveSettings } from '@/utils/app/settings';
 import { getAccounts } from "@/services/accountService";
 
 import { Conversation, Message } from '@/types/chat';
@@ -62,14 +61,10 @@ import SharedItemsList from "@/components/Share/SharedItemList";
 import { saveFeatures } from "@/utils/app/features";
 import WorkspaceList from "@/components/Workspace/WorkspaceList";
 import { Market } from "@/components/Market/Market";
-import { getBasePrompts } from "@/services/basePromptsService";
-import { LatestExportFormat } from "@/types/export";
-import { importData } from "@/utils/app/importExport";
 import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import { useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
-import { AccountDialog } from "@/components/Settings/AccountComponents/AccountDialog"; // MTDCOST
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants } from '@/services/assistantService';
 import { getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
@@ -86,6 +81,8 @@ import { AmpCognGroups, AmplifyGroups } from '@/types/groups';
 import { contructGroupData } from '@/utils/app/groups';
 import { getAllArtifacts } from '@/services/artifactsService';
 import { baseAssistantFolder, basePrompt, isBaseFolder, isOutDatedBaseFolder } from '@/utils/app/basePrompts';
+import { fetchUserSettings } from '@/services/settingsService';
+import { Settings } from '@/types/settings';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -115,10 +112,10 @@ const Home = ({
     availableModels
 }: Props) => {
     const { t } = useTranslation('chat');
-    const { getModels } = useApiService();
-    const { getModelsError } = useErrorService();
     const [initialRender, setInitialRender] = useState<boolean>(true);
-    const [loadingSelectedConv, setLoadingSelectedConv] = useState<boolean>(false);
+    // const [loadingSelectedConv, setLoadingSelectedConv] = useState<boolean>(false);
+    const [loadingMessage, setLoadingMessage] = useState<string>('');
+
     const [loadingAmplify, setLoadingAmplify] = useState<boolean>(true);
     const { data: session, status } = useSession();
     const [user, setUser] = useState<DefaultUser | null>(null);
@@ -155,16 +152,13 @@ const Home = ({
             hasScrolledToBottom,
             featureFlags,
             storageSelection,
-            groups
+            groups,
+            models
 
         },
         dispatch,
     } = contextValue;
 
-    // MTDCOST
-    const handleAccountDialogClose = () => {
-        dispatch({ field: 'page', value: 'chat' });
-    };
 
     const promptsRef = useRef(prompts);
 
@@ -258,8 +252,9 @@ const Home = ({
         if (!('isLocal' in conversation)) {
             conversation.isLocal = true;
         }
+        // setLoadingSelectedConv(true);
+        setLoadingMessage('Loading Conversation...');
 
-        setLoadingSelectedConv(true);
         let newSelectedConv = null;
         // check if it isLocal? if not get the conversation from s3
         if (isRemoteConversation(conversation)) { 
@@ -270,12 +265,7 @@ const Home = ({
         } else {
             newSelectedConv = conversationWithUncompressedMessages(cloneDeep(conversation));
         }
-        setLoadingSelectedConv(false);
-
-        // not in use
-        // // Before changing the selected conversation, we must sync the conversation with teh cloud conversation
-        // // selectedConversation should always have isLocal attribute
-        // if (selectedConversation && !selectedConversation.isLocal) syncCloudConversation(selectedConversation, conversations, dispatch);
+        setLoadingMessage('');
 
         if (newSelectedConv) {
         //add last used assistant if there was one used else should be removed
@@ -534,6 +524,33 @@ const Home = ({
         dispatch({ field: 'loading', value: false });
     };
 
+    const handleUpdateSelectedConversation = (updatedConversation: Conversation) => {
+        if (selectedConversation && selectedConversation.isLocal) {
+            const updatedConversations: Conversation[] = conversationsRef.current.map(
+                (conversation:Conversation) => {
+                    if (conversation.id === selectedConversation.id) {
+                        return conversationWithCompressedMessages(updatedConversation);
+                    }
+                    return conversation;
+                },
+            );
+            if (updatedConversations.length === 0) {
+                updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+            }
+            dispatch({field: 'conversations', value: updatedConversations});
+            saveConversations(updatedConversations);
+        } else {
+            uploadConversation(updatedConversation, foldersRef.current);
+        }
+    
+        dispatch({
+            field: 'selectedConversation',
+            value: updatedConversation,
+        }); 
+
+
+    }
+
 
     const handleUpdateConversation = (
         conversation: Conversation,
@@ -663,16 +680,40 @@ const Home = ({
     useEffect(() => {
         const fetchAccounts = async () => {      
             console.log("Fetching Accounts...");
-            const response = await getAccounts();
-            if (response.success) {
-                const defaultAccount = response.data.find((account: any) => account.isDefault);
-                if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
-                dispatch({ field: 'defaultAccount', value: defaultAccount || noCoaAccount});  
-            } else {
-                console.log("Failed to fetch accounts.");
+            try {
+                const response = await getAccounts();
+                if (response.success) {
+                    const defaultAccount = response.data.find((account: any) => account.isDefault);
+                    if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
+                    setLoadingAmplify(false); 
+                    dispatch({ field: 'defaultAccount', value: defaultAccount || noCoaAccount});  
+                    return;
+                } else {
+                    console.log("Failed to fetch accounts.");
+                }
+            } catch (e) {
+                console.log("Failed to fetch accounts: ", e);
             }
+            dispatch({ field: 'defaultAccount', value: noCoaAccount}); 
             setLoadingAmplify(false);   
         };
+
+        const fetchSettings = async () => {
+            console.log("Fetching Settings...");
+            try {
+                // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
+                const result = await fetchUserSettings();
+                if (result.success) {
+                    if (result.data) { 
+                        saveSettings(result.data as Settings);
+                    }
+                } else {
+                    console.log("Failed to get user settings: ", result);
+                }
+            } catch (e) {
+                console.log("Failed to get user settings: ", e);
+            }
+        }
 
         const fetchArtifacts = async () => {      
             console.log("Fetching Remote Artifacts...");
@@ -868,6 +909,7 @@ const Home = ({
             setInitialRender(false);
             // independent function call high priority
             fetchAccounts();  // fetch accounts for chatting charging
+            fetchSettings(); // fetch user settinsg
             fetchInAmpCognGroup();  // updates ast admin interface featureflag
             if (featureFlags.artifacts) fetchArtifacts(); // fetch artifacts 
 
@@ -881,7 +923,8 @@ const Home = ({
     // ON LOAD --------------------------------------------
 
     useEffect(() => {
-        const settings = getSettings();
+        const settings = getSettings(featureFlags);
+
         if (settings.theme) {
             dispatch({
                 field: 'lightMode',
@@ -1244,6 +1287,7 @@ const Home = ({
                     handleUpdateFolder,
                     handleSelectConversation,
                     handleUpdateConversation,
+                    handleUpdateSelectedConversation, 
                     preProcessingCallbacks,
                     postProcessingCallbacks,
                     addPreProcessingCallback,
@@ -1252,6 +1296,7 @@ const Home = ({
                     removePostProcessingCallback,
                     clearWorkspace,
                     handleAddMessages,
+                    setLoadingMessage
                 }}
             >
                 <Head>
@@ -1315,10 +1360,6 @@ const Home = ({
                                 {page === 'home' && (
                                     <MyHome />
                                 )}
-                                {/* MTDCOST */}
-                                {page === 'cost' && (
-                                    <AccountDialog open={true} onClose={handleAccountDialogClose} />
-                                )}
                             </div>
 
 
@@ -1330,9 +1371,9 @@ const Home = ({
                             </TabSidebar>
 
                         </div>
+                        <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
+                        {/* <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/> */}
 
-                        <LoadingDialog open={loadingSelectedConv} message={"Loading Conversation..."}/>
-                        <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
                     </main>
                 )}
 

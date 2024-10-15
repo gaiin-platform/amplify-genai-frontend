@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import {
   IconDownload
 } from '@tabler/icons-react';
-import { DownloadFileButton } from '@/components/Download/DownloadFileButton';
+import { DownloadFileButton } from '@/components/ReusableComponents/DownloadFileButton';
 
 interface FileInfo {
   type: string;
@@ -119,9 +119,8 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
 
     const fileNameMatch = file_key.match(/-FN-([^\/]+)/);
     const fileName = fileNameMatch && fileNameMatch[1] ? fileNameMatch[1] : `Generated_${type.split('/')[1]}_file`;
-    console.log("EXPIRED Presigned URL: ", file_key);
+    
     if (isUrlExpired(presigned_url)) {
-      console.log("EXPIRED Presigned URL ");
 
       //fetch new presigned url and set it 
        const urlResponse = await getNewPresignedUrl({'key': file_key, "fileName": fileName});

@@ -1,10 +1,9 @@
 
 
-import ExpansionComponent from "@/components/Chat/ExpansionComponent";
-import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import HomeContext from "@/pages/api/home/home.context";
 import {optimizePrompt} from "@/services/promptOptimizerService";
 import {IconWand} from "@tabler/icons-react";
-import {useState} from "react";
+import {useContext, useState} from "react";
 
 
 interface PromptOptimzierProps {
@@ -16,21 +15,19 @@ interface PromptOptimzierProps {
 
 const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt,onOptimized, maxPlaceholders}) => {
 
-    const [isPromptOptimizerRunning, setIsPromptOptimizerRunning] = useState<boolean>(false);
+    const { state: { prompts}, setLoadingMessage} = useContext(HomeContext);
 
 
     // @ts-ignore
     return (<div>
-                {isPromptOptimizerRunning && (
-                    <LoadingDialog open={isPromptOptimizerRunning} message={"Optimizing Prompt..."}/>
-                )}
                 <button
                     className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
                     onClick={ () => {
 
                         const value = prompt;
                         if(value) {
-                            setIsPromptOptimizerRunning(true);
+                            setLoadingMessage("Optimizing Prompt...");
+
                             const optimizeIt = async () => {
                                 try {
 
@@ -44,7 +41,9 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt,onOptimiz
                                     alert("Error optimizing prompt. Please try again.")
                                 }
                                 finally {
-                                    setIsPromptOptimizerRunning(false);
+                                    setLoadingMessage("");
+
+
                                 }
                             };
 

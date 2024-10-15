@@ -44,6 +44,8 @@ import cloneDeep from 'lodash/cloneDeep';
 import FeaturePlugins from './FeaturePlugins';
 import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
 import React from 'react';
+import { filterModels } from '@/utils/app/models';
+import { getSettings } from '@/utils/app/settings';
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
@@ -69,7 +71,7 @@ export const ChatInput = ({
     const {killRequest} = useChatService();
 
     const {
-        state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming, prompts, models, featureFlags, currentRequestId, chatEndpoint, statsService},
+        state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming, prompts, models,  featureFlags, currentRequestId, chatEndpoint, statsService},
 
         dispatch: homeDispatch
     } = useContext(HomeContext);
@@ -83,6 +85,8 @@ export const ChatInput = ({
         return '100%';
     };
 
+    const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
+    
     const [chatContainerWidth, setChatContainerWidth] = useState(updateSize());
 
     useEffect(() => {
@@ -576,6 +580,7 @@ const onAssistantChange = (assistant: Assistant) => {
     return (
         <>
         { featureFlags.pluginsOnInput &&
+          getSettings(featureFlags).featureOptions.includePluginSelector &&
             <div className='relative z-20' style={{height: 0}}>
                 <FeaturePlugins
                 plugin={plugin}
@@ -838,11 +843,12 @@ const onAssistantChange = (assistant: Assistant) => {
                         <button
                             // className="right-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
                             className={`right-2 top-2 rounded-sm p-1 text-neutral-800 mx-1 
-                                ${messageIsDisabled? 'cursor-not-allowed ' : 'opacity-60 hover:bg-neutral-200 hover:text-neutral-900'} 
+                                ${messageIsDisabled || !content? 'cursor-not-allowed ' : 'opacity-60 hover:bg-neutral-200 hover:text-neutral-900'} 
                                 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
                             onClick={handleSend}
-                            title={messageIsDisabled ? "Please Address Missing Information to Enable Prompting" : "Send Prompt"}
-                            disabled={messageIsDisabled}
+                            title={messageIsDisabled ? "Please address missing information to enable chat" 
+                                                     : !content ? "Enter a message to start chatting" : "Send Prompt"}
+                            disabled={messageIsDisabled || !content }
                         >
                             {messageIsStreaming || artifactIsStreaming ? (
                                 <div
@@ -879,7 +885,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
                     {isModalVisible && (
                         <VariableModal
-                            models={models}
+                            models={filteredModels}
                             handleUpdateModel={handleUpdateModel}
                             prompt={filteredPrompts[activePromptIndex]}
                             variables={variables}

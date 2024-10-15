@@ -3,7 +3,8 @@ import {
     IconTrash, IconDotsVertical,
     IconX, IconShare, IconTags,
     IconCheck, IconFolderOpen, 
-    IconFolder, IconCalendar, IconAbc
+    IconFolder, IconCalendar, IconAbc,
+    IconTrashFilled
 } from '@tabler/icons-react';
 import { KebabActionItem, actionItemAttr, KebabItem, KebabMenuItems } from "./KebabItems";
 import { ShareAnythingModal } from "@/components/Share/ShareAnythingModal";
@@ -22,9 +23,11 @@ import { CheckItemType } from "@/types/checkItem";
 import { savePrompts } from "@/utils/app/prompts";
 import { isRemoteConversation } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation, fetchMultipleRemoteConversations, uploadConversation } from '@/services/remoteConversationService';
-import { saveConversations } from "@/utils/app/conversation";
+import { conversationWithUncompressedMessages, saveConversations } from "@/utils/app/conversation";
 import { getDateName } from "@/utils/app/date";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
+import React from "react";
+import toast from "react-hot-toast";
 
 
 interface Props {
@@ -239,7 +242,7 @@ interface Props {
 
     const handleDeleteFolders = () => {
         handleSearchTerm('');
-        console.log(checkedItemsRef.current)
+        // console.log(checkedItemsRef.current)
        
         if (isConvSide) {
             
@@ -255,6 +258,29 @@ interface Props {
         clear();
     }
 
+    const cleanEmptyConversations = async () => {
+        const { remoteConversationIds, localEmptyConversations } = conversationsRef.current.reduce<{
+            remoteConversationIds: string[];
+            localEmptyConversations: Conversation[];
+        }>((acc, c:Conversation) => {
+            if (isRemoteConversation(c)) {
+                acc.remoteConversationIds.push(c.id);
+            } else if (c.compressedMessages && c.compressedMessages.length === 0) {
+                acc.localEmptyConversations.push(c);
+            }
+            return acc;
+        }, { remoteConversationIds: [], localEmptyConversations: [] });
+        if (remoteConversationIds.length > 0 && localEmptyConversations.length > 0 ) {
+            toast("Removing Empty Conversations...");
+            const fetchedRemoteConversations = await fetchMultipleRemoteConversations(remoteConversationIds);
+            const emptyRemoteConversations = fetchedRemoteConversations ? fetchedRemoteConversations.filter((c:Conversation) => c.messages.length === 0) : [];
+            handleDeleteConversations([...localEmptyConversations, ...emptyRemoteConversations]);
+        }  else {
+            toast("No Empty Conversations To Remove");
+
+        }
+        
+    }
 
     const handleCheckAll = (isChecked: boolean) => {
         setAllItemsChecked(isChecked);
@@ -350,19 +376,20 @@ interface Props {
                         {isConvSide  && <KebabActionItem label="Tag" type={label as CheckItemType} handleAction={()=>{setIsTagsDialogVisible(true)}} 
                                          setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTags size={14} />} />}
                         
+                        {isConvSide  &&  <KebabItem label="Clean" handleAction={() => { cleanEmptyConversations() }} icon={<IconTrashFilled size={14} />} title="Remove Empty Conversations" />}
                         <KebabMenuItems label="Folders" xShift={175} minWidth={86}>
 
                             <KebabMenuItems label="Sort" xShift={160}>
-                                <KebabItem label="Name" handleAction={() => {setFolderSort('name')}} icon={<IconAbc size={18}/>} />
-                                <KebabItem label="Date" handleAction={() => { setFolderSort('date') } } icon={<IconCalendar size={14}/>} />
+                                <KebabItem label="Name" handleAction={() => {setFolderSort('name')}} icon={<IconAbc size={18}/>}  title="Sort Folders By Name"/>
+                                <KebabItem label="Date" handleAction={() => { setFolderSort('date') } } icon={<IconCalendar size={14}/>} title="Sort Folders By Date" />
                             </KebabMenuItems>
 
                             <KebabActionItem label="Share" type={`${isConvSide?'Chat':'Prompt'}Folders`} handleAction={()=>{setIsShareDialogVisible(true)}} 
                                              setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconShare size={14} />} />
                             <KebabActionItem label="Delete" type={`${isConvSide?'Chat':'Prompt'}Folders`} handleAction={() => { handleDeleteFolders() }} 
                                              setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTrash size={14} />} />
-                            <KebabItem label="Open All" handleAction={() => { openCloseFolders(true) } } icon={<IconFolderOpen size={13} />}  />
-                            <KebabItem label="Close All" handleAction={() => { openCloseFolders(false) }} icon={<IconFolder size={14}/>}  />
+                            <KebabItem label="Open All" handleAction={() => { openCloseFolders(true) } } icon={<IconFolderOpen size={13} />}  title="Open All Folders" />
+                            <KebabItem label="Close All" handleAction={() => { openCloseFolders(false) }} icon={<IconFolder size={14}/>}   title="Close All Folders"/>
                             
                         </KebabMenuItems>
                     </div>
@@ -396,7 +423,7 @@ interface Props {
         {isTagsDialogVisible && 
         <div className="fixed inset-0 bg-black bg-opacity-50 h-full w-full">
             <div className="flex items-center justify-center min-h-screen">
-              <div className="border border-neutral-300 dark:border-netural-400 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px]"
+              <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px]"
               >
                 <div className="p-2 h-[60px] overflow-y-auto">
                 <TagsList tags={tags} 

@@ -130,10 +130,24 @@ export const fetchMultipleRemoteConversations = async (conversationIds: string[]
     const result = await response.json();
     const resultBody = result ? JSON.parse(result.body || '{}') : {"success": false};
     if (resultBody.success) {
-        return resultBody.conversations.map((c:number[]) => uncompressConversation(c)); // list of conversations
+        const presignedUrl = resultBody.presignedUrl;
+
+        // Fetch the actual conversation data using the presigned URL
+        const conversationResponse = await fetch(presignedUrl, {
+            method: 'GET',
+            signal: abortSignal,
+        });
+
+        if (!conversationResponse.ok) {
+            console.error("Error fetching conversation data from presigned URL");
+            return null;
+        }
+
+        const conversationData = await conversationResponse.json();
+        return conversationData.map((c:number[]) => uncompressConversation(c)); 
     } else {
-        console.error("Error fetching conversation: ", result.message);
-        return [];
+        console.error("Error fetching presigned URL: ", result.message);
+        return null;
     }
 };
 

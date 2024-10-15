@@ -9,6 +9,7 @@ import ExpansionComponent from "../ExpansionComponent";
 import { Account } from "@/types/accounts";
 import { createApiKey, deactivateApiKey, updateApiKeys } from "@/services/apiKeysService";
 import toast from "react-hot-toast";
+import React from "react";
 
 
 interface KeyData {
@@ -71,7 +72,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
     const handleDeactivateAPIKey = async (id: string, name: string) => {
         if (confirm(`Are you sure you want to deactivate API key: ${name}?\nOnce deactivate, it cannot be undone.`)) {
             const result = await deactivateApiKey(id);
-            statsService.deactivateApiKey(id);
+            statsService.deactivateApiKeyEvent(id);
             
            
             if (result) {
@@ -99,7 +100,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
             } else {
                 alert("Unable to create the API key at this time. Please try again later...");    
             }
-            statsService.createApiKey(keyData);
+            statsService.createApiKeyEvent(keyData);
             setLoadingMessage(null);
             
            
@@ -112,7 +113,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
         if (!result.success) {
             alert('failedKeys' in result ? `API keys: ${result.failedKeys.join(", ")} failed to update. Please try again.` : "We are unable to update your key(s) at this time...")
         } else {
-            statsService.updateApiKey(keyData);
+            statsService.updateApiKeyEvent(keyData);
             setUpdatedKeys([...updatedKeys, keyData.id]);
         }
         setIsUpdating(null);

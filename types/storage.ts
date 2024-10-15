@@ -1,6 +1,6 @@
 import { Conversation } from './chat';
 import { ConversationStorage } from './conversationStorage';
-import { FolderInterface } from './folder';
+import { FolderInterface, SortType } from './folder';
 import { PluginLocation } from './plugin';
 import { Prompt } from './prompt';
 
@@ -18,4 +18,6 @@ export interface LocalStorage {
   showPromptbar: boolean;
   storageSelection: ConversationStorage;
   pluginLocation: PluginLocation;
+  chatFolderSort: SortType,
+  promptFolderSort: SortType;
 }

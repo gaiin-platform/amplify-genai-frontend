@@ -5,7 +5,6 @@ import { useCreateReducer } from '@/hooks/useCreateReducer';
 
 import { createEmptyPrompt, savePrompts } from '@/utils/app/prompts';
 
-import { OpenAIModelID, OpenAIModels } from '@/types/openai';
 import { Prompt } from '@/types/prompt';
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -13,12 +12,8 @@ import HomeContext from '@/pages/api/home/home.context';
 import { PromptFolders } from './components/PromptFolders';
 import { Prompts } from './components/Prompts';
 
-import Sidebar from '../Sidebar';
 import PromptbarContext from './PromptBar.context';
 import { PromptbarInitialState, initialState } from './Promptbar.state';
-
-import { v4 as uuidv4 } from 'uuid';
-import {MessageType} from "@/types/chat";
 import {PromptModal} from "@/components/Promptbar/components/PromptModal";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {FolderInterface, SortType} from "@/types/folder";
@@ -26,6 +21,7 @@ import { AssistantModal } from '../Promptbar/components/AssistantModal';
 import { getAssistants, handleUpdateAssistantPrompt} from '@/utils/app/assistants';
 import { AssistantDefinition } from '@/types/assistant';
 import { useSession } from 'next-auth/react';
+import Sidebar from '../Sidebar/Sidebar';
 
 
 
@@ -42,8 +38,13 @@ const Promptbar = () => {
   const [isShareDialogVisible, setIsShareDialogVisible] = useState(false);
   const [sharedPrompts, setSharedPrompts] = useState<Prompt[]>([]);
   const [sharedFolders, setSharedFolders] = useState<FolderInterface[]>([]);
-  const [folderSort, setFolderSort] = useState<SortType>('name');
 
+  const sortBy = localStorage?.getItem('promptFolderSort');
+  const [folderSort, setFolderSort] = useState<SortType>(sortBy ? sortBy as SortType : 'date');
+
+  useEffect(() => {
+    localStorage.setItem('promptFolderSort', folderSort);
+  }, [folderSort]);
 
   const {
     state: { prompts, defaultModelId, showPromptbar, statsService, featureFlags},
