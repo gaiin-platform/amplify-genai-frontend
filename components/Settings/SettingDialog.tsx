@@ -15,7 +15,7 @@ import { Modal } from '../ReusableComponents/Modal';
 import { saveUserSettings } from '@/services/settingsService';
 import { MINIMAL_AVAILABLE_MODELS } from '@/utils/app/models';
 import { OpenAIModel } from '@/types/openai';
-
+import cloneDeep from 'lodash/cloneDeep';
 
 
   
@@ -74,7 +74,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
   };
 
   const inDefaultModelList = (modelId: string) => {
-    return MINIMAL_AVAILABLE_MODELS.map((model: OpenAIModel) => model.id).includes(modelId)
+    return cloneDeep(MINIMAL_AVAILABLE_MODELS).map((model: OpenAIModel) => model.id).includes(modelId)
   }
 
 
@@ -101,7 +101,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
 const availableModels = getAvailableModels();
 
 const modelLabel = (id: string, name: string) => {
-  return <div className={` text-sm ${inDefaultModelList(id) ? "text-blue-600":""}`}> {name} </div>
+  return <div key={id} className={` text-sm ${inDefaultModelList(id) ? "text-blue-600":""}`}> {name} </div>
 }
 
   // Render nothing if the dialog is not open.
