@@ -1,4 +1,4 @@
-import {  Message } from "@/types/chat";
+import {  Conversation, Message } from "@/types/chat";
 import { ModelID, Models } from "@/types/model";
 import {getSession} from "next-auth/react"
 import { sendChatRequestWithDocuments } from "@/services/chatService";
@@ -6,9 +6,9 @@ import cloneDeep from 'lodash/cloneDeep';
 
 
 
-export const callRenameChat = async (chatEndpoint:string, messages: Message[], statsService: any) => {
+export const renameChat = async (chatEndpoint:string, conversation: Conversation, statsService: any, updateName: (name: string, conversation: Conversation) => void) => {
     const controller = new AbortController();
-    
+     const messages: Message[] = conversation.messages.slice(0,1);
      const accessToken = await getSession().then((session) => { 
                                 // @ts-ignore
                                 return session.accessToken
@@ -58,9 +58,14 @@ export const callRenameChat = async (chatEndpoint:string, messages: Message[], s
                 }
         
                 text += chunkValue;
+                console.log(text);
+                setTimeout(() => {
+                updateName(text, conversation)
+                }, 100)
+                
             }
             // console.log(text)
-            return text;
+            // return text;
         } finally {
             if (reader) {
                 await reader.cancel(); 
@@ -71,7 +76,7 @@ export const callRenameChat = async (chatEndpoint:string, messages: Message[], s
     } catch (e) {
         console.error("Error prompting for rename: ", e);
         const content = messages[0].content;
-        return content.length > 30 ? content.substring(0, 30) + '...' : content;
-        
+        const name = content.length > 30 ? content.substring(0, 30) + '...' : content;
+        updateName(name, conversation)  
     }
 }

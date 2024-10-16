@@ -51,7 +51,7 @@ import {useSendService} from "@/hooks/useChatSendService";
 import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection, isRemoteConversation } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
-import { callRenameChat } from './RenameChat';
+import { renameChat } from './RenameChat';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
 import { Artifacts } from '../Artifacts/Artifacts';
@@ -166,18 +166,29 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 setIsRenaming(true);
                 if (selectedConversation) {
                     let updatedConversation = {...selectedConversation}
-                    // will always return a string whether call was successful or not 
-                    callRenameChat(chatEndpoint || '', [updatedConversation.messages[0]], statsService).then(customName => {
-                        updatedConversation = {
-                            ...updatedConversation,
-                            name: customName, 
-                        };
-                        
-                        
-                        handleUpdateSelectedConversation(updatedConversation);
 
+                    const updateName = (name: string, conversation: Conversation) => {
+                        conversation = {
+                            ...updatedConversation,
+                            name: name, 
+                        };
+                        handleUpdateSelectedConversation(conversation);
                         setIsRenaming(false);
-                    })
+                    }
+
+                    // will always return a string whether call was successful or not 
+                    renameChat(chatEndpoint || '', updatedConversation, statsService, updateName);
+                    // .then(customName => {
+                    //     updatedConversation = {
+                    //         ...updatedConversation,
+                    //         name: customName, 
+                    //     };
+                        
+                        
+                    //     handleUpdateSelectedConversation(updatedConversation);
+
+                    //     setIsRenaming(false);
+                    // })
                 }
             }
             if (selectedConversation?.messages.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
@@ -1022,7 +1033,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     }}
                                                     title="Month-To-Date Cost"
                                                 >
-                                                    <div className="flex flex-row items-center text-[0.93rem] text-[#9de6ff] dark:text-[#8edffa]">
+                                                    <div className="flex flex-row items-center text-[0.93rem] text-[#00a1d8] dark:text-[#8edffa]">
                                                         <div className="ml-1">MTD Cost: {mtdCost}</div>
                                                     </div>
                                                 </button>
@@ -1075,8 +1086,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         >
                                             <IconDownload size={18}/>
                                         </button>
+
                                         {featureFlags.artifacts && 
-                                        <ArtifactsSaved iconSize={18}/>}
+                                        <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
+                                        
                                         {featureFlags.storeCloudConversations &&
                                         <CloudStorage iconSize={18} />
                                         }
@@ -1092,7 +1105,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 }}
                                                 title="Data Sources"
                                             >
-                                                <div className="flex flex-row items-center text-[0.9rem] text-[#9de6ff] dark:text-[#8edffa]">
+                                                <div className="flex flex-row items-center text-[0.9rem] text-[#00a1d8] dark:text-[#8edffa]">
                                                     <div><IconRocket size={18}/></div>
                                                     <div className="ml-1">Data Sources </div>
                                                 </div>
