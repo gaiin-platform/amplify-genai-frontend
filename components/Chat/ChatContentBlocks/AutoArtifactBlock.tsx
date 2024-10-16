@@ -10,6 +10,9 @@ import { IconHammer } from "@tabler/icons-react";
 import { Artifact, ArtifactBlockDetail, validArtifactTypes } from "@/types/artifacts";
 import { lzwCompress, lzwUncompress } from "@/utils/app/lzwCompression";
 import { getDateName } from "@/utils/app/date";
+import toast from "react-hot-toast";
+import { fixJsonString } from "@/utils/app/errorHandling";
+
 
 interface Props {
     content: string;
@@ -31,8 +34,6 @@ const AutoArtifactsBlock: React.FC<Props> = ({content, ready, message}) => {
         dispatch: homeDispatch, handleUpdateSelectedConversation
     } = useContext(HomeContext);
 
-    // for artifact block
-    // const [artifactDetails, setArtifactDetails] = useState <ArtifactDetails | null> (null);
     const [llmPrompted, setLlmPrompted]  = useState<boolean>(false);
 
 
@@ -105,19 +106,44 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `Follow these structural guidelines strictl
     - ensure your artifacts are as complete as possible.
 `   
 
+const repairJson = async () => {
+    const fixedJson: string | null = await fixJsonString(chatEndpoint || "", statsService, content, "Failed to create artifact, attempting to fix...");
+     // try to repair json
+     if (fixedJson) {
+        message.data.artifactStatus = 'retry';   
+        prepareArtifacts(fixedJson, false);
+     } else {
+         message.data.artifactStatus = 'cancelled';
+         if (selectedConversation) {
+            const updatedConversation = {...selectedConversation};
+            updatedConversation.messages[selectedConversation.messages.length - 1] = message;
+            handleUpdateSelectedConversation(updatedConversation);
+            // update conversation 
+            console.log("reached artifact cancelled");
+            alert("Unfortunately, we were unable to create your artifact at this time. Please resend your last prompt, possibly with a more advanced model to try again.");
+            homeDispatch({field: 'messageIsStreaming', value: false}); 
+            homeDispatch({field: 'artifactIsStreaming', value: false});
+         }
+     }
+    return fixedJson;
+}
 
 useEffect(() => {
-    // ready is !messageIsStreaming
-    if (ready && (!message.data.artifactStatus || message.data.artifactStatus === 'retry') && !llmPrompted && !artifactIsStreaming) {
-        setLlmPrompted(true);
-        message.data.artifactStatus = 'running';
+    if ( ready && !message.data.artifactStatus && !artifactIsStreaming && !llmPrompted ) prepareArtifacts(content, true); 
+}, [ready]);
 
+
+const prepareArtifacts = (jsonContent: string, retry: boolean) => {
+    setLlmPrompted(true);
+        message.data.artifactStatus = 'running';
         homeDispatch({field: 'messageIsStreaming', value: true}); 
         homeDispatch({field: 'artifactIsStreaming', value: true});
-        setLlmPrompted(true);
-        
+        // console.log("content in question: ", contentRef.current);
+
+        console.log("content in question: ", jsonContent);
         try {
-            const data = JSON.parse(content)
+            const data = JSON.parse(jsonContent);
+            
             const artifactDetail = {
                 artifactId: data.id,
                 name: data.name, 
@@ -134,19 +160,13 @@ useEffect(() => {
             getArtifactMessages(instr + additionalContent,  artifactDetail as ArtifactBlockDetail, data.type);
 
         } catch {
-            console.log("error parsing auto artifacts bloack ");
-            homeDispatch({field: 'messageIsStreaming', value: false}); 
-            homeDispatch({field: 'artifactIsStreaming', value: false});
-            setLlmPrompted(false);
-            if (message.data.artifactStatus === 'retry') {
-                message.data.artifactStatus = 'cancelled';
-                alert("Unfortunately, we were unable to produce your artifact at this time. Please resend your last prompt with a different model to try again.");
-            } else {
-                message.data.artifactStatus = 'retry';
-            }
+            console.log("error parsing auto artifacts block ");
+            // try to repair json
+            if (retry) repairJson();
         }        
-    }
-}, [ready]);
+}
+
+
 
 const appendRelevantArtifacts = (includeArtifactsId: string[], currentId: string) => {
     console.log(
