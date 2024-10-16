@@ -336,6 +336,7 @@ const onAssistantChange = (assistant: Assistant) => {
         stopConversationRef.current = true;
 
         if (currentRequestId) {
+            console.log("kill request id: ", currentRequestId);
             killRequest(currentRequestId);
         }
 
@@ -344,6 +345,8 @@ const onAssistantChange = (assistant: Assistant) => {
 
             homeDispatch({field: 'loading', value: false});
             homeDispatch({field: 'messageIsStreaming', value: false});
+            homeDispatch({field: 'artifactIsStreaming', value: false});
+
             homeDispatch({field: 'status', value: []});
         }, 1000);
     };

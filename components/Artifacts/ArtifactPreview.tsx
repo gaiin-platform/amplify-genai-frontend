@@ -3,11 +3,15 @@ import {
     SandpackProvider,
     SandpackLayout,
     SandpackPreview,
+    useSandpack,
   } from "@codesandbox/sandpack-react";
-import { CodeBlockDetails, getFileExtensionFromLanguage } from '@/utils/app/codeblock';
+
+import { CodeBlockDetails } from '@/utils/app/codeblock';
 import { getSettings } from '@/utils/app/settings';
 import DOMPurify from 'dompurify';
 import HomeContext from '@/pages/api/home/home.context';
+import { IconAlertCircle, IconPresentation } from '@tabler/icons-react';
+import { SandpackErrorMessage, SandpackMessage, SandpackMessageConsoleMethods } from '@codesandbox/sandpack-client';
 
 interface Props {
     codeBlocks: CodeBlockDetails[];
@@ -21,7 +25,7 @@ interface Props {
 export const ArtifactPreview: React.FC<Props> = ({ codeBlocks, artifactContent, type, height}) => {
 
     const renderedContent = () => {
-      console.log("code blocks", codeBlocks);
+      // console.log("code blocks", codeBlocks);
         switch (type) {
             case "vanilla":
             case "static":
@@ -46,7 +50,7 @@ export const ArtifactPreview: React.FC<Props> = ({ codeBlocks, artifactContent, 
     <div className="p-2 text-base md:max-w-2xl md:gap-6 md:py-2 lg:max-w-2xl lg:px-0 xl:max-w-3xl flex-grow overflow-auto">
       <div className="prose mt-[-2px] w-full dark:prose-invert">
         <div className="flex w-full flex-col h-full">
-          <div>
+          <div className='max-w-[600px]'>
                 {renderedContent()}
             </div>
           </div>
@@ -142,8 +146,6 @@ export const ArtifactPreview: React.FC<Props> = ({ codeBlocks, artifactContent, 
 
 // --- HTML, CSS, JS Preview Component (Vanilla) ---
 const VanillaPreview: React.FC<{ codeBlocks: any; height: number; framework: any; }> = ({ codeBlocks, height, framework }) => {
-    const { dispatch: homeDispatch, state:{statsService, featureFlags} } = useContext(HomeContext);
-    const theme = getSettings(featureFlags).theme;
     const [files, setFiles] = useState<{ [key: string]: { code: string } }>({});
   
     const isStaticTemplate = framework === 'static';
@@ -157,10 +159,17 @@ const VanillaPreview: React.FC<{ codeBlocks: any; height: number; framework: any
               // Skip text blocks as they are not needed in Sandpack
               return;
           }
+          let code = block.code;
           // CHANGES: Use the provided filename directly
           let filename = block.filename ? block.filename : `file${index + 1}${block.extension}`
           if (!isStaticTemplate) filename = `/${filename}`;
-          newFiles[filename] = { code: block.code };
+
+          if (block.extension === '.js') {
+              code = `${code}
+                      
+                      ${errorHandlingCode}`.trim();
+          }
+          newFiles[filename] = { code: code };
         });
   
         // console.log("new" , newFiles);
@@ -190,7 +199,9 @@ const VanillaPreview: React.FC<{ codeBlocks: any; height: number; framework: any
               if (!newFiles.hasOwnProperty(filename)) newFiles[filename] = { code: '' };
           });
         }
-
+        newFiles['/index.js'].code = `${newFiles['/index.js'].code}
+                      
+                                    ${errorHandlingCode}`
   
         setFiles(newFiles);
         // console.log("new", newFiles);
@@ -258,15 +269,12 @@ const VanillaPreview: React.FC<{ codeBlocks: any; height: number; framework: any
     // console.log(memoizedFiles);
   // currently only static is working 
     return Object.keys(files).length > 0 ? (
-      <SandpackProvider files={memoizedFiles} template={'static'} theme={theme}> 
-        <SandpackLayout>
-          <SandpackPreview
-            showOpenInCodeSandbox={true}
-            showRefreshButton={true}
-            style={{ height: `${height}px`, overflow: 'auto', width: '100%' }}
-          />
-        </SandpackLayout>
-      </SandpackProvider>
+        <PreviewSandpack
+          files={memoizedFiles}
+          template={'static'}
+          height={height}
+        />
+
     ) : (
       <>Loading...</>
     );
@@ -287,13 +295,21 @@ const FrameworkPreview: React.FC<{ codeBlocks: CodeBlockDetails[]; height: numbe
     codeBlocks.forEach((block: CodeBlockDetails) => {
       if (block.language === 'txt' ||  block.filename === 'package.json') return; // Skip text blocks as they are unnecessary
       const language = block.language.toLowerCase();
-      const code = block.code;
+      let code = block.code;
       let filename = block.filename;
 
       if (language === 'html') {
         filename = `/public/${filename}`;
       } else {
         filename = `/src/${filename}`;
+      } 
+      
+      if (filename === '/src/index.js' || filename === '/src/index.tsx') {
+        code = `
+        ${code}
+
+        ${errorHandlingCode}
+        `.trim();
       }
 
       newFiles[filename] = { code };
@@ -312,6 +328,8 @@ import App from './App';
 const rootElement = document.getElementById('root');
 const root = createRoot(rootElement);
 root.render(<App />);
+
+${errorHandlingCode}
       `;
       newFiles['/src/index.js'] = { code: indexCode.trim() };
     }
@@ -583,7 +601,7 @@ export const environment = {
   
     return newFiles;
   };
-  console.log(framework);
+  // console.log(framework);
 
 
   
@@ -796,24 +814,208 @@ export const environment = {
 
  
   return Object.keys(files).length > 0 ? (
-    <SandpackProvider files={files} template={framework} theme={theme}>
-      <SandpackLayout>
-        <SandpackPreview
-          showOpenInCodeSandbox={true}
-          showRefreshButton={true}
-          style={{ height: `${height}px`, overflow: 'auto', width: '100%' }}
+    <PreviewSandpack
+          files={files}
+          template={framework}
+          height={height}
         />
-      </SandpackLayout>
-    </SandpackProvider>
   ) : (
     <>Loading...</>
   );
 };
 
 
- 
 
 
 
+
+
+const errorHandlingCode = `
+window.onerror = function (message, source, lineno, colno, error) {
+  window.parent.postMessage(
+    {
+      type: 'iframe_error',
+      message,
+      source,
+      lineno,
+      colno,
+      error: error ? error.toString() : null,
+    },
+    '*'
+  );
+};
+
+window.addEventListener('unhandledrejection', function (event) {
+  window.parent.postMessage(
+    {
+      type: 'iframe_error',
+      message: event.reason ? event.reason.toString() : 'Unhandled promise rejection',
+    },
+    '*'
+  );
+});
+`.trim();
+
+
+
+
+
+interface PreviewSandpackProps {
+  files: { [key: string]: { code: string } };
+  template: any;
+  height: number;
+}
+
+const PreviewSandpack: React.FC<PreviewSandpackProps> = ({ files, template, height }) => {
+  const [isErrorView, setIsErrorView] = useState(false);
+  const [errorPresent, setErrorPresent] = useState(false);
+  const [errorMessages, setErrorMessages] = useState<Set<string>>(new Set());
+
+  // Keep this code as per your request
+  const { state: { featureFlags } } = useContext(HomeContext);
+  const theme = getSettings(featureFlags).theme;
+
+  // ErrorListener definition inside PreviewSandpack
+  const ErrorListener: React.FC = () => {
+    const { listen } = useSandpack();
+
+
+    useEffect(() => {
+      const handleMessage = (event: MessageEvent) => {
+        const message = event.data;
+        if (message.type === 'iframe_error') {
+          const errorMessage = message.error || message.message;
+          setErrorPresent(true);
+          setErrorMessages((prevMessages) => new Set(prevMessages).add(errorMessage));
+
+        }
+      };
+  
+      window.addEventListener('message', handleMessage);
+      return () => {
+        window.removeEventListener('message', handleMessage);
+      };
+    }, []);
+
+
+    useEffect(() => {
+      const unsubscribe = listen((message: SandpackMessage) => {
+        // console.log('-----Received message:', message);
+
+        // Handle error messages from 'action' type
+        if (isErrorMessage(message)) {
+          const errorMessage = message.title || message.message;
+          if (errorMessage) {
+            setErrorPresent(true);
+            setErrorMessages((prevMessages) => new Set(prevMessages).add(errorMessage));
+
+          }
+        }
+
+        // Handle console messages
+        if (isConsoleMessage(message)) {
+          const errorLogs = message.log
+            .filter((logEntry) => logEntry.method === 'error')
+            .map((logEntry) => logEntry.data.join(' '));
+
+          if (errorLogs.length > 0) {
+            setErrorPresent(true);
+            errorLogs.forEach((errorMessage: any)=> setErrorMessages((prevMessages) => new Set(prevMessages).add(errorMessage)))
+
+          }
+        }
+      });
+
+      return () => {
+        unsubscribe();
+      };
+    }, [listen]);
+
+    return null;
+  };
+  // Type guard for error messages from 'action' messages
+  function isErrorMessage(
+    message: SandpackMessage
+  ): message is SandpackMessage & { type: 'action'; action: 'show-error' } & SandpackErrorMessage {
+    return message.type === 'action' && message.action === 'show-error';
+  }
+
+  // Type guard for console messages
+  function isConsoleMessage(
+    message: SandpackMessage
+  ): message is SandpackMessage & {
+    type: 'console';
+    log: Array<{
+      method: SandpackMessageConsoleMethods;
+      id: string;
+      data: string[];
+    }>;
+  } {
+    return message.type === 'console' && Array.isArray(message.log);
+  }
+
+
+
+  return (
+    <div className='overflow-y-hidden'>
+      {/* Conditional Button */}
+      {errorPresent && (
+        <button
+          onClick={() => setIsErrorView(!isErrorView)}
+          className={`ml-auto mr-2 text-[14px] flex items-center px-2 py-1 mb-2 rounded-md transition-colors duration-200 bg-gray-800 text-white hover:bg-gray-700 sticky top-0 z-10`}
+        >
+          {isErrorView ? (
+            <>
+              <IconPresentation size={18} className="mr-2" />
+              Show Preview
+            </>
+          ) : (
+            <>
+              <IconAlertCircle size={18} className="mr-2" />
+              Errors Present
+            </>
+          )}
+        </button>
+      )}
+
+      <div className='overflow-y-auto'>
+      {/* Toggle Between Sandpack and Error View */}
+        {isErrorView ? (
+          <div style={{ color: 'red'}} >
+            <div className=' text-xs  text-black dark:text-white'  style={{ lineHeight: '1.2' }}>{`
+            Notice: If the error is related to file paths, it may be due to how the code blocks were split into individual files based on the first commented line (e.g., // index.js). 
+            Verify that the filenames and paths are correct and properly linked within the project. Use the raw text editor to add or change commented out file names.
+            
+            You can also click "Open in CodeSandbox" to inspect the file structure directly in a development environment.
+            `}</div>
+            <div className='text-xl mt-2 '>Errors:</div>
+            <ul>
+            {[...Array(errorMessages)].map((errorMessage, index) => (
+              <span key={index}>{errorMessage}</span>
+            ))}
+          </ul>
+          </div>
+        ) : (
+          <SandpackProvider files={files} template={template} theme={theme}>
+            <SandpackLayout>
+          
+              <SandpackPreview
+                showOpenInCodeSandbox={true}
+                showRefreshButton={true}
+                style={{
+                  height: `${height - (errorPresent ? 50: 0)}px`,
+                  overflow: 'auto',
+                  width: '100%',
+                }}
+              />
+            </SandpackLayout>
+            {/* Place ErrorListener inside SandpackProvider */}
+            <ErrorListener />
+          </SandpackProvider>
+        )}
+      </div>
+    </div>
+  );
+};
 
 

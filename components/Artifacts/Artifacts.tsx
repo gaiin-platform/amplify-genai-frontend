@@ -556,7 +556,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                             
                         )} 
                         { isPreviewing  && 
-                            <ArtifactPreview codeBlocks={codeBlocks} artifactContent={getArtifactContents()} type={selectArtifactList[versionIndex].type} height={innerHeight - 155}/>
+                            <ArtifactPreview codeBlocks={codeBlocks} artifactContent={getArtifactContents()} type={selectArtifactList[versionIndex].type} height={innerHeight - 160}/>
                         }
                         {selectArtifactList && 
                             <div className='mt-4 flex flex-row w-full'  title={`${versionIndex + 1} of ${selectArtifactList?.length}`}> 

@@ -16,6 +16,7 @@ import React from 'react';
 
 interface Props {
   iconSize: number | string;
+  isArtifactsOpen: boolean;
 }
 
 export const LoadingIcon = styled(FiCommand)`
@@ -25,7 +26,7 @@ export const LoadingIcon = styled(FiCommand)`
 `;
 
 export const ArtifactsSaved: FC<Props> = ({
-  iconSize
+  iconSize, isArtifactsOpen
 }) => {
   const { 
     state: { selectedConversation, conversations, folders, artifacts, statsService}, dispatch: homeDispatch, handleUpdateSelectedConversation
@@ -139,7 +140,8 @@ return (
         {isOpen &&
         <div ref={artifactsRef}  
             className="overflow-auto fixed z-50 border border-neutral-300 rounded bg-neutral-100 dark:border-neutral-600 bg-neutral-100 dark:bg-[#444654]"
-            style={{maxHeight: `200px`, top: 40}}>
+            style={{maxHeight: `200px`, top: 40, transform: isArtifactsOpen ? 'translateX(-90%)' : 'translateX(0)' , 
+            }}>
                 <ul className="suggestions-list ">
                 {artifacts.map((artifact, index) => (
                     <li key={index} onClick={() => { if (loadingItem === -1 ) handleAddArtifactToConversation(artifact.key, index)}} 

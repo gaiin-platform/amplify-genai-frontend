@@ -49,7 +49,7 @@ export const ArtifactEditor: React.FC<Props> = ({
       fileName = fileName.replace(/\.(?=.*\.)/g, "_");
       return { ...block, filename: fileName };
     });
-    console.log("editing ", updatedBlocks);
+    // console.log("editing ", updatedBlocks);
     return updatedBlocks;
   };
 
@@ -88,7 +88,7 @@ export const ArtifactEditor: React.FC<Props> = ({
       newFiles["/index.html"] = {
         code: "<!--Intentionally left blank. Ignore this file.-->",
       };
-    console.log("editing files", newFiles);
+    // console.log("editing files", newFiles);
 
     return newFiles;
   };
@@ -299,9 +299,6 @@ export class ErrorBoundary extends React.Component<
   componentDidCatch(error: any, errorInfo: any) {
     // You can log the error to an error reporting service here
     console.log('ErrorBoundary caught an error', error, errorInfo);
-    // if (this.props.onError) {
-    //   this.props.onError();
-    // }
   }
 
   render() {
