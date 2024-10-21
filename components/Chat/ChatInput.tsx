@@ -334,21 +334,26 @@ const onAssistantChange = (assistant: Assistant) => {
 
     const handleStopConversation = () => {
         stopConversationRef.current = true;
-
         if (currentRequestId) {
             console.log("kill request id: ", currentRequestId);
             killRequest(currentRequestId);
         }
+        if (artifactIsStreaming) {
+            console.log("kill artifact even trigger: ");
 
-        setTimeout(() => {
+            const event = new CustomEvent( 'killArtifactRequest');
+            window.dispatchEvent(event);
             stopConversationRef.current = false;
+        } else {
+            setTimeout(() => {
+                stopConversationRef.current = false;
 
-            homeDispatch({field: 'loading', value: false});
-            homeDispatch({field: 'messageIsStreaming', value: false});
-            homeDispatch({field: 'artifactIsStreaming', value: false});
-
-            homeDispatch({field: 'status', value: []});
-        }, 1000);
+                homeDispatch({field: 'loading', value: false});
+                homeDispatch({field: 'messageIsStreaming', value: false});
+                homeDispatch({field: 'artifactIsStreaming', value: false});
+                homeDispatch({field: 'status', value: []});
+            }, 1000);
+        }
     };
 
     const isMobile = () => {

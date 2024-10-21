@@ -7,10 +7,9 @@ import {deepMerge} from "@/utils/app/state";
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";
 import { ModelID, Models } from "@/types/model";
 import { IconHammer } from "@tabler/icons-react";
-import { Artifact, ArtifactBlockDetail, validArtifactTypes } from "@/types/artifacts";
+import { Artifact, ArtifactBlockDetail, ArtifactMessageStatus, validArtifactTypes } from "@/types/artifacts";
 import { lzwCompress, lzwUncompress } from "@/utils/app/lzwCompression";
 import { getDateName } from "@/utils/app/date";
-import toast from "react-hot-toast";
 import { fixJsonString } from "@/utils/app/errorHandling";
 
 
@@ -35,7 +34,8 @@ const AutoArtifactsBlock: React.FC<Props> = ({content, ready, message}) => {
     } = useContext(HomeContext);
 
     const [llmPrompted, setLlmPrompted]  = useState<boolean>(false);
-
+    const [versionContentList, setVersionContentList]  = useState<string[]>([]);
+    const shouldAbortRef  = useRef<boolean>(false);
 
     const conversationsRef = useRef(conversations);
 
@@ -57,7 +57,8 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `Follow these structural guidelines strictl
     - IMPORTANT" Respond in valid markdown for any CODE blocks ex. ${"```html  <your code> ```"}  If you are asked to draw a diagram, you can use Mermaid diagrams using mermaid.js syntax in a ${"```mermaid code block. If you are asked to visualize something, you can use a ```"}vega code block with Vega-lite. 
     
     - Include File Names in Code Blocks: 
-  All code blocks must include the file name as a comment on the first line. The file name should be appropriate for the context and follow the required naming conventions for Sandpack (if Applicable) based on the type of project.  Ensure that names are consistently used where files are imported or referenced. IMPORTANT: This will not apply to Artifacts of type 'text' 
+  All code blocks must include the file name as a comment on the first line. The file name should be appropriate for the context and follow the required naming conventions for Sandpack (if Applicable) based on the type of project. ex. Sandpack React projects require the entry code to be named App.js
+  Ensure that names are consistently used where files are imported or referenced. IMPORTANT: This will not apply to Artifacts of type 'text' 
 
   For example, in a react artifact type:
   
@@ -92,7 +93,7 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `Follow these structural guidelines strictl
     - NOT EVERYTHING IS A CODE BLOCK, if you are asked to write a paper for example, and not explicitly told to make a txt or docx file, then you will respond with the text ONLY, NO code block. You must always determine if a \`\`\` code block is necessary or not
     - If you need to say/comment anything to the user that is NOT part of the artifact, wrap it in a ${startMarker} <your comments not part of the artifact> ${endMarker} tag AT THE END OF YOUR ARTIFACT OUTPUT
     
-    Example: ${startMarker} Enjoy the artifact! ${endMarker}
+    Example use: ${startMarker} some text you would like to tell the user ${endMarker}
     
     - **Do not** include explanations, overviews, or guidance outside the ${startMarker} and ${endMarker} tags. Any instructions, comments, or final steps should always be wrapped in these tags.
     - If your artifact consists of only text, place it in a text block. 
@@ -104,16 +105,43 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `Follow these structural guidelines strictl
     - For interactive components (e.g., HTML, CSS, or widgets), ensure users can preview or download the artifact files if relevant (This will be handled for you). 
     - If any ambiguities exist in the user’s request, provide fallback suggestions within the ${startMarker} and ${endMarker} tags.
     - ensure your artifacts are as complete as possible.
-`   
+`  
+
+const ARTIFACT_VERSION_INSTRUCTIONS = `
+    It is required to have a complete and/or fully functional artifact version.
+
+1. **Referencing Components**: You will be provided with an ordered list where each index corresponds to a specific component of the artifact. The index acts as the key, and the content of the component is the value. 
+Components are to be referred to by their index in the format '~{index}'.
+
+2. **Updating Components**:
+   - If you are updating a component, include the complete content of that component including edits in the new version, regardless of the extent of changes.
+   - For any component that remains unchanged, reference it using the '~{index}' format, where 'index' is the position of the component in the provided list.
+
+3. **Example Response Format**: structurinng the new version of an artifact with JavaScript at index 0 (~0)  you decided there will be no changes applied to this section, HTML at index 1 (~1)  you determine you will be applying changes , and a new CSS component:
+
+   ~A0
+
+   \`\`\`html
+   <!-- Complete HTML content with chnages-->
+   \`\`\`
+ 
+   \`\`\`css
+   /* New CSS content */
+   /* ... */
+   \`\`\`
+
+5. **Consistency**: Ensure that the new version maintains the integrity and functionality of the artifact. All components, whether updated or referenced by their index, should work together seamlessly in the new version.
+If you provide a ~# then assume I will insert the context for that specific referenced content and thus does not need to be reproduced by you. 
+`;
 
 const repairJson = async () => {
     const fixedJson: string | null = await fixJsonString(chatEndpoint || "", statsService, content, "Failed to create artifact, attempting to fix...");
      // try to repair json
      if (fixedJson) {
-        message.data.artifactStatus = 'retry';   
+        message.data.artifactStatus = ArtifactMessageStatus.RETRY;   
         prepareArtifacts(fixedJson, false);
      } else {
-         message.data.artifactStatus = 'cancelled';
+         message.data.artifactStatus = ArtifactMessageStatus.CANCELLED;
          if (selectedConversation) {
             const updatedConversation = {...selectedConversation};
             updatedConversation.messages[selectedConversation.messages.length - 1] = message;
@@ -135,12 +163,10 @@ useEffect(() => {
 
 const prepareArtifacts = (jsonContent: string, retry: boolean) => {
     setLlmPrompted(true);
-        message.data.artifactStatus = 'running';
+        message.data.artifactStatus = ArtifactMessageStatus.RUNNING;
         homeDispatch({field: 'messageIsStreaming', value: true}); 
         homeDispatch({field: 'artifactIsStreaming', value: true});
-        // console.log("content in question: ", contentRef.current);
 
-        console.log("content in question: ", jsonContent);
         try {
             const data = JSON.parse(jsonContent);
             
@@ -172,25 +198,54 @@ const appendRelevantArtifacts = (includeArtifactsId: string[], currentId: string
     console.log(
         "included artifacts: ", includeArtifactsId
     );
+    let instr = "These are previous artifacts that may or may not be useful for you to look at:\n"; 
+    let versionInstr = '\n\n';
     if ( selectedConversation && includeArtifactsId.length > 0 || 
        (selectedConversation?.artifacts && selectedConversation.artifacts[currentId])) {
         if (!includeArtifactsId.includes(currentId)) includeArtifactsId.push(currentId);
-       let instr = "These are previous artifacts that may or may not be useful for you to look at:"; 
        includeArtifactsId.forEach((id: string) => {
         if (selectedConversation.artifacts && selectedConversation.artifacts[id]) {
-            const artifact = selectedConversation.artifacts[id];
-            const lastArtifact = artifact.slice(-1)[0].contents;
-            instr += `Artifact ID: ${id}, Content: ${lzwUncompress(lastArtifact)}\n`;
-            if (id === currentId) instr += 'Write out the entire artifact if you are reusing any content from this artifact\n\n'
+            const artifacts = selectedConversation.artifacts[id];
+            const lastArtifact = artifacts.slice(-1)[0].contents;
+            const content = lzwUncompress(lastArtifact);
+            if (id === currentId) {
+                versionInstr += ARTIFACT_VERSION_INSTRUCTIONS + '\nThis is the latest version of the artifact you will now create a new version for:\n';
+                let parts = content.split(/(```[\s\S]*?```)/g);
+                // Process each part to split further at new lines if it's not a code block
+                let contentList = parts.flatMap(part => {
+                // Check if the part is a code block
+                if (/^```[\s\S]*```$/.test(part)) {
+                    return [part];
+                } else {
+                    return part.split('\n').filter(line => line.trim() !== ''); // Split at new lines and filter out empty lines
+                }
+                });
+                setVersionContentList(contentList);
+                const contentToString = contentList.map((part: string, index: number) => `A${index}\n${part}\n\n` );
+                versionInstr += contentToString.join('');
+            } else {
+                instr += `Artifact ID: ${id}, Content: ${content}\n\n`;
+            }
         }
         });
     } 
-    return '';
+    return instr + versionInstr;
 }
 
-const shouldAbort = ()=>{
-    // return stopConversationRef.current === true;
-    return false;
+useEffect(() => {
+    const handleStopGenerationEvent = () => {
+        shouldAbortRef.current = true;
+        console.log("kill artifact even trigger recieved and controller. abort: ");
+    }
+
+    window.addEventListener('killArtifactRequest', handleStopGenerationEvent);
+    return () => {
+        window.removeEventListener('killArtifactRequest', handleStopGenerationEvent);
+    };
+},[]);
+
+const shouldAbort = () => {
+    return shouldAbortRef.current;
 }
 
 const getArtifactMessages = async (llmInstructions: string, artifactDetail: ArtifactBlockDetail, type: string = '') => {
@@ -198,12 +253,14 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
     const requestId = Math.random().toString(36).substring(7);
     homeDispatch({field: "currentRequestId", value: requestId});
     if (selectedConversation && selectedConversation?.messages) {
-        const controller = new AbortController();
 
         const accessToken = await getSession().then((session) => { 
                                             // @ts-ignore
                                             return session.accessToken
                                             })
+            
+        // Create a new controller
+        const controller = new AbortController();   
         let currentState = {};
         const metaHandler: MetaHandler = {
             status: (meta: any) => {
@@ -217,7 +274,9 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 currentState = deepMerge(currentState, state);
             },
             shouldAbort: () => {
-                if (shouldAbort()) {
+                // console.log("SHould abort? , ", shouldAbort.current);
+                if (shouldAbort()) {// isnt capturing the value for some reason
+                    console.log('ABORTED MISSION') 
                     controller.abort();
                     return true;
                 }
@@ -252,8 +311,6 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             requestId: requestId
             };
 
-            // console.log("ArtifactDetails: ", artifactDetail)
-
             statsService.sendChatEvent(chatBody);
 
             window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: true, artifactIndex:  selectArtifacts.length - 1}} ));
@@ -267,9 +324,12 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             const reader = responseData ? responseData.getReader() : null;
             const decoder = new TextDecoder();
             let done = false;
+
             let text = selectedConversation.messages[messageLen].content + '\n\n';
-            
             let artifactText: string = '';
+
+            const placeholderRegex = /\~A(\d+)/;
+
             let isAssistantMsg = false;
 
             let buffer = '';
@@ -281,11 +341,26 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                     const {value, done: doneReading} = await reader.read();
                     done = doneReading;
                     const chunkValue = decoder.decode(value);
-                   
-                    if (done) break;
+                    if (done || controller.signal.aborted) break;
                     buffer += chunkValue;
 
-                    if (buffer.length > 6) {
+                    if (buffer.length > 7) {
+
+                        // replace tag references with content:
+                        if (placeholderRegex.test(buffer)) {
+                            console.log(" buffer contains tag: ", buffer)
+                            buffer = buffer.replace(placeholderRegex, (match, index) => {
+                                let arrayIndex = parseInt(index, 10);
+                                // Check if the index is within the bounds of the versionContentList array
+                                if (arrayIndex >= 0 && arrayIndex < versionContentList.length) {
+                                    return versionContentList[arrayIndex];
+                                } else {
+                                    console.log(" buffer contained an out of bounds tag: ", buffer)
+                                    return '';
+                                }
+                            });
+                            console.log(" buffer contained tag: ", buffer)
+                        }
                     
                         if ((buffer.includes(startMarker) && !isAssistantMsg) || (buffer.includes(endMarker) && isAssistantMsg)) {
                             // Split the buffer based on the first occurrence of the marker
@@ -339,32 +414,35 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                         }
                         buffer = '';
                     }
-            }
-
-            homeDispatch({field: 'messageIsStreaming', value: false});
-            homeDispatch({field: 'artifactIsStreaming', value: false});
-
-             // update selectedConversation to include the completed selectArtifacts
-            updatedConversation.artifacts = {...(updatedConversation.artifacts ?? {}), [artifact.artifactId]: selectArtifacts };
-            const lastMessageData = updatedConversation.messages.slice(-1)[0].data;
-            updatedConversation.messages.slice(-1)[0].data.artifactStatus = 'complete';
-            updatedConversation.messages.slice(-1)[0].data.artifacts = [...(lastMessageData.artifacts ?? []), artifactDetail];
-
-            
-            handleUpdateSelectedConversation(updatedConversation);
+                }
             
             } finally {
                 if (reader) {
                     await reader.cancel(); 
                     reader.releaseLock();
                 } 
+                homeDispatch({field: 'messageIsStreaming', value: false});
+                homeDispatch({field: 'artifactIsStreaming', value: false});
+
+                // update selectedConversation to include the completed selectArtifacts
+                updatedConversation.artifacts = {...(updatedConversation.artifacts ?? {}), [artifact.artifactId]: selectArtifacts };
+                const lastMessageData = updatedConversation.messages.slice(-1)[0].data;
+                updatedConversation.messages.slice(-1)[0].data.artifactStatus = controller.signal.aborted ? ArtifactMessageStatus.STOPPED : ArtifactMessageStatus.COMPLETE;
+                updatedConversation.messages.slice(-1)[0].data.artifacts = [...(lastMessageData.artifacts ?? []), artifactDetail];
+
+                
+                handleUpdateSelectedConversation(updatedConversation);
+                shouldAbortRef.current = false;
             }
 
         } catch (e) {
             console.error("Error prompting for Artifact Messages: ", e);
         }   
-        const event = new CustomEvent( 'triggerChatReRender' );
-        window.dispatchEvent(event);
+        setTimeout(() => {
+            const event = new CustomEvent( 'triggerChatReRender' );
+            window.dispatchEvent(event);
+        }, 200)
+        
     }
 }
 

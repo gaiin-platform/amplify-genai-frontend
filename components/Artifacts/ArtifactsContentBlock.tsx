@@ -57,7 +57,7 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
     }, []);
     
     return (
-    <div className="artifactContentBlock" 
+    <div className="artifactContentBlock w-full p-2" 
         data-artifact-id={artifactId}
         data-version-index={versionIndex}
         data-original-content={transformedMessageContent}
