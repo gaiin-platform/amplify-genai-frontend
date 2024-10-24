@@ -21,9 +21,10 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt,onOptimiz
     // @ts-ignore
     return (<div>
                 <button
-                    className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
-                    onClick={ () => {
-
+                    className=" left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                    onMouseDown={ (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         const value = prompt;
                         if(value) {
                             setLoadingMessage("Optimizing Prompt...");

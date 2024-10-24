@@ -50,8 +50,7 @@ import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/as
 import {useSendService} from "@/hooks/useChatSendService";
 import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection, isRemoteConversation } from '@/utils/app/conversationStorage';
-import { deleteRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
-import { renameChat } from './RenameChat';
+import { deleteRemoteConversation } from '@/services/remoteConversationService';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
 import { Artifacts } from '../Artifacts/Artifacts';
@@ -62,6 +61,9 @@ import { PromptHighlightedText } from './PromptHighlightedText';
 import { AccountDialog } from '../Settings/AccountComponents/AccountDialog';
 import { getSettings } from '@/utils/app/settings';
 import { filterModels } from '@/utils/app/models';
+import { promptForData } from '@/utils/app/llm';
+import cloneDeep from 'lodash/cloneDeep';
+
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -167,28 +169,25 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (selectedConversation) {
                     let updatedConversation = {...selectedConversation}
 
-                    const updateName = (name: string, conversation: Conversation) => {
-                        conversation = {
-                            ...updatedConversation,
-                            name: name, 
-                        };
-                        handleUpdateSelectedConversation(conversation);
-                        setIsRenaming(false);
-                    }
-
-                    // will always return a string whether call was successful or not 
-                    renameChat(chatEndpoint || '', updatedConversation, statsService, updateName);
-                    // .then(customName => {
-                    //     updatedConversation = {
-                    //         ...updatedConversation,
-                    //         name: customName, 
-                    //     };
-                        
-                        
-                    //     handleUpdateSelectedConversation(updatedConversation);
-
-                    //     setIsRenaming(false);
-                    // })
+                    const promptMessages = cloneDeep(updatedConversation.messages);
+                    promptMessages[0].content = `Look at the following prompt: "${promptMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`
+                    
+                    promptForData(chatEndpoint || '', promptMessages.slice(0,1), Models[ModelID.CLAUDE_3_HAIKU], "Respond with only the title name and nothing else.", statsService, 10)
+                                 .then(customName => {
+                                    let updatedName: string = customName ?? '';
+                                    if (!customName) {
+                                        const content = updatedConversation.messages[0].content;
+                                        updatedName = content.length > 30 ? content.substring(0, 30) + '...' : content;
+                                    }
+                                    updatedConversation = {
+                                        ...updatedConversation,
+                                        name: updatedName, 
+                                    };
+                                    
+                                    handleUpdateSelectedConversation(updatedConversation);
+            
+                                    setIsRenaming(false);
+                                })
                 }
             }
             if (selectedConversation?.messages.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();

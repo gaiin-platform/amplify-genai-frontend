@@ -53,6 +53,8 @@ const AssistantMessageHighlight: React.FC<Props> = (
         };
     }, []);
 
+    const content = transformedMessageContent.split(/(```[\s\S]*?```)/g);
+
 
     return (
     <div key={renderKey} className="border border-blue-500 px-2 py-4 mr-2">
@@ -62,17 +64,17 @@ const AssistantMessageHighlight: React.FC<Props> = (
             data-original-content={transformedMessageContent}>
             <div className="prose dark:prose-invert flex-1">
 
-            {transformedMessageContent.split('\n').map((line: string, index: number) => (
-                line === '' ? (
-                    <p key={index} className="prose dark:prose-invert flex-1">
-                        {'\n\n'}
-                    </p>
-                ) : (
-                    <p key={index} className="prose dark:prose-invert flex-1">
-                        {line.startsWith("```") ? `\n${line}\n`: line}
-                    </p>
-                )
-            ))}
+            {transformedMessageContent
+                .split(/(```[\s\S]*?```)/g)
+                .filter(Boolean) // Remove any empty strings
+                .map((part: string, index: number) => {
+                    return part.split('\n').map((line, i) => (
+                            <p key={`${index}-${i}`} className="prose dark:prose-invert flex-1">
+                                {line ? line :  '\n\n'}
+                            </p> 
+                    ));
+                    
+                })}
             </div>
 
             

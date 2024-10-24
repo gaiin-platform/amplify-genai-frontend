@@ -736,7 +736,32 @@ const useEventService = (mixPanelToken:string) => {
                 console.error("Error trackingCode interpreter in use", e);
             }
         }),
-    
+
+        promptAgaintsHighlightEvent: ifReady(() => {
+            try {
+                mixpanel.track('Prompt against highlight');
+            } catch (e) {
+                console.error("Error tracking Prompt against highlight", e);
+            }
+        }),
+
+        HighlightFastEditEvent: ifReady(() => {
+            try {
+                mixpanel.track('Fast edit highlight used');
+            } catch (e) {
+                console.error("Error tracking fast edit highlight", e);
+            }
+        }),
+
+        HighlightCompositeEvent: ifReady((numOfHighlights : number)  => {
+            try {
+                mixpanel.track('Composite mode in highlight tool used', {
+                    ...toEventData("Number of highlights used", numOfHighlights),
+                });
+            } catch (e) {
+                console.error("Error tracking highlight composite", e);
+            }
+        }),
     }
 }
 
