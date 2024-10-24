@@ -16,7 +16,7 @@ const getGroupAssistantDashboards = async (req: NextApiRequest, res: NextApiResp
         return res.status(400).json({ error: 'assistantId is required' });
     }
 
-    let apiUrl = `${process.env.ASSISTANTS_API_BASE}/assistant/get_group_assistant_dashboards`;
+    let apiUrl = `${process.env.API_BASE_URL}/assistant/get_group_assistant_dashboards`;
 
     try {
         const response = await fetch(apiUrl, {

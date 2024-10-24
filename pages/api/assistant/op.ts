@@ -12,7 +12,7 @@ const assistantOp =
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        let apiUrl = process.env.ASSISTANTS_API_BASE + "/assistant" || "";
+        let apiUrl = process.env.API_BASE_URL + "/assistant" || "";
 
         // Accessing itemData parameters from the request
         const reqData = req.body;

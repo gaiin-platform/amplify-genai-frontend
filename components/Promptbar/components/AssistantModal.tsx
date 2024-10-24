@@ -591,7 +591,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 <ExistingFileList 
                                     label={'Assistant Data Sources'}
                                     allowRemoval={!disableEdit}
-                                    documents={definition.dataSources} 
+                                    documents={dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)))} 
                                     setDocuments={(docs) => {
                                         setDataSources(docs as any[]);
                                 }} />

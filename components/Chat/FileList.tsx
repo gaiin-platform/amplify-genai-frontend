@@ -186,7 +186,10 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                                 onClick={(e) =>{
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    if (documents) setDocuments(documents.filter(x => x != document));
+                                    if (documents) {
+                                        setDocuments(documents.filter(x => x != document));
+                                        setDataSources(dataSources.filter(x => x != document));
+                                    }
                                 }}
                             >
                                 <IconCircleX/>
