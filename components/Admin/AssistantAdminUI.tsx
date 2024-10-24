@@ -2035,6 +2035,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
     const [showDataSourceSelector, setShowDataSourceSelector] = useState<string>('');
 
     useEffect(() => {
+        setTimeout(() => { // ensure the groupdata state has updated, both ref an d groupTypeData would be outdated some times
         const filteredGroupTypeData = Object.entries(groupTypeData).reduce((acc:any, [key, value]) => {
             if (selectedTypes.includes(key)) {    
                 acc[key] = value; 
@@ -2045,6 +2046,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
                                                                                 data: {groupTypeData: filteredGroupTypeData} 
                                                                             }
                                                                     } ));
+        }, 100);
     },[groupTypeData, selectedTypes])
 
     useEffect(() => {
@@ -2055,8 +2057,8 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
     },[userQuestion])
 
     const updateGroupType = (type: string, property: string, value: any) => {
-        console.log("Property: ", property)
-        console.log("Value: ", value)
+        // console.log("Property: ", property)
+        // console.log("Value: ", value)
         setGroupTypeData(prev => ({ 
             ...prev,
             [type]: {
