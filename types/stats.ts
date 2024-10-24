@@ -157,6 +157,12 @@ export interface StatsServices {
 
     codeInterpreterInUseEvent: () => void;
 
+    promptAgaintsHighlightEvent: () => void;
+
+    HighlightFastEditEvent: () => void;
+
+    HighlightCompositeEvent: (numOfHighlights : number) => void;
+
 }
 
 
@@ -311,5 +317,11 @@ export const noOpStatsServices:StatsServices = {
     previewArtifactEvent: (type: string) => {},
 
     codeInterpreterInUseEvent: () => {},
+
+    promptAgaintsHighlightEvent: () => {},
+
+    HighlightFastEditEvent: () => {},
+
+    HighlightCompositeEvent: (numOfHighlights : number) => {},
 
 }
