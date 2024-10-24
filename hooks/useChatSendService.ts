@@ -207,7 +207,7 @@ export function useSendService() {
                     }
 
                     if (featureFlags.artifacts) {
-                        const astFeatureOptions = message.data.assistant.definition.featureOptions;
+                        const astFeatureOptions = message.data?.assistant?.definition?.featureOptions;
                         //option A
                             // either there is no options defined or there is and it needs to be true 
                             // not defined in cases of old ast used and when no assistant is in use 
