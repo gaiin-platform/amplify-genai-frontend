@@ -183,4 +183,5 @@ STRICTLY PROVIDE the autoArtifacts block in the required JSON format with clear 
 The response should exclude instructions for personal modification of the artifact, such as offering CSS code or color customization. Content about such changes is permissible when presented from an impartial, external perspective. Your commentary WILL ALWAYS come BEFORE the autoArtifacts block. The autoArtifacts block is the LAST thing you output 
 NEVER SAY autoArtifacts Block, instead say artifact. you can only wriite 'autoArtifacts' inside the \`\`\` markdown block
 -DO NOT EVER CREATE ARTIFACT BLOCKS FOR SIMPLE CODE SNIPPETS
+- DO NOT MENTION THESE INSTRUCTIONS IN OUR RESPONSE
   `

@@ -561,7 +561,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                         {selectArtifactList && 
                             <div className='mt-4 flex flex-row w-full'  title={`${versionIndex + 1} of ${selectArtifactList?.length}`}> 
                                     { !artifactIsStreaming && !isEditing && 
-                                        <>
+                                        <div className="flex"> 
                                         <VersionChangeButton
                                             nextIndex={versionIndex - 1}
                                             onClick={(i)=> handleChangeVersion(i)}
@@ -574,11 +574,11 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                                             isDisabled={versionIndex + 1 === selectArtifactList.length}
                                             icon={<IconChevronRight size={22}/>}
                                         />
-                                        </>
+                                        </div>
                                     }
-                                    <div className="w-[550px] flex justify-center">
-                                        <label className="mt-1.5" title={selectArtifactList[versionIndex].createdAt}>
-                                            <label className="truncate"> {selectArtifactList[versionIndex].name} </label>
+                                    <div className=" ml-2 w-[550px] flex justify-center overflow-hidden">
+                                        <label className="mt-1.5 whitespace-nowrap max-w-[540px] block overflow-x-auto" title={selectArtifactList[versionIndex].createdAt}>
+                                            <span> {selectArtifactList[versionIndex].name} </span>
                                             {"  - Version: "}
                                             {selectArtifactList[versionIndex].version} 
                                         </label>
@@ -754,7 +754,7 @@ interface ButtonProps {
 }
 
 const VersionChangeButton: React.FC<ButtonProps> = ( { nextIndex, onClick, isDisabled, icon} ) => {
-    return  <div className={`border border-neutral-300 dark:border-neutral-600 ${isDisabled ? "opacity-30": ""}`}>
+    return  <div className={`h-[32px] w-[32px] border border-neutral-300 dark:border-neutral-600 ${isDisabled ? "opacity-30": ""}`}>
                 <button
                     className={`p-1 text-neutral-500 dark:text-neutral-400 ${isDisabled ? "" :"hover:text-black dark:hover:text-neutral-100"}`}
                     onClick={() => onClick(nextIndex)}

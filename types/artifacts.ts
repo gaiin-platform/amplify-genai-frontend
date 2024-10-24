@@ -42,3 +42,13 @@ export const validArtifactTypes: string[] = [
 
 // conversation 
 // id[versions]
+
+
+export enum ArtifactMessageStatus {
+    RUNNING = 'running',
+    RETRY = 'retry',
+    CANCELLED = 'cancelled',
+    STOPPED = 'stopped',
+    COMPLETE = 'complete',
+  }
+  

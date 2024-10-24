@@ -507,6 +507,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     };
 
                     message.data = {...message.data, assistant: {definition: {
+                        featureOptions: selectedAssistant?.definition?.data?.featureOptions,
                         assistantId: assistantInUse.assistantId,
                         groupId: selectedAssistant?.definition.groupId,
                                 name: assistantInUse.name,
