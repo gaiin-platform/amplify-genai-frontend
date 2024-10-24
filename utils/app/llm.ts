@@ -19,7 +19,7 @@ import cloneDeep from 'lodash/cloneDeep';
 
 
 export const promptForData = async (chatEndpoint:string, messages: Message[], model: Model, 
-                                     prompt: string, statsService: any, maxTokens: number = 4000,) => {
+                                     prompt: string, statsService: any, maxTokens: number = 4000) => {
     const controller = new AbortController();
     
      const accessToken = await getSession().then((session) => { 
@@ -65,9 +65,7 @@ export const promptForData = async (chatEndpoint:string, messages: Message[], mo
                 done = doneReading;
                 const chunkValue = decoder.decode(value);
         
-                if (done) {
-                    break;
-                }
+                if (done) break;
         
                 text += chunkValue;
             }
@@ -82,7 +80,7 @@ export const promptForData = async (chatEndpoint:string, messages: Message[], mo
         }
 
     } catch (e) {
-        console.error("Error prompting for rename: ", e);
+        console.error("Error prompting for data: ", e);
         return null;
         
     }

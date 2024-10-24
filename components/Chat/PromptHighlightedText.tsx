@@ -12,14 +12,18 @@ import { DEFAULT_ASSISTANT } from "@/types/assistant";
 import { deepMerge } from "@/utils/app/state";
 import cloneDeep from 'lodash/cloneDeep';
 import { Artifact } from "@/types/artifacts";
-import { lzwCompress, lzwUncompress } from "@/utils/app/lzwCompression";
+import { lzwCompress } from "@/utils/app/lzwCompression";
+import toast from "react-hot-toast";
 
 
 interface CompositeButton {
   button: HTMLButtonElement;
+  pElement: HTMLParagraphElement | null,
+  pIndex: number,
   handleMouseEnter: () => void;
   handleMouseLeave: () => void;
   handleClick: () => void;
+  handleMouseDown: (e: MouseEvent) => void;
 }
 
 
@@ -45,6 +49,7 @@ enum RangeType {
   INVALID = 'invalid'
 }
 
+const ALLOWED_TAGS = ['P', 'OL', 'LI', 'UL', "STRONG", "EM", "A"]; // add link
 
 const CHAR_LIMIT = 300; // used for sending certain context ranges for fast edit 
 
@@ -111,28 +116,37 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
     const sourceRef = useRef<HighlightSource | null>(null);
     const showRevertRef = useRef<boolean>(false);
 
-    const originalHighlightInfo = useRef<{source: HighlightSource, range: Range, rangeType: RangeType} | null>(null);
+    const isDraggingRef = useRef(false);
 
-    // State to track clicked buttons' indices
-    const clickedButtonIndicesRef = useRef<number[]>([]);
+    // const originalHighlightInfo = useRef<{source: HighlightSource, range: Range, rangeType: RangeType} | null>(null);
+
     // Ref to store buttons and their event handlers
     const compositeButtonsRef = useRef<CompositeButton[]>([]);
+    const compositeInsertPs = useRef<{ p : HTMLParagraphElement, contentIndex: number }[]>([]);
     const compositeHighlightsRef = useRef<Set<string>>(new Set());
+    const activeButtonRef = useRef<HTMLButtonElement | null>(null);
+    
+                                                                 // the order gets scrambled some how so had to add a isfirst flag
+    const highlightSpansRef = useRef<{ wrapper: HTMLSpanElement, isFirst: boolean }[]>([]);
 
 
   const clear = () => {
     console.log("clear");
+    removeCompositeButtons();
     setSelected('');
     selectedRef.current = '';
     setInputValue('');
     triggerRerender();
 
     showRevertRef.current = false;
+    compositeInsertPs.current = [];
     compositeHighlightsRef.current = new Set();
     compositeButtonsRef.current = [];
-    clickedButtonIndicesRef.current = [];
+    highlightSpansRef.current = [];
+    activeButtonRef.current = null;
 
-    originalHighlightInfo.current = null;
+
+    // originalHighlightInfo.current = null;
     sourceRef.current = null;
     setShowComponent(false);
   }
@@ -150,53 +164,91 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
   const movePulse = () => {
     console.log("Move pulse");
     if (sourceRef.current && sourceRef.current.container) {
-      // Find all highlighted spans within the container
-      const highlightedSpans = sourceRef.current.container.querySelectorAll('span.highlighted-text');
+
+        if (highlightSpansRef.current.length === 0) {
+          console.log("No highlighted spans found.");
+          removeCompositeButtons(); // clean up 
+          return;
+        }
   
-      // If no highlighted spans are found, there's nothing to do
-      if (highlightedSpans.length === 0) {
-        console.log("No highlighted spans found.");
-        return;
-      }
-  
-      // Identify the first highlighted span
-      const firstHighlightedSpan = highlightedSpans[0];
-  
-      // Remove existing pulse indicator if it exists
-      // let pulseSpan = sourceRef.current.container.querySelector('span.animate-pulse.cursor-default.mt-1');
-      // if (!pulseSpan) {
-        console.log("Create new pulse");
-        // Create a new pulse indicator
-          const pulseSpan = document.createElement('span');
-          pulseSpan.classList.add('animate-pulse', 'cursor-default', 'mt-1', 'highlight-pulse');
-          pulseSpan.textContent = '▍';
-      // }
+      console.log("Create new pulse");
+      // Create a new pulse indicator
+      const pulseSpan = document.createElement('span');
+      pulseSpan.classList.add('animate-pulse', 'cursor-default', 'mt-1', 'highlight-pulse');
+      pulseSpan.textContent = '▍';
+
       try {
         if (selectedRef.current === HighlightPromptTypes.FAST_EDIT) {
           console.log("FAST_EDIT mode: Remove all highlighted spans and their content.");
-
-          // Insert the pulse indicator at the position of the first highlighted span
-          const parent = firstHighlightedSpan.parentNode;
-          if (parent) {
-            parent.insertBefore(pulseSpan, firstHighlightedSpan);
-          }
+          // should only be one, but just incase i ensure its labeled the first node.
           
-          // Completely remove all highlighted spans along with their content
-          highlightedSpans.forEach((span) => {
-            span.remove(); // This removes the span and its contents
-          });
+          const highlightedSpan = highlightSpansRef.current.find((span) => span.isFirst);
+          if (highlightedSpan) {
+            const span = highlightedSpan.wrapper;
+            const parent = span.parentNode;
+            if (parent) {
+              parent.insertBefore(pulseSpan, span);
+            }
+            highlightedSpan.wrapper.remove();
+          }
+
         } else if (selectedRef.current === HighlightPromptTypes.COMPOSITE) {
           console.log("COMPOSITE mode: Move pulse to 'insert text here' button.");
-    
-          // Find the active "insert text here" button
-          const activeButton = sourceRef.current.container.querySelector('button.text-green-400');
-          if (activeButton) {
-            // Insert the pulse span next to the active button
-            const parent = activeButton.parentNode;
-            if (parent) {
-              parent.insertBefore(pulseSpan, activeButton.nextSibling);
+          // const activeButton = activeButtonRef.current;
+          // const parent = activeButton?.parentNode;
+          // if (parent) {
+          //   // Find the paragraph associated with the active button
+          //   const buttonData = compositeButtonsRef.current.find(
+          //     (item) => item.button === activeButton
+          //   );
+
+          //   if (buttonData && buttonData.pElement) {
+          //     // Insert the pulse before the paragraph element
+          //     parent.insertBefore(pulseSpan, buttonData.pElement);
+          //   } else {
+          //     // If the button is the end button, append the pulse to the parent
+          //     parent.appendChild(pulseSpan);
+          //   }
+          // }
+
+
+
+          const activeButton = activeButtonRef.current;
+        const container = sourceRef.current.container;
+
+        if (container && activeButton) {
+          // Find the button data
+          const buttonData = compositeButtonsRef.current.find(
+            (item) => item.button === activeButton
+          );
+
+          if (buttonData) {
+            const { pElement, pIndex } = buttonData;
+
+            if (pElement && pElement.parentNode === container) {
+              // Insert the pulseSpan before the associated pElement
+              container.insertBefore(pulseSpan, pElement);
+            } else {
+              // For start or end buttons where pElement is null
+              if (pIndex === 0) {
+                // Start button: insert at the beginning of the container
+                container.insertBefore(pulseSpan, container.firstChild);
+              } else {
+                // End button: insert at the end of the container
+                container.appendChild(pulseSpan);
+              }
             }
+          } else {
+            console.log("Active button data not found.");
           }
+        } else {
+          console.log("Container or active button not found.");
+        }
+
+
+          // // After inserting the pulseSpan, remove the composite buttons
+          removeCompositeButtons();
+          console.log("COMPOSITE mode COMPLETE.");
         }
       } catch {
         console.log("Move pulse exception occured")
@@ -216,25 +268,22 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
           addCompositeButtons();
         } else {
           removeCompositeButtons();
-          console.log("----",compositeHighlightsRef.current)
-          if (compositeHighlightsRef.current.size > 1) {
-              triggerRerender(); // will remove butttons
-
-              const highlightData = originalHighlightInfo.current;
-              console.log("reapplying original highlight: ", originalHighlightInfo.current);
-              if (highlightData) {
-                // call to rehighlight 
-                compositeHighlightsRef.current = new Set();
-                const selection = window.getSelection();
-                if (selection) {
-                  console.log("Range added");
-                  selection.removeAllRanges(); // Clear existing selections
-                  selection.addRange(highlightData.range); // Reapply the saved range
-                }
-                handleHighlightSelection(highlightData.rangeType, highlightData.range, highlightData.source);
+            if (highlightSpansRef.current.length > 1) {
+            // loop through spans and remove the highlight after the first index 
+            highlightSpansRef.current.forEach((span:{wrapper: HTMLSpanElement, isFirst:boolean}) => {
+                  if (!span.isFirst) {
+                    const wrapper = span.wrapper;
+                    const parent = wrapper.parentNode;
                 
-              }
-            
+                    while (wrapper.firstChild) { // Move all child nodes of the span before the span
+                      parent?.insertBefore(wrapper.firstChild, wrapper);
+                    }
+                    parent?.removeChild(wrapper); // Remove the now-empty span
+                } else {
+                    highlightSpansRef.current = [span];
+                }
+
+            });
           } 
       }
     }
@@ -329,14 +378,19 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
               left: left,
             });
 
-
             // isContainerValid(foundContainer.container)
             // console.log(foundContainer);
-            if (originalHighlightInfo.current && selectedRef.current !== HighlightPromptTypes.COMPOSITE) {
+            if (sourceRef.current && selectedRef.current === HighlightPromptTypes.COMPOSITE) {
                 console.log("********in here");
-                const highlightData = originalHighlightInfo.current;
-                handleHighlightSelection(highlightData.rangeType, highlightData.range, highlightData.source);
-            } else {
+                // const highlightData = originalHighlightInfo.current;
+                // handleHighlightSelection(highlightData.rangeType, highlightData.range, highlightData.source);
+                const rangeIsValid = inHighlightDisplayMode ? RangeType.PARAGRAPH : validateSelectionRange(foundContainer.container, range);
+                if (rangeIsValid !== RangeType.INVALID) {
+                  handleHighlightSelection(rangeIsValid , range, sourceRef.current );
+                } else {
+                  toast("Invalid Selection");
+                }
+            } else { // first highlight will always go here 
                 const rangeIsValid = inHighlightDisplayMode ? RangeType.PARAGRAPH : validateSelectionRange(foundContainer.container, range);
                 if (rangeIsValid !== RangeType.INVALID) {
                     setShowComponent(true);
@@ -355,25 +409,39 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
 
 
   const handleHighlightSelection = (rangeType: RangeType, range: Range, foundSource: HighlightSource) => {
-      const textNodes = getTextNodes(foundSource.container);
-      const { beforeText, afterText } = getSurroundingSelectionText(range, textNodes);
-      console.log("--- before add highlight list :", compositeHighlightsRef.current);
-      if (!(compositeHighlightsRef.current instanceof Set)) compositeHighlightsRef.current = new Set();
 
-      let highlight = range.toString();
-      if (!highlight && originalHighlightInfo.current) highlight = originalHighlightInfo.current.source.highlightedText;
-      console.log("---setting highlight:", highlight);
+      if (! sourceRef.current) {
+        const textNodes = getTextNodes(foundSource.container);
 
-      compositeHighlightsRef.current.add(highlight);
-      console.log("--- after add highlight list :", compositeHighlightsRef.current);
-      const sourceData = {
-            ...foundSource,
-            leadingText: cloneDeep(beforeText),
-            trailingText: cloneDeep(afterText),
-            highlightedText: highlight
-          };
-      sourceRef.current = sourceData;
+        console.log("TEXTNODES:", textNodes);
+        // getCompositeButtonIndices(textNodes, foundSource.originalContent, foundSource.container);
+        const { beforeText, highlightedText, afterText} = getSurroundingSelectionText(range, textNodes, foundSource.originalContent);
+        console.log("BEFORE:\n", beforeText);
+        console.log("\nHIGHLIGHT:\n ", highlightedText);
+        console.log("\nAFTER:\n", afterText);
 
+        console.log(" p elems: ", compositeInsertPs.current)
+  
+        // console.log("--- before add highlight list :", compositeHighlightsRef.current);
+        if (!(compositeHighlightsRef.current instanceof Set)) compositeHighlightsRef.current = new Set();
+  
+        let highlight = highlightedText;
+        // if (!highlight && originalHighlightInfo.current) highlight = originalHighlightInfo.current.source.highlightedText;
+        // console.log("---setting highlight:", highlight);
+  
+        // console.log("--- after add highlight list :", compositeHighlightsRef.current);
+        const sourceData = {
+              ...foundSource,
+              leadingText: cloneDeep(beforeText),
+              trailingText: cloneDeep(afterText),
+              highlightedText: highlight
+            };
+        sourceRef.current = sourceData;
+  
+        // console.log("need to add to original info: ", originalHighlightInfo.current)
+        // if (!originalHighlightInfo.current) originalHighlightInfo.current = cloneDeep({source: sourceData, range: range, rangeType: rangeType});
+      }
+      compositeHighlightsRef.current.add(range.toString());
       if (rangeType === RangeType.PARAGRAPH) {
         console.log("paragraphs only");
         handleParagraphSelection(range);
@@ -382,8 +450,7 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
         handleCodeBlockSelection(range);
       } 
 
-      console.log("need to add to original info: ", originalHighlightInfo.current)
-      if (!originalHighlightInfo.current) originalHighlightInfo.current = cloneDeep({source: sourceData, range: range, rangeType: rangeType});
+    
   }
 
 
@@ -406,8 +473,8 @@ const isContainerValid = (container: HTMLElement) => {
         console.log("CONTAINER NOT VALID - <pre> without <code>");
         return false;
       }
-    } else if (child.tagName !== 'P') {
-      console.log("CONTAINER NOT VALID - invalid tag");
+    } else if (!ALLOWED_TAGS.includes(child.tagName) && !child.tagName.startsWith("H")) {
+      console.log("CONTAINER NOT VALID - invalid tag:", child.tagName);
       return false;
     }
   }
@@ -444,8 +511,11 @@ const validateSelectionRange = (container: HTMLElement, range: Range): RangeType
     if (selectedRef.current !== HighlightPromptTypes.COMPOSITE && 
         !isContainerValid(container)) return  RangeType.INVALID;
 
+        console.log("**** ", getElementsInRange(range));
     // check if only Ps are in the selection
-    if (getElementsInRange(range).every(el => el.tagName === 'P')) return RangeType.PARAGRAPH;
+    if (getElementsInRange(range).every(el => 
+            ([...ALLOWED_TAGS, 'CODE'].includes(el.tagName) || 
+            el.tagName.startsWith("H") ))) return RangeType.PARAGRAPH;
 
     // check if we are only within the same code block 
     const startContainer = range.startContainer;
@@ -464,6 +534,7 @@ const validateSelectionRange = (container: HTMLElement, range: Range): RangeType
   
     // Check if both start and end are within the same element
     if (startClosestBlock && startClosestBlock === endClosestBlock) {
+      console.log(startClosestBlock);
       if (startClosestBlock.matches('p')) {
         return RangeType.PARAGRAPH;
       } if (startClosestBlock.matches('pre code')) {
@@ -473,10 +544,6 @@ const validateSelectionRange = (container: HTMLElement, range: Range): RangeType
         return RangeType.INVALID;;
       }
     }
-
-    if (selectedRef.current === HighlightPromptTypes.COMPOSITE && 
-        originalHighlightInfo.current?.rangeType) return  originalHighlightInfo.current.rangeType;
-    // orrr back to back p 
 
     console.log("end: ", range);
     console.log("start: ", range.startContainer);
@@ -505,15 +572,16 @@ const validateSelectionRange = (container: HTMLElement, range: Range): RangeType
   }
   
  // Helper function to wrap and insert highlight
-const wrapAndInsertHighlight = (range: Range) => {
+const wrapAndInsertHighlight = (range: Range, isFirst: boolean) => {
   const wrapper = document.createElement('span');
-  wrapper.style.backgroundColor = HIGHLIGHT_BACKGROUND;
+  wrapper.style.backgroundColor = HIGHLIGHT_BACKGROUND; 
   wrapper.style.display = 'inline'; // Prevent line breaks
   wrapper.classList.add('highlighted-text');
 
   const frag = range.extractContents();
   wrapper.appendChild(frag);
   range.insertNode(wrapper);
+  highlightSpansRef.current.push({wrapper: wrapper, isFirst: isFirst});
 };
 
 // Main function for handling paragraph selection
@@ -522,13 +590,14 @@ const handleParagraphSelection = (range: Range) => {
     // Single-node selection
     if (range.startContainer === range.endContainer) {
       console.log("Single node selected");
-      wrapAndInsertHighlight(range);
+      wrapAndInsertHighlight(range, highlightSpansRef.current.length === 0);
     } 
     // Multi-node selection
     else {
+      console.log("Multiple node selected");
       // Get all text nodes within the selection range
       const textNodes = getTextNodesInRange(range);
-
+      const isFirst = highlightSpansRef.current.length === 0
       textNodes.forEach((textNode) => {
         const intersectionRange = document.createRange();
 
@@ -540,7 +609,7 @@ const handleParagraphSelection = (range: Range) => {
         intersectionRange.setEnd(textNode, endOffset);
 
         // Wrap and insert the highlight for this text node
-        wrapAndInsertHighlight(intersectionRange);
+        wrapAndInsertHighlight(intersectionRange, isFirst);
 
         // Cleanup
         intersectionRange.detach();
@@ -563,10 +632,11 @@ const handleParagraphSelection = (range: Range) => {
     // Call a custom highlight function for code blocks
     const selectedContents = range.cloneContents();
     const spanElements = selectedContents.querySelectorAll('span');
-
+    const isFirst = highlightSpansRef.current.length === 0;
     spanElements.forEach((span) => {
       span.classList.add('highlighted-text');
       span.style.backgroundColor = HIGHLIGHT_BACKGROUND;
+      highlightSpansRef.current.push({wrapper :span, isFirst: isFirst});
     });
 
     // Replace the selected content with the highlighted version
@@ -575,14 +645,35 @@ const handleParagraphSelection = (range: Range) => {
   };
   
 
+  useEffect(() => {
+    const handleMouseDown = (e: MouseEvent) => {
+      if (!containerRef.current || !containerRef.current.contains(e.target as Node))  isDraggingRef.current = true;
+    };
+  
+    const handleMouseUp = (e: MouseEvent) => isDraggingRef.current = false;
+  
+    document.addEventListener('mousedown', handleMouseDown);
+    document.addEventListener('mouseup', handleMouseUp);
+  
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
   
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        console.log("handle outside click : ");
-        const inCompositeMode = compositeButtonsRef.current.length > 0;
-        if (!inCompositeMode) clear();
+      const target = e.target as HTMLElement;
+      if (containerRef.current && !containerRef.current.contains(target) ) {
+
+        if (selectedRef.current === HighlightPromptTypes.COMPOSITE ) { 
+            setTimeout(() => { // wait for isDragging to update to see if we need to clear or not
+              if (!isDraggingRef.current) clear();
+            }, 150);
+        } else {
+            clear();
+        }
       } 
     };
   
@@ -594,6 +685,9 @@ const handleParagraphSelection = (range: Range) => {
     const toggleSwitch = (selection : HighlightPromptTypes ) => {
       setSelected(selection);
     };
+
+
+  
 
 
     const getPlaceholder = () => {
@@ -627,67 +721,200 @@ const handleParagraphSelection = (range: Range) => {
       return all;
     }
 
-  function getSurroundingSelectionText(range: Range, nodes: Node[]) {
+   
+    // edge cases 
+  const considerTag = (node: Node, originalChar: string) => {
+    const text = cloneDeep(node.textContent) || '';
+    if (text !== '\n') return text;
+    
+    const parentTag = node.parentElement?.tagName;
+    // console.log(
+    //   "PARENT TAG:", parentTag
+    // )
+    // console.log(
+    //   "text:", text
+    // )
+    // console.log(
+    //   "orig char:", originalChar
+    // )
+    if (originalChar === '\n') return '\n';
+  
+    switch (parentTag) {
+      case ('OL'):
+        return /^\d$/.test(originalChar) ? '.' : '';
+      case ('LI'):
+        return ' ';
+      case ('UL'):
+        return ' ';
+      case ('DIV'):
+          return '';
+      default:
+        return text;
+    }
+
+  }
+
+  function getCompositeButtonIndices(nodes: Node[], originalContent: string, container: HTMLElement) {
+    const sections =  cloneDeep(originalContent).split('\n\n');
+    console.log("SECTIONS: ", sections);
+    console.log("COUNT: ", sections.length);
+
+    let contentAndIndices:{content: string, index: number}[] = [];
+    let index = originalContent.indexOf('\n\n');  // Find the first occurrence of '\n\n'
+    let prev = 0;
+    while (index !== -1) {
+       const keepOne = index + 1;
+        contentAndIndices.push({content: originalContent.slice(prev, keepOne), index: keepOne}); // Store the index of the double newline
+        prev = keepOne;
+        index = originalContent.indexOf('\n\n', index + 2);  // Continue searching from the next character after '\n\n'
+    }
+    console.log("---", contentAndIndices);
+    console.log("----", )
+    container.querySelectorAll('p').forEach(p => console.log("#", p.textContent))
+
+
+    // if (node.textContent === '\n' && ['DIV'].includes(node.parentElement?.tagName || '') && !isNodeInCodeBlock(node)) {
+    //   // console.log("PARENT ", node.parentElement);
+    // console.log("_____DIV_____" , originalContent.slice(originalCurrentIndex, originalCurrentIndex + 20));
+    // let updatedIdx = originalCurrentIndex;
+    // if (isInCodeBlock) {
+    //   updatedIdx += 3; // for the back ticks
+    //   isInCodeBlock = false;
+    // }
+    // compositeInsertPs.current.push({ p : node.parentElement as HTMLParagraphElement, contentIndex: updatedIdx});
+    // console.log("+++", compositeInsertPs.current.length);
+}
+
+
+  function getSurroundingSelectionText(range: Range, nodes: Node[], originalContent: string) {
+    let isInHighlight = false; 
     let startFound = false;
     let endFound = false;
   
     let beforeText = "";
     let afterText = "";
+    let highlightedText = '';
 
-    // Keep track of whether we're inside a code block
+    // going for a 2 pointer method 
+    let originalCurrentIndex: number = 0;
     let isInCodeBlock = false;
+
     // Iterate over all text nodes
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       const isCodeHeader = i+1 < nodes.length ? isNodeCodeHeader(nodes[i + 1]) : false;
-      
+      // console.log("is code header??? ", isCodeHeader)
       if (isCodeHeader) { // we dont allow highlighting of these codeHeaders so we can safely do it first
-          const codeBlock = `\n\`\`\`${node.textContent}\n`;
-          if (startFound) {
-            afterText += codeBlock;
-          } else {
-            beforeText += codeBlock;
-          }
-          isInCodeBlock = true;
-          //skip the copy Code node
+          const languageName = node.textContent || '';
+          const codeBlockStart = `\`\`\`${languageName}`;
+
+          const contentSlice = originalContent.slice(originalCurrentIndex);
+                                    // to account for back to back code blocks
+          const codeBlockEndIndex = contentSlice.indexOf(codeBlockStart) + codeBlockStart.length;
+  
+          // Append the exact code block start marker to the current text
+          appendToCurrentText(contentSlice.slice(0, codeBlockEndIndex));
+  
+          originalCurrentIndex += codeBlockEndIndex;
           i += 1;
+          isInCodeBlock = true;
        } else {
-          // check if we need to append the end of the previous code block 
-          const nodeInCodeBlock = isNodeInCodeBlock(node);
-          if (isInCodeBlock && !nodeInCodeBlock) {
-            isInCodeBlock = false;
-            // Add closing triple backticks
-            const closeCodeBlock =  `\n\`\`\`\n`; 
-            if (startFound) {
-              afterText += closeCodeBlock;
-            } else {
-              beforeText += closeCodeBlock;
+        // if (!node.textContent?.trim() && node.parentElement?.tagName === 'DIV' && !isNodeInCodeBlock(node))  console.log("_____DIV_____" , originalContent.slice(originalCurrentIndex, originalCurrentIndex + 20));
+        // if (node.textContent === '\n' && node.parentElement?.tagName === 'DIV' && !isNodeInCodeBlock(node))   console.log("COUNT: ");
+        // if (node.textContent === '\n' && ['DIV'].includes(node.parentElement?.tagName || '') && !isNodeInCodeBlock(node)) {
+        //         // console.log("PARENT ", node.parentElement);
+        //       console.log("_____DIV_____" , originalContent.slice(originalCurrentIndex, originalCurrentIndex + 20));
+        //       let updatedIdx = originalCurrentIndex;
+        //       if (isInCodeBlock) {
+        //         updatedIdx += 3; // for the back ticks
+        //         isInCodeBlock = false;
+        //       }
+        //       compositeInsertPs.current.push({ p : node.parentElement as HTMLParagraphElement, contentIndex: updatedIdx});
+        //       console.log("+++", compositeInsertPs.current.length);
+        //   }
+
+          if (!endFound) {
+
+          const textContent = considerTag(node, originalContent.charAt(originalCurrentIndex));
+          let nodeTextIndex = 0;
+
+          const rangeStartOffset =  node === range.startContainer ? range.startOffset : -1;
+          const rangeEndOffset = node === range.endContainer ? range.endOffset: -1;
+
+
+          // once we reach the end of the offset then we just appedn the .slice(originalCurrentIndex) to the after 
+            while (nodeTextIndex < textContent.length) {
+              const nodeChar = textContent.charAt(nodeTextIndex);
+              const originalChar = originalContent.charAt(originalCurrentIndex);
+        
+              if (nodeChar === originalChar) {
+                // Check for start of highlighted text
+                if (!startFound &&  node === range.startContainer && nodeTextIndex === rangeStartOffset) {
+                  isInHighlight = true;
+                  startFound = true;
+                }
+        
+                // Edge case
+                const isEndOfParagraph = rangeEndOffset === textContent.length && nodeTextIndex + 1 === rangeEndOffset;
+                if (isInHighlight && node === range.endContainer && 
+                    (nodeTextIndex === rangeEndOffset ||isEndOfParagraph)
+                ) {
+                  if (isEndOfParagraph) {
+                    appendToCurrentText(nodeChar); // we need to append the letter to the before text cause the offset is exclusive
+                    afterText = originalContent.slice(originalCurrentIndex + 1);// so we dont double append 
+                  } else {
+                     afterText = originalContent.slice(originalCurrentIndex);
+                  }
+                  console.log("IN HIGHLIGHT");
+                  isInHighlight = false;
+                  endFound = true;
+                }
+        
+                // Append the character to the appropriate text
+                if (!isEndOfParagraph) appendToCurrentText(nodeChar); // if not end of paragraph then the char wont be appended, itll go to the next loop snce we break in the netx line
+                if (endFound) break;
+                
+                // Advance both pointers
+                nodeTextIndex++;
+                originalCurrentIndex++;
+              } else {
+                // Characters do not match
+                // Advance originalCurrentIndex and append missing characters (markdown syntax)
+                let missingChar = originalContent.charAt(originalCurrentIndex);
+                while (originalCurrentIndex < originalContent.length && missingChar !== nodeChar) {
+                  appendToCurrentText(missingChar);
+                  originalCurrentIndex++;
+                  missingChar = originalContent.charAt(originalCurrentIndex);
+                }
+        
+                // Now, either characters match or we've reached the end of originalContent
+                if (originalCurrentIndex >= originalContent.length && !endFound) {
+                  if (sourceRef.current?.source === 'chat') toast("Something went wrong, please try again in highlight mode.");
+                  break;
+                } 
+              }
             }
           }
-          if (node === range.startContainer) {
-            beforeText += node.textContent?.slice(0, range.startOffset);
-            startFound = true
-          } else if (!startFound) {
-            if (node.textContent === '\n' && !nodeInCodeBlock) node.textContent = '\n\n';
-            
-            beforeText += node.textContent;
-          }
-
-          if (node === range.endContainer) {
-            endFound = true;
-            afterText += node.textContent?.slice(range.endOffset);
-          } else if (endFound) {
-              if (node.textContent === '\n'&& !nodeInCodeBlock) node.textContent = '\n\n';
-              afterText += node.textContent;
-          }
-
       }
     };
-    return { beforeText, afterText };
+
+    function appendToCurrentText(char:string) {
+      if (!startFound) {
+        beforeText += char;
+      } else if (startFound && !endFound) {
+        highlightedText += char;
+      } 
+      // else {
+      //   afterText += char;
+      // }
+    }
+
+    return { beforeText, highlightedText, afterText };
+   
   }
+  
 
   function isNodeInCodeBlock(node:Node) {
-    
     let element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
 
     while (element && element !== document.body) { 
@@ -704,58 +931,34 @@ const handleParagraphSelection = (range: Range) => {
 
 
   function isNodeCodeHeader(node: Node): boolean {
-    // Ensure the node is a text node
-    if (node.nodeType !== Node.TEXT_NODE) {
-      return false;
-    }
-  
-    // Check if the text content is 'Copy code'
-    const textContent = node.textContent?.trim();
-    if (textContent !== 'Copy code') {
-      return false;
-    }
+    if (node.nodeType !== Node.TEXT_NODE || node.textContent?.trim() !== 'Copy code') return false;
   
     // Check if the parent is a <button> element
     const parentElement = node.parentElement;
-    if (!parentElement || parentElement.tagName.toLowerCase() !== 'button') {
-      return false;
-    }
+    if (!parentElement || parentElement.tagName.toLowerCase() !== 'button') return false;
   
     // Check if the parent button has specific classes
-    if (!parentElement.classList.contains('text-xs') || !parentElement.classList.contains('text-white')) {
-      return false;
-    }
+    if (!parentElement.classList.contains('text-xs') || !parentElement.classList.contains('text-white')) return false;
   
     // Check if the grandparent is a <div> with class 'flex items-center'
     const grandparentElement = parentElement.parentElement;
-    if (
-      !grandparentElement ||
-      grandparentElement.tagName.toLowerCase() !== 'div' ||
-      !grandparentElement.classList.contains('flex') ||
-      !grandparentElement.classList.contains('items-center')
-    ) {
-      return false;
-    }
+    if (!grandparentElement || grandparentElement.tagName.toLowerCase() !== 'div' ||
+        !grandparentElement.classList.contains('flex') || !grandparentElement.classList.contains('items-center')) return false;
+    
   
     // Optionally, you can check if the previous sibling is an <svg> element
     const previousSibling = node.previousSibling;
-    if (!previousSibling || previousSibling.nodeType !== Node.ELEMENT_NODE) {
-      return false;
-    }
-  
-    const svgElement = previousSibling as Element;
-    if (svgElement.tagName.toLowerCase() !== 'svg') {
-      return false;
-    }
-  
-    // If all checks pass, it's a code header
-    return true;
+    if (!previousSibling || previousSibling.nodeType !== Node.ELEMENT_NODE ||
+       ((previousSibling as Element).tagName.toLowerCase() !== 'svg')) return false;
+
+   
+    return true; // If all checks pass, it's a code header
   }
+
   
   
 
   const shouldAbort = ()=>{
-    // return stopConversationRef.current === true;
     return false;
   }
 
@@ -789,6 +992,7 @@ const handleParagraphSelection = (range: Range) => {
                                 // @ts-ignore
                                 return session.accessToken
                             })
+    movePulse();
     homeDispatch({field: 'messageIsStreaming', value: true}); 
     if (isArtifactSource) homeDispatch({field: 'artifactIsStreaming', value: true});
     try {
@@ -804,19 +1008,17 @@ const handleParagraphSelection = (range: Range) => {
         };
 
         statsService.sendChatEvent(chatBody);
-
         const response = await sendChatRequestWithDocuments(chatEndpoint || '', accessToken, chatBody, controller.signal);
         
         let updatedConversation = cloneDeep(selectedConversation);
 
         let updatedArtifacts: Artifact[] | undefined = cloneDeep(selectedArtifacts);
-        console.log("+ ", updatedArtifacts)
+        // console.log("+ ", updatedArtifacts)
         const responseData = response.body;
         const reader = responseData ? responseData.getReader() : null;
         const decoder = new TextDecoder();
         let done = false;
         let text = '';
-        movePulse();
         try {
             while (!done) {
         
@@ -850,11 +1052,11 @@ const handleParagraphSelection = (range: Range) => {
                   }); 
               
               } else if (isArtifactSource && updatedArtifacts) {
-                console.log("++ ", source?.messageIndex)
-                console.log("++ ", (source?.messageIndex) ?? 100  < updatedArtifacts.length )
+                // console.log("++ ", source?.messageIndex)
+                // console.log("++ ", (source?.messageIndex) ?? 100  < updatedArtifacts.length )
 
                 if (source?.messageIndex && source.messageIndex < updatedArtifacts.length) {
-                  console.log("+++ ", updatedArtifacts);
+                  // console.log("+++ ", updatedArtifacts);
                   updatedArtifacts[source.messageIndex].contents = lzwCompress(`${leadingText}${text}${trailingText}`);
                   homeDispatch({field: "selectedArtifacts", value: updatedArtifacts});
                 }
@@ -870,6 +1072,9 @@ const handleParagraphSelection = (range: Range) => {
                                                                             }
             handleUpdateSelectedConversation(updatedConversation);
           }
+          setSelected('');
+          setInputValue('');
+          selectedRef.current = '';
           triggerRerender();
           // setShowRevert(true);
           showRevertRef.current = true;
@@ -917,90 +1122,306 @@ const handleParagraphSelection = (range: Range) => {
     
   }
 
+
+  
+
+  // const createCompositeButton = (wrapper: HTMLDivElement, pElement: HTMLParagraphElement | null, pIndex: number) => {
+  //   const button = document.createElement('button');
+  //   button.textContent = '▶'; // U+25B6 BLACK RIGHT-POINTING TRIANGLE
+  //   button.classList.add('composite-button');
+  
+  //   button.className = `absolute bg-transparent text-[16px] flex items-center px-2 rounded text-gray-500 ml-2`;
+  //   button.style.top = '-24px'; // Adjust positioning 
+  //   button.style.left = '-34px'; // Position button on the left
+  
+  //   // Append the button to the wrapper
+  //   wrapper.appendChild(button);
+  
+  //   // Define event handlers
+  //   const handleMouseEnter = () => {
+  //     if (activeButtonRef.current !== button) {
+  //       button.classList.add('hover:text-green-600');
+  //     }
+  //   };
+  
+  //   const handleMouseLeave = () => {
+  //     if (activeButtonRef.current !== button) {
+  //       button.classList.remove('hover:text-green-600');
+  //     }
+  //   };
+
+  //   const handleMouseDown = (e: MouseEvent) => {
+  //     e.preventDefault(); 
+  //     e.stopPropagation();
+      
+  //     console.log('Composite button clicked:', e.target);
+  //   }
+  
+  //   const handleClick = () => {
+  //     if (activeButtonRef.current === button) {
+  //       // Deactivate the button
+  //       button.classList.remove('text-green-500');
+  //       button.classList.add('text-gray-500');
+  //       button.textContent = '▶'; // Reset symbol
+  //       activeButtonRef.current = null;
+  //     } else {
+  //       // Deactivate the currently active button, if any
+  //       if (activeButtonRef.current) {
+  //         const prevButton = activeButtonRef.current;
+  //         prevButton.classList.remove('text-green-500');
+  //         prevButton.classList.add('text-gray-500');
+  //         prevButton.textContent = '▶'; // Reset symbol
+  //       }
+  //       // Activate the clicked button
+  //       button.classList.remove('text-gray-500');
+  //       button.classList.add('text-green-500');
+  //       button.textContent = '▶  insert text here';
+  //       activeButtonRef.current = button;
+  //     }
+  //   };
+  
+  //   // Attach event listeners
+  //   button.addEventListener('mouseenter', handleMouseEnter);
+  //   button.addEventListener('mouseleave', handleMouseLeave);
+  //   button.addEventListener('click', handleClick);
+  //   button.addEventListener('mousedown',handleMouseDown);
+  
+  //   // Store for cleanup
+  //   compositeButtonsRef.current.push({
+  //     button,
+  //     pElement,
+  //     pIndex,
+  //     handleMouseEnter,
+  //     handleMouseLeave,
+  //     handleClick,
+  //     handleMouseDown
+  //   });
+  // };
+
+
+  // const addCompositeButtons = () => {
+  //   if (!sourceRef.current || !sourceRef.current.container) {
+  //     console.log('No sourceRef or container');
+  //     return;
+  //   }
+  //   const container = sourceRef.current.container;
+  
+  //   // Add buttons at empty <p> elements
+  //   compositeInsertPs.current.forEach(({ p, contentIndex }) => {
+  //     // Create a wrapper div with relative positioning
+  //     const wrapper = document.createElement('div');
+  //     wrapper.style.position = 'relative';
+  
+  //     // Insert the wrapper before the empty <p> element
+  //     p.parentNode?.insertBefore(wrapper, p);
+  
+  //     // Move the empty <p> element into the wrapper
+  //     wrapper.appendChild(p);
+  
+  //     // Create and append the button using the helper function
+  //     createCompositeButton(wrapper, p, contentIndex);
+  //   });
+  
+  //   // Add the start and end buttons if needed
+  //   const endCapButtons = () => {
+  //     if (compositeInsertPs.current.length === 0) {
+  //       console.log(
+  //         "!!!START BUTTON ADDED"
+  //       )
+  //       // No empty <p> elements found, add a start button
+  //       const wrapperStart = document.createElement('div');
+  //       wrapperStart.style.position = 'relative';
+  //       container.insertBefore(wrapperStart, container.firstChild);
+  //       createCompositeButton(wrapperStart, null, 0);
+  //     }
+  
+  //     // Add end button
+  //     const wrapperEnd = document.createElement('div');
+  //     wrapperEnd.style.position = 'relative';
+  //     container.appendChild(wrapperEnd);
+  //     createCompositeButton(wrapperEnd, null, sourceRef.current?.originalContent.length || 999999);
+  //   };
+  
+  //   endCapButtons();
+  // };
+  
+
+  // const removeCompositeButtons = () => {
+  //   compositeButtonsRef.current.forEach(({ button, handleMouseEnter, handleMouseLeave, handleClick, handleMouseDown }) => {
+  //     if (button) {
+  //       // Remove event listeners
+  //       button.removeEventListener('mouseenter', handleMouseEnter);
+  //       button.removeEventListener('mouseleave', handleMouseLeave);
+  //       button.removeEventListener('click', handleClick);
+  //       button.removeEventListener('mousedown', handleMouseDown);
+  
+  //       // Remove the button from the DOM if it's still present
+  //       if (button.parentNode && button.parentNode.contains(button)) {
+  //         try {
+  //           button.parentNode.removeChild(button);
+  //         } catch (e) {
+  //           console.log("unable to remove buttons, error caught: ", e)
+  //         }
+  //       }
+  //     }
+  //   });
+  
+  //   // Clear references
+  //   compositeButtonsRef.current = [];
+  //   activeButtonRef.current = null; // Reset the active button reference
+  // };  
+
+
+  const createCompositeButton = (
+    container: HTMLElement,
+    pElement: HTMLParagraphElement | null,
+    pIndex: number,
+    top: number,
+    left: number
+  ) => {
+    const button = document.createElement('button');
+    button.textContent = '▶'; // U+25B6 BLACK RIGHT-POINTING TRIANGLE
+    button.classList.add('composite-button');
+  
+    button.className = `absolute bg-transparent text-[16px] flex items-center px-2 rounded text-gray-500 ml-2`;
+    button.style.position = 'absolute';
+    button.style.top = `${top - 24}px`; // Positioning based on the p element
+    button.style.left = `${left - 34}px`; // Adjust positioning (left of the p element)
+  
+    // Append the button directly to the container
+    container.appendChild(button);
+  
+    // Define event handlers
+    const handleMouseEnter = () => {
+      if (activeButtonRef.current !== button) {
+        button.classList.add('hover:text-green-600');
+      }
+    };
+  
+    const handleMouseLeave = () => {
+      if (activeButtonRef.current !== button) {
+        button.classList.remove('hover:text-green-600');
+      }
+    };
+  
+    const handleMouseDown = (e: MouseEvent) => {
+      e.preventDefault(); 
+      e.stopPropagation();
+      console.log('Composite button clicked:', e.target);
+    };
+  
+    const handleClick = () => {
+      if (activeButtonRef.current === button) {
+        // Deactivate the button
+        button.classList.remove('text-green-500');
+        button.classList.add('text-gray-500');
+        button.textContent = '▶'; // Reset symbol
+        activeButtonRef.current = null;
+      } else {
+        // Deactivate the currently active button, if any
+        if (activeButtonRef.current) {
+          const prevButton = activeButtonRef.current;
+          prevButton.classList.remove('text-green-500');
+          prevButton.classList.add('text-gray-500');
+          prevButton.textContent = '▶'; // Reset symbol
+        }
+        // Activate the clicked button
+        button.classList.remove('text-gray-500');
+        button.classList.add('text-green-500');
+        button.textContent = '▶  insert text here';
+        activeButtonRef.current = button;
+      }
+    };
+  
+    // Attach event listeners
+    button.addEventListener('mouseenter', handleMouseEnter);
+    button.addEventListener('mouseleave', handleMouseLeave);
+    button.addEventListener('click', handleClick);
+    button.addEventListener('mousedown', handleMouseDown);
+  
+    // Store for cleanup
+    compositeButtonsRef.current.push({
+      button,
+      pElement,
+      pIndex,
+      handleMouseEnter,
+      handleMouseLeave,
+      handleClick,
+      handleMouseDown
+    });
+  };
+
+  
   const addCompositeButtons = () => {
     if (!sourceRef.current || !sourceRef.current.container) {
       console.log('No sourceRef or container');
       return;
     }
-  
     const container = sourceRef.current.container;
-    const paragraphs = container.querySelectorAll('p');
   
-    paragraphs.forEach((pElement, index) => {
-      // Create the button
-      const button = document.createElement('button');
-      button.textContent = '>';
-      button.classList.add('composite-button');
-      
-      // Apply the styles as per the provided design
-      button.className = `relative bg-transparent text-[16px] flex items-center px-2 rounded text-gray-500 mr-2`;
-      button.style.transition = 'background-color 0.3s';
+    // Ensure the container has relative positioning
+    if (window.getComputedStyle(container).position === 'static') {
+      container.style.position = 'relative';
+    }
   
-      // Define event handlers for hover and click states
-      const handleMouseEnter = () => {
-        if (!clickedButtonIndicesRef.current.includes(index)) {
-          button.classList.add('hover:text-green-700');
-        }
-      };
+    // Add buttons at empty <p> elements
+    compositeInsertPs.current.forEach(({ p, contentIndex }) => {
+      // Get position of the <p> element relative to the container
+      const pRect = p.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const top = pRect.top - containerRect.top + container.scrollTop;
+      const left = pRect.left - containerRect.left + container.scrollLeft;
   
-      const handleMouseLeave = () => {
-        if (!clickedButtonIndicesRef.current.includes(index)) {
-          button.classList.remove('hover:text-green-700');
-        }
-      };
-  
-      const handleClick = () => {
-        if (clickedButtonIndicesRef.current.includes(index)) {
-          // Unmark as clicked, reset to default state
-          clickedButtonIndicesRef.current = clickedButtonIndicesRef.current.filter((i) => i !== index);
-          button.classList.remove('text-green-400');
-          button.classList.add('text-gray-500');
-          button.textContent = '>';
-          button.style.color = 'gray';  // Reset text color
-        } else {
-          // Mark as clicked, apply active styles
-          clickedButtonIndicesRef.current = [...clickedButtonIndicesRef.current, index];
-          button.classList.remove('text-gray-400');
-          button.classList.add('text-green-400');
-          button.textContent = '> insert text here';
-          // button.style.color = 'black';  // Change text color to black when active
-        }
-      };
-  
-      // Attach event listeners
-      button.addEventListener('mouseenter', handleMouseEnter);
-      button.addEventListener('mouseleave', handleMouseLeave);
-      button.addEventListener('click', handleClick);
-  
-      // Store for cleanup
-      compositeButtonsRef.current.push({
-        button,
-        handleMouseEnter,
-        handleMouseLeave,
-        handleClick,
-      });
-  
-      // Insert the button before the paragraph
-      pElement.parentNode?.insertBefore(button, pElement);
+      // Create and append the button using the helper function
+      createCompositeButton(container, p, contentIndex, top, left);
     });
+  
+    // Add the start and end buttons if needed
+    const endCapButtons = () => {
+      // if (compositeInsertPs.current.length === 0) {
+      //   console.log("!!!START BUTTON ADDED");
+        // Add a start button at the top of the container
+      createCompositeButton(container, null, 0, 0, 0);
+      // }
+  
+      // Add end button at the bottom of the container
+      const containerHeight = container.scrollHeight;
+      createCompositeButton(
+        container,
+        null,
+        sourceRef.current?.originalContent.length || 999999,
+        containerHeight + 16, // Adjust as needed
+        0
+      );
+    };
+  
+    endCapButtons();
   };
-  
-  
 
-  const removeCompositeButtons = () => {
-    compositeButtonsRef.current.forEach(({ button, handleMouseEnter, handleMouseLeave, handleClick }) => {
-      // Remove event listeners
-      button.removeEventListener('mouseenter', handleMouseEnter);
-      button.removeEventListener('mouseleave', handleMouseLeave);
-      button.removeEventListener('click', handleClick);
   
-      // Remove the button from the DOM
-      button.parentNode?.removeChild(button);
+  const removeCompositeButtons = () => {
+    compositeButtonsRef.current.forEach(({ button, handleMouseEnter, handleMouseLeave, handleClick, handleMouseDown }) => {
+      if (button) {
+        // Remove event listeners
+        button.removeEventListener('mouseenter', handleMouseEnter);
+        button.removeEventListener('mouseleave', handleMouseLeave);
+        button.removeEventListener('click', handleClick);
+        button.removeEventListener('mousedown', handleMouseDown);
+  
+        // Remove the button from the DOM if it's still present
+        if (button.parentNode && button.parentNode === sourceRef.current?.container) {
+          try {
+            button.parentNode.removeChild(button);
+          } catch (e) {
+            console.log("Unable to remove button, error caught: ", e);
+          }
+        }
+      }
     });
   
     // Clear references
     compositeButtonsRef.current = [];
-    clickedButtonIndicesRef.current = [];
+    activeButtonRef.current = null; // Reset the active button reference
   };
   
 
@@ -1013,12 +1434,15 @@ const handleParagraphSelection = (range: Range) => {
     // in case we add more 
     switch (selected) {
       case (HighlightPromptTypes.FAST_EDIT): 
+      statsService.HighlightFastEditEvent();
         handleFastEdit();
         break;
       case (HighlightPromptTypes.PROMPT):
+        statsService.promptAgaintsHighlightEvent();
         handlePrompt();
         break;
       case (HighlightPromptTypes.COMPOSITE):
+        statsService.HighlightCompositeEvent(compositeHighlightsRef.current.size);
         handleComposite();
         break;
       default:
@@ -1055,59 +1479,76 @@ const handleParagraphSelection = (range: Range) => {
     
     let msg:Message = newMessage({role: 'user', content : content, type: MessageType.PROMPT});
     msg = setAssistantInMessage(msg, selectedAssistant || DEFAULT_ASSISTANT);
-    // if artifact is selected then we may want to get the artifact prompt added so it can possibly do an autoartifact block
-
     onSend(msg);
     clear();
   }
 
 
   const handleComposite = () => {
-    if (!sourceRef.current) {
-      console.log('No sourceRef');
+    if (!sourceRef.current || !activeButtonRef.current) {
+      console.log('No sourceRef or no active button');
       return;
     }
   
     const originalContent = sourceRef.current.originalContent;
-    const lines = originalContent.split('\n');
-  
-    const clickedIndices = clickedButtonIndicesRef.current;
-  
-    clickedIndices.forEach((index) => {
-      const beforeText = lines.slice(0, index + 2).join('\n');
-      const afterText = lines.slice(index + 2).join('\n');
-  
-      console.log(`Button at index ${index}`);
-      console.log('Before text:', beforeText);
-      console.log('After text:', afterText);
+      // Find the index of the active button
+    const activeButton = activeButtonRef.current;
+    const buttonData = compositeButtonsRef.current.find( (item) => item.button === activeButton );
 
-      console.log(compositeHighlightsRef.current)
+    if (!buttonData) {
+      console.log('Active button not found in compositeButtonsRef');
+      return;
+    }
 
-      const content = `
-      User Query For Composite Edit: ${inputValue}
+    const beforeText = originalContent.slice(0, buttonData.pIndex)
+    const afterText = originalContent.slice(buttonData.pIndex)
 
-      *** before text context TO BE LEFT UNCHANGED ***\n"${
-        beforeText.length > CHAR_LIMIT ? beforeText.slice(beforeText.length - CHAR_LIMIT) : beforeText
-      }"\n\n
+    console.log(`______________________`);
 
-      **[Highlighted Paragraphs you will use to create a new paragraph]**\n${
-        compositeHighlightsRef.current // Assuming highlightedText is an array of highlighted paragraphs.
-      }\n\n
+    console.log(`Button at index ${buttonData.pIndex}`);
+    console.log('----Before text:', beforeText);
+    console.log('------After text:', afterText);
 
-      *** after text context TO BE LEFT UNCHANGED ***\n"${
-        afterText.slice(0, CHAR_LIMIT)
-      }"
+    console.log(compositeHighlightsRef.current)
+    removeCompositeButtons();
 
-      `;
+    const content = `
+    User Query For Composite Edit: ${inputValue}
 
-      let msg:Message = newMessage({role: 'user', content : content, type: MessageType.PROMPT});
-      msg = setAssistantInMessage(msg, selectedAssistant || DEFAULT_ASSISTANT);
-      promptForData(COMPOSITE_PROMPT, msg, beforeText, afterText);
-    });
+    **[Highlighted Paragraphs you take under consideration when creating a new paragraph]**\n${
+      Array.from(compositeHighlightsRef.current).map((text: string) => `\ntext\n`)
+    }************************
+    \n\n
+
+    Surrounding text:
+
+    *** before text context TO BE LEFT UNCHANGED and serve as context ***\n"${
+      beforeText.length > CHAR_LIMIT ? beforeText.slice(beforeText.length - CHAR_LIMIT) : beforeText
+    }"\n\n
+
+    {Your response will be inserted her textHERE}
+
+    *** after text context TO BE LEFT UNCHANGED and serve as context ***\n"${
+      afterText.slice(0, CHAR_LIMIT)
+    }"
+
+    `;
+
+    
+
+    // console.log('Composite:', content);
+
+    let msg:Message = newMessage({role: 'user', content : content, type: MessageType.PROMPT});
+    msg = setAssistantInMessage(msg, selectedAssistant || DEFAULT_ASSISTANT);
+    promptForData(COMPOSITE_PROMPT, msg, beforeText + '\n', '\n' + afterText);
+
   };
   
+    const isDisabled = () =>{
+      if (selectedRef.current === HighlightPromptTypes.COMPOSITE) return !inputValue || !activeButtonRef.current;
+      return !inputValue;
+    }
   
-
 
     if (!showComponent) return <></>;
     return (
@@ -1154,13 +1595,13 @@ const handleParagraphSelection = (range: Range) => {
                     icon={<IconPencilBolt size={14} />}
                     />
 
-                    <ToggleButton 
+                    {/* <ToggleButton 
                     selected={selected}
                     name={HighlightPromptTypes.COMPOSITE}
                     toggleSwitch={toggleSwitch}
                     title={`Allows for multiple text to be highlighted and requires a marker for text insertion.\nAll highlighted text will be used by Amplify to create and embed text at your selected marker`}
                     icon={<IconTextPlus size={14} />}
-                    />
+                    /> */}
                     
                   </div>
 
@@ -1171,6 +1612,15 @@ const handleParagraphSelection = (range: Range) => {
                       onClick={(e) => {
                         e.stopPropagation();
                       }}
+                      onKeyDown={(e) => {
+                        console.log("Keydown event triggered");
+                        if (e.key === 'Enter' && !e.shiftKey && !isDisabled() ) {
+                          console.log("ENTER");
+                          console.log(isDisabled());
+                          e.preventDefault(); 
+                          handleSend();
+                        }
+                      }}
                       type="text"
                       value={inputValue}
                       title={`${selected} Mode`}
@@ -1180,9 +1630,9 @@ const handleParagraphSelection = (range: Range) => {
                     />
                     <button
                       onClick={(e) => { e.stopPropagation(); handleSend(); }}
-                      disabled={!inputValue || (selectedRef.current === HighlightPromptTypes.COMPOSITE && !sourceRef.current?.container.querySelector('button.text-green-400'))}
-                      className={`p-2 text-neutral-400 dark:text-neutral-500 ${inputValue ? "hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer": "cursor-not-allowed"} focus:outline-none`}
-                      title={inputValue ? "Send" : "Enter a message to send"}
+                      disabled={isDisabled()}
+                      className={`p-2 text-neutral-400 dark:text-neutral-500 ${isDisabled() ? "cursor-not-allowed" : "hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"} focus:outline-none`}
+                      title={!isDisabled() ? "Send" :  !inputValue ? "Enter a message to send" : (selectedRef.current === HighlightPromptTypes.COMPOSITE && !activeButtonRef.current)? "Active an insert button": "Disabled"}
                     >
                       <IconSend size={20} />
                     </button>

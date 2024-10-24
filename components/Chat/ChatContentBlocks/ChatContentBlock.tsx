@@ -77,6 +77,8 @@ const ChatContentBlock: React.FC<Props> = (
           window.removeEventListener('triggerChatReRender', handleReRenderEvent);
       };
   }, []);
+
+//   console.log(transformedMessageContent)
   
     return (
     <div className="chatContentBlock" 

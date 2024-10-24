@@ -3,12 +3,14 @@ import HomeContext from "@/pages/api/home/home.context";
 import {Conversation, Message} from "@/types/chat";
 import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";
-import {createExport} from "@/utils/app/importExport";
 import { useSession } from "next-auth/react"
 import {IconDownload} from '@tabler/icons-react';
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {ConversionOptions, convert} from "@/services/downloadService";
+import { LatestExportFormat } from "@/types/export";
+import { isRemoteConversation } from "@/utils/app/conversationStorage";
+import { fetchMultipleRemoteConversations } from "@/services/remoteConversationService";
 
 export interface DownloadModalProps {
     onDownloadReady: (url: string) => void;
@@ -54,7 +56,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
         showInclude = true,
     }) => {
     const {
-        state: {prompts, conversations, folders, statsService},
+        state: {prompts, conversations, folders, statsService, selectedConversation},
     } = useContext(HomeContext);
 
     const promptsRef = useRef(prompts);
@@ -215,11 +217,15 @@ export const DownloadModal: FC<DownloadModalProps> = (
                 exportedConversations = [
                     {...selectedConversations[0], messages: [...selectedMessagesState]}
                 ]
-            }
-            else {
-                exportedConversations = selectedConversationsState.map(conversation => {
+            } else {
+                const conversationPromises = selectedConversationsState.map(async conv=> {
                     let includedMessages: Message[];
-
+                    let conversation = conv;
+                    if (selectedConversation && conversation.id !== selectedConversation.id &&
+                        isRemoteConversation(conv)) {
+                            const cloudConv = await fetchMultipleRemoteConversations([conv.id]);
+                            if (cloudConv && cloudConv.length > 0) conversation = cloudConv[0];
+                        }
                     switch (includeMode) {
                         case "assistant":
                             includedMessages = conversation.messages.filter(message => message.role === 'assistant');
@@ -260,12 +266,14 @@ export const DownloadModal: FC<DownloadModalProps> = (
 
                     return {...conversation, messages: includedMessages};
                 });
+                exportedConversations = await Promise.all(conversationPromises);
             }
+            
 
-            const sharedData = await createExport(
-                exportedConversations,
-                selectedFoldersState,
-                [...selectedPromptsState, ...rootPromptsToAdd], "download");
+            const sharedData = { version: 4, history: exportedConversations, folders: selectedFoldersState,
+                                 prompts:  [...selectedPromptsState, ...rootPromptsToAdd],
+                                } as LatestExportFormat;
+            
 
             const withNewline = (s:string) => {
                 return s ? s + "\n\n" : s;
