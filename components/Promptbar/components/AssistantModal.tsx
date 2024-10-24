@@ -208,9 +208,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         };
     }, []);
 
-    useEffect(() => {
-        console.log(additionalGroupData);
-    }, [additionalGroupData]);
+    // useEffect(() => {
+    //     console.log("Assistant Modal", additionalGroupData);
+    // }, [additionalGroupData]);
 
     const [uri, setUri] = useState<string|null>(definition.uri || null);
 
