@@ -98,13 +98,21 @@ const messageOptionFlags = [
     },
 ];
 
+const featureOptionFlags = [
+    {
+        "label": "Allow Assistant to Create Artifacts",
+        "key": "IncludeArtifactsInstr",
+        "defaultValue": true
+    },
+];
+
 
 export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc, 
                                           disableEdit=false, title, onCreateAssistant,height, width = `${window.innerWidth * 0.6}px`,
                                           translateY, blackoutBackground=true, additionalTemplates, autofillOn=false, embed=false, children}) => {
     const {t} = useTranslation('promptbar');
 
-    const { state: { prompts} , setLoadingMessage} = useContext(HomeContext);
+    const { state: { prompts, featureFlags} , setLoadingMessage} = useContext(HomeContext);
 
     const definition = getAssistant(assistant);
 
@@ -133,6 +141,16 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         return acc;
     }, {});
 
+    const featureOptionDefaults = featureOptionFlags.reduce((acc:{[key:string]:boolean}, x) => {
+        if (x.key === 'IncludeArtifactsInstr') {
+            if (featureFlags.artifacts) acc[x.key] = x.defaultValue;
+        } else {
+            acc[x.key] = x.defaultValue;
+        }
+        
+        return acc;
+    }, {});
+
     const initialDataSourceOptionState = {
         ...dataSourceOptionDefaults,
         ...(definition.data && definition.data.dataSourceOptions || {})
@@ -140,6 +158,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const initialMessageOptionState = {
         ...messageOptionDefaults,
         ...(definition.data && definition.data.messageOptions || {})
+    }
+
+    const initialFeatureOptionState = {
+        ...featureOptionDefaults,
+        ...(definition.data && definition.data.featureOptions || {})
     }
 
 
@@ -154,7 +177,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [dataSourceOptions, setDataSourceOptions] = useState<{ [key: string]: boolean }>(initialDataSourceOptionState);
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
     const [messageOptions, setMessageOptions] = useState<{ [key: string]: boolean }>(initialMessageOptionState);
- 
+    const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(initialFeatureOptionState);
+
     let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
     const [tags, setTags] = useState((assistant.data && assistant.data.tags) ? assistant.data.tags.join(",") : "");
     const [conversationTags, setConversationTags] = useState(cTags);
@@ -329,6 +353,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         newAssistant.data.dataSourceOptions = dataSourceOptions;
 
         newAssistant.data.messageOptions = messageOptions;
+
+        newAssistant.data.featureOptions = featureOptions;
 
         if (assistant.groupId) newAssistant.data.groupId = assistant.groupId;
         
@@ -618,8 +644,22 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                       if (!disableEdit) setMessageOptions({...messageOptions, [key]: value});
                                                   }
                                               }/>
-                                            
 
+                                    { Object.keys(featureOptions).length > 0 &&
+                                        <>
+                                        <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                            {t('Feature Options')}
+                                        </div>
+                                        <FlagsMap id={'astFeatureOptionFlags'}
+                                                flags={featureOptionFlags}
+                                                state={featureOptions}
+                                                flagChanged={
+                                                    (key, value) => {
+                                                        if (!disableEdit) setFeatureOptions({...featureOptions, [key]: value});
+                                                    }
+                                                }/>
+                                        </>        
+                                    }
                                     <div className="mt-2 mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
                                         <div className="text-sm font-bold text-black dark:text-neutral-200">
                                             {t('Tags')}

@@ -206,6 +206,21 @@ export function useSendService() {
                         chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
                     }
 
+                    if (featureFlags.artifacts) {
+                        const astFeatureOptions = message.data.assistant.definition.featureOptions;
+                        //option A
+                            // either there is no options defined or there is and it needs to be true 
+                            // not defined in cases of old ast used and when no assistant is in use 
+                        // if ((!astFeatureOptions || astFeatureOptions.IncludeArtifactsInstr) && settings.featureOptions.includeArtifacts) {
+
+                        //option B - either no feature option and user has the setting on 
+                                    // or the assistant has it turned on
+                        if ((!astFeatureOptions && settings.featureOptions.includeArtifacts) || (astFeatureOptions && astFeatureOptions.IncludeArtifactsInstr)) {
+                             chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
+                             console.log("ARTIFACT PROMPT ADDED")
+                        } 
+                    }
+
                     if (uri) {
                         chatBody.endpoint = uri;
                     }
