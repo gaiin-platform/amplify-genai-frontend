@@ -16,7 +16,7 @@ const getGroupAssistantConversations = async (req: NextApiRequest, res: NextApiR
         return res.status(400).json({ error: 'assistantId is required' });
     }
 
-    let apiUrl = `${process.env.ASSISTANTS_API_BASE}/assistant/get_group_assistant_conversations`;
+    let apiUrl = `${process.env.API_BASE_URL}/assistant/get_group_assistant_conversations`;
 
     try {
         const response = await fetch(apiUrl, {

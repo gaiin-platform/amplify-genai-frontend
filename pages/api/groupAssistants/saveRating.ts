@@ -16,7 +16,7 @@ const saveUserRating = async (req: NextApiRequest, res: NextApiResponse) => {
         return res.status(400).json({ error: 'conversationId and userRating are required' });
     }
 
-    let apiUrl = `${process.env.ASSISTANTS_API_BASE}/assistant/save_user_rating`;
+    let apiUrl = `${process.env.API_BASE_URL}/assistant/save_user_rating`;
 
     try {
         const response = await fetch(apiUrl, {

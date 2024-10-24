@@ -16,7 +16,7 @@ const getPresignedUrl =
         const { accessToken } = session;
 
         const itemData = req.body;
-        const apiUrl = (process.env.API_BASE_URL + "/assistant/files" || "") + '/upload'; // API Gateway URL from environment variables
+        const apiUrl = (process.env.API_BASE_URL || "") + '/files/upload'; // API Gateway URL from environment variables
 
         try {
 

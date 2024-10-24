@@ -12,7 +12,7 @@ const setTags =
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        let apiUrl = process.env.API_BASE_URL + "/assistant/files/set_tags" || "";
+        let apiUrl = process.env.API_BASE_URL + "/files/set_tags" || "";
 
         // Accessing itemData parameters from the request
         const reqData = req.body;

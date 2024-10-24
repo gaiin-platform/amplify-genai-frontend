@@ -16,7 +16,7 @@ const codeInterpreterOp =
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        let apiUrl = process.env.ASSISTANTS_API_BASE + "/assistant/openai" || "";
+        let apiUrl = process.env.API_BASE_URL + "/assistant/openai" || "";
 
         const queryPath = typeof req.query.path === 'string' ? req.query.path : ""; 
         const assistantKey = req.query.astIdKey;
