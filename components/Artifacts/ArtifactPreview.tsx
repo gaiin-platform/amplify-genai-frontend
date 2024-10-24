@@ -199,9 +199,9 @@ const VanillaPreview: React.FC<{ codeBlocks: any; height: number; framework: any
               if (!newFiles.hasOwnProperty(filename)) newFiles[filename] = { code: '' };
           });
         }
-        newFiles['/index.js'].code = `${newFiles['/index.js'].code}
-                      
-                                    ${errorHandlingCode}`
+
+        // newFiles['/index.js'].code = `${newFiles['/index.js'].code}
+        //                             ${errorHandlingCode}`
   
         setFiles(newFiles);
         // console.log("new", newFiles);
