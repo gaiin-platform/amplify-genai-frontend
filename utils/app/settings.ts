@@ -78,17 +78,17 @@ export const modelOptionFlags = [
 {
   "label": "OpenAI",
   "key": "allOpenAI",
-  "defaultValue": false
+  "defaultValue": true
 },
 {
     "label": "Claude",
     "key": "allClaude",
-    "defaultValue": false
+    "defaultValue": true
 },
 {
     "label": "Mistral",
     "key": "allMistral",
-    "defaultValue": false
+    "defaultValue": true
 },
 ];
 
