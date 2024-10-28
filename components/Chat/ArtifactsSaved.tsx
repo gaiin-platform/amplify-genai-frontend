@@ -125,7 +125,7 @@ const handleDeleteArtifact = async (key: string, index:number) => {
     setLoadingItem(-1);
 }
 
-if (artifacts.length === 0) return <></>;
+if (artifacts && artifacts.length === 0) return <></>;
 
 return (
         <div className='flex flex-col '>
