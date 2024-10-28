@@ -39,6 +39,7 @@ import {FolderInterface} from "@/types/folder";
 import {Prompt} from "@/types/prompt";
 import {ExampleChat} from "@/components/Market/components/ExampleChat";
 import {saveFolders} from "@/utils/app/folders";
+import React from 'react';
 
 interface Props {
     items: MarketItem[];

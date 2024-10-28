@@ -26,11 +26,12 @@ const isMobileBrowser = () => {
 };
 
 export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerComponent }) => {
-    const { state: { page }, dispatch: homeDispatch } = useContext(HomeContext);
+    const { state: { page, syncingPrompts }, dispatch: homeDispatch } = useContext(HomeContext);
     const [activeTab, setActiveTab] = useState(0);
     // Set the initial state based on whether the user is on a mobile browser
     const [isOpen, setIsOpen] = useState(!isMobileBrowser());
     const [showAssistantAdmin, setShowAssistantAdmin] = useState<boolean>(false);
+    const [isArtifactsOpen, setIsArtifactsOpen] = useState<boolean>(false);
     const [groupModalData, setGroupModalData] = useState<any>(undefined);
 
 
@@ -41,36 +42,49 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
 
 
     useEffect(() => {
-        const handleEvent = (event:any) => {
+        const handleAdminEvent = (event:any) => {
             const isAdminOpen = event.detail.isOpen;
+            if (isAdminOpen && isArtifactsOpen)  window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false }} ));
             setGroupModalData(event.detail.data);
 
             setIsOpen(!isAdminOpen);
             setShowAssistantAdmin(isAdminOpen);  
+
         };
-        window.addEventListener('openAstAdminInterfaceTrigger', handleEvent);
-    
+        const handleArtifactEvent = (event:any) => {
+            const isArtifactsOpen = event.detail.isOpen;
+            setIsOpen(!isArtifactsOpen);
+            setIsArtifactsOpen(isArtifactsOpen);
+        };
+        window.addEventListener('openAstAdminInterfaceTrigger', handleAdminEvent);
+        window.addEventListener('openArtifactsTrigger', handleArtifactEvent);
         return () => {
-            window.removeEventListener('openAstAdminInterfaceTrigger', handleEvent);
+            window.removeEventListener('openAstAdminInterfaceTrigger', handleAdminEvent);
+            window.removeEventListener('openArtifactsTrigger', handleArtifactEvent);
         };
     }, []);
 
+    
     useEffect(() => {
         if ( isOpen) setShowAssistantAdmin(false);
     }, [isOpen]);
 
     return isOpen ? (
         
-        <div className={`fixed top-0 ${side}-0 z-30 flex h-full w-[280px] flex-none ${side === 'left' ? 'border-r dark:border-r-[#202123]' : 'border-l dark:border-l-[#202123]'}
-            flex-col space-y-0 bg-white text-black dark:text-white bg-[#f3f3f3] dark:bg-[#202123] text-[14px] sm:relative sm:top-0`}>
+        <div className={`fixed top-0 ${side}-0 flex h-full w-[280px] flex-none ${side === 'left' ? 'border-r dark:border-r-[#202123]' : 'border-l dark:border-l-[#202123]'}
+            flex-col space-y-0 bg-white text-black dark:text-white bg-[#f3f3f3] dark:bg-[#202123] text-[14px] sm:relative sm:top-0`} 
+            
+            style={{
+                zIndex: '20 !important'
+              }}>
             {isMultipleTabs && (
-                <div className="flex flex-row gap-1 bg-neutral-100 dark:bg-[#202123] rounded-t">
+                <div className="mt-1 ml-1 flex flex-row gap-1 bg-neutral-100 dark:bg-[#202123] rounded-t">
                     {childrenArray.map((child, index) => (
                         <button
                             key={index}
                             onClick={() => setActiveTab(index)}
                             title={child.props.title}
-                            className={`px-3 py-2 rounded-t ${activeTab === index ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
+                            className={`px-3 py-2 rounded-t ${activeTab === index ? 'border-l border-t border-r dark:border-gray-500 dark:text-white shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
                             {child.props.icon}
                         </button>
                     ))}
@@ -87,7 +101,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
     ) : (
         //if we are going to use collapse side bars, interface takes up whole page, we can list the item here 
         <>
-        <OpenSidebarButton onClick={toggleOpen} side={side} isDisabled={showAssistantAdmin}/>
+        {(isArtifactsOpen && side === 'left' || !isArtifactsOpen) && <OpenSidebarButton onClick={toggleOpen} side={side} isDisabled={showAssistantAdmin}/>}
         
         <AssistantAdminUI
             open={showAssistantAdmin && side === 'left'}

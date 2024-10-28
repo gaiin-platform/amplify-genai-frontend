@@ -1,6 +1,6 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
-import { IconPlus, IconInfoCircle, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, IconArticle, IconRobot } from "@tabler/icons-react";
+import { IconPlus, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, IconArticle, IconRobot } from "@tabler/icons-react";
 import HomeContext from '@/pages/api/home/home.context';
 import ExpansionComponent from '../../Chat/ExpansionComponent';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
@@ -11,7 +11,6 @@ import { ApiKey } from '@/types/apikeys';
 import { PeriodType, formatRateLimit, UNLIMITED, rateLimitObj} from '@/types/rateLimit'
 import { useSession } from 'next-auth/react';
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
-import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import { formatDateYMDToMDY, userFriendlyDate } from '@/utils/app/date';
 import { AccountSelect, isValidCOA } from './Account';
 import { RateLimiter} from './RateLimit';
@@ -22,6 +21,9 @@ import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
 import { APIDownloadFile, fetchFile } from '@/components/Chat/ChatContentBlocks/APIDocBlock';
 import { ReservedTags } from '@/types/tags';
 import toast from 'react-hot-toast';
+import ActionButton from '@/components/ReusableComponents/ActionButton';
+import { InfoBox } from '@/components/ReusableComponents/InfoBox';
+import Checkbox from '@/components/ReusableComponents/CheckBox';
 
 interface Props {
     apiKeys: ApiKey[];
@@ -168,7 +170,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
 
         //done first for preloadeding keys while user handles alert 
         if (sucess) {
-            statsService.createApiKey(data);
+            statsService.createApiKeyEvent(data);
             setDelegateApiKeys([]);
             setOwnerApiKeys([]);
             // to pull in the updated changes to the ui     
@@ -199,7 +201,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                     if (k.api_owner_id === apiKeyId) return {...k, active: false}
                     return k;
                 }))
-                statsService.deactivateApiKey(apiKeyId);
+                statsService.deactivateApiKeyEvent(apiKeyId);
             } else {
                 alert('Failed to deactivate key at this time. Please try again later...');
             }
@@ -213,7 +215,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
         if (!result.success) {
             alert('failedKeys' in result ? `API keys: ${result.failedKeys.join(", ")} failed to update. Please try again.` : "We are unable to update your key(s) at this time...")
         } else {
-            statsService.updateApiKey(Object.values(editedKeys));
+            statsService.updateApiKeyEvent(Object.values(editedKeys));
         }
     };
 
@@ -239,9 +241,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                The following fields are editable for your active API keys: Account, Expiration, Rate Limit, and Access Types. Remove an expiration date by clearing the date in the calendar. Always remember to confirm and save your changes. You can automatically deactive any active API key by clicking the green check mark. 
                <br className='mb-1'></br>
 
-                <div className="mx-5 mt-4 flex items-center p-2 border border-gray-400 dark:border-gray-500 rounded ">
-                    <IconInfoCircle size={16} className='mx-2 mb-1 flex-shrink-0 text-gray-600 dark:text-gray-400' />
-                    <span className="ml-2 text-xs text-gray-600 dark:text-gray-400"> 
+                <InfoBox content={
+                    <span className="ml-2 text-xs"> 
                         <div className='mb-2 ml-5 text-[0.8rem]'> {"Types of API Keys"}</div>
                         {/* <br className='mb-1'></br> */}
                         <div className='mt-1 flex flex-row gap-2'>          
@@ -264,15 +265,15 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                         </div>
                         <div className='mt-2 text-black dark:text-neutral-200 text-sm text-center'> {"*** If your key has been compromised, deactivate it as soon as possible ***"} </div>
                         
-                    </span>
-                </div>
+                    </span>}
+                />
                 <div className='z-60'> 
                    <APITools setDocsIsOpen={setDocsIsOpen} onClose={onClose}/> 
                 </div>
                 
 
             </div>
-            <div className='border p-2 border-gray-400 dark:border-gray-700 rounded' >
+            <div className='border p-2 border-gray-400 dark:border-gray-700 rounded shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]' >
                 <ExpansionComponent 
                     title={'Create API Key'} 
                     content={
@@ -364,11 +365,16 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                  </div>
 
                                 <div className='flex flex-row' style={{width: '296px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}> 
-                                    <input type="checkbox" checked={includeExpiration} onChange={(e) => setIncludeExpiration(e.target.checked)} />
-                                    <label className="m-1 ml-2 pt-0.5 text-sm" htmlFor="expiration">Set Expiration Date</label>
+                                    <div className='mt-1'> <Checkbox
+                                            id={`expirationDate`}
+                                            label={'Set Expiration Date'}
+                                            checked={includeExpiration}
+                                            onChange={(checked:boolean) => setIncludeExpiration(checked)}
+                                        />
+                                    </div>
                                     {includeExpiration && 
                                         <input
-                                            className="rounded border-gray-300 p-0.5 text-neutral-900 dark:text-neutral-100 shadow-sm bg-neutral-200 dark:bg-[#40414F] focus:border-neutral-700 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
+                                            className="ml-2 rounded border-gray-300 p-0.5 text-neutral-900 dark:text-neutral-100 shadow-sm bg-neutral-200 dark:bg-[#40414F] focus:border-neutral-700 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
                                             type="date"
                                             id="expiration"
                                             value={selectedDate}
@@ -380,8 +386,12 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                 
                                 <div className='mt-1 mr-6 w-[140px]' title='If the API key is not for personal use' >
                                    {delegateInput.length === 0 ?
-                                    <> <input className="mr-2 mt-1.5" type="checkbox" checked={systemUse} onChange={(e) => setSystemUse(e.target.checked)} />
-                                       <label className="m-1 pt-0.5 text-sm" htmlFor="expiration">For System Use</label></>
+                                       <Checkbox
+                                            id={`SystemUse`}
+                                            label={'For System Use'}
+                                            checked={systemUse}
+                                            onChange={(checked:boolean) => setSystemUse(checked)}
+                                        />
                                     : <></>}
                                 </div>
                                 
@@ -416,7 +426,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                         
                                     }}
                                 >
-                                    <div className=' flex flex-row gap-2 mr-1'>
+                                    <div className=' flex flex-row gap-2 mr-1'> 
                                     <IconPlus size={20} />
                                     Create Key
                                     </div>
@@ -609,7 +619,7 @@ export const HiddenAPIKey: FC<APIKeyProps> = ({ id, width=''}) => {
             setIsLoading(false);
             return;
         }  else {
-            statsService.getApiKey(id);
+            statsService.getApiKeyEvent(id);
         }
         setIsLoading(false);
         setKeyText(result.data);
@@ -641,19 +651,19 @@ export const HiddenAPIKey: FC<APIKeyProps> = ({ id, width=''}) => {
                 className="min-w-[26px] text-green-500 dark:text-green-400"
             /> 
             :
-            <SidebarActionButton
+            <ActionButton
                 handleClick={() =>  copyOnClick()}
                 title={"Copy Api key"}>
                 <IconCopy size={18}/>
-            </SidebarActionButton> 
+            </ActionButton> 
         )
         :
         (!isLoading &&
-        <SidebarActionButton
+        <ActionButton
             handleClick={() => getApiKey(id)}
             title={"See API key secret"}>
             <IconEye size={18}/>
-        </SidebarActionButton>)
+        </ActionButton>)
     }
     {isLoading && 
     <LoadingIcon className= 'min-w-[26px]' style={{ width: "18px", height: "18px" }}/>
@@ -815,7 +825,7 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
             (
                 <div className="ml-2 relative z-5 flex bg-neutral-200 dark:bg-[#343541]/90 rounded"  
                >
-                  <SidebarActionButton
+                  <ActionButton
                   title='Confirm Change'
                     handleClick={(e) => {
                         e.stopPropagation();
@@ -824,8 +834,8 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
                     }}
                   >
                     <IconCheck size={18} />
-                  </SidebarActionButton>
-                  <SidebarActionButton
+                  </ActionButton>
+                  <ActionButton
                     title='Discard Change'
                     handleClick={(e) => {
                       e.stopPropagation();
@@ -833,7 +843,7 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
                     }}
                   >
                     <IconX size={18} />
-                  </SidebarActionButton>
+                  </ActionButton>
                 </div>
               )
 
@@ -843,11 +853,11 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
             <div
             className="absolute top-1 right-0 ml-auto z-5 flex-shrink-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"
            style={{ transform: `translateX(${translateX}px)` }}> 
-                <SidebarActionButton
+                <ActionButton
                     handleClick={() => {setIsEditing(true)}}
                     title="Edit">
                     <IconEdit size={18} />
-                </SidebarActionButton>
+                </ActionButton>
             </div>
         )}
         
@@ -1010,7 +1020,7 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
                     setFileContents(file);
         }
         setActiveTab(tab);
-        console.log("Active tab: ", tab)
+        // console.log("Active tab: ", tab)
     }
 
     return (
@@ -1018,39 +1028,39 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
             <div className='mt-2 ml-5 flex flex-row gap-2 mx-2 flex justify-center'>
                 <div className='mt-[-3px] text-sm py-2 mr-2 text-[0.8]'>API Tools and Resources</div>
                 <label className='mt-2 text-xs '>|</label>
-                    <SidebarActionButton
+                    <ActionButton
                     handleClick={() => handleShowApiDoc()}
                     title='View Amplify API Documentation'>
                       <div className='flex flex-row gap-1 text-[0.8]'>
                         Amplify API Documentation
                         <IconArticle size={18}/>
                       </div>  
-                     </SidebarActionButton> 
+                     </ActionButton> 
                 { keyManager && ( 
                     <>
                     <label className='mt-2 text-xs '>|</label>
-                     <SidebarActionButton
+                     <ActionButton
                         handleClick={()=> handleStartConversation(keyManager)}
                         title='Chat with Amplify API Key Manager'>
                         <div className='flex flex-row gap-1 text-[0.8]'>
                             Amplify API Key Manager
                             <IconRobot size={20}/>
                         </div>  
-                     </SidebarActionButton> 
+                     </ActionButton> 
                     </>
                 )}
 
                 { apiAst && ( 
                     <>
                     <label className='mt-2 text-xs '>|</label>
-                     <SidebarActionButton
+                     <ActionButton
                         handleClick={()=> handleStartConversation(apiAst)}
                         title='Chat with Amplify API Assistant'>
                         <div className='flex flex-row gap-1 text-[0.8]'>
                             Amplify API Assistant
                             <IconRobot size={20}/>
                         </div>  
-                     </SidebarActionButton> 
+                     </ActionButton> 
                      </>
                 )}
 
@@ -1078,7 +1088,7 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
                                         <button
                                             key={"Doc"}
                                             onClick={() => handleTabSwitch("Doc")}
-                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Doc" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
+                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Doc" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white  shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
                                             <h3 className="text-xl">View Amplify API</h3> 
                                         </button> )}
 
@@ -1086,16 +1096,16 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
                                         <button
                                             key={"Downloads"}
                                             onClick={() => handleTabSwitch("Downloads")}
-                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Downloads" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
+                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Downloads" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white  shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
                                             <h3 className="text-xl">Downloads</h3> 
                                         </button> )}
 
                                         <div className='ml-auto'>
-                                            <SidebarActionButton
+                                            <ActionButton
                                                 handleClick={() => handleShowDocs(false)}
                                                 title={"Close"}>
                                                 <IconX size={20}/>
-                                            </SidebarActionButton>
+                                            </ActionButton>
                                         </div>      
                             </div> 
 

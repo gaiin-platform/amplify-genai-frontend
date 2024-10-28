@@ -3,31 +3,35 @@ import { useContext, useEffect, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
-import { OpenAIModel, OpenAIModelID } from '@/types/openai';
+import { Model, ModelID } from '@/types/model';
 
 import HomeContext from '@/pages/api/home/home.context';
+import { filterModels } from '@/utils/app/models';
+import { getSettings } from '@/utils/app/settings';
 interface Props {
-  modelId: OpenAIModelID | undefined;
+  modelId: ModelID | undefined;
   isDisabled?: boolean;
   handleModelChange?: (e: string) => void
   isTitled?: boolean;
+  disableMessage?: string;
 }
 
 
-export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleModelChange, isTitled=true}) => {
+export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleModelChange, isTitled=true, disableMessage = "Model has been predetermined and can not be changed"}) => {
   const { t } = useTranslation('chat');
   const {
-    state: { selectedConversation, models, defaultModelId },
+    state: { selectedConversation, models,  defaultModelId, featureFlags},
     handleUpdateConversation,
   } = useContext(HomeContext);
 
-  const [selectModel, setSelectModel] = useState<OpenAIModelID | undefined>(modelId ?? defaultModelId);
+  const [selectModel, setSelectModel] = useState<ModelID | undefined>(modelId ?? defaultModelId);
+  const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
 
   useEffect(()=>{
     setSelectModel(modelId);
-    if (handleModelChange && !modelId && defaultModelId) setTimeout(() => {handleModelChange(defaultModelId)}, 100); 
+    if (!isDisabled && handleModelChange && !modelId && defaultModelId) setTimeout(() => {handleModelChange(defaultModelId)}, 100); 
   }
-  ,[modelId]);
+  ,[modelId, isDisabled]);
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const updatedModel = e.target.value;
@@ -38,11 +42,11 @@ export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleM
       handleUpdateConversation(selectedConversation, {
         key: 'model',
         value: models.find(
-          (model: OpenAIModel) => model.id === updatedModel,
+          (model: Model) => model.id === updatedModel,
         ),
       });
     }
-    setSelectModel(updatedModel as OpenAIModelID);
+    setSelectModel(updatedModel as ModelID);
     
   };
   
@@ -51,16 +55,16 @@ export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleM
       <label className="mb-2 text-left text-neutral-700 dark:text-neutral-400">
         {isTitled? t('Model'): ""}
       </label>
-      <div className="w-full rounded-lg border border-neutral-200 bg-transparent pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white">
+      <div className="w-full rounded-lg border border-neutral-200 bg-transparent pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
         <select
           disabled={isDisabled}
           className="w-full bg-transparent p-2"
           placeholder={t('Select a model') || ''}
           value={selectModel}
           onChange={handleChange}
-          title={isDisabled ? "Model has been predetermined and can not be changed": "Select Model"}
+          title={isDisabled ? disableMessage : "Select Model"}
         >
-          {models.map((model: OpenAIModel) => (
+          {filteredModels.map((model: Model) => (
             <option
               key={model.id}
               value={model.id}

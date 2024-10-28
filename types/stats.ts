@@ -4,6 +4,7 @@ import {MarketItem} from "@/types/market";
 import {Prompt} from "@/types/prompt";
 import {ChatBody, Conversation, Message} from "@/types/chat";
 import { ApiKey } from "./apikeys";
+import { Settings } from "./settings";
 
 export interface StatsServices {
     marketItemPublishEvent: (
@@ -56,11 +57,15 @@ export interface StatsServices {
 
     openSettingsEvent: () => void;
 
+    saveSettingsEvent: (settings: Settings) => void;
+
     openWorkspacesEvent: () => void;
 
     openConversationsEvent: () => void;
 
     newConversationEvent: () => void;
+
+    forkConversationEvent: () => void;
 
     startConversationEvent: (prompt: Prompt) => void;
 
@@ -90,19 +95,82 @@ export interface StatsServices {
 
     editPromptCompletedEvent: (prompt: Prompt) => void;
     
-    getApiKey: (id: string) => void;
+    getApiKeyEvent: (id: string) => void;
 
-    deactivateApiKey: (id: string) => void;
+    deactivateApiKeyEvent: (id: string) => void;
 
-    updateApiKey: (keyEdits: any) => void;
+    updateApiKeyEvent: (keyEdits: any) => void;
 
-    createApiKey: (keyData: any) => void;
+    createApiKeyEvent: (keyData: any) => void;
+
+    createAstAdminGroupEvent: (data: any) => void;
+
+    updateGroupTypesEvent: (data: any) => void;
+
+    updateGroupMembersEvent: (data: any) => void;
+
+    updateGroupMembersPermissionsEvent: (data: any) => void;
+
+    updateGroupAssistantsEvent: (data: any) => void;
+
+    deleteAstAdminGroupEvent: (groupId: string) => void;
+
+    getGroupConversationDataEvent: (assistantId: string, conversationId: string) => void;
+
+    getGroupAssistantConversationsEvent: (assistantId: string) => void;
+
+    getGroupAssistantDashboardsEvent: (
+        assistantId: string,
+        startDate?: string,
+        endDate?: string,
+        includeConversationData?: boolean,
+        includeConversationContent?: boolean
+    ) => void;
+
+    saveUserRatingEvent: (conversationId: string, userRating: number, userFeedback?: string) => void;
+
+    createArtifactEvent: (type: string) => void;
+
+    bringArtifactToAnotherConversationEvent: (artifactKey: string) => void;
+
+    deleteArtifactFromSavedArtifactsEvent: (artifactKey: string) => void;
+
+    saveArtifactEvent: (artifactData: any) => void;
+
+    shareArtifactEvent: (artifactData: any, emailList: string[]) => void;
+
+    deleteArtifactEvent: () => void;
+
+    editArtifactEvent: () => void;
+
+    mailArtifactEvent: () => void;
+
+    downloadArtifactEvent: () => void;
+
+    copyArtifactEvent: () => void;
+
+    addCopyOfArtifactEvent: () => void;
+
+    uploadArtifactAsFileEvent: () => void;
+
+    previewArtifactEvent: (type: string) => void;
+
+    codeInterpreterInUseEvent: () => void;
+
+    promptAgaintsHighlightEvent: () => void;
+
+    HighlightFastEditEvent: () => void;
+
+    HighlightCompositeEvent: (numOfHighlights : number) => void;
+
 }
 
 
 export const noOpStatsServices:StatsServices = {
 
     newConversationEvent: () => {},
+
+    forkConversationEvent: () => {},
 
     marketItemPublishEvent: (
         publishingName: string,
@@ -154,6 +222,8 @@ export const noOpStatsServices:StatsServices = {
 
     openSettingsEvent: () => {},
 
+    saveSettingsEvent: (settings: Settings) => {},
+
     openWorkspacesEvent: () => {},
 
     openConversationsEvent: () => {},
@@ -186,12 +256,72 @@ export const noOpStatsServices:StatsServices = {
 
     editPromptCompletedEvent: (prompt: Prompt) => {},
 
-    getApiKey: (id: string) => {},
+    getApiKeyEvent: (id: string) => {},
 
-    deactivateApiKey: (id: string) => {},
+    deactivateApiKeyEvent: (id: string) => {},
 
-    updateApiKey: (keyEdits: any) => {},
+    updateApiKeyEvent: (keyEdits: any) => {},
 
-    createApiKey: (keyData: any) => {},
+    createApiKeyEvent: (keyData: any) => {},
+
+    createAstAdminGroupEvent: (data: any) => {},
+
+    updateGroupTypesEvent: (data: any) => {},
+    
+    updateGroupMembersEvent: (data: any) => {},
+
+    updateGroupMembersPermissionsEvent: (data: any) => {},
+
+    updateGroupAssistantsEvent: (data: any) => {}, 
+
+    deleteAstAdminGroupEvent: (groupId: string) => {},
+
+    getGroupConversationDataEvent: (assistantId: string, conversationId: string) => {},
+
+    getGroupAssistantConversationsEvent: (assistantId: string) => {},
+
+    getGroupAssistantDashboardsEvent: (
+        assistantId: string,
+        startDate?: string,
+        endDate?: string,
+        includeConversationData?: boolean,
+        includeConversationContent?: boolean
+    ) => {},
+
+    saveUserRatingEvent: (conversationId: string, userRating: number, userFeedback?: string) => {},
+
+    createArtifactEvent: (type: string) => {},
+
+    bringArtifactToAnotherConversationEvent: (artifactKey: string) => {},
+
+    deleteArtifactFromSavedArtifactsEvent: (artifactKey: string) => {},
+
+    saveArtifactEvent: (artifactData: any) => {},
+
+    shareArtifactEvent: (artifactData: any, emailList: string[]) => {},
+
+    deleteArtifactEvent: () => {},
+
+    editArtifactEvent: () => {},
+
+    mailArtifactEvent: () => {},
+
+    downloadArtifactEvent: () => {},
+
+    copyArtifactEvent: () => {},
+
+    addCopyOfArtifactEvent: () => {},
+
+    uploadArtifactAsFileEvent: () => {},
+
+    previewArtifactEvent: (type: string) => {},
+
+    codeInterpreterInUseEvent: () => {},
+
+    promptAgaintsHighlightEvent: () => {},
+
+    HighlightFastEditEvent: () => {},
+
+    HighlightCompositeEvent: (numOfHighlights : number) => {},
 
 }

@@ -5,8 +5,6 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
-import useErrorService from '@/services/errorService';
-import useApiService from '@/services/useApiService';
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
 import { getIsLocalStorageSelection, isRemoteConversation, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import cloneDeep from 'lodash/cloneDeep';
@@ -25,16 +23,17 @@ import {
     updateConversation,
     compressAllConversationMessages,
     conversationWithUncompressedMessages,
+    conversationWithCompressedMessages,
 } from '@/utils/app/conversation';
 import { saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
-import { getSettings } from '@/utils/app/settings';
+import { getSettings, saveSettings } from '@/utils/app/settings';
 import { getAccounts } from "@/services/accountService";
 
 import { Conversation, Message } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
 import { FolderInterface, FolderType } from '@/types/folder';
-import { OpenAIModelID, OpenAIModels, fallbackModelID, OpenAIModel } from '@/types/openai';
+import { ModelID, Models, fallbackModelID, Model } from '@/types/model';
 import { Prompt } from '@/types/prompt';
 
 
@@ -62,14 +61,10 @@ import SharedItemsList from "@/components/Share/SharedItemList";
 import { saveFeatures } from "@/utils/app/features";
 import WorkspaceList from "@/components/Workspace/WorkspaceList";
 import { Market } from "@/components/Market/Market";
-import { getBasePrompts } from "@/services/basePromptsService";
-import { LatestExportFormat } from "@/types/export";
-import { importData } from "@/utils/app/importExport";
 import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import { useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
-import { AccountDialog } from "@/components/Settings/AccountComponents/AccountDialog"; // MTDCOST
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants } from '@/services/assistantService';
 import { getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
@@ -84,6 +79,10 @@ import { noRateLimit } from '@/types/rateLimit';
 import { fetchAstAdminGroups, checkInAmplifyCognitoGroups } from '@/services/groupsService';
 import { AmpCognGroups, AmplifyGroups } from '@/types/groups';
 import { contructGroupData } from '@/utils/app/groups';
+import { getAllArtifacts } from '@/services/artifactsService';
+import { baseAssistantFolder, basePrompt, isBaseFolder, isOutDatedBaseFolder } from '@/utils/app/basePrompts';
+import { fetchUserSettings } from '@/services/settingsService';
+import { Settings } from '@/types/settings';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -93,7 +92,7 @@ const LoadingIcon = styled(Icon3dCubeSphere)`
 
 
 interface Props {
-    defaultModelId: OpenAIModelID;
+    defaultModelId: ModelID;
     
   ClientId: string | null;
     cognitoDomain: string | null;
@@ -113,10 +112,10 @@ const Home = ({
     availableModels
 }: Props) => {
     const { t } = useTranslation('chat');
-    const { getModels } = useApiService();
-    const { getModelsError } = useErrorService();
     const [initialRender, setInitialRender] = useState<boolean>(true);
-    const [loadingSelectedConv, setLoadingSelectedConv] = useState<boolean>(false);
+    // const [loadingSelectedConv, setLoadingSelectedConv] = useState<boolean>(false);
+    const [loadingMessage, setLoadingMessage] = useState<string>('');
+
     const [loadingAmplify, setLoadingAmplify] = useState<boolean>(true);
     const { data: session, status } = useSession();
     const [user, setUser] = useState<DefaultUser | null>(null);
@@ -153,16 +152,13 @@ const Home = ({
             hasScrolledToBottom,
             featureFlags,
             storageSelection,
-            groups
+            groups,
+            models
 
         },
         dispatch,
     } = contextValue;
 
-    // MTDCOST
-    const handleAccountDialogClose = () => {
-        dispatch({ field: 'page', value: 'chat' });
-    };
 
     const promptsRef = useRef(prompts);
 
@@ -217,20 +213,20 @@ const Home = ({
         if (availableModels) {
             const modelList = availableModels.split(",");
 
-            const models: OpenAIModel[] = modelList.reduce((result: OpenAIModel[], model: string) => {
+            const models: Model[] = modelList.reduce((result: Model[], model: string) => {
                 const model_name = model;
 
-                for (const [key, value] of Object.entries(OpenAIModelID)) {
+                for (const [key, value] of Object.entries(ModelID)) {
                     if (value === model_name && modelList.includes(model_name)) {
                         result.push({
                             id: model_name,
-                            name: OpenAIModels[value].name,
-                            maxLength: OpenAIModels[value].maxLength,
-                            tokenLimit: OpenAIModels[value].tokenLimit,
-                            actualTokenLimit: OpenAIModels[value].actualTokenLimit,
-                            inputCost: OpenAIModels[value].inputCost,
-                            outputCost: OpenAIModels[value].outputCost,
-                            description: OpenAIModels[value].description
+                            name: Models[value].name,
+                            maxLength: Models[value].maxLength,
+                            tokenLimit: Models[value].tokenLimit,
+                            actualTokenLimit: Models[value].actualTokenLimit,
+                            inputCost: Models[value].inputCost,
+                            outputCost: Models[value].outputCost,
+                            description: Models[value].description
                         });
                     }
                 }
@@ -245,7 +241,9 @@ const Home = ({
         if (chatEndpoint) dispatch({ field: 'chatEndpoint', value: chatEndpoint });
     }, [chatEndpoint]);
 
+
     const handleSelectConversation = async (conversation: Conversation) => {
+        window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false}} ));
         window.dispatchEvent(new Event('cleanupApiKeys'));
         // if we click on the conversation we are already on, then dont do anything
         if (selectedConversation && (conversation.id === selectedConversation.id) && isRemoteConversation(selectedConversation)) return;
@@ -254,8 +252,9 @@ const Home = ({
         if (!('isLocal' in conversation)) {
             conversation.isLocal = true;
         }
+        // setLoadingSelectedConv(true);
+        setLoadingMessage('Loading Conversation...');
 
-        setLoadingSelectedConv(true);
         let newSelectedConv = null;
         // check if it isLocal? if not get the conversation from s3
         if (isRemoteConversation(conversation)) { 
@@ -266,12 +265,7 @@ const Home = ({
         } else {
             newSelectedConv = conversationWithUncompressedMessages(cloneDeep(conversation));
         }
-        setLoadingSelectedConv(false);
-
-        // not in use
-        // // Before changing the selected conversation, we must sync the conversation with teh cloud conversation
-        // // selectedConversation should always have isLocal attribute
-        // if (selectedConversation && !selectedConversation.isLocal) syncCloudConversation(selectedConversation, conversations, dispatch);
+        setLoadingMessage('');
 
         if (newSelectedConv) {
         //add last used assistant if there was one used else should be removed
@@ -408,7 +402,7 @@ const Home = ({
                             id: uuidv4(),
                             name: t('New Conversation'),
                             messages: [],
-                            model: OpenAIModels[defaultModelId],
+                            model: Models[defaultModelId],
                             prompt: DEFAULT_SYSTEM_PROMPT,
                             temperature: DEFAULT_TEMPERATURE,
                             folderId: null,
@@ -504,10 +498,10 @@ const Home = ({
             name: t('New Conversation'),
             messages: [],
             model: lastConversation?.model || {
-                id: OpenAIModels[defaultModelId].id,
-                name: OpenAIModels[defaultModelId].name,
-                maxLength: OpenAIModels[defaultModelId].maxLength,
-                tokenLimit: OpenAIModels[defaultModelId].tokenLimit,
+                id: Models[defaultModelId].id,
+                name: Models[defaultModelId].name,
+                maxLength: Models[defaultModelId].maxLength,
+                tokenLimit: Models[defaultModelId].tokenLimit,
             },
             prompt: DEFAULT_SYSTEM_PROMPT,
             temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
@@ -530,21 +524,48 @@ const Home = ({
         dispatch({ field: 'loading', value: false });
     };
 
+    const handleUpdateSelectedConversation = (updatedConversation: Conversation) => {
+        if (selectedConversation && selectedConversation.isLocal) {
+            const updatedConversations: Conversation[] = conversationsRef.current.map(
+                (conversation:Conversation) => {
+                    if (conversation.id === selectedConversation.id) {
+                        return conversationWithCompressedMessages(updatedConversation);
+                    }
+                    return conversation;
+                },
+            );
+            if (updatedConversations.length === 0) {
+                updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+            }
+            dispatch({field: 'conversations', value: updatedConversations});
+            saveConversations(updatedConversations);
+        } else {
+            uploadConversation(updatedConversation, foldersRef.current);
+        }
+    
+        dispatch({
+            field: 'selectedConversation',
+            value: updatedConversation,
+        }); 
+
+
+    }
+
 
     const handleUpdateConversation = (
         conversation: Conversation,
         data: KeyValuePair,
     ) => {
 
-        console.log("Previous Conversation: ", conversation)
-        console.log("Updating data: ", data)
+        // console.log("Previous Conversation: ", conversation)
+        // console.log("Updating data: ", data)
 
         const updatedConversation = {
             ...conversation,
             [data.key]: data.value,
         };
 
-        console.log("Updated Conversation", updatedConversation)
+        // console.log("Updated Conversation", updatedConversation)
 
 
         const { single, all } = updateConversation(
@@ -659,25 +680,49 @@ const Home = ({
     useEffect(() => {
         const fetchAccounts = async () => {      
             console.log("Fetching Accounts...");
-            const response = await getAccounts();
-            if (response.success) {
-                const defaultAccount = response.data.find((account: any) => account.isDefault);
-                if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
-                dispatch({ field: 'defaultAccount', value: defaultAccount || noCoaAccount});  
-            } else {
-                console.log("Failed to fetch accounts.");
+            try {
+                const response = await getAccounts();
+                if (response.success) {
+                    const defaultAccount = response.data.find((account: any) => account.isDefault);
+                    if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
+                    setLoadingAmplify(false); 
+                    dispatch({ field: 'defaultAccount', value: defaultAccount || noCoaAccount});  
+                    return;
+                } else {
+                    console.log("Failed to fetch accounts.");
+                }
+            } catch (e) {
+                console.log("Failed to fetch accounts: ", e);
             }
+            dispatch({ field: 'defaultAccount', value: noCoaAccount}); 
             setLoadingAmplify(false);   
         };
 
+        const fetchSettings = async () => {
+            console.log("Fetching Settings...");
+            try {
+                // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
+                const result = await fetchUserSettings();
+                if (result.success) {
+                    if (result.data) { 
+                        saveSettings(result.data as Settings);
+                    }
+                } else {
+                    console.log("Failed to get user settings: ", result);
+                }
+            } catch (e) {
+                console.log("Failed to get user settings: ", e);
+            }
+        }
+
         const fetchArtifacts = async () => {      
-            // console.log("Fetching Remote Artifacts...");
-            // const response = await getArtifacts();
-            // if (response.success) { 
-            //     dispatch({ field: 'artifacts', value: response.data});  
-            // } else {
-            //     console.log("Failed to fetch remote Artifacts.");
-            // } 
+            console.log("Fetching Remote Artifacts...");
+            const response = await getAllArtifacts();
+            if (response.success) { 
+                dispatch({ field: 'artifacts', value: response.data});  
+            } else {
+                console.log("Failed to fetch remote Artifacts.");
+            } 
         };
 
         const fetchInAmpCognGroup = async () => {
@@ -709,7 +754,7 @@ const Home = ({
                 console.log("Failed to sync cloud conversations: ", e);
             }
             console.log("Failed to sync cloud conversations.");
-            return {newfolders: folders};
+            return {newfolders: []};
         }
 
 
@@ -729,22 +774,16 @@ const Home = ({
             return {groups: [], groupFolders: [] as FolderInterface[], groupPrompts: [] as Prompt[]};
         }
 
-        const fetchPrompts = async () => {
-            try {
-                console.log("Fetching Base Prompts...");
-                const basePrompts = await getBasePrompts();
-                if (basePrompts.success) {
-                    const { history, folders, prompts}: LatestExportFormat = importData(basePrompts.data, conversationsRef.current, promptsRef.current, foldersRef.current);
-                    console.log('sync base prompts complete');
-                    return {updatedConversations: history, updatedFolders: folders, updatedPrompts: prompts};
-                } else {
-                    console.log("Failed to import base prompts.");
-                }
-            } catch (e) {
-                console.log("Failed to import base prompts.", e);
-            }
-            return {updatedConversations: conversationsRef.current, updatedFolders: foldersRef.current, updatedPrompts: promptsRef.current};
 
+        const fetchPrompts = () => {
+            console.log("Fetching Base Prompts...");
+            const updatedFolders:FolderInterface[] = [...foldersRef.current.filter((f:FolderInterface) => !isBaseFolder(f.id) && !isOutDatedBaseFolder(f.id)),
+                                                      ...basePrompt.folders];
+            const updatedPrompts: Prompt[] =  [...promptsRef.current.filter((p: Prompt) => !p.folderId || (!isBaseFolder(p.folderId) && !isOutDatedBaseFolder(p.folderId))),
+                                               ...basePrompt.prompts]
+            
+                    // currently we have no base conversations 
+            return {updatedConversations: conversationsRef.current, updatedFolders, updatedPrompts};
         }
 
         // return list of assistants 
@@ -763,15 +802,17 @@ const Home = ({
 
         // On Load Data
         const handleOnLoadData = async () => {
-            // Fetch base prompts
-            let { updatedConversations, updatedFolders, updatedPrompts} = await fetchPrompts();
+            // new basePrompts no remote call 
+            let { updatedConversations, updatedFolders, updatedPrompts} = fetchPrompts();
 
             let assistantLoaded = false;
             let groupsLoaded = false;
 
-
             const checkAndFinalizeUpdates = () => {
                 if (assistantLoaded && groupsLoaded) {
+
+                    const containsAssistantCreator = false;
+                    if (!containsAssistantCreator) updatedPrompts.push()
                     // Only dispatch when both operations have completed
                     dispatch({ field: 'prompts', value: updatedPrompts });
                     dispatch({ field: 'syncingPrompts', value: false });
@@ -866,10 +907,11 @@ const Home = ({
 
         if (user && user.email && initialRender) {
             setInitialRender(false);
-            // independent function calls
-            fetchArtifacts();  // fetch artifacts 
+            // independent function call high priority
             fetchAccounts();  // fetch accounts for chatting charging
+            fetchSettings(); // fetch user settinsg
             fetchInAmpCognGroup();  // updates ast admin interface featureflag
+            if (featureFlags.artifacts) fetchArtifacts(); // fetch artifacts 
 
             //Conversation, prompt, folder dependent calls
             handleOnLoadData();
@@ -881,14 +923,14 @@ const Home = ({
     // ON LOAD --------------------------------------------
 
     useEffect(() => {
-        const settings = getSettings();
+        const settings = getSettings(featureFlags);
+
         if (settings.theme) {
             dispatch({
                 field: 'lightMode',
                 value: settings.theme,
             });
         }
-
 
         const workspaceMetadataStr = localStorage.getItem('workspaceMetadata');
         if (workspaceMetadataStr) {
@@ -940,15 +982,8 @@ const Home = ({
                                     })
             // Make sure the "assistants" folder exists and create it if necessary
             const assistantsFolder = updatedFolders.find((f:FolderInterface) => f.id === "assistants");
-            if (!assistantsFolder)  {
-                updatedFolders.push(
-                      { id: "assistants",
-                        date: getDate(),
-                        name: "Assistants",
-                        type: "prompt",
-                      } as FolderInterface
-                );
-            }
+            if (!assistantsFolder) updatedFolders.push( baseAssistantFolder );
+            
             dispatch({ field: 'folders', value: updatedFolders});
         }
 
@@ -992,7 +1027,7 @@ const Home = ({
                 id: uuidv4(),
                 name: t('New Conversation'),
                 messages: [],
-                model: OpenAIModels[defaultModelId],
+                model: Models[defaultModelId],
                 prompt: DEFAULT_SYSTEM_PROMPT,
                 temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
                 folderId: folder.id,
@@ -1252,6 +1287,7 @@ const Home = ({
                     handleUpdateFolder,
                     handleSelectConversation,
                     handleUpdateConversation,
+                    handleUpdateSelectedConversation, 
                     preProcessingCallbacks,
                     postProcessingCallbacks,
                     addPreProcessingCallback,
@@ -1260,6 +1296,7 @@ const Home = ({
                     removePostProcessingCallback,
                     clearWorkspace,
                     handleAddMessages,
+                    setLoadingMessage
                 }}
             >
                 <Head>
@@ -1323,10 +1360,6 @@ const Home = ({
                                 {page === 'home' && (
                                     <MyHome />
                                 )}
-                                {/* MTDCOST */}
-                                {page === 'cost' && (
-                                    <AccountDialog open={true} onClose={handleAccountDialogClose} />
-                                )}
                             </div>
 
 
@@ -1338,9 +1371,9 @@ const Home = ({
                             </TabSidebar>
 
                         </div>
+                        <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
+                        {/* <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/> */}
 
-                        <LoadingDialog open={loadingSelectedConv} message={"Loading Conversation..."}/>
-                        <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
                     </main>
                 )}
 
@@ -1397,8 +1430,8 @@ export default Home;
 export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
     const defaultModelId =
         (process.env.DEFAULT_MODEL &&
-            Object.values(OpenAIModelID).includes(
-                process.env.DEFAULT_MODEL as OpenAIModelID,
+            Object.values(ModelID).includes(
+                process.env.DEFAULT_MODEL as ModelID,
             ) &&
             process.env.DEFAULT_MODEL) ||
         fallbackModelID;

@@ -1,4 +1,5 @@
 export function lzwCompress(strInput: string): number[] {
+    if (!strInput) return [];
     const dictionary: Map<string, number> = new Map<string, number>();
     let nextCode = 256;
     let compressedOutput: number[] = [];
@@ -32,6 +33,7 @@ export function lzwCompress(strInput: string): number[] {
 }
 
 export function lzwUncompress(compressedData: number[]): string {
+    if (compressedData.length === 0) '';
     const dictionary: Map<number, string> = new Map<number, string>();
     for (let i = 0; i < 256; i++) {
         dictionary.set(i, String.fromCharCode(i));
@@ -40,7 +42,9 @@ export function lzwUncompress(compressedData: number[]): string {
     let decompressedString = '';
     let previousEntry = dictionary.get(compressedData[0]);
     if (!previousEntry) {
-        throw new Error('Invalid compressed data: First entry not found in dictionary');
+        // console.log('Invalid compressed data: First entry not found in dictionary');
+        return '';
+        // throw new Error('Invalid compressed data: First entry not found in dictionary');
     }
     decompressedString += previousEntry;
 

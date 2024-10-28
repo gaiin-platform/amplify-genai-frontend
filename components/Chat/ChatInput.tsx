@@ -2,7 +2,6 @@ import {
     IconArrowDown,
     IconPlayerStop,
     IconAt,
-    IconWand,
     IconFiles,
     IconSend,
 } from '@tabler/icons-react';
@@ -28,7 +27,7 @@ import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
 import HomeContext from '@/pages/api/home/home.context';
 import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
-import {OpenAIModel, OpenAIModelID} from "@/types/openai";
+import {Model, ModelID} from "@/types/model";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
@@ -44,11 +43,14 @@ import MessageSelectModal from './MesssageSelectModal';
 import cloneDeep from 'lodash/cloneDeep';
 import FeaturePlugins from './FeaturePlugins';
 import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
+import React from 'react';
+import { filterModels } from '@/utils/app/models';
+import { getSettings } from '@/utils/app/settings';
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
     onRegenerate: () => void;
-    handleUpdateModel: (model: OpenAIModel) => void;
+    handleUpdateModel: (model: Model) => void;
     onScrollDownClick: () => void;
     stopConversationRef: MutableRefObject<boolean>;
     textareaRef: MutableRefObject<HTMLTextAreaElement | null>;
@@ -69,7 +71,7 @@ export const ChatInput = ({
     const {killRequest} = useChatService();
 
     const {
-        state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming, prompts, models, featureFlags, currentRequestId, chatEndpoint, statsService},
+        state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming, prompts, models,  featureFlags, currentRequestId, chatEndpoint, statsService},
 
         dispatch: homeDispatch
     } = useContext(HomeContext);
@@ -83,6 +85,8 @@ export const ChatInput = ({
         return '100%';
     };
 
+    const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
+    
     const [chatContainerWidth, setChatContainerWidth] = useState(updateSize());
 
     useEffect(() => {
@@ -135,7 +139,8 @@ export const ChatInput = ({
     const [isQiLoading, setIsQiLoading] = useState<boolean>(true);
     const [isPromptOptimizerRunning, setIsPromptOptimizerRunning] = useState<boolean>(false);
     const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
-
+    const [isInputInFocus, setIsInputInFocus] = useState(false);
+    
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const [plugin, setPlugin] = useState<Plugin | null>(null);
@@ -329,18 +334,26 @@ const onAssistantChange = (assistant: Assistant) => {
 
     const handleStopConversation = () => {
         stopConversationRef.current = true;
-
         if (currentRequestId) {
+            console.log("kill request id: ", currentRequestId);
             killRequest(currentRequestId);
         }
+        if (artifactIsStreaming) {
+            console.log("kill artifact even trigger: ");
 
-        setTimeout(() => {
+            const event = new CustomEvent( 'killArtifactRequest');
+            window.dispatchEvent(event);
             stopConversationRef.current = false;
+        } else {
+            setTimeout(() => {
+                stopConversationRef.current = false;
 
-            homeDispatch({field: 'loading', value: false});
-            homeDispatch({field: 'messageIsStreaming', value: false});
-            homeDispatch({field: 'status', value: []});
-        }, 1000);
+                homeDispatch({field: 'loading', value: false});
+                homeDispatch({field: 'messageIsStreaming', value: false});
+                homeDispatch({field: 'artifactIsStreaming', value: false});
+                homeDispatch({field: 'status', value: []});
+            }, 1000);
+        }
     };
 
     const isMobile = () => {
@@ -392,7 +405,7 @@ const onAssistantChange = (assistant: Assistant) => {
             } else {
                 setActivePromptIndex(0);
             }
-        } else if (e.key === 'Enter' && !isTyping && !isMobile() && !e.shiftKey) {
+        } else if (e.key === 'Enter' && !isTyping && !isMobile() && !e.shiftKey && !messageIsDisabled) {
             e.preventDefault();
             handleSend();
         } 
@@ -575,6 +588,7 @@ const onAssistantChange = (assistant: Assistant) => {
     return (
         <>
         { featureFlags.pluginsOnInput &&
+          getSettings(featureFlags).featureOptions.includePluginSelector &&
             <div className='relative z-20' style={{height: 0}}>
                 <FeaturePlugins
                 plugin={plugin}
@@ -617,7 +631,7 @@ const onAssistantChange = (assistant: Assistant) => {
                 <div className='absolute top-0 left-0 right-0 mx-auto flex justify-center items-center gap-2'>
 
 
-                    {messageIsStreaming && !artifactIsStreaming &&  (
+                    {(messageIsStreaming || artifactIsStreaming) &&  (
                         <>
                             <button
                                 className="mb-3 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 md:mt-2"
@@ -694,7 +708,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
                         <AttachFile id="__attachFile"                                                     //  Mistral and pgt 3.5 do not support image files 
                                     disallowedFileExtensions={[ ...COMMON_DISALLOWED_FILE_EXTENSIONS, ...(selectedConversation?.model.id.startsWith("misral") ||
-                                                                                                          selectedConversation?.model.id === OpenAIModelID.GPT_3_5_AZ 
+                                                                                                          selectedConversation?.model.id === ModelID.GPT_3_5_AZ 
                                                                                                                               ? ["jpg","png","gif", "jpeg", "webp"] : []) ]} 
                                     onAttach={addDocument}
                                     onSetMetadata={handleSetMetadata}
@@ -705,7 +719,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
                         {featureFlags.assistants && (
                             <button
-                                className={buttonClasses}
+                                className={buttonClasses + " mr-4"}
                                 onClick={ () => {
                                     handleShowAssistantSelector();
                                     setShowDataSourceSelector(false);
@@ -720,8 +734,8 @@ const onAssistantChange = (assistant: Assistant) => {
                             </button>
                         )}
 
-                        {featureFlags.promptOptimizer && (
-                            <>
+                        {featureFlags.promptOptimizer && isInputInFocus && (
+                            <div className='relative mr-[-32px]'>
                                 <PromptOptimizerButton
                                     maxPlaceholders={0}
                                     prompt={content || ""}
@@ -730,7 +744,7 @@ const onAssistantChange = (assistant: Assistant) => {
                                         textareaRef.current?.focus();
                                     }}
                                 />
-                            </>
+                            </div>
                         )}
 
                         {showAssistantSelect && (
@@ -809,6 +823,8 @@ const onAssistantChange = (assistant: Assistant) => {
 
                         <textarea
                             ref={textareaRef}
+                            onFocus={() => setIsInputInFocus(true)}
+                            onBlur={() => setIsInputInFocus(false)}
                             className="m-0 w-full resize-none border-0 bg-transparent p-0 py-2 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-3 md:pl-10"
                             style={{
                                 resize: 'none',
@@ -834,12 +850,13 @@ const onAssistantChange = (assistant: Assistant) => {
 
                         <button
                             // className="right-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
-                            className={`right-2 top-2 rounded-sm p-1 text-neutral-800 
-                                ${messageIsDisabled? 'cursor-not-allowed ' : 'opacity-60 hover:bg-neutral-200 hover:text-neutral-900'} 
+                            className={`right-2 top-2 rounded-sm p-1 text-neutral-800 mx-1 
+                                ${messageIsDisabled || !content? 'cursor-not-allowed ' : 'opacity-60 hover:bg-neutral-200 hover:text-neutral-900'} 
                                 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
                             onClick={handleSend}
-                            title={messageIsDisabled ? "Please Address Missing Information to Enable Prompting" : "Send Prompt"}
-                            disabled={messageIsDisabled}
+                            title={messageIsDisabled ? "Please address missing information to enable chat" 
+                                                     : !content ? "Enter a message to start chatting" : "Send Prompt"}
+                            disabled={messageIsDisabled || !content }
                         >
                             {messageIsStreaming || artifactIsStreaming ? (
                                 <div
@@ -876,7 +893,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
                     {isModalVisible && (
                         <VariableModal
-                            models={models}
+                            models={filteredModels}
                             handleUpdateModel={handleUpdateModel}
                             prompt={filteredPrompts[activePromptIndex]}
                             variables={variables}

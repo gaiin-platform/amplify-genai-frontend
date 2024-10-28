@@ -1,8 +1,5 @@
 
-import React, { Children, ReactElement, useEffect, useState } from 'react';
-import {
-  IconDownload
-} from '@tabler/icons-react';
+import React, { ReactElement } from 'react';
 
 interface Props {
     fileName?: string;

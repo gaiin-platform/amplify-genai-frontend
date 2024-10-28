@@ -8,6 +8,7 @@ import {getType, parsePromptVariables} from "@/utils/app/prompts";
 import {useSession} from "next-auth/react";
 import { uncompressMessages } from "@/utils/app/messages";
 import { ApiKey } from "@/types/apikeys";
+import { Settings } from "@/types/settings";
 
 let eventServiceReady = false;
 
@@ -230,7 +231,7 @@ const useEventService = (mixPanelToken:string) => {
         }),
         openSharedItemsEvent: ifReady( () => {
             try {
-                mixpanel.track('Shared Items Opened', {});
+                mixpanel.track('Shared Items Opened', );
             } catch (e) {
                 console.error("Error tracking Shared Items Opened", e);
             }
@@ -240,6 +241,15 @@ const useEventService = (mixPanelToken:string) => {
                 mixpanel.track('Settings Opened', {});
             } catch (e) {
                 console.error("Error tracking open settings", e);
+            }
+        }),
+        saveSettingsEvent: ifReady( (settings: Settings) => {
+            try {
+                mixpanel.track('Settings saved', {
+                    ...toEventData("Saved Settings", settings)
+                });
+            } catch (e) {
+                console.error("Error tracking save settings", e);
             }
         }),
         openWorkspacesEvent: ifReady( () => {
@@ -261,6 +271,13 @@ const useEventService = (mixPanelToken:string) => {
                 mixpanel.track('Conversation Started', {});
             } catch (e) {
                 console.error("Error tracking new conversation ", e);
+            }
+        }),
+        forkConversationEvent: ifReady( () => {
+            try {
+                mixpanel.track('Fork Conversation', {});
+            } catch (e) {
+                console.error("Error tracking fork conversation ", e);
             }
         }),
         startConversationEvent: ifReady( (prompt: Prompt) => {
@@ -440,7 +457,7 @@ const useEventService = (mixPanelToken:string) => {
                 console.error("Error tracking prompt edit completed", e);
             }
         }),
-        getApiKey: ifReady(  (id: string) => {
+        getApiKeyEvent: ifReady(  (id: string) => {
             try {
                 mixpanel.track('Get API key ', {
                     ...toEventData("API Key id", id)
@@ -450,7 +467,7 @@ const useEventService = (mixPanelToken:string) => {
             }
         }),
 
-        deactivateApiKey: ifReady( (id: string) => {
+        deactivateApiKeyEvent: ifReady( (id: string) => {
             try {
                 mixpanel.track('Deactivate API key ', {
                     ...toEventData("API KeyID ", id)
@@ -460,7 +477,7 @@ const useEventService = (mixPanelToken:string) => {
             }
         }),
     
-        updateApiKey: ifReady( (keyEdits: any) => {
+        updateApiKeyEvent: ifReady( (keyEdits: any) => {
             try {
                 mixpanel.track('Update API key(s) ', {
                     ...toEventData("API Key(s) edits ", keyEdits)
@@ -470,13 +487,279 @@ const useEventService = (mixPanelToken:string) => {
             }
         }),
     
-        createApiKey: ifReady(  (keyData: any) => {
+        createApiKeyEvent: ifReady(  (keyData: any) => {
             try {
                 mixpanel.track('Create API key(s) ', {
                     ...toEventData("API Key data", keyData)
                 });
             } catch (e) {
                 console.error("Error tracking Create API key ", e);
+            }
+        }),
+        
+
+        createAstAdminGroupEvent: ifReady((data: any) => {
+            try {
+                mixpanel.track('Create Assistant Admin Group', {
+                    ...toEventData("Group Data", data)
+                });
+            } catch (e) {
+                console.error("Error tracking Create Assistant Admin Group", e);
+            }
+        }),
+    
+        updateGroupTypesEvent: ifReady((data: any) => {
+            try {
+                mixpanel.track('Update Group Types', {
+                    ...toEventData("Group Types Data", data)
+                });
+            } catch (e) {
+                console.error("Error tracking Update Group Types", e);
+            }
+        }),
+    
+        updateGroupMembersEvent: ifReady((data: any) => {
+            try {
+                mixpanel.track('Update Group Members', {
+                    ...toEventData("Group Members Data", data)
+                });
+            } catch (e) {
+                console.error("Error tracking Update Group Members", e);
+            }
+        }),
+    
+        updateGroupMembersPermissionsEvent: ifReady((data: any) => {
+            try {
+                mixpanel.track('Update Group Members Permissions', {
+                    ...toEventData("Group Permissions Data", data)
+                });
+            } catch (e) {
+                console.error("Error tracking Update Group Members Permissions", e);
+            }
+        }),
+    
+        updateGroupAssistantsEvent: ifReady((data: any) => {
+            try {
+                mixpanel.track('Update Group Assistants', {
+                    ...toEventData("Assistants Data", data)
+                });
+            } catch (e) {
+                console.error("Error tracking Update Group Assistants", e);
+            }
+        }),
+    
+        deleteAstAdminGroupEvent: ifReady((groupId: string) => {
+            try {
+                mixpanel.track('Delete Assistant Admin Group', {
+                    ...toEventData("Group ID", groupId)
+                });
+            } catch (e) {
+                console.error("Error tracking Delete Assistant Admin Group", e);
+            }
+        }),
+
+        getGroupConversationDataEvent: ifReady((assistantId: string, conversationId: string) => {
+            try {
+                mixpanel.track('Get Group Conversation Data', {
+                    ...toEventData("Assistant ID", assistantId),
+                    ...toEventData("Conversation ID", conversationId)
+                });
+            } catch (e) {
+                console.error("Error tracking Get Group Conversation Data", e);
+            }
+        }),
+        
+        getGroupAssistantConversationsEvent: ifReady((assistantId: string) => {
+            try {
+                mixpanel.track('Get Group Assistant Conversations', {
+                    ...toEventData("Assistant ID", assistantId)
+                });
+            } catch (e) {
+                console.error("Error tracking Get Group Assistant Conversations", e);
+            }
+        }),
+        
+        getGroupAssistantDashboardsEvent: ifReady((
+            assistantId: string,
+            startDate?: string,
+            endDate?: string,
+            includeConversationData?: boolean,
+            includeConversationContent?: boolean
+        ) => {
+            try {
+                mixpanel.track('Get Group Assistant Dashboards', {
+                    ...toEventData("Assistant ID", assistantId),
+                    ...(startDate && { ...toEventData("Start Date", startDate) }),
+                    ...(endDate && { ...toEventData("End Date", endDate) }),
+                    ...(includeConversationData !== undefined && { ...toEventData("Include Conversation Data", includeConversationData) }),
+                    ...(includeConversationContent !== undefined && { ...toEventData("Include Conversation Content", includeConversationContent) })
+                });
+            } catch (e) {
+                console.error("Error tracking Get Group Assistant Dashboards", e);
+            }
+        }),
+        
+        saveUserRatingEvent: ifReady((conversationId: string, userRating: number, userFeedback?: string) => {
+            try {
+                mixpanel.track('Save User Rating', {
+                    ...toEventData("Conversation ID", conversationId),
+                    ...toEventData("User Rating", userRating),
+                    ...(userFeedback && { ...toEventData("User Feedback", userFeedback) })
+                });
+            } catch (e) {
+                console.error("Error tracking Save User Rating", e);
+            }
+        }),
+
+        createArtifactEvent: ifReady((type: string) => {
+            try {
+                mixpanel.track('Create Artifact', {
+                ...toEventData("Artifact Type", type)
+                });
+            } catch (e) {
+                console.error("Error tracking Create Artifact", e);
+            }
+        }),
+
+        bringArtifactToAnotherConversationEvent: ifReady((artifactKey: string) => {
+            try {
+                mixpanel.track('Bring Artifact To Another Conversation', {
+                    ...toEventData("Artifact Key", artifactKey)
+                });
+            } catch (e) {
+                console.error("Error tracking Bring Artifact To Another Conversation", e);
+            }
+        }),
+        
+        deleteArtifactFromSavedArtifactsEvent: ifReady((artifactKey: string) => {
+            try {
+                mixpanel.track('Delete Artifact From Saved Artifacts', {
+                    ...toEventData("Artifact Key", artifactKey)
+                });
+            } catch (e) {
+                console.error("Error tracking Delete Artifact From Saved Artifacts", e);
+            }
+        }),
+        
+        saveArtifactEvent: ifReady((artifactData: any) => {
+            try {
+                mixpanel.track('Save Artifact', {
+                    ...toEventData("Artifact Data", artifactData)
+                });
+            } catch (e) {
+                console.error("Error tracking Save Artifact", e);
+            }
+        }),
+        
+        shareArtifactEvent: ifReady((artifactData: any, emailList: string[]) => {
+            try {
+                mixpanel.track('Share Artifact', {
+                    ...toEventData("Artifact Data", artifactData),
+                    ...toEventData("Shared With Emails", emailList)
+                });
+            } catch (e) {
+                console.error("Error tracking Share Artifact", e);
+            }
+        }),
+        
+
+        deleteArtifactEvent: ifReady(() => {
+            try {
+                mixpanel.track('Delete Artifact');
+            } catch (e) {
+                console.error("Error tracking Delete Artifact", e);
+            }
+        }),
+        
+        editArtifactEvent: ifReady(() => {
+            try {
+                mixpanel.track('Edit Artifact');
+            } catch (e) {
+                console.error("Error tracking Edit Artifact", e);
+            }
+        }),
+        
+        mailArtifactEvent: ifReady(() => {
+            try {
+                mixpanel.track('Mail Artifact');
+            } catch (e) {
+                console.error("Error tracking Mail Artifact", e);
+            }
+        }),
+        
+        downloadArtifactEvent: ifReady(() => {
+            try {
+                mixpanel.track('Download Artifact');
+            } catch (e) {
+                console.error("Error tracking Download Artifact", e);
+            }
+        }),
+        
+        copyArtifactEvent: ifReady(() => {
+            try {
+                mixpanel.track('Copy Artifact');
+            } catch (e) {
+                console.error("Error tracking Copy Artifact", e);
+            }
+        }),
+        
+        addCopyOfArtifactEvent: ifReady(() => {
+            try {
+                mixpanel.track('Add Copy Of Artifact');
+            } catch (e) {
+                console.error("Error tracking Add Copy Of Artifact", e);
+            }
+        }),
+        
+        uploadArtifactAsFileEvent: ifReady(() => {
+            try {
+                mixpanel.track('Upload Artifact As File');
+            } catch (e) {
+                console.error("Error tracking Upload Artifact As File", e);
+            }
+        }),
+        
+        previewArtifactEvent: ifReady((type: string) => {
+            try {
+                mixpanel.track('Preview Artifact', {
+                    ...toEventData("Artifact Type", type)
+                    });
+            } catch (e) {
+                console.error("Error tracking Preview Artifact", e);
+            }
+        }),
+        
+        codeInterpreterInUseEvent: ifReady(() => {
+            try {
+                mixpanel.track('Code interpreter in use');
+            } catch (e) {
+                console.error("Error trackingCode interpreter in use", e);
+            }
+        }),
+
+        promptAgaintsHighlightEvent: ifReady(() => {
+            try {
+                mixpanel.track('Prompt against highlight');
+            } catch (e) {
+                console.error("Error tracking Prompt against highlight", e);
+            }
+        }),
+
+        HighlightFastEditEvent: ifReady(() => {
+            try {
+                mixpanel.track('Fast edit highlight used');
+            } catch (e) {
+                console.error("Error tracking fast edit highlight", e);
+            }
+        }),
+
+        HighlightCompositeEvent: ifReady((numOfHighlights : number)  => {
+            try {
+                mixpanel.track('Composite mode in highlight tool used', {
+                    ...toEventData("Number of highlights used", numOfHighlights),
+                });
+            } catch (e) {
+                console.error("Error tracking highlight composite", e);
             }
         }),
     }

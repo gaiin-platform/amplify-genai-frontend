@@ -6,6 +6,8 @@ import {
   IconTrash,
   IconShare,
   IconX,
+  IconPin,
+  IconPinFilled,
 } from '@tabler/icons-react';
 import {
   KeyboardEvent,
@@ -19,7 +21,10 @@ import { FolderInterface } from '@/types/folder';
 
 import HomeContext from '@/pages/api/home/home.context';
 
-import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
+import React from 'react';
+import { baseAssistantFolder, isBaseFolder } from '@/utils/app/basePrompts';
+import ActionButton from '../ReusableComponents/ActionButton';
+import { saveFolders } from '@/utils/app/folders';
 
 interface Props {
   currentFolder: FolderInterface;
@@ -35,7 +40,7 @@ const Folder = ({
   folderComponent
   
 }: Props) => {
-  const { handleDeleteFolder, handleUpdateFolder, state: {selectedConversation, allFoldersOpenPrompts, allFoldersOpenConvs, checkingItemType, checkedItems},
+  const { handleDeleteFolder, handleUpdateFolder, state: {selectedConversation, folders, allFoldersOpenPrompts, allFoldersOpenConvs, checkingItemType, checkedItems},
           dispatch: homeDispatch,} = useContext(HomeContext);
 
 
@@ -47,11 +52,24 @@ const Folder = ({
   const [checkFolders, setCheckFolders] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
 
+  const showEditDelete =  !currentFolder.isGroupFolder && !isBaseFolder(currentFolder.id) && currentFolder.id !== baseAssistantFolder.id;
+
   const handleEnterDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleRename();
     }
+  };
+
+  const handlePinFolder = (folderId: string) => {
+    const updatedFolders = folders.map((f:FolderInterface) => {
+        if (f.id === folderId) {
+            return {...f, pinned: !f.pinned};
+        }
+        return f;
+    });
+    homeDispatch({ field: 'folders', value: updatedFolders });
+    saveFolders(updatedFolders);
   };
 
   const handleRename = () => {
@@ -174,7 +192,7 @@ const Folder = ({
 
           {(isDeleting || isRenaming) && (
             <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
-              <SidebarActionButton
+              <ActionButton
                 handleClick={(e) => {
                   e.stopPropagation();
 
@@ -189,8 +207,8 @@ const Folder = ({
                 }}
               >
                 <IconCheck size={18} />
-              </SidebarActionButton>
-              <SidebarActionButton
+              </ActionButton>
+              <ActionButton
                 handleClick={(e) => {
                   e.stopPropagation();
                   setIsDeleting(false);
@@ -198,7 +216,7 @@ const Folder = ({
                 }}
               >
                 <IconX size={18} />
-              </SidebarActionButton>
+              </ActionButton>
             </div>
           )}
 
@@ -214,9 +232,22 @@ const Folder = ({
             </div>
           )}
 
-          {!isDeleting && !isRenaming && isHovered && !checkFolders && !currentFolder.isGroupFolder && (
+          {!isDeleting && !isRenaming && isHovered && !checkFolders && showEditDelete && (
             <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
-              <SidebarActionButton
+              <ActionButton
+                handleClick={(e) => {
+                  e.stopPropagation();
+                  handlePinFolder(currentFolder.id);
+                }}
+                title="Pin Folder To The Top"
+              >
+                { currentFolder.pinned ?
+                  <IconPinFilled className={"text-blue-500"} size={18} /> :
+                  <IconPin size={18} /> 
+                }
+              </ActionButton>
+
+              <ActionButton
                 handleClick={(e) => {
                   e.stopPropagation();
                   setIsRenaming(true);
@@ -225,9 +256,9 @@ const Folder = ({
                 title="Rename Folder"
               >
                 <IconPencil size={18} />
-              </SidebarActionButton>
+              </ActionButton>
 
-              <SidebarActionButton
+              <ActionButton
                 handleClick={(e) => {
                   e.stopPropagation();
                   setIsDeleting(true);
@@ -235,7 +266,7 @@ const Folder = ({
                 title="Delete Folder"
               >
                 <IconTrash size={18} />
-              </SidebarActionButton>
+              </ActionButton>
             </div>
           )}
         </div>

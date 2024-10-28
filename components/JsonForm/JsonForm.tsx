@@ -1,4 +1,5 @@
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
+import React from "react";
 
 
 interface FormProps {

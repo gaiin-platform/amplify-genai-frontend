@@ -1,7 +1,7 @@
 import { Conversation, Message } from '@/types/chat';
 import { ErrorMessage } from '@/types/error';
 import { FolderInterface} from '@/types/folder';
-import { OpenAIModel, OpenAIModelID } from '@/types/openai';
+import { Model, ModelID } from '@/types/model';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
 import { Status } from "@/types/workflow";
@@ -14,8 +14,7 @@ import {Op} from "@/types/op";
 import {CheckItemType} from "@/types/checkItem";
 import { PluginLocation } from '@/types/plugin';
 import { Group } from '@/types/groups';
-// import { Artifact } from '@/types/artifacts';
-// import { Artifact } from '@/types/artifacts';
+import { Artifact } from '@/types/artifacts';
 
 
 type HandleSend = (request: any) => void;
@@ -30,14 +29,14 @@ export interface HomeInitialState {
   artifactIsStreaming: boolean
   modelError: ErrorMessage | null;
   status: Status[];
-  models: OpenAIModel[];
+  models: Model[];
   folders: FolderInterface[];
   conversations: Conversation[];
-  // artifacts: Artifact[];
+  artifacts: any[];
   workflows: WorkflowDefinition[];
   selectedConversation: Conversation | undefined;
   currentMessage: Message | undefined;
-  // selectedArtifacts: Artifact[] | undefined;
+  selectedArtifacts: Artifact[] | undefined;
   prompts: Prompt[];
   temperature: number;
   showChatbar: boolean;
@@ -46,7 +45,7 @@ export interface HomeInitialState {
   currentFolder: FolderInterface | undefined;
   messageError: boolean;
   searchTerm: string;
-  defaultModelId: OpenAIModelID | undefined;
+  defaultModelId: ModelID | undefined;
   featureFlags: { [key: string]: boolean },
   workspaceMetadata: Workspace;
   selectedAssistant: Assistant | null;
@@ -86,7 +85,7 @@ export const initialState: HomeInitialState = {
   models: [],
   folders: [],
   conversations: [],
-  // artifacts:[],
+  artifacts:[], // for saved/remote artifacts
   workflows: [],
   ops: {},
   workspaceMetadata: {
@@ -102,7 +101,7 @@ export const initialState: HomeInitialState = {
   },
   selectedConversation: undefined,
   currentMessage: undefined,
-  // selectedArtifacts: undefined,
+  selectedArtifacts: undefined,
   prompts: [],
   temperature: 1,
   showPromptbar: true,
@@ -143,8 +142,9 @@ export const initialState: HomeInitialState = {
     qiSummary: false,
     apiKeys: true,
     assistantAdminInterface: false,
-    artifacts: false, //true
-    mtdCost: false
+    artifacts: true,
+    mtdCost: false,
+    highlighter: true
   },
 
   statsService: noOpStatsServices,

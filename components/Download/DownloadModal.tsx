@@ -3,12 +3,14 @@ import HomeContext from "@/pages/api/home/home.context";
 import {Conversation, Message} from "@/types/chat";
 import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";
-import {createExport} from "@/utils/app/importExport";
 import { useSession } from "next-auth/react"
 import {IconDownload} from '@tabler/icons-react';
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {ConversionOptions, convert} from "@/services/downloadService";
+import { LatestExportFormat } from "@/types/export";
+import { isRemoteConversation } from "@/utils/app/conversationStorage";
+import { fetchMultipleRemoteConversations } from "@/services/remoteConversationService";
 
 export interface DownloadModalProps {
     onDownloadReady: (url: string) => void;
@@ -54,7 +56,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
         showInclude = true,
     }) => {
     const {
-        state: {prompts, conversations, folders, statsService},
+        state: {prompts, conversations, folders, statsService, selectedConversation},
     } = useContext(HomeContext);
 
     const promptsRef = useRef(prompts);
@@ -117,6 +119,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
     const wordTemplateOptions = [
         "none",
     ];
+    const shadow = "rounded p-0.5 shadow-[1px_1px_3px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]";
 
     const [templateSelection, setTemplateSelection] = useState<string>(wordTemplateOptions[0]);
     const [templateOptions, setTemplateOptions] = useState<string[]>(wordTemplateOptions);
@@ -214,11 +217,15 @@ export const DownloadModal: FC<DownloadModalProps> = (
                 exportedConversations = [
                     {...selectedConversations[0], messages: [...selectedMessagesState]}
                 ]
-            }
-            else {
-                exportedConversations = selectedConversationsState.map(conversation => {
+            } else {
+                const conversationPromises = selectedConversationsState.map(async conv=> {
                     let includedMessages: Message[];
-
+                    let conversation = conv;
+                    if (selectedConversation && conversation.id !== selectedConversation.id &&
+                        isRemoteConversation(conv)) {
+                            const cloudConv = await fetchMultipleRemoteConversations([conv.id]);
+                            if (cloudConv && cloudConv.length > 0) conversation = cloudConv[0];
+                        }
                     switch (includeMode) {
                         case "assistant":
                             includedMessages = conversation.messages.filter(message => message.role === 'assistant');
@@ -259,12 +266,14 @@ export const DownloadModal: FC<DownloadModalProps> = (
 
                     return {...conversation, messages: includedMessages};
                 });
+                exportedConversations = await Promise.all(conversationPromises);
             }
+            
 
-            const sharedData = await createExport(
-                exportedConversations,
-                selectedFoldersState,
-                [...selectedPromptsState, ...rootPromptsToAdd], "download");
+            const sharedData = { version: 4, history: exportedConversations, folders: selectedFoldersState,
+                                 prompts:  [...selectedPromptsState, ...rootPromptsToAdd],
+                                } as LatestExportFormat;
+            
 
             const withNewline = (s:string) => {
                 return s ? s + "\n\n" : s;
@@ -368,7 +377,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
 
     const renderScrollableSection = (items: Array<Prompt | Conversation | FolderInterface>, itemType: string) => {
         return (
-            <div style={{height: "100px", overflowY: "scroll"}}>
+            <div style={{height: "140px", overflowY: "scroll"}}>
                 {items.map((item) =>
                     renderItem(item, itemType)
                 )}
@@ -400,8 +409,6 @@ export const DownloadModal: FC<DownloadModalProps> = (
     }
 
 
-    // ...Other Code...
-
     return (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
             <div className="fixed inset-0 z-10 overflow-hidden">
@@ -409,8 +416,8 @@ export const DownloadModal: FC<DownloadModalProps> = (
                     className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                     <div className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true"/>
                     <div
-                        className="border-neutral-400 dark:border-netural-400 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-w-lg sm:p-6 sm:align-middle"
-                        role="dialog"
+                        className="border-neutral-400 dark:border-neutral-600 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:p-6 sm:align-middle"
+                        role="dialog" style={{width: window.innerWidth / 2}}
                     >
                         {isSharing && (
                             <div className="flex flex-col items-center justify-center">
@@ -438,11 +445,12 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                     <h3 className="text-black dark:text-white text-lg mt-2 border-b">Options</h3>
 
 
-                                    <div className="grid grid-cols-2 w-full items-center p-2">
+                                    <div className="grid grid-cols-2 w-full items-center p-2 text-black dark:text-white">
 
                                         <div>Format</div>
                                         <div className="ml-2 rounded w-full text-black pr-2 pt-2">
                                         <select
+                                            className={shadow}
                                             onChange={(e) => {
                                                 if(e.target.value === 'pptx'){
                                                     setTemplateOptions(powerPointTemplateOptions);
@@ -464,6 +472,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                         <div>Template</div>
                                         <div className="ml-2 rounded w-full text-black pr-2 pt-2">
                                             <select
+                                                className={shadow}
                                                 onChange={(e) => {
                                                     setTemplateSelection(e.target.value );
                                                 }}
@@ -478,6 +487,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                         <div>Include Conversation Name</div>
                                         <div className="ml-2 rounded w-full text-black pr-2 pt-2">
                                             <select
+                                                className={shadow}
                                                 onChange={(e) => {
                                                     setIncludeConversationName(e.target.value === 'true');
                                                 }}
@@ -494,6 +504,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                         {showInclude && (
                                         <div className="ml-2 rounded text-black pr-2 pt-2">
                                             <select
+                                                className={shadow}
                                                 onChange={(e) => {
                                                     setIncludeMode(e.target.value);
                                                 }}

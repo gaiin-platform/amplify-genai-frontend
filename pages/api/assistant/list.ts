@@ -12,7 +12,7 @@ const assistantList =
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        let apiUrl = process.env.ASSISTANTS_API_BASE + "/assistant/list" || "";
+        let apiUrl = process.env.API_BASE_URL + "/assistant/list" || "";
 
 
 

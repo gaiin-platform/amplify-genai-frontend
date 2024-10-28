@@ -6,6 +6,7 @@ import { uploadToQiS3 } from '@/services/qiService';
 import cloneDeep from 'lodash/cloneDeep';
 import { AttachedDocument } from "@/types/attacheddocument";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
+import toast from "react-hot-toast";
 
 interface QiModalProps {
     qiSummary: QiSummary | null;
@@ -89,7 +90,7 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type, c
         const response = await uploadToQiS3(uploadData(updatedSummary), type);
         setIsSubmitting(false);
         if (response.success) {
-            alert("Successfully submitted quality improvement summary.");
+            toast("Successfully submitted quality improvement summary.");
             onSubmit();
         } else {
             alert("Failed to submit quality improvement summary. Please try again...")
@@ -124,7 +125,7 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type, c
     return ( <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
               <div className="fixed inset-0 z-10 overflow-hidden">
                 <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                    <div className="dark:border-netural-400 inline-block overflow-hidden rounded-lg border border-gray-300 bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:w-full sm:max-w-[770px] sm:align-middle">
+                    <div className="dark:border-neutral-600 inline-block overflow-hidden rounded-lg border border-gray-300 bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:w-full sm:max-w-[770px] sm:align-middle">
 
                         {isSubmitting && (
                             <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-25">

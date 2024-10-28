@@ -18,10 +18,10 @@ import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
 import HomeContext from "@/pages/api/home/home.context";
 import {ShareAnythingToMarketModal} from "@/components/Share/ShareAnythingToMarketModal";
 import {useSession} from "next-auth/react";
-import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import { fetchData } from 'next-auth/client/_utils';
 import { Tab, TabSidebar } from '../TabSidebar/TabSidebar';
 import { isAssistantById } from '@/utils/app/assistants';
+import ActionButton from '../ReusableComponents/ActionButton';
 
 type SharedItemsListProps = {};
 
@@ -320,20 +320,20 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                                     }}
                                     onMouseLeave={() => setIsButtonHover(true)}>
                                     {!deletingItem && ( <></>
-                                        // <SidebarActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
+                                        // <ActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
                                         //     <IconTrash size={18} />
-                                        // </SidebarActionButton>
+                                        // </ActionButton>
                                     )}
 
                                     {deletingItem && (
                                         <>
-                                            <SidebarActionButton handleClick={handleSWYDelete} title="Confirm">
+                                            <ActionButton handleClick={handleSWYDelete} title="Confirm">
                                                 <IconCheck size={18} />
-                                            </SidebarActionButton>
+                                            </ActionButton>
 
-                                            <SidebarActionButton handleClick={handleCancelDelete} title="Cancel">
+                                            <ActionButton handleClick={handleCancelDelete} title="Cancel">
                                                 <IconX size={18} />
-                                            </SidebarActionButton>
+                                            </ActionButton>
                                         </>
                                     )}
                                 </div>
@@ -432,21 +432,21 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
             //                                 }}
             //                                 onMouseLeave={() => setIsButtonHover(true)}>
             //                                 {!deletingItem && (
-            //                                     <SidebarActionButton handleClick={(e) => handleOpenDeleteModal(user_item, e)} title="Delete Shared Item">
+            //                                     <ActionButton handleClick={(e) => handleOpenDeleteModal(user_item, e)} title="Delete Shared Item">
             //                                         <IconTrash size={18} />
-            //                                     </SidebarActionButton>
+            //                                     </ActionButton>
             //                                 )}
         
             //                                 {deletingItem && (
             //                                     <>
             //                                         {/* different handledelete */}
-            //                                         <SidebarActionButton handleClick={(e) => handleYSDelete(e, item.id, user_item)} title="Confirm">
+            //                                         <ActionButton handleClick={(e) => handleYSDelete(e, item.id, user_item)} title="Confirm">
             //                                             <IconCheck size={18} />
-            //                                         </SidebarActionButton>
+            //                                         </ActionButton>
         
-            //                                         <SidebarActionButton handleClick={handleCancelDelete} title="Cancel">
+            //                                         <ActionButton handleClick={handleCancelDelete} title="Cancel">
             //                                             <IconX size={18} />
-            //                                         </SidebarActionButton>
+            //                                         </ActionButton>
             //                                     </>
             //                                 )}
             //                             </div>
@@ -480,21 +480,21 @@ export default SharedItemsList;
 //                                             }}
 //                                             onMouseLeave={() => setIsButtonHover(true)}>
 //                                             {!deletingItem && (
-//                                                 <SidebarActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
+//                                                 <ActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
 //                                                     <IconTrash size={18} />
-//                                                 </SidebarActionButton>
+//                                                 </ActionButton>
 //                                             )}
         
 //                                             {deletingItem && (
 //                                                 <>
 //                                                     {/* different handledelete */}
-//                                                     <SidebarActionButton handleClick={handleDelete} title="Confirm">
+//                                                     <ActionButton handleClick={handleDelete} title="Confirm">
 //                                                         <IconCheck size={18} />
-//                                                     </SidebarActionButton>
+//                                                     </ActionButton>
         
-//                                                     <SidebarActionButton handleClick={handleCancelDelete} title="Cancel">
+//                                                     <ActionButton handleClick={handleCancelDelete} title="Cancel">
 //                                                         <IconX size={18} />
-//                                                     </SidebarActionButton>
+//                                                     </ActionButton>
 //                                                 </>
 //                                             )}
 //                                         </div>    

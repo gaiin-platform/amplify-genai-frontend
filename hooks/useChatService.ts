@@ -9,7 +9,7 @@ import {wrapResponse, stringChunkCallback} from "@/utils/app/responseWrapper";
 
 import {getSession} from "next-auth/react"
 import json5 from "json5";
-import {OpenAIModelID, OpenAIModels} from "@/types/openai";
+import {ModelID, Models} from "@/types/model";
 import {newStatus} from "@/types/workflow";
 
 export function useChatService() {
@@ -205,7 +205,7 @@ export function useChatService() {
 
         
         if (!chatBody.model && defaultModelId) {
-            chatBody.model = OpenAIModels[defaultModelId as OpenAIModelID];
+            chatBody.model = Models[defaultModelId as ModelID];
         }
 
         const {prefix, body, options} = parseMessageType(message.content || "");

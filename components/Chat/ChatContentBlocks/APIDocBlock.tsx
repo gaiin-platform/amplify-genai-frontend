@@ -2,9 +2,9 @@ import { useEffect, useState, useContext } from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import ExpansionComponent from "../ExpansionComponent";
 import { fetchApiDoc } from "@/services/apiKeysService";
-import SidebarActionButton from "@/components/Buttons/SidebarActionButton";
-import { DownloadFileButton } from "@/components/Download/DownloadFileButton";
+import { DownloadFileButton } from "@/components/ReusableComponents/DownloadFileButton";
 import { IconDownload } from "@tabler/icons-react";
+import React from "react";
 
 
 export async function fetchFile(presignedUrl: string) {

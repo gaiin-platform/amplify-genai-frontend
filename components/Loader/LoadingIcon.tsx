@@ -1,7 +1,7 @@
 import {styled, keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 
-const animate = keyframes`
+export const animate = keyframes`
   0% {
     transform: rotate(0deg);
   }

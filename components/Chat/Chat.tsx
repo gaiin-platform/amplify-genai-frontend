@@ -37,7 +37,7 @@ import {VariableModal} from "@/components/Chat/VariableModal";
 import {parseEditableVariables} from "@/utils/app/prompts";
 import {v4 as uuidv4} from 'uuid';
 import {fillInTemplate} from "@/utils/app/prompts";
-import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
+import {Model, ModelID, Models} from "@/types/model";
 import {Prompt} from "@/types/prompt";
 import {WorkflowDefinition} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
@@ -45,19 +45,25 @@ import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from "@/utils/app/const";
 import {TagsList} from "@/components/Chat/TagsList";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {DownloadModal} from "@/components/Download/DownloadModal";
-import {MemoizedRemoteMessages} from "@/components/Chat/MemoizedRemoteMessages";
 import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
 import {useSendService} from "@/hooks/useChatSendService";
 import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection, isRemoteConversation } from '@/utils/app/conversationStorage';
-import { deleteRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
-import { callRenameChat } from './RenameChat';
+import { deleteRemoteConversation } from '@/services/remoteConversationService';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
-// import { Artifacts } from './Artifacts/Artifacts';
-import { LoadingDialog } from '../Loader/LoadingDialog';
+import { Artifacts } from '../Artifacts/Artifacts';
 import { downloadDataSourceFile } from '@/utils/app/files';
+import { ArtifactsSaved } from './ArtifactsSaved';
+import React from 'react';
+import { PromptHighlightedText } from './PromptHighlightedText';
+import { AccountDialog } from '../Settings/AccountComponents/AccountDialog';
+import { getSettings } from '@/utils/app/settings';
+import { filterModels } from '@/utils/app/models';
+import { promptForData } from '@/utils/app/llm';
+import cloneDeep from 'lodash/cloneDeep';
+
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -99,9 +105,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 chatEndpoint,
                 folders
             },
+            setLoadingMessage,
             handleUpdateConversation,
             dispatch: homeDispatch,
-            handleAddMessages: handleAddMessages
+            handleAddMessages: handleAddMessages,
+            handleUpdateSelectedConversation
         } = useContext(HomeContext);
 
         const foldersRef = useRef(folders);
@@ -124,21 +132,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             conversationsRef.current = conversations;
         }, [conversations]);
     
+        const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
 
         const {handleSend:handleSendService} = useSendService();
-        const [selectedModelId, setSelectedModelId] = useState<OpenAIModelID | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id );
+        const [selectedModelId, setSelectedModelId] = useState<ModelID | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id );
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
         const [showSettings, setShowSettings] = useState<boolean>(false);
         const [isPromptTemplateDialogVisible, setIsPromptTemplateDialogVisible] = useState<boolean>(false);
         const [isDownloadDialogVisible, setIsDownloadDialogVisible] = useState<boolean>(false);
+        const [isAccountDialogVisible, setIsAccountDialogVisible] = useState<boolean>(false);
         const [isShareDialogVisible, setIsShareDialogVisible] = useState<boolean>(false);
         const [variables, setVariables] = useState<string[]>([]);
         const [showScrollDownButton, setShowScrollDownButton] =
             useState<boolean>(false);
         const [promptTemplate, setPromptTemplate] = useState<Prompt | null>(null);
         const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
-        const [isDownloadingFile, setIsDownloadingFile] = useState<boolean>(false);
+        // const [isDownloadingFile, setIsDownloadingFile] = useState<boolean>(false);
 
 
         const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -149,43 +159,38 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [artifactIndex, setArtifactIndex] = useState<number>(0);
         const [isRenaming, setIsRenaming] = useState<boolean>(false);
 
+        const [selectedConversationState, setSelectedConversationState] = useState<Conversation | undefined>(selectedConversation);
 
         useEffect(() => {
-
+            setSelectedConversationState(selectedConversation);
+            
             const renameConversation = async() => {
                 setIsRenaming(true);
                 if (selectedConversation) {
                     let updatedConversation = {...selectedConversation}
-                    // will always return a string whether call was successful or not 
-                    callRenameChat(chatEndpoint || '', [updatedConversation.messages[0]], statsService).then(customName => {
-                        updatedConversation = {
-                            ...updatedConversation,
-                            name: customName, 
-                        };
-                        homeDispatch({
-                            field: 'selectedConversation',
-                            value: updatedConversation,
-                        });
-                        // console.log("Rename chat: ", customName)
-                        
-                        if (isRemoteConversation(updatedConversation)) uploadConversation(updatedConversation, foldersRef.current);
 
-                        const updatedConversations: Conversation[] = conversationsRef.current.map(
-                            (c:Conversation) => {
-                                if (c.id === selectedConversation.id) {
-                                    return updatedConversation;
-                                }
-                                return c;
-                            },
-                        );
-                        homeDispatch({field: 'conversations', value: updatedConversations});
-                        saveConversations(updatedConversations);
-                        setIsRenaming(false);
-                    })
+                    const promptMessages = cloneDeep(updatedConversation.messages);
+                    promptMessages[0].content = `Look at the following prompt: "${promptMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`
+                    
+                    promptForData(chatEndpoint || '', promptMessages.slice(0,1), Models[ModelID.CLAUDE_3_HAIKU], "Respond with only the title name and nothing else.", statsService, 10)
+                                 .then(customName => {
+                                    let updatedName: string = customName ?? '';
+                                    if (!customName) {
+                                        const content = updatedConversation.messages[0].content;
+                                        updatedName = content.length > 30 ? content.substring(0, 30) + '...' : content;
+                                    }
+                                    updatedConversation = {
+                                        ...updatedConversation,
+                                        name: updatedName, 
+                                    };
+                                    
+                                    handleUpdateSelectedConversation(updatedConversation);
+            
+                                    setIsRenaming(false);
+                                })
                 }
             }
             if (selectedConversation?.messages.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
-
         }, [selectedConversation]);
 
 
@@ -209,12 +214,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (astModel && selectedConversation && selectedConversation.model.id !== astModel) handleUpdateConversation(selectedConversation, {
                                         key: 'model',
                                         value: models.find(
-                                        (model: OpenAIModel) => model.id === astModel,
+                                        (model: Model) => model.id === astModel,
                                         ),
                                     });
             
             if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) {
-                if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id as OpenAIModelID);
+                if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id as ModelID);
             }
         }, [selectedAssistant, selectedConversation]);
 
@@ -235,24 +240,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 ...updatedConversation,
                 messages: updatedMessages,
             };
-            homeDispatch({
-                field: 'selectedConversation',
-                value: updatedConversation,
-            });
 
-            const updatedConversations: Conversation[] = conversationsRef.current.map(
-                (conversation:Conversation) => {
-                    if (conversation.id === selectedConversation.id) {
-                        return updatedConversation;
-                    }
-                    return conversation;
-                },
-            );
-            if (updatedConversations.length === 0) {
-                updatedConversations.push(updatedConversation);
-            }
-            homeDispatch({field: 'conversations', value: updatedConversations});
-            saveConversations(updatedConversations);
+            handleUpdateSelectedConversation(updatedConversation);
 
             return updatedConversation;
         }
@@ -297,17 +286,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             [stopConversationRef, handleSendService]
         );
 
-        const selectedConversationRef = useRef<Conversation>(null);
-
-        useEffect(() => {
-            // In your useEffect, you should keep your ref in sync with the state.
-            // @ts-ignore
-            selectedConversationRef.current = selectedConversation;
-        }, [selectedConversation]);
-
-        const asyncSafeHandleAddMessages = async (messages: Message[]) => {
-            await handleAddMessages(selectedConversationRef.current || selectedConversation, messages)
-        };
+    
 
         const handlePromptSelect = (prompt: Prompt) => {
             if (selectedConversation) {
@@ -345,7 +324,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
         const handleDownloadFile = async (message: Message, filename: string) => {
-            setIsDownloadingFile(true);
+            if (!message.data.state.sources) return;
+
+            setLoadingMessage("Downloading File...");
 
             const sources = Object.values(message.data.state.sources);
             let ds: DataSource | undefined= undefined;
@@ -369,8 +350,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 console.log("No content key found")
                 alert("Unable to provide the document at this time.");
             }
+            setLoadingMessage("");
 
-            setIsDownloadingFile(false);
         }
 
         // This should all be refactored into a separate module at some point
@@ -439,51 +420,53 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             return stopper;
         }
 
-        const calculateTokenCost = (chatModel: OpenAIModel, datasources: AttachedDocument[]) => {
-            let cost = 0;
+        // const calculateTokenCost = (chatModel: Model, datasources: AttachedDocument[]) => {
+        //     let cost = 0;
 
-            datasources.forEach((doc) => {
-                if (doc.metadata?.totalTokens) {
-                    cost += doc.metadata.totalTokens;
-                }
-            });
+        //     datasources.forEach((doc) => {
+        //         if (doc.metadata?.totalTokens) {
+        //             cost += doc.metadata.totalTokens;
+        //         }
+        //     });
 
-            const model = OpenAIModels[chatModel.id as OpenAIModelID];
-            if (!model) {
-                return {
-                    prompts: -1,
-                    inputTokens: cost,
-                    inputCost: -1,
-                    outputCost: -1,
-                    totalCost: -1
-                };
-            }
+        //     const model = Models[chatModel.id as ModelID];
+        //     if (!model) {
+        //         return {
+        //             prompts: -1,
+        //             inputTokens: cost,
+        //             inputCost: -1,
+        //             outputCost: -1,
+        //             totalCost: -1
+        //         };
+        //     }
 
 
-            console.log("Model", model);
-            const contextWindow = model.actualTokenLimit;
-            // calculate cost / context window rounded up
-            const prompts = Math.ceil(cost / contextWindow);
+        //     console.log("Model", model);
+        //     const contextWindow = model.actualTokenLimit;
+        //     // calculate cost / context window rounded up
+        //     const prompts = Math.ceil(cost / contextWindow);
 
-            console.log("Prompts", prompts, "Cost", cost, "Context Window", contextWindow);
+        //     console.log("Prompts", prompts, "Cost", cost, "Context Window", contextWindow);
 
-            const outputCost = prompts * model.outputCost;
-            const inputCost = (cost / 1000) * model.inputCost;
+        //     const outputCost = prompts * model.outputCost;
+        //     const inputCost = (cost / 1000) * model.inputCost;
 
-            console.log("Input Cost", inputCost, "Output Cost", outputCost);
+        //     console.log("Input Cost", inputCost, "Output Cost", outputCost);
 
-            return {
-                prompts: prompts,
-                inputCost: inputCost.toFixed(2),
-                inputTokens: cost,
-                outputCost: outputCost.toFixed(2),
-                totalCost: (inputCost + outputCost).toFixed(2)
-            };
-        }
+        //     return {
+        //         prompts: prompts,
+        //         inputCost: inputCost.toFixed(2),
+        //         inputTokens: cost,
+        //         outputCost: outputCost.toFixed(2),
+        //         totalCost: (inputCost + outputCost).toFixed(2)
+        //     };
+        // }
 
         // This is typically the entry point for messages where the user has typed something
         // into ChatInput or is editing an existing message. Most interactions with chat that
         // do not involve a prompt template start here.
+        
+        
         const routeMessage = (message: Message, deleteCount: number | undefined, plugin: Plugin | null | undefined, documents: AttachedDocument[] | null) => {
 
             if (message.type == MessageType.PROMPT
@@ -511,7 +494,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 const assistantInUse = getAssistantFromMessage(message) ||
                     (selectedAssistant ? selectedAssistant?.definition : null);
 
-                // console.log("Assistant in use", assistantInUse, message);
+                console.log("Assistant in use", assistantInUse);
                 // console.log("conv", selectedConversation);
 
 
@@ -524,6 +507,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     };
 
                     message.data = {...message.data, assistant: {definition: {
+                        featureOptions: selectedAssistant?.definition?.data?.featureOptions,
                         assistantId: assistantInUse.assistantId,
                         groupId: selectedAssistant?.definition.groupId,
                                 name: assistantInUse.name,
@@ -655,7 +639,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         };
 
-        const handleUpdateModel = useCallback((model: OpenAIModel) => {
+        const handleUpdateModel = useCallback((model: Model) => {
             if (selectedConversation) {
                 handleUpdateConversation(selectedConversation, {
                     key: 'model',
@@ -758,7 +742,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         id: uuidv4(),
                         name: t('New Conversation'),
                         messages: [],
-                        model: OpenAIModels[defaultModelId as OpenAIModelID],
+                        model: Models[defaultModelId as ModelID],
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
@@ -869,6 +853,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 // @ts-ignore
         return (
             <>
+            {featureFlags.highlighter && 
+             getSettings(featureFlags).featureOptions.includeHighlighter  && 
+                <PromptHighlightedText 
+                onSend={(message) => {
+                    setCurrentMessage(message);
+                    routeMessage(message, 0, null, []);
+                }} 
+                />
+            }
             <div className="relative flex-1 overflow-hidden bg-neutral-100 dark:bg-[#343541]">
                 { modelError ? (
                     <ErrorMessageDiv error={modelError}/>
@@ -882,10 +875,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             {selectedConversation && selectedConversation?.messages.length === 0 ? (
                                 <>
                                     <div
-                                        className="mx-auto flex flex-col space-y-5 md:space-y-10 px-3 pt-5 md:pt-12 sm:max-w-[600px]">
+                                        className="mx-auto flex flex-col space-y-1 md:space-y-8 px-3 pt-5 md:pt-10 sm:max-w-[600px]">
                                         <div
                                             className="text-center text-3xl font-semibold text-gray-800 dark:text-gray-100">
-                                            {models.length === 0 ? (
+                                            {filteredModels.length === 0 ? (
                                                 <div>
                                                     <Spinner size="16px" className="mx-auto"/>
                                                 </div>
@@ -895,9 +888,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             
                                         </div>
 
-                                        {models.length > 0 && (
+                                        {filteredModels.length > 0 && (
                                             <div
-                                                className="flex h-full flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600">
+                                                className="flex h-full flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600 shadow-[0_4px_10px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_10px_rgba(0,0,0,0.3)]">
                                                 
                                                 <div className="relative flex flex-row w-full items-center"> 
                                                     <div className="flex-grow">
@@ -928,7 +921,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     </> :
                                                     <>
                                                     <SystemPrompt
-                                                        models={models}
+                                                        models={filteredModels}
                                                         handleUpdateModel={handleUpdateModel}
                                                         conversation={selectedConversation}
                                                         prompts={promptsRef.current}
@@ -968,7 +961,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 }
                                                 {isPromptTemplateDialogVisible && selectedConversation.promptTemplate && (
                                                     <VariableModal
-                                                        models={models}
+                                                        models={filteredModels}
                                                         handleUpdateModel={handleUpdateModel}
                                                         prompt={(selectedConversation.promptTemplate)}
                                                         variables={parseEditableVariables(selectedConversation?.promptTemplate.content)}
@@ -978,7 +971,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 )}
                                                 {isPromptTemplateDialogVisible && selectedConversation.workflowDefinition && (
                                                     <VariableModal
-                                                        models={models}
+                                                        models={filteredModels}
                                                         handleUpdateModel={handleUpdateModel}
                                                         workflowDefinition={selectedConversation.workflowDefinition}
                                                         variables={getWorkflowDefinitionVariables(selectedConversation.workflowDefinition)}
@@ -1005,17 +998,16 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         includePrompts={false}
                                         includeConversations={true}
                                         includeFolders={false}
-                                        selectedConversations={selectedConversation ? [selectedConversation] : []}
+                                        selectedConversations={selectedConversationState ? [selectedConversationState] : []}
                                     />
 
-                                    <LoadingDialog open={isDownloadingFile} message={"Downloading File..."}/>
                                     
                                     {isDownloadDialogVisible && (
                                         <DownloadModal
                                             includeConversations={true}
                                             includePrompts={false}
                                             includeFolders={false}
-                                            selectedConversations={selectedConversation ? [selectedConversation] : []}
+                                            selectedConversations={selectedConversationState ? [selectedConversationState] : []}
                                             onCancel={() => {
                                                 setIsDownloadDialogVisible(false);
                                             }}
@@ -1023,27 +1015,32 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                             }}/>
                                     )}
+
+                                    
+                                    <AccountDialog open={isAccountDialogVisible} onClose={() => setIsAccountDialogVisible(false)} />
+                                    
+
                                     <div
                                        className="items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
-                                        {featureFlags.mtdCost && !isArtifactOpen && (
+                                        {featureFlags.mtdCost  && (
                                             <>
                                                 <button
                                                     className="ml-2 mr-2 cursor-pointer hover:opacity-50"
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
-                                                        homeDispatch({ field: 'page', value: 'cost' });
+                                                        setIsAccountDialogVisible(true);
                                                     }}
                                                     title="Month-To-Date Cost"
                                                 >
-                                                    <div className="flex flex-row items-center ml-2 bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
+                                                    <div className="flex flex-row items-center text-[0.93rem] text-[#00a1d8] dark:text-[#8edffa]">
                                                         <div className="ml-1">MTD Cost: {mtdCost}</div>
                                                     </div>
                                                 </button>
                                                 |
                                             </>
                                         )}
-                                        {t(' Workspace: ' + workspaceMetadata.name)} | { selectedAssistant?.definition?.data?.model ? OpenAIModels[selectedAssistant.definition.data.model as OpenAIModelID].name : selectedConversation?.model.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
+                                        { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' } { selectedAssistant?.definition?.data?.model ? Models[selectedAssistant.definition.data.model as ModelID].name : selectedConversation?.model.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={(e) => {
@@ -1089,6 +1086,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         >
                                             <IconDownload size={18}/>
                                         </button>
+
+                                        {featureFlags.artifacts && 
+                                        <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
+                                        
                                         {featureFlags.storeCloudConversations &&
                                         <CloudStorage iconSize={18} />
                                         }
@@ -1104,8 +1105,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 }}
                                                 title="Data Sources"
                                             >
-                                                <div className="flex flex-row items-center ml-2
-                                                bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
+                                                <div className="flex flex-row items-center text-[0.9rem] text-[#00a1d8] dark:text-[#8edffa]">
                                                     <div><IconRocket size={18}/></div>
                                                     <div className="ml-1">Data Sources </div>
                                                 </div>
@@ -1116,15 +1116,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     <div ref={modelSelectRef}></div>
                                     
                                         <div
-                                            className="flex flex-col md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
+                                            className="flex flex-col md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl ">
                                             { showSettings && !(selectedAssistant?.definition?.data?.model) &&
                                                 <div
-                                                    className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border">
+                                                    className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
                                                     <ModelSelect modelId={selectedModelId}/>
                                                 </div>
                                             }
                                             <div
-                                                className="border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border">
+                                                className="border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border shadow-[0_2px_2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_2px_rgba(0,0,0,0.3)]">
                                                 <TagsList tags={selectedConversation?.tags || []} setTags={
                                                     (tags) => {
                                                         if (selectedConversation) {
@@ -1141,16 +1141,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     
 
 
-                                    {selectedConversation?.messages.map((message: Message, index: number) => (
-                                        (message.type === MessageType.REMOTE) ?
-                                            <MemoizedRemoteMessages
+                                    {selectedConversationState?.messages.map((message: Message, index: number) => (
+                                        <MemoizedChatMessage
                                                 key={index}
                                                 message={message}
                                                 messageIndex={index}
                                                 onChatRewrite={handleChatRewrite}
                                                 onSend={(message) => {
                                                     setCurrentMessage(message[0]);
-                                                    //handleSend(message[0], 0, null);
                                                     routeMessage(message[0], 0, null, []);
                                                 }}
                                                 onSendPrompt={runPrompt}
@@ -1161,36 +1159,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     setCurrentMessage(editedMessage);
 
                                                     if (editedMessage.role != "assistant") {
-                                                        routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
+                                                        routeMessage(editedMessage, selectedConversationState?.messages.length - index, null, []);
                                                     } else {
                                                         console.log("updateMessage");
-                                                        updateMessage(selectedConversation, editedMessage, index);
-                                                    }
-                                                }}
-                                            />
-                                            :
-                                            <MemoizedChatMessage
-                                                key={index}
-                                                message={message}
-                                                messageIndex={index}
-                                                onChatRewrite={handleChatRewrite}
-                                                onSend={(message) => {
-                                                    setCurrentMessage(message[0]);
-                                                    //handleSend(message[0], 0, null);
-                                                    routeMessage(message[0], 0, null, []);
-                                                }}
-                                                onSendPrompt={runPrompt}
-                                                handleCustomLinkClick={handleCustomLinkClick}
-                                                onEdit={(editedMessage) => {
-                                                    console.log("Editing message", editedMessage);
-
-                                                    setCurrentMessage(editedMessage);
-
-                                                    if (editedMessage.role != "assistant") {
-                                                        routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
-                                                    } else {
-                                                        console.log("updateMessage");
-                                                        updateMessage(selectedConversation, editedMessage, index);
+                                                        updateMessage(selectedConversationState, editedMessage, index);
                                                     }
                                                 }}
                                             />
@@ -1205,7 +1177,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                     {isPromptTemplateDialogVisible && promptTemplate && (
                                         <VariableModal
-                                            models={models}
+                                            models={filteredModels}
                                             prompt={promptTemplate}
                                             handleUpdateModel={handleUpdateModel}
                                             variables={parseEditableVariables(promptTemplate.content)}
@@ -1244,9 +1216,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             </div>
 
             {/* Artifacts */}
-            {/* {(featureFlags.artifacts && isArtifactOpen) &&  (
-                <Artifacts artifactIndex={artifactIndex}/>
-            )} */}
+            {(featureFlags.artifacts && isArtifactOpen) &&  (
+                <Artifacts 
+                    artifactIndex={artifactIndex}    
+                />
+            )}
 
             </>
         );

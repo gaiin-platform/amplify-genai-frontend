@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {AttachedDocument, AttachedDocumentMetadata} from '@/types/attacheddocument';
 import {addFile, checkContentReady} from "@/services/fileService";
 import HomeContext from "@/pages/api/home/home.context";
+import React from 'react';
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;

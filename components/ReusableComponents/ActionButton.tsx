@@ -6,7 +6,7 @@ interface Props {
   title?: string;
 }
 
-const SidebarActionButton = ({ handleClick, children, title }: Props) => (
+const ActionButton = ({ handleClick, children, title }: Props) => (
   <button
     className="min-w-[20px] p-1 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
     onClick={handleClick}
@@ -16,4 +16,4 @@ const SidebarActionButton = ({ handleClick, children, title }: Props) => (
   </button>
 );
 
-export default SidebarActionButton;
+export default ActionButton;

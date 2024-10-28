@@ -8,7 +8,7 @@ import {Plugin, PluginID} from '@/types/plugin';
 
 import {useSession} from "next-auth/react"
 import json5 from "json5";
-import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
+import {Model, ModelID, Models} from "@/types/model";
 import {newStatus} from "@/types/workflow";
 import {ReservedTags} from "@/types/tags";
 import {deepMerge} from "@/utils/app/state";
@@ -20,8 +20,11 @@ import {AttachedDocument} from "@/types/attacheddocument";
 import {Prompt} from "@/types/prompt";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {useChatService} from "@/hooks/useChatService";
-import { DEFAULT_TEMPERATURE } from "@/utils/app/const";
+import { ARTIFACTS_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { uploadConversation } from "@/services/remoteConversationService";
+import { getFocusedMessages } from '@/services/prepareChatService';
+import { getSettings } from '@/utils/app/settings';
+
 
 export type ChatRequest = {
     message: Message;
@@ -41,6 +44,7 @@ export type ChatRequest = {
 export function useSendService() {
     const {
         state: {selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService},
+        handleUpdateConversation,
         postProcessingCallbacks,
         dispatch:homeDispatch,
     } = useContext(HomeContext);
@@ -49,7 +53,6 @@ export function useSendService() {
     const user = session?.user;
 
     const conversationsRef = useRef(conversations);
-
 
     useEffect(() => {
         conversationsRef.current = conversations;
@@ -60,8 +63,6 @@ export function useSendService() {
     useEffect(() => {
         foldersRef.current = folders;
     }, [folders]);
-
-
 
     const {
         sendChatRequest,
@@ -74,7 +75,7 @@ export function useSendService() {
 
     const {getPrefix} = usePromptFinderService();
 
-    const calculateTokenCost = (chatModel: OpenAIModel, datasources: AttachedDocument[]) => {
+    const calculateTokenCost = (chatModel: Model, datasources: AttachedDocument[]) => {
         let cost = 0;
 
         datasources.forEach((doc) => {
@@ -83,7 +84,7 @@ export function useSendService() {
             }
         });
 
-        const model = OpenAIModels[chatModel.id as OpenAIModelID];
+        const model = Models[chatModel.id as ModelID];
         if (!model) {
             return {
                 prompts: -1,
@@ -117,7 +118,7 @@ export function useSendService() {
     const handleSend = useCallback(
         async (request:ChatRequest, shouldAbort:()=>boolean) => {
             return new Promise(async (resolve, reject) => {
-                if (selectedConversation) {
+                if (selectedConversation) { 
 
                     let {
                         message,
@@ -131,7 +132,6 @@ export function useSendService() {
                         conversationId
                     } = request;
 
-                    // console.log("Sending msg:", message)
 
                     const {content, label} = getPrefix(selectedConversation, message);
                     if (content) {
@@ -166,7 +166,7 @@ export function useSendService() {
 
                     let updatedConversation: Conversation;
                     if (deleteCount) {
-                        const updatedMessages = [...selectedConversation.messages];
+                        const updatedMessages = [... selectedConversation.messages];
                         for (let i = 0; i < deleteCount; i++) {
                             updatedMessages.pop();
                         }
@@ -177,9 +177,10 @@ export function useSendService() {
                     } else {
                         updatedConversation = {
                             ...selectedConversation,
-                            messages: [...selectedConversation.messages, message],
+                            messages: [... selectedConversation.messages, message],
                         };
                     }
+                    console.log("updated: ", updatedConversation.messages);
                     homeDispatch({
                         field: 'selectedConversation',
                         value: updatedConversation,
@@ -187,14 +188,38 @@ export function useSendService() {
 
                     homeDispatch({field: 'loading', value: true});
                     homeDispatch({field: 'messageIsStreaming', value: true});
+
+                    const settings = getSettings(featureFlags);
+                    // if both artifact and smart messages is off then it returnes with the messages right away 
+                    const prepareMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService, featureFlags, homeDispatch, settings.featureOptions);
+
                     const chatBody: ChatBody = {
-                        model: updatedConversation.model,
-                        messages: updatedConversation.messages,
+                        model: updatedConversation.model, 
+                        messages: prepareMessages, //updatedConversation.messages,
                         prompt: rootPrompt || updatedConversation.prompt || "",
                         temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
                         maxTokens: updatedConversation.maxTokens || 1000,
                         conversationId
                     };
+
+                    if (featureFlags.artifacts && settings.featureOptions.includeArtifacts) {
+                        chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
+                    }
+
+                    if (featureFlags.artifacts) {
+                        const astFeatureOptions = message.data?.assistant?.definition?.featureOptions;
+                        //option A
+                            // either there is no options defined or there is and it needs to be true 
+                            // not defined in cases of old ast used and when no assistant is in use 
+                        // if ((!astFeatureOptions || astFeatureOptions.IncludeArtifactsInstr) && settings.featureOptions.includeArtifacts) {
+
+                        //option B - either no feature option and user has the setting on 
+                                    // or the assistant has it turned on
+                        if ((!astFeatureOptions && settings.featureOptions.includeArtifacts) || (astFeatureOptions && astFeatureOptions.IncludeArtifactsInstr)) {
+                             chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
+                             console.log("ARTIFACT PROMPT ADDED")
+                        } 
+                    }
 
                     if (uri) {
                         chatBody.endpoint = uri;
@@ -246,6 +271,7 @@ export function useSendService() {
                     //PLUGINS 
                     if (plugin?.id === PluginID.CODE_INTERPRETER) {
                         options =  {...(options || {}), codeInterpreterOnly: true};
+                        statsService.codeInterpreterInUseEvent();
                     } else if (plugin?.id === PluginID.NO_RAG) {
                         options = {
                             ...(options || {}),
@@ -368,9 +394,6 @@ export function useSendService() {
                             homeDispatch({field: 'messageIsStreaming', value: false});
                             return;
                         }
-                        // if (!plugin) {
-
-
                             homeDispatch({field: 'loading', value: false});
                             const reader = data.getReader();
                             const decoder = new TextDecoder();
@@ -437,7 +460,7 @@ export function useSendService() {
                                             const responseData = JSON.parse(responseMatch[1]);
                                             if (responseData['success'] && responseData['data'] && 'textContent' in responseData['data'].data) {
                                                 codeInterpreterData = responseData['data'].data;
-                                                text += responseData['data'].data.textContent; //had to write this way to eliminate error
+                                                text += responseData['data'].data.textContent;
 
                                             } else {
                                                 console.log(responseData.error);
@@ -562,46 +585,11 @@ export function useSendService() {
                             } else {
                                 uploadConversation(updatedConversation, foldersRef.current);
                             }
+
                             homeDispatch({field: 'messageIsStreaming', value: false});
 
                             resolve(text);
-                        // } else {
-                        //     const {answer} = await response.json();
-                        //     const updatedMessages: Message[] = [
-                        //         ...updatedConversation.messages,
-                        //         newMessage({role: 'assistant', content: answer}),
-                        //     ];
-                        //     updatedConversation = {
-                        //         ...updatedConversation,
-                        //         messages: updatedMessages,
-                        //     };
-                        //     homeDispatch({
-                        //         field: 'selectedConversation',
-                        //         value: updatedConversation,
-                        //     });
-                        //     if (selectedConversation.isLocal) {
-                                
-                        //         const updatedConversations: Conversation[] = conversationsRef.current.map(
-                        //             (conversation:Conversation) => {
-                        //                 if (conversation.id === selectedConversation.id) {
-                        //                     return conversationWithCompressedMessages(updatedConversation);
-                        //                 }
-                        //                 return conversation;
-                        //             },
-                        //         );
-                        //         if (updatedConversations.length === 0) {
-                        //             updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-                        //         }
-                        //         homeDispatch({field: 'conversations', value: updatedConversations});
-                        //         saveConversations(updatedConversations);
-                        //     } else {
-                        //         uploadConversation(updatedConversation, foldersRef.current);
-                        //     }
-                        //     homeDispatch({field: 'loading', value: false});
-                        //     homeDispatch({field: 'messageIsStreaming', value: false});
 
-                        //     resolve(answer);
-                        // }
                     } catch (error: any) {
                         homeDispatch({field: 'loading', value: false});
                         homeDispatch({field: 'messageIsStreaming', value: false});
@@ -614,7 +602,6 @@ export function useSendService() {
                         // Handle any other errors, as required.
                     }
                     
-
                     //Reset the status display
                     homeDispatch({
                         field: 'status',

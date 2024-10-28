@@ -1,6 +1,7 @@
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {Message} from "@/types/chat";
 import ChatSourceList from "@/components/Chat/ChatContentBlocks/ChatSourceList";
+import React from "react";
 
 interface Props {
     messageIsStreaming: boolean;

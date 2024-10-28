@@ -6,7 +6,8 @@ import { saveAccounts } from "@/services/accountService";
 import { Account, noCoaAccount } from "@/types/accounts";
 import { RateLimiter } from './RateLimit';
 import { formatRateLimit, PeriodType, RateLimit, rateLimitObj, UNLIMITED } from '@/types/rateLimit';
-import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
+import ActionButton from '@/components/ReusableComponents/ActionButton';
+
 
 interface Props {
     accounts: Account[];
@@ -257,14 +258,14 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                     {/* Save Button */}
                     <button
                         type="button"
-                        className="mr-2 w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                        className="mr-2 w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 bg-neutral-100 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                         onClick={onClose}
                     >
                         {t('Cancel')}
                     </button>
                     <button
                         type="button"
-                        className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                        className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 bg-neutral-100 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                         onClick={handleSave}
                     >
                         {isSaving ? 'Saving Changes...' :'Save Changes'}
@@ -286,7 +287,7 @@ interface SelectProps {
 }
 
 export const AccountSelect: FC<SelectProps> = ({accounts, defaultAccount, setDefaultAccount, showId=true}) => {
-    const cn = "mb-2 w-full rounded-lg border border-neutral-500 px-4 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100";
+    const cn = "mb-2 w-full rounded-lg border border-neutral-500 px-4 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]";
     return (
         <> 
         {accounts.length > 0 ? 
@@ -365,7 +366,7 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
                     setRate={setRateLimitRate}
                 />
                 <div className='bg-neutral-200 dark:bg-[#343541]/90 rounded'>
-                    <SidebarActionButton
+                    <ActionButton
                         title='Confirm Change'
                         handleClick={(e) => {
                             e.stopPropagation();
@@ -374,8 +375,8 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
                     >
                         <IconCheck size={18} />
 
-                    </SidebarActionButton>
-                    <SidebarActionButton
+                    </ActionButton>
+                    <ActionButton
                         title='Discard Change'
                         handleClick={(e) => {
                         e.stopPropagation();
@@ -383,7 +384,7 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
                         }}
                     >
                         <IconX size={18} />
-                    </SidebarActionButton>
+                    </ActionButton>
                     </div>
                 </div>
               )
@@ -393,11 +394,11 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
         { isHovered  && !isEditing && (
             <div
             className="absolute top-1 right-0 mr-6 z-10 flex-shrink-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"> 
-                <SidebarActionButton
+                <ActionButton
                     handleClick={() => {setIsEditing(true)}}
                     title="Edit">
                     <IconEdit size={18} />
-                </SidebarActionButton>
+                </ActionButton>
             </div>
         )}
         

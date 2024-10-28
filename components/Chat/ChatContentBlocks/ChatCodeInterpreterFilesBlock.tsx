@@ -1,6 +1,7 @@
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {Conversation, Message} from "@/types/chat";
 import ChatCodeInterpreter from "@/components/Chat/ChatContentBlocks/ChatCodeInterpreter";
+import React from "react";
 
 
 interface FileInfo {
