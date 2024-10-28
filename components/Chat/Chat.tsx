@@ -135,7 +135,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
 
         const {handleSend:handleSendService} = useSendService();
-        const [selectedModelId, setSelectedModelId] = useState<ModelID | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id );
+        const [selectedModelId, setSelectedModelId] = useState<ModelID | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id || Models[defaultModelId ?? ModelID.GPT_4o_MINI] );
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
         const [showSettings, setShowSettings] = useState<boolean>(false);
@@ -211,7 +211,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             const astModel = selectedAssistant?.definition?.data?.model;
             
             if (astModel && selectedModelId !== astModel) setSelectedModelId(astModel);
-            if (astModel && selectedConversation && selectedConversation.model.id !== astModel) handleUpdateConversation(selectedConversation, {
+            if (astModel && selectedConversation && selectedConversation.model?.id !== astModel) handleUpdateConversation(selectedConversation, {
                                         key: 'model',
                                         value: models.find(
                                         (model: Model) => model.id === astModel,
