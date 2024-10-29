@@ -6,7 +6,7 @@ import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
-import { getIsLocalStorageSelection, isRemoteConversation, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
+import { CloudConvAttr, getIsLocalStorageSelection, isRemoteConversation, pickConversationAttributes, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import cloneDeep from 'lodash/cloneDeep';
 import {styled} from "styled-components";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
@@ -525,8 +525,11 @@ const Home = ({
     };
 
     const handleUpdateSelectedConversation = (updatedConversation: Conversation) => {
+        // console.log("update selected: ", updatedConversation);
+        let updatedConversations: Conversation[] = [...conversationsRef.current];
+
         if (selectedConversation && selectedConversation.isLocal) {
-            const updatedConversations: Conversation[] = conversationsRef.current.map(
+            updatedConversations = updatedConversations.map(
                 (conversation:Conversation) => {
                     if (conversation.id === selectedConversation.id) {
                         return conversationWithCompressedMessages(updatedConversation);
@@ -534,13 +537,19 @@ const Home = ({
                     return conversation;
                 },
             );
-            if (updatedConversations.length === 0) {
-                updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-            }
-            dispatch({field: 'conversations', value: updatedConversations});
-            saveConversations(updatedConversations);
+            if (updatedConversations.length === 0) updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+            
         } else {
             uploadConversation(updatedConversation, foldersRef.current);
+            updatedConversations = updatedConversations.map(
+                (conversation:Conversation) => {
+                    if (selectedConversation && conversation.id === selectedConversation.id) {
+                        return pickConversationAttributes(cloneDeep(updatedConversation), CloudConvAttr) as Conversation;
+                    }
+                    return conversation;
+                },
+            );
+            if (updatedConversations.length === 0) updatedConversations.push( pickConversationAttributes(updatedConversation, CloudConvAttr) as Conversation );
         }
     
         dispatch({
@@ -548,7 +557,8 @@ const Home = ({
             value: updatedConversation,
         }); 
 
-
+        dispatch({field: 'conversations', value: updatedConversations});
+        saveConversations(updatedConversations);
     }
 
 
