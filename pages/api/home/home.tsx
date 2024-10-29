@@ -718,8 +718,8 @@ const Home = ({
         const fetchArtifacts = async () => {      
             console.log("Fetching Remote Artifacts...");
             const response = await getAllArtifacts();
-            if (response.success && response.data) { 
-                dispatch({ field: 'artifacts', value: response.data});  
+            if (response.success) { 
+                if (response.data) dispatch({ field: 'artifacts', value: response.data});  
             } else {
                 console.log("Failed to fetch remote Artifacts.");
             } 

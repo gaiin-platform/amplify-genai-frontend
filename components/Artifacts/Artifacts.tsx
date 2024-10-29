@@ -351,7 +351,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
             if (response.success) { 
                 homeDispatch({ field: 'artifacts', value: response.data});  
             } else {
-                console.log("Failed to fetch remote Artifacts.");
+                console.log("Failed to save remote Artifacts.");
             } 
         } else {
             alert("Failed to save artifact at this time, please try again later.");
