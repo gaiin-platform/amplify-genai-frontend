@@ -1052,14 +1052,19 @@ const handleParagraphSelection = (range: Range) => {
                   }); 
               
               } else if (isArtifactSource && updatedArtifacts) {
-                // console.log("++ ", source?.messageIndex)
-                // console.log("++ ", (source?.messageIndex) ?? 100  < updatedArtifacts.length )
-
-                if (source?.messageIndex && source.messageIndex < updatedArtifacts.length) {
-                  // console.log("+++ ", updatedArtifacts);
-                  updatedArtifacts[source.messageIndex].contents = lzwCompress(`${leadingText}${text}${trailingText}`);
+                // console.log("+++ ", source?.messageIndex);
+                // had to structure it as a try catch because it was failing the previous condition even tho th evalues pointed to it being true
+                const index = source.messageIndex ?? updatedArtifacts.length;
+                // console.log("+++ ", updatedArtifacts);
+                try {
+                  updatedArtifacts[index].contents = lzwCompress(`${leadingText}${text}${trailingText}`);
                   homeDispatch({field: "selectedArtifacts", value: updatedArtifacts});
+                  // console.log("--", updatedArtifacts)
+                } catch {
+                  console.log("artifact failed to update with edits");
                 }
+                  
+                
               }
        
           }
@@ -1632,7 +1637,7 @@ const handleParagraphSelection = (range: Range) => {
                       onClick={(e) => { e.stopPropagation(); handleSend(); }}
                       disabled={isDisabled()}
                       className={`p-2 text-neutral-400 dark:text-neutral-500 ${isDisabled() ? "cursor-not-allowed" : "hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"} focus:outline-none`}
-                      title={!isDisabled() ? "Send" :  !inputValue ? "Enter a message to send" : (selectedRef.current === HighlightPromptTypes.COMPOSITE && !activeButtonRef.current)? "Active an insert button": "Disabled"}
+                      title={!isDisabled() ? "Send" :  !inputValue ? "Enter a message to send" : (selectedRef.current === HighlightPromptTypes.COMPOSITE && !activeButtonRef.current)? "Activate an insert button": "Disabled"}
                     >
                       <IconSend size={20} />
                     </button>

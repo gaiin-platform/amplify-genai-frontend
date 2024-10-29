@@ -1,8 +1,6 @@
 import { Conversation } from "@/types/chat";
 import { FolderInterface } from "@/types/folder";
 import { compressConversation, saveConversations, uncompressConversation } from "@/utils/app/conversation";
-import { CloudConvAttr, pickConversationAttributes, remoteConvData } from "@/utils/app/conversationStorage";
-import { lzwUncompress } from "@/utils/app/lzwCompression";
 
 
 export const uploadConversation = async (conversation: Conversation, folders: FolderInterface[], abortSignal = null) => {
