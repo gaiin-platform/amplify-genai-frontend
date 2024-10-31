@@ -15,6 +15,7 @@ import { AssistantDefinition } from '@/types/assistant';
 import { AstGroupTypeData } from '@/types/groups';
 import React from 'react';
 import { AttachedDocument } from '@/types/attacheddocument';
+import { executeCustomAuto } from '@/services/assistantAPIService';
 
 
 interface Props {
@@ -178,6 +179,56 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
     const [messageOptions, setMessageOptions] = useState<{ [key: string]: boolean }>(initialMessageOptionState);
     const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(initialFeatureOptionState);
+    const [assistantApiCapabilities, setAssistantApiCapabilities] = useState(false);
+    const [apiResponse, setApiResponse] = useState<any>(null);
+
+    const [apiInfo, setApiInfo] = useState<Array<{
+        RequestType: string;
+        URL: string;
+        Parameters: Record<string, string>;
+        Body: Record<string, any> | string;
+        Headers: Record<string, string>;
+        Auth: {
+            type: string;
+            token: string;
+            username?: string;
+            password?: string;
+        };
+        Description: string;
+    }>>([]);
+
+    const handleTestAPI = async (api: any) => {
+        // Clean up the auth object to remove empty values
+        const cleanAuth = {
+            type: api.Auth.type,
+            ...(api.Auth.token && { token: api.Auth.token }),
+            ...(api.Auth.username && { username: api.Auth.username }),
+            ...(api.Auth.password && { password: api.Auth.password })
+        };
+
+        // Parse the body if it's a string
+        let cleanBody = api.Body;
+        if (typeof api.Body === 'string') {
+            try {
+                cleanBody = JSON.parse(api.Body);
+            } catch {
+                cleanBody = {};  // If parsing fails, use empty object
+            }
+        }
+
+        // Create the request object with the correct structure
+        const requestData = {
+            RequestType: api.RequestType,
+            URL: api.URL,
+            Parameters: api.Parameters || {},
+            Body: cleanBody,
+            Headers: api.Headers || {},
+            Auth: cleanAuth
+        };
+
+        const result = await executeCustomAuto(requestData);
+        setApiResponse(result);
+    };
 
     let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
     const [tags, setTags] = useState((assistant.data && assistant.data.tags) ? assistant.data.tags.join(",") : "");
@@ -318,6 +369,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             }
 
             newAssistant.uri = uri.trim();
+        }
+
+        if (assistantApiCapabilities) {
+            newAssistant.data.apiCapabilities = apiInfo;
         }
 
         newAssistant.dataSources = dataSources.map(ds => {
@@ -689,6 +744,296 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             }}
                                         />
                                     </div>
+                                    <div className="mt-4">
+                                        <label className="flex items-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={assistantApiCapabilities}
+                                                onChange={(e) => setAssistantApiCapabilities(e.target.checked)}
+                                                className="mr-2"
+                                            />
+                                            <span className="text-sm font-bold">Assistant API Capabilities</span>
+                                        </label>
+                                    </div>
+
+                                    {assistantApiCapabilities && (
+                                        <div className="mt-4">
+                                            {apiInfo.map((api, index) => (
+                                                <div key={index} className="mb-4 p-4 border border-gray-300 rounded">
+                                                    <select
+                                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                        value={api.RequestType}
+                                                        onChange={(e) => {
+                                                            const newApiInfo = [...apiInfo];
+                                                            newApiInfo[index].RequestType = e.target.value;
+                                                            setApiInfo(newApiInfo);
+                                                        }}
+                                                    >
+                                                        <option value="">Select Request Type</option>
+                                                        <option value="GET">GET</option>
+                                                        <option value="POST">POST</option>
+                                                        <option value="PUT">PUT</option>
+                                                        <option value="DELETE">DELETE</option>
+                                                        <option value="PATCH">PATCH</option>
+                                                    </select>
+                                                    <input
+                                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                        placeholder="URL"
+                                                        value={api.URL}
+                                                        onChange={(e) => {
+                                                            const newApiInfo = [...apiInfo];
+                                                            newApiInfo[index].URL = e.target.value;
+                                                            setApiInfo(newApiInfo);
+                                                        }}
+                                                    />
+                                                    <div className="mt-2">
+                                                        <label className="text-sm font-bold">Parameters:</label>
+                                                        <button
+                                                            className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                                                            onClick={() => {
+                                                                const newApiInfo = [...apiInfo];
+                                                                newApiInfo[index].Parameters = {
+                                                                    ...newApiInfo[index].Parameters,
+                                                                    '': ''
+                                                                };
+                                                                setApiInfo(newApiInfo);
+                                                            }}
+                                                        >
+                                                            Add Parameter
+                                                        </button>
+                                                        {Object.entries(api.Parameters).map(([key, value], paramIndex) => (
+                                                            <div key={paramIndex} className="flex mt-1">
+                                                                <input
+                                                                    className="w-1/2 mr-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                                    placeholder="Key"
+                                                                    value={key}
+                                                                    onChange={(e) => {
+                                                                        const newApiInfo = [...apiInfo];
+                                                                        const newParams = { ...newApiInfo[index].Parameters };
+                                                                        delete newParams[key];
+                                                                        newParams[e.target.value] = value;
+                                                                        newApiInfo[index].Parameters = newParams;
+                                                                        setApiInfo(newApiInfo);
+                                                                    }}
+                                                                />
+                                                                <input
+                                                                    className="w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                                    placeholder="Value"
+                                                                    value={value}
+                                                                    onChange={(e) => {
+                                                                        const newApiInfo = [...apiInfo];
+                                                                        newApiInfo[index].Parameters[key] = e.target.value;
+                                                                        setApiInfo(newApiInfo);
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    className="ml-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                                                                    onClick={() => {
+                                                                        const newApiInfo = [...apiInfo];
+                                                                        const newParams = { ...newApiInfo[index].Parameters };
+                                                                        delete newParams[key];
+                                                                        newApiInfo[index].Parameters = newParams;
+                                                                        setApiInfo(newApiInfo);
+                                                                    }}
+                                                                >
+                                                                    Remove
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <div className="mt-2">
+                                                        <label className="text-sm font-bold">Headers:</label>
+                                                        <button
+                                                            className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                                                            onClick={() => {
+                                                                const newApiInfo = [...apiInfo];
+                                                                newApiInfo[index].Headers = {
+                                                                    ...newApiInfo[index].Headers,
+                                                                    '': ''
+                                                                };
+                                                                setApiInfo(newApiInfo);
+                                                            }}
+                                                        >
+                                                            Add Header
+                                                        </button>
+                                                        {Object.entries(api.Headers).map(([key, value], headerIndex) => (
+                                                            <div key={headerIndex} className="flex mt-1">
+                                                                <input
+                                                                    className="w-1/2 mr-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                                    placeholder="Key"
+                                                                    value={key}
+                                                                    onChange={(e) => {
+                                                                        const newApiInfo = [...apiInfo];
+                                                                        const newHeaders = { ...newApiInfo[index].Headers };
+                                                                        delete newHeaders[key];
+                                                                        newHeaders[e.target.value] = value;
+                                                                        newApiInfo[index].Headers = newHeaders;
+                                                                        setApiInfo(newApiInfo);
+                                                                    }}
+                                                                />
+                                                                <input
+                                                                    className="w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                                    placeholder="Value"
+                                                                    value={value}
+                                                                    onChange={(e) => {
+                                                                        const newApiInfo = [...apiInfo];
+                                                                        newApiInfo[index].Headers[key] = e.target.value;
+                                                                        setApiInfo(newApiInfo);
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    className="ml-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                                                                    onClick={() => {
+                                                                        const newApiInfo = [...apiInfo];
+                                                                        const newHeaders = { ...newApiInfo[index].Headers };
+                                                                        delete newHeaders[key];
+                                                                        newApiInfo[index].Headers = newHeaders;
+                                                                        setApiInfo(newApiInfo);
+                                                                    }}
+                                                                >
+                                                                    Remove
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <div className="mt-2">
+                                                        <label className="text-sm font-bold">Body:</label>
+                                                        <textarea
+                                                            className="mt-1 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                            placeholder="Request Body (JSON)"
+                                                            value={typeof api.Body === 'object' ? JSON.stringify(api.Body, null, 2) : api.Body}
+                                                            onChange={(e) => {
+                                                                const newApiInfo = [...apiInfo];
+                                                                try {
+                                                                    newApiInfo[index].Body = JSON.parse(e.target.value);
+                                                                } catch {
+                                                                    newApiInfo[index].Body = e.target.value;
+                                                                }
+                                                                setApiInfo(newApiInfo);
+                                                            }}
+                                                            rows={4}
+                                                        />
+                                                        <button
+                                                            className="mt-1 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                                                            onClick={() => {
+                                                                const newApiInfo = [...apiInfo];
+                                                                try {
+                                                                    const formattedBody = JSON.parse(typeof newApiInfo[index].Body === 'string' ? newApiInfo[index].Body : JSON.stringify(newApiInfo[index].Body));
+                                                                    newApiInfo[index].Body = JSON.stringify(formattedBody, null, 2);
+                                                                } catch (error) {
+                                                                    // If parsing fails, leave the body as is
+                                                                }
+                                                                setApiInfo(newApiInfo);
+                                                            }}
+                                                        >
+                                                            Format JSON
+                                                        </button>
+                                                    </div>
+                                                    <div className="mt-2">
+                                                        <label className="text-sm font-bold">Authentication:</label>
+                                                        <select
+                                                            className="ml-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                            value={api.Auth.type}
+                                                            onChange={(e) => {
+                                                                const newApiInfo = [...apiInfo];
+                                                                newApiInfo[index].Auth.type = e.target.value;
+                                                                newApiInfo[index].Auth.token = '';
+                                                                setApiInfo(newApiInfo);
+                                                            }}
+                                                        >
+                                                            <option value="">None</option>
+                                                            <option value="basic">Basic Auth</option>
+                                                            <option value="bearer">Bearer Token</option>
+                                                        </select>
+                                                    </div>
+                                                    {api.Auth.type === 'basic' && (
+                                                        <div className="mt-2">
+                                                            <input
+                                                                className="mr-2 w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                                placeholder="Username"
+                                                                value={api.Auth.username || ''}
+                                                                onChange={(e) => {
+                                                                    const newApiInfo = [...apiInfo];
+                                                                    newApiInfo[index].Auth.username = e.target.value;
+                                                                    setApiInfo(newApiInfo);
+                                                                }}
+                                                            />
+                                                            <input
+                                                                className="w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                                type="password"
+                                                                placeholder="Password"
+                                                                value={api.Auth.password || ''}
+                                                                onChange={(e) => {
+                                                                    const newApiInfo = [...apiInfo];
+                                                                    newApiInfo[index].Auth.password = e.target.value;
+                                                                    setApiInfo(newApiInfo);
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    {api.Auth.type === 'bearer' && (
+                                                        <input
+                                                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                            placeholder="Bearer Token"
+                                                            value={api.Auth.token}
+                                                            onChange={(e) => {
+                                                                const newApiInfo = [...apiInfo];
+                                                                newApiInfo[index].Auth.token = e.target.value;
+                                                                setApiInfo(newApiInfo);
+                                                            }}
+                                                        />
+                                                    )}
+                                                    <textarea
+                                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                        placeholder="API Description (what it does and why it's used)"
+                                                        value={api.Description || ''}
+                                                        onChange={(e) => {
+                                                            const newApiInfo = [...apiInfo];
+                                                            newApiInfo[index].Description = e.target.value;
+                                                            setApiInfo(newApiInfo);
+                                                        }}
+                                                        rows={3}
+                                                    />
+                                                    
+                                                    <button
+                                                        className="mt-2 px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+                                                        onClick={() => handleTestAPI(api)}
+                                                    >
+                                                        Test API
+                                                    </button>
+                                                    {apiResponse && (
+                                                        <div className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded overflow-auto max-h-60">
+                                                            <pre className="text-sm text-gray-800 dark:text-gray-200">{JSON.stringify(apiResponse, null, 2)}</pre>
+                                                        </div>
+                                                    )}
+                                                    <div></div>
+                                                    <button
+                                                        className="mt-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                                                        onClick={() => {
+                                                            const newApiInfo = apiInfo.filter((_, i) => i !== index);
+                                                            setApiInfo(newApiInfo);
+                                                        }}
+                                                    >
+                                                        Remove API
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            <button
+                                                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                                                onClick={() => setApiInfo([...apiInfo, {
+                                                    RequestType: '',
+                                                    URL: '',
+                                                    Parameters: {},
+                                                    Body: {},
+                                                    Headers: {},
+                                                    Auth: { type: '', token: '', username: '', password: '' },
+                                                    Description: ''
+                                                }])}
+                                            >
+                                                Add Additional API
+                                            </button>
+                                        </div>
+                                    )}
 
 
                                 </div>
