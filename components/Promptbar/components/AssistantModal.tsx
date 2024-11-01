@@ -107,6 +107,14 @@ const featureOptionFlags = [
     },
 ];
 
+const apiOptionFlags = [
+    {
+        "label": "Allow Assistant to Use API Capabilities",
+        "key": "IncludeApiInstr",
+        "defaultValue": false
+    },
+];
+
 
 export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc, 
                                           disableEdit=false, title, onCreateAssistant,height, width = `${window.innerWidth * 0.6}px`,
@@ -152,6 +160,16 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         return acc;
     }, {});
 
+    const apiOptionDefaults = apiOptionFlags.reduce((acc: { [key: string]: boolean }, x) => {
+        if (x.key === 'IncludeApiInstr') {
+            if (featureFlags.assistantAPIs) acc[x.key] = x.defaultValue;
+        } else {
+            acc[x.key] = x.defaultValue;
+        }
+
+        return acc;
+    }, {});
+
     const initialDataSourceOptionState = {
         ...dataSourceOptionDefaults,
         ...(definition.data && definition.data.dataSourceOptions || {})
@@ -164,6 +182,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const initialFeatureOptionState = {
         ...featureOptionDefaults,
         ...(definition.data && definition.data.featureOptions || {})
+    }
+
+    const initialAPIOptionState = {
+        ...apiOptionDefaults,
+        ...(definition.data && definition.data.apiOptions || {})
     }
 
 
@@ -179,7 +202,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
     const [messageOptions, setMessageOptions] = useState<{ [key: string]: boolean }>(initialMessageOptionState);
     const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(initialFeatureOptionState);
-    const [assistantApiCapabilities, setAssistantApiCapabilities] = useState(false);
+    const [apiOptions, setAPIOptions] = useState<{ [key: string]: boolean }>(initialAPIOptionState);
     const [apiResponse, setApiResponse] = useState<any>(null);
 
     const [apiInfo, setApiInfo] = useState<Array<{
@@ -190,12 +213,12 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         Headers: Record<string, string>;
         Auth: {
             type: string;
-            token: string;
+            token?: string;
             username?: string;
             password?: string;
         };
         Description: string;
-    }>>([]);
+    }>>(definition.data?.apiCapabilities || []);
 
     const handleTestAPI = async (api: any) => {
         // Clean up the auth object to remove empty values
@@ -228,6 +251,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
         const result = await executeCustomAuto(requestData);
         setApiResponse(result);
+    };
+
+    const validateApiInfo = (api: any) => {
+        return api.RequestType && api.URL && api.Description;
     };
 
     let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
@@ -371,10 +398,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             newAssistant.uri = uri.trim();
         }
 
-        if (assistantApiCapabilities) {
-            newAssistant.data.apiCapabilities = apiInfo;
-        }
-
         newAssistant.dataSources = dataSources.map(ds => {
             if (assistant.groupId) {
                 if (!ds.key) ds.key = ds.id;
@@ -410,6 +433,18 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         newAssistant.data.messageOptions = messageOptions;
 
         newAssistant.data.featureOptions = featureOptions;
+
+        newAssistant.data = {
+            ...newAssistant.data,
+            apiCapabilities: apiInfo
+        };
+
+        if (apiOptions.IncludeApiInstr && apiInfo.some(api => !validateApiInfo(api))) {
+            alert("Please fill out all required API fields (Request Type, URL, and Description) before saving.");
+            setIsLoading(false);
+            setLoadingMessage("");
+            return;
+        }
 
         if (assistant.groupId) newAssistant.data.groupId = assistant.groupId;
         
@@ -744,19 +779,21 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             }}
                                         />
                                     </div>
-                                    <div className="mt-4">
-                                        <label className="flex items-center">
-                                            <input
-                                                type="checkbox"
-                                                checked={assistantApiCapabilities}
-                                                onChange={(e) => setAssistantApiCapabilities(e.target.checked)}
-                                                className="mr-2"
+                                    {Object.keys(apiOptions).length > 0 &&
+                                        <>
+                                            <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                                {t('API Options')}
+                                            </div>
+                                            <FlagsMap id={`astAPIOptionFlags-${assistant.id}`}
+                                                flags={apiOptionFlags}
+                                                state={apiOptions}
+                                                flagChanged={(key, value) => {
+                                                    if (!disableEdit) setAPIOptions({ ...apiOptions, [key]: value });
+                                                }}
                                             />
-                                            <span className="text-sm font-bold">Assistant API Capabilities</span>
-                                        </label>
-                                    </div>
-
-                                    {assistantApiCapabilities && (
+                                        </>
+                                    }
+                                    {apiOptions.IncludeApiInstr && (
                                         <div className="mt-4">
                                             {apiInfo.map((api, index) => (
                                                 <div key={index} className="mb-4 p-4 border border-gray-300 rounded">
@@ -768,6 +805,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                             newApiInfo[index].RequestType = e.target.value;
                                                             setApiInfo(newApiInfo);
                                                         }}
+                                                        required
                                                     >
                                                         <option value="">Select Request Type</option>
                                                         <option value="GET">GET</option>
@@ -785,6 +823,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                             newApiInfo[index].URL = e.target.value;
                                                             setApiInfo(newApiInfo);
                                                         }}
+                                                        required
                                                     />
                                                     <div className="mt-2">
                                                         <label className="text-sm font-bold">Parameters:</label>
@@ -993,6 +1032,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                             setApiInfo(newApiInfo);
                                                         }}
                                                         rows={3}
+                                                        required
                                                     />
                                                     
                                                     <button
