@@ -960,7 +960,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                                     const formattedBody = JSON.parse(
                                                                         typeof newApiInfo[index].Body === 'string'
                                                                             ? newApiInfo[index].Body
-                                                                            : JSON.stringify(newApiInfo[index].Body)
+                                                                            : JSON.stringify(newApiInfo[index].Body as Record<string, any>)
                                                                     );
                                                                     newApiInfo[index].Body = JSON.stringify(formattedBody, null, 2);
                                                                 } catch (error) {
