@@ -209,7 +209,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         RequestType: string;
         URL: string;
         Parameters: Record<string, string>;
-        Body: Record<string, any> | string;
+        Body: string | Record<string, any>;
         Headers: Record<string, string>;
         Auth: {
             type: string;
@@ -957,14 +957,14 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                             onClick={() => {
                                                                 const newApiInfo = [...apiInfo];
                                                                 try {
-                                                                    const formattedBody = JSON.parse(
-                                                                        typeof newApiInfo[index].Body === 'string'
-                                                                            ? newApiInfo[index].Body
-                                                                            : JSON.stringify(newApiInfo[index].Body as Record<string, any>)
-                                                                    );
+                                                                    const bodyString = typeof newApiInfo[index].Body === 'string'
+                                                                        ? newApiInfo[index].Body
+                                                                        : JSON.stringify(newApiInfo[index].Body);
+                                                                    const formattedBody = JSON.parse(bodyString as string);
                                                                     newApiInfo[index].Body = JSON.stringify(formattedBody, null, 2);
                                                                 } catch (error) {
                                                                     // If parsing fails, leave the body as is
+                                                                    console.error('Failed to parse or format JSON:', error);
                                                                 }
                                                                 setApiInfo(newApiInfo);
                                                             }}
