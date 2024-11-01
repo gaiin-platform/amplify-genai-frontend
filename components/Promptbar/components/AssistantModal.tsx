@@ -957,7 +957,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                             onClick={() => {
                                                                 const newApiInfo = [...apiInfo];
                                                                 try {
-                                                                    const formattedBody = JSON.parse(typeof newApiInfo[index].Body === 'string' ? newApiInfo[index].Body : JSON.stringify(newApiInfo[index].Body));
+                                                                    const formattedBody = JSON.parse(
+                                                                        typeof newApiInfo[index].Body === 'string'
+                                                                            ? newApiInfo[index].Body
+                                                                            : JSON.stringify(newApiInfo[index].Body)
+                                                                    );
                                                                     newApiInfo[index].Body = JSON.stringify(formattedBody, null, 2);
                                                                 } catch (error) {
                                                                     // If parsing fails, leave the body as is
