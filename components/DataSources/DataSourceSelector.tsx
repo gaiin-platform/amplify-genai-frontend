@@ -2,22 +2,20 @@ import {FC, useEffect, useRef, useState} from 'react';
 
 import {useTranslation} from 'next-i18next';
 import {IconFiles, IconTags, IconMessage2, IconFileDescription, IconDatabase, IconSlideshow} from "@tabler/icons-react";
-import {Plugin, PluginList} from '@/types/plugin';
 import {DataSource} from "@/types/chat";
-import DataSourcesTable from "@/components/DataSources/DataSourcesTable";
 import DataSourcesTableScrolling from "@/components/DataSources/DataSourcesTableScrolling";
 import {UserTagsList} from "@/components/UserTags/UserTagsList";
 
 interface Props {
     onDataSourceSelected: (dataSource: DataSource) => void;
     minWidth?: string;
-    minHeight?: string;
+    height?: string;
 }
 
 export const DataSourceSelector: FC<Props> = ({
                                                   onDataSourceSelected,
                                                   minWidth = "620px",
-                                                  minHeight = "460px"
+                                                  height
                                               }) => {
     const {t} = useTranslation('chat');
 
@@ -40,8 +38,8 @@ export const DataSourceSelector: FC<Props> = ({
     }
 
     const pageClasses = (page: string) => {
-        return `inline-flex items-center px-4 py-3 rounded-lg hover:text-gray-900 hover:bg-gray-100 w-full dark:hover:bg-gray-700 dark:hover:text-white
-                        ${selectedPage === page ? "text-white bg-blue-700 dark:bg-blue-600" : "bg-50 dark:bg-gray-800"}`;
+        return `inline-flex items-center px-4 py-3 rounded-lg hover:text-gray-900 hover:bg-blue-100 w-full dark:hover:bg-gray-700 dark:hover:text-white
+                        ${selectedPage === page ? "text-white bg-blue-500 dark:bg-blue-600" : "bg-gray-100 dark:bg-gray-800"}`;
     }
 
     return (
@@ -119,10 +117,11 @@ export const DataSourceSelector: FC<Props> = ({
 
             <div
                 className="p-0 bg-[#ffffff] text-medium text-gray-500 dark:text-gray-400 dark:bg-[#343541] rounded-lg w-full"
-                style={{minHeight: minHeight, minWidth: minWidth}}
+                style={{height: height ?? "460px", minWidth: minWidth}}
             >
                 {selectedPage === "files" && (
                     <DataSourcesTableScrolling
+                        height={height}
                         visibleColumns={["name", "createdAt", "commonType"]}
                         onDataSourceSelected={onDataSourceSelected}
                         tableParams={{
@@ -151,6 +150,7 @@ export const DataSourceSelector: FC<Props> = ({
                 )}
                 {selectedPage === "docs" && (
                     <DataSourcesTableScrolling
+                        height={height}
                         visibleColumns={["name", "createdAt", "commonType"]}
                         visibleTypes={["Word", "PDF", "Markdown", "Text", "HTML"]}
                         onDataSourceSelected={onDataSourceSelected}
@@ -168,6 +168,7 @@ export const DataSourceSelector: FC<Props> = ({
                 )}
                 {selectedPage === "slides" && (
                     <DataSourcesTableScrolling
+                        height={height}
                         visibleColumns={["name", "createdAt", "commonType"]}
                         visibleTypes={["PowerPoint", "Google Slides"]}
                         onDataSourceSelected={onDataSourceSelected}

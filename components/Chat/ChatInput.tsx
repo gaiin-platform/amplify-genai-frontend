@@ -1,11 +1,8 @@
 import {
     IconArrowDown,
-    IconBolt,
-    IconBrandGoogle,
     IconPlayerStop,
     IconAt,
     IconFiles,
-    IconShare2,
     IconSend,
 } from '@tabler/icons-react';
 import {
@@ -28,13 +25,9 @@ import {FileList} from "@/components/Chat/FileList";
 import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
 import HomeContext from '@/pages/api/home/home.context';
-import {PluginSelect} from './PluginSelect';
 import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
-import {Import} from "@/components/Settings/Import";
-import {OpenAIModel} from "@/types/openai";
-import StatusDisplay from "@/components/Chatbar/components/StatusDisplay";
-import {ActiveAssistantsList} from "@/components/Assistants/ActiveAssistantsList";
+import {Model, ModelID} from "@/types/model";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
@@ -48,11 +41,16 @@ import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import { createQiSummary } from '@/services/qiService';
 import MessageSelectModal from './MesssageSelectModal';
 import cloneDeep from 'lodash/cloneDeep';
+import FeaturePlugins from './FeaturePlugins';
+import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
+import React from 'react';
+import { filterModels } from '@/utils/app/models';
+import { getSettings } from '@/utils/app/settings';
 
 interface Props {
     onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
     onRegenerate: () => void;
-    handleUpdateModel: (model: OpenAIModel) => void;
+    handleUpdateModel: (model: Model) => void;
     onScrollDownClick: () => void;
     stopConversationRef: MutableRefObject<boolean>;
     textareaRef: MutableRefObject<HTMLTextAreaElement | null>;
@@ -73,16 +71,59 @@ export const ChatInput = ({
     const {killRequest} = useChatService();
 
     const {
-        state: {selectedConversation, selectedAssistant, messageIsStreaming, prompts, models, featureFlags, currentRequestId, chatEndpoint, statsService},
+        state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming, prompts, models,  featureFlags, currentRequestId, chatEndpoint, statsService},
 
         dispatch: homeDispatch
     } = useContext(HomeContext);
+
+
+    const updateSize = () => {
+        const container = document.querySelector(".container");
+        if (container) {
+          return `${container.getBoundingClientRect().width}px`;
+        }
+        return '100%';
+    };
+
+    const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
+    
+    const [chatContainerWidth, setChatContainerWidth] = useState(updateSize());
+
+    useEffect(() => {
+        const updateWidth = () => {
+            if (!messageIsStreaming && !artifactIsStreaming) setChatContainerWidth(updateSize());
+        }
+        window.addEventListener('resize', updateWidth);
+        window.addEventListener('orientationchange', updateWidth);
+        window.addEventListener('pageshow', updateWidth);
+        window.addEventListener('pagehide', updateWidth);
+        const observer = new MutationObserver(updateWidth);
+        observer.observe(document, { childList: true, subtree: true, attributes: true });
+        return () => {
+          window.removeEventListener('resize', updateWidth);
+          window.removeEventListener('orientationchange', updateWidth);
+          window.removeEventListener('pageshow', updateWidth);
+          window.removeEventListener('pagehide', updateWidth);
+          observer.disconnect();
+        };
+      }, []);
+
 
     const promptsRef = useRef(prompts);
 
     useEffect(() => {
         promptsRef.current = prompts;
       }, [prompts]);
+
+    const [messageIsDisabled, setMessageIsDisabled] = useState<boolean>(false);
+    
+    
+    useEffect(() => {
+        if (selectedConversation && selectedAssistant)
+            setMessageIsDisabled(selectedAssistant?.definition?.data?.groupTypeData && 
+                Object.keys(selectedAssistant?.definition?.data?.groupTypeData).length > 0 &&
+                !selectedConversation?.groupType);
+        }, [selectedAssistant, selectedConversation]);
 
     const [content, setContent] = useState<string>();
     const [isTyping, setIsTyping] = useState<boolean>(false);
@@ -91,15 +132,15 @@ export const ChatInput = ({
     const [promptInputValue, setPromptInputValue] = useState('');
     const [variables, setVariables] = useState<string[]>([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
-    const [showPluginSelect, setShowPluginSelect] = useState(false);
-
     const [showMessageSelectDialog, setShowMessageSelectDialog] = useState(false);
     const [croppedConversation, setCroppedConversation] = useState<Conversation | null>(null);
 
     const [showQiDialog, setShowQiDialog] = useState(false);
     const [isQiLoading, setIsQiLoading] = useState<boolean>(true);
+    const [isPromptOptimizerRunning, setIsPromptOptimizerRunning] = useState<boolean>(false);
     const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
-
+    const [isInputInFocus, setIsInputInFocus] = useState(false);
+    
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const [plugin, setPlugin] = useState<Plugin | null>(null);
@@ -139,32 +180,29 @@ export const ChatInput = ({
         return documents?.every(isComplete);
     }
 
+    
+
+   
+
 const onAssistantChange = (assistant: Assistant) => {
-    homeDispatch({field: 'selectedAssistant', value: assistant});
     setShowAssistantSelect(false);
 
     if (selectedConversation) {
-        const tags = assistant.definition.data?.conversationTags || [];
-        if (tags) {
-            selectedConversation.tags = selectedConversation.tags ?
-                                    [...selectedConversation.tags, ...tags] :
-                                    [...tags];
-        }
-        //remove duplicates if any
-        selectedConversation.tags = Array.from(new Set(selectedConversation.tags));
+        const oldAstTags = selectedAssistant?.definition.data?.conversationTags || [];
+        let updatedTags = selectedConversation.tags?.filter((t: string) => !oldAstTags.includes(t));
 
-        let assistantPrompt: Prompt | undefined = undefined;
-        // Assistant creator is treated differently in the backend, so we need to treat it differently here
-        // User defined assistants are retrieved and applied to the conversation in the back end as a UserDefinedAssistant whereas assistant creator is not user defined per say
-        // when you click on assistant creator on the right hand side, it triggers handleStartConversationWithPrompt in utils/app/prompts.ts
-        // where it creates a new conversation with the root prompt being the assistant creator. This is what is missing here.
+        const astTags = assistant ? assistant.definition.data?.conversationTags || [] : [];
+
+        updatedTags = updatedTags ? [...updatedTags, ...astTags] : [...astTags];
         
-        if (assistant.id === 'ast/assistant-builder') {
-            assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt.id === assistant.id);
-            selectedConversation.prompt += "\n\nCURRENT ASSISTANT CREATOR CUSTOM INSTRUCTIONS: " + assistantPrompt?.content + "Address only the Current Assistant Creator custom Instructions.";
-        } else {  
-            assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
-        }      
+        //remove duplicates if any
+        selectedConversation.tags = Array.from(new Set(updatedTags));
+        
+        homeDispatch({field: 'selectedAssistant', value: assistant ? assistant : DEFAULT_ASSISTANT});
+        let assistantPrompt: Prompt | undefined = undefined;
+
+        if (assistant) assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId); 
+        
          //I do not get the impression that promptTemplates are currently used nonetheless the bases are covered in case they ever come into play (as taken into account in handleStartConversationWithPrompt)
         selectedConversation.promptTemplate = assistantPrompt ?? null;
         
@@ -222,7 +260,7 @@ const onAssistantChange = (assistant: Assistant) => {
     const handleSend = () => {
         setShowDataSourceSelector(false);
 
-        if (messageIsStreaming) {
+        if (messageIsStreaming || artifactIsStreaming) {
             return;
         }
 
@@ -284,7 +322,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
         onSend(msg, plugin, updatedDocuments || []);
         setContent('');
-        setPlugin(null);
+        // setPlugin(null);
         setDocuments([]);
         setDocumentState({});
         setDocumentMetadata({});
@@ -296,18 +334,26 @@ const onAssistantChange = (assistant: Assistant) => {
 
     const handleStopConversation = () => {
         stopConversationRef.current = true;
-
         if (currentRequestId) {
+            console.log("kill request id: ", currentRequestId);
             killRequest(currentRequestId);
         }
+        if (artifactIsStreaming) {
+            console.log("kill artifact even trigger: ");
 
-        setTimeout(() => {
+            const event = new CustomEvent( 'killArtifactRequest');
+            window.dispatchEvent(event);
             stopConversationRef.current = false;
+        } else {
+            setTimeout(() => {
+                stopConversationRef.current = false;
 
-            homeDispatch({field: 'loading', value: false});
-            homeDispatch({field: 'messageIsStreaming', value: false});
-            homeDispatch({field: 'status', value: []});
-        }, 1000);
+                homeDispatch({field: 'loading', value: false});
+                homeDispatch({field: 'messageIsStreaming', value: false});
+                homeDispatch({field: 'artifactIsStreaming', value: false});
+                homeDispatch({field: 'status', value: []});
+            }, 1000);
+        }
     };
 
     const isMobile = () => {
@@ -359,7 +405,7 @@ const onAssistantChange = (assistant: Assistant) => {
             } else {
                 setActivePromptIndex(0);
             }
-        } else if (e.key === 'Enter' && !isTyping && !isMobile() && !e.shiftKey) {
+        } else if (e.key === 'Enter' && !isTyping && !isMobile() && !e.shiftKey && !messageIsDisabled) {
             e.preventDefault();
             handleSend();
         } 
@@ -529,20 +575,41 @@ const onAssistantChange = (assistant: Assistant) => {
         setIsQiLoading(false); 
     }
 
+    useEffect(() => {
+        if (plugin)  homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+      }, [plugin]);
+
+      useEffect(() => {
+        if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugin(null);
+      }, [selectedAssistant]);
+
+      
+
     return (
-        <div
-            className="absolute bottom-0 left-0 w-full border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
+        <>
+        { featureFlags.pluginsOnInput &&
+          getSettings(featureFlags).featureOptions.includePluginSelector &&
+            <div className='relative z-20' style={{height: 0}}>
+                <FeaturePlugins
+                plugin={plugin}
+                setPlugin={setPlugin}
+                />
+            </div>
+            }
+        <div style={{width: chatContainerWidth}}
+            className="absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2 z-15">
+            
+            
             <div
                 className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
                
-               {!showScrollDownButton && !messageIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
+               {!showScrollDownButton && !messageIsStreaming && !artifactIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
                (selectedConversation && selectedConversation.messages.length > 0) &&  (
                <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert  hover:text-neutral-900 dark:hover:text-neutral-100">
                 <button
                     className="mt-5 cursor-pointer border border-gray-300 dark:border-gray-600 rounded px-2 py-1"
                     style={{ fontSize: '0.9rem' }} 
                     onClick={async () => {
-                        // setShowPluginSelect(false);
                         // setShowPromptList(false);
                         if (selectedConversation && selectedConversation.messages.length > 2) {
                             setShowMessageSelectDialog(true);
@@ -564,7 +631,7 @@ const onAssistantChange = (assistant: Assistant) => {
                 <div className='absolute top-0 left-0 right-0 mx-auto flex justify-center items-center gap-2'>
 
 
-                    {messageIsStreaming && (
+                    {(messageIsStreaming || artifactIsStreaming) &&  (
                         <>
                             <button
                                 className="mb-3 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 md:mt-2"
@@ -590,8 +657,7 @@ const onAssistantChange = (assistant: Assistant) => {
                 {/*    </button>*/}
                 {/*  )}*/}
 
-                <div
-                    className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4">
+                <div className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4" >
 
                     <div className="flex flex-row items-center">
                         <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
@@ -613,17 +679,6 @@ const onAssistantChange = (assistant: Assistant) => {
 
                     <div className="flex items-center">
 
-                        {featureFlags.pluginsOnInput && (
-                            <button
-                                className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
-                                onClick={() => setShowPluginSelect(!showPluginSelect)}
-                                onKeyDown={(e) => {
-                                }}
-                            >
-                                {plugin ? <IconBrandGoogle size={20}/> : <IconBolt size={20}/>}
-                            </button>
-                        )}
-
                         {featureFlags.dataSourceSelectorOnInput && (
                             <button
                                 className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
@@ -631,6 +686,7 @@ const onAssistantChange = (assistant: Assistant) => {
                                     e.stopPropagation();
                                     setShowDataSourceSelector(!showDataSourceSelector);
                                     setShowAssistantSelect(false);
+
                                 }}
                                 onKeyDown={(e) => {
                                 }}
@@ -639,6 +695,7 @@ const onAssistantChange = (assistant: Assistant) => {
                                 <IconFiles size={20}/>
                             </button>
                         )}
+
 
                         {/*<button*/}
                         {/*    className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"*/}
@@ -649,8 +706,10 @@ const onAssistantChange = (assistant: Assistant) => {
                         {/*    <IconRobot size={20}/>*/}
                         {/*</button>*/}
 
-                        <AttachFile id="__attachFile"
-                                    disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
+                        <AttachFile id="__attachFile"                                                     //  Mistral and pgt 3.5 do not support image files 
+                                    disallowedFileExtensions={[ ...COMMON_DISALLOWED_FILE_EXTENSIONS, ...(selectedConversation?.model?.id.startsWith("mistral") ||
+                                                                                                          selectedConversation?.model?.id === ModelID.GPT_3_5_AZ 
+                                                                                                                              ? ["jpg","png","gif", "jpeg", "webp"] : []) ]} 
                                     onAttach={addDocument}
                                     onSetMetadata={handleSetMetadata}
                                     onSetKey={handleSetKey}
@@ -660,7 +719,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
                         {featureFlags.assistants && (
                             <button
-                                className={buttonClasses}
+                                className={buttonClasses + " mr-4"}
                                 onClick={ () => {
                                     handleShowAssistantSelector();
                                     setShowDataSourceSelector(false);
@@ -673,6 +732,19 @@ const onAssistantChange = (assistant: Assistant) => {
                             >
                                 <IconAt size={20}/>
                             </button>
+                        )}
+
+                        {featureFlags.promptOptimizer && isInputInFocus && (
+                            <div className='relative mr-[-32px]'>
+                                <PromptOptimizerButton
+                                    maxPlaceholders={0}
+                                    prompt={content || ""}
+                                    onOptimized={(prompt:string, optimizedPrompt:string) => {
+                                        setContent(optimizedPrompt);
+                                        textareaRef.current?.focus();
+                                    }}
+                                />
+                            </div>
                         )}
 
                         {showAssistantSelect && (
@@ -689,29 +761,6 @@ const onAssistantChange = (assistant: Assistant) => {
                                     }}
                                     onAssistantChange={(assistant: Assistant) => {
                                         onAssistantChange(assistant);
-                                        if (textareaRef && textareaRef.current) {
-                                            textareaRef.current.focus();
-                                        }
-                                    }}
-                                />
-                            </div>
-                        )}
-
-                        {showPluginSelect && (
-                            <div className="absolute left-0 bottom-14 rounded bg-white dark:bg-[#343541]">
-                                <PluginSelect
-                                    plugin={plugin}
-                                    onKeyDown={(e: any) => {
-                                        if (e.key === 'Escape') {
-                                            e.preventDefault();
-                                            setShowPluginSelect(false);
-                                            textareaRef.current?.focus();
-                                        }
-                                    }}
-                                    onPluginChange={(plugin: Plugin) => {
-                                        setPlugin(plugin);
-                                        setShowPluginSelect(false);
-
                                         if (textareaRef && textareaRef.current) {
                                             textareaRef.current.focus();
                                         }
@@ -774,6 +823,8 @@ const onAssistantChange = (assistant: Assistant) => {
 
                         <textarea
                             ref={textareaRef}
+                            onFocus={() => setIsInputInFocus(true)}
+                            onBlur={() => setIsInputInFocus(false)}
                             className="m-0 w-full resize-none border-0 bg-transparent p-0 py-2 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-3 md:pl-10"
                             style={{
                                 resize: 'none',
@@ -798,11 +849,16 @@ const onAssistantChange = (assistant: Assistant) => {
                         />
 
                         <button
-                            className="right-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                            // className="right-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                            className={`right-2 top-2 rounded-sm p-1 text-neutral-800 mx-1 
+                                ${messageIsDisabled || !content? 'cursor-not-allowed ' : 'opacity-60 hover:bg-neutral-200 hover:text-neutral-900'} 
+                                dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
                             onClick={handleSend}
-                            title="Send Prompt"
+                            title={messageIsDisabled ? "Please address missing information to enable chat" 
+                                                     : !content ? "Enter a message to start chatting" : "Send Prompt"}
+                            disabled={messageIsDisabled || !content }
                         >
-                            {messageIsStreaming ? (
+                            {messageIsStreaming || artifactIsStreaming ? (
                                 <div
                                     className="h-4 w-4 animate-spin rounded-full border-t-2 border-neutral-800 opacity-60 dark:border-neutral-100"></div>
                             ) : (
@@ -837,7 +893,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
                     {isModalVisible && (
                         <VariableModal
-                            models={models}
+                            models={filteredModels}
                             handleUpdateModel={handleUpdateModel}
                             prompt={filteredPrompts[activePromptIndex]}
                             variables={variables}
@@ -849,5 +905,6 @@ const onAssistantChange = (assistant: Assistant) => {
             </div>
 
         </div>
+        </>
     );
 };

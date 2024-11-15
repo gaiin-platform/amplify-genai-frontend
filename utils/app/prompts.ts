@@ -16,6 +16,17 @@ export interface VariableFillOptions {
     [key: string]: VariableFillOption;
 }
 
+export const createEmptyPrompt = (name: string, folderId: string | null):Prompt => {
+  return {
+    id: uuidv4(),
+    name: name,
+    description: '',
+    content: '',
+    folderId: folderId,
+    type: MessageType.PROMPT
+  };
+}
+
 const dateTimeString = () => {
   let date = new Date();
 
@@ -43,7 +54,7 @@ export const handleStartConversationWithPrompt = (handleNewConversation:any, pro
       description: rootPromptObj.description,
       folderId: null,
       id: uuidv4(),
-      name: "Conversation Started with "+rootPromptObj.name,
+      name: "Chat with "+rootPromptObj.name,
       type: MessageType.PROMPT,
       content: "Tell me about what you can help me with.",
       data: {

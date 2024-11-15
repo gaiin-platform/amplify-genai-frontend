@@ -3,9 +3,8 @@ import { useTranslation } from 'react-i18next';
 
 import { useCreateReducer } from '@/hooks/useCreateReducer';
 
-import { savePrompts } from '@/utils/app/prompts';
+import { createEmptyPrompt, savePrompts } from '@/utils/app/prompts';
 
-import { OpenAIModelID, OpenAIModels } from '@/types/openai';
 import { Prompt } from '@/types/prompt';
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -13,12 +12,8 @@ import HomeContext from '@/pages/api/home/home.context';
 import { PromptFolders } from './components/PromptFolders';
 import { Prompts } from './components/Prompts';
 
-import Sidebar from '../Sidebar';
 import PromptbarContext from './PromptBar.context';
 import { PromptbarInitialState, initialState } from './Promptbar.state';
-
-import { v4 as uuidv4 } from 'uuid';
-import {MessageType} from "@/types/chat";
 import {PromptModal} from "@/components/Promptbar/components/PromptModal";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {FolderInterface, SortType} from "@/types/folder";
@@ -26,6 +21,7 @@ import { AssistantModal } from '../Promptbar/components/AssistantModal';
 import { getAssistants, handleUpdateAssistantPrompt} from '@/utils/app/assistants';
 import { AssistantDefinition } from '@/types/assistant';
 import { useSession } from 'next-auth/react';
+import Sidebar from '../Sidebar/Sidebar';
 
 
 
@@ -42,8 +38,13 @@ const Promptbar = () => {
   const [isShareDialogVisible, setIsShareDialogVisible] = useState(false);
   const [sharedPrompts, setSharedPrompts] = useState<Prompt[]>([]);
   const [sharedFolders, setSharedFolders] = useState<FolderInterface[]>([]);
-  const [folderSort, setFolderSort] = useState<SortType>('name');
 
+  const sortBy = localStorage?.getItem('promptFolderSort');
+  const [folderSort, setFolderSort] = useState<SortType>(sortBy ? sortBy as SortType : 'date');
+
+  useEffect(() => {
+    localStorage.setItem('promptFolderSort', folderSort);
+  }, [folderSort]);
 
   const {
     state: { prompts, defaultModelId, showPromptbar, statsService, featureFlags},
@@ -78,15 +79,7 @@ const Promptbar = () => {
   }
 
   const createPrompt = (name: string):Prompt => {
-    return {
-      id: uuidv4(),
-      name: name,
-      description: '',
-      content: '',
-      model: (defaultModelId)? OpenAIModels[defaultModelId as OpenAIModelID] : OpenAIModels["gpt-3.5-turbo"],
-      folderId: null,
-      type: MessageType.PROMPT
-    };
+    return createEmptyPrompt(name, null);
   }
 
   const [showModal, setShowModal] = useState(false);
@@ -124,30 +117,29 @@ const Promptbar = () => {
   };
 
   const handleCreateAssistant = () => {
-    if (defaultModelId) {
-      const promptName = `Assistant ${getAssistants(promptsRef.current).length + 1}`
-      const newPrompt = createPrompt(promptName);
-      newPrompt.folderId = "assistants";
+    const promptName = `Assistant ${getAssistants(promptsRef.current).length + 1}`
+    const newPrompt = createPrompt(promptName);
+    newPrompt.folderId = "assistants";
 
-      const assistantDef: AssistantDefinition = {
-                            name: newPrompt.name,
-                            description: "",
-                            instructions: "",
-                            tools: [],
-                            tags: [],
-                            dataSources: [],
-                            version: 1,
-                            fileKeys: [],
-                            provider: 'Amplify'
-                          }
+    const assistantDef: AssistantDefinition = {
+                          name: newPrompt.name,
+                          description: "",
+                          instructions: "",
+                          tools: [],
+                          tags: [],
+                          dataSources: [],
+                          version: 1,
+                          fileKeys: [],
+                          provider: 'Amplify'
+                        }
 
-      if (!newPrompt.data) newPrompt.data = {};  
-      if (!newPrompt.data.assistant) newPrompt.data.assistant = {};
+    if (!newPrompt.data) newPrompt.data = {};  
+    if (!newPrompt.data.assistant) newPrompt.data.assistant = {};
 
-      newPrompt.data.assistant.definition = assistantDef;
-      setAssistantPrompt(newPrompt);
-      setAssistantShowModal(true);
-    }
+    newPrompt.data.assistant.definition = assistantDef;
+    setAssistantPrompt(newPrompt);
+    setAssistantShowModal(true);
+    
   }
 
   const handleDeletePrompt = (prompt: Prompt) => {
@@ -296,6 +288,7 @@ const Promptbar = () => {
               handleUpdateAssistantPrompt(assistantPrompt, promptsRef.current, homeDispatch);
             }}
         loadingMessage='Creating assistant...'
+        autofillOn={true}
         loc="add_assistant"
         />
       )}

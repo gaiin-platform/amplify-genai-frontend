@@ -23,6 +23,7 @@ export const Stars: FC<Props> = ({ starRating, setStars }) => {
     const [currentStars, setCurrentStars] = useState<number>(starRating);
 
     const handleStarClick = (selectedRating: number) => {
+        setCurrentStars(selectedRating);
         setStars(selectedRating);
     };
 

@@ -39,6 +39,7 @@ import {FolderInterface} from "@/types/folder";
 import {Prompt} from "@/types/prompt";
 import {ExampleChat} from "@/components/Market/components/ExampleChat";
 import {saveFolders} from "@/utils/app/folders";
+import React from 'react';
 
 interface Props {
     items: MarketItem[];
@@ -568,7 +569,7 @@ If people need help with prompt engineering, which is how you converse effective
 
 // @ts-ignore
     return (
-            <div className="relative flex-1 overflow-hidden bg-white dark:bg-[#343541]">
+            <div className="relative flex-1 overflow-hidden bg-neutral-100 dark:bg-[#343541]">
                 <>
                     <div
                         className="max-h-full overflow-x-hidden"

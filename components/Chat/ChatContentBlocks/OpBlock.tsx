@@ -2,35 +2,21 @@
 import {useContext, useEffect, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import {IconRobot} from "@tabler/icons-react";
-import styled, {keyframes} from "styled-components";
-import {FiCommand} from "react-icons/fi";
-import ExpansionComponent from "@/components/Chat/ExpansionComponent";
+import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { useOpsService} from "@/hooks/useOpsService";
-import { useSession } from "next-auth/react"
-import {Conversation, newMessage} from "@/types/chat";
+import { useSession } from "next-auth/react";
+import {Conversation, Message, newMessage} from "@/types/chat";
 import {useSendService} from "@/hooks/useChatSendService";
+import {resolveServerHandler} from "@/utils/app/ops";
+import JsonForm from "@/components/JsonForm/JsonForm";
+import React from "react";
 
-
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
-
-const LoadingIcon = styled(FiCommand)`
-  color: lightgray;
-  font-size: 1rem;
-  animation: ${animate} 2s infinite;
-`;
 
 
 interface OpProps {
     definition: string;
+    message: Message;
 }
-
 
 
 function parseStringWithPrefixes(inputString: string): Record<string, string | string[]> {
@@ -79,14 +65,14 @@ function parseStringWithPrefixes(inputString: string): Record<string, string | s
 }
 
 
-const OpBlock: React.FC<OpProps> = ({definition}) => {
+const OpBlock: React.FC<OpProps> = ({definition, message}) => {
     const [error, setError] = useState<string | null>(null);
     const [isIncomplete, setIsIncomplete] = useState<boolean>(true);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [loadingMessage, setLoadingMessage] = useState<string>("");
     const [op, setOp] = useState<any>({});
 
-    const {state:{selectedConversation, messageIsStreaming}} = useContext(HomeContext);
+    const {state:{messageIsStreaming, selectedConversation, selectedAssistant, conversations, prompts}, dispatch:homeDispatch} = useContext(HomeContext);
     const { data: session } = useSession();
     const user = session?.user;
 
@@ -119,10 +105,9 @@ const OpBlock: React.FC<OpProps> = ({definition}) => {
         try {
 
             let op = parseStringWithPrefixes(definitionStr);
-            const raw = getAction(op.action) || "";
-            const parts = raw.split(",").map((p: string) => p.trim());
-            const id = parts[0];
-            const args = parts.slice(1);
+
+            const id = op._id;
+            const args:any[] = [];
 
             op.id = id;
             op.args = args;
@@ -150,6 +135,16 @@ const OpBlock: React.FC<OpProps> = ({definition}) => {
         }
     }
 
+    const getServerSelectedAssistant = (message:Message) => {
+
+        const aid = (message.data && message.data.state) ?
+            message.data.state.currentAssistantId : null;
+
+        console.log(`Server-set assistantId: "${aid}"`)
+
+        return aid;
+    }
+
 
 
     const handleDoOp = async () => {
@@ -161,26 +156,80 @@ const OpBlock: React.FC<OpProps> = ({definition}) => {
 
             try {
 
-                console.log("Executing operation", op);
+                console.log("Executing operation", op._id);
+                console.log("With message", message);
 
                 const id = op.id || "";
-                const args = op.args || [];
-                const result = await executeOp(id, args);
+                const args = Object.entries(op)
+                    .filter(([key, value]) => !hiddenKeys.includes(key))
+                    .map(([key, value]) => value);
 
-                if(result && result.message){
-                    const message = newMessage({
-                        role: "user",
-                        content: "The result of the operation was:\n\n"+result.message,
-                        label:"Operation Result Not Shown"
-                    })
+                const handler = resolveServerHandler(message, id);
 
+                let request = null;
+                const assistantId =
+                    getServerSelectedAssistant(message) ||
+                    selectedAssistant?.id;
+
+                if(!handler){
+                    request = {
+                        options: {assistantId},
+                        message: newMessage({
+                            role: "user",
+                            content: "The _id for the specified operation is invalid. Please make sure the _id matches " +
+                                "the ID of one of the allowed ops.",
+                            label: "Operation Result Not Shown",
+                            data:{actionResult:true}
+                        })
+                    };
+                }
+                else {
+                    console.log("Handler is", handler);
+                    const result = await handler(args);
+
+                    console.log("Result is", result)
+
+                    if(result) {
+
+                        const msgStr = result.message ?
+                            result.message : JSON.stringify(result);
+
+                        const message = newMessage({
+                            role: "user",
+                            content: "The result of the operation was:\n\n" + msgStr,
+                            label: "Operation Result Not Shown",
+                            data:{actionResult:true}
+                        })
+
+                        request = {
+                            options: {assistantId},
+                            message
+                        };
+                    }
+                    else {
+                        const message = newMessage({
+                            role: "user",
+                            content: "Operation did not produce a result, so it was likely successful.",
+                            label: "Operation Result Not Shown",
+                            data:{actionResult:true}
+                        })
+
+                        request = {
+                            options: {assistantId},
+                            message
+                        };
+                    }
+                }
+
+                if(request) {
                     const shouldAbort = () => false;
-                    if(handleSend){
+                    if (handleSend) {
                         handleSend(
-                            {message},
+                            request,
                             shouldAbort);
                     }
                 }
+
 
             } catch (e) {
                 alert("Something went wrong. Please try again.");
@@ -206,6 +255,42 @@ const OpBlock: React.FC<OpProps> = ({definition}) => {
 
     let dataSources = getDocumentsInConversation(selectedConversation);
 
+    const hiddenKeys = ["_id", "_title", "_dataSources", "_button", "args", "id"];
+
+    const getComponent = (index:any, key:string, value:any) => {
+        if (key.startsWith("s_")){
+            // Create a password field
+
+            const isString = typeof value === "string";
+            const strValue = isString ? value : JSON.stringify(value);
+
+            return (
+                <div className="text-sm text-gray-500 flex items-center space-x-2">
+                    <label className="w-24">{key.substring(2)}:</label>
+                    <input
+                        type="password"
+                        className="mt-2 w-96 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                        value={strValue}
+                        onChange={(e) => {}}
+                    />
+                </div>
+            );
+        }
+        else {
+           return (
+               <div className="text-sm text-gray-500 flex items-center space-x-2">
+                   <label className="w-24">{key}:</label>
+                   <input
+                       className="mt-2 w-96 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                       value={value}
+                       onChange={(e) => {}}
+                   />
+               </div>
+         );
+        }
+
+    }
+
     // @ts-ignore
     return error ?
         <div>{error}</div> :
@@ -218,20 +303,23 @@ const OpBlock: React.FC<OpProps> = ({definition}) => {
                         <div className="flex flex-col w-full mb-4">
                             <div className="flex flex-row items-center justify-center">
                                 <div className="mr-2"><IconRobot size={30} /></div>
-                                <div className="text-2xl font-bold">{op.title || "My Plan"}</div>
+                                <div className="text-2xl font-bold">{op._title || "My Plan"}</div>
                             </div>
-                            {Object.entries(op)
-                                .filter(([key, value]) => key !== "_dataSources" && key !== "id")
-                                .map(([key, value], index) => {
-                                return <ExpansionComponent key={index} title={key} content={
-                                    <div className="text-sm text-gray-500">{JSON.stringify(value)}</div>
-                                }/>
-                            })}
-                            <button className="mt-4 w-full px-4 py-2 text-white bg-blue-500 rounded hover:bg-green-600"
-                                    onClick={handleDoOp}
-                            >
-                                Go
-                            </button>
+                            <div className="flex flex-row">
+                                <JsonForm
+                                    onChange={(key:string, value:any) => {
+                                        console.log("Setting", key, value);
+                                        setOp({...op, [key]: value});
+                                    }}
+                                    form={op}/>
+                            </div>
+                            <div className="flex flex-row mb-4">
+                                <button className="mt-4 w-full px-4 py-2 text-white bg-blue-500 rounded hover:bg-green-600"
+                                        onClick={handleDoOp}
+                                >
+                                    {op._button || "Go"}
+                                </button>
+                            </div>
                         </div>
                     </>
                 )}

@@ -10,11 +10,8 @@ import {useEffect, useRef, useState} from "react";
 import {useTranslation} from "next-i18next";
 
 interface Props {
-    messageIsStreaming: boolean;
-    messageIndex: number;
     message: Message;
     handleEditMessage: () => void;
-    selectedConversation: Conversation|undefined;
     setIsEditing: (isEditing: boolean) => void;
     isEditing: boolean;
     messageContent: string;
@@ -22,10 +19,7 @@ interface Props {
 }
 
 const UserMessageEditor: React.FC<Props> = (
-    {selectedConversation,
-        message,
-        messageIndex,
-        messageIsStreaming,
+    {   message,
         handleEditMessage,
         setIsEditing,
         isEditing,

@@ -1,7 +1,7 @@
 import { Conversation, Message } from '@/types/chat';
 import { ErrorMessage } from '@/types/error';
 import { FolderInterface} from '@/types/folder';
-import { OpenAIModel, OpenAIModelID } from '@/types/openai';
+import { Model, ModelID } from '@/types/model';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
 import { Status } from "@/types/workflow";
@@ -12,6 +12,9 @@ import { noOpStatsServices, StatsServices } from "@/types/stats";
 import { Account } from "@/types/accounts";
 import {Op} from "@/types/op";
 import {CheckItemType} from "@/types/checkItem";
+import { PluginLocation } from '@/types/plugin';
+import { Group } from '@/types/groups';
+import { Artifact } from '@/types/artifacts';
 
 
 type HandleSend = (request: any) => void;
@@ -23,14 +26,17 @@ export interface HomeInitialState {
   loading: boolean;
   lightMode: 'light' | 'dark';
   messageIsStreaming: boolean;
+  artifactIsStreaming: boolean
   modelError: ErrorMessage | null;
   status: Status[];
-  models: OpenAIModel[];
+  models: Model[];
   folders: FolderInterface[];
   conversations: Conversation[];
+  artifacts: any[];
   workflows: WorkflowDefinition[];
   selectedConversation: Conversation | undefined;
   currentMessage: Message | undefined;
+  selectedArtifacts: Artifact[] | undefined;
   prompts: Prompt[];
   temperature: number;
   showChatbar: boolean;
@@ -39,7 +45,7 @@ export interface HomeInitialState {
   currentFolder: FolderInterface | undefined;
   messageError: boolean;
   searchTerm: string;
-  defaultModelId: OpenAIModelID | undefined;
+  defaultModelId: ModelID | undefined;
   featureFlags: { [key: string]: boolean },
   workspaceMetadata: Workspace;
   selectedAssistant: Assistant | null;
@@ -58,6 +64,11 @@ export interface HomeInitialState {
   allFoldersOpenPrompts: boolean;
   checkedItems: Array<any>;
   checkingItemType: CheckItemType | null;
+  pluginLocation: PluginLocation;
+  groups: Group[];
+  syncingConversations: boolean;
+  syncingPrompts: boolean;
+
 }
 
 export const initialState: HomeInitialState = {
@@ -69,10 +80,12 @@ export const initialState: HomeInitialState = {
   status: [],
   workspaceDirty: false,
   messageIsStreaming: false,
+  artifactIsStreaming: false,
   modelError: null,
   models: [],
   folders: [],
   conversations: [],
+  artifacts:[], // for saved/remote artifacts
   workflows: [],
   ops: {},
   workspaceMetadata: {
@@ -88,6 +101,7 @@ export const initialState: HomeInitialState = {
   },
   selectedConversation: undefined,
   currentMessage: undefined,
+  selectedArtifacts: undefined,
   prompts: [],
   temperature: 1,
   showPromptbar: true,
@@ -102,6 +116,7 @@ export const initialState: HomeInitialState = {
 
   featureFlags: {
     assistantsEnabled: true,
+    promptOptimizer: true,
     ragEnabled: true,
     sourcesEnabled: true,
     uploadDocuments: true,
@@ -116,15 +131,20 @@ export const initialState: HomeInitialState = {
     workflowRun: true,
     workflowCreate: false,
     rootPromptCreate: true,
-    pluginsOnInput: false,
+    pluginsOnInput: true, // if all plugin features are disables, then this should be disabled. ex. ragEnabled, codeInterpreterEnabled etc.
     dataSourceSelectorOnInput: true,
     followUpCreate: true,
     marketItemDelete: false,
     automation: true,
-    codeInterpreterEnabled: false,
-    dataDisclosure: false,
-    storeCloudConversations: false,
+    codeInterpreterEnabled: true,
+    dataDisclosure: true,
+    storeCloudConversations: true,
     qiSummary: false,
+    apiKeys: true,
+    assistantAdminInterface: false,
+    artifacts: true,
+    mtdCost: false,
+    highlighter: true
   },
 
   statsService: noOpStatsServices,
@@ -138,5 +158,9 @@ export const initialState: HomeInitialState = {
   allFoldersOpenConvs: false,
   allFoldersOpenPrompts: false,
   checkedItems: [],
-  checkingItemType: null
+  checkingItemType: null,
+  pluginLocation: {x:100, y:-250},
+  groups: [],
+  syncingConversations: true,
+  syncingPrompts: true
 };

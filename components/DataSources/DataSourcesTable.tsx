@@ -9,7 +9,8 @@ import {MantineProvider} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
 import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
-import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import { downloadDataSourceFile } from '@/utils/app/files';
+import ActionButton from '../ReusableComponents/ActionButton';
 
 
 type MimeTypeMapping = {
@@ -56,7 +57,7 @@ const mimeTypeToCommonName: MimeTypeMapping = {
 const DataSourcesTable = () => {
 
     const {
-        state: {lightMode},
+        state: {lightMode}, setLoadingMessage
     } = useContext(HomeContext);
 
     const [data, setData] = useState<FileRecord[]>(
@@ -86,7 +87,6 @@ const DataSourcesTable = () => {
     const [currentMaxItems, setCurrentMaxItems] = useState(100);
     const [currentMaxPageIndex, setCurrentMaxPageIndex] = useState(0);
     const [prevSorting, setPrevSorting] = useState<MRT_SortingState>([]);
-    const [isDownloading, setIsDownloading] = useState(false);
 
     const getTypeFromCommonName = (commonName: string) => {
         const foundType = Object.entries(mimeTypeToCommonName)
@@ -253,21 +253,16 @@ const DataSourcesTable = () => {
         return date.toLocaleString('en-US', options).toLowerCase();
     }
 
-    const downloadFile = async (id: string) => {
+    const downloadFile = async  (id: string, name: string, fileType: string) => {
 
-        setIsDownloading(true);
+        setLoadingMessage("Preparing to Download...");
         try {
             // /assistant/files/download
-            const response = await getFileDownloadUrl(id);
-
-            if (response.downloadUrl) {
-                // Download the file at the specified url
-                window
-                    .open(response.downloadUrl, '_blank')
-                    ?.focus();
-            }
+            downloadDataSourceFile({id: id, name: name, type: fileType});
         } finally {
-            setIsDownloading(false);
+            setLoadingMessage("");
+
+
         }
     }
 
@@ -303,11 +298,15 @@ const DataSourcesTable = () => {
                 enableColumnActions: false,
                 enableColumnFilter: false,
                 Cell: ({cell}) => (
-                    <span onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        downloadFile(cell.getValue<string>())
-                    }}><IconDownload/></span>
+                    <ActionButton
+                        title='Download File'
+                        handleClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            downloadFile(cell.getValue<string>(), cell.row.original.name, cell.row.original.type)
+                        }}> 
+                    <IconDownload/>
+                    </ActionButton>
                 ),
             },
             {
@@ -399,7 +398,7 @@ const DataSourcesTable = () => {
             showProgressBars: isRefetching,
             sorting,
         },
-        mantineTableContainerProps: {sx: {maxHeight: '400px'}},
+        mantineTableContainerProps: {sx: {maxHeight: "70vh"}},
         mantineToolbarAlertBannerProps: isError
             ? {color: 'red', children: 'Error loading data'}
             : undefined,
@@ -407,10 +406,6 @@ const DataSourcesTable = () => {
 
     return (
         <div>
-            {isDownloading && (
-                <LoadingDialog
-                    open={true} message={"Preparing to download..."}/>
-            )}
 
             <MantineProvider
                 theme={{
