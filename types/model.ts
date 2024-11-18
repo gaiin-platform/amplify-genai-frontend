@@ -28,7 +28,7 @@ export enum ModelID {
   CLAUDE_3_5_SONNET = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
   //CLAUDE_3_HAIKU = 'anthropic.claude-3-haiku-20240307-v1:0',
   CLAUDE_3_5_HAIKU = 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
-  CLAUDE_3_OPUS = 'anthropic.claude-3-opus-20240229-v1:0',
+  CLAUDE_3_OPUS = 'us.anthropic.claude-3-opus-20240229-v1:0',
   MISTRAL_7B = 'mistral.mistral-7b-instruct-v0:2',
   MIXTRAL_8X7B =  'mistral.mixtral-8x7b-instruct-v0:1',
   MISTRAL_LARGE = 'mistral.mistral-large-2402-v1:0'
