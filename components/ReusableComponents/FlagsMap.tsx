@@ -1,4 +1,5 @@
-import Checkbox from "@/components/ReusableComponents/CheckBox";
+import Checkbox from "./CheckBox";
+
 
 interface Flag {
     label: string;

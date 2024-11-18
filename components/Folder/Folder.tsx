@@ -8,6 +8,7 @@ import {
   IconX,
   IconPin,
   IconPinFilled,
+  IconEyeOff,
 } from '@tabler/icons-react';
 import {
   KeyboardEvent,
@@ -24,7 +25,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import React from 'react';
 import { baseAssistantFolder, isBaseFolder } from '@/utils/app/basePrompts';
 import ActionButton from '../ReusableComponents/ActionButton';
-import { saveFolders } from '@/utils/app/folders';
+import { hideGroupFolder, saveFolders } from '@/utils/app/folders';
 
 interface Props {
   currentFolder: FolderInterface;
@@ -70,6 +71,13 @@ const Folder = ({
     });
     homeDispatch({ field: 'folders', value: updatedFolders });
     saveFolders(updatedFolders);
+  };
+
+  const handleHideGroupFolder = (folder: FolderInterface) => {
+    const updatedFolders = folders.filter((f:FolderInterface) => (f.id !== folder.id));
+    homeDispatch({ field: 'folders', value: updatedFolders });
+    saveFolders(updatedFolders);
+    hideGroupFolder(folder);
   };
 
   const handleRename = () => {
@@ -232,7 +240,7 @@ const Folder = ({
             </div>
           )}
 
-          {!isDeleting && !isRenaming && isHovered && !checkFolders && showEditDelete && (
+          {!isDeleting && !isRenaming && isHovered && !checkFolders && (
             <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
               <ActionButton
                 handleClick={(e) => {
@@ -246,7 +254,18 @@ const Folder = ({
                   <IconPin size={18} /> 
                 }
               </ActionButton>
-
+              {currentFolder.isGroupFolder && 
+                <ActionButton
+                handleClick={(e) => {
+                  e.stopPropagation();
+                  handleHideGroupFolder(currentFolder);
+                }}
+                title="Hide Folder"
+              >
+                  <IconEyeOff size={18} /> 
+              </ActionButton>
+              }
+              { showEditDelete && <>
               <ActionButton
                 handleClick={(e) => {
                   e.stopPropagation();
@@ -267,6 +286,7 @@ const Folder = ({
               >
                 <IconTrash size={18} />
               </ActionButton>
+              </>}
             </div>
           )}
         </div>

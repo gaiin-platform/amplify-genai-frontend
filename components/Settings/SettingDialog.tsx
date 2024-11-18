@@ -9,7 +9,7 @@ import { Settings, Theme } from '@/types/settings';
 import HomeContext from '@/pages/api/home/home.context';
 import React from 'react';
 import { StorageDialog } from './StorageDialog';
-import FlagsMap from '../Promptbar/components/FlagsMap';
+import FlagsMap from '../ReusableComponents/FlagsMap';
 import { Modal } from '../ReusableComponents/Modal';
 import { saveUserSettings } from '@/services/settingsService';
 import { MINIMAL_AVAILABLE_MODELS } from '@/utils/app/models';
@@ -110,8 +110,8 @@ const modelLabel = (id: string, name: string) => {
 
   // Render the dialog.
   return <Modal 
-      width={window.innerWidth * 0.62}
-      height={window.innerHeight * 0.88}
+      width={() => window.innerWidth * 0.62}
+      height={() => window.innerHeight * 0.88}
       title={`Settings${hasUnsavedChanges ? " * " : ""}`}
       onCancel={() => onClose()} 
       onSubmit={() => handleSave()

@@ -192,7 +192,7 @@ export function useSendService() {
                     const settings = getSettings(featureFlags);
                     // if both artifact and smart messages is off then it returnes with the messages right away 
                     const prepareMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService, featureFlags, homeDispatch, settings.featureOptions);
-
+                    
                     const chatBody: ChatBody = {
                         model: updatedConversation.model, 
                         messages: prepareMessages, //updatedConversation.messages,

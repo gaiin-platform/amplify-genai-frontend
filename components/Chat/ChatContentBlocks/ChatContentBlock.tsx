@@ -176,7 +176,7 @@ const ChatContentBlock: React.FC<Props> = (
                         }
                         break;
                     case 'customAuto':
-                        if (selectedConversation && featureFlags.assistantAPIs) {
+                        if (selectedConversation && featureFlags.assistantApis) {
                             return (
                                 <CustomAutoBlock
                                     message={message}

@@ -7,29 +7,26 @@ import { IconX } from '@tabler/icons-react';
 interface Props {
   title?: string; 
   content: ReactElement;
-  width?: number;
-  height?: number;
+  width?: () => number;
+  height?: () => number;
   showButtons?: boolean;
   onCancel?: () => void; 
   onSubmit?: () => void; 
   submitLabel?: string;
 }
 
-  export const Modal: FC<Props> = ({title, content, width = window.innerWidth / 2, height= window.innerHeight * 0.8, onCancel=()=>{}, onSubmit=()=>{}, submitLabel="Submit", showButtons=true}) => {
+  export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{}, submitLabel="Submit", showButtons=true}) => {
 
-
-    // useEffect(() => {
-    //     const updateInnerWindow = () => {
-    //         setInnerWindow({height: window.innerHeight, width: window.innerWidth});
-    //     }
-    //     // Listen to window resize to update the size
-    //     window.addEventListener('resize', updateInnerWindow);
-    //     return () => {
-    //       window.removeEventListener('resize', updateInnerWindow);
-    //     };
-    //   }, []);
 
  const modalRef = useRef<HTMLDivElement>(null);
+
+ const getInnerWindowSize = () => {
+  return {height: height ? height() : window.innerHeight * 0.8,
+    width: width ? width() : window.innerWidth / 2}
+
+ }
+ const [innderWindow, setInnerWindow] = useState(getInnerWindowSize());
+
 
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
@@ -51,6 +48,18 @@ interface Props {
   }, [onCancel]);
 
 
+  useEffect(() => {
+    const updateInnerWindow = () => {
+        setInnerWindow(getInnerWindowSize());
+    }
+    // Listen to window resize to update the size
+    window.addEventListener('resize', updateInnerWindow);
+    return () => {
+      window.removeEventListener('resize', updateInnerWindow);
+    };
+  }, []);
+
+
     return (
      <div className={"fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"}>
             <div className="fixed inset-0 z-10 overflow-hidden" >
@@ -63,7 +72,7 @@ interface Props {
                         <div
                         ref={modalRef}
                         className={`inline-block transform rounded-lg border border-gray-300 dark:border-neutral-600 bg-neutral-100 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#2b2c36] sm:my-8 py-4 px-6 sm:align-middle`}
-                        style={{width: `${width}px`, height: `${height}px`}}
+                        style={{width: `${innderWindow.width}px`, height: `${innderWindow.height}px`}}
                         role="dialog"  
                         >
 
@@ -81,7 +90,7 @@ interface Props {
                             </div>   
                         </div>
 
-                        <div className="overflow-y-auto" style={{ maxHeight: `${height * 0.8}px` }}>
+                        <div className="overflow-y-auto" style={{ maxHeight: `${innderWindow.height * 0.8}px` }}>
                             {content}
                             <br className='mt-[40px]'></br>
                         </div>

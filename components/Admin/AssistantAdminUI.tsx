@@ -710,9 +710,9 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
                     >
                         Add Users
                     </button> }
-                    { isAddingUsers && <div className="border border-green-400 flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 w-[36px]">
+                    { isAddingUsers && <div className=" flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 w-[36px]">
                         <button 
-                                className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100" 
+                                className="text-green-500 hover:text-green-700 cursor-pointer" 
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (Object.keys(newGroupMembers).length > 0){
@@ -728,7 +728,7 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
                             </button>
                         
                         <button
-                            className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
+                            className="text-red-500 hover:text-red-700 cursor-pointer"
                             onClick={(e) => {
                             e.stopPropagation();
                             setIsAddingUsers(false);
@@ -1322,9 +1322,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         }
     };
 
-    return (adminGroups.length === 0 || showCreateNewGroup) && !loadingMessage ? 
+    return featureFlags.createAstAdminGroups && !loadingMessage && 
+           (adminGroups.length === 0 || showCreateNewGroup) ? 
       // Allow the option to create a new group if user has no group where they have either admin or write access. 
-        ( 
+        (  
                 <CreateAdminDialog 
                     createGroup={groupCreate}
                     onClose={onClose} // note clear for built in one
@@ -1350,7 +1351,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                         >
                             {loadingActionMessage && (
                                 <div className="absolute inset-0 flex items-center justify-center z-60"
-                                    style={{ transform: `translateY(-32%)`}}>
+                                    style={{ transform: `translateY(-40%)`}}>
                                     <div className="p-3 flex flex-row items-center  border border-gray-500 bg-[#202123]">
                                         <LoadingIcon style={{ width: "24px", height: "24px" }}/>
                                         <span className="text-lg font-bold ml-2 text-white">{loadingActionMessage + '...'}</span>
@@ -1495,7 +1496,7 @@ interface CreateProps {
 
 
 export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEmails, message}) => {
-    const { state: { statsService, groups}, dispatch: homeDispatch } = useContext(HomeContext);
+    const { state: { statsService, groups }, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
     const user = session?.user?.email;
 
@@ -1767,6 +1768,8 @@ interface SelectProps {
 }
 
 export const GroupSelect: FC<SelectProps> = ({groups, selectedGroup, setSelectedGroup, setShowCreateNewGroup}) => {
+    const { state: { featureFlags }, dispatch: homeDispatch } = useContext(HomeContext);
+
      return (
         <select className={"mb-2 w-full text-xl text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]"} 
             value={selectedGroup?.name ?? ''}
@@ -1785,9 +1788,11 @@ export const GroupSelect: FC<SelectProps> = ({groups, selectedGroup, setSelected
                     {group.name}
                 </option>
             ))}
+            { featureFlags.createAstAdminGroups &&
             <option value={GroupUpdateType.ADD}>
                     {"+ Create New Group"}
             </option>
+            } 
         </select>
         
     );
@@ -1808,9 +1813,9 @@ export const UsersAction: FC<ActionProps> = ({condition, label, title, clickActi
     return ( condition ? (
         <div className="text-xs flex flex-row gap-1">
         <label className={`px-4 py-2 text-white  bg-gray-700`}>  {label}</label>
-        <div className="border border-green-400 flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 ">
+        <div className="flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 ">
             <button 
-                    className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100" 
+                    className="text-green-500 hover:text-green-700 cursor-pointer" 
                     onClick={(e) => {
                         e.stopPropagation();
                         onConfirm();
@@ -1822,7 +1827,7 @@ export const UsersAction: FC<ActionProps> = ({condition, label, title, clickActi
             </button>
             
             <button
-                className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
+                className="text-red-500 hover:text-red-700 cursor-pointer"
                 onClick={(e) => {
                 e.stopPropagation();
                 onCancel();
@@ -1936,9 +1941,9 @@ export const GroupTypesAst: FC<TypeProps> = ({groupTypes, setGroupTypes, canAddT
         <div className='flex flex-row gap-2'>
 
             {showControlButtons && onConfirm && onCancel && 
-                    <div className="mt-1.5 flex flex-row gap-0.5 h-[20px] bg-neutral-200 dark:bg-[#343541]/90 w-[36px]">
+                    <div className="mt-1.5 flex flex-row gap-1 h-[20px]">
                         <button 
-                                className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100" 
+                                className="text-green-500 hover:text-green-700 cursor-pointer" 
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     onConfirm();
@@ -1949,7 +1954,7 @@ export const GroupTypesAst: FC<TypeProps> = ({groupTypes, setGroupTypes, canAddT
                             </button>
                         
                         <button
-                            className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
+                            className="text-red-500 hover:text-red-700 cursor-pointer"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onCancel();

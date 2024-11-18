@@ -1,4 +1,4 @@
-import { IconFileExport, IconSettings, IconHelp, IconCloud, IconRobot } from '@tabler/icons-react';
+import { IconFileExport, IconSettings, IconHelp, IconCloud, IconRobot, IconUser, IconSettingsBolt } from '@tabler/icons-react';
 import { useContext, useState } from 'react';
 
 
@@ -41,7 +41,7 @@ export const ChatbarSettings = () => {
 
             <SidebarButton
                 text={t('Manage Accounts')}
-                icon={<IconSettings size={18} />}
+                icon={<IconUser size={18} />}
                 onClick={() => {
                     //statsService.setThemeEvent();
                     setIsAccountDialogVisible(true)
@@ -55,6 +55,18 @@ export const ChatbarSettings = () => {
                     onClick={() => {
                         // send trigger to close side bars and open the interface 
                         window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: true }} ));
+                      
+                    }}
+                />
+            }
+
+            {featureFlags.adminInterface &&  
+                <SidebarButton
+                    text={t('Admin Interface')}
+                    icon={<IconSettingsBolt size={18} />}
+                    onClick={() => {
+                        // send trigger to close side bars and open the interface 
+                        window.dispatchEvent(new CustomEvent('openAdminInterfaceTrigger', { detail: { isOpen: true }} ));
                       
                     }}
                 />

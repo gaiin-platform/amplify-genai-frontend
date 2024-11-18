@@ -20,4 +20,5 @@ export interface LocalStorage {
   pluginLocation: PluginLocation;
   chatFolderSort: SortType,
   promptFolderSort: SortType;
+  hiddenGroupFolders: FolderInterface[];
 }

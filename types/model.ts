@@ -38,7 +38,7 @@ export const fallbackModelID = ModelID.CLAUDE_3_HAIKU;
 export const Models: Record<ModelID, Model> = {
 
   [ModelID.GPT_4_TURBO_AZ]: {
-    id: ModelID.GPT_4_TURBO,
+    id: ModelID.GPT_4_TURBO_AZ,
     name: 'GPT-4-Turbo',
     maxLength: 24000,
     tokenLimit: 8000,

@@ -4,7 +4,8 @@ import {
     IconX, IconShare, IconTags,
     IconCheck, IconFolderOpen, 
     IconFolder, IconCalendar, IconAbc,
-    IconTrashFilled
+    IconTrashFilled,
+    IconEye
 } from '@tabler/icons-react';
 import { KebabActionItem, actionItemAttr, KebabItem, KebabMenuItems } from "./KebabItems";
 import { ShareAnythingModal } from "@/components/Share/ShareAnythingModal";
@@ -28,6 +29,7 @@ import { getDateName } from "@/utils/app/date";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import React from "react";
 import toast from "react-hot-toast";
+import { getHiddenGroupFolders, saveFolders } from "@/utils/app/folders";
 
 
 interface Props {
@@ -100,12 +102,24 @@ interface Props {
         return false;
     }
 
+    const hasHiddenGroupFolders = () => {
+        return getHiddenGroupFolders().length > 0;
+    }
+
+    const unHideHiddenGroupFolders = () => {
+        const hiddenFolders = getHiddenGroupFolders();
+        const updatedFolders = [...folders, ...hiddenFolders];
+        homeDispatch({ field: 'folders', value: updatedFolders });
+        saveFolders(updatedFolders);
+        localStorage.setItem('hiddenGroupFolders', JSON.stringify([]));
+    }
+
     const toggleDropdown = () => {
         if (checkingItemType) clear();
         setIsMenuOpen(!isMenuOpen);
         handleSearchTerm('');
-
     }
+
     const clear = () => {
         homeDispatch({field: 'checkingItemType', value: null});
         setActionItem(null);
@@ -390,7 +404,7 @@ interface Props {
                                              setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTrash size={14} />} />
                             <KebabItem label="Open All" handleAction={() => { openCloseFolders(true) } } icon={<IconFolderOpen size={13} />}  title="Open All Folders" />
                             <KebabItem label="Close All" handleAction={() => { openCloseFolders(false) }} icon={<IconFolder size={14}/>}   title="Close All Folders"/>
-                            
+                            {!isConvSide && hasHiddenGroupFolders()  &&  <KebabItem label="Unhide" handleAction={() => { unHideHiddenGroupFolders() }} icon={<IconEye size={14} />} title="Unhide Hidden Group Folders" /> }  
                         </KebabMenuItems>
                     </div>
                 </div>

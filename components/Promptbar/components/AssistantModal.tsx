@@ -10,7 +10,7 @@ import {AttachFile} from "@/components/Chat/AttachFile";
 import {IconFiles, IconCircleX, IconArrowRight} from "@tabler/icons-react";
 import {createAssistant} from "@/services/assistantService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
-import FlagsMap from "@/components/Promptbar/components/FlagsMap";
+import FlagsMap from "@/components/ReusableComponents/FlagsMap";
 import { AssistantDefinition } from '@/types/assistant';
 import { AstGroupTypeData } from '@/types/groups';
 import React from 'react';
@@ -162,7 +162,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     const apiOptionDefaults = apiOptionFlags.reduce((acc: { [key: string]: boolean }, x) => {
         if (x.key === 'IncludeApiInstr') {
-            if (featureFlags.assistantAPIs) acc[x.key] = x.defaultValue;
+            if (featureFlags.assistantApis) acc[x.key] = x.defaultValue;
         } else {
             acc[x.key] = x.defaultValue;
         }

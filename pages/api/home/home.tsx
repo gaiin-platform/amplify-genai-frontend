@@ -25,7 +25,7 @@ import {
     conversationWithUncompressedMessages,
     conversationWithCompressedMessages,
 } from '@/utils/app/conversation';
-import { saveFolders } from '@/utils/app/folders';
+import { getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
 import { getSettings, saveSettings } from '@/utils/app/settings';
 import { getAccounts } from "@/services/accountService";
@@ -83,6 +83,7 @@ import { getAllArtifacts } from '@/services/artifactsService';
 import { baseAssistantFolder, basePrompt, isBaseFolder, isOutDatedBaseFolder } from '@/utils/app/basePrompts';
 import { fetchUserSettings } from '@/services/settingsService';
 import { Settings } from '@/types/settings';
+import { getFeatureFlags } from '@/services/adminService';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -711,7 +712,6 @@ const Home = ({
         const fetchSettings = async () => {
             console.log("Fetching Settings...");
             try {
-                // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
                 const result = await fetchUserSettings();
                 if (result.success) {
                     if (result.data) { 
@@ -735,6 +735,7 @@ const Home = ({
             } 
         };
 
+        // not in use anymore
         const fetchInAmpCognGroup = async () => {
             // here you define any groups you want to check exist for the user in the cognito users table
             const groups : AmpCognGroups = {
@@ -753,6 +754,23 @@ const Home = ({
                 }
             } catch (e) {
                 console.log("Failed to verify in ampifly/cognito groups: ", e);
+            }
+        }
+
+        const fetchFeatureFlags = async () => {
+            console.log("Fetching Feature Flags...");
+            try {
+                // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
+                const result = await getFeatureFlags();
+                if (result.success) {
+                    const flags: { [key:string] : boolean } = result.data;
+                    console.log("UPDATING FEATURE FLAGS")
+                    if (flags && Object.keys(flags).length > 0) dispatch({ field: 'featureFlags', value: flags});
+                } else {
+                    console.log("Failed to get feature flags: ", result);
+                }
+            } catch (e) {
+                console.log("Failed to get feature flagss: ", e);
             }
         }
 
@@ -886,8 +904,12 @@ const Home = ({
             // Sync groups
             syncGroups()
                 .then(groupsResult => {
+                    // filter out group folders that are hidden
+                    const hiddenFolderIds: string[] = getHiddenGroupFolders().map((f:FolderInterface) => f.id);
+                    const filteredGroupFolders:FolderInterface[] = groupsResult.groupFolders 
+                                                                               .filter((f:FolderInterface) => !hiddenFolderIds.includes(f.id));
                     updatedFolders = [...updatedFolders.filter((f:FolderInterface) => !f.isGroupFolder), 
-                                        ...groupsResult.groupFolders]
+                                      ...filteredGroupFolders]
                     dispatch({field: 'folders', value: updatedFolders});
                     saveFolders(updatedFolders);
 
@@ -914,17 +936,22 @@ const Home = ({
 
         }
 
+        const handleFeatureDependantOnLoadData = async () => {
+            await fetchFeatureFlags();
+            if (featureFlags.artifacts) fetchArtifacts(); // fetch artifacts 
+
+            //Conversation, prompt, folder dependent calls
+            handleOnLoadData();
+        }
+
 
         if (user && user.email && initialRender) {
             setInitialRender(false);
             // independent function call high priority
             fetchAccounts();  // fetch accounts for chatting charging
             fetchSettings(); // fetch user settinsg
-            fetchInAmpCognGroup();  // updates ast admin interface featureflag
-            if (featureFlags.artifacts) fetchArtifacts(); // fetch artifacts 
 
-            //Conversation, prompt, folder dependent calls
-            handleOnLoadData();
+            handleFeatureDependantOnLoadData();   
         }
     
     }, [user]);
@@ -970,6 +997,11 @@ const Home = ({
         const storageSelection = localStorage.getItem('storageSelection');
         if (storageSelection) {
             dispatch({field: 'storageSelection', value: storageSelection});
+        }
+
+        const hiddenGroups = localStorage.getItem('hiddenGroupFolders');
+        if (hiddenGroups) {
+            dispatch({field: 'hiddenGroupFolders', value: JSON.parse(hiddenGroups) });
         }
 
         const prompts = localStorage.getItem('prompts');

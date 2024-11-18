@@ -68,6 +68,7 @@ export interface HomeInitialState {
   groups: Group[];
   syncingConversations: boolean;
   syncingPrompts: boolean;
+  hiddenGroupFolders: FolderInterface[];
 
 }
 
@@ -142,10 +143,12 @@ export const initialState: HomeInitialState = {
     qiSummary: false,
     apiKeys: true,
     assistantAdminInterface: false,
+    createAstAdminGroups: false,
+    adminInterface: true,
     artifacts: true,
     mtdCost: true,
     highlighter: true,
-    assistantAPIs: true
+    assistantApis: true
   },
 
   statsService: noOpStatsServices,
@@ -163,5 +166,6 @@ export const initialState: HomeInitialState = {
   pluginLocation: {x:100, y:-250},
   groups: [],
   syncingConversations: true,
-  syncingPrompts: true
+  syncingPrompts: true,
+  hiddenGroupFolders: [],
 };

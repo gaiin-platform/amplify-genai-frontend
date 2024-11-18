@@ -1087,7 +1087,7 @@ const handleParagraphSelection = (range: Range) => {
         }
 
     } catch (e) {
-        console.error("Error prompting for qi summary: ", e);
+        console.error("Error prompting for prompt highlighting: ", e);
         alert("We are unable to fulfill your request at this time, please try again later.");
     } 
     homeDispatch({field: 'messageIsStreaming', value: false}); 

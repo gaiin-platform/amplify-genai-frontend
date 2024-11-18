@@ -465,7 +465,7 @@ export const VariableModal: FC<Props> = ({
     return (
             <Modal 
                 title={prompt ? prompt.name : ""}
-                height={window.innerHeight * 0.7}
+                height={() => window.innerHeight * 0.7}
                 onCancel={()=>onClose(false)} 
                 onSubmit={() => {
                     handleSubmit();
