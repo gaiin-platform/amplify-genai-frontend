@@ -177,7 +177,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     let updatedName: string = customName ?? '';
                                     if (!customName) {
                                         const content = updatedConversation.messages[0].content;
-                                        updatedName = content.length > 30 ? content.substring(0, 30) + '...' : content;
+                                        updatedName = content && content.length > 30 ? content.substring(0, 30) + '...' : content;
                                     }
                                     updatedConversation = {
                                         ...updatedConversation,
@@ -853,8 +853,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 // @ts-ignore
         return (
             <>
-            {featureFlags.highlighter && 
-             getSettings(featureFlags).featureOptions.includeHighlighter  && 
+            {selectedConversation && selectedConversation.messages.length > 0 && 
+            featureFlags.highlighter && getSettings(featureFlags).featureOptions.includeHighlighter && 
                 <PromptHighlightedText 
                 onSend={(message) => {
                     setCurrentMessage(message);
@@ -872,7 +872,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             ref={chatContainerRef}
                             onScroll={handleScroll}
                         >
-                            {selectedConversation && selectedConversation?.messages.length === 0 ? (
+                            {selectedConversation && selectedConversation.messages.length === 0 && filteredModels ? (
                                 <>
                                     <div
                                         className="mx-auto flex flex-col space-y-1 md:space-y-8 px-3 pt-5 md:pt-10 sm:max-w-[600px]">
@@ -903,7 +903,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     
                                                 </div>
                                                 
-                                                { selectedAssistant?.definition?.data?.groupTypeData && Object.keys(selectedAssistant?.definition?.data?.groupTypeData).length > 0 ? 
+                                                { selectedAssistant?.definition?.data && Object.keys(selectedAssistant?.definition?.data?.groupTypeData || {}).length > 0 ? 
                                                     <>
                                                         <GroupTypeSelector
                                                             groupOptionsData={selectedAssistant.definition.data.groupTypeData}

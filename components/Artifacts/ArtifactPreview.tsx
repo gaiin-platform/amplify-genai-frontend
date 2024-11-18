@@ -145,13 +145,13 @@ export const ArtifactPreview: React.FC<Props> = ({ codeBlocks, artifactContent, 
 
 
 // --- HTML, CSS, JS Preview Component (Vanilla) ---
-const VanillaPreview: React.FC<{ codeBlocks: any; height: number; framework: any; }> = ({ codeBlocks, height, framework }) => {
+const VanillaPreview: React.FC<{ codeBlocks: CodeBlockDetails[]; height: number; framework: any; }> = ({ codeBlocks, height, framework }) => {
     const [files, setFiles] = useState<{ [key: string]: { code: string } }>({});
   
     const isStaticTemplate = framework === 'static';
     // console.log(framework);
     useEffect(() => {
-      if (codeBlocks.length > 0 && Object.keys(files).length === 0) {
+      if (codeBlocks && codeBlocks.length > 0 && Object.keys(files).length === 0) {
         const newFiles: { [key: string]: { code: string } } = {};
 
         codeBlocks.forEach((block: CodeBlockDetails, index: number) => {
@@ -793,7 +793,7 @@ export const environment = {
 
   // Prepare the files based on the selected framework
   useEffect(() => {
-    if (codeBlocks.length > 0 && Object.keys(files).length === 0) {
+    if (codeBlocks && codeBlocks.length > 0 && Object.keys(files).length === 0) {
       let newFiles = {};
       switch (framework) {
         case 'react':
