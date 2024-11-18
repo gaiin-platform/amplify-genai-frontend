@@ -165,7 +165,7 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
     console.log("Move pulse");
     if (sourceRef.current && sourceRef.current.container) {
 
-        if (highlightSpansRef.current.length === 0) {
+        if (highlightSpansRef.current && highlightSpansRef.current.length === 0) {
           console.log("No highlighted spans found.");
           removeCompositeButtons(); // clean up 
           return;
@@ -268,7 +268,7 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
           addCompositeButtons();
         } else {
           removeCompositeButtons();
-            if (highlightSpansRef.current.length > 1) {
+            if (highlightSpansRef.current && highlightSpansRef.current.length > 1) {
             // loop through spans and remove the highlight after the first index 
             highlightSpansRef.current.forEach((span:{wrapper: HTMLSpanElement, isFirst:boolean}) => {
                   if (!span.isFirst) {

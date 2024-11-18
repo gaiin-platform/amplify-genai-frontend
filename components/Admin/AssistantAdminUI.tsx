@@ -973,7 +973,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         if (!syncingPrompts) {
             // needs a second for groups to catch up 
             setTimeout(() => {
-            setAdminGroups((groups.length > 0 ?  filteredForAdminAccess(groups) : []));
+            setAdminGroups((groups && groups.length > 0 ?  filteredForAdminAccess(groups) : []));
             setLoadingMessage('');
             }, 1000);
         }
