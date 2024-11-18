@@ -18,7 +18,7 @@ import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
 import HomeContext from "@/pages/api/home/home.context";
 import {ShareAnythingToMarketModal} from "@/components/Share/ShareAnythingToMarketModal";
 import {useSession} from "next-auth/react";
-import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
+//import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import { fetchData } from 'next-auth/client/_utils';
 import { Tab, TabSidebar } from '../TabSidebar/TabSidebar';
 import { isAssistantById } from '@/utils/app/assistants';

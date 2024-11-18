@@ -109,9 +109,6 @@ export const ChatbarSettings = () => {
             />
             { featureFlags.storeCloudConversations && <StorageDialog
                 open={isStorageDialogVisible}
-                onClose={() => {
-                    setIsStorageDialogVisible(false);
-                }}
             />}
 
         </div>

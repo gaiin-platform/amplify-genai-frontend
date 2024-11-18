@@ -137,7 +137,7 @@ export const initialState: HomeInitialState = {
     marketItemDelete: false,
     automation: true,
     codeInterpreterEnabled: true,
-    dataDisclosure: true,
+    dataDisclosure: false,
     storeCloudConversations: true,
     qiSummary: false,
     apiKeys: true,
