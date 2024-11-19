@@ -143,8 +143,9 @@ export const initialState: HomeInitialState = {
     apiKeys: true,
     assistantAdminInterface: false,
     artifacts: true,
-    mtdCost: false,
-    highlighter: true
+    mtdCost: true,
+    highlighter: true,
+    assistantAPIs: true
   },
 
   statsService: noOpStatsServices,

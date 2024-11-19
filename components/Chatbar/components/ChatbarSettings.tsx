@@ -12,14 +12,12 @@ import { Import } from '../../Settings/Import';
 import { SidebarButton } from '../../Sidebar/SidebarButton';
 import ChatbarContext from '../Chatbar.context';
 import {AccountDialog} from "@/components/Settings/AccountComponents/AccountDialog";
-import { StorageDialog } from '@/components/Settings/StorageDialog';
 import toast from 'react-hot-toast';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
     const [isSettingDialogOpen, setIsSettingDialog] = useState<boolean>(false);
     const [isAccountDialogVisible, setIsAccountDialogVisible] = useState<boolean>(false);
-    const [isStorageDialogVisible, setIsStorageDialogVisible] = useState<boolean>(false);
 
 
     const {

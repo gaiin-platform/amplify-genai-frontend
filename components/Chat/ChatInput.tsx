@@ -120,8 +120,8 @@ export const ChatInput = ({
     
     useEffect(() => {
         if (selectedConversation && selectedAssistant)
-            setMessageIsDisabled(selectedAssistant?.definition?.data?.groupTypeData && 
-                Object.keys(selectedAssistant?.definition?.data?.groupTypeData).length > 0 &&
+            setMessageIsDisabled(
+                Object.keys(selectedAssistant?.definition?.data?.groupTypeData || {}).length > 0 &&
                 !selectedConversation?.groupType);
         }, [selectedAssistant, selectedConversation]);
 

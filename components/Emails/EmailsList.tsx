@@ -65,7 +65,7 @@ const EmailModal: FC<EmailModalProps> = ({ isOpen, onClose, onSubmit, input, set
                         style={{ transform: 'translateY(+22%)', position: 'relative' }}>
                         <div className="max-h-[calc(100vh-10rem)] p-0.5 overflow-y-auto">
                             
-                            { featureFlags.assistantAdminInterface && groups.length > 0  && 
+                            { featureFlags.assistantAdminInterface && groups && groups.length > 0  && 
                             <>{includeGroupInfoBox}</>
                             }
 

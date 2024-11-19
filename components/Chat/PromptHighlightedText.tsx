@@ -165,7 +165,7 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
     console.log("Move pulse");
     if (sourceRef.current && sourceRef.current.container) {
 
-        if (highlightSpansRef.current.length === 0) {
+        if (highlightSpansRef.current && highlightSpansRef.current.length === 0) {
           console.log("No highlighted spans found.");
           removeCompositeButtons(); // clean up 
           return;
@@ -268,7 +268,7 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
           addCompositeButtons();
         } else {
           removeCompositeButtons();
-            if (highlightSpansRef.current.length > 1) {
+            if (highlightSpansRef.current && highlightSpansRef.current.length > 1) {
             // loop through spans and remove the highlight after the first index 
             highlightSpansRef.current.forEach((span:{wrapper: HTMLSpanElement, isFirst:boolean}) => {
                   if (!span.isFirst) {
@@ -1052,19 +1052,13 @@ const handleParagraphSelection = (range: Range) => {
                   }); 
               
               } else if (isArtifactSource && updatedArtifacts) {
-                // console.log("+++ ", source?.messageIndex);
-                // had to structure it as a try catch because it was failing the previous condition even tho th evalues pointed to it being true
-                const index = source.messageIndex ?? updatedArtifacts.length;
-                // console.log("+++ ", updatedArtifacts);
-                try {
-                  updatedArtifacts[index].contents = lzwCompress(`${leadingText}${text}${trailingText}`);
+
+                if (source?.messageIndex !== undefined && source.messageIndex < updatedArtifacts.length) {
+                  // console.log("+++ ", updatedArtifacts);
+                  updatedArtifacts[source.messageIndex].contents = lzwCompress(`${leadingText}${text}${trailingText}`);
                   homeDispatch({field: "selectedArtifacts", value: updatedArtifacts});
-                  // console.log("--", updatedArtifacts)
-                } catch {
-                  console.log("artifact failed to update with edits");
+                  console.log("--", updatedArtifacts)
                 }
-                  
-                
               }
        
           }

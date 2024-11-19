@@ -10,6 +10,7 @@ import AssistantBlock from "@/components/Chat/ChatContentBlocks/AssistantBlock";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {parsePartialJson} from "@/utils/app/data";
 import AutonomousBlock from "@/components/Chat/ChatContentBlocks/AutonomousBlock";
+import CustomAutoBlock from "@/components/Chat/ChatContentBlocks/CustomAutoBlock";
 import {useContext, useEffect, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
@@ -21,7 +22,6 @@ import React from "react";
 
 
 
-// TODO: IMPLEMENT DATA TABLE COMPONENT INTO THIS FILE
 
 interface Props {
     messageIsStreaming: boolean;
@@ -167,6 +167,22 @@ const ChatContentBlock: React.FC<Props> = (
                                     conversation={selectedConversation}
                                     onStart={(id, action) => {}}
                                     onEnd={(id, action) => {}}
+                                    id={message.id}
+                                    isLast={isLast}
+                                    action={String(children)}
+                                    ready={!messageIsStreaming}
+                                />
+                            );
+                        }
+                        break;
+                    case 'customAuto':
+                        if (selectedConversation && featureFlags.assistantAPIs) {
+                            return (
+                                <CustomAutoBlock
+                                    message={message}
+                                    conversation={selectedConversation}
+                                    onStart={(id, action) => { }}
+                                    onEnd={(id, action) => { }}
                                     id={message.id}
                                     isLast={isLast}
                                     action={String(children)}
