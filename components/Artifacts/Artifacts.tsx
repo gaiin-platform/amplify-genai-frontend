@@ -141,7 +141,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
         const entries = input.split(',').map(email => email.trim()).filter(email => email);
         let entriesWithGroupMembers:string[] = [];
 
-        if (groups.length > 0) {
+        if (groups && groups.length > 0) {
             entries.forEach((e: any) => { 
                 if ( e.startsWith('#')) {
                     const group = groups.find((g:Group) => g.name === e.slice(1));
@@ -431,7 +431,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 
                         {/* <div className="flex w-full flex-wrap pb-2 mt-2"> */}
                         {"Send Amplify Artifact"}
-                        {featureFlags.assistantAdminInterface && groups.length > 0  &&  <>{includeGroupInfoBox}</>}
+                        {featureFlags.assistantAdminInterface && groups && groups.length > 0  &&  <>{includeGroupInfoBox}</>}
                         <div className='flex flex-row gap-2'>
                             <div className="flex-shrink-0 ml-[-6px] mr-2">
                                 <button
