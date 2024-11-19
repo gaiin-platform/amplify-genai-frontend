@@ -708,7 +708,8 @@ const onAssistantChange = (assistant: Assistant) => {
 
                         <AttachFile id="__attachFile"                                                     //  Mistral and pgt 3.5 do not support image files 
                                     disallowedFileExtensions={[ ...COMMON_DISALLOWED_FILE_EXTENSIONS, ...(selectedConversation?.model?.id.startsWith("mistral") ||
-                                                                                                          selectedConversation?.model?.id === ModelID.GPT_3_5_AZ 
+                                                                                                          selectedConversation?.model?.id === ModelID.GPT_3_5_AZ ||
+                                                                                                          selectedConversation?.model?.id === ModelID.CLAUDE_3_5_HAIKU
                                                                                                                               ? ["jpg","png","gif", "jpeg", "webp"] : []) ]} 
                                     onAttach={addDocument}
                                     onSetMetadata={handleSetMetadata}
