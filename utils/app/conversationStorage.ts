@@ -1,13 +1,12 @@
 import { ConversationStorage } from "@/types/conversationStorage";
 import { Conversation } from "@/types/chat";
-import { deleteMultipleRemoteConversations, deleteRemoteConversation, fetchAllRemoteConversations, fetchMultipleRemoteConversations, uploadConversation } from "@/services/remoteConversationService";
+import { deleteMultipleRemoteConversations, deleteRemoteConversation, fetchMultipleRemoteConversations, uploadConversation } from "@/services/remoteConversationService";
 import cloneDeep from 'lodash/cloneDeep';
 import { conversationWithCompressedMessages, conversationWithUncompressedMessages, saveConversations } from "./conversation";
 import { FolderInterface } from "@/types/folder";
-import { saveFolders } from "./folders";
-import { StorageType } from "@mantine/hooks/lib/use-local-storage/create-storage";
 
-const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal'];
+
+export const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType', 'codeInterpreterAssistantId' ];
 
 //handle all local, 
 const handleAllLocal = async (conversations: Conversation[], statsService: any) => {
@@ -144,7 +143,7 @@ export const saveStorageSettings = (storage: ConversationStorage) => {
 };
 
 
-function pickConversationAttributes<T extends object, K extends keyof T>(obj: T, props: K[]): Pick<T, K> {
+export function pickConversationAttributes<T extends object, K extends keyof T>(obj: T, props: K[]): Pick<T, K> {
     const result = {} as Pick<T, K>;
     props.forEach(prop => {
         if (prop in obj) {
@@ -181,39 +180,49 @@ export interface remoteConvData {
     folder: FolderInterface | null;
 }
 
-export const updateWithRemoteConversations = async (conversations: Conversation[], folders:FolderInterface[], dispatch: any) => {
-    const allRemoteConvs = await fetchAllRemoteConversations();
-    
-    if (allRemoteConvs) {
+export const updateWithRemoteConversations = async (remoteConversations: remoteConvData[], conversations: Conversation[], folders:FolderInterface[], dispatch:any ) => {
+    console.log("Remote len: ", remoteConversations?.length);
+    if (remoteConversations) {
+        let updatedFolders = cloneDeep(folders);
+        const newFolders: FolderInterface[] = [];
         const currentConversationsMap = new Map();
         conversations.forEach(conv => currentConversationsMap.set(conv.id, conv));
 
-        allRemoteConvs.forEach((cd: remoteConvData)=> {
+        remoteConversations.forEach((cd: remoteConvData)=> {
             const remoteConv = cd.conversation;
             // check if there is record of this conversation in the current browser
             const existsLocally = currentConversationsMap.get(remoteConv.id);
-            const folderExists = folders.find((f:FolderInterface) => {
-                            return existsLocally ? f.id === existsLocally.folderId 
-                                                : f.name === cd.folder?.name;
-                            });
-            if (!existsLocally || remoteConv.name !== existsLocally.name || (!folderExists && cd.folder)) {
-                //check folder exists, if not create it
+            let folderExists = updatedFolders.find((f:FolderInterface) => remoteConv.folderId ? f.id === remoteConv.folderId : null);
+            if (!existsLocally || (existsLocally && remoteConv.name !== existsLocally.name) 
+                               || (!folderExists && cd.folder)) {
                 if (!folderExists && cd.folder) {
-                    const updatedFolders = [...folders,  cd.folder];
-                    dispatch({field: 'folders', value: updatedFolders});
-                    saveFolders(updatedFolders);
-                } else {
-                    remoteConv.folderId = folderExists ? folderExists.id : null;
+                    //check folder exists, if not create it
+                    const similarFolderExists = updatedFolders.find((f:FolderInterface) => f.name === cd.folder?.name);
+                    if (!similarFolderExists) {
+                        updatedFolders = [...updatedFolders,  cd.folder];
+                        newFolders.push(cd.folder);
+                    } else {
+                        remoteConv.folderId = similarFolderExists.id;
+                    }
                 }
-                currentConversationsMap.set(remoteConv.id, existsLocally ? remoteConv : pickConversationAttributes(remoteConv, CloudConvAttr) as Conversation); 
-            }  
+            }   else if  (existsLocally && folderExists && existsLocally.folderId !== folderExists.id) {
+                remoteConv.folderId = folderExists.id;
+            }
+            currentConversationsMap.set(remoteConv.id, {...remoteConv, isLocal: false});  // in case
         });
+        
         const updatedConversations = Array.from(currentConversationsMap.values());
+        console.log("updated conv len: ", updatedConversations.length);
+
         dispatch({field: 'conversations', value: updatedConversations});
         saveConversations(updatedConversations);
+        return {newfolders: newFolders};
+
     } else {
         alert("Unable to sync local conversations with those stored in the cloud. Please refresh the page to try again...");
+        return {newfolders: []};
     }
+    
 };
 
 
@@ -225,8 +234,8 @@ export const includeRemoteConversationData = async (localConversations: Conversa
     if (remoteConversationIds.length === 0) return localConversations;
     
     const fetchedRemoteConversations = await fetchMultipleRemoteConversations(remoteConversationIds);
-
-      // Create a map of remote conversation ids to fetched conversations for quick lookup
+    // console.log(fetchedRemoteConversations);
+    // Create a map of remote conversation ids to fetched conversations for quick lookup
     const fetchedRemoteConversationsMap = new Map(fetchedRemoteConversations.map((c:Conversation) => [c.id, c]));
 
     const failedToFetch: string[] = [];

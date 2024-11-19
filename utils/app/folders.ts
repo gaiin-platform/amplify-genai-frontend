@@ -1,7 +1,17 @@
 import { FolderInterface } from '@/types/folder';
 
 export const saveFolders = (folders: FolderInterface[]) => {
-  localStorage.setItem('folders', JSON.stringify(folders));
+  // ensure no duplicate folders 
+  const seenIds = new Map<string, FolderInterface>();
+  folders.forEach(folder => {
+    if (!seenIds.has(folder.id)) {
+      seenIds.set(folder.id, folder);
+    }
+  });
+
+  // Convert the map values to an array for storage
+  const uniqueFolders = Array.from(seenIds.values());
+  localStorage.setItem('folders', JSON.stringify(uniqueFolders));
 };
 
 

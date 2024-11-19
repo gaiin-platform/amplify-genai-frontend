@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 
 import { FolderInterface, SortType } from '@/types/folder';
 
@@ -10,6 +10,7 @@ import { ConversationComponent } from './Conversation';
 import ChatbarContext from "@/components/Chatbar/Chatbar.context";
 import {Conversation} from "@/types/chat";
 import { sortFoldersByDate, sortFoldersByName } from '@/utils/app/folders';
+import { IconCirclePlus } from '@tabler/icons-react';
 
 interface Props {
   sort: SortType
@@ -30,22 +31,22 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
   }, [folders]);
 
   const { handleShareFolder } = useContext(ChatbarContext);
-
+  const [isNullFolderHovered, setIsNullFolderHovered] = useState<boolean>(false);
 
     const filteredFolders = searchTerm ?
-          foldersRef.current.filter((folder:FolderInterface) => {
-            return conversations.some((conversation) => conversation.folderId === folder.id)})
-                                      : foldersRef.current;
+          folders.filter((folder:FolderInterface) => {
+            return conversations.some((conversation) => conversation.folderId === folder.id)
+          }) : folders;
 
 
 
 
-  const handleDrop = (e: any, folder: FolderInterface) => {
+  const handleDrop = (e: any, folder?: FolderInterface) => {
     if (e.dataTransfer) {
       const conversation = JSON.parse(e.dataTransfer.getData('conversation'));
       handleUpdateConversation(conversation, {
         key: 'folderId',
-        value: folder.id,
+        value: folder ? folder.id : null,
       });
     }
   };
@@ -70,7 +71,16 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
     <div className="flex w-full flex-col">
       {filteredFolders
         .filter((folder:FolderInterface) => folder.type === 'chat')
-        .sort(sort === 'date' ? sortFoldersByDate : sortFoldersByName) // currently doing this since folders have been created without the new date attribute. 
+        .sort((a, b) => {
+          if (a.pinned && !b.pinned) {
+              return -1;
+          }
+          if (!a.pinned && b.pinned) {
+              return 1;
+          }
+          // If both are pinned or neither is pinned, use the original sort criteria
+          return sort === 'date' ? sortFoldersByDate(a, b) : sortFoldersByName(a, b);
+        })// currently doing this since folders have been created without the new date attribute.   
         .map((folder:FolderInterface, index:number) => (
           <Folder
             key={index}
@@ -80,6 +90,21 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
             folderComponent={ChatFolders(folder)}
           />
         ))}
+
+        {/* Droppable Zone for setting folderId to null */}
+      <div
+        onDragEnter={() => setIsNullFolderHovered(true)}
+        onDragLeave={() => setIsNullFolderHovered(false)}
+        onMouseLeave={() => setIsNullFolderHovered(false)}
+
+        className="h-[4px]" style={{transform: "translateY(6px)"}}
+        onDrop={(e) => handleDrop(e, undefined)} 
+        onDragOver={(e) => e.preventDefault()} 
+      >
+          {isNullFolderHovered &&  <IconCirclePlus className="text-green-400" size={16}/>}
+      </div>
+
+    
     </div>
   );
 };

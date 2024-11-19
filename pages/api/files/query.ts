@@ -12,7 +12,7 @@ const query =
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        let apiUrl = process.env.API_BASE_URL + "/assistant/files/query" || "";
+        let apiUrl = process.env.API_BASE_URL + "/files/query" || "";
 
         // Accessing itemData parameters from the request
         const reqData = req.body;

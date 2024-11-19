@@ -3,12 +3,12 @@ import {IconRobot} from "@tabler/icons-react";
 import {useChatService} from "@/hooks/useChatService";
 import Loader from "@/components/Loader/Loader";
 import {Prompt} from "@/types/prompt";
-import {parseEditableVariables, parsePromptVariables} from "@/utils/app/prompts";
-import {VariableModal} from "@/components/Chat/VariableModal";
 import {AttachedDocument} from "@/types/attacheddocument";
-import {OpenAIModel} from "@/types/openai";
+import {Model} from "@/types/model";
 import HomeContext from "@/pages/api/home/home.context";
 import {ChatBody, newMessage} from "@/types/chat";
+import { filterModels } from '@/utils/app/models';
+import { getSettings } from '@/utils/app/settings';
 
 interface PromptTextAreaProps {
     rootPromptText?: string;
@@ -22,10 +22,10 @@ interface PromptTextAreaProps {
 
 const PromptTextArea: React.FC<PromptTextAreaProps> = ({temperature, stopButtonText = "Stop",rootPromptTemplate, rootPromptText, generateButtonText , promptTemplate, promptTemplateString}) => {
 
-    const {state: {models}} = useContext(HomeContext);
+    const {state: {featureFlags, models}} = useContext(HomeContext);
 
     const [textAreaValue, setTextAreaValue] = useState('');
-    const [selectedModel, setSelectedModel] = useState<OpenAIModel | undefined>(undefined);
+    const [selectedModel, setSelectedModel] = useState<Model | undefined>(undefined);
     const [isGenerating, setIsGenerating] = useState(false);
     const [promptVariables, setPromptVariables] = useState<string[]>([]);
 
@@ -39,6 +39,7 @@ const PromptTextArea: React.FC<PromptTextAreaProps> = ({temperature, stopButtonT
         setTextAreaValue(event.target.value);
     };
 
+    const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
 
     const handleSubmit = (updatedVariables: string[], documents:AttachedDocument[]|null, prompt?:Prompt) => {
 
@@ -59,14 +60,14 @@ const PromptTextArea: React.FC<PromptTextAreaProps> = ({temperature, stopButtonT
         const message = newMessage({content:content});
 
         const chatBody: ChatBody = {
-            model: selectedModel || models[0],
+            model: selectedModel || filteredModels[0],
             messages: [message],
             key: '',
             prompt: rootPromptTemplate?.content || rootPromptText || '',
             temperature: temperature || 1.0,
         };
 
-        const response = await routeChatRequest(chatBody, null, abortController.signal);
+        const response = await routeChatRequest(chatBody, abortController.signal);
 
         if(response.ok){
             const data = response.body;

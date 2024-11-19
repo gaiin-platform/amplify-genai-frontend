@@ -9,6 +9,7 @@ interface Props {
     addMessage?: string;
     maxWidth?: string;
     removeTag?: (tags: string) => void;
+    isDisabled?: boolean;
 
 }
 
@@ -44,29 +45,31 @@ function stringToColor(str:string) {
 
 
 export const TagsList: FC<Props> = (
-    { tags, setTags , maxWidth="200px", label="Tags", tagParser=(t:string)=>t.split(","), addMessage="Tag names separated by commas:", removeTag=((t:string)=>{})}) => {
+    { tags, setTags , maxWidth="200px", label="Tags", tagParser=(t:string)=>t.split(","), addMessage="Tag names separated by commas:", removeTag=((t:string)=>{}), isDisabled=false}) => {
 
     return (
         <div className="flex w-full">
 
             <div className="flex flex-row items-start justify-between px-1 py-1 mr-2">
-                <button
-                    className="text-gray-400 hover:text-gray-600 transition-all"
-                    onClick={(e) =>{
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const name = prompt(addMessage);
-                        if (name) {
-                            const parsedTags = tagParser(name);
-                            setTags([...tags, ...parsedTags]);
-                        }
-                    }}
-                    title="Add Tag"
-                >
-                    <IconPlus/>
-                </button>
+                { !isDisabled && 
+                    <button
+                        className="text-gray-400 hover:text-gray-600 transition-all"
+                        onClick={(e) =>{
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const name = prompt(addMessage);
+                            if (name) {
+                                const parsedTags = tagParser(name).map((t:string) => t.trim());
+                                setTags([...tags, ...parsedTags]);
+                            }
+                        }}
+                        title="Add"
+                    >
+                        <IconPlus/>
+                    </button>
+                }
                 <div>
-                    <p className="text-black dark:text-white font-medium text-sm pl-2 ">
+                    <p className="mt-0.5 text-black dark:text-white font-medium text-sm pl-2 ">
                         {label}{label ? ":" : ""}
                     </p>
                 </div>
@@ -79,18 +82,20 @@ export const TagsList: FC<Props> = (
                         className="flex items-center justify-between bg-white dark:bg-neutral-200 rounded-md px-2 py-0 mr-2 mb-2 shadow-lg"
                         style={{ flex: 'none', backgroundColor: stringToColor(tag) }} // Prevent flex-shrink which can distort items
                     >
-                        <button
-                            className="text-gray-800 transition-all color-gray-800"
-                            onClick={(e) =>{
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setTags(tags?.filter(x => x != tag));
-                                removeTag(tag);
-                            }}
-                            title="Remove Tag"
-                        >
-                            <IconCircleX size={17}/>
-                        </button>
+                        { !isDisabled && 
+                            <button
+                                className="text-gray-800 transition-all color-gray-800"
+                                onClick={(e) =>{
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setTags(tags?.filter(x => x != tag));
+                                    removeTag(tag);
+                                }}
+                                title="Remove Tag"
+                            >
+                                <IconCircleX size={17}/>
+                            </button>
+                        }
                         {/* Tag text container, without truncation to allow wrapping */}
                         <div className="ml-1">
                             <p className="text-gray-800 font-medium text-sm">

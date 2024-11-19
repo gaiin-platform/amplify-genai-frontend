@@ -4,7 +4,7 @@ import {Prompt} from '@/types/prompt';
 import {AttachFile} from "@/components/Chat/AttachFile";
 import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 import {WorkflowDefinition} from "@/types/workflow";
-import {OpenAIModelID, OpenAIModel} from "@/types/openai";
+import {ModelID, Model} from "@/types/model";
 import HomeContext from "@/pages/api/home/home.context";
 import JSON5 from 'json5'
 import {getType, parsePromptVariableValues, variableTypeOptions} from "@/utils/app/prompts";
@@ -12,13 +12,16 @@ import {FileList} from "@/components/Chat/FileList";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import { includeRemoteConversationData } from '@/utils/app/conversationStorage';
 import { Conversation } from '@/types/chat';
+import React from 'react';
+import { Modal } from '../ReusableComponents/Modal';
+import { ModelSelect } from './ModelSelect';
 
 interface Props {
-    models: OpenAIModel[];
+    models: Model[];
     prompt?: Prompt;
     workflowDefinition?: WorkflowDefinition;
     variables: string[];
-    handleUpdateModel: (model: OpenAIModel) => void;
+    handleUpdateModel: (model: Model) => void;
     onSubmit: (updatedVariables: string[], documents: AttachedDocument[] | null, prompt?:Prompt) => void;
     onClose: (canceled:boolean) => void;
     showModelSelector?: boolean;
@@ -115,7 +118,7 @@ export const VariableModal: FC<Props> = ({
     }, [conversations]);
 
     // @ts-ignore
-    const [selectedModel, setSelectedModel] = useState<OpenAIModel>((models.length>0)? models[0] : null);
+    const [selectedModel, setSelectedModel] = useState<Model>( (models.length>0) ? models[0] : null );
     const [isConversationDropdownOpen, setIsConversationDropdownOpen] = useState(false);
     const [files, setFiles] = useState<AttachedDocument[]>([]);
     const [documentKeys, setDocumentKeys] = useState<{[key:string]:string}>({});
@@ -459,21 +462,16 @@ export const VariableModal: FC<Props> = ({
     }
 
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
-            onKeyDown={handleKeyDown}
-        >
-            <div
-                ref={modalRef}
-                className="dark:border-netural-400 inline-block max-h-[400px] transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 pt-5 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-h-[600px] sm:w-full sm:max-w-lg sm:p-6 sm:align-middle"
-                role="dialog"
-            >
+            <Modal 
+                title={prompt ? prompt.name : ""}
+                height={window.innerHeight * 0.7}
+                onCancel={()=>onClose(false)} 
+                onSubmit={() => {
+                    handleSubmit();
+                }}
+                content={
 
-                {prompt && (
-                    <div className="mb-4 text-xl font-bold text-black dark:text-neutral-200">
-                        {prompt.name}
-                    </div>
-                )}
+                <>
                 {prompt && (
                     <div className="mb-4 text-sm italic text-black dark:text-neutral-200">
                         {prompt.description}
@@ -637,46 +635,25 @@ export const VariableModal: FC<Props> = ({
                 ))}
 
                 {showModelSelector && models && (
-                <div className="mb-2 text-sm font-bold text-neutral-200">
-                    Model
-                </div>
-                )}
-
-                {showModelSelector && models && (
-                    <div className="flex items-center">
-                        <select
-                            className="rounded border-gray-300 text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
-                            value={selectedModel && selectedModel.id || ""}
-                            onChange={(e) => handleModelChange(e.target.value)}
-                        >
-                            {models.map((model:OpenAIModel) => (
-                                <option key={model.id} value={model.id}
-                                >
-                                    {model.name}
-                                </option>
-                            ))}
-                        </select>
+                    <>
+                    <div className="mb-2 text-sm font-bold text-neutral-200">
+                        Model
                     </div>
 
+                    <ModelSelect
+                        isTitled={false}
+                        modelId={selectedModel.id as ModelID}
+                        handleModelChange={(modelId:string) => {
+                            handleModelChange(modelId)
+                        }}
+                    />
+                    </>
                 )}
                 <div className="mb-2 mt-6 text-sm font-bold text-neutral-200">
                     Required fields are marked with *
                 </div>
-                <div className="flex flex-row justify-end space-x-4">
-                    <button
-                        className="mt-6 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                        onClick={()=>onClose(false)}
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        className="mt-6 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                        onClick={handleSubmit}
-                    >
-                        Submit
-                    </button>
-                </div>
-            </div>
-        </div>
+               
+            </>
+        }/>
     );
 };

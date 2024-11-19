@@ -9,10 +9,11 @@ type ExpansionProps = {
     content: any;
     openWidget?: ReactNode;
     closedWidget?: ReactNode;
+    isOpened?: boolean;
 };
 
-const ExpansionComponent: React.FC<ExpansionProps> = ({ title, content, openWidget, closedWidget }) => {
-    const [isOpen, setIsOpen] = useState<boolean>(false);
+const ExpansionComponent: React.FC<ExpansionProps> = ({ title, content, openWidget, closedWidget, isOpened=false }) => {
+    const [isOpen, setIsOpen] = useState<boolean>(isOpened);
 
     const handleToggle = (): void => {
         setIsOpen(!isOpen);
@@ -21,7 +22,7 @@ const ExpansionComponent: React.FC<ExpansionProps> = ({ title, content, openWidg
     return (
         <>
             <button onClick={handleToggle} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-            title={isOpen ? "Collapse folder" : "Expand folder"}
+            title={isOpen ? "Collapse" : "Expand"}
             >
                 {isOpen ?
                     ((openWidget) ? openWidget : <IconCaretDown size={18} />) :

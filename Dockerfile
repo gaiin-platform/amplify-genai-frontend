@@ -1,15 +1,18 @@
 # ---- Base Node ----
-    FROM --platform=linux/amd64 node:19-alpine AS base
+    FROM --platform=linux/amd64 node:lts-alpine3.20 AS base
     WORKDIR /app
     COPY package*.json ./
     
-    # Create a new user "appuser" and give ownership of the "/app" directory
-    RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+    # Update and upgrade packages to ensure patching
+    RUN apk update && apk upgrade && \
+        addgroup -S appgroup && adduser -S appuser -G appgroup && \
         chown -R appuser:appgroup /app
     
     # ---- Dependencies ----
     FROM base AS dependencies
     USER appuser
+    
+    # Install dependencies and update packages
     RUN npm ci
     
     # ---- Build ----
@@ -18,9 +21,12 @@
     RUN npm run build
     
     # ---- Production ----
-    FROM --platform=linux/amd64 node:19-alpine AS production
-    # Recreate the "appuser" and "appgroup" in the production stage
-    RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+    FROM --platform=linux/amd64 node:lts-alpine3.20 AS production
+    
+    # Update and upgrade packages to ensure patching in the production stage
+    RUN apk update && apk upgrade && \
+        addgroup -S appgroup && adduser -S appuser -G appgroup
+    
     WORKDIR /app
     
     # Copy node_modules from the "dependencies" stage
@@ -36,8 +42,15 @@
     # Use the new "appuser"
     USER appuser
     
+    # Set NODE_ENV to production
+    ENV NODE_ENV=production
+    
+    # Create a writable volume for temporary files
+    VOLUME /tmp
+    
     # Expose the port the app will run on
     EXPOSE 3000
     
     # Start the application
     CMD ["npm", "start"]
+    

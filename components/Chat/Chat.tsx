@@ -20,7 +20,7 @@ import {useTranslation} from 'next-i18next';
 import { saveConversations} from '@/utils/app/conversation';
 import {throttle} from '@/utils/data/throttle';
 
-import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
+import {Conversation, DataSource, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -37,7 +37,7 @@ import {VariableModal} from "@/components/Chat/VariableModal";
 import {parseEditableVariables} from "@/utils/app/prompts";
 import {v4 as uuidv4} from 'uuid';
 import {fillInTemplate} from "@/utils/app/prompts";
-import {OpenAIModel, OpenAIModelID, OpenAIModels} from "@/types/openai";
+import {Model, ModelID, Models} from "@/types/model";
 import {Prompt} from "@/types/prompt";
 import {WorkflowDefinition} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
@@ -45,14 +45,25 @@ import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from "@/utils/app/const";
 import {TagsList} from "@/components/Chat/TagsList";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {DownloadModal} from "@/components/Download/DownloadModal";
-import {MemoizedRemoteMessages} from "@/components/Chat/MemoizedRemoteMessages";
 import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
 import {useSendService} from "@/hooks/useChatSendService";
-import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection, isRemoteConversation } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation } from '@/services/remoteConversationService';
+import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
+import { GroupTypeSelector } from './GroupTypeSelector';
+import { Artifacts } from '../Artifacts/Artifacts';
+import { downloadDataSourceFile } from '@/utils/app/files';
+import { ArtifactsSaved } from './ArtifactsSaved';
+import React from 'react';
+import { PromptHighlightedText } from './PromptHighlightedText';
+import { AccountDialog } from '../Settings/AccountComponents/AccountDialog';
+import { getSettings } from '@/utils/app/settings';
+import { filterModels } from '@/utils/app/models';
+import { promptForData } from '@/utils/app/llm';
+import cloneDeep from 'lodash/cloneDeep';
+
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
@@ -70,6 +81,7 @@ type ChatRequest = {
     options?: { [key: string]: any };
     assistantId?: string;
     prompt?: Prompt;
+    conversationId?: string;
 };
 
 export const Chat = memo(({stopConversationRef}: Props) => {
@@ -88,13 +100,24 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 workspaceMetadata,
                 statsService,
                 featureFlags,
-                storageSelection
+                storageSelection,
+                messageIsStreaming,
+                chatEndpoint,
+                folders
             },
+            setLoadingMessage,
             handleUpdateConversation,
-            handleCustomLinkClick,
             dispatch: homeDispatch,
-            handleAddMessages: handleAddMessages
+            handleAddMessages: handleAddMessages,
+            handleUpdateSelectedConversation
         } = useContext(HomeContext);
+
+        const foldersRef = useRef(folders);
+
+        useEffect(() => {
+            foldersRef.current = folders;
+          }, [folders]);
+    
 
         const promptsRef = useRef(prompts);
 
@@ -109,25 +132,96 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             conversationsRef.current = conversations;
         }, [conversations]);
     
+        const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
 
         const {handleSend:handleSendService} = useSendService();
-
-
+        const [selectedModelId, setSelectedModelId] = useState<ModelID | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id || Models[defaultModelId ?? ModelID.GPT_4o_MINI] );
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
         const [showSettings, setShowSettings] = useState<boolean>(false);
         const [isPromptTemplateDialogVisible, setIsPromptTemplateDialogVisible] = useState<boolean>(false);
         const [isDownloadDialogVisible, setIsDownloadDialogVisible] = useState<boolean>(false);
+        const [isAccountDialogVisible, setIsAccountDialogVisible] = useState<boolean>(false);
         const [isShareDialogVisible, setIsShareDialogVisible] = useState<boolean>(false);
         const [variables, setVariables] = useState<string[]>([]);
         const [showScrollDownButton, setShowScrollDownButton] =
             useState<boolean>(false);
         const [promptTemplate, setPromptTemplate] = useState<Prompt | null>(null);
+        const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
+        // const [isDownloadingFile, setIsDownloadingFile] = useState<boolean>(false);
+
 
         const messagesEndRef = useRef<HTMLDivElement>(null);
         const chatContainerRef = useRef<HTMLDivElement>(null);
         const textareaRef = useRef<HTMLTextAreaElement>(null);
         const modelSelectRef = useRef<HTMLDivElement>(null);
+        const [isArtifactOpen, setIsArtifactOpen] = useState<boolean>(false);
+        const [artifactIndex, setArtifactIndex] = useState<number>(0);
+        const [isRenaming, setIsRenaming] = useState<boolean>(false);
+
+        const [selectedConversationState, setSelectedConversationState] = useState<Conversation | undefined>(selectedConversation);
+
+        useEffect(() => {
+            setSelectedConversationState(selectedConversation);
+            
+            const renameConversation = async() => {
+                setIsRenaming(true);
+                if (selectedConversation) {
+                    let updatedConversation = {...selectedConversation}
+
+                    const promptMessages = cloneDeep(updatedConversation.messages);
+                    promptMessages[0].content = `Look at the following prompt: "${promptMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`
+                    
+                    promptForData(chatEndpoint || '', promptMessages.slice(0,1), Models[ModelID.CLAUDE_3_5_HAIKU], "Respond with only the title name and nothing else.", statsService, 10)
+                                 .then(customName => {
+                                    let updatedName: string = customName ?? '';
+                                    if (!customName) {
+                                        const content = updatedConversation.messages[0].content;
+                                        updatedName = content && content.length > 30 ? content.substring(0, 30) + '...' : content;
+                                    }
+                                    updatedConversation = {
+                                        ...updatedConversation,
+                                        name: updatedName, 
+                                    };
+                                    
+                                    handleUpdateSelectedConversation(updatedConversation);
+            
+                                    setIsRenaming(false);
+                                })
+                }
+            }
+            if (selectedConversation?.messages.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
+        }, [selectedConversation]);
+
+
+        useEffect(() => {
+            const handleEvent = (event:any) => {
+                const detail = event.detail;
+                setIsArtifactOpen(detail.isOpen);  
+                setArtifactIndex(detail.artifactIndex);
+            };
+            window.addEventListener('openArtifactsTrigger', handleEvent);
+            return () => {
+                window.removeEventListener('openArtifactsTrigger', handleEvent);
+            };
+        }, []);
+
+
+        useEffect(() =>{
+            const astModel = selectedAssistant?.definition?.data?.model;
+            
+            if (astModel && selectedModelId !== astModel) setSelectedModelId(astModel);
+            if (astModel && selectedConversation && selectedConversation.model?.id !== astModel) handleUpdateConversation(selectedConversation, {
+                                        key: 'model',
+                                        value: models.find(
+                                        (model: Model) => model.id === astModel,
+                                        ),
+                                    });
+            
+            if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) {
+                if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id as ModelID);
+            }
+        }, [selectedAssistant, selectedConversation]);
 
         const updateMessage = (selectedConversation: Conversation, updatedMessage: Message, updateIndex: number) => {
             let updatedConversation = {
@@ -146,24 +240,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 ...updatedConversation,
                 messages: updatedMessages,
             };
-            homeDispatch({
-                field: 'selectedConversation',
-                value: updatedConversation,
-            });
 
-            const updatedConversations: Conversation[] = conversationsRef.current.map(
-                (conversation:Conversation) => {
-                    if (conversation.id === selectedConversation.id) {
-                        return updatedConversation;
-                    }
-                    return conversation;
-                },
-            );
-            if (updatedConversations.length === 0) {
-                updatedConversations.push(updatedConversation);
-            }
-            homeDispatch({field: 'conversations', value: updatedConversations});
-            saveConversations(updatedConversations);
+            handleUpdateSelectedConversation(updatedConversation);
 
             return updatedConversation;
         }
@@ -183,6 +261,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 uri?: string | null,
                 options?: { [key: string]: any }
             ): ChatRequest => {
+
+                const conversationId = selectedConversation?.id;
+
                 return {
                     message,
                     deleteCount,
@@ -192,6 +273,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     documents,
                     uri,
                     options,
+                    conversationId,
                 };
         };
 
@@ -204,17 +286,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             [stopConversationRef, handleSendService]
         );
 
-        const selectedConversationRef = useRef<Conversation>(null);
-
-        useEffect(() => {
-            // In your useEffect, you should keep your ref in sync with the state.
-            // @ts-ignore
-            selectedConversationRef.current = selectedConversation;
-        }, [selectedConversation]);
-
-        const asyncSafeHandleAddMessages = async (messages: Message[]) => {
-            await handleAddMessages(selectedConversationRef.current || selectedConversation, messages)
-        };
+    
 
         const handlePromptSelect = (prompt: Prompt) => {
             if (selectedConversation) {
@@ -251,37 +323,69 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }
 
-        const onLinkClick = (message: Message, href: string) => {
+        const handleDownloadFile = async (message: Message, filename: string) => {
+            if (!message.data.state.sources) return;
 
-            // This should all be refactored into a separate module at some point
-            // ...should really be looking up the handler by category/action and passing
+            setLoadingMessage("Downloading File...");
 
-            statsService.customLinkClickEvent(message, href);
+            const sources = Object.values(message.data.state.sources);
+            let ds: DataSource | undefined= undefined;
+            let groupId = undefined;
+            for (const sourceType of sources as any[]) {
+                const sourceValues: any = Object.values(sourceType.sources);
+                for (const subSource of sourceValues) {
+                    if (subSource.contentKey && !subSource.contentKey.includes("global/") && subSource.name === filename.replace(/&/g, ' ')) {
+                        ds = {id: subSource.contentKey, name: subSource.name, type: subSource.type}
+                        if (subSource.groupId) groupId = subSource.groupId;
+                        break;
+                    }
+                }
+                if (ds) {
+                    await downloadDataSourceFile(ds, groupId);
+                    break; 
+                } 
+            }
 
-            // it some sort of context
+            if (!ds) {
+                console.log("No content key found")
+                alert("Unable to provide the document at this time.");
+            }
+            setLoadingMessage("");
+
+        }
+
+        // This should all be refactored into a separate module at some point
+        // ...should really be looking up the handler by category/action and passing
+        // --jules
+        const handleCustomLinkClick = (message: Message, href: string) => {
+             statsService.customLinkClickEvent(message, href);
             if (selectedConversation) {
                 let [category, action_path] = href.slice(1).split(":");
-                let [action, path] = action_path.split("/");
 
-                if (category === "chat") {
-                    if (action === "send") {
-                        const content = path;
-                        const request = createChatRequest(newMessage({role: 'user', content: content}), 0, null);
-                        handleSend(request);
-                    } else if (action === "template") {
-                        const name = path;
+                switch (true) {
+                    case (category === "chat"):
+                        let [action, path] = action_path.split("/");
+                        if (action === "send") {
+                            const content = path;
+                            const request = createChatRequest(newMessage({role: 'user', content: content}), 0, null);
+                            handleSend(request);
+                        } else if (action === "template") {
+                            const name = path;
+                            const prompt = promptsRef.current.find((p:Prompt) => p.name === name);
 
-                        const prompt = promptsRef.current.find((p:Prompt) => p.name === name);
-
-                        if (prompt) {
-                            runPrompt(prompt);
+                            if (prompt) {
+                                runPrompt(prompt);
+                            }
                         }
-                    }
-                } else {
-                    handleCustomLinkClick(selectedConversationRef.current || selectedConversation, href,
-                        {message: message, conversation: selectedConversation}
-                    );
-                }
+                        break;
+                    case (['dataSources', 'dataSource'].includes(category)):
+                        handleDownloadFile(message, action_path);
+                        break;
+                    default:
+                        console.log(`handleCustomLinkClick ${category}:${action_path}`);
+
+                } 
+                
             }
         }
 
@@ -316,51 +420,53 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             return stopper;
         }
 
-        const calculateTokenCost = (chatModel: OpenAIModel, datasources: AttachedDocument[]) => {
-            let cost = 0;
+        // const calculateTokenCost = (chatModel: Model, datasources: AttachedDocument[]) => {
+        //     let cost = 0;
 
-            datasources.forEach((doc) => {
-                if (doc.metadata?.totalTokens) {
-                    cost += doc.metadata.totalTokens;
-                }
-            });
+        //     datasources.forEach((doc) => {
+        //         if (doc.metadata?.totalTokens) {
+        //             cost += doc.metadata.totalTokens;
+        //         }
+        //     });
 
-            const model = OpenAIModels[chatModel.id as OpenAIModelID];
-            if (!model) {
-                return {
-                    prompts: -1,
-                    inputTokens: cost,
-                    inputCost: -1,
-                    outputCost: -1,
-                    totalCost: -1
-                };
-            }
+        //     const model = Models[chatModel.id as ModelID];
+        //     if (!model) {
+        //         return {
+        //             prompts: -1,
+        //             inputTokens: cost,
+        //             inputCost: -1,
+        //             outputCost: -1,
+        //             totalCost: -1
+        //         };
+        //     }
 
 
-            console.log("Model", model);
-            const contextWindow = model.actualTokenLimit;
-            // calculate cost / context window rounded up
-            const prompts = Math.ceil(cost / contextWindow);
+        //     console.log("Model", model);
+        //     const contextWindow = model.actualTokenLimit;
+        //     // calculate cost / context window rounded up
+        //     const prompts = Math.ceil(cost / contextWindow);
 
-            console.log("Prompts", prompts, "Cost", cost, "Context Window", contextWindow);
+        //     console.log("Prompts", prompts, "Cost", cost, "Context Window", contextWindow);
 
-            const outputCost = prompts * model.outputCost;
-            const inputCost = (cost / 1000) * model.inputCost;
+        //     const outputCost = prompts * model.outputCost;
+        //     const inputCost = (cost / 1000) * model.inputCost;
 
-            console.log("Input Cost", inputCost, "Output Cost", outputCost);
+        //     console.log("Input Cost", inputCost, "Output Cost", outputCost);
 
-            return {
-                prompts: prompts,
-                inputCost: inputCost.toFixed(2),
-                inputTokens: cost,
-                outputCost: outputCost.toFixed(2),
-                totalCost: (inputCost + outputCost).toFixed(2)
-            };
-        }
+        //     return {
+        //         prompts: prompts,
+        //         inputCost: inputCost.toFixed(2),
+        //         inputTokens: cost,
+        //         outputCost: outputCost.toFixed(2),
+        //         totalCost: (inputCost + outputCost).toFixed(2)
+        //     };
+        // }
 
         // This is typically the entry point for messages where the user has typed something
         // into ChatInput or is editing an existing message. Most interactions with chat that
         // do not involve a prompt template start here.
+        
+        
         const routeMessage = (message: Message, deleteCount: number | undefined, plugin: Plugin | null | undefined, documents: AttachedDocument[] | null) => {
 
             if (message.type == MessageType.PROMPT
@@ -388,16 +494,22 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 const assistantInUse = getAssistantFromMessage(message) ||
                     (selectedAssistant ? selectedAssistant?.definition : null);
 
-                console.log("Assistant in use", assistantInUse, message);
+                console.log("Assistant in use", assistantInUse);
+                // console.log("conv", selectedConversation);
+
 
                 if (assistantInUse) {
                     let options = {
                         assistantName: assistantInUse.name,
                         assistantId: assistantInUse.assistantId,
+                        groupId:  selectedAssistant?.definition.groupId,
+                        groupType: selectedConversation?.groupType 
                     };
 
                     message.data = {...message.data, assistant: {definition: {
+                        featureOptions: selectedAssistant?.definition?.data?.featureOptions,
                         assistantId: assistantInUse.assistantId,
+                        groupId: selectedAssistant?.definition.groupId,
                                 name: assistantInUse.name,
                             ...(assistantInUse.uri ? {uri: assistantInUse.uri} : {}),
                     }}};
@@ -527,7 +639,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         };
 
-        const handleUpdateModel = useCallback((model: OpenAIModel) => {
+        const handleUpdateModel = useCallback((model: Model) => {
             if (selectedConversation) {
                 handleUpdateConversation(selectedConversation, {
                     key: 'model',
@@ -630,7 +742,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         id: uuidv4(),
                         name: t('New Conversation'),
                         messages: [],
-                        model: OpenAIModels[defaultModelId as OpenAIModelID],
+                        model: Models[defaultModelId as ModelID],
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
@@ -705,41 +817,84 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 }
             };
         }, [messagesEndRef]);
+    
+        useEffect(() => {
+            if (featureFlags.mtdCost) {
+                let isFetching = false;
+
+                const fetchMtdCost = async () => {
+                    if (isFetching) return;
+
+                    isFetching = true;
+
+                    try {
+                        const result = await doMtdCostOp();
+                        if (result && result.item && result.item["MTD Cost"] !== undefined) {
+                            setMtdCost(`$${result.item["MTD Cost"].toFixed(2)}`);
+                        } else {
+                            setMtdCost('$0.00');
+                        }
+                    } catch (error) {
+                        console.error("Error fetching MTD cost:", error);
+                        setMtdCost('$0.00');
+                    } finally {
+                        isFetching = false;
+                    }
+                };
+
+                fetchMtdCost();
+
+                return () => {
+                    isFetching = false;
+                };
+            }
+        }, [messageIsStreaming, featureFlags.mtdCost]);
 
 // @ts-ignore
         return (
-            <div className="relative flex-1 overflow-hidden bg-white dark:bg-[#343541]">
+            <>
+            {selectedConversation && selectedConversation.messages.length > 0 && 
+            featureFlags.highlighter && getSettings(featureFlags).featureOptions.includeHighlighter && 
+                <PromptHighlightedText 
+                onSend={(message) => {
+                    setCurrentMessage(message);
+                    routeMessage(message, 0, null, []);
+                }} 
+                />
+            }
+            <div className="relative flex-1 overflow-hidden bg-neutral-100 dark:bg-[#343541]">
                 { modelError ? (
                     <ErrorMessageDiv error={modelError}/>
                 ) : (
-                    <>
+                    <div >
                         <div
-                            className="max-h-full overflow-x-hidden"
+                            className="container max-h-full overflow-x-hidden" style={{height: window.innerHeight * 0.94}}
                             ref={chatContainerRef}
                             onScroll={handleScroll}
                         >
-                            {selectedConversation && selectedConversation?.messages.length === 0 ? (
+                            {selectedConversation && selectedConversation.messages.length === 0 && filteredModels ? (
                                 <>
                                     <div
-                                        className="mx-auto flex flex-col space-y-5 md:space-y-10 px-3 pt-5 md:pt-12 sm:max-w-[600px]">
+                                        className="mx-auto flex flex-col space-y-1 md:space-y-8 px-3 pt-5 md:pt-10 sm:max-w-[600px]">
                                         <div
                                             className="text-center text-3xl font-semibold text-gray-800 dark:text-gray-100">
-                                            {models.length === 0 ? (
+                                            {filteredModels.length === 0 ? (
                                                 <div>
                                                     <Spinner size="16px" className="mx-auto"/>
                                                 </div>
                                             ) : (
                                                 'Start a new conversation.'
                                             )}
+                                            
                                         </div>
 
-                                        {models.length > 0 && (
+                                        {filteredModels.length > 0 && (
                                             <div
-                                                className="flex h-full flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600">
+                                                className="flex h-full flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600 shadow-[0_4px_10px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_10px_rgba(0,0,0,0.3)]">
                                                 
                                                 <div className="relative flex flex-row w-full items-center"> 
                                                     <div className="flex-grow">
-                                                        <ModelSelect/>
+                                                        <ModelSelect modelId={selectedModelId} isDisabled={selectedAssistant?.definition?.data?.model}/>
                                                     </div>
 
                                                     {featureFlags.storeCloudConversations && <div className="mt-[-5px] absolute top-0 right-0 flex justify-end items-center">
@@ -748,48 +903,65 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     
                                                 </div>
                                                 
-                                                
-                                                <SystemPrompt
-                                                    models={models}
-                                                    handleUpdateModel={handleUpdateModel}
-                                                    conversation={selectedConversation}
-                                                    prompts={promptsRef.current}
-                                                    onChangePrompt={(prompt) =>
-                                                        handleUpdateConversation(selectedConversation, {
-                                                            key: 'prompt',
-                                                            value: prompt,
-                                                        })
-                                                    }
-                                                />
-
-                                                <TemperatureSlider
-                                                    label={t('Temperature')}
-                                                    onChangeTemperature={(temperature) =>
-                                                        handleUpdateConversation(selectedConversation, {
-                                                            key: 'temperature',
-                                                            value: temperature,
-                                                        })
-                                                    }
-                                                />
-
-                                                <ResponseTokensSlider
-                                                    label={t('Response Length')}
-                                                    onResponseTokenRatioChange={(r) => {
-                                                        if (selectedConversation && selectedConversation.model) {
-
-                                                            const tokens = Math.floor(1000 * (r / 3.0)) + 1;
-
+                                                { selectedAssistant?.definition?.data && Object.keys(selectedAssistant?.definition?.data?.groupTypeData || {}).length > 0 ? 
+                                                    <>
+                                                        <GroupTypeSelector
+                                                            groupOptionsData={selectedAssistant.definition.data.groupTypeData}
+                                                            setSelected={(type: string | undefined) => {
+                                                                // set selectedConversations with type
+                                                                homeDispatch({ field: 'selectedConversation', value: {...selectedConversation, groupType: type} })
+                                                                handleUpdateConversation(selectedConversation, {
+                                                                    key: 'groupType',
+                                                                    value: type,
+                                                                }) 
+                                                            }}
+                                                            groupUserTypeQuestion={selectedAssistant.definition.data.groupUserTypeQuestion}
+                                                        />
+                                                        
+                                                    </> :
+                                                    <>
+                                                    <SystemPrompt
+                                                        models={filteredModels}
+                                                        handleUpdateModel={handleUpdateModel}
+                                                        conversation={selectedConversation}
+                                                        prompts={promptsRef.current}
+                                                        onChangePrompt={(prompt) =>
                                                             handleUpdateConversation(selectedConversation, {
-                                                                key: 'maxTokens',
-                                                                value: tokens,
+                                                                key: 'prompt',
+                                                                value: prompt,
                                                             })
                                                         }
-                                                    }}
-                                                />
+                                                    />
 
+                                                    <TemperatureSlider
+                                                        label={t('Temperature')}
+                                                        onChangeTemperature={(temperature) =>
+                                                            handleUpdateConversation(selectedConversation, {
+                                                                key: 'temperature',
+                                                                value: temperature,
+                                                            })
+                                                        }
+                                                    />
+
+                                                    <ResponseTokensSlider
+                                                        label={t('Response Length')}
+                                                        onResponseTokenRatioChange={(r) => {
+                                                            if (selectedConversation && selectedConversation.model) {
+
+                                                                const tokens = Math.floor(1000 * (r / 3.0)) + 1;
+
+                                                                handleUpdateConversation(selectedConversation, {
+                                                                    key: 'maxTokens',
+                                                                    value: tokens,
+                                                                })
+                                                            }
+                                                        }}
+                                                    />
+                                                    </>
+                                                }
                                                 {isPromptTemplateDialogVisible && selectedConversation.promptTemplate && (
                                                     <VariableModal
-                                                        models={models}
+                                                        models={filteredModels}
                                                         handleUpdateModel={handleUpdateModel}
                                                         prompt={(selectedConversation.promptTemplate)}
                                                         variables={parseEditableVariables(selectedConversation?.promptTemplate.content)}
@@ -799,7 +971,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 )}
                                                 {isPromptTemplateDialogVisible && selectedConversation.workflowDefinition && (
                                                     <VariableModal
-                                                        models={models}
+                                                        models={filteredModels}
                                                         handleUpdateModel={handleUpdateModel}
                                                         workflowDefinition={selectedConversation.workflowDefinition}
                                                         variables={getWorkflowDefinitionVariables(selectedConversation.workflowDefinition)}
@@ -826,15 +998,16 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         includePrompts={false}
                                         includeConversations={true}
                                         includeFolders={false}
-                                        selectedConversations={selectedConversation ? [selectedConversation] : []}
+                                        selectedConversations={selectedConversationState ? [selectedConversationState] : []}
                                     />
+
                                     
                                     {isDownloadDialogVisible && (
                                         <DownloadModal
                                             includeConversations={true}
                                             includePrompts={false}
                                             includeFolders={false}
-                                            selectedConversations={selectedConversation ? [selectedConversation] : []}
+                                            selectedConversations={selectedConversationState ? [selectedConversationState] : []}
                                             onCancel={() => {
                                                 setIsDownloadDialogVisible(false);
                                             }}
@@ -842,11 +1015,32 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                             }}/>
                                     )}
-                                    <div
-                                        className="items-center sticky top-0 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 py-2 text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
 
-                                        {t('Workspace: ' + workspaceMetadata.name)} | {selectedConversation?.model.name} | {t('Temp')}
-                                        : {selectedConversation?.temperature} |
+                                    
+                                    <AccountDialog open={isAccountDialogVisible} onClose={() => setIsAccountDialogVisible(false)} />
+                                    
+
+                                    <div
+                                       className="items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
+                                        {featureFlags.mtdCost  && (
+                                            <>
+                                                <button
+                                                    className="ml-2 mr-2 cursor-pointer hover:opacity-50"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setIsAccountDialogVisible(true);
+                                                    }}
+                                                    title="Month-To-Date Cost"
+                                                >
+                                                    <div className="flex flex-row items-center text-[0.93rem] text-[#00a1d8] dark:text-[#8edffa]">
+                                                        <div className="ml-1">MTD Cost: {mtdCost}</div>
+                                                    </div>
+                                                </button>
+                                                |
+                                            </>
+                                        )}
+                                        { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' } { selectedAssistant?.definition?.data?.model ? Models[selectedAssistant.definition.data.model as ModelID].name : selectedConversation?.model.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={(e) => {
@@ -892,109 +1086,83 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         >
                                             <IconDownload size={18}/>
                                         </button>
+
+                                        {featureFlags.artifacts && 
+                                        <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
+                                        
                                         {featureFlags.storeCloudConversations &&
                                         <CloudStorage iconSize={18} />
                                         }
-
-                                        |
-                                        <button
-                                            className="ml-2 mr-2 cursor-pointer hover:opacity-50"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                homeDispatch({field: 'page', value: 'home'});
-                                            }}
-                                            title="Files"
-                                        >
-                                            <div className="flex flex-row items-center ml-2
-                                            bg-[#9de6ff] dark:bg-[#8edffa] rounded-lg text-gray-600 p-1">
-                                                <div><IconRocket size={18}/></div>
-                                                <div className="ml-1">Files </div>
-                                            </div>
-                                        </button>
+                                        {!isArtifactOpen  &&
+                                            <>
+                                            |
+                                            <button
+                                                className="ml-2 mr-2 cursor-pointer hover:opacity-50"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    homeDispatch({field: 'page', value: 'home'});
+                                                }}
+                                                title="Data Sources"
+                                            >
+                                                <div className="flex flex-row items-center text-[0.9rem] text-[#00a1d8] dark:text-[#8edffa]">
+                                                    <div><IconRocket size={18}/></div>
+                                                    <div className="ml-1">Data Sources </div>
+                                                </div>
+                                            </button> 
+                                            </>
+                                        }
                                     </div>
                                     <div ref={modelSelectRef}></div>
-                                    {showSettings && (
+                                    
                                         <div
-                                            className="flex flex-col space-y-10 md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
+                                            className="flex flex-col md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl ">
+                                            { showSettings && !(selectedAssistant?.definition?.data?.model) &&
+                                                <div
+                                                    className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
+                                                    <ModelSelect modelId={selectedModelId}/>
+                                                </div>
+                                            }
                                             <div
-                                                className="flex h-full flex-col space-y-4 border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border">
-                                                <ModelSelect/>
-                                            </div>
-                                        </div>
-                                    )}
+                                                className="border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border shadow-[0_2px_2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_2px_rgba(0,0,0,0.3)]">
+                                                <TagsList tags={selectedConversation?.tags || []} setTags={
+                                                    (tags) => {
+                                                        if (selectedConversation) {
+                                                            handleUpdateConversation(selectedConversation, {
+                                                                key: 'tags',
+                                                                value: tags,
+                                                            });
 
-                                    <div
-                                        className="flex flex-col space-y-10 md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
-
-                                        <div
-                                            className="flex h-full flex-col space-y-4 border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border">
-
-                                            <TagsList tags={selectedConversation?.tags || []} setTags={
-                                                (tags) => {
-                                                    if (selectedConversation) {
-                                                        handleUpdateConversation(selectedConversation, {
-                                                            key: 'tags',
-                                                            value: tags,
-                                                        });
-
+                                                        }
                                                     }
-                                                }
                                             }/>
                                         </div>
-                                    </div>
+                                        </div>
+                                    
 
 
-                                    {selectedConversation?.messages.map((message: Message, index: number) => (
-                                        (message.type === MessageType.REMOTE) ?
-                                            <MemoizedRemoteMessages
+                                    {selectedConversationState?.messages.map((message: Message, index: number) => (
+                                        <MemoizedChatMessage
                                                 key={index}
                                                 message={message}
                                                 messageIndex={index}
                                                 onChatRewrite={handleChatRewrite}
                                                 onSend={(message) => {
                                                     setCurrentMessage(message[0]);
-                                                    //handleSend(message[0], 0, null);
                                                     routeMessage(message[0], 0, null, []);
                                                 }}
                                                 onSendPrompt={runPrompt}
-                                                handleCustomLinkClick={onLinkClick}
+                                                handleCustomLinkClick={handleCustomLinkClick}
                                                 onEdit={(editedMessage) => {
                                                     console.log("Editing message", editedMessage);
 
                                                     setCurrentMessage(editedMessage);
 
                                                     if (editedMessage.role != "assistant") {
-                                                        routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
+                                                        routeMessage(editedMessage, selectedConversationState?.messages.length - index, null, []);
                                                     } else {
                                                         console.log("updateMessage");
-                                                        updateMessage(selectedConversation, editedMessage, index);
-                                                    }
-                                                }}
-                                            />
-                                            :
-                                            <MemoizedChatMessage
-                                                key={index}
-                                                message={message}
-                                                messageIndex={index}
-                                                onChatRewrite={handleChatRewrite}
-                                                onSend={(message) => {
-                                                    setCurrentMessage(message[0]);
-                                                    //handleSend(message[0], 0, null);
-                                                    routeMessage(message[0], 0, null, []);
-                                                }}
-                                                onSendPrompt={runPrompt}
-                                                handleCustomLinkClick={onLinkClick}
-                                                onEdit={(editedMessage) => {
-                                                    console.log("Editing message", editedMessage);
-
-                                                    setCurrentMessage(editedMessage);
-
-                                                    if (editedMessage.role != "assistant") {
-                                                        routeMessage(editedMessage, selectedConversation?.messages.length - index, null, []);
-                                                    } else {
-                                                        console.log("updateMessage");
-                                                        updateMessage(selectedConversation, editedMessage, index);
+                                                        updateMessage(selectedConversationState, editedMessage, index);
                                                     }
                                                 }}
                                             />
@@ -1009,7 +1177,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                     {isPromptTemplateDialogVisible && promptTemplate && (
                                         <VariableModal
-                                            models={models}
+                                            models={filteredModels}
                                             prompt={promptTemplate}
                                             handleUpdateModel={handleUpdateModel}
                                             variables={parseEditableVariables(promptTemplate.content)}
@@ -1043,9 +1211,18 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             }}
                             showScrollDownButton={showScrollDownButton}
                         />
-                    </>
+                    </div>
                 )}
             </div>
+
+            {/* Artifacts */}
+            {(featureFlags.artifacts && isArtifactOpen) &&  (
+                <Artifacts 
+                    artifactIndex={artifactIndex}    
+                />
+            )}
+
+            </>
         );
     });
     

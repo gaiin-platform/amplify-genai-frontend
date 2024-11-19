@@ -1,7 +1,6 @@
-import { FC, SetStateAction, useContext, useEffect, useRef, useState } from 'react';
+import { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
-import {
-    IconInfoCircle, IconCloud, IconMessage,
+import { IconCloud, IconMessage,
     IconCloudFilled
 } from '@tabler/icons-react';
 
@@ -9,16 +8,17 @@ import HomeContext from '@/pages/api/home/home.context';
 import { handleStorageSelection, saveStorageSettings } from '@/utils/app/conversationStorage';
 import { ConversationStorage } from "@/types/conversationStorage";
 import { saveConversations } from '@/utils/app/conversation';
+import React from 'react';
+import { InfoBox } from '../ReusableComponents/InfoBox';
 
 
 
 interface Props {
   open: boolean;
-  onClose: () => void;
 }
 
 
-export const StorageDialog: FC<Props> = ({ open, onClose }) => {
+export const StorageDialog: FC<Props> = ({ open }) => {
 
   const { dispatch: homeDispatch, state:{conversations, selectedConversation, folders, statsService, storageSelection} } = useContext(HomeContext);
 
@@ -47,30 +47,8 @@ export const StorageDialog: FC<Props> = ({ open, onClose }) => {
   }, [folders]);
 
 
-  const modalRef = useRef<HTMLDivElement>(null);
-  
-
-  useEffect(() => {
-    const handleMouseDown = (e: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-        window.addEventListener('mouseup', handleMouseUp);
-      }
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-      window.removeEventListener('mouseup', handleMouseUp);
-      onClose();
-    };
-
-    window.addEventListener('mousedown', handleMouseDown);
-
-    return () => {
-      window.removeEventListener('mousedown', handleMouseDown);
-    };
-  }, [onClose]);
 
   const handleSave = async () => {
-    onClose();
     saveStorageSettings({ storageLocation: selectedOption } as ConversationStorage);
     homeDispatch({field: 'storageSelection', value: selectedOption});
 
@@ -100,40 +78,40 @@ export const StorageDialog: FC<Props> = ({ open, onClose }) => {
   }
 
   return ( open ? (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="fixed inset-0 z-10 overflow-hidden">
-        <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
           <div
-            className="hidden sm:inline-block sm:h-screen sm:align-middle"
-            aria-hidden="true"
-          />
-
-          <div
-            ref={modalRef}
-            className="dark:border-netural-400 inline-block max-h-[400px] transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 pt-5 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-h-[600px] sm:w-full sm:max-w-lg sm:p-6 sm:align-middle"
-            role="dialog"
+            className="inline-block transform overflow-y-auto rounded-lg  bg-transparent text-left align-bottom transition-all sm:mt-6  sm:align-middle"
           >
-            <div className="text-lg pb-4 font-bold text-black dark:text-neutral-200 flex items-center">
+            <div className="text-lg pb-2 font-bold text-black dark:text-neutral-200 flex items-center">
               {t('Conversation Storage')}
             </div>
 
-            <div className="text-sm font-bold mb-4 text-black dark:text-neutral-200">
+            <InfoBox
+              content = {
+                <span className="ml-2 text-xs"> 
+                {"These are default settings that could be manually overwritten at the conversation level as indicated by the cloud icon."}
+                <br className='mb-2'></br>
+                {"If you are concerned with privacy, you can store your conversations locally, but they will not be available across multiple devices or browsers."}
+                <div className='mt-1 text-black dark:text-neutral-300 text-sm text-center'> {"*** This configuration applies to the current browser only ***"} </div>
+                </span>
+              }
+            />
+
+
+            <div className="flex flex-row text-sm font-bold mt-4 text-black dark:text-neutral-200">
               {t('Where would you like to store your conversations?')}
+              <button
+                type="button"
+                title='Apply Conversation Storage Changes To The Current Browser'
+                className="text-xs ml-10 p-2 py-1 mt-2  border rounded-lg shadow-md focus:outline-none border-neutral-800 bg-neutral-100 text-black hover:bg-neutral-200"
+                onClick={() => {
+                    if (confirm(`${confirmationMessage()} \n\n Would you like to continue?`)) handleSave();
+                }}
+                >
+                {t('Apply Changes')}
+                </button>
             </div>
 
-            <div className="flex items-center p-2 border border-gray-400 dark:border-gray-500 rounded ">
-              <IconInfoCircle size={16} className='ml-1 mb-1 flex-shrink-0 text-gray-600 dark:text-gray-400' />
-              <span className="ml-2 text-xs text-gray-600 dark:text-gray-400"> 
-              {"These are default settings that could be manually overwritten at the conversation level as indicated by the cloud icon."}
-              <br className='mb-1'></br>
-              {"If you are concerned with privacy, you can store your conversations locally, but they will not be available across multiple devices or browsers."}
-              </span>
-            </div>
-
-
-            
-
-        <form>
+        <form className='mt-[-20px]'>
           {/* Local Storage Section */}
           <div className="mb-4">
               <div className="mt-4 pb-1 border-b border-gray-300">
@@ -211,30 +189,7 @@ export const StorageDialog: FC<Props> = ({ open, onClose }) => {
               </div>
           </div>
         </form>
-
-            <div className="flex justify-between mt-6 space-x-4"> 
-                <button
-                type="button"
-                className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                onClick={() => onClose()}
-                >
-                {t('Cancel')}
-                </button>
-
-
-                <button
-                type="button"
-                className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                onClick={() => {
-                    if (confirm(`${confirmationMessage()} \n\n Would you like to continue?`)) handleSave();
-                }}
-                >
-                {t('Save')}
-                </button>
-            </div>
-          </div>
-        </div>
       </div>
-    </div>
+       
   ) : <></>)
 };

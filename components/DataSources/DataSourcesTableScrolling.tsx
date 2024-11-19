@@ -7,12 +7,12 @@ import {
 } from 'mantine-react-table';
 import {MantineProvider, ScrollArea} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
-import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl} from "@/services/fileService";
+import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
-import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import {DataSource} from "@/types/chat";
-import {randomUUID} from "crypto";
 import { v4 as uuidv4 } from 'uuid';
+import { downloadDataSourceFile } from '@/utils/app/files';
+import ActionButton from '../ReusableComponents/ActionButton';
 
 type MimeTypeMapping = {
     [mimeType: string]: string;
@@ -60,17 +60,19 @@ interface Props {
     visibleColumns?: string[];
     visibleTypes?: string[];
     tableParams?: { [key: string]: any };
+    height?: string;
 }
 
 const DataSourcesTableScrolling: FC<Props> = ({
                                                   visibleTypes,
                                                   onDataSourceSelected,
                                                   visibleColumns,
-                                                  tableParams
+                                                  tableParams,
+                                                  height
                                               }) => {
 
     const {
-        state: {lightMode},
+        state: {lightMode}, setLoadingMessage
     } = useContext(HomeContext);
 
     const [data, setData] = useState<FileRecord[]>(
@@ -100,7 +102,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
     const [currentMaxPageIndex, setCurrentMaxPageIndex] = useState(0);
     const [hasMoreData, setHasMoreData] = useState(true);
     const [prevSorting, setPrevSorting] = useState<string>('createdAt#desc');
-    const [isDownloading, setIsDownloading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
     const tableContainerRef = useRef<HTMLDivElement>(null);
 
@@ -331,21 +332,14 @@ const DataSourcesTableScrolling: FC<Props> = ({
         return date.toLocaleString('en-US', options).toLowerCase();
     }
 
-    const downloadFile = async (id: string) => {
+    const downloadFile = async (id: string, name: string, fileType: string) => {
 
-        setIsDownloading(true);
+        setLoadingMessage("Preparing to Download...");
         try {
             // /assistant/files/download
-            const response = await getFileDownloadUrl(id);
-
-            if (response.downloadUrl) {
-                // Download the file at the specified url
-                window
-                    .open(response.downloadUrl, '_blank')
-                    ?.focus();
-            }
+            downloadDataSourceFile({id: id, name: name, type: fileType});
         } finally {
-            setIsDownloading(false);
+            setLoadingMessage("");
         }
     }
 
@@ -381,11 +375,15 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 enableColumnActions: false,
                 enableColumnFilter: false,
                 Cell: ({cell}) => (
-                    <span onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        downloadFile(cell.getValue<string>().split("#")[1]);
-                    }}><IconDownload/></span>
+                    <ActionButton
+                        title='Download File'
+                        handleClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            downloadFile(cell.getValue<string>().split("#")[1], cell.row.original.name, cell.row.original.type);
+                        }}> 
+                    <IconDownload/>
+                    </ActionButton>
                 ),
             },
             {
@@ -398,11 +396,15 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 enableColumnActions: false,
                 enableColumnFilter: false,
                 Cell: ({cell}) => (
-                    <span onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        downloadFile(cell.getValue<string>());
-                    }}><IconDownload/></span>
+                    <ActionButton
+                        title='Download File'
+                        handleClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            downloadFile(cell.getValue<string>(), cell.row.original.name, cell.row.original.type)
+                        }}> 
+                    <IconDownload/>
+                    </ActionButton>
                 ),
             },
             {
@@ -524,7 +526,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
         }),
         mantineTableContainerProps: {
             ref: tableContainerRef,
-            sx: {maxHeight: '400px'}
+            sx: {maxHeight:  height ?? '400px'}
         },
         mantineToolbarAlertBannerProps: isError
             ? {color: 'red', children: 'Error loading data'}
@@ -534,12 +536,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
 
     return (
         <div>
-            {isDownloading && (
-                <LoadingDialog
-                    open={true} message={"Preparing to download..."}/>
-            )}
-
-
             <MantineProvider
                 theme={{
                     colorScheme: lightMode, // or 'light', depending on your preference or state

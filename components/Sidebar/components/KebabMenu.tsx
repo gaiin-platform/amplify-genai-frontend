@@ -3,7 +3,8 @@ import {
     IconTrash, IconDotsVertical,
     IconX, IconShare, IconTags,
     IconCheck, IconFolderOpen, 
-    IconFolder, IconCalendar, IconAbc
+    IconFolder, IconCalendar, IconAbc,
+    IconTrashFilled
 } from '@tabler/icons-react';
 import { KebabActionItem, actionItemAttr, KebabItem, KebabMenuItems } from "./KebabItems";
 import { ShareAnythingModal } from "@/components/Share/ShareAnythingModal";
@@ -14,7 +15,7 @@ import { DEFAULT_ASSISTANT } from "@/types/assistant";
 import HomeContext from "@/pages/api/home/home.context";
 import { Prompt } from "@/types/prompt";
 import { deleteAssistant } from "@/services/assistantService";
-import { OpenAIModelID, OpenAIModels } from "@/types/openai";
+import { ModelID, Models } from "@/types/model";
 import { FolderInterface, SortType } from "@/types/folder";
 import {v4 as uuidv4} from 'uuid';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
@@ -22,8 +23,12 @@ import { CheckItemType } from "@/types/checkItem";
 import { savePrompts } from "@/utils/app/prompts";
 import { isRemoteConversation } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation, fetchMultipleRemoteConversations, uploadConversation } from '@/services/remoteConversationService';
-import { saveConversations } from "@/utils/app/conversation";
+import { conversationWithUncompressedMessages, saveConversations } from "@/utils/app/conversation";
 import { getDateName } from "@/utils/app/date";
+import { LoadingIcon } from "@/components/Loader/LoadingIcon";
+import React from "react";
+import toast from "react-hot-toast";
+
 
 interface Props {
     label: string; 
@@ -43,9 +48,19 @@ interface Props {
     const [allItemsChecked, setAllItemsChecked] = useState<boolean>(false);
 
     const {
-        state: { statsService, selectedAssistant, defaultModelId, checkedItems, folders, prompts, conversations, selectedConversation, checkingItemType}, handleDeleteFolder,
-        dispatch: homeDispatch, handleCreateFolder
+        state: { statsService, selectedAssistant, defaultModelId, checkedItems, folders, prompts, conversations,
+                 selectedConversation, checkingItemType, syncingConversations, syncingPrompts}, handleDeleteFolder,
+        dispatch: homeDispatch, handleCreateFolder, handleSelectConversation
     } = useContext(HomeContext);
+
+    const isConvSide = label === 'Conversations';
+
+    const [isSyncing, setIsSyncing] = useState<boolean>(isConvSide ? syncingConversations : syncingPrompts); 
+    
+
+    useEffect(() => {
+        setIsSyncing(((isConvSide && syncingConversations) || (!isConvSide && syncingPrompts)));
+    }, [syncingConversations, syncingPrompts]);
 
     const conversationsRef = useRef(conversations);
 
@@ -73,8 +88,7 @@ interface Props {
         checkedItemsRef.current = checkedItems;
     }, [checkedItems]);
 
-  
-    const isConvSide = label === 'Conversations';
+
 
     const checkIsActiveSide = () => {
         if (checkingItemType) {
@@ -155,7 +169,7 @@ interface Props {
                     id: uuidv4(),
                     name: 'New Conversation',
                     messages: [],
-                    model: lastConversation?.model ?? OpenAIModels[defaultModelId as OpenAIModelID],
+                    model: lastConversation?.model ?? Models[defaultModelId as ModelID],
                     prompt: DEFAULT_SYSTEM_PROMPT,
                     temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
                     folderId: folder.id,
@@ -166,7 +180,7 @@ interface Props {
             }
         
             localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
-            homeDispatch({ field: 'selectedConversation', value: selectedConversation});
+            handleSelectConversation(selectedConversation);
     
         } else {
             defaultModelId &&
@@ -176,7 +190,7 @@ interface Props {
                     id: uuidv4(),
                     name: 'New Conversation',
                     messages: [],
-                    model: OpenAIModels[defaultModelId as OpenAIModelID],
+                    model: Models[defaultModelId as ModelID],
                     prompt: DEFAULT_SYSTEM_PROMPT,
                     temperature: DEFAULT_TEMPERATURE,
                     folderId: null,
@@ -228,15 +242,45 @@ interface Props {
 
     const handleDeleteFolders = () => {
         handleSearchTerm('');
-        const conversationInFolders: Conversation[] = [];
-        checkedItemsRef.current.forEach((f: FolderInterface) => {
-                                        conversationInFolders.push(...conversationsRef.current.filter((c:Conversation) => c.folderId === f.id));
-                                        handleDeleteFolder(f.id);
-                                    });
-        handleDeleteConversations(conversationInFolders)
+        // console.log(checkedItemsRef.current)
+       
+        if (isConvSide) {
+            
+            const conversationInFolders: Conversation[] = [];
+            checkedItemsRef.current.forEach((f: FolderInterface) => {
+                                            conversationInFolders.push(...conversationsRef.current.filter((c:Conversation) => c.folderId === f.id));
+                                            handleDeleteFolder(f.id);
+                                        });
+            handleDeleteConversations(conversationInFolders)
+        } else {
+            checkedItemsRef.current.forEach((f: FolderInterface) => handleDeleteFolder(f.id));
+        }
         clear();
     }
 
+    const cleanEmptyConversations = async () => {
+        const { remoteConversationIds, localEmptyConversations } = conversationsRef.current.reduce<{
+            remoteConversationIds: string[];
+            localEmptyConversations: Conversation[];
+        }>((acc, c:Conversation) => {
+            if (isRemoteConversation(c)) {
+                acc.remoteConversationIds.push(c.id);
+            } else if (c.compressedMessages && c.compressedMessages.length === 0) {
+                acc.localEmptyConversations.push(c);
+            }
+            return acc;
+        }, { remoteConversationIds: [], localEmptyConversations: [] });
+        if (remoteConversationIds.length > 0 && localEmptyConversations.length > 0 ) {
+            toast("Removing Empty Conversations...");
+            const fetchedRemoteConversations = await fetchMultipleRemoteConversations(remoteConversationIds);
+            const emptyRemoteConversations = fetchedRemoteConversations ? fetchedRemoteConversations.filter((c:Conversation) => c.messages.length === 0) : [];
+            handleDeleteConversations([...localEmptyConversations, ...emptyRemoteConversations]);
+        }  else {
+            toast("No Empty Conversations To Remove");
+
+        }
+        
+    }
 
     const handleCheckAll = (isChecked: boolean) => {
         setAllItemsChecked(isChecked);
@@ -258,10 +302,15 @@ interface Props {
     }
 
     return (
-        <div>
+        <>
         <div className="flex items-center border-b dark:border-white/20" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}>
           <div className="pb-1 flex w-full text-lg ml-1 text-black dark:text-neutral-200 flex items-center">
             {label} 
+            { isSyncing && 
+                <label className="flex flex-row gap-1 text-xs ml-auto mr-1">
+                    <LoadingIcon style={{ width: "14px", height: "14px" }}/>
+                    Syncing...
+                </label>}
           </div>
             {actionItem && checkIsActiveSide() && (
                 <div className="text-xs flex flex-row gap-1">
@@ -307,6 +356,7 @@ interface Props {
                     />
                 </div> :
                 <button
+                    disabled={isSyncing}
                     className={`outline-none focus:outline-none p-0.5 ${isMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
                     onClick={toggleDropdown}>
                     <IconDotsVertical size={20} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"/>
@@ -326,19 +376,20 @@ interface Props {
                         {isConvSide  && <KebabActionItem label="Tag" type={label as CheckItemType} handleAction={()=>{setIsTagsDialogVisible(true)}} 
                                          setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTags size={14} />} />}
                         
-                        <KebabMenuItems label="Folders" xShift={176} minWidth={86}>
+                        {isConvSide  &&  <KebabItem label="Clean" handleAction={() => { cleanEmptyConversations() }} icon={<IconTrashFilled size={14} />} title="Remove Empty Conversations" />}
+                        <KebabMenuItems label="Folders" xShift={175} minWidth={86}>
 
-                            <KebabMenuItems label="Sort" xShift={162}>
-                                <KebabItem label="Name" handleAction={() => {setFolderSort('name')}} icon={<IconAbc size={18}/>} />
-                                <KebabItem label="Date" handleAction={() => { setFolderSort('date') } } icon={<IconCalendar size={14}/>} />
+                            <KebabMenuItems label="Sort" xShift={160}>
+                                <KebabItem label="Name" handleAction={() => {setFolderSort('name')}} icon={<IconAbc size={18}/>}  title="Sort Folders By Name"/>
+                                <KebabItem label="Date" handleAction={() => { setFolderSort('date') } } icon={<IconCalendar size={14}/>} title="Sort Folders By Date" />
                             </KebabMenuItems>
 
                             <KebabActionItem label="Share" type={`${isConvSide?'Chat':'Prompt'}Folders`} handleAction={()=>{setIsShareDialogVisible(true)}} 
                                              setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconShare size={14} />} />
                             <KebabActionItem label="Delete" type={`${isConvSide?'Chat':'Prompt'}Folders`} handleAction={() => { handleDeleteFolders() }} 
                                              setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTrash size={14} />} />
-                            <KebabItem label="Open All" handleAction={() => { openCloseFolders(true) } } icon={<IconFolderOpen size={13} />}  />
-                            <KebabItem label="Close All" handleAction={() => { openCloseFolders(false) }} icon={<IconFolder size={14}/>}  />
+                            <KebabItem label="Open All" handleAction={() => { openCloseFolders(true) } } icon={<IconFolderOpen size={13} />}  title="Open All Folders" />
+                            <KebabItem label="Close All" handleAction={() => { openCloseFolders(false) }} icon={<IconFolder size={14}/>}   title="Close All Folders"/>
                             
                         </KebabMenuItems>
                     </div>
@@ -372,7 +423,7 @@ interface Props {
         {isTagsDialogVisible && 
         <div className="fixed inset-0 bg-black bg-opacity-50 h-full w-full">
             <div className="flex items-center justify-center min-h-screen">
-              <div className="border border-neutral-300 dark:border-netural-400 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px]"
+              <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px]"
               >
                 <div className="p-2 h-[60px] overflow-y-auto">
                 <TagsList tags={tags} 
@@ -431,7 +482,7 @@ interface Props {
             </div>
           </div>
         }
-        </div>
+        </>
       );
       
 }

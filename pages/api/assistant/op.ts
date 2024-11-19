@@ -12,7 +12,7 @@ const assistantOp =
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        let apiUrl = process.env.ASSISTANTS_API_BASE + "/assistant" || "";
+        let apiUrl = process.env.API_BASE_URL + "/assistant" || "";
 
         // Accessing itemData parameters from the request
         const reqData = req.body;
@@ -28,7 +28,7 @@ const assistantOp =
             console.log("Calling assistant: ", apiUrl, payload);
 
             const response = await fetch(apiUrl, {
-                method: "POST",
+                method: req.method,
                 body: JSON.stringify({data:payload}),
                 headers: {
                     "Content-Type": "application/json",

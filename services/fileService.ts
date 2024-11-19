@@ -90,7 +90,7 @@ export function checkContentReady(url: string, maxSeconds: number): Promise<any>
     });
 }
 
-export const getFileDownloadUrl = async (key:string) => {
+export const getFileDownloadUrl = async (key:string, groupId: string | undefined) => {
     const response = await fetch('/api/files/download', {
         method: 'POST',
         headers: {
@@ -98,22 +98,24 @@ export const getFileDownloadUrl = async (key:string) => {
         },
         body: JSON.stringify({
             data:{
-                key:key
+                key:key,
+                groupId:groupId
             }
         }),
         signal: null,
     });
 
+
     if (!response.ok) {
-        throw new Error(`Failed to get presigned download url: ${response.status}`);
+        return {success: false};
     }
 
     const result = await response.json();
 
-    return {key:key, downloadUrl:result.downloadUrl};
+    return {success: result.success, key:key, downloadUrl:result.downloadUrl};
 }
 
-export const addFile = async (metadata:AttachedDocument, file: File, onProgress?: (progress: number) => void, abortSignal:AbortSignal|null= null) => {
+export const addFile = async (metadata:AttachedDocument, file: File, onProgress?: (progress: number) => void, abortSignal:AbortSignal|null= null, tags: string[] = []) => {
 
     const response = await fetch('/api/files/upload', {
         method: 'POST',
@@ -126,8 +128,9 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
                 type:metadata.type,
                 name:metadata.name,
                 knowledgeBase:"default",
-                tags:[],
-                data:{}
+                tags:tags,
+                data:{},
+                groupId: metadata.groupId
             }
         }),
         signal: abortSignal,
@@ -143,9 +146,9 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
 
     const key = result.key;
     const uploadUrl = result.url;
-    const contentUrl = result.contentUrl;
-    const statusUrl = result.statusUrl;
-    const metadataUrl = result.metadataUrl;
+    const contentUrl = result.contentUrl || null;
+    const statusUrl = result.statusUrl || null;
+    const metadataUrl = result.metadataUrl || null 
 
     // console.log("contentUrl", contentUrl);
     // console.log("statusUrl", statusUrl);

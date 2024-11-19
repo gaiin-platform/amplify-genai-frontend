@@ -1,5 +1,5 @@
 import {  Message } from "@/types/chat";
-import { OpenAIModelID, OpenAIModels } from "@/types/openai";
+import { ModelID, Models } from "@/types/model";
 import { QiSummary, QiSummaryType } from "@/types/qi";
 import {getSession} from "next-auth/react"
 import {v4 as uuidv4} from 'uuid';
@@ -34,18 +34,19 @@ export const createQiSummary = async (chatEndpoint:string, data:any, type: QiSum
 
     try {
         const chatBody = {
-            model: OpenAIModels[OpenAIModelID.CLAUDE_3_HAIKU],
+            model: Models[ModelID.CLAUDE_3_5_HAIKU],
             messages: [...data.messages, { role: 'user', content: getPrompt(type) } as Message],
             key: accessToken,
             prompt: "Ensure to follow the instructions exactly.",
             temperature: 0.5,
             maxTokens: 500,
             skipRag: true,
+            skipCodeInterpreter: true
         };
 
         statsService.sendChatEvent(chatBody);
 
-        const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, null, controller.signal);
+        const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, controller.signal);
 
         const responseData = response.body;
         const reader = responseData ? responseData.getReader() : null;

@@ -16,7 +16,7 @@ const getPresignedUrl =
         const { accessToken } = session;
 
         const itemData = req.body;
-        const apiUrl = (process.env.API_BASE_URL + "/assistant/files" || "") + '/upload'; // API Gateway URL from environment variables
+        const apiUrl = (process.env.API_BASE_URL || "") + '/files/upload'; // API Gateway URL from environment variables
 
         try {
 
@@ -35,14 +35,14 @@ const getPresignedUrl =
 
             res.status(200).json({
                 url: data.uploadUrl,
-                statusUrl: data.statusUrl,
-                contentUrl: data.contentUrl,
-                metadataUrl: data.metadataUrl,
+                statusUrl: data.statusUrl || null,
+                contentUrl: data.contentUrl || null,
+                metadataUrl: data.metadataUrl || null,
                 key: data.key });
 
         } catch (error) {
-            console.error("Error calling share: ", error);
-            res.status(500).json({ error: "Could share the item(s)" });
+            console.error("Error calling files upload: ", error);
+            res.status(500).json({ error: "Could not upload the item(s)" });
         }
     };
 

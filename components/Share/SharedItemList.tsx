@@ -1,5 +1,5 @@
-import React, {FC, MouseEventHandler, useContext, useEffect, useRef, useState} from 'react';
-import {ExportFormatV4, ShareItem, SharedItem} from "@/types/export";
+import React, {FC, useContext, useEffect, useRef, useState} from 'react';
+import {ShareItem, SharedItem} from "@/types/export";
 import {
     IconCaretDown,
     IconCaretRight,
@@ -9,24 +9,20 @@ import {
     IconRefresh,
     IconCheck,
     IconX,
-    IconTrash,
-    IconMessage,
-    IconRobot,
-    IconUser
 } from '@tabler/icons-react';
-import {deleteShareItem, deleteYouSharedItem, getSharedItems, getYouSharedItems, loadSharedItem} from "@/services/shareService";
+import {deleteYouSharedItem, getSharedItems, getYouSharedItems} from "@/services/shareService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
-import styled, {keyframes} from "styled-components";
-import {FiCommand} from "react-icons/fi";
+import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
 import HomeContext from "@/pages/api/home/home.context";
 import {ShareAnythingToMarketModal} from "@/components/Share/ShareAnythingToMarketModal";
 import {useSession} from "next-auth/react";
-import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
+//import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import { fetchData } from 'next-auth/client/_utils';
 import { Tab, TabSidebar } from '../TabSidebar/TabSidebar';
 import { isAssistantById } from '@/utils/app/assistants';
+import ActionButton from '../ReusableComponents/ActionButton';
 
 type SharedItemsListProps = {};
 
@@ -36,21 +32,6 @@ function groupBy(key: string, array: ShareItem[]): { [key: string]: ShareItem[] 
         return result;
     }, {});
 }
-
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
-
-const LoadingIcon = styled(FiCommand)`
-  color: lightgray;
-  font-size: 1rem;
-  animation: ${animate} 2s infinite;
-`;
 
 const SharedItemsList: FC<SharedItemsListProps> = () => {
 
@@ -85,7 +66,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
         if (name) {
             statsService.openSharedItemsEvent();
             if (!groupedItems) fetchSWYData(name);
-            if (!YSItems) fetchYSData(name);
+            // if (!YSItems) fetchYSData(name);
         }
 
     }, [user]);
@@ -283,13 +264,13 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                             className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "SWY" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
                             <h3 className="text-lg">Shared With You</h3> 
                         </button>
-                        <button
+                        {/* <button
                             key={"youShared"}
                             disabled={isLoading}
                             onClick={() => setActiveTab("YS")}
                             className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "YS" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
                             <h3 className="text-lg">You Shared</h3> 
-                        </button>
+                        </button> */}
             </div>
            
 
@@ -316,7 +297,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                             }
                             }
                                 key={index}
-                                className={`flex cursor-pointer items-center gap-2 rounded-lg pb-2 pt-3 pr-2 text-sm transition-colors duration-200 ${isButtonHover ? "hover:bg-neutral-200 dark:hover:bg-[#343541]/90": ""}`}
+                                className={`w-full flex cursor-pointer items-center gap-2 rounded-lg pb-2 pt-3 pr-2 text-sm transition-colors duration-200 ${isButtonHover ? "hover:bg-neutral-200 dark:hover:bg-[#343541]/90": ""}`}
                                 onClick={() => {
                                     setSharedBy(item.sharedBy);
                                     handleFetchShare(item);
@@ -339,21 +320,21 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                                         setIsButtonHover(false)
                                     }}
                                     onMouseLeave={() => setIsButtonHover(true)}>
-                                    {!deletingItem && (
-                                        <SidebarActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
-                                            <IconTrash size={18} />
-                                        </SidebarActionButton>
+                                    {!deletingItem && ( <></>
+                                        // <ActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
+                                        //     <IconTrash size={18} />
+                                        // </ActionButton>
                                     )}
 
                                     {deletingItem && (
                                         <>
-                                            <SidebarActionButton handleClick={handleSWYDelete} title="Confirm">
+                                            <ActionButton handleClick={handleSWYDelete} title="Confirm">
                                                 <IconCheck size={18} />
-                                            </SidebarActionButton>
+                                            </ActionButton>
 
-                                            <SidebarActionButton handleClick={handleCancelDelete} title="Cancel">
+                                            <ActionButton handleClick={handleCancelDelete} title="Cancel">
                                                 <IconX size={18} />
-                                            </SidebarActionButton>
+                                            </ActionButton>
                                         </>
                                     )}
                                 </div>
@@ -393,7 +374,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
             //                             className="ml-4 flex w-full items-center gap-3 rounded-lg p-2 text-sm">
             //                             {object.type === 'prompt' && isAssistantById(object.id, promptsRef.current) ? <IconRobot size={20} /> : <IconMessage size={18} />}
             //                                 <div
-            //                                     className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">
+            //                                     className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
             //                                     {object.name}
             //                                 </div>
             //                             </label>)   
@@ -411,7 +392,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
             //                     //         className="ml-2 flex w-full items-center gap-3 rounded-lg p-2 text-sm">
             //                     //         {object.type === 'prompt' && isAssistantById(object.id) ? <IconRobot size={20} /> : <IconMessage size={18} />}
             //                     //             <div
-            //                     //                 className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">
+            //                     //                 className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
             //                     //                 {object.name}
             //                     //             </div>
             //                     //         </label>)   
@@ -452,21 +433,21 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
             //                                 }}
             //                                 onMouseLeave={() => setIsButtonHover(true)}>
             //                                 {!deletingItem && (
-            //                                     <SidebarActionButton handleClick={(e) => handleOpenDeleteModal(user_item, e)} title="Delete Shared Item">
+            //                                     <ActionButton handleClick={(e) => handleOpenDeleteModal(user_item, e)} title="Delete Shared Item">
             //                                         <IconTrash size={18} />
-            //                                     </SidebarActionButton>
+            //                                     </ActionButton>
             //                                 )}
         
             //                                 {deletingItem && (
             //                                     <>
             //                                         {/* different handledelete */}
-            //                                         <SidebarActionButton handleClick={(e) => handleYSDelete(e, item.id, user_item)} title="Confirm">
+            //                                         <ActionButton handleClick={(e) => handleYSDelete(e, item.id, user_item)} title="Confirm">
             //                                             <IconCheck size={18} />
-            //                                         </SidebarActionButton>
+            //                                         </ActionButton>
         
-            //                                         <SidebarActionButton handleClick={handleCancelDelete} title="Cancel">
+            //                                         <ActionButton handleClick={handleCancelDelete} title="Cancel">
             //                                             <IconX size={18} />
-            //                                         </SidebarActionButton>
+            //                                         </ActionButton>
             //                                     </>
             //                                 )}
             //                             </div>
@@ -500,21 +481,21 @@ export default SharedItemsList;
 //                                             }}
 //                                             onMouseLeave={() => setIsButtonHover(true)}>
 //                                             {!deletingItem && (
-//                                                 <SidebarActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
+//                                                 <ActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
 //                                                     <IconTrash size={18} />
-//                                                 </SidebarActionButton>
+//                                                 </ActionButton>
 //                                             )}
         
 //                                             {deletingItem && (
 //                                                 <>
 //                                                     {/* different handledelete */}
-//                                                     <SidebarActionButton handleClick={handleDelete} title="Confirm">
+//                                                     <ActionButton handleClick={handleDelete} title="Confirm">
 //                                                         <IconCheck size={18} />
-//                                                     </SidebarActionButton>
+//                                                     </ActionButton>
         
-//                                                     <SidebarActionButton handleClick={handleCancelDelete} title="Cancel">
+//                                                     <ActionButton handleClick={handleCancelDelete} title="Cancel">
 //                                                         <IconX size={18} />
-//                                                     </SidebarActionButton>
+//                                                     </ActionButton>
 //                                                 </>
 //                                             )}
 //                                         </div>    

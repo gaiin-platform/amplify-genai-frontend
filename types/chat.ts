@@ -1,7 +1,9 @@
-import { OpenAIModel } from './openai';
+import { Model } from './model';
 import {Prompt} from "@/types/prompt";
 import { v4 as uuidv4 } from 'uuid';
 import {WorkflowDefinition} from "@/types/workflow";
+import { Artifact } from './artifacts';
+import { messageTopicData } from './topics';
 
 export interface Message {
   role: Role;
@@ -10,7 +12,8 @@ export interface Message {
   type: string | undefined;
   data: any | undefined;
   label?: string;
-  codeInterpreterMessageData?: any | undefined
+  codeInterpreterMessageData?: any | undefined;
+  topicData?: messageTopicData;
 }
 
 export enum MessageType {
@@ -19,7 +22,6 @@ export enum MessageType {
   ROOT = 'root_prompt',
   PREFIX_PROMPT = 'prefix_prompt',
   FOLLOW_UP = 'follow_up',
-  REMOTE = 'remote',
   OUTPUT_TRANSFORMER = 'output_transformer',
 }
 
@@ -34,7 +36,7 @@ export const newMessage = (data: any) => {
   }
 }
 
-export type Role = 'assistant' | 'user';
+export type Role = 'assistant' | 'user' | 'system';
 
 export type CustomFunction = {
   name: string;
@@ -96,7 +98,7 @@ export interface DataSource {
 }
 
 export interface ChatBody {
-  model: OpenAIModel;
+  model: Model;
   messages: Message[];
   prompt: string;
   temperature: number;
@@ -118,7 +120,7 @@ export interface Conversation {
   name: string;
   messages: Message[];
   compressedMessages?: number[];
-  model: OpenAIModel;
+  model: Model;
   prompt?: string;
   temperature?: number;
   folderId: string | null;
@@ -129,4 +131,6 @@ export interface Conversation {
   data?: {[key:string]:any}
   codeInterpreterAssistantId?: string;
   isLocal?: boolean;
+  groupType?: string;
+  artifacts?:  { [key: string]: Artifact[]};
 }

@@ -35,13 +35,6 @@ const AssistantsInUse: React.FC<Props> = ({assistants,assistantsChanged}) => {
             const aTags = assistant.definition.data?.conversationTags;
             if (selectedConversation.tags && aTags) {
                 selectedConversation.tags = selectedConversation.tags.filter((tag:string) => !aTags.includes(tag));
-
-                //remove added additional assistant creator prompt (I added when selecting the assitant creator)
-                if (assistant.id === 'ast/assistant-builder' && selectedConversation.prompt) {
-                    const marker = "CURRENT ASSISTANT CREATOR CUSTOM INSTRUCTIONS:";
-                    const index = selectedConversation.prompt.indexOf(marker);
-                    if (index !== -1) selectedConversation.prompt = selectedConversation.prompt.substring(0, index);
-                } 
             }
 
         }

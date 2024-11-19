@@ -5,12 +5,11 @@ import HomeContext from '@/pages/api/home/home.context';
 import {killRequest as killReq, MetaHandler, sendChatRequestWithDocuments} from '../services/chatService';
 import {ChatBody, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
-import {Plugin} from '@/types/plugin';
 import {wrapResponse, stringChunkCallback} from "@/utils/app/responseWrapper";
 
 import {getSession} from "next-auth/react"
 import json5 from "json5";
-import {OpenAIModelID, OpenAIModels} from "@/types/openai";
+import {ModelID, Models} from "@/types/model";
 import {newStatus} from "@/types/workflow";
 
 export function useChatService() {
@@ -35,9 +34,9 @@ export function useChatService() {
         return result;
     }
 
-    const sendCSVChatRequest = async (chatBody: ChatBody, columns: ColumnsSpec, plugin?: Plugin | null, abortSignal?: AbortSignal, metaHandler?: MetaHandler) => {
+    const sendCSVChatRequest = async (chatBody: ChatBody, columns: ColumnsSpec, abortSignal?: AbortSignal, metaHandler?: MetaHandler) => {
         const schema = generateCSVSchema(columns);
-        const resp = await sendJsonChatRequestWithSchema(chatBody, schema, plugin, abortSignal, metaHandler);
+        const resp = await sendJsonChatRequestWithSchema(chatBody, schema, abortSignal, metaHandler);
 
         const keys = Object.keys(columns).join(',');
 
@@ -53,7 +52,7 @@ export function useChatService() {
         return wrapResponse(resp, callback);
     }
 
-    const sendJsonChatRequest = async (chatBody: ChatBody, plugin?: Plugin | null, abortSignal?: AbortSignal, metaHandler?: MetaHandler) => {
+    const sendJsonChatRequest = async (chatBody: ChatBody, abortSignal?: AbortSignal, metaHandler?: MetaHandler) => {
         const message = `
         Please generate JSON for the output.
         `
@@ -63,10 +62,10 @@ export function useChatService() {
             messages: [...chatBody.messages, newMessage({role: 'user', content: message})]
         };
 
-        return await sendChatRequest(updatedChatBody, null, abortSignal, metaHandler);
+        return await sendChatRequest(updatedChatBody, abortSignal, metaHandler);
     }
 
-    const sendJsonChatRequestWithSchemaLoose = async (chatBody: ChatBody, jsonSchema: JsonSchema, plugin?: Plugin | null, abortSignal?: AbortSignal, metaHandler?: MetaHandler) => {
+    const sendJsonChatRequestWithSchemaLoose = async (chatBody: ChatBody, jsonSchema: JsonSchema, abortSignal?: AbortSignal, metaHandler?: MetaHandler) => {
         const message = `
         Please generate JSON for the output using the following schema:
         ${JSON.stringify(jsonSchema, null, 2)}
@@ -79,11 +78,11 @@ export function useChatService() {
             messages: [...chatBody.messages, newMessage({role: 'user', content: message})]
         };
 
-        return await sendChatRequest(updatedChatBody, null, abortSignal, metaHandler);
+        return await sendChatRequest(updatedChatBody, abortSignal, metaHandler);
     }
 
 
-    const sendJsonChatRequestWithSchema = async (chatBody: ChatBody, jsonSchema: JsonSchema, plugin?: Plugin | null, abortSignal?: AbortSignal, metaHandler?: MetaHandler) => {
+    const sendJsonChatRequestWithSchema = async (chatBody: ChatBody, jsonSchema: JsonSchema, abortSignal?: AbortSignal, metaHandler?: MetaHandler) => {
         const functions = [
             {
                 name: 'answer',
@@ -92,10 +91,10 @@ export function useChatService() {
             }
         ];
 
-        return sendFunctionChatRequest(chatBody, functions, 'answer', plugin, abortSignal, metaHandler);
+        return sendFunctionChatRequest(chatBody, functions, 'answer', abortSignal, metaHandler);
     }
 
-    const sendFunctionChatRequest = async (chatBody: ChatBody, functions: CustomFunction[], functionToInvoke?: string, plugin?: Plugin | null, abortSignal?: AbortSignal, metaHandler?: MetaHandler) => {
+    const sendFunctionChatRequest = async (chatBody: ChatBody, functions: CustomFunction[], functionToInvoke?: string, abortSignal?: AbortSignal, metaHandler?: MetaHandler) => {
         const updatedChatBody = {
             ...chatBody,
             functions: functions,
@@ -105,14 +104,14 @@ export function useChatService() {
             updatedChatBody.function_call = functionToInvoke;
         }
 
-        return await sendChatRequest(updatedChatBody, null, abortSignal, metaHandler);
+        return await sendChatRequest(updatedChatBody, abortSignal, metaHandler);
     }
 
-    const sendChatRequest = (chatBody: ChatBody, plugin?: Plugin | null, abortSignal?: AbortSignal, metaHandler?: MetaHandler) => {
+    const sendChatRequest = (chatBody: ChatBody, abortSignal?: AbortSignal, metaHandler?: MetaHandler) => {
 
         statsService.sendChatEvent(chatBody);
 
-        preProcessingCallbacks.forEach(callback => callback({plugin: plugin, chatBody: chatBody}));
+        preProcessingCallbacks.forEach(callback => callback({chatBody: chatBody}));
     
 
         let response = null;
@@ -127,6 +126,7 @@ export function useChatService() {
 
         if (defaultAccount && defaultAccount.id) {
             chatBody.accountId = defaultAccount.id;
+            chatBody.rateLimit = defaultAccount.rateLimit;
         }
 
         metaHandler = metaHandler || {
@@ -152,7 +152,7 @@ export function useChatService() {
 
         response = getSession().then((session) => {
             // @ts-ignore
-            return sendChatRequestWithDocuments(targetEndpoint, session.accessToken, chatBody, plugin, abortSignal, metaHandler);
+            return sendChatRequestWithDocuments(targetEndpoint, session.accessToken, chatBody, abortSignal, metaHandler);
         }).catch((e) => {
             if(chatBody.assistantId){
                 alert("The assistant you sent the message to is currently unavailable. Please try again in a minute.");
@@ -200,12 +200,12 @@ export function useChatService() {
         return {prefix: "chat", body: message, options: {}}; // Return null if the message does not match the expected format
     }
 
-    const routeChatRequest = async (chatBody: ChatBody, plugin?: Plugin | null, abortSignal?: AbortSignal) => {
+    const routeChatRequest = async (chatBody: ChatBody, abortSignal?: AbortSignal) => {
         const message = chatBody.messages.slice(-1)[0];
 
         
         if (!chatBody.model && defaultModelId) {
-            chatBody.model = OpenAIModels[defaultModelId as OpenAIModelID];
+            chatBody.model = Models[defaultModelId as ModelID];
         }
 
         const {prefix, body, options} = parseMessageType(message.content || "");
@@ -217,18 +217,18 @@ export function useChatService() {
 
         const generateJsonLoose = (): Promise<Response> => {
             if (options.length === 0) {
-                return sendJsonChatRequest(chatBody, plugin, abortSignal);
+                return sendJsonChatRequest(chatBody, abortSignal);
             } else {
-                return sendJsonChatRequestWithSchemaLoose(chatBody, options as JsonSchema, plugin, abortSignal)
+                return sendJsonChatRequestWithSchemaLoose(chatBody, options as JsonSchema, abortSignal)
             }
         }
 
         const invokers = {
-            "fn": () => sendFunctionChatRequest(chatBody, options.functions as CustomFunction[], options.call, plugin, abortSignal),
-            "chat": () => sendChatRequest(chatBody, plugin, abortSignal),
-            "csv": () => sendCSVChatRequest(chatBody, options as ColumnsSpec, plugin, abortSignal),
+            "fn": () => sendFunctionChatRequest(chatBody, options.functions as CustomFunction[], options.call, abortSignal),
+            "chat": () => sendChatRequest(chatBody, abortSignal),
+            "csv": () => sendCSVChatRequest(chatBody, options as ColumnsSpec, abortSignal),
             "json": () => generateJsonLoose(),
-            "json!": () => sendJsonChatRequestWithSchema(chatBody, options as JsonSchema, plugin, abortSignal)
+            "json!": () => sendJsonChatRequestWithSchema(chatBody, options as JsonSchema, abortSignal)
         }
 
         return await invokers[prefix]();

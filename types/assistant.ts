@@ -20,6 +20,7 @@ export interface AssistantDefinition {
     name:string;
     description:string;
     instructions:string;
+    disclaimer?:string;
     tools:AssistantTool[];
     tags:string[],
     fileKeys:string[];
@@ -31,6 +32,7 @@ export interface AssistantDefinition {
     id?:string;
     data?:{[key:string]:any};
     assistantId?:string;
+    groupId?:string;
 }
 
 export const DEFAULT_ASSISTANT: Assistant = {
