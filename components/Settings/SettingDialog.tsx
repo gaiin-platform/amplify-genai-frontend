@@ -79,7 +79,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
 
   const getAvailableModels = () => {
     const sortedModels = models.reduce((accumulator: { anthropic: any[], mistral: any[], gpt: any[] }, model: Model) => {
-        if (model.id.startsWith('anthropic')) {
+        if (model.id.includes('anthropic')) {
             accumulator.anthropic.push({ id: model.id, name: model.name });
         } else if (model.id.startsWith('mistral')) {
             accumulator.mistral.push({ id: model.id, name: model.name });

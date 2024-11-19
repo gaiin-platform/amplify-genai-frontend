@@ -18,10 +18,8 @@ interface Props {
     onClose: () => void;
 }
 
-export const isValidCOA = (coa:any) => {
-    if (!coa) return false;    
-    const pattern = /^[A-Z]{3}-\d{4}-[A-Z]{3}$/;
-    return pattern.test(coa);
+export const isValidCOA = (coa: any) => {
+    return coa !== null && coa !== undefined;
 }
 
 export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, setDefaultAccount, setUnsavedChanged, onClose}) => {
@@ -65,14 +63,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
     const validateCOA = (coa: string) => {
         const isValid = isValidCOA(coa);
         if (!isValid) {
-            const message = "Invalid COA\n\n" +
-                "Please ensure you have correctly typed out your COA.\n\n" +
-                "Example Valid COA String: 125.05.12510.6105.000.000.000.RES.0\n\n" +
-                "Click Cancel for more information on COAs.";
-
-            if (!confirm(message)) {
-                window.open("https://finance.vanderbilt.edu/accounting/documents/Chart_of_Accounts.pdf", "_blank");
-            }
+            const message = "COA Cannot be empty";
         }
         return isValid;
     }
