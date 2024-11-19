@@ -172,7 +172,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     const promptMessages = cloneDeep(updatedConversation.messages);
                     promptMessages[0].content = `Look at the following prompt: "${promptMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`
                     
-                    promptForData(chatEndpoint || '', promptMessages.slice(0,1), Models[ModelID.CLAUDE_3_HAIKU], "Respond with only the title name and nothing else.", statsService, 10)
+                    promptForData(chatEndpoint || '', promptMessages.slice(0,1), Models[ModelID.CLAUDE_3_5_HAIKU], "Respond with only the title name and nothing else.", statsService, 10)
                                  .then(customName => {
                                     let updatedName: string = customName ?? '';
                                     if (!customName) {

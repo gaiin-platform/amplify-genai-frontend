@@ -24,9 +24,9 @@ export enum ModelID {
   CLAUDE_INSTANT_1_2 = 'anthropic.claude-instant-v1',
   CLAUDE_2_1 = 'anthropic.claude-v2:1',
   CLAUDE_3_SONNET = 'anthropic.claude-3-sonnet-20240229-v1:0',
-  //CLAUDE_3_5_SONNET = 'anthropic.claude-3-5-sonnet-20240620-v1:0',
-  CLAUDE_3_5_SONNET = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
-  //CLAUDE_3_HAIKU = 'anthropic.claude-3-haiku-20240307-v1:0',
+  CLAUDE_3_5_SONNET = 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+  CLAUDE_3_5_SONNET_v2 = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+  CLAUDE_3_HAIKU = 'anthropic.claude-3-haiku-20240307-v1:0',
   CLAUDE_3_5_HAIKU = 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
   CLAUDE_3_OPUS = 'us.anthropic.claude-3-opus-20240229-v1:0',
   MISTRAL_7B = 'mistral.mistral-7b-instruct-v0:2',
@@ -35,7 +35,7 @@ export enum ModelID {
 }
 
 // in case the `DEFAULT_MODEL` environment variable is not set or set to an unsupported model
-export const fallbackModelID = ModelID.CLAUDE_3_HAIKU;
+export const fallbackModelID = ModelID.CLAUDE_3_5_HAIKU;
 
 export const Models: Record<ModelID, Model> = {
 
@@ -183,6 +183,17 @@ export const Models: Record<ModelID, Model> = {
     inputCost: 0.003,
     description: "Consider for advanced tasks with the most up-to-date information.\nClaude 3.5 is Anthropic's most current, powerful, and cost-efficient model.\nCan write, edit, and execute code with sophisticated reasoning, understands user context, offers orchestrating multi-step workflows, can navigate unstructured data, write creatively, understands nuance and humor, and supports images as input.\nTrained on information available through April 2024."
    },
+   [ModelID.CLAUDE_3_5_SONNET_v2] : { 
+    id: ModelID.CLAUDE_3_5_SONNET_v2,
+    name: 'Claude-3-5-Sonnet-v2',
+    maxLength: 24000,
+    tokenLimit: 4000,
+    actualTokenLimit: 4096,
+    visible: false,
+    outputCost: 0.015,
+    inputCost: 0.003,
+    description: "Consider for advanced tasks with the most up-to-date information.\nClaude 3.5 is Anthropic's most current, powerful, and cost-efficient model.\nCan write, edit, and execute code with sophisticated reasoning, understands user context, offers orchestrating multi-step workflows, can navigate unstructured data, write creatively, understands nuance and humor, and supports images as input.\nTrained on information available through April 2024."
+   },   
    [ModelID.CLAUDE_3_HAIKU]: {
     id: ModelID.CLAUDE_3_HAIKU,
     name: 'Claude-3-Haiku',
@@ -192,6 +203,17 @@ export const Models: Record<ModelID, Model> = {
     visible: false,
     outputCost: 0.00125,
     inputCost: 0.00025,
+    description: "Consider for high-velocity tasks with near-instant responsiveness and emphasis on security and robustness through minimized risk of harmful outputs.\nFeatures speeds 3 times faster than its Claude peer models while being the most economical choice.\nBest for simple queries, lightweight conversation, rapid analysis of large volumes of data, handling of much longer prompts, and supports images as input.\nTrained on information available through August 2023."
+   },
+   [ModelID.CLAUDE_3_5_HAIKU]: {
+    id: ModelID.CLAUDE_3_5_HAIKU,
+    name: 'Claude-3-5-Haiku',
+    maxLength: 24000,
+    tokenLimit: 4000,
+    actualTokenLimit: 4096,
+    visible: false,
+    outputCost: 0.001,
+    inputCost: 0.0005,
     description: "Consider for high-velocity tasks with near-instant responsiveness and emphasis on security and robustness through minimized risk of harmful outputs.\nFeatures speeds 3 times faster than its Claude peer models while being the most economical choice.\nBest for simple queries, lightweight conversation, rapid analysis of large volumes of data, handling of much longer prompts, and supports images as input.\nTrained on information available through August 2023."
    },
    [ModelID.CLAUDE_3_OPUS]: {

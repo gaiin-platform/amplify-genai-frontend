@@ -34,7 +34,7 @@ export const createQiSummary = async (chatEndpoint:string, data:any, type: QiSum
 
     try {
         const chatBody = {
-            model: Models[ModelID.CLAUDE_3_HAIKU],
+            model: Models[ModelID.CLAUDE_3_5_HAIKU],
             messages: [...data.messages, { role: 'user', content: getPrompt(type) } as Message],
             key: accessToken,
             prompt: "Ensure to follow the instructions exactly.",
