@@ -365,7 +365,7 @@ const useEventService = (mixPanelToken:string) => {
             try {
                 const data = {
                     messageCount: chatBody.messages.length,
-                    modelId: chatBody.model.id,
+                    modelId: chatBody.model?.id ?? 'undefined',
                     messagesCharacters: chatBody.messages.reduce((acc, m) => acc + m.content.length, 0),
                 }
 
@@ -380,7 +380,7 @@ const useEventService = (mixPanelToken:string) => {
             try {
                 const data = {
                     messageCount: chatBody.messages.length,
-                    modelId: chatBody.model.id,
+                    modelId: chatBody.model?.id ?? 'undefined',
                     messagesCharacters: chatBody.messages.reduce((acc, m) => acc + m.content.length, 0),
                     updateIndex: updateIndex,
                 }
