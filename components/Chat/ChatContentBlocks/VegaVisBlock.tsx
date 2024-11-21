@@ -1,6 +1,7 @@
 import {useContext, useEffect, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import {VegaLite} from "react-vega";
+import { fixJsonString } from "@/utils/app/errorHandling";
 
 
 interface VegaProps {
@@ -11,8 +12,20 @@ interface VegaProps {
 
 const VegaVis: React.FC<VegaProps> = ({ chart, currentMessage }) => {
 
+    const [content, setContent] = useState<string>(chart);
     const [error, setError] = useState<string | null>(null);
-    const { state: { messageIsStreaming } } = useContext(HomeContext);
+    const { state: { messageIsStreaming, chatEndpoint, statsService} } = useContext(HomeContext);
+
+    const repairJson = async () => {
+        console.log("Attempting to fix json...");
+        const fixedJson: string | null = await fixJsonString(chatEndpoint || "", statsService, chart, "Failed to create artifact, attempting to fix...");
+         // try to repair json
+        if (fixedJson) {
+            setContent(fixedJson);
+        }  else {
+            setError('Failed to parse Vega specification. Please check the JSON format.');
+        }
+    }
 
     useEffect(() => {
         // Effect for initializing or updating the visualization when 'chart' changes
@@ -21,23 +34,21 @@ const VegaVis: React.FC<VegaProps> = ({ chart, currentMessage }) => {
                 // Test if 'chart' can be parsed as JSON and catch any errors
                 JSON.parse(chart);
             } catch (err) {
-                console.error(err);
-                setError('Failed to parse Vega specification. Please check the JSON format.');
+                // console.error(err);
+                repairJson();
             }
+        } else if (messageIsStreaming) {
+            setContent(chart);
         }
     }, [chart, messageIsStreaming]); // Rerun effect if 'chart' or 'messageIsStreaming' changes
 
     const renderVisualization = () => {
         try {
             // Parse the JSON string only once and handle errors
-            const parsedChart = JSON.parse(chart);
-
-            //parsedChart.autosize = { type: 'fit', contains: 'padding' };
+            const parsedChart = JSON.parse(content);
 
             return <VegaLite width={550} height={450} spec={parsedChart} actions={false} />;
         } catch (parseError) {
-            //console.error(parseError);
-            //setError('Failed to parse the Vega specification. Check the JSON format.');
             return <div>Loading...</div>;
         }
     };
