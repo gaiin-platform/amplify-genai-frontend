@@ -113,6 +113,9 @@ export function useChatService() {
 
         preProcessingCallbacks.forEach(callback => callback({chatBody: chatBody}));
     
+        if (!chatBody.model && defaultModelId) {
+            chatBody.model = Models[defaultModelId as ModelID];;
+        }
 
         let response = null;
 
@@ -203,6 +206,7 @@ export function useChatService() {
     const routeChatRequest = async (chatBody: ChatBody, abortSignal?: AbortSignal) => {
         const message = chatBody.messages.slice(-1)[0];
 
+        console.log(!chatBody.model, defaultModelId);
         
         if (!chatBody.model && defaultModelId) {
             chatBody.model = Models[defaultModelId as ModelID];
