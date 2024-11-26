@@ -1,11 +1,13 @@
 import { Model, ModelID, Models } from "@/types/model";
 import cloneDeep from 'lodash/cloneDeep';
 
-export const MINIMAL_AVAILABLE_MODELS:Model[] = [Models[ModelID.GPT_4o_MINI],  Models[ModelID.GPT_4o_AZ],  Models[ModelID.CLAUDE_3_5_HAIKU], Models[ModelID.CLAUDE_3_5_SONNET_v2] ];
+export const MINIMAL_AVAILABLE_MODELS:Model[] = [Models[ModelID.GPT_4o_MINI],  Models[ModelID.GPT_4o_AZ],  Models[ModelID.CLAUDE_3_HAIKU], Models[ModelID.CLAUDE_3_5_SONNET] ];
 
 export const filterModels = (models: Model[], modelOptions: { [key: string]: boolean }): Model[] => {
-    const minimalModelIds = new Set(cloneDeep(MINIMAL_AVAILABLE_MODELS).map(model => model.id));
-    const includedModels = cloneDeep(MINIMAL_AVAILABLE_MODELS);
+    const availableModelIds = models.map((model: Model) => model.id);
+    const availableMinimalModels = MINIMAL_AVAILABLE_MODELS.filter((m: Model) => availableModelIds.includes(m.id));
+    const minimalModelIds = new Set(cloneDeep(availableMinimalModels).map(model => model.id));
+    const includedModels = cloneDeep(availableMinimalModels);
   
     // Add models based on the options, ensuring they are not already included
     models.forEach(model => {
