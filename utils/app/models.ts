@@ -12,7 +12,7 @@ export const filterModels = (models: Model[], modelOptions: { [key: string]: boo
     // Add models based on the options, ensuring they are not already included
     models.forEach(model => {
       if (!minimalModelIds.has(model.id) &&
-          ((modelOptions.allClaude && model.id.startsWith('anthropic')) ||
+          ((modelOptions.allClaude && model.id.includes('anthropic')) ||
            (modelOptions.allMistral && model.id.startsWith('mistral')) ||
            (modelOptions.allOpenAI && model.id.startsWith('gpt')))) {
         includedModels.push(model);
