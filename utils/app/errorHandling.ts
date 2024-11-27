@@ -22,7 +22,7 @@ export const fixJsonString = async (chatEndpoint:string, statsService: any, brok
         // ensure it is valid
         repaired = repairJson(result)
     } 
-    console.log("resturned: ", repaired);
+    // console.log("resturned: ", repaired);
     return repaired
 }
 

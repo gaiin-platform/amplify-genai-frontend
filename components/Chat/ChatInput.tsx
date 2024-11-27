@@ -212,7 +212,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
-        const maxLength = selectedConversation?.model.maxLength;
+        const maxLength = selectedConversation?.model?.maxLength;
 
         if (maxLength && value.length > maxLength) {
             alert(
@@ -274,7 +274,7 @@ const onAssistantChange = (assistant: Assistant) => {
             return;
         }
 
-        const maxLength = selectedConversation?.model.maxLength;
+        const maxLength = selectedConversation?.model?.maxLength;
 
         if (maxLength && content.length > maxLength) {
             alert(

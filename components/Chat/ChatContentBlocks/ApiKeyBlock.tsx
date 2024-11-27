@@ -10,6 +10,8 @@ import { Account } from "@/types/accounts";
 import { createApiKey, deactivateApiKey, updateApiKeys } from "@/services/apiKeysService";
 import toast from "react-hot-toast";
 import React from "react";
+import { fixJsonString } from "@/utils/app/errorHandling";
+import { ApiKeyOps } from "@/types/apikeys";
 
 
 interface KeyData {
@@ -37,7 +39,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
     const [data, setData] = useState<any>(null);
     const [requiredCreateKeys, setRequiredCreateKeys] = useState<any>(null);
     const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
-    const {state:{statsService, messageIsStreaming},  dispatch:homeDispatch} = useContext(HomeContext);
+    const {state:{statsService, messageIsStreaming, chatEndpoint},  dispatch:homeDispatch} = useContext(HomeContext);
     const { data: session } = useSession();
 
     const [isCreated, setIsCreated] = useState<boolean>(false);
@@ -45,15 +47,29 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
     const [updatedKeys, setUpdatedKeys] =useState<string[]>([]);
     const [isUpdating, setIsUpdating] =useState<string | null>(null);
 
-
-
-    
     const user = session?.user;
+
+    const repairJson = async () => {
+        console.log("Attempting to fix json...");
+        const fixedJson: string | null = await fixJsonString(chatEndpoint || "", statsService, content, "Failed to create artifact, attempting to fix...");
+         // try to repair json
+         const parsed:any  = fixedJson ? JSON.parse(fixedJson) : null;
+        if (parsed && parsed.DATA) {
+            console.log(parsed);
+
+            setOP(parsed.OP);
+            setData(parsed.DATA);
+            setLoadingMessage(null);
+        }  else {
+            setError('Failed to extract data. Please check the JSON format.');
+        }
+    }
 
     useEffect(() => {
         const extractData = () => {
             try {
-                const opData = JSON.parse(content);
+                const opData = JSON.parse(content);  
+                //possibly try to fix 
                 let attr = opData.DATA;
                 if (attr) {
                     setOP(opData.OP);
@@ -62,11 +78,12 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
                 }
             } catch {
                 // setLoadingMessage("We are making progress on your request.");
-                console.log("Extract data error")
+                console.log("Extract data error");
+                repairJson();
             }  
         }
-        if (op === "" || !data) extractData();
-    }, [content]);
+        if ((op === "" || !data) && !messageIsStreaming) extractData();
+    }, [content, messageIsStreaming]);
 
 
     const handleDeactivateAPIKey = async (id: string, name: string) => {
@@ -160,7 +177,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
             // If there are no missing keys, the data is considered complete
             return {isComplete: missingKeys.length === 0, missingKeys: missingKeys};
         }
-        if (op === 'CREATE') setRequiredCreateKeys(verifyRequiredKeys());
+        if (op === ApiKeyOps.CREATE) setRequiredCreateKeys(verifyRequiredKeys());
     }, [data]);
 
     // @ts-ignore
@@ -173,7 +190,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
                 <>
                     <div className="flex flex-col w-full mb-4 overflow-x-hidden gap-0.5">
                         <div className="flex flex-row items-center justify-center">
-                            { op === 'CREATE' && 
+                            { op === ApiKeyOps.CREATE && 
                             <div title={`${data.systemUse ? 'System' : data.delegate ? 'Delegate' : 'Personal'} Use`} >
                              <IconUser style={{ strokeWidth: 2.5 }} className={`mr-2 flex-shrink-0 ${data.systemUse
                                 ? 'text-green-600' : data.delegate 
@@ -186,10 +203,10 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
                         </div>
                         
                          <div className="flex flex-col gap-4 items-center">
-                            {op === 'GET' && 
+                            {op === ApiKeyOps.GET && 
                             data.map((k:KeyData) => (
                                 <div className="flex justify-center items-center w-full max-w-lg" key={k.id}>
-                                    <div className="flex-grow text-right mr-2">{k.name}</div>
+                                    {k.name && <div className="flex-grow text-right mr-2">{k.name}</div>}
                                     <HiddenAPIKey id={k.id} width="380px" />
                                 </div>
                             ))
@@ -198,7 +215,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
 
                          
                         <div className="flex flex-col gap-4">
-                            {op === 'DEACTIVATE' && 
+                            {op === ApiKeyOps.DEACTIVATE && 
                             data.map((k: KeyData, index:number) => (
                                 <div className="flex items-center w-full max-w-lg" key={index}>
                                     <div className="flex-grow text-right mr-3">{k.name}</div>
@@ -215,7 +232,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
                             }
                         </div>
 
-                        {op === 'UPDATE' && 
+                        {op === ApiKeyOps.UPDATE && 
                             data.map((k: KeyUpdate) => (
                                 <div className="ml-12 mb-4 w-full max-w-lg" key={k.id}>
                                     <ExpansionComponent title={`${k.name} Updates`} 
@@ -244,7 +261,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
                             ))
                         }
 
-                        {op === 'CREATE' && (
+                        {op === ApiKeyOps.CREATE && (
                             <>
                                 <div className="my-4 ml-20 flex justify-center">
                                     <div className="ml-10 w-full max-w-lg">
