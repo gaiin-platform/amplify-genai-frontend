@@ -452,7 +452,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                             onChange={(e) => {
                                                 if(e.target.value === 'pptx'){
                                                     setTemplateOptions(powerPointTemplateOptions);
-                                                    setTemplateSelection("vanderbilt_1.pptx");
+                                                    setTemplateSelection("celestial.pptx");
                                                 }
                                                 else {
                                                     setTemplateOptions(wordTemplateOptions);
