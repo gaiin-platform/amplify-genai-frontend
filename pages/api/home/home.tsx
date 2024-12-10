@@ -5,10 +5,8 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
-import useErrorService from '@/services/errorService';
-import useApiService from '@/services/useApiService';
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
-import { getIsLocalStorageSelection, isRemoteConversation, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
+import { CloudConvAttr, getIsLocalStorageSelection, isRemoteConversation, pickConversationAttributes, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import cloneDeep from 'lodash/cloneDeep';
 import {styled} from "styled-components";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
@@ -16,9 +14,8 @@ import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 
 import {
     cleanConversationHistory,
-    cleanSelectedConversation,
 } from '@/utils/app/clean';
-import { AVAILABLE_MODELS, DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
+import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
 import {
     saveConversations,
     saveConversationDirect,
@@ -26,16 +23,17 @@ import {
     updateConversation,
     compressAllConversationMessages,
     conversationWithUncompressedMessages,
+    conversationWithCompressedMessages,
 } from '@/utils/app/conversation';
 import { saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
-import { getSettings } from '@/utils/app/settings';
+import { getSettings, saveSettings } from '@/utils/app/settings';
 import { getAccounts } from "@/services/accountService";
 
-import { Conversation, Message, MessageType, newMessage } from '@/types/chat';
+import { Conversation, Message } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
 import { FolderInterface, FolderType } from '@/types/folder';
-import { OpenAIModelID, OpenAIModels, fallbackModelID, OpenAIModel } from '@/types/openai';
+import { ModelID, Models, fallbackModelID, Model } from '@/types/model';
 import { Prompt } from '@/types/prompt';
 
 
@@ -63,22 +61,28 @@ import SharedItemsList from "@/components/Share/SharedItemList";
 import { saveFeatures } from "@/utils/app/features";
 import WorkspaceList from "@/components/Workspace/WorkspaceList";
 import { Market } from "@/components/Market/Market";
-import { getBasePrompts } from "@/services/basePromptsService";
-import { LatestExportFormat } from "@/types/export";
-import { importData } from "@/utils/app/importExport";
 import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import { useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
-import { listAssistants } from '@/services/assistantService';
-import { syncAssistants } from '@/utils/app/assistants';
-import { deleteRemoteConversation, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
+import { deleteAssistant, listAssistants } from '@/services/assistantService';
+import { getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
+import { deleteRemoteConversation, fetchAllRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import {killRequest as killReq} from "@/services/chatService";
-import Folder from '@/components/Folder';
 import { DefaultUser } from 'next-auth';
 import { addDateAttribute, getDate, getDateName } from '@/utils/app/date';
 import HomeContext, {  ClickContext, Processor } from './home.context';
+import { ReservedTags } from '@/types/tags';
+import { noCoaAccount } from '@/types/accounts';
+import { noRateLimit } from '@/types/rateLimit';
+import { fetchAstAdminGroups, checkInAmplifyCognitoGroups } from '@/services/groupsService';
+import { AmpCognGroups, AmplifyGroups } from '@/types/groups';
+import { contructGroupData } from '@/utils/app/groups';
+import { getAllArtifacts } from '@/services/artifactsService';
+import { baseAssistantFolder, basePrompt, isBaseFolder, isOutDatedBaseFolder } from '@/utils/app/basePrompts';
+import { fetchUserSettings } from '@/services/settingsService';
+import { Settings } from '@/types/settings';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -88,7 +92,7 @@ const LoadingIcon = styled(Icon3dCubeSphere)`
 
 
 interface Props {
-    defaultModelId: OpenAIModelID;
+    defaultModelId: ModelID;
     
   ClientId: string | null;
     cognitoDomain: string | null;
@@ -108,19 +112,14 @@ const Home = ({
     availableModels
 }: Props) => {
     const { t } = useTranslation('chat');
-    const { getModels } = useApiService();
-    const { getModelsError } = useErrorService();
     const [initialRender, setInitialRender] = useState<boolean>(true);
-    const [loadedAssistants, setloadedAssistants] = useState<boolean>(false);
-    const [loadedBasePrompts, setloadedBasePrompts] = useState<boolean>(false);
-    const [loadedAccounts, setloadedAccounts] = useState<boolean>(false);
-    const [initialRemoteCall, setInitialRemoteCall] = useState<boolean>(true);
-    const [loadingSelectedConv, setLoadingSelectedConv] = useState<boolean>(false);
+    // const [loadingSelectedConv, setLoadingSelectedConv] = useState<boolean>(false);
+    const [loadingMessage, setLoadingMessage] = useState<string>('');
+
     const [loadingAmplify, setLoadingAmplify] = useState<boolean>(true);
     const { data: session, status } = useSession();
     const [user, setUser] = useState<DefaultUser | null>(null);
 
-    const email = user?.email;
     const isLoading = status === "loading";
     const userError = null;
 
@@ -143,6 +142,7 @@ const Home = ({
             selectedConversation,
             prompts,
             temperature,
+            selectedAssistant,
             page,
             statsService,
             latestDataDisclosureUrlPDF,
@@ -151,13 +151,17 @@ const Home = ({
             hasAcceptedDataDisclosure,
             hasScrolledToBottom,
             featureFlags,
-            storageSelection
+            storageSelection,
+            groups,
+            models
 
         },
         dispatch,
     } = contextValue;
 
+
     const promptsRef = useRef(prompts);
+
 
     useEffect(() => {
         promptsRef.current = prompts;
@@ -179,86 +183,6 @@ const Home = ({
 
 
     const stopConversationRef = useRef<boolean>(false);
-
-    useEffect (() => {
-        if (!user && session?.user) setUser(session?.user as DefaultUser);
-    }, [session])
-
-    useEffect(() => {
-        // @ts-ignore
-        if (session?.error === "RefreshAccessTokenError") {
-            signOut();
-            setUser(null);
-        }
-        else {
-            const syncConversations = async () => {
-                setInitialRemoteCall(false);
-                await updateWithRemoteConversations(conversationsRef.current, foldersRef.current, dispatch);
-                setLoadingAmplify(false);
-            }
-
-            const fetchAccounts = async () => {
-                const response = await getAccounts();
-                if (response.success) {
-                    const defaultAccount = response.data.find((account: any) => account.isDefault);
-                    if (defaultAccount) {
-                        dispatch({ field: 'defaultAccount', value: defaultAccount });
-                    }
-                    setloadedAccounts(true);  
-                    if (featureFlags.storeCloudConversations && initialRemoteCall) syncConversations(); 
-                }
-            };
-
-            if (!loadedAccounts && session?.user) {
-                fetchAccounts();
-                console.log("FETCH ACCOUNTS")
-            }
-        }
-
-    }, [user]);
-
-    useEffect(() => {
-        const fetchPrompts = async () => {
-            try {
-                const basePrompts = await getBasePrompts();
-                if (basePrompts.success) {
-                    const { history, folders, prompts }: LatestExportFormat = importData(basePrompts.data, conversationsRef.current, promptsRef.current, foldersRef.current);
-
-                    dispatch({ field: 'conversations', value: history });
-                    dispatch({ field: 'folders', value: folders });
-                    setloadedBasePrompts(true);
-
-                    if (!loadedAssistants) await fetchAssistants(folders, prompts);
-
-                } else {
-                    console.log("Failed to import base prompts.");
-                    await fetchAssistants(foldersRef.current, promptsRef.current);
-                    // so when baseprompts do load, we can sync them up 
-                    setloadedAssistants(false);
-
-                }
-            } catch (e) {
-                console.log("Failed to import base prompts.", e);
-            }
-
-        }
-
-        const fetchAssistants = async (folders: FolderInterface[], prompts: Prompt[]) => {
-            if (session?.user?.email) {
-                let assistants = await listAssistants(session?.user?.email);
-
-                if (assistants) {
-                    syncAssistants(assistants, folders, prompts, dispatch);
-                    setloadedAssistants(true);
-                    setLoadingAmplify(false);
-                }
-            }
-        }
-
-        if (session?.user) {
-            if (!loadedBasePrompts) fetchPrompts();
-        }
-    }, [user]);
 
 
     // This is where tabs will be sync'd
@@ -289,20 +213,20 @@ const Home = ({
         if (availableModels) {
             const modelList = availableModels.split(",");
 
-            const models: OpenAIModel[] = modelList.reduce((result: OpenAIModel[], model: string) => {
+            const models: Model[] = modelList.reduce((result: Model[], model: string) => {
                 const model_name = model;
 
-                for (const [key, value] of Object.entries(OpenAIModelID)) {
+                for (const [key, value] of Object.entries(ModelID)) {
                     if (value === model_name && modelList.includes(model_name)) {
                         result.push({
                             id: model_name,
-                            name: OpenAIModels[value].name,
-                            maxLength: OpenAIModels[value].maxLength,
-                            tokenLimit: OpenAIModels[value].tokenLimit,
-                            actualTokenLimit: OpenAIModels[value].actualTokenLimit,
-                            inputCost: OpenAIModels[value].inputCost,
-                            outputCost: OpenAIModels[value].outputCost,
-                            description: OpenAIModels[value].description
+                            name: Models[value].name,
+                            maxLength: Models[value].maxLength,
+                            tokenLimit: Models[value].tokenLimit,
+                            actualTokenLimit: Models[value].actualTokenLimit,
+                            inputCost: Models[value].inputCost,
+                            outputCost: Models[value].outputCost,
+                            description: Models[value].description
                         });
                     }
                 }
@@ -317,16 +241,20 @@ const Home = ({
         if (chatEndpoint) dispatch({ field: 'chatEndpoint', value: chatEndpoint });
     }, [chatEndpoint]);
 
+
     const handleSelectConversation = async (conversation: Conversation) => {
+        window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false}} ));
+        window.dispatchEvent(new Event('cleanupApiKeys'));
         // if we click on the conversation we are already on, then dont do anything
-        if (selectedConversation && (conversation.id === selectedConversation.id)) return;
+        if (selectedConversation && (conversation.id === selectedConversation.id) && isRemoteConversation(selectedConversation)) return;
         //loading 
         //old conversations that do not have IsLocal are automatically local
         if (!('isLocal' in conversation)) {
             conversation.isLocal = true;
         }
+        // setLoadingSelectedConv(true);
+        setLoadingMessage('Loading Conversation...');
 
-        setLoadingSelectedConv(true);
         let newSelectedConv = null;
         // check if it isLocal? if not get the conversation from s3
         if (isRemoteConversation(conversation)) { 
@@ -337,12 +265,7 @@ const Home = ({
         } else {
             newSelectedConv = conversationWithUncompressedMessages(cloneDeep(conversation));
         }
-        setLoadingSelectedConv(false);
-
-        // not in use
-        // // Before changing the selected conversation, we must sync the conversation with teh cloud conversation
-        // // selectedConversation should always have isLocal attribute
-        // if (selectedConversation && !selectedConversation.isLocal) syncCloudConversation(selectedConversation, conversations, dispatch);
+        setLoadingMessage('');
 
         if (newSelectedConv) {
         //add last used assistant if there was one used else should be removed
@@ -430,108 +353,125 @@ const Home = ({
             type,
         };
 
-        const updatedFolders = [...foldersRef.current, newFolder];
+        const updatedFolders = [...folders, newFolder];
 
         dispatch({ field: 'folders', value: updatedFolders });
         saveFolders(updatedFolders);
-
+        foldersRef.current = updatedFolders;
         return newFolder;
     };
 
     const handleDeleteFolder = (folderId: string) => {
+        const folderType : FolderType | undefined= foldersRef.current.find((f:FolderInterface) => f.id === folderId)?.type;
+        
+        console.log("Deleting folder of type: ", folderType);
 
+        switch (folderType) {
+            case 'chat':
+            const updatedConversations = conversationsRef.current.reduce((acc: Conversation[], c:Conversation) => {
+                                            if (c.folderId === folderId) {
+                                                statsService.deleteConversationEvent(c);
+                                                if (isRemoteConversation(c)) deleteRemoteConversation(c.id);
+                                            } else {
+                                                acc.push(c);
+                                            }
+                                            return acc;
+                                        }, [] as Conversation[]);
+
+            dispatch({ field: 'conversations', value: updatedConversations });
+            saveConversations(updatedConversations);
+
+            if (updatedConversations.length > 0) {
+                const selectedNotDeleted = selectedConversation ?
+                    updatedConversations.some((conversation:Conversation) =>
+                        conversation.id === selectedConversation.id) : false;
+                if (!selectedNotDeleted) { // was deleted
+                    const newSelectedConversation = updatedConversations[updatedConversations.length - 1];
+                    dispatch({
+                        field: 'selectedConversation',
+                        value: newSelectedConversation,
+                    });
+                    localStorage.setItem('selectedConversation', JSON.stringify(newSelectedConversation));
+                }
+
+            } else {
+                defaultModelId &&
+                    dispatch({
+                        field: 'selectedConversation',
+                        value: {
+                            id: uuidv4(),
+                            name: t('New Conversation'),
+                            messages: [],
+                            model: Models[defaultModelId],
+                            prompt: DEFAULT_SYSTEM_PROMPT,
+                            temperature: DEFAULT_TEMPERATURE,
+                            folderId: null,
+                            isLocal: getIsLocalStorageSelection(storageSelection)
+
+                        },
+                    });
+
+                localStorage.removeItem('selectedConversation');
+            }
+                break
+            case 'prompt':
+                const updatedPrompts: Prompt[] =  promptsRef.current.map((p:Prompt) => {
+                    if (p.folderId === folderId) {
+                        const isReserved = (isAssistant(p) && p?.data?.tags?.includes(ReservedTags.SYSTEM));
+                        if (isReserved) {
+                            return {
+                                ...p,
+                                folderId: null,
+                            };
+                        }
+                        const canDelete = (!p.data || !p.data.noDelete); 
+        
+                        if (selectedAssistant && p?.data?.assistant?.definition.assistantId === selectedAssistant.definition.assistantId) dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT }); 
+                        if(isAssistant(p) && canDelete ){
+                           const assistant = getAssistant(p);
+                           if (assistant && assistant.assistantId) deleteAssistant(assistant.assistantId);
+                        }
+                        return undefined;
+                    }
+                    return p;
+                }).filter((p): p is Prompt => p !== undefined);;
+        
+                dispatch({ field: 'prompts', value: updatedPrompts });
+                savePrompts(updatedPrompts);
+                    break
+            case 'workflow':
+                const updatedWorkflows: WorkflowDefinition[] = workflows.map((p:WorkflowDefinition) => {
+                    if (p.folderId === folderId) {
+                        return {
+                            ...p,
+                            folderId: null,
+                        };
+                    }
+                    return p;
+                });
+        
+                dispatch({ field: 'workflows', value: updatedWorkflows });
+                saveWorkflowDefinitions(updatedWorkflows);
+                break
+        }
         const updatedFolders = foldersRef.current.filter((f:FolderInterface) => (f.id !== folderId));
+        console.log("Deleting folder ", folderId, "of type: ", updatedFolders);
+
+        
         dispatch({ field: 'folders', value: updatedFolders });
         saveFolders(updatedFolders);
-
-        const updatedConversations = conversationsRef.current.reduce((acc: Conversation[], c:Conversation) => {
-                                        if (c.folderId === folderId) {
-                                            statsService.deleteConversationEvent(c);
-                                            if (isRemoteConversation(c)) deleteRemoteConversation(c.id);
-                                        } else {
-                                            acc.push(c);
-                                        }
-                                        return acc;
-                                    }, [] as Conversation[]);
-
-        dispatch({ field: 'conversations', value: updatedConversations });
-        saveConversations(updatedConversations);
-
-        if (updatedConversations.length > 0) {
-            const selectedNotDeleted = selectedConversation ?
-                updatedConversations.some((conversation:Conversation) =>
-                    conversation.id === selectedConversation.id) : false;
-            if (!selectedNotDeleted) { // was deleted
-                const newSelectedConversation = updatedConversations[updatedConversations.length - 1];
-                dispatch({
-                    field: 'selectedConversation',
-                    value: newSelectedConversation,
-                });
-                localStorage.setItem('selectedConversation', JSON.stringify(newSelectedConversation));
-            }
-
-        } else {
-            defaultModelId &&
-                dispatch({
-                    field: 'selectedConversation',
-                    value: {
-                        id: uuidv4(),
-                        name: t('New Conversation'),
-                        messages: [],
-                        model: OpenAIModels[defaultModelId],
-                        prompt: DEFAULT_SYSTEM_PROMPT,
-                        temperature: DEFAULT_TEMPERATURE,
-                        folderId: null,
-                        isLocal: getIsLocalStorageSelection(storageSelection)
-
-                    },
-                });
-
-            localStorage.removeItem('selectedConversation');
-        }
-
-        const updatedPrompts: Prompt[] =  promptsRef.current.map((p:Prompt) => {
-            if (p.folderId === folderId) {
-                return {
-                    ...p,
-                    folderId: null,
-                };
-            }
-
-            return p;
-        });
-
-        dispatch({ field: 'prompts', value: updatedPrompts });
-        savePrompts(updatedPrompts);
-
-        const updatedWorkflows: WorkflowDefinition[] = workflows.map((p:WorkflowDefinition) => {
-            if (p.folderId === folderId) {
-                return {
-                    ...p,
-                    folderId: null,
-                };
-            }
-            return p;
-        });
-
-        dispatch({ field: 'workflows', value: updatedWorkflows });
-        saveWorkflowDefinitions(updatedWorkflows);
+        foldersRef.current = updatedFolders;
     };
+
 
     const handleUpdateFolder = (folderId: string, name: string) => {
         const updatedFolders = foldersRef.current.map((f:FolderInterface) => {
             if (f.id === folderId) {
-                return {
-                    ...f,
-                    name,
-                };
+                return {...f, name: name};
             }
-
             return f;
         });
-
         dispatch({ field: 'folders', value: updatedFolders });
-
         saveFolders(updatedFolders);
     };
 
@@ -558,10 +498,10 @@ const Home = ({
             name: t('New Conversation'),
             messages: [],
             model: lastConversation?.model || {
-                id: OpenAIModels[defaultModelId].id,
-                name: OpenAIModels[defaultModelId].name,
-                maxLength: OpenAIModels[defaultModelId].maxLength,
-                tokenLimit: OpenAIModels[defaultModelId].tokenLimit,
+                id: Models[defaultModelId].id,
+                name: Models[defaultModelId].name,
+                maxLength: Models[defaultModelId].maxLength,
+                tokenLimit: Models[defaultModelId].tokenLimit,
             },
             prompt: DEFAULT_SYSTEM_PROMPT,
             temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
@@ -584,38 +524,66 @@ const Home = ({
         dispatch({ field: 'loading', value: false });
     };
 
-    const handleCustomLinkClick = (conversation: Conversation, href: string, context: ClickContext) => {
+    const handleUpdateSelectedConversation = (updatedConversation: Conversation) => {
+        // console.log("update selected: ", updatedConversation);
+        let updatedConversations: Conversation[] = [...conversationsRef.current];
 
-        try {
-
-            if (href.startsWith("#")) {
-
-                let [category, action_path] = href.slice(1).split(":");
-                let [action, path] = action_path.split("/");
-
-                console.log(`handleCustomLinkClick ${category}:${action}/${path}`);
-
-            }
-        } catch (e) {
-            console.log("Error handling custom link", e);
+        if (selectedConversation && selectedConversation.isLocal) {
+            updatedConversations = updatedConversations.map(
+                (conversation:Conversation) => {
+                    if (conversation.id === selectedConversation.id) {
+                        return conversationWithCompressedMessages(updatedConversation);
+                    }
+                    return conversation;
+                },
+            );
+            if (updatedConversations.length === 0) updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+            
+        } else {
+            uploadConversation(updatedConversation, foldersRef.current);
+            updatedConversations = updatedConversations.map(
+                (conversation:Conversation) => {
+                    if (selectedConversation && conversation.id === selectedConversation.id) {
+                        return pickConversationAttributes(cloneDeep(updatedConversation), CloudConvAttr) as Conversation;
+                    }
+                    return conversation;
+                },
+            );
+            if (updatedConversations.length === 0) updatedConversations.push( pickConversationAttributes(updatedConversation, CloudConvAttr) as Conversation );
         }
+    
+        dispatch({
+            field: 'selectedConversation',
+            value: updatedConversation,
+        }); 
+
+        dispatch({field: 'conversations', value: updatedConversations});
+        saveConversations(updatedConversations);
     }
+
 
     const handleUpdateConversation = (
         conversation: Conversation,
         data: KeyValuePair,
     ) => {
+
+        // console.log("Previous Conversation: ", conversation)
+        // console.log("Updating data: ", data)
+
         const updatedConversation = {
             ...conversation,
             [data.key]: data.value,
         };
 
+        // console.log("Updated Conversation", updatedConversation)
+
+
         const { single, all } = updateConversation(
             updatedConversation,
-            conversationsRef.current, 
+            conversations, 
         );
 
-        if ((selectedConversation && selectedConversation.id) === updatedConversation.id) {
+        if (selectedConversation && selectedConversation.id === updatedConversation.id) {
             dispatch({field: 'selectedConversation', value: conversationWithUncompressedMessages(single)});
         }
 
@@ -702,17 +670,277 @@ const Home = ({
         
     }, [defaultModelId]);
 
+    useEffect (() => {
+        if (!user && session?.user) setUser(session.user as DefaultUser);
+    }, [session])
+
+
+    useEffect(() => {
+        // @ts-ignore
+        if (["RefreshAccessTokenError", "SessionExpiredError"].includes(session?.error)) {
+            signOut();
+            setUser(null);
+        }
+    }, [session]);
+
+
+
+    // Amplify Data Calls - Happens Right After On Load--------------------------------------------
+
+    useEffect(() => {
+        const fetchAccounts = async () => {      
+            console.log("Fetching Accounts...");
+            try {
+                const response = await getAccounts();
+                if (response.success) {
+                    const defaultAccount = response.data.find((account: any) => account.isDefault);
+                    if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
+                    setLoadingAmplify(false); 
+                    dispatch({ field: 'defaultAccount', value: defaultAccount || noCoaAccount});  
+                    return;
+                } else {
+                    console.log("Failed to fetch accounts.");
+                }
+            } catch (e) {
+                console.log("Failed to fetch accounts: ", e);
+            }
+            dispatch({ field: 'defaultAccount', value: noCoaAccount}); 
+            setLoadingAmplify(false);   
+        };
+
+        const fetchSettings = async () => {
+            console.log("Fetching Settings...");
+            try {
+                // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
+                const result = await fetchUserSettings();
+                if (result.success) {
+                    if (result.data) { 
+                        saveSettings(result.data as Settings);
+                    }
+                } else {
+                    console.log("Failed to get user settings: ", result);
+                }
+            } catch (e) {
+                console.log("Failed to get user settings: ", e);
+            }
+        }
+
+        const fetchArtifacts = async () => {      
+            console.log("Fetching Remote Artifacts...");
+            const response = await getAllArtifacts();
+            if (response.success) { 
+                if (response.data) dispatch({ field: 'artifacts', value: response.data});  
+            } else {
+                console.log("Failed to fetch remote Artifacts.");
+            } 
+        };
+
+        const fetchInAmpCognGroup = async () => {
+            // here you define any groups you want to check exist for the user in the cognito users table
+            const groups : AmpCognGroups = {
+                amplifyGroups: [AmplifyGroups.AST_ADMIN_INTERFACE],
+                // cognitoGroups: []
+            }
+            try {
+                // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
+                const result = await checkInAmplifyCognitoGroups(groups);
+                if (result.success) {
+                    const inGroups = result.data;
+                    dispatch({ field: 'featureFlags', 
+                                value: {...featureFlags, assistantAdminInterface : !!inGroups.amplify_groups[AmplifyGroups.AST_ADMIN_INTERFACE]}});
+                } else {
+                    console.log("Failed to verify in ampifly/cognito groups: ", result);
+                }
+            } catch (e) {
+                console.log("Failed to verify in ampifly/cognito groups: ", e);
+            }
+        }
+
+        const syncConversations = async (conversations: Conversation[], folders: FolderInterface[]) => {
+            try {
+                const allRemoteConvs = await fetchAllRemoteConversations();
+                if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch);
+            } catch (e) {
+                console.log("Failed to sync cloud conversations: ", e);
+            }
+            console.log("Failed to sync cloud conversations.");
+            return {newfolders: []};
+        }
+
+
+        const syncGroups = async () => {
+            console.log("Syncing Groups...");
+            try {
+                const userGroups = await fetchAstAdminGroups();
+                if (userGroups.success) {
+                    const groupData = contructGroupData(userGroups.data);
+                    dispatch({ field: 'groups', value: groupData.groups});
+                    return groupData;
+                } 
+            } catch (e) {
+                console.log("Failed to import group data: ", e);
+            }
+            console.log("Failed to import group data.");
+            return {groups: [], groupFolders: [] as FolderInterface[], groupPrompts: [] as Prompt[]};
+        }
+
+
+        const fetchPrompts = () => {
+            console.log("Fetching Base Prompts...");
+            const updatedFolders:FolderInterface[] = [...foldersRef.current.filter((f:FolderInterface) => !isBaseFolder(f.id) && !isOutDatedBaseFolder(f.id)),
+                                                      ...basePrompt.folders];
+            const updatedPrompts: Prompt[] =  [...promptsRef.current.filter((p: Prompt) => !p.folderId || (!isBaseFolder(p.folderId) && !isOutDatedBaseFolder(p.folderId))),
+                                               ...basePrompt.prompts]
+            
+                    // currently we have no base conversations 
+            return {updatedConversations: conversationsRef.current, updatedFolders, updatedPrompts};
+        }
+
+        // return list of assistants 
+        const fetchAssistants = async (promptList:Prompt[]) => {
+            console.log("Fetching Assistants...");
+            try {
+                const assistants = await listAssistants();
+                if (assistants) return syncAssistants(assistants, promptList);
+            } catch (e) {
+                console.log("Failed to  list assistants: ", e);
+            }
+            console.log("Failed to list assistants.");
+            return [];
+
+        }
+
+        // On Load Data
+        const handleOnLoadData = async () => {
+            // new basePrompts no remote call 
+            let { updatedConversations, updatedFolders, updatedPrompts} = fetchPrompts();
+
+            let assistantLoaded = false;
+            let groupsLoaded = false;
+
+            const checkAndFinalizeUpdates = () => {
+                if (assistantLoaded && groupsLoaded) {
+
+                    const containsAssistantCreator = false;
+                    if (!containsAssistantCreator) updatedPrompts.push()
+                    // Only dispatch when both operations have completed
+                    dispatch({ field: 'prompts', value: updatedPrompts });
+                    dispatch({ field: 'syncingPrompts', value: false });
+                    savePrompts(updatedPrompts);
+                }
+            }
+
+
+            // Handle remote conversations
+            if (featureFlags.storeCloudConversations) {
+                syncConversations(updatedConversations, updatedFolders)
+                    .then(cloudConversationsResult => {
+                        // currently base prompts does not have conversations so we know we are done syncing at this point 
+                        dispatch({field: 'syncingConversations', value: false});
+                        const newCloudFolders = cloudConversationsResult.newfolders;
+                        if (newCloudFolders.length > 0) {
+                            const handleCloudFolderUpdate = () => {
+                                updatedFolders = [...updatedFolders, ...cloudConversationsResult.newfolders];
+                                dispatch({ field: 'folders', value: updatedFolders });
+                                saveFolders(updatedFolders);
+                                console.log('sync conversations complete');
+                            };
+
+                            // to avoid a race condition between this and groups folders. we need to updates folders after groups because sync conversations call will likely take longer in most cases
+                            if (groupsLoaded) {
+                                handleCloudFolderUpdate();
+                            } else {
+                                console.log("Waiting on group folders to update");
+                                // Poll or wait until groups are loaded
+                                const checkGroupsLoaded = setInterval(() => {
+                                    if (groupsLoaded) {
+                                        clearInterval(checkGroupsLoaded);
+                                        handleCloudFolderUpdate();
+                                        console.log("Syncing cloud conversation folders done");
+                                    }
+                                }, 100); // Check every 100 milliseconds
+                            }
+                        }
+                        
+                        console.log('sync conversations complete');
+                    })
+                    .catch(error => console.log("Error syncing conversations:", error));
+            }
+
+            // Fetch assistants
+            fetchAssistants(updatedPrompts)
+                    .then(assistantsResultPrompts => {
+                        // assistantsResultPrompts includes both list assistants and imported assistants
+                        updatedPrompts = [...updatedPrompts.filter((p:Prompt) => !isAssistant(p) || (isAssistant(p) && p.groupId)),
+                                            ...assistantsResultPrompts];
+                        // dispatch({ field: 'prompts', value: updatedPrompts});
+                        console.log('sync assistants complete');
+                        assistantLoaded = true;
+                        checkAndFinalizeUpdates(); 
+                    })
+                    .catch(error => {
+                        console.log("Error fetching assistants:", error);
+                        assistantLoaded = true;
+                    });
+                    
+            // Sync groups
+            syncGroups()
+                .then(groupsResult => {
+                    updatedFolders = [...updatedFolders.filter((f:FolderInterface) => !f.isGroupFolder), 
+                                        ...groupsResult.groupFolders]
+                    dispatch({field: 'folders', value: updatedFolders});
+                    saveFolders(updatedFolders);
+
+                    let groupPrompts = groupsResult.groupPrompts;
+                    if (!featureFlags.apiKeys) groupPrompts = groupPrompts.filter(prompt =>{
+                                                    const tags = prompt.data?.tags;
+                                                    return !(
+                                                        tags && 
+                                                        (tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER) || tags.includes(ReservedTags.ASSISTANT_API_HELPER))
+                                                    );
+                                                });
+                    updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ), 
+                                        ...groupPrompts];
+                    
+                    groupsLoaded = true;
+                    console.log('sync groups complete');
+                    checkAndFinalizeUpdates();
+                    
+                })
+                .catch(error => {
+                    console.log("Error syncing groups:", error); 
+                    groupsLoaded = true;
+                });
+
+        }
+
+
+        if (user && user.email && initialRender) {
+            setInitialRender(false);
+            // independent function call high priority
+            fetchAccounts();  // fetch accounts for chatting charging
+            fetchSettings(); // fetch user settinsg
+            fetchInAmpCognGroup();  // updates ast admin interface featureflag
+            if (featureFlags.artifacts) fetchArtifacts(); // fetch artifacts 
+
+            //Conversation, prompt, folder dependent calls
+            handleOnLoadData();
+        }
+    
+    }, [user]);
+
+
     // ON LOAD --------------------------------------------
 
     useEffect(() => {
-        const settings = getSettings();
+        const settings = getSettings(featureFlags);
+
         if (settings.theme) {
             dispatch({
                 field: 'lightMode',
                 value: settings.theme,
             });
         }
-
 
         const workspaceMetadataStr = localStorage.getItem('workspaceMetadata');
         if (workspaceMetadataStr) {
@@ -722,6 +950,11 @@ const Home = ({
         if (window.innerWidth < 640) {
             dispatch({ field: 'showChatbar', value: false });
             dispatch({ field: 'showPromptbar', value: false });
+        }
+
+        const pluginLoc = localStorage.getItem('pluginLocation');
+        if (pluginLoc) {
+            dispatch({ field: 'pluginLocation', value: JSON.parse(pluginLoc) });
         }
 
         const showChatbar = localStorage.getItem('showChatbar');
@@ -740,8 +973,9 @@ const Home = ({
         }
 
         const prompts = localStorage.getItem('prompts');
+        const promptsParsed = JSON.parse(prompts ? prompts : '[]')
         if (prompts) {
-            dispatch({ field: 'prompts', value: JSON.parse(prompts) });
+            dispatch({ field: 'prompts', value: promptsParsed });
         }
 
         const workflows = localStorage.getItem('workflows');
@@ -753,10 +987,14 @@ const Home = ({
         const foldersParsed = JSON.parse(folders ? folders : '[]')
         if (folders) {
             // for older folders with no date, if it can be transform to the correct format then we add the date attribte
-            foldersParsed.map((folder:FolderInterface) => {
-                return "date" in folder ? folder : addDateAttribute(folder);
-            })
-            dispatch({ field: 'folders', value: foldersParsed });
+            let updatedFolders:FolderInterface[] = foldersParsed.map((folder:FolderInterface) => {
+                                        return "date" in folder ? folder : addDateAttribute(folder);
+                                    })
+            // Make sure the "assistants" folder exists and create it if necessary
+            const assistantsFolder = updatedFolders.find((f:FolderInterface) => f.id === "assistants");
+            if (!assistantsFolder) updatedFolders.push( baseAssistantFolder );
+            
+            dispatch({ field: 'folders', value: updatedFolders});
         }
 
 
@@ -799,7 +1037,7 @@ const Home = ({
                 id: uuidv4(),
                 name: t('New Conversation'),
                 messages: [],
-                model: OpenAIModels[defaultModelId],
+                model: Models[defaultModelId],
                 prompt: DEFAULT_SYSTEM_PROMPT,
                 temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
                 folderId: folder.id,
@@ -887,7 +1125,7 @@ const Home = ({
     const handleScroll = (event: any) => {
         const scrollableElement = event.currentTarget;
         const hasScrollableContent = scrollableElement.scrollHeight > scrollableElement.clientHeight;
-        const isAtBottom = scrollableElement.scrollHeight - scrollableElement.scrollTop === scrollableElement.clientHeight;
+        const isAtBottom = scrollableElement.scrollHeight - scrollableElement.scrollTop <= scrollableElement.clientHeight + 1;
         if (hasScrollableContent && isAtBottom) {
             dispatch({ field: 'hasScrolledToBottom', value: true });
         } else if (!hasScrollableContent) {
@@ -907,9 +1145,9 @@ const Home = ({
         if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
             const fetchDataDisclosureDecision = async () => {
                 const { hasAcceptedDataDisclosure } = contextValue.state;
-                if (email && (!hasAcceptedDataDisclosure)) {
+                if (user?.email && (!hasAcceptedDataDisclosure)) {
                     try {
-                        const decision = await checkDataDisclosureDecision(email);
+                        const decision = await checkDataDisclosureDecision(user?.email);
                         const decisionBodyObject = JSON.parse(decision.item.body);
                         const decisionValue = decisionBodyObject.acceptedDataDisclosure;
                         // console.log("Decision: ", decisionValue);
@@ -931,52 +1169,49 @@ const Home = ({
                 }
             };
 
-            fetchDataDisclosureDecision();
+            if (user?.email) fetchDataDisclosureDecision();
         }
-    }, [email,
-        dispatch,
+    }, [user,
         hasAcceptedDataDisclosure,
         featureFlags.dataDisclosure]);
 
     if (session) {
         if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
-            if (hasAcceptedDataDisclosure === null) { // Decision is still being checked, render a loading indicator
+            if (hasAcceptedDataDisclosure === null) {
                 return (
-                    <main
-                        className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
-                    >
-                        <div
-                            className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                    <main className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}>
+                        <div className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
                             <Loader />
-                            <h1 className="mb-4 text-2xl font-bold">
-                                Loading...
-                            </h1>
+                            <h1 className="mb-4 text-2xl font-bold">Loading...</h1>
                         </div>
-                    </main>);
-            } else if (!hasAcceptedDataDisclosure) { // User has not accepted the data disclosure agreement, do not render page content
+                    </main>
+                );
+            } else if (!hasAcceptedDataDisclosure) {
                 return (
-                    <main
-                        className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}
-                    >
-                        <div
-                            className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
-                            <h1 className="text-2xl font-bold dark:text-white">
-                                Amplify Data Disclosure Agreement
-                            </h1>
+                    <main className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}>
+                        <div className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
+                            <h1 className="text-2xl font-bold dark:text-white">Amplify Data Disclosure Agreement</h1>
                             <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', marginBottom: '10px' }}>Download the data disclosure agreement</a>
-                            <div
-                                className="data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black text-left"
-                                style={{
-                                    overflowY: 'scroll',
-                                    border: '1px solid #ccc',
-                                    padding: '20px',
-                                    marginBottom: '10px',
-                                    height: '500px',
-                                    width: '30%',
-                                }}
-                                onScroll={handleScroll}
-                                dangerouslySetInnerHTML={{ __html: latestDataDisclosureHTML || '' }}
-                            />
+                            {latestDataDisclosureHTML ? (
+                                <div
+                                    className="data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black text-left"
+                                    style={{
+                                        overflowY: 'scroll',
+                                        border: '1px solid #ccc',
+                                        padding: '20px',
+                                        marginBottom: '10px',
+                                        height: '500px',
+                                        width: '30%',
+                                    }}
+                                    onScroll={handleScroll}
+                                    dangerouslySetInnerHTML={{ __html: latestDataDisclosureHTML }}
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center" style={{ height: '500px', width: '30%' }}>
+                                    <Loader />
+                                    <p className="mt-4">Loading agreement...</p>
+                                </div>
+                            )}
                             <input
                                 type="email"
                                 placeholder="Enter your email"
@@ -994,11 +1229,10 @@ const Home = ({
                                 }}
                                 onKeyPress={(e) => {
                                     if (e.key === 'Enter') {
-                                        // Duplicated logic from the button's onClick handler
-                                        if (session && session.user && session.user.email) {
-                                            if (inputEmail.toLowerCase() === session.user.email.toLowerCase()) {
+                                        if (user && user.email) {
+                                            if (inputEmail.toLowerCase() === user.email.toLowerCase()) {
                                                 if (hasScrolledToBottom) {
-                                                    saveDataDisclosureDecision(session.user.email, true);
+                                                    saveDataDisclosureDecision(user.email, true);
                                                     dispatch({ field: 'hasAcceptedDataDisclosure', value: true });
                                                 } else {
                                                     alert('You must scroll to the bottom of the disclosure before accepting.');
@@ -1014,13 +1248,12 @@ const Home = ({
                             />
                             <button
                                 onClick={() => {
-                                    if (session && session.user && session.user.email) {
-                                        if (inputEmail.toLowerCase() === session.user.email.toLowerCase()) {
+                                    if ( user && user.email ) {
+                                        if (inputEmail.toLowerCase() === user.email.toLowerCase()) {
                                             if (hasScrolledToBottom) {
-                                                saveDataDisclosureDecision(session.user.email, true);
+                                                saveDataDisclosureDecision(user.email, true);
                                                 dispatch({ field: 'hasAcceptedDataDisclosure', value: true });
-                                            }
-                                            else {
+                                            } else {
                                                 alert('You must scroll to the bottom of the disclosure before accepting.');
                                             }
                                         } else {
@@ -1064,7 +1297,7 @@ const Home = ({
                     handleUpdateFolder,
                     handleSelectConversation,
                     handleUpdateConversation,
-                    handleCustomLinkClick,
+                    handleUpdateSelectedConversation, 
                     preProcessingCallbacks,
                     postProcessingCallbacks,
                     addPreProcessingCallback,
@@ -1073,6 +1306,7 @@ const Home = ({
                     removePostProcessingCallback,
                     clearWorkspace,
                     handleAddMessages,
+                    setLoadingMessage
                 }}
             >
                 <Head>
@@ -1147,9 +1381,9 @@ const Home = ({
                             </TabSidebar>
 
                         </div>
+                        <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
+                        {/* <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/> */}
 
-                        <LoadingDialog open={loadingSelectedConv} message={"Loading Conversation..."}/>
-                        <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
                     </main>
                 )}
 
@@ -1206,8 +1440,8 @@ export default Home;
 export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
     const defaultModelId =
         (process.env.DEFAULT_MODEL &&
-            Object.values(OpenAIModelID).includes(
-                process.env.DEFAULT_MODEL as OpenAIModelID,
+            Object.values(ModelID).includes(
+                process.env.DEFAULT_MODEL as ModelID,
             ) &&
             process.env.DEFAULT_MODEL) ||
         fallbackModelID;

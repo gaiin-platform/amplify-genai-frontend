@@ -9,6 +9,18 @@ export interface OpResult {
     message: string;
 }
 
+export interface ApiCall {
+    functionName: string;
+    params: any[];
+    code: string;
+}
+
+export interface Reference {
+    id: string;
+    type: string;
+    object: any;
+}
+
 export interface OpData {
     shouldConfirm?: boolean;
     includeConversation?: boolean;

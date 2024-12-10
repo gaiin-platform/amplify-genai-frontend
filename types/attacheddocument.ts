@@ -13,4 +13,5 @@ export interface AttachedDocument {
     data:any|null;
     key?:string;
     metadata?:AttachedDocumentMetadata;
+    groupId?:string;
 }

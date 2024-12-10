@@ -8,6 +8,7 @@ import {
     IconX,
     IconRobot,
     IconShare,
+    IconEye,
 } from '@tabler/icons-react';
 import {
     DragEvent,
@@ -22,11 +23,9 @@ import HomeContext from '@/pages/api/home/home.context';
 
 import { Prompt } from '@/types/prompt';
 
-import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 
 import PromptbarContext from '../PromptBar.context';
 import { PromptModal } from './PromptModal';
-import { ShareModal } from './ShareModal';
 import { v4 as uuidv4 } from "uuid";
 import {
     handleStartConversationWithPrompt,
@@ -35,9 +34,11 @@ import { useSession } from "next-auth/react";
 import {getAssistant, handleUpdateAssistantPrompt, isAssistant} from "@/utils/app/assistants";
 import {AssistantModal} from "@/components/Promptbar/components/AssistantModal";
 import {deleteAssistant} from "@/services/assistantService";
-import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import { ReservedTags } from '@/types/tags';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import { Group } from '@/types/groups';
+import React from 'react';
+import ActionButton from '@/components/ReusableComponents/ActionButton';
 
 interface Props {
     prompt: Prompt;
@@ -53,9 +54,10 @@ export const PromptComponent = ({ prompt }: Props) => {
     } = useContext(PromptbarContext);
 
     const {
-        state: { statsService, selectedAssistant, checkingItemType, checkedItems, prompts},
+        state: { statsService, selectedAssistant, checkingItemType, checkedItems, prompts, groups, syncingPrompts},
         dispatch: homeDispatch,
         handleNewConversation,
+        setLoadingMessage,
     } = useContext(HomeContext);
 
     const promptsRef = useRef(prompts);
@@ -66,25 +68,14 @@ export const PromptComponent = ({ prompt }: Props) => {
 
     const { data: session } = useSession();
     const user = session?.user;
-
-    const [showShareModal, setShowShareModal] = useState(false);
+    // const isReserved = (isAssistant(prompt) && prompt?.data?.assistant?.definition?.tags?.includes(ReservedTags.SYSTEM));
     
-
-
-    const closeModal = () => {
-        setShowShareModal(false);
-    };
-
-    const isReserved = (isAssistant(prompt) && prompt?.data?.assistant?.definition?.tags?.includes(ReservedTags.SYSTEM));
-    
-    const canDelete = (!prompt.data || !prompt.data.noDelete);
+    const groupId = prompt.groupId;
+    const canDelete = (!prompt.data || !prompt.data.noDelete) && !groupId;
     const canEdit = (!prompt.data || !prompt.data.noEdit);
-    const canCopy = (!prompt.data || !prompt.data.noCopy);
-    const canShare = (!prompt.data || !prompt.data.noShare);
+    const canCopy = (!prompt.data || !prompt.data.noCopy) && !groupId;
+    const canShare = (!prompt.data || !prompt.data.noShare)  && !groupId;
 
-
-
-    const [progressMessage, setProgressMessage] = useState<string|null>(null);
     const [showModal, setShowModal] = useState<boolean>(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isRenaming, setIsRenaming] = useState(false);
@@ -128,20 +119,20 @@ export const PromptComponent = ({ prompt }: Props) => {
         if(isAssistant(prompt) && canDelete ){
            const assistant = getAssistant(prompt);
            if(assistant && assistant.assistantId){
-               setProgressMessage("Deleting assistant...");
+               setLoadingMessage("Deleting assistant...");
                try {
                    const result = await deleteAssistant(assistant.assistantId);
                    if(!result){
-                       setProgressMessage(null);
+                       setLoadingMessage("");
                        alert("Failed to delete assistant. Please try again.");
                        return;
                    }
                } catch (e) {
-                   setProgressMessage(null);
+                   setLoadingMessage("");
                    alert("Failed to delete assistant. Please try again.");
                    return;
                }
-               setProgressMessage(null);
+               setLoadingMessage("");
            }
         }
 
@@ -215,19 +206,16 @@ export const PromptComponent = ({ prompt }: Props) => {
             }
             }
         >
-            {progressMessage && (
-                <LoadingDialog open={progressMessage != null} message={progressMessage}/>
-            )}
 
             <div className="relative flex w-full">
                 <button
                     className="w-full  cursor-pointer p-1 items-center gap-1 rounded-lg p-2 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
-                    draggable="true"
+                    draggable={prompt.id.startsWith("astg") ? false : true} 
                     onClick={(e) => {
                         e.stopPropagation();
 
                         if(isAssistant(prompt)){
-                            console.log("Assistant selected", prompt);
+                            // console.log("Assistant selected", prompt);
                         }
 
                         if(isAssistant(prompt) && prompt.data && prompt.data.assistant){
@@ -249,14 +237,14 @@ export const PromptComponent = ({ prompt }: Props) => {
                             {getIcon(prompt)}
                         </div>
                         <div
-                            className="overflow-hidden flex-1 text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3">
+                            className="overflow-hidden flex-1 text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
                             {prompt.name}
                         </div>
                     </div>
 
                 </button>
 
-                { checkPrompts && !isReserved  &&  (
+                { checkPrompts && !prompt.groupId &&  ( //&& !isReserved
                     <div className="relative flex items-center">
                         <div key={prompt.id} className="absolute right-4 z-10">
                             <input
@@ -273,40 +261,60 @@ export const PromptComponent = ({ prompt }: Props) => {
                         className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-neutral-200 dark:bg-[#343541]/90 rounded">
 
                         {!isDeleting && !isRenaming && canCopy && (
-                            <SidebarActionButton handleClick={handleCopy} title="Duplicate Template">
+                            <ActionButton handleClick={handleCopy} title="Duplicate Template">
                                 <IconCopy size={18} />
-                            </SidebarActionButton>
+                            </ActionButton>
                         )}
 
-                        {!isDeleting && !isRenaming && canEdit && (
-                            <SidebarActionButton handleClick={() => setShowModal(true)} title="Edit Template">
+                        {(!isDeleting && !isRenaming && canEdit) && (groupId ? !syncingPrompts : true) && (
+                            <ActionButton title="Edit Template"
+                                handleClick={() => {
+                                    if (groupId) {
+                                        //show admin on ast 
+                                        window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', 
+                                                                            { detail: { isOpen: true, 
+                                                                                        data: { 
+                                                                                            group: groups.find((g:Group) => g.id === groupId),
+                                                                                            assistant: prompt
+                                                                                        } 
+                                                                                      }} ));
+                                    } else {
+                                        setShowModal(true)
+                                    }
+                                }} 
+                            > 
                                 <IconEdit size={18} />
-                            </SidebarActionButton>
+                            </ActionButton>
+                        )}
+                        {!isDeleting && !isRenaming && !canEdit && !groupId && ( // && !isReserved
+                            <ActionButton handleClick={() => setShowModal(true)} title="View Template">
+                                <IconEye size={18} />
+                            </ActionButton>
                         )}
 
                         {!isDeleting && !isRenaming && canShare && (
-                            <SidebarActionButton handleClick={() => {
+                            <ActionButton handleClick={() => {
                                 handleSharePrompt(prompt);
                             }} title="Share Template">
                                 <IconShare size={18} />
-                            </SidebarActionButton>
+                            </ActionButton>
                         )}
 
-                        {!isDeleting && !isRenaming && !isReserved && (
-                            <SidebarActionButton handleClick={handleOpenDeleteModal} title="Delete Template">
+                        {!isDeleting && !isRenaming && !groupId && ( //&& !isReserved 
+                            <ActionButton handleClick={handleOpenDeleteModal} title="Delete Template">
                                 <IconTrash size={18} />
-                            </SidebarActionButton>
+                            </ActionButton>
                         )}
 
                         {(isDeleting || isRenaming) && (
                             <>
-                                <SidebarActionButton handleClick={handleDelete} title="Confirm">
+                                <ActionButton handleClick={handleDelete} title="Confirm">
                                     <IconCheck size={18} />
-                                </SidebarActionButton>
+                                </ActionButton>
 
-                                <SidebarActionButton handleClick={handleCancelDelete} title="Cancel">
+                                <ActionButton handleClick={handleCancelDelete} title="Cancel">
                                     <IconX size={18} />
-                                </SidebarActionButton>
+                                </ActionButton>
                             </>
                         )}
 
@@ -335,18 +343,11 @@ export const PromptComponent = ({ prompt }: Props) => {
                     }}
                     loadingMessage="Updating assistant..."
                     loc="edit_assistant"
+                    disableEdit={!canEdit}
                 />
             )}
 
-            {showShareModal && (
-                <ShareModal
-                    prompt={prompt}
-                    onClose={() => setShowShareModal(false)}
-                    onSharePrompt={(p) => {
-                        alert("Share" + p.name)
-                    }}
-                />
-            )}
+           
         </div>
     );
 };

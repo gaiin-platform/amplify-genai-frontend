@@ -21,10 +21,10 @@ import { Conversation } from '@/types/chat';
 
 import HomeContext from '@/pages/api/home/home.context';
 
-import SidebarActionButton from '@/components/Buttons/SidebarActionButton';
 import ChatbarContext from '@/components/Chatbar/Chatbar.context';
 import { uploadConversation } from '@/services/remoteConversationService';
 import { isLocalConversation, isRemoteConversation } from '@/utils/app/conversationStorage';
+import ActionButton from '@/components/ReusableComponents/ActionButton';
 
 interface Props {
   conversation: Conversation;
@@ -32,7 +32,7 @@ interface Props {
 
 export const ConversationComponent = ({ conversation}: Props) => {
   const {
-    state: { selectedConversation, messageIsStreaming, checkingItemType, checkedItems, folders},
+    state: { selectedConversation, messageIsStreaming, artifactIsStreaming, checkingItemType, checkedItems, folders},
     handleSelectConversation,
     handleUpdateConversation,
     dispatch: homeDispatch
@@ -160,14 +160,14 @@ export const ConversationComponent = ({ conversation}: Props) => {
       ) : (
         <button
           className={`flex w-full cursor-pointer items-center gap-3 rounded-lg p-3 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90 ${
-            messageIsStreaming ? 'disabled:cursor-not-allowed' : ''
+            messageIsStreaming || artifactIsStreaming? 'disabled:cursor-not-allowed' : ''
           } ${
             selectedConversation?.id === conversation.id
               ? 'bg-neutral-200 dark:bg-[#343541]/90'
               : ''
           }`}
           onClick={() => handleSelectConversation(conversation)}
-          disabled={messageIsStreaming}
+          disabled={messageIsStreaming || artifactIsStreaming}
           draggable="true"
           onDragStart={(e) => handleDragStart(e, conversation)}
           title="View Conversation"
@@ -179,7 +179,7 @@ export const ConversationComponent = ({ conversation}: Props) => {
                                               </div>}
          
           <div
-            className={`relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-3 ${
+            className={`relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4 ${
               selectedConversation?.id === conversation.id ? 'pr-12' : 'pr-1'
             }`}
           >
@@ -191,12 +191,12 @@ export const ConversationComponent = ({ conversation}: Props) => {
       {(isDeleting || isRenaming) &&
         selectedConversation?.id === conversation.id && (
           <div className="absolute right-1 z-10 flex text-gray-300">
-            <SidebarActionButton handleClick={handleConfirm}>
+            <ActionButton handleClick={handleConfirm}>
               <IconCheck size={18} />
-            </SidebarActionButton>
-            <SidebarActionButton handleClick={handleCancel}>
+            </ActionButton>
+            <ActionButton handleClick={handleCancel}>
               <IconX size={18} />
-            </SidebarActionButton>
+            </ActionButton>
           </div>
         )}
 
@@ -216,12 +216,12 @@ export const ConversationComponent = ({ conversation}: Props) => {
       {selectedConversation?.id === conversation.id &&
         !isDeleting && !isRenaming && !checkConversations &&
         ( <div className="absolute right-1 z-10 flex text-gray-300">
-            <SidebarActionButton handleClick={handleOpenRenameModal} title="Rename Conversation">
+            <ActionButton handleClick={handleOpenRenameModal} title="Rename Conversation">
               <IconPencil size={18} />
-            </SidebarActionButton>
-            <SidebarActionButton handleClick={handleOpenDeleteModal} title="Delete Conversation">
+            </ActionButton>
+            <ActionButton handleClick={handleOpenDeleteModal} title="Delete Conversation">
               <IconTrash size={18} />
-            </SidebarActionButton>
+            </ActionButton>
           </div>
         )}
     </div>

@@ -1,4 +1,4 @@
-import { IconFileExport, IconSettings, IconHelp, IconCloud } from '@tabler/icons-react';
+import { IconFileExport, IconSettings, IconHelp, IconCloud, IconRobot } from '@tabler/icons-react';
 import { useContext, useState } from 'react';
 
 
@@ -11,22 +11,20 @@ import { SettingDialog } from '@/components/Settings/SettingDialog';
 import { Import } from '../../Settings/Import';
 import { SidebarButton } from '../../Sidebar/SidebarButton';
 import ChatbarContext from '../Chatbar.context';
-import {AccountDialog} from "@/components/Settings/AccountDialog";
-import { StorageDialog } from '@/components/Settings/StorageDialog';
-
+import {AccountDialog} from "@/components/Settings/AccountComponents/AccountDialog";
+import toast from 'react-hot-toast';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
     const [isSettingDialogOpen, setIsSettingDialog] = useState<boolean>(false);
     const [isAccountDialogVisible, setIsAccountDialogVisible] = useState<boolean>(false);
-    const [isStorageDialogVisible, setIsStorageDialogVisible] = useState<boolean>(false);
 
 
     const {
         state: {
             featureFlags
         },
-        dispatch: homeDispatch,
+        dispatch: homeDispatch, setLoadingMessage
     } = useContext(HomeContext);
 
     const {
@@ -50,6 +48,18 @@ export const ChatbarSettings = () => {
                 }}
             />
 
+            {featureFlags.assistantAdminInterface && 
+                <SidebarButton
+                    text={t('Assistant Admin Interface')}
+                    icon={<IconRobot size={18} />}
+                    onClick={() => {
+                        // send trigger to close side bars and open the interface 
+                        window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: true }} ));
+                      
+                    }}
+                />
+            }
+
             <Import onImport={handleImportConversations} />
 
             {/*<ImportFromUrl onImport={handleImportConversations}/>*/}
@@ -58,25 +68,21 @@ export const ChatbarSettings = () => {
             <SidebarButton
                 text={t('Export Conversations')}
                 icon={<IconFileExport size={18} />}
-                onClick={() => handleExportData()}
-            />
-
-            {featureFlags.storeCloudConversations && <SidebarButton
-                text={t('Conversation Storage')}
-                icon={<IconCloud size={18} />}
                 onClick={() => {
-                    setIsStorageDialogVisible(true);
+                    toast("Preparing Conversation Export...");
+                    handleExportData();
                 }}
-            />}
-
+            />
+            
             <SidebarButton
-                text={t('Theme')}
+                text={t('Settings')}
                 icon={<IconSettings size={18} />}
                 onClick={() => {
                     //statsService.setThemeEvent();
                     setIsSettingDialog(true)
                 }}
             />
+
 
             <SidebarButton
                 text={t('Send Feedback')}
@@ -99,12 +105,6 @@ export const ChatbarSettings = () => {
                     setIsAccountDialogVisible(false);
                 }}
             />
-            { featureFlags.storeCloudConversations && <StorageDialog
-                open={isStorageDialogVisible}
-                onClose={() => {
-                    setIsStorageDialogVisible(false);
-                }}
-            />}
 
         </div>
     );

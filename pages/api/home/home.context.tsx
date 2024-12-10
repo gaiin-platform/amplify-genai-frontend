@@ -32,7 +32,7 @@ export interface HomeContextProps {
     conversation: Conversation,
     data: KeyValuePair,
   ) => void;
-  handleCustomLinkClick:(conversation: Conversation, href:string, context:ClickContext) => void,
+  handleUpdateSelectedConversation: (conversation: Conversation,) => void;
   // New callback-related operations.
   preProcessingCallbacks: Processor[];
   postProcessingCallbacks: Processor[];
@@ -42,6 +42,7 @@ export interface HomeContextProps {
   removePostProcessingCallback: (callback: Processor) => void;
   clearWorkspace: () => Promise<void>;
   handleAddMessages: (selectedConversation: Conversation | undefined, messages: any[]) => void;
+  setLoadingMessage: (s:string) => void;
 }
 
 const HomeContext = createContext<HomeContextProps>(undefined!);

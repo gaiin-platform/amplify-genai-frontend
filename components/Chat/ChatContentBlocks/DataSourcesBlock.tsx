@@ -46,7 +46,7 @@ export const DataSourcesBlock: React.FC<Props> = (
                             {i + 1}. {getName(d)}
                         </div>
                         {d.id && d.id.startsWith("s3://") && (
-                            <div className="mt-3 mr-3 ml-1 p-0 truncate"
+                            <div className="mt-3 mr-3 ml-1 p-0 truncate hover:text-neutral-100 dark:hover:text-blue-700"
                             >
                                 <button onClick={() => {
                                     if(handleDownload){

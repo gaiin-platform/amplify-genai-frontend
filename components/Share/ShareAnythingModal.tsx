@@ -8,7 +8,8 @@ import {shareItems} from "@/services/shareService";
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {useSession} from "next-auth/react";
-import { EmailsAutocompleteList } from "../Chat/EmailsAutocompleteList";
+import { EmailsList } from "../Emails/EmailsList";
+import toast from "react-hot-toast";
 
 export interface SharingModalProps {
     open: boolean;
@@ -192,7 +193,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                     statsService.sharedItemEvent(sharedBy, sharedWith, sharingNote, sharedData);
 
                     setIsSharing(false);
-                    alert("Shared successfully");
+                    toast("Shared successfully");
                     onShare([...selectedPromptsState, ...selectedConversationsState, ...selectedFoldersState]);
                 } else {
                     setIsSharing(false);
@@ -249,7 +250,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
         return (
             <div 
                 className= "border border-neutral-700"
-                style={{height: "100px", overflowY: "scroll"}}>
+                style={{height: "140px", overflowY: "scroll"}}>
                 {items.map((item) =>
                     renderItem(item, itemType)
                 )}
@@ -289,8 +290,8 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                     className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                     <div className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true"/>
                     <div
-                        className="min-w-[500px] border-neutral-400 dark:border-netural-400 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-w-lg sm:p-6 sm:align-middle"
-                        role="dialog"
+                        className=" border-neutral-400 dark:border-neutral-600 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:p-6 sm:align-middle"
+                        role="dialog" style={{width: window.innerWidth /2}}
                     >
                         {isSharing && (
                             <div className="flex flex-col items-center justify-center">
@@ -305,7 +306,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
                                 <div className="overflow-y-auto" style={{maxHeight: "calc(100vh - 200px)"}}>
 
-                                    <EmailsAutocompleteList label={"People"}
+                                    <EmailsList label={"People"}
                                               addMessage={"Email addresses of people to share with:"}
                                               emails={selectedPeople}
                                               setEmails={setSelectedPeople}/>
@@ -336,7 +337,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                                                 <h3 className="ml-2 text-black dark:text-white text-lg">Prompts</h3>
                                             </div>
 
-                                            {renderScrollableSection(promptsRef.current.filter((prompt:Prompt) => { return (!prompt.data || !prompt.data.noShare)}), 'Prompt')}
+                                            {renderScrollableSection(promptsRef.current.filter((prompt:Prompt) => { return (!prompt?.data?.noShare) && !prompt.groupId}), 'Prompt')}
                                         </>
                                     )}
 

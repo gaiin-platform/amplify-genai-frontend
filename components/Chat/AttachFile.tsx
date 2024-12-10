@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {AttachedDocument, AttachedDocumentMetadata} from '@/types/attacheddocument';
 import {addFile, checkContentReady} from "@/services/fileService";
 import HomeContext from "@/pages/api/home/home.context";
+import React from 'react';
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;
@@ -20,6 +21,7 @@ interface Props {
     id:string;
     disallowedFileExtensions?:string[];
     allowedFileExtensions?:string[];
+    groupId?:string;
 }
 
 const handleAsZip = (file: File): Promise<any[]> => {
@@ -177,14 +179,16 @@ const handleFile = async (file:any,
                           onSetMetadata:any,
                           onSetAbortController:any,
                           uploadDocuments:boolean,
-                          extractDocumentsLocally:boolean) => {
+                          extractDocumentsLocally:boolean,
+                        groupId:string | undefined) => {
 
     try {
         let type:string = file.type;
 
         let size = file.size;
+        const fileName = file.name.replace(/[_\s]+/g, '_');;
 
-        let document:AttachedDocument = {id:uuidv4(), name:file.name, type:file.type, raw:"", data:""};
+        let document:AttachedDocument = {id:uuidv4(), name: fileName, type:file.type, raw:"", data:"", groupId:groupId};
 
 
 
@@ -210,7 +214,7 @@ const handleFile = async (file:any,
         if(uploadDocuments) {
             try {
 
-                const {key, response, statusUrl, metadataUrl, contentUrl, abortController} = await addFile({id: uuidv4(), name: file.name, raw: "", type: file.type, data: ""}, file,
+                const {key, response, statusUrl, metadataUrl, contentUrl, abortController} = await addFile({id: uuidv4(), name: fileName, raw: "", type: file.type, data: "", groupId}, file,
                     (progress: number) => {
                         if (onUploadProgress && progress < 95) {
                             onUploadProgress(document, progress);
@@ -240,7 +244,7 @@ const handleFile = async (file:any,
 
                         // Check if document.metadata exists and has the key "totalItems"
                         if(document.metadata) {
-                            if(!(document.metadata.totalItems) || document.metadata.totalItems < 1) {
+                            if(!document.metadata.isImage && (!(document.metadata.totalItems) || document.metadata.totalItems < 1)) {
                                 alert("I was unable to extract any text from the provided document. If this is a PDF, please " +
                                     "OCR the PDF before uploading it.");
                             }
@@ -277,7 +281,7 @@ const handleFile = async (file:any,
     }
 }
 
-export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetadata, onSetKey , onSetAbortController, allowedFileExtensions, disallowedFileExtensions}) => {
+export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetadata, onSetKey , onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId}) => {
     const { t } = useTranslation('sidebar');
 
     const {state: { featureFlags, statsService } } = useContext(HomeContext);
@@ -319,7 +323,7 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
                   alert('This file type is not supported. Please save the file as pptx.');
                   return;
                 }
-    
+                
                 if (disallowedFileExtensions && disallowedFileExtensions.includes(extension)) {
                   alert('This file type is not supported.');
                   return;
@@ -332,7 +336,7 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
     
                 statsService.attachFileEvent(file, uploadDocuments, extractDocumentsLocally);
     
-                handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, onSetAbortController, uploadDocuments, extractDocumentsLocally);
+                handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, onSetAbortController, uploadDocuments, extractDocumentsLocally, groupId);
               });
     
               e.target.value = ''; // Clear the input after files are handled

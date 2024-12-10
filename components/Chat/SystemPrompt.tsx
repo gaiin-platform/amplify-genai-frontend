@@ -16,16 +16,16 @@ import { Prompt } from '@/types/prompt';
 
 import { PromptList } from './PromptList';
 import { VariableModal } from './VariableModal';
-import {OpenAIModel} from "@/types/openai";
+import {Model} from "@/types/model";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {fillInTemplate} from "@/utils/app/prompts";
 
 interface Props {
-  models: OpenAIModel[];
+  models: Model[];
   conversation: Conversation;
   prompts: Prompt[];
   onChangePrompt: (prompt: string) => void;
-  handleUpdateModel: (model: OpenAIModel) => void;
+  handleUpdateModel: (model: Model) => void;
 }
 
 export const SystemPrompt: FC<Props> = ({
@@ -205,7 +205,7 @@ export const SystemPrompt: FC<Props> = ({
       </label>
 
       <select
-          className="w-full rounded-lg border border-neutral-200 bg-transparent px-4 py-3 text-neutral-900 dark:border-neutral-600 dark:text-neutral-100"
+          className="w-full rounded-lg border border-neutral-200 bg-transparent px-4 py-3 text-neutral-900 dark:border-neutral-600 dark:text-neutral-100 shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
         onChange={(e) => {
           setSelectedPromptId(e.target.value);
           if(e.target.value === "default") {

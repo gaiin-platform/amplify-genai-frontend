@@ -1,31 +1,15 @@
 import {useContext, useEffect, useRef, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import {IconRobot} from "@tabler/icons-react";
-import styled, {keyframes} from "styled-components";
-import {FiCommand} from "react-icons/fi";
+import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {createAssistant} from "@/services/assistantService";
 import { useSession } from "next-auth/react"
 import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
-import {Prompt} from "@/types/prompt";
 import {Conversation} from "@/types/chat";
 import { createAssistantPrompt, handleUpdateAssistantPrompt} from "@/utils/app/assistants";
-
-
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
-
-const LoadingIcon = styled(FiCommand)`
-  color: lightgray;
-  font-size: 1rem;
-  animation: ${animate} 2s infinite;
-`;
+import toast from "react-hot-toast";
+import React from "react";
 
 
 interface AssistantProps {
@@ -182,9 +166,9 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
 
 
                 if(assistantId) {
-                    alert("Assistant created successfully!");
+                    toast("Assistant created successfully!");
                     const createdAssistantPrompt = createAssistantPrompt(assistantDefinition);
-                    handleUpdateAssistantPrompt(createdAssistantPrompt, promptsRef.current, homeDispatch);
+                    handleUpdateAssistantPrompt(createdAssistantPrompt, prompts, homeDispatch);
                     statsService.createPromptEvent(createdAssistantPrompt);
                 } else {
                     alert("Failed to create assistant. Please try again.");
@@ -233,7 +217,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
                         </div>
 
                         <div style={{ width: '99%' }}>
-                            <ExpansionComponent title={"Instructions"} content={
+                            <ExpansionComponent title={"Description"} content={
                                 <div style={{  wordWrap: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}
                                      className="mb-2 max-h-24 overflow-y-auto text-sm text-gray-500">
                                         {assistantDescription}
@@ -250,15 +234,17 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
                                 }/>
                         </div>
                         
-                        <ExpansionComponent title={"Data Sources"} content={
-                            <div>
-                                <div className="text-sm text-gray-500 max-h-24 overflow-y-auto">
-                                    {dataSources.map((source, index) => {
-                                        return <div key={index}>{source.name}</div>
-                                    })}
+                        {dataSources.length > 0 ?
+                            <ExpansionComponent title={"Data Sources"} content={
+                                <div>
+                                    <div className="text-sm text-gray-500 max-h-24 overflow-y-auto">
+                                        {dataSources.map((source, index) => {
+                                            return <div key={index}>{source.name}</div>
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
-                        }/>
+                            }/> : <div className="ml-2">No data sources attached</div>
+                        }
                         <button className="mt-4 w-full px-4 py-2 text-white bg-blue-500 rounded hover:bg-green-600"
                                 onClick={handleCreateAssistant}
                         >
