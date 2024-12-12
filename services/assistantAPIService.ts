@@ -1,4 +1,4 @@
-export const executeCustomAuto = async (data: any) => {
+export const executeAssistantApiCall = async (data: any) => {
     try {
         // console.log("DATA:", data);
         const response = await fetch('/api/assistantApi/op', {
