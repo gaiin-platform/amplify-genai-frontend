@@ -1,4 +1,4 @@
-import { IconFileExport, IconSettings, IconHelp, IconCloud, IconRobot } from '@tabler/icons-react';
+import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot } from '@tabler/icons-react';
 import { useContext, useState } from 'react';
 
 
@@ -13,12 +13,13 @@ import { SidebarButton } from '../../Sidebar/SidebarButton';
 import ChatbarContext from '../Chatbar.context';
 import {AccountDialog} from "@/components/Settings/AccountComponents/AccountDialog";
 import toast from 'react-hot-toast';
+import { IntegrationsDialog } from '@/components/Integrations/IntegrationsDialog';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
     const [isSettingDialogOpen, setIsSettingDialog] = useState<boolean>(false);
     const [isAccountDialogVisible, setIsAccountDialogVisible] = useState<boolean>(false);
-
+    const [isIntegrationsOpen, setIsIntegrationsOpen] = useState<boolean>(false);
 
     const {
         state: {
@@ -83,6 +84,12 @@ export const ChatbarSettings = () => {
                 }}
             />
 
+            <SidebarButton
+              text={t('Integrations')}
+              icon={<IconBinaryTree2 size={18} />}
+              onClick={() => setIsIntegrationsOpen(true)}
+            />
+
 
             <SidebarButton
                 text={t('Send Feedback')}
@@ -90,7 +97,7 @@ export const ChatbarSettings = () => {
                 onClick={() => window.location.href = 'mailto:amplify@vanderbilt.edu'}
             />
 
-
+            <IntegrationsDialog open={isIntegrationsOpen} onClose={()=>{setIsIntegrationsOpen(false)}}/>
 
             <SettingDialog
                 open={isSettingDialogOpen}
