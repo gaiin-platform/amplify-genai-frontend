@@ -66,15 +66,16 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
         const isValid = isValidCOA(coa);
         if (!isValid) {
             const message = "Invalid COA\n\n" +
-                "Please ensure you have correctly typed out your COA.\n\n" +
+                "This does not look like a valid COA String. If this is a COA String, please verify it is valid. If this is a poet or project number, click OK to accept.\n\n" +
                 "Example Valid COA String: 125.05.12510.6105.000.000.000.RES.0\n\n" +
-                "Click Cancel for more information on COAs.";
+                "Click OK to accept this COA, or Cancel to reject it.\n\n" + 
+                "Visit https://finance.vanderbilt.edu/accounting/documents/Chart_of_Accounts.pdf for more information on COAs.";
 
-            if (!confirm(message)) {
-                window.open("https://finance.vanderbilt.edu/accounting/documents/Chart_of_Accounts.pdf", "_blank");
-            }
+            const userChoice = confirm(message);
+
+            return userChoice;
         }
-        return isValid;
+        return true;
     }
 
     useEffect(() => {
