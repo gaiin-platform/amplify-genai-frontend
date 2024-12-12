@@ -641,7 +641,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>}
                             <FileList documents={dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)))} documentStates={documentState}
                                 setDocuments={(docs) => {
-                                setDataSources(docs as any[]);
+                                const preexisting = dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)));
+                                setDataSources([...docs, ...preexisting ]as any[]);
                             }} allowRemoval={!disableEdit}/>
                             {showDataSourceSelector && (
                                 <div className="mt-[-34px] flex flex-col justify-center overflow-hidden">
@@ -683,7 +684,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     allowRemoval={!disableEdit}
                                     documents={dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)))} 
                                     setDocuments={(docs) => {
-                                        setDataSources(docs as any[]);
+                                        const newDocs = dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)));
+                                        setDataSources([...docs, ...newDocs] as any[]);
                                 }} />
                             }
                             
