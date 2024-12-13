@@ -26,12 +26,6 @@ const doOp = async (op:string, data:any) => {
     }
 }
 
-// export const getUserIntegrations = async (integrations: string[]) => {
-//     return [
-//         "google_sheets"
-//     ];
-// }
-
 // This takes the name of the integration, such as "google_sheets" which will need a corresponding
 // client configured in the back-end lambda
 export const getOauthRedirect = async (integration:string) => {
