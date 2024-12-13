@@ -11,14 +11,19 @@ const integrationOp = async (req: NextApiRequest, res: NextApiResponse) => {
     }
 
     const { accessToken } = session;
-    const { data } = req.body;
+    const reqData = req.body;
+    const payload = reqData.data;
+    const op = reqData.op;
 
-    let apiUrl = process.env.API_BASE_URL + "/integrations/oauth/start-auth" || "";
+    let apiUrl = process.env.API_BASE_URL + "/integrations/oauth/" || "";
+    apiUrl = apiUrl + op;
+
+    console.log("Accessing Integration at: ", apiUrl);
 
     try {
         const response = await fetch(apiUrl, {
             method: "POST",
-            body: JSON.stringify({ data }),
+            body: JSON.stringify({data:payload}),
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${accessToken}`
@@ -31,7 +36,7 @@ const integrationOp = async (req: NextApiRequest, res: NextApiResponse) => {
 
         res.status(200).json({ result });
     } catch (error) {
-        console.error("Error calling integration start_auth: ", error);
+        console.error("Error calling integration op: ", op, error);
         res.status(500).json({ error: "Could not call start_auth for an integration oauth flow" });
     }
 };

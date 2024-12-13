@@ -1,14 +1,6 @@
 
 
-export const getUserIntegrations = async (integrations: string[]) => {
-    return [
-        "google_sheets"
-    ];
-}
-
-// This takes the name of the integration, such as "google_sheets" which will need a corresponding
-// client configured in the back-end lambda
-export const getOauthRedirect = async (integration:string) => {
+const doOp = async (op:string, data:any) => {
     try {
         const response = await fetch('/api/integrations/op', {
             method: 'POST',
@@ -16,7 +8,7 @@ export const getOauthRedirect = async (integration:string) => {
                 'Content-Type': 'application/json',
             },
             signal: null,
-            body: JSON.stringify({ data: { integration } }),
+            body: JSON.stringify({ data, op }),
         });
 
         if (response.ok) {
@@ -32,4 +24,30 @@ export const getOauthRedirect = async (integration:string) => {
     } catch (error) {
         return { success: false, message: `Network error in oauth integration op: ${error}` };
     }
+}
+
+// export const getUserIntegrations = async (integrations: string[]) => {
+//     return [
+//         "google_sheets"
+//     ];
+// }
+
+// This takes the name of the integration, such as "google_sheets" which will need a corresponding
+// client configured in the back-end lambda
+export const getOauthRedirect = async (integration:string) => {
+    return await doOp('start-auth', { integration });
+}
+
+export const getUserIntegrations = async (integrations:string[]) => {
+    return await doOp('user/list', { integrations });
+}
+
+export const deleteUserIntegration = async (integration:string) => {
+    try{
+        return await doOp('user/delete', { integration });
+    } catch (e) {
+        console.error("Error deleting user integration: ", e);
+        alert("An error occurred. Please try again.");
+    }
+
 }

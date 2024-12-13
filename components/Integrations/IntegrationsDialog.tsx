@@ -2,6 +2,7 @@ import { FC, useContext, useEffect, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import HomeContext from '@/pages/api/home/home.context';
 import { Modal } from '../ReusableComponents/Modal';
+import { IconLoader2 } from '@tabler/icons-react';
 import {
   IconBrandGoogleDrive,
   IconBrandGmail,
@@ -10,7 +11,8 @@ import {
   IconForms,
   IconCheck,
 } from '@tabler/icons-react';
-import { getOauthRedirect, getUserIntegrations } from '@/services/oauthIntegrationsService';
+import { deleteUserIntegration, getOauthRedirect, getUserIntegrations } from '@/services/oauthIntegrationsService';
+import Loader from '@/components/Loader/Loader';
 
 interface Props {
   open: boolean;
@@ -21,6 +23,8 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
   const { t } = useTranslation('settings');
   const { dispatch: homeDispatch, state: { statsService, featureFlags, models } } = useContext(HomeContext);
   const [connectedIntegrations, setConnectedIntegrations] = useState<string[]>([]);
+  const [loadingStates, setLoadingStates] = useState<{[key: string]: boolean}>({});
+  const [loadingIntegrations, setLoadingIntegrations] = useState(true);
 
   const integrationsList = [
     {
@@ -57,18 +61,37 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
 
   const refreshUserIntegrations = async () => {
     try {
-      const integrations = await getUserIntegrations([]);
-      setConnectedIntegrations(integrations);
+      setLoadingIntegrations(true);
+      const integrations = await getUserIntegrations(integrationsList.map((i) => i.id));
+
+      if(integrations && integrations.result.success && integrations.result.data) {
+        setConnectedIntegrations(integrations.result.data);
+      }
+      setLoadingIntegrations(false);
     } catch (e) {
+      setLoadingIntegrations(false);
       console.error("Error refreshing user integrations: ", e);
     }
   }
 
   useEffect(() => {
-    refreshUserIntegrations();
-  }, []);
+    if (open) {
+      refreshUserIntegrations();
+    }
+  }, [open]);
 
 
+  const handleDisconnect = async (id: string) => {
+    try {
+      setLoadingStates(prev => ({ ...prev, [id]: true }));
+      await deleteUserIntegration(id);
+      await refreshUserIntegrations();
+    } catch (e) {
+      alert("An error occurred. Please try again.");
+    } finally {
+      setLoadingStates(prev => ({ ...prev, [id]: false }));
+    }
+  }
 
   const handleConnect = async (id: string) => {
 
@@ -98,6 +121,14 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
         );
 
         if (authWindow) {
+
+          const checkWindow = setInterval(() => {
+            if (authWindow.closed) {
+              clearInterval(checkWindow);
+              refreshUserIntegrations();
+            }
+          }, 500);
+
           authWindow.focus();
         }
       } else {
@@ -112,6 +143,7 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
   if (!open) {
     return null;
   }
+
 
   return (
     <Modal
@@ -128,7 +160,15 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
             <div className="text-lg font-bold mb-2 text-black dark:text-neutral-200">
               {t('Integrations:')}
             </div>
-            {integrationsList.map((integration) => (
+
+            {loadingIntegrations &&
+              <div className="flex flex-col items-center">
+                <Loader />
+                <div className="text-lg font-bold mb-2 text-black dark:text-neutral-200">Loading integrations...</div>
+              </div>
+              }
+
+            {!loadingIntegrations && integrationsList.map((integration) => (
               <div key={integration.id} className="flex items-start p-4 bg-gray-100 dark:bg-gray-800 rounded-lg mb-4">
                 <div className="flex-grow mr-4">
                   <div className="flex items-center mb-2">
@@ -141,14 +181,25 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
                   <p className="text-sm text-gray-600 dark:text-gray-300">{integration.description}</p>
                 </div>
                 <button
-                  onClick={() => handleConnect(integration.id)}
+                  onClick={() => {
+                    if (connectedIntegrations.includes(integration.id)) {
+                      handleDisconnect(integration.id);
+                    } else {
+                      handleConnect(integration.id);
+                    }
+                  }}
+                  disabled={loadingStates[integration.id]}
                   className={`px-4 py-2 rounded-md whitespace-nowrap ${
                     connectedIntegrations.includes(integration.id)
-                      ? 'bg-green-500 text-white'
+                      ? 'bg-red-500 text-white'
                       : 'bg-blue-500 text-white'
-                  }`}
+                  } ${loadingStates[integration.id] ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  {connectedIntegrations.includes(integration.id) ? 'Reconnect' : 'Connect'}
+                  {loadingStates[integration.id] ? (
+                    <IconLoader2 className="animate-spin w-5 h-5 inline-block" />
+                  ) : (
+                    connectedIntegrations.includes(integration.id) ? 'Disconnect' : 'Connect'
+                  )}
                 </button>
               </div>
             ))}
