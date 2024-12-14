@@ -10,6 +10,7 @@ import {
   IconFileText,
   IconForms,
   IconCheck,
+  IconBrandOffice
 } from '@tabler/icons-react';
 import { deleteUserIntegration, getOauthRedirect, getUserIntegrations } from '@/services/oauthIntegrationsService';
 import Loader from '@/components/Loader/Loader';
@@ -57,6 +58,12 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
       icon: IconBrandGmail,
       description: "This integration allows assistants to help manage your emails, draft responses, and organize your inbox in Gmail."
     },
+    {
+      name: "Office 365",
+      id: "office_365",
+      icon: IconBrandOffice,
+      description: "This integration enables assistants to work with Microsoft Office 365 apps, including Word, Excel, PowerPoint, and Outlook, for document creation, data analysis, and email management."
+    }
   ];
 
   const refreshUserIntegrations = async () => {
