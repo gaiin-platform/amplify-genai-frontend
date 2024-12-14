@@ -19,7 +19,6 @@ import { executeAssistantApiCall } from '@/services/assistantAPIService';
 import { getOpsForUser } from '@/services/opsService';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import ApiItem from '@/components/AssistantApi/ApiItem';
-import OAuthPopup from '@/components/OAuth/OAuthPopup';
 
 
 interface Props {
