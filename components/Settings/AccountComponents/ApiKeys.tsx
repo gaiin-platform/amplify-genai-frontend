@@ -65,7 +65,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
 
 
     const { t } = useTranslation('settings');
-    const [validAccounts, setValidAccounts] = useState<any>(accounts.filter((a: Account) => a.id !== noCoaAccount.id && isValidCOA(a.id)));
+    const [validAccounts, setValidAccounts] = useState<any>(accounts.filter((a: Account) => a.id !== noCoaAccount.id));
 
     const [ownerApiKeys, setOwnerApiKeys] = useState<ApiKey[]>([]);
     const [delegateApiKeys, setDelegateApiKeys] = useState<ApiKey[]>([]);
@@ -82,7 +82,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
     const [includeExpiration, setIncludeExpiration] = useState<boolean>(false);
     const [systemUse, setSystemUse] = useState<boolean>(false);
     
-    const [selectedAccount, setSelectedAccount] = useState<Account | null>(defaultAccount.name === noCoaAccount.name || !isValidCOA(defaultAccount.id)? validAccounts[0] || null : defaultAccount);
+    const [selectedAccount, setSelectedAccount] = useState<Account | null>(defaultAccount.name === noCoaAccount.name ? validAccounts[0] || null : defaultAccount);
 
     const [editedKeys, setEditedKeys] = useState<any>({});
 
@@ -348,7 +348,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                 <label className="text-sm mt-1 w-[48px] ml-2 " htmlFor="BillTo">Bill To</label>
                                 <AccountSelect
                                     accounts={validAccounts}
-                                    defaultAccount={defaultAccount}
+                                    defaultAccount={selectedAccount || defaultAccount}
                                     setDefaultAccount={setSelectedAccount}
                                 />
                                 </div>

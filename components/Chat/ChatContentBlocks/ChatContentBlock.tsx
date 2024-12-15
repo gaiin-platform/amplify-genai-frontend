@@ -19,6 +19,7 @@ import { ApiDocBlock } from "./APIDocBlock";
 import AutoArtifactsBlock from "./AutoArtifactBlock";
 import DOMPurify from  "dompurify";
 import React from "react";
+import InvokeBlock from '@/components/Chat/ChatContentBlocks/InvokeBlock';
 
 
 
@@ -175,10 +176,10 @@ const ChatContentBlock: React.FC<Props> = (
                             );
                         }
                         break;
-                    case 'customAuto':
+                    case 'invoke':
                         if (selectedConversation && featureFlags.assistantApis) {
                             return (
-                                <CustomAutoBlock
+                                <InvokeBlock
                                     message={message}
                                     conversation={selectedConversation}
                                     onStart={(id, action) => { }}

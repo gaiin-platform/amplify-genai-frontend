@@ -20,6 +20,9 @@ const opExec =
         const payload = reqData.data;
         const path = reqData.path;
 
+        console.log("Payload: ", payload)
+        console.log("Path: ", path)
+
         let apiUrl = process.env.API_BASE_URL + path || "";
 
         try {

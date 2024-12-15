@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { executeCustomAuto } from '@/services/assistantAPIService';
+import { executeAssistantApiCall } from '@/services/assistantAPIService';
 import HomeContext from '@/pages/api/home/home.context';
 import { Conversation, Message, newMessage } from '@/types/chat';
 import ExpansionComponent from '@/components/Chat/ExpansionComponent';
@@ -64,19 +64,22 @@ const CustomAutoBlock: React.FC<Props> = ({
         });
 
         try {
-            const parsedAction = JSON.parse(action);
+            //const parsedAction = JSON.parse(action);
 
             const requestData = {
-                RequestType: parsedAction.RequestType,
-                URL: parsedAction.URL,
-                Parameters: parsedAction.Parameters || {},
-                Body: parsedAction.Body,
-                Headers: parsedAction.Headers || {},
-                Auth: parsedAction.Auth
+                action:action,
+                conversation: selectedConversation?.id,
+                assistant: selectedAssistant?.id,
+                message: message.id
             };
             // console.log("REQUEST DATA", requestData);
 
-            const result = await executeCustomAuto(requestData);
+            const result = await executeAssistantApiCall(requestData);
+
+            if(!result || !result.data || !result.data.code || result.data.hasExecuted){
+                return;
+            }
+
             let resultString = JSON.stringify(result);
             if (resultString.length > 25000) {
                 resultString = resultString.substring(0, 25000);
@@ -88,12 +91,7 @@ const CustomAutoBlock: React.FC<Props> = ({
                 homeDispatch({ field: 'messageIsStreaming', value: true });
 
                 // Create a feedback message similar to AutonomousBlock
-                const feedbackMessage = {
-                    resultOfOps: [{
-                        op: action,
-                        ...result
-                    }]
-                };
+                const feedbackMessage = "Result: " + resultString;
 
                 // Send the result back to the assistant
                 handleSend(

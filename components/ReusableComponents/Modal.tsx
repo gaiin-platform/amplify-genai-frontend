@@ -10,6 +10,8 @@ interface Props {
   width?: () => number;
   height?: () => number;
   showButtons?: boolean;
+  showCancel?: boolean;
+  showSubmit?: boolean;
   onCancel?: () => void; 
   onSubmit?: () => void; 
   submitLabel?: string;
@@ -96,6 +98,7 @@ interface Props {
                         </div>
 
                         {showButtons && <div className="flex flex-row gap-2 mb-2 w-full fixed bottom-0 left-0 px-4 pb-2">
+                          {showCancel &&
                             <button
                                     type="button"
                                     className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
@@ -103,6 +106,8 @@ interface Props {
                                     >
                                     {'Cancel'}
                                 </button>
+                          }
+                          {showSubmit &&
                                 <button
                                     type="button"
                                     className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
@@ -110,6 +115,7 @@ interface Props {
                                     >
                                     {submitLabel}
                                 </button>
+                          }
                          </div>}
                     </div>
                 </div>
