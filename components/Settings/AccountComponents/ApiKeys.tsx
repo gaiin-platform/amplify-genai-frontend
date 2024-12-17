@@ -4,7 +4,6 @@ import { IconPlus, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, Icon
 import HomeContext from '@/pages/api/home/home.context';
 import ExpansionComponent from '../../Chat/ExpansionComponent';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
-import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
 import { Account, noCoaAccount } from '@/types/accounts';
 import { createApiKey, deactivateApiKey, fetchApiDoc, fetchApiKey, updateApiKeys } from '@/services/apiKeysService';
 import { ApiKey } from '@/types/apikeys';
@@ -58,7 +57,7 @@ const formatAccessType = (accessType: string) => {
 }
 
 export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onClose, accounts, defaultAccount}) => {
-    const { state: {featureFlags, statsService}, dispatch: homeDispatch } = useContext(HomeContext);
+    const { state: {featureFlags, statsService, amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
 
     const { data: session } = useSession();
     const user = session?.user?.email;
@@ -133,8 +132,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
 
     useEffect(() => {
         const fetchEmails = async () => {
-            const emailSuggestions = await fetchEmailSuggestions("*");
-            setAllEmails(emailSuggestions.emails ? emailSuggestions.emails.filter((e: string) => e !== user) : []);
+            const emailSuggestions =  amplifyUsers;
+            setAllEmails(emailSuggestions ? emailSuggestions.filter((e: string) => e !== user) : []);
         };
         if (!allEmails) fetchEmails();
     }, []);
@@ -170,6 +169,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
 
         //done first for preloadeding keys while user handles alert 
         if (sucess) {
+            setApiKeys([]);
             statsService.createApiKeyEvent(data);
             setDelegateApiKeys([]);
             setOwnerApiKeys([]);
@@ -308,7 +308,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                             />
                                         </div>
 
-                                        <div className='ml-8 mr-8 relative sm:min-w-[300px] sm:max-w-[440px]' style={{width: `${window.innerWidth * 0.35 }px` }}>
+                                        { !docsIsOpen && <div className='ml-8 mr-8 relative sm:min-w-[300px] sm:max-w-[440px]' style={{width: `${window.innerWidth * 0.35 }px` }}>
 
                                             <ExpansionComponent 
                                                 title={'Add Delegate'} 
@@ -325,7 +325,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                                 }
                                                 closedWidget= { <IconPlus size={18} />}
                                             />
-                                      </div>
+                                      </div>}
                                    </div>
 
 
@@ -353,7 +353,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                 />
                                 </div>
                             
-                            <div className='flex flex-row justify-between mx-8 py-1'>
+                            { !docsIsOpen && <div className='flex flex-row justify-between mx-8 py-1'>
                                 <div className='flex flex-row gap-4' style={{ width: '240px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}>
                                     <label className="text-sm mt-1" htmlFor="rateLimitType">Rate Limit</label>
                                     <RateLimiter
@@ -396,7 +396,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                 </div>
                                 
                                 
-                            </div>
+                            </div>}
                             <div className='flex flex-row py-1 '>
                                 <div className='py-1 w-full' title='Full Access is the default configuration.'>
                                     <ExpansionComponent 
@@ -1079,7 +1079,10 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
 
 
             {showApiDoc && !isLoading &&  (
-                <div className="absolute inset-0 flex items-center justify-start z-60">
+                <div className="absolute inset-0 flex items-center justify-star"
+                style={{
+                    zIndex: '60 !important'
+                  }}>
                     <div className="p-3 flex flex-col items-center  border border-gray-500 bg-neutral-100 dark:bg-[#202123]"
                         style={{width: `${window.innerWidth}px`, height: `${window.innerHeight * 0.9}px`}}>
                             

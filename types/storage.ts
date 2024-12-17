@@ -1,6 +1,7 @@
 import { Conversation } from './chat';
 import { ConversationStorage } from './conversationStorage';
 import { FolderInterface, SortType } from './folder';
+import { Model } from './model';
 import { PluginLocation } from './plugin';
 import { Prompt } from './prompt';
 
@@ -20,4 +21,7 @@ export interface LocalStorage {
   pluginLocation: PluginLocation;
   chatFolderSort: SortType,
   promptFolderSort: SortType;
+  hiddenGroupFolders: FolderInterface[];
+  defaultModel: Model// curretly used for the on load conversation because the models do not come until after 
+  mixPanelOn: boolean;
 }

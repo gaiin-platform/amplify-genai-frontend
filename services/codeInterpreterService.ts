@@ -1,5 +1,8 @@
+import { doRequestOp } from "./doRequestOp";
 
-
+const URL_PATH =  "/assistant";
+// delete "/assistant/openai" 
+// downlaoad  "'/assistant/files/download/codeinterpreter'"
 
 export const deleteAssistant = async (assistantId: string, abortSignal = null) => {
     

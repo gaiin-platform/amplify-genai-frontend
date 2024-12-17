@@ -177,7 +177,7 @@ const ChatContentBlock: React.FC<Props> = (
                         }
                         break;
                     case 'invoke':
-                        if (selectedConversation && featureFlags.assistantAPIs) {
+                        if (selectedConversation && featureFlags.assistantApis) {
                             return (
                                 <InvokeBlock
                                     message={message}

@@ -4,7 +4,8 @@ import {
     IconX, IconShare, IconTags,
     IconCheck, IconFolderOpen, 
     IconFolder, IconCalendar, IconAbc,
-    IconTrashFilled
+    IconTrashFilled,
+    IconEye
 } from '@tabler/icons-react';
 import { KebabActionItem, actionItemAttr, KebabItem, KebabMenuItems } from "./KebabItems";
 import { ShareAnythingModal } from "@/components/Share/ShareAnythingModal";
@@ -15,7 +16,7 @@ import { DEFAULT_ASSISTANT } from "@/types/assistant";
 import HomeContext from "@/pages/api/home/home.context";
 import { Prompt } from "@/types/prompt";
 import { deleteAssistant } from "@/services/assistantService";
-import { ModelID, Models } from "@/types/model";
+import { DefaultModels } from "@/types/model";
 import { FolderInterface, SortType } from "@/types/folder";
 import {v4 as uuidv4} from 'uuid';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
@@ -28,6 +29,7 @@ import { getDateName } from "@/utils/app/date";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import React from "react";
 import toast from "react-hot-toast";
+import { getHiddenGroupFolders, saveFolders } from "@/utils/app/folders";
 
 
 interface Props {
@@ -48,9 +50,9 @@ interface Props {
     const [allItemsChecked, setAllItemsChecked] = useState<boolean>(false);
 
     const {
-        state: { statsService, selectedAssistant, defaultModelId, checkedItems, folders, prompts, conversations,
+        state: { statsService, selectedAssistant, checkedItems, folders, prompts, conversations,
                  selectedConversation, checkingItemType, syncingConversations, syncingPrompts}, handleDeleteFolder,
-        dispatch: homeDispatch, handleCreateFolder, handleSelectConversation
+        dispatch: homeDispatch, handleCreateFolder, handleSelectConversation, getDefaultModel
     } = useContext(HomeContext);
 
     const isConvSide = label === 'Conversations';
@@ -100,12 +102,24 @@ interface Props {
         return false;
     }
 
+    const hasHiddenGroupFolders = () => {
+        return getHiddenGroupFolders().length > 0;
+    }
+
+    const unHideHiddenGroupFolders = () => {
+        const hiddenFolders = getHiddenGroupFolders();
+        const updatedFolders = [...folders, ...hiddenFolders];
+        homeDispatch({ field: 'folders', value: updatedFolders });
+        saveFolders(updatedFolders);
+        localStorage.setItem('hiddenGroupFolders', JSON.stringify([]));
+    }
+
     const toggleDropdown = () => {
         if (checkingItemType) clear();
         setIsMenuOpen(!isMenuOpen);
         handleSearchTerm('');
-
     }
+
     const clear = () => {
         homeDispatch({field: 'checkingItemType', value: null});
         setActionItem(null);
@@ -169,7 +183,7 @@ interface Props {
                     id: uuidv4(),
                     name: 'New Conversation',
                     messages: [],
-                    model: lastConversation?.model ?? Models[defaultModelId as ModelID],
+                    model: lastConversation?.model ?? getDefaultModel(DefaultModels.DEFAULT),
                     prompt: DEFAULT_SYSTEM_PROMPT,
                     temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
                     folderId: folder.id,
@@ -183,14 +197,13 @@ interface Props {
             handleSelectConversation(selectedConversation);
     
         } else {
-            defaultModelId &&
             homeDispatch({
                 field: 'selectedConversation',
                 value: {
                     id: uuidv4(),
                     name: 'New Conversation',
                     messages: [],
-                    model: Models[defaultModelId as ModelID],
+                    model: getDefaultModel(DefaultModels.DEFAULT),
                     prompt: DEFAULT_SYSTEM_PROMPT,
                     temperature: DEFAULT_TEMPERATURE,
                     folderId: null,
@@ -390,7 +403,7 @@ interface Props {
                                              setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTrash size={14} />} />
                             <KebabItem label="Open All" handleAction={() => { openCloseFolders(true) } } icon={<IconFolderOpen size={13} />}  title="Open All Folders" />
                             <KebabItem label="Close All" handleAction={() => { openCloseFolders(false) }} icon={<IconFolder size={14}/>}   title="Close All Folders"/>
-                            
+                            {!isConvSide && hasHiddenGroupFolders()  &&  <KebabItem label="Unhide" handleAction={() => { unHideHiddenGroupFolders() }} icon={<IconEye size={14} />} title="Unhide Hidden Group Folders" /> }  
                         </KebabMenuItems>
                     </div>
                 </div>

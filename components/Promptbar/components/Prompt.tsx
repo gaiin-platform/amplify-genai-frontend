@@ -39,6 +39,7 @@ import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { Group } from '@/types/groups';
 import React from 'react';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
+import { isBasePrompt } from '@/utils/app/basePrompts';
 
 interface Props {
     prompt: Prompt;
@@ -69,7 +70,7 @@ export const PromptComponent = ({ prompt }: Props) => {
     const { data: session } = useSession();
     const user = session?.user;
     // const isReserved = (isAssistant(prompt) && prompt?.data?.assistant?.definition?.tags?.includes(ReservedTags.SYSTEM));
-    
+    const isBase = isBasePrompt(prompt.id);
     const groupId = prompt.groupId;
     const canDelete = (!prompt.data || !prompt.data.noDelete) && !groupId;
     const canEdit = (!prompt.data || !prompt.data.noEdit);
@@ -266,7 +267,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                             </ActionButton>
                         )}
 
-                        {(!isDeleting && !isRenaming && canEdit) && (groupId ? !syncingPrompts : true) && (
+                        {(!isDeleting && !isRenaming && canEdit && !isBase) && (groupId ? !syncingPrompts : true) && (
                             <ActionButton title="Edit Template"
                                 handleClick={() => {
                                     if (groupId) {
@@ -300,7 +301,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                             </ActionButton>
                         )}
 
-                        {!isDeleting && !isRenaming && !groupId && ( //&& !isReserved 
+                        {!isDeleting && !isRenaming && !groupId && !isBase &&( //&& !isReserved 
                             <ActionButton handleClick={handleOpenDeleteModal} title="Delete Template">
                                 <IconTrash size={18} />
                             </ActionButton>

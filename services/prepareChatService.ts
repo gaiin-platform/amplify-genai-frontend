@@ -1,12 +1,11 @@
 import {  Conversation, Message } from "@/types/chat";
-import { ModelID, Models } from "@/types/model";
 import {getSession} from "next-auth/react"
 import { sendChatRequestWithDocuments } from "./chatService";
-import { KeyValuePair } from "@/types/data";
 import { Artifact, ArtifactBlockDetail } from "@/types/artifacts";
 import { messageTopicData, messageTopicDataPast } from "@/types/topics";
 import { lzwUncompress } from "@/utils/app/lzwCompression";
 import cloneDeep from 'lodash/cloneDeep';
+import { Model } from "@/types/model";
 
 
 const DIVIDER_CUSTOM_INSTRUCTIONS = `
@@ -218,7 +217,8 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `
 `;
 
 
-export const getFocusedMessages = async (chatEndpoint:string, conversation:Conversation, statsService: any, featureFlags: any, homeDispatch:any, featureOptions: { [key: string]: boolean }) => {
+export const getFocusedMessages = async (chatEndpoint:string, conversation:Conversation, statsService: any, featureFlags: any,
+                                         homeDispatch:any, featureOptions: { [key: string]: boolean }, advancedModel: Model, cheapestModel: Model) => {
     const isSmartMessagesOn = featureOptions.includeFocusedMessages;
     const isArtifactsOn = featureOptions.includeArtifacts && featureFlags.artifacts;
 
@@ -242,7 +242,7 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
 
     try {
         const chatBody = {
-            model: Models[ isSmartMessagesOn ? ModelID.CLAUDE_3_5_SONNET : ModelID.GPT_4o_MINI], 
+            model: isSmartMessagesOn ? advancedModel : cheapestModel, 
             messages: messageTopicDataOnly,
             key: accessToken,
             prompt: customInstructions,

@@ -1,4 +1,8 @@
 import {ExportFormatV4, ShareItem} from "@/types/export";
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/state";
+
 
 export const shareItems = async (user:string, sharedWith:string[], note:string, sharedData:ExportFormatV4, abortSignal= null)=> {
 

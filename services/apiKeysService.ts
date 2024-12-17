@@ -1,165 +1,125 @@
+import { doRequestOp } from "./doRequestOp";
 
-export const createApiKey = async (data: any,  abortSignal = null) => {
+const URL_PATH = "/apiKeys";
+
+
+export const createApiKey = async (data: any) => {
     const op = {
-        data: data,
-        op: '/create_keys'
-    };
-
-    const response = await fetch('/api/apikeys/op', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(op),
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-
-    try {
-        return 'success' in result ? result : {"success":false, "message" : "Unkown Internal Error"};
-    } catch (e) {
-        console.error("Error making post request: ", e);
-        return {"success": false, "message": "Unkown Internal Error"};
-    }
-};
-
-
-export const fetchApiKey = async (apiKeyId: string, abortSignal = null) => {
-    
-    const response = await fetch('/api/apikeys/opget' + `?apiKeyId=${encodeURIComponent(apiKeyId)}&path=${encodeURIComponent("/get_key")}`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-    try {
-        const res = JSON.parse(result.body)
-        return 'success' in res ? res : {success: false};
-    } catch (e) {
-        console.error("Error making get_api key request: ", e);
-        return {success: false};
-    }
-};
-
-
-export const fetchAllApiKeys = async (abortSignal = null) => {
-    
-    const response = await fetch('/api/apikeys/opget' + `?path=${encodeURIComponent("/get_keys")}`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-    try {
-        if (result.success) {
-            return result;
-        } else {
-            console.error("Error getting all apikeys: ", result.message);
-            return {success: false};
-        }
-    } catch (e) {
-        console.error("Error during api keys request: ", e);
-        return {success: false};
-    }
-};
+        data: data,
+        path: URL_PATH,
+        op: '/keys/create'
+    };
+    return await doRequestOp(op);
+}
 
 
 
-export const fetchAllSystemIds = async (abortSignal = null) => {
-    const response = await fetch('/api/apikeys/opget' + `?path=${encodeURIComponent("/get_system_ids")}`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-    try {
-        return result.success ? result.data : [];
-    } catch (e) {
-        console.error("Error during api key system id request: ", e);
-        return [];
-    }
-};
-
-export const deactivateApiKey = async (apiKeyId: string,  abortSignal = null) => {
+export const fetchApiKey = async (apiKeyId: string) => {
     const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: '/key/get',
+        queryParams: {"apiKeyId": apiKeyId}
+    };
+    return await doRequestOp(op);
+}
+
+
+
+export const fetchAllApiKeys = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: '/keys/get',
+    };
+    return await doRequestOp(op);
+}
+
+
+
+export const fetchAllSystemIds = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: '/get_system_ids',
+    };
+    const result = await doRequestOp(op);
+    return result.success ? result.data : [];
+}
+
+
+// export const fetchAllSystemIds = async (abortSignal = null) => {
+//     const response = await fetch('/api/apikeys/opget' + `?path=${encodeURIComponent("/get_system_ids")}`, {
+//         method: 'GET',
+//         headers: {
+//             'Content-Type': 'application/json',
+//         },
+//         signal: abortSignal,
+//     });
+
+//     const result = await response.json();
+//     try {
+//         return result.success ? result.data : [];
+//     } catch (e) {
+//         console.error("Error during api key system id request: ", e);
+//         return [];
+//     }
+// };
+
+
+export const deactivateApiKey = async (apiKeyId: string) => {
+    const op = {
+        method: 'POST',
         data: {'apiKeyId': apiKeyId},
-        op: '/deactivate_key'
+        path: URL_PATH,
+        op: '/key/deactivate'
     };
-
-    const response = await fetch('/api/apikeys/op', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(op),
-        signal: abortSignal,
-    });
-
-    try {
-        const result = await response.json();
-        return 'success' in result ? result.success : false;
-
-    } catch (e) {
-        console.error("Error deactivating api key request: ", e);
-        return false;
-    }
-};
+    const result =  await doRequestOp(op);
+    return 'success' in result ? result.success : false;
+}
 
 
 
-export const updateApiKeys = async (data: any,  abortSignal = null) => {
+
+export const updateApiKeys = async (data: any) => {
     const op = {
-        data: data,
-        op: "/update_keys"
-    };
-
-    const response = await fetch('/api/apikeys/op', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(op),
-        signal: abortSignal,
-    });
-
-    const res = await response.json();
-    console.log(res)
-    try {
-        return 'success' in res ? res : {success: false};
-    } catch (e) {
-        console.error("Error making post request: ", e);
-        return {success: false};
-;
-    }
-};
+        data: data,
+        path: URL_PATH,
+        op: "/keys/update"
+    };
+    return await doRequestOp(op);
+}
 
 
-
-export const fetchApiDoc = async (abortSignal = null) => {
-    
-    const response = await fetch('/api/apikeys/opget' + `?path=${encodeURIComponent("/api_documentation")}`, {
+export const fetchApiDoc = async () => {
+    const op = {
         method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-    });
+        path: URL_PATH,
+        op: '/api_documentation/get',
+    };
+    return await doRequestOp(op);
+}
 
-    const result = await response.json();
-    try {
-        return 'success' in result ? result : {success: false};
-    } catch (e) {
-        console.error("Error making get api doc request: ", e);
-        return {success: false};
-    }
-};
+
+
+export const uploadApiDoc = async (filename: string, md5: string) => {
+    const op = {
+        data: {filename: filename, content_md5: md5},
+        method: 'POST',
+        path: URL_PATH,
+        op: '/api_documentation/upload',
+    };
+    return await doRequestOp(op);
+}
+
+
+export const fetchApiDocTemplates = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: "/api_documentation/get_templates",
+    };
+    return await doRequestOp(op);
+}

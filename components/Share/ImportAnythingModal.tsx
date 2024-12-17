@@ -13,6 +13,7 @@ import { isAssistant } from "@/utils/app/assistants";
 import { conversationWithCompressedMessages, saveConversations } from "@/utils/app/conversation";
 import { saveFolders } from "@/utils/app/folders";
 import { savePrompts } from "@/utils/app/prompts";
+import { DefaultModels } from "@/types/model";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -65,7 +66,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
     const {
         state: {folders: localFolders, conversations: localConversations,  prompts:localPrompts, },
-        dispatch: homeDispatch, handleSelectConversation
+        dispatch: homeDispatch, handleSelectConversation, getDefaultModel
     } = useContext(HomeContext);
 
     const foldersRef = useRef(localFolders);
@@ -236,7 +237,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
         console.log("Cleaned up export: ", cleanedUpExport);
 
-        const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport, conversationsRef.current, promptsRef.current, foldersRef.current);
+        const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport, conversationsRef.current, promptsRef.current, foldersRef.current, getDefaultModel(DefaultModels.DEFAULT));
 
         // console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);
 

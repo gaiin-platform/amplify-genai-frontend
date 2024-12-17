@@ -1,4 +1,6 @@
-import { AmpCognGroups} from "@/types/groups";
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/groups";
 
 
 export const createAstAdminGroup = async (data: any,  abortSignal = null) => {
@@ -199,33 +201,27 @@ export const fetchGroupMembers = async (abortSignal = null) => {
 
 
 
-// for checking is a user is in a certain amplify or cognito group in the congito users table, not the adminGroups
+export const replaceAstAdminGroupKey = async (groupId: string, abortSignal = null) => {
+    const op = {
+        data: {groupId : groupId},
+        op: '/replace_key'
+    };
 
-export const checkInAmplifyCognitoGroups = async (groupData: AmpCognGroups, abortSignal = null) => {
+    const response = await fetch('/api/groups/ops', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(op),
+        signal: abortSignal,
+    });
+
+    const result = await response.json();
+
     try {
-        const op = {
-            op: '/in_cognito_amp_groups',
-            data: groupData
-        };
-        
-        const response = await fetch('/api/cognitoGroups/op', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(op),
-            signal: abortSignal,
-        });
-        if (response.ok) {
-            const result = await response.json();
-            return JSON.parse(result.body);
-        } else {
-            console.error("Error response when checking if in cognito group: ", response.statusText);
-            return { success: false, error: `Error response when checking if in cognito group: ${response.statusText}`};
-        }
+        return 'success' in result ? result.success : false;
     } catch (e) {
-        console.error("Error call to check if in cognito group: ", e);
-        return { success: false, error: "Error call to check if in cognito group."};
+        console.error("Error making post request: ", e);
+        return false;
     }
 }
-

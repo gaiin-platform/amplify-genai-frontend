@@ -1,9 +1,12 @@
 import {  Message } from "@/types/chat";
-import { ModelID, Models } from "@/types/model";
+import { Model, Models } from "@/types/model";
 import { QiSummary, QiSummaryType } from "@/types/qi";
 import {getSession} from "next-auth/react"
 import {v4 as uuidv4} from 'uuid';
 import { sendChatRequestWithDocuments } from "./chatService";
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/qi";
 
 
 const qiConversationPrompt = 
@@ -24,7 +27,7 @@ const qiConversationPrompt =
     `
 
 
-export const createQiSummary = async (chatEndpoint:string, data:any, type: QiSummaryType, statsService: any) => {
+export const createQiSummary = async (chatEndpoint:string, model: Model, data:any, type: QiSummaryType, statsService: any) => {
     const controller = new AbortController();
     
      const accessToken = await getSession().then((session) => { 
@@ -34,7 +37,7 @@ export const createQiSummary = async (chatEndpoint:string, data:any, type: QiSum
 
     try {
         const chatBody = {
-            model: Models[ModelID.CLAUDE_3_HAIKU],
+            model: model,
             messages: [...data.messages, { role: 'user', content: getPrompt(type) } as Message],
             key: accessToken,
             prompt: "Ensure to follow the instructions exactly.",

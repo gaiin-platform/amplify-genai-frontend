@@ -34,7 +34,6 @@ import { getAllArtifacts, saveArtifact, shareArtifact } from "@/services/artifac
 import { downloadArtifacts, uploadArtifact } from "@/utils/app/artifacts";
 import { EmailsAutoComplete } from "../Emails/EmailsAutoComplete";
 import { Group } from "@/types/groups";
-import { fetchEmailSuggestions } from "@/services/emailAutocompleteService";
 import { includeGroupInfoBox, stringToColor } from "../Emails/EmailsList";
 import { Conversation } from "@/types/chat";
 import React from "react";
@@ -49,7 +48,8 @@ import { getDateName } from "@/utils/app/date";
 
 
 export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts 
-    const {state:{statsService, selectedConversation, selectedArtifacts, artifactIsStreaming, conversations, folders, groups, featureFlags},
+    const {state:{statsService, selectedConversation, selectedArtifacts, artifactIsStreaming, 
+                  conversations, folders, groups, featureFlags, amplifyUsers},
            dispatch:homeDispatch, handleUpdateSelectedConversation} = useContext(HomeContext);
 
     const [selectArtifactList, setSelectArtifactList] = useState<Artifact[]>(selectedArtifacts ?? []);
@@ -120,11 +120,11 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
 
     useEffect(() => {
         const fetchEmails = async () => {
-            const emailSuggestions =  await fetchEmailSuggestions("*");
+            const emailSuggestions =  amplifyUsers;
             // add groups  #groupName
             const groupForMembers = groups.map((group:Group) => `#${group.name}`);
-            setAllEmails(emailSuggestions.emails ? [...emailSuggestions.emails,
-                                                    ...groupForMembers].filter((e: string) => e !== user) : []);
+            setAllEmails(emailSuggestions ? [...emailSuggestions,
+                                             ...groupForMembers].filter((e: string) => e !== user) : []);
         };
         if (!allEmails) fetchEmails();
     }, [open]);

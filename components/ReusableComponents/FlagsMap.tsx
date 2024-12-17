@@ -1,6 +1,7 @@
-import Checkbox from "@/components/ReusableComponents/CheckBox";
+import Checkbox from "./CheckBox";
 
-interface Flag {
+
+export interface Flag {
     label: string;
     key: string;
     defaultValue: boolean;
@@ -25,7 +26,7 @@ export const FlagsMap: React.FC<Props> = ({ id, flags, state, flagChanged }) => 
     return (
       <div>
         {flags.map((flag, index) => (
-          <>
+          <div key={flag.key}>
           <Checkbox
             key={flag.key}
             id={`${id}-${flag.key}`}
@@ -33,8 +34,8 @@ export const FlagsMap: React.FC<Props> = ({ id, flags, state, flagChanged }) => 
             checked={state[flag.key]}
             onChange={(checked) => flagChanged(flag.key, checked)}
           />
-          {flag.description && <div className="mb-2 pl-6 pr-2">{flag.description}</div>}
-          </>
+          {flag.description && <div className="mb-2 pl-6 pr-2" >{flag.description}</div>}
+          </div>
         ))}
       </div>
     );

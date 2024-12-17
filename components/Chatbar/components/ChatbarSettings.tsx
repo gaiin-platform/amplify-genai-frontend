@@ -1,4 +1,4 @@
-import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot } from '@tabler/icons-react';
+import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot, IconUser, IconSettingsBolt } from '@tabler/icons-react';
 import { useContext, useState } from 'react';
 
 
@@ -42,7 +42,7 @@ export const ChatbarSettings = () => {
 
             <SidebarButton
                 text={t('Manage Accounts')}
-                icon={<IconSettings size={18} />}
+                icon={<IconUser size={18} />}
                 onClick={() => {
                     //statsService.setThemeEvent();
                     setIsAccountDialogVisible(true)
@@ -56,6 +56,18 @@ export const ChatbarSettings = () => {
                     onClick={() => {
                         // send trigger to close side bars and open the interface 
                         window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: true }} ));
+                      
+                    }}
+                />
+            }
+
+            {featureFlags.adminInterface &&  
+                <SidebarButton
+                    text={t('Admin Interface')}
+                    icon={<IconSettingsBolt size={18} />}
+                    onClick={() => {
+                        // send trigger to close side bars and open the interface 
+                        window.dispatchEvent(new CustomEvent('openAdminInterfaceTrigger', { detail: { isOpen: true }} ));
                       
                     }}
                 />
@@ -84,11 +96,12 @@ export const ChatbarSettings = () => {
                 }}
             />
 
+            {featureFlags.integrations && 
             <SidebarButton
               text={t('Integrations')}
               icon={<IconBinaryTree2 size={18} />}
               onClick={() => setIsIntegrationsOpen(true)}
-            />
+            />}
 
 
             <SidebarButton
@@ -99,12 +112,12 @@ export const ChatbarSettings = () => {
 
             <IntegrationsDialog open={isIntegrationsOpen} onClose={()=>{setIsIntegrationsOpen(false)}}/>
 
-            <SettingDialog
+            {isSettingDialogOpen && <SettingDialog
                 open={isSettingDialogOpen}
                 onClose={() => {
                     setIsSettingDialog(false);
                 }}
-            />
+            />}
 
             <AccountDialog
                 open={isAccountDialogVisible}

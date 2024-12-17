@@ -22,7 +22,7 @@ interface Props {
 
 export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
   const { t } = useTranslation('settings');
-  const { dispatch: homeDispatch, state: { statsService, featureFlags, models } } = useContext(HomeContext);
+  const { dispatch: homeDispatch, state: { statsService} } = useContext(HomeContext);
   const [connectedIntegrations, setConnectedIntegrations] = useState<string[]>([]);
   const [loadingStates, setLoadingStates] = useState<{[key: string]: boolean}>({});
   const [loadingIntegrations, setLoadingIntegrations] = useState(true);
@@ -154,8 +154,8 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
 
   return (
     <Modal
-      width={window.innerWidth * 0.62}
-      height={window.innerHeight * 0.88}
+      width={() => window.innerWidth * 0.62}
+      height={() => window.innerHeight * 0.88}
       title={'Integrations'}
       showCancel={false}
       onCancel={onClose}

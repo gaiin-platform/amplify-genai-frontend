@@ -30,24 +30,16 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
         showPluginSelectRef.current = showPluginSelect;
       }, [showPluginSelect]);
 
-    //   //ensures within bounds 
-    //   useEffect(() => {
-        
-    //   }, [showPluginSelect]);
-
 
     useEffect(() => {
+        const events = ['openAstAdminInterfaceTrigger','openAdminInterfaceTrigger', 'openArtifactsTrigger'];
         const handleEvent = (event:any) => {
             const isInterfaceOpen = event.detail.isOpen;
             setHide(isInterfaceOpen);
         };
-        window.addEventListener('openAstAdminInterfaceTrigger', handleEvent);
-        window.addEventListener('openArtifactsTrigger', handleEvent);
-    
-        return () => {
-            window.removeEventListener('openAstAdminInterfaceTrigger', handleEvent);
-            window.removeEventListener('openArtifactsTrigger', handleEvent);
-        };
+
+        events.forEach((e: string) =>  window.addEventListener(e, handleEvent));
+        return () => events.forEach((e: string) =>  window.removeEventListener(e, handleEvent));
     }, []);
 
 

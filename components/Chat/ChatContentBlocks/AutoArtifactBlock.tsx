@@ -5,12 +5,12 @@ import {Conversation, Message, newMessage} from "@/types/chat";
 import {getSession} from "next-auth/react"
 import {deepMerge} from "@/utils/app/state";
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";
-import { ModelID, Models } from "@/types/model";
 import { IconHammer } from "@tabler/icons-react";
 import { Artifact, ArtifactBlockDetail, ArtifactMessageStatus, validArtifactTypes } from "@/types/artifacts";
 import { lzwCompress, lzwUncompress } from "@/utils/app/lzwCompression";
 import { getDateName } from "@/utils/app/date";
 import { fixJsonString } from "@/utils/app/errorHandling";
+import { DefaultModels } from "@/types/model";
 
 
 interface Props {
@@ -27,10 +27,9 @@ const AutoArtifactsBlock: React.FC<Props> = ({content, ready, message}) => {
             folders,
             statsService,
             chatEndpoint,
-            artifactIsStreaming
-
+            artifactIsStreaming,
         },
-        dispatch: homeDispatch, handleUpdateSelectedConversation
+        dispatch: homeDispatch, handleUpdateSelectedConversation, getDefaultModel
     } = useContext(HomeContext);
 
     const [llmPrompted, setLlmPrompted]  = useState<boolean>(false);
@@ -135,7 +134,8 @@ If you provide a ~# then assume I will insert the context for that specific refe
 `;
 
 const repairJson = async () => {
-    const fixedJson: string | null = await fixJsonString(chatEndpoint || "", statsService, content, "Failed to create artifact, attempting to fix...");
+    const model = getDefaultModel(DefaultModels.ADVANCED);
+    const fixedJson: string | null = await fixJsonString( model, chatEndpoint || "", statsService, content, "Failed to create artifact, attempting to fix...");
      // try to repair json
      if (fixedJson) {
         message.data.artifactStatus = ArtifactMessageStatus.RETRY;   
@@ -299,7 +299,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             homeDispatch({field: "selectedArtifacts", value: selectArtifacts});
             
             const chatBody = {
-            model: selectedConversation.model || Models[ModelID.GPT_4o_AZ],
+            model: selectedConversation.model ?? getDefaultModel(DefaultModels.ADVANCED),
             messages: [{role: 'user', content: llmInstructions} as Message],
             key: accessToken,
             prompt: ARTIFACT_CUSTOM_INSTRUCTIONS,

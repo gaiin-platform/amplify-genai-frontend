@@ -1,3 +1,7 @@
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/state";
+
 const saveState = async(user:string, name:string, data:any) => {
     try {
         const response = await fetch("api/state", {
