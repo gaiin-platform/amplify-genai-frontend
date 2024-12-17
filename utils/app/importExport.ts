@@ -17,6 +17,7 @@ import { saveConversations } from './conversation';
 import { savePrompts } from './prompts';
 import { saveFolders } from './folders';
 import { getDate } from './date';
+import { Model } from '@/types/model';
 export function isExportFormatV1(obj: any): obj is ExportFormatV1 {
   return Array.isArray(obj);
 }
@@ -35,11 +36,11 @@ export function isExportFormatV4(obj: any): obj is ExportFormatV4 {
 
 export const isLatestExportFormat = isExportFormatV4;
 
-export function cleanData(data: SupportedExportFormats): LatestExportFormat {
+export function cleanData(data: SupportedExportFormats, defaultModel: Model): LatestExportFormat {
   if (isExportFormatV1(data)) {
     return {
       version: 4,
-      history: cleanConversationHistory(data),
+      history: cleanConversationHistory(data, defaultModel),
       folders: [],
       prompts: [],
     };
@@ -48,7 +49,7 @@ export function cleanData(data: SupportedExportFormats): LatestExportFormat {
   if (isExportFormatV2(data)) {
     return {
       version: 4,
-      history: cleanConversationHistory(data.history || []),
+      history: cleanConversationHistory(data.history || [], defaultModel),
       folders: (data.folders || []).map((chatFolder) => ({
         id: chatFolder.id.toString(),
         date: getDate(),
@@ -120,8 +121,8 @@ export const exportData = async (conversations: Conversation[], prompts: Prompt[
   URL.revokeObjectURL(url);
 };
 
-export const importData = ( data: SupportedExportFormats, oldConversations: Conversation[], oldPrompts: Prompt[], oldFolders: FolderInterface[]): LatestExportFormat => {
-  const { history, folders, prompts } = cleanData(data);
+export const importData = ( data: SupportedExportFormats, oldConversations: Conversation[], oldPrompts: Prompt[], oldFolders: FolderInterface[], defaultModel: Model): LatestExportFormat => {
+  const { history, folders, prompts } = cleanData(data, defaultModel);
 
   const newHistory: Conversation[] = [
     ...oldConversations,

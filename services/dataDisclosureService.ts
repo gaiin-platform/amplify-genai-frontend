@@ -1,3 +1,8 @@
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/data-disclosure";
+
+
 export const checkDataDisclosureDecision = async (email: string, abortSignal = null) => {
     const response = await fetch('/api/datadisclosure/check', {
         signal: abortSignal,
@@ -35,3 +40,15 @@ export const getLatestDataDisclosure = async (abortSignal = null) => {
     }
     return response.json();
 };
+
+
+
+export const uploadDataDisclosure = async (content_md5:string) => {
+    const op = {
+        data: {md5: content_md5},
+        method: 'POST',
+        path: URL_PATH,
+        op: '/upload',
+    };
+    return await doRequestOp(op);
+}

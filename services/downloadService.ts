@@ -1,4 +1,8 @@
 import {ExportFormatV4} from "@/types/export";
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/chat";
+
 
 const failureResponse = (reason: string) => {
     return {

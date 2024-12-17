@@ -4,10 +4,11 @@ import {Workspace} from "@/types/workspace";
 const STORAGE_KEY = 'settings';
 
 export const getSettings = (featureFlags:any): Settings => {
+  // filter settings to ensure all models are still available 
   let settings: Settings = {
     theme: 'dark',
     featureOptions: featureOptionDefaults(featureFlags),
-    modelOptions: modelOptionDefaults
+    hiddenModelIds: []
   };
   const settingsJson = localStorage.getItem(STORAGE_KEY);
   if (settingsJson) {
@@ -41,7 +42,7 @@ export const featureOptionFlags = [
   {
       "label": "Smart Focused Messages",
       "key": "includeFocusedMessages",
-      "defaultValue": false,
+      "defaultValue": true,
       "description" : "Automatically filter and send only the most relevant messages from the conversation based on the current user prompt. Instead of sending the entire conversation history, this feature ensures that only the messages closely related to your request are shared, making responses more efficient."
   },
   {
@@ -74,27 +75,6 @@ const featureOptionDefaults = (featureFlags:any) =>  featureOptionFlags.reduce((
 }, {});
 
 
-export const modelOptionFlags = [
-{
-  "label": "OpenAI",
-  "key": "allOpenAI",
-  "defaultValue": true
-},
-{
-    "label": "Claude",
-    "key": "allClaude",
-    "defaultValue": true
-},
-{
-    "label": "Mistral",
-    "key": "allMistral",
-    "defaultValue": true
-},
-];
 
-const modelOptionDefaults = modelOptionFlags.reduce((acc:{[key:string]:boolean}, x) => {
-  acc[x.key] = x.defaultValue;
-  return acc;
-}, {});
 
 

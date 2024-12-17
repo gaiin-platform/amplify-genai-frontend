@@ -6,7 +6,6 @@ import React, { useContext, useEffect, useRef } from "react";
 import { useState } from "react";
 import { HighlightPromptTypes, highlightSource } from "@/types/highlightTextPrompts";
 import { getSession } from "next-auth/react";
-import { ModelID, Models } from "@/types/model";
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";
 import { DEFAULT_ASSISTANT } from "@/types/assistant";
 import { deepMerge } from "@/utils/app/state";
@@ -14,6 +13,7 @@ import cloneDeep from 'lodash/cloneDeep';
 import { Artifact } from "@/types/artifacts";
 import { lzwCompress } from "@/utils/app/lzwCompression";
 import toast from "react-hot-toast";
+import { DefaultModels } from "@/types/model";
 
 
 interface CompositeButton {
@@ -99,8 +99,8 @@ const HIGHLIGHT_BACKGROUND = 'rgba(129, 192, 255, 0.4)';
 
 export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
     const {state:{statsService, selectedConversation, selectedAssistant, selectedArtifacts, messageIsStreaming, artifactIsStreaming, 
-                  chatEndpoint, currentRequestId, conversations, folders, groups, defaultModelId},  
-           dispatch:homeDispatch, handleUpdateSelectedConversation} = useContext(HomeContext);
+                  chatEndpoint, currentRequestId, conversations},  
+           dispatch:homeDispatch, handleUpdateSelectedConversation, getDefaultModel} = useContext(HomeContext);
     
     const [showComponent, setShowComponent] = useState<boolean>(false);
 
@@ -997,7 +997,7 @@ const handleParagraphSelection = (range: Range) => {
     if (isArtifactSource) homeDispatch({field: 'artifactIsStreaming', value: true});
     try {
         const chatBody = {
-            model: selectedConversation ? selectedConversation.model : Models[defaultModelId ?? ModelID.GPT_4o_MINI],
+            model: selectedConversation?.model ?? getDefaultModel(DefaultModels.DEFAULT),
             messages: [message],
             key: accessToken,
             prompt: prompt,
@@ -1087,7 +1087,7 @@ const handleParagraphSelection = (range: Range) => {
         }
 
     } catch (e) {
-        console.error("Error prompting for qi summary: ", e);
+        console.error("Error prompting for prompt highlighting: ", e);
         alert("We are unable to fulfill your request at this time, please try again later.");
     } 
     homeDispatch({field: 'messageIsStreaming', value: false}); 

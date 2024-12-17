@@ -1,6 +1,6 @@
+import { doRequestOp } from "./doRequestOp";
 
-
-
+const URL_PATH = "/artifacts";
 
 export const getArtifact = async (artifactKey: string, abortSignal = null) => {
     

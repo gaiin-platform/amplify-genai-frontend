@@ -86,12 +86,15 @@ interface MenuItemsProps {
   xShift?: number;
   children: (React.ReactElement<ItemProps> | React.ReactElement<ItemProps>[] |
              React.ReactElement<ActionProps> | React.ReactElement<ActionProps>[] |
-             React.ReactElement<MenuItemsProps> | React.ReactElement<MenuItemsProps>[]); 
+             React.ReactElement<MenuItemsProps> | React.ReactElement<MenuItemsProps>[]) | React.ReactNode; 
   minWidth?: number;
 }
 
 export const KebabMenuItems: FC<MenuItemsProps> = ({ label, xShift=220, minWidth=72, children}) => {
-  const childrenArray = React.Children.toArray(children) as React.ReactElement<ItemProps | ActionProps | MenuItemsProps>[];
+  // const childrenArray = React.Children.toArray(children) as React.ReactElement<ItemProps | ActionProps | MenuItemsProps>[];
+  const childrenArray = React.Children.toArray(children)
+                             .filter(Boolean) as React.ReactElement<ItemProps | ActionProps | MenuItemsProps>[];
+
   const [isSubMenuVisible, setIsSubMenuVisible] = useState<boolean>(false);
 
   const xShiftPercentage = `-${xShift}%`;

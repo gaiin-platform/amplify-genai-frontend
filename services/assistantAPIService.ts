@@ -1,3 +1,7 @@
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/assistant-api";
+
 export const executeAssistantApiCall = async (data: any) => {
     try {
         // console.log("DATA:", data);

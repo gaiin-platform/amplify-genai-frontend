@@ -1,3 +1,6 @@
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/optimizer";
 
 
 const failureResponse = (reason: string) => {

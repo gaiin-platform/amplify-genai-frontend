@@ -1,4 +1,7 @@
 import {AttachedDocument} from "@/types/attacheddocument";
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/files";
 
 
 const uploadFileToS3 = (

@@ -1,6 +1,9 @@
 import { Conversation } from "@/types/chat";
 import { FolderInterface } from "@/types/folder";
 import { compressConversation, saveConversations, uncompressConversation } from "@/utils/app/conversation";
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/state";
 
 
 export const uploadConversation = async (conversation: Conversation, folders: FolderInterface[], abortSignal = null) => {

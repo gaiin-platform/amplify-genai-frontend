@@ -9,7 +9,6 @@ import { saveConversations } from '@/utils/app/conversation';
 
 import { Conversation } from '@/types/chat';
 import { SupportedExportFormats } from '@/types/export';
-import { ModelID, Models, fallbackModelID } from '@/types/model';
 
 import HomeContext from '@/pages/api/home/home.context';
 
@@ -27,6 +26,7 @@ import { uncompressMessages } from '@/utils/app/messages';
 import { getDateName } from '@/utils/app/date';
 import React from 'react';
 import Sidebar from '../Sidebar/Sidebar';
+import { DefaultModels } from '@/types/model';
 
 
 export const Chatbar = () => {
@@ -37,12 +37,13 @@ export const Chatbar = () => {
   });
 
   const {
-    state: { conversations, showChatbar, defaultModelId, statsService, folders, storageSelection},
+    state: { conversations, showChatbar, statsService, folders, storageSelection},
     dispatch: homeDispatch,
     handleCreateFolder,
     handleNewConversation,
     handleUpdateConversation,
-    handleSelectConversation
+    handleSelectConversation,
+    getDefaultModel
   } = useContext(HomeContext);
 
   const conversationsRef = useRef(conversations);
@@ -113,11 +114,13 @@ export const Chatbar = () => {
           folder = handleCreateFolder(date, "chat");
       }
       
+      // const resolveModel = lastConversation?.model ? lastConversation.model
+
       const newConversation: Conversation = {
         id: uuidv4(),
         name: t('New Conversation'),
         messages: [],
-        model: lastConversation?.model ?? Models[defaultModelId as ModelID],
+        model: lastConversation?.model ?? getDefaultModel(DefaultModels.DEFAULT),
         prompt: DEFAULT_SYSTEM_PROMPT,
         temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
         folderId: folder.id,
@@ -131,7 +134,6 @@ export const Chatbar = () => {
     handleSelectConversation(selectedConversation);
 
     } else {
-      defaultModelId &&
       homeDispatch({
           field: 'selectedConversation',
           value: {

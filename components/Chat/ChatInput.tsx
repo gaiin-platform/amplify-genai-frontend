@@ -27,7 +27,7 @@ import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
 import HomeContext from '@/pages/api/home/home.context';
 import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
-import {Model, ModelID} from "@/types/model";
+import {DefaultModels, Model} from "@/types/model";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
@@ -71,8 +71,8 @@ export const ChatInput = ({
     const {killRequest} = useChatService();
 
     const {
-        state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming, prompts, models,  featureFlags, currentRequestId, chatEndpoint, statsService},
-
+        state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming, prompts,  featureFlags, currentRequestId, chatEndpoint, statsService, availableModels},
+        getDefaultModel,
         dispatch: homeDispatch
     } = useContext(HomeContext);
 
@@ -85,7 +85,7 @@ export const ChatInput = ({
         return '100%';
     };
 
-    const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
+    const filteredModels = filterModels(availableModels, getSettings(featureFlags).hiddenModelIds);
     
     const [chatContainerWidth, setChatContainerWidth] = useState(updateSize());
 
@@ -212,7 +212,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
-        const maxLength = selectedConversation?.model?.maxLength;
+        const maxLength =  selectedConversation?.model?.inputContextWindow;
 
         if (maxLength && value.length > maxLength) {
             alert(
@@ -274,7 +274,7 @@ const onAssistantChange = (assistant: Assistant) => {
             return;
         }
 
-        const maxLength = selectedConversation?.model?.maxLength;
+        const maxLength = selectedConversation?.model?.inputContextWindow;
 
         if (maxLength && content.length > maxLength) {
             alert(
@@ -298,7 +298,7 @@ const onAssistantChange = (assistant: Assistant) => {
                 msg.content = extractDocumentsLocally ?
                     handleAppendDocumentsToContent(content, documents) : content;
 
-                const maxLength = selectedConversation?.model.maxLength;
+                const maxLength = selectedConversation?.model.inputContextWindow;
 
                 if (maxLength && msg.content.length > maxLength) {
                     alert(
@@ -570,7 +570,7 @@ const onAssistantChange = (assistant: Assistant) => {
         setShowMessageSelectDialog(false);
         setIsQiLoading(true);
         setShowQiDialog(true); 
-        const summary = await createQiSummary(chatEndpoint || '', conversation, QiSummaryType.CONVERSATION, statsService);
+        const summary = await createQiSummary(chatEndpoint || '', getDefaultModel(DefaultModels.CHEAPEST), conversation, QiSummaryType.CONVERSATION, statsService);
         setQiSummary(summary);
         setIsQiLoading(false); 
     }
@@ -706,10 +706,9 @@ const onAssistantChange = (assistant: Assistant) => {
                         {/*    <IconRobot size={20}/>*/}
                         {/*</button>*/}
 
-                        <AttachFile id="__attachFile"                                                     //  Mistral and pgt 3.5 do not support image files 
-                                    disallowedFileExtensions={[ ...COMMON_DISALLOWED_FILE_EXTENSIONS, ...(selectedConversation?.model?.id.startsWith("mistral") ||
-                                                                                                          selectedConversation?.model?.id === ModelID.GPT_3_5_AZ 
-                                                                                                                              ? ["jpg","png","gif", "jpeg", "webp"] : []) ]} 
+                        <AttachFile id="__attachFile"                                                     //  Mistral and gpt 3.5 do not support image files 
+                                    disallowedFileExtensions={[ ...COMMON_DISALLOWED_FILE_EXTENSIONS, ...(selectedConversation?.model?.supportsImages 
+                                                                                                          ? [] : ["jpg","png","gif", "jpeg", "webp"] ) ]} 
                                     onAttach={addDocument}
                                     onSetMetadata={handleSetMetadata}
                                     onSetKey={handleSetKey}
