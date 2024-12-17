@@ -1,3 +1,7 @@
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/state";
+
 export const fetchUserSettings = async (abortSignal = null) => {
     
     const response = await fetch('/api/settings/op' + `?path=${encodeURIComponent("/get")}`, {

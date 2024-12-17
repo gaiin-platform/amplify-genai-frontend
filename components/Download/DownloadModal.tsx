@@ -56,7 +56,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
         showInclude = true,
     }) => {
     const {
-        state: {prompts, conversations, folders, statsService, selectedConversation},
+        state: {prompts, conversations, folders, statsService, selectedConversation, powerPointTemplateOptions},
     } = useContext(HomeContext);
 
     const promptsRef = useRef(prompts);
@@ -103,18 +103,6 @@ export const DownloadModal: FC<DownloadModalProps> = (
     const [conversationsChecked, setConversationsChecked] = useState(false);
     const [foldersChecked, setFoldersChecked] = useState(false);
 
-    const powerPointTemplateOptions = [
-        "none",
-        "vanderbilt_1.pptx",
-        "celestial.pptx",
-        "frame.pptx",
-        "gallery.pptx",
-        "integral.pptx",
-        "ion.pptx",
-        "parcel.pptx",
-        "vapor.pptx",
-        "vusn.pptx",
-    ];
 
     const wordTemplateOptions = [
         "none",
@@ -452,9 +440,10 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                         <select
                                             className={shadow}
                                             onChange={(e) => {
-                                                if(e.target.value === 'pptx'){
+                                                if(e.target.value === 'pptx' && powerPointTemplateOptions.length > 0){
                                                     setTemplateOptions(powerPointTemplateOptions);
-                                                    setTemplateSelection("vanderbilt_1.pptx");
+                                                    const defaultTemplate = powerPointTemplateOptions.includes("vanderbilt_1.pptx") ? "vanderbilt_1.pptx" : powerPointTemplateOptions[0];
+                                                    setTemplateSelection(defaultTemplate);
                                                 }
                                                 else {
                                                     setTemplateOptions(wordTemplateOptions);
@@ -465,7 +454,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                             value={format}
                                         >
                                             <option value="docx">Word</option>
-                                            <option value="pptx">PowerPoint</option>
+                                            { powerPointTemplateOptions.length > 0 && <option value="pptx">PowerPoint</option>}
                                         </select>
                                         </div>
 

@@ -3,13 +3,13 @@ import { useContext, useEffect, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
-import { Model, ModelID } from '@/types/model';
+import { Model } from '@/types/model';
 
 import HomeContext from '@/pages/api/home/home.context';
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 interface Props {
-  modelId: ModelID | undefined;
+  modelId: string | undefined;
   isDisabled?: boolean;
   handleModelChange?: (e: string) => void
   isTitled?: boolean;
@@ -20,12 +20,12 @@ interface Props {
 export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleModelChange, isTitled=true, disableMessage = "Model has been predetermined and can not be changed"}) => {
   const { t } = useTranslation('chat');
   const {
-    state: { selectedConversation, models,  defaultModelId, featureFlags},
+    state: { selectedConversation, defaultModelId, featureFlags, availableModels},
     handleUpdateConversation,
   } = useContext(HomeContext);
 
-  const [selectModel, setSelectModel] = useState<ModelID | undefined>(modelId ?? defaultModelId);
-  const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
+  const [selectModel, setSelectModel] = useState<string | undefined>(modelId ?? defaultModelId);
+  const filteredModels = filterModels(availableModels, getSettings(featureFlags).hiddenModelIds);
 
   useEffect(()=>{
     setSelectModel(modelId);
@@ -41,12 +41,12 @@ export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleM
       selectedConversation &&
       handleUpdateConversation(selectedConversation, {
         key: 'model',
-        value: models.find(
+        value: filteredModels.find(
           (model: Model) => model.id === updatedModel,
         ),
       });
     }
-    setSelectModel(updatedModel as ModelID);
+    setSelectModel(updatedModel);
     
   };
   

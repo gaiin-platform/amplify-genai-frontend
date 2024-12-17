@@ -17,7 +17,7 @@ interface Props {
   submitLabel?: string;
 }
 
-  export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{}, submitLabel="Submit", showButtons=true}) => {
+  export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{}, submitLabel="Submit", showButtons=true, showCancel=true, showSubmit=true}) => {
 
 
  const modalRef = useRef<HTMLDivElement>(null);

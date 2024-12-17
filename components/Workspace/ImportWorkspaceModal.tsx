@@ -13,6 +13,7 @@ import {useSession} from "next-auth/react";
 import { conversationWithCompressedMessages, conversationWithUncompressedMessages, saveConversations, uncompressConversation } from "@/utils/app/conversation";
 import { saveFolders } from "@/utils/app/folders";
 import { savePrompts } from "@/utils/app/prompts";
+import { DefaultModels } from "@/types/model";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -62,7 +63,8 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
             workspaceMetadata,
             workspaceDirty},
         dispatch: homeDispatch,
-        clearWorkspace
+        clearWorkspace, 
+        getDefaultModel
     } = useContext(HomeContext);
 
     const foldersRef = useRef(localFolders);
@@ -71,18 +73,6 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
         foldersRef.current = localFolders;
     }, [localFolders]);
 
-    // const promptsRef = useRef(localPrompts);
-
-    // useEffect(() => {
-    //     promptsRef.current = localPrompts;
-    //   }, [localPrompts]);
-
-
-    // const conversationsRef = useRef(localConversations);
-
-    // useEffect(() => {
-    //     conversationsRef.current = localConversations;
-    // }, [localConversations]);
 
     const updatedWorkspaceMetadata = {
         ...workspaceMetadata,
@@ -230,7 +220,7 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
 
         console.log("Cleaned up export: ", cleanedUpExport);
 
-        const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport, [], [], [] );
+        const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport, [], [], [], getDefaultModel(DefaultModels.DEFAULT)  );
 
         // console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);
 

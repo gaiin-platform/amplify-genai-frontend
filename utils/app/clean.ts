@@ -1,9 +1,9 @@
 import { Conversation } from '@/types/chat';
-import { ModelID, Models } from '@/types/model';
 
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from './const';
+import { Model } from '@/types/model';
 
-export const cleanSelectedConversation = (conversation: Conversation) => {
+export const cleanSelectedConversation = (conversation: Conversation, defaultModel: Model) => {
   // added model for each conversation (3/20/23)
   // added system prompt for each conversation (3/21/23)
   // added folders (3/23/23)
@@ -16,7 +16,7 @@ export const cleanSelectedConversation = (conversation: Conversation) => {
   if (!updatedConversation.model) {
     updatedConversation = {
       ...updatedConversation,
-      model: updatedConversation.model || Models[ModelID.GPT_3_5],
+      model: updatedConversation.model || defaultModel,
     };
   }
 
@@ -52,7 +52,7 @@ export const cleanSelectedConversation = (conversation: Conversation) => {
   return updatedConversation;
 };
 
-export const cleanConversationHistory = (history: any[]): Conversation[] => {
+export const cleanConversationHistory = (history: any[], defaultModel: Model): Conversation[] => {
 
   if (!Array.isArray(history)) {
     console.warn('history is not an array. Returning an empty array.');
@@ -62,7 +62,7 @@ export const cleanConversationHistory = (history: any[]): Conversation[] => {
   return history.reduce((acc: any[], conversation) => {
     try {
       if (!conversation.model) {
-        conversation.model = Models[ModelID.GPT_3_5];
+        conversation.model = defaultModel;
       }
 
       if (!conversation.prompt) {

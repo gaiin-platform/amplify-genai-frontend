@@ -8,7 +8,6 @@ import { Group, GroupAccessType, AstGroupTypeData, GroupUpdateType, Members } fr
 import { createEmptyPrompt } from '@/utils/app/prompts';
 import { useSession } from 'next-auth/react';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
-import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
 import { createAstAdminGroup, deleteAstAdminGroup, updateGroupAssistants, updateGroupMembers, updateGroupMembersPermissions, updateGroupTypes } from '@/services/groupsService';
 import Search from '../Search';
 import { TagsList } from '../Chat/TagsList';
@@ -22,7 +21,6 @@ import {ExistingFileList, FileList} from "@/components/Chat/FileList";
 import { ModelSelect } from '../Chat/ModelSelect';
 import { getDate, getDateName } from '@/utils/app/date';
 import { FolderInterface } from '@/types/folder';
-import { ModelID } from '@/types/model';
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { getGroupAssistantConversations } from '@/services/groupAssistantService';
 import { getGroupAssistantDashboards } from '@/services/groupAssistantService';
@@ -33,6 +31,7 @@ import { LoadingDialog } from '../Loader/LoadingDialog';
 import { InfoBox } from '../ReusableComponents/InfoBox';
 import { includeGroupInfoBox } from '../Emails/EmailsList';
 import Checkbox from '../ReusableComponents/CheckBox';
+import { AMPLIFY_ASSISTANTS_GROUP_NAME } from '@/utils/app/amplifyAssistants';
 
 
 interface Conversation {
@@ -884,7 +883,7 @@ interface Props {
 }
 
 export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant }) => {
-    const { state: { featureFlags, statsService, groups, prompts, folders, syncingPrompts}, dispatch: homeDispatch } = useContext(HomeContext);
+    const { state: { featureFlags, statsService, groups, prompts, folders, syncingPrompts, amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
     const user = session?.user?.email ?? "";
 
@@ -935,11 +934,11 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
     useEffect(() => {
         const fetchEmails = async () => {
-            const emailSuggestions =  await fetchEmailSuggestions("*");
+            const emailSuggestions = amplifyUsers;
             // add groups  #groupName
             const groupForMembers = groups.map((group:Group) => `#${group.name}`);
-            setAllEmails(emailSuggestions.emails ? [...emailSuggestions.emails,
-                                                    ...groupForMembers].filter((e: string) => e !== user) : []);
+            setAllEmails(emailSuggestions ? [...emailSuggestions,
+                                             ...groupForMembers].filter((e: string) => e !== user) : []);
         };
         if (!allEmails) fetchEmails();
     }, [open]);
@@ -1042,6 +1041,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         console.log(group);
         if (!group.group_name) {
             alert("Group name is required. Please add a group name to create the group.");
+            return;
+        }
+        if (group.group_name === AMPLIFY_ASSISTANTS_GROUP_NAME) {
+            alert(`The group name ${AMPLIFY_ASSISTANTS_GROUP_NAME} isn't available. Please choose a different group name.`);
             return;
         }
         setLoadingMessage("Creating Group...");

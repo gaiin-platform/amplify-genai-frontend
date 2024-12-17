@@ -1,6 +1,5 @@
 import React, { useState, FC, useCallback, useRef, useEffect, useContext } from 'react';
 import { IconCircleX, IconInfoCircle, IconPlus } from '@tabler/icons-react';
-import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
 import debounce from 'lodash.debounce';
 import { EmailsAutoComplete } from './EmailsAutoComplete';
 import { setEngine } from 'crypto';
@@ -109,7 +108,7 @@ export const EmailsList: FC<Props> = ({
     label = "Emails",
     addMessage = "Enter emails separated by commas:",
 }) => {
-    const { state: {groups}, dispatch: homeDispatch } = useContext(HomeContext);
+    const { state: {groups, amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
 
     const [input, setInput] = useState<string>('');
     const [showModal, setShowModal] = useState<boolean>(false);
@@ -120,14 +119,14 @@ export const EmailsList: FC<Props> = ({
 
     useEffect(() => {
         const fetchEmails = async () => {
-            const emailSuggestions =  await fetchEmailSuggestions("*");
+            const emailSuggestions =  amplifyUsers;
             //  API sytem users
             const apiSysIds = await fetchAllSystemIds();
             const sysIds = apiSysIds.map((k: any) => k.systemId).filter((k: any) => k);
             // add groups  #groupName
             const groupForMembers = groups.map((group:Group) => `#${group.name}`);
-            setAllEmails(emailSuggestions.emails ? [...emailSuggestions.emails, ...groupForMembers, 
-                                                    ...sysIds].filter((e: string) => e !== user)
+            setAllEmails(emailSuggestions ? [...emailSuggestions, ...groupForMembers, 
+                                             ...sysIds].filter((e: string) => e !== user)
                                                     : []);
         };
         if (!allEmails) fetchEmails();

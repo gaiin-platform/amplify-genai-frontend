@@ -8,7 +8,7 @@ import {Plugin, PluginID} from '@/types/plugin';
 
 import {useSession} from "next-auth/react"
 import json5 from "json5";
-import {Model, ModelID, Models} from "@/types/model";
+import {DefaultModels, Model} from "@/types/model";
 import {newStatus} from "@/types/workflow";
 import {ReservedTags} from "@/types/tags";
 import {deepMerge} from "@/utils/app/state";
@@ -44,7 +44,7 @@ export type ChatRequest = {
 export function useSendService() {
     const {
         state: {selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService},
-        handleUpdateConversation,
+        handleUpdateConversation, getDefaultModel,
         postProcessingCallbacks,
         dispatch:homeDispatch,
     } = useContext(HomeContext);
@@ -75,45 +75,45 @@ export function useSendService() {
 
     const {getPrefix} = usePromptFinderService();
 
-    const calculateTokenCost = (chatModel: Model, datasources: AttachedDocument[]) => {
-        let cost = 0;
+    // const calculateTokenCost = (chatModel: Model, datasources: AttachedDocument[]) => {
+    //     let cost = 0;
 
-        datasources.forEach((doc) => {
-            if (doc.metadata?.totalTokens) {
-                cost += doc.metadata.totalTokens;
-            }
-        });
+    //     datasources.forEach((doc) => {
+    //         if (doc.metadata?.totalTokens) {
+    //             cost += doc.metadata.totalTokens;
+    //         }
+    //     });
 
-        const model = Models[chatModel.id as ModelID];
-        if (!model) {
-            return {
-                prompts: -1,
-                inputTokens: cost,
-                inputCost: -1,
-                outputCost: -1,
-                totalCost: -1
-            };
-        }
+    //     const model = Models[chatModel.id as ModelID];
+    //     if (!model) {
+    //         return {
+    //             prompts: -1,
+    //             inputTokens: cost,
+    //             inputCost: -1,
+    //             outputCost: -1,
+    //             totalCost: -1
+    //         };
+    //     }
 
-        const contextWindow = model.actualTokenLimit;
-        // calculate cost / context window rounded up
-        const prompts = Math.ceil(cost / contextWindow);
+    //     const contextWindow = model.actualTokenLimit;
+    //     // calculate cost / context window rounded up
+    //     const prompts = Math.ceil(cost / contextWindow);
 
-        console.log("Prompts", prompts, "Cost", cost, "Context Window", contextWindow);
+    //     console.log("Prompts", prompts, "Cost", cost, "Context Window", contextWindow);
 
-        const outputCost = prompts * model.outputCost;
-        const inputCost = (cost / 1000) * model.inputCost;
+    //     const outputCost = prompts * model.outputCost;
+    //     const inputCost = (cost / 1000) * model.inputCost;
 
-        console.log("Input Cost", inputCost, "Output Cost", outputCost);
+    //     console.log("Input Cost", inputCost, "Output Cost", outputCost);
 
-        return {
-            prompts: prompts,
-            inputCost: inputCost.toFixed(2),
-            inputTokens: cost,
-            outputCost: outputCost.toFixed(2),
-            totalCost: (inputCost + outputCost).toFixed(2)
-        };
-    }
+    //     return {
+    //         prompts: prompts,
+    //         inputCost: inputCost.toFixed(2),
+    //         inputTokens: cost,
+    //         outputCost: outputCost.toFixed(2),
+    //         totalCost: (inputCost + outputCost).toFixed(2)
+    //     };
+    // }
 
     const handleSend = useCallback(
         async (request:ChatRequest, shouldAbort:()=>boolean) => {
@@ -147,21 +147,21 @@ export function useSendService() {
                         && selectedConversation?.model
                         && !options?.ragOnly) {
 
-                        const {prompts, inputCost, inputTokens, outputCost, totalCost} =
-                            calculateTokenCost(selectedConversation.model, documents || []);
+                        // const {prompts, inputCost, inputTokens, outputCost, totalCost} =
+                        //     calculateTokenCost(selectedConversation.model, documents || []);
 
-                        if (totalCost === -1 && inputTokens > 4000) {
-                            const go = confirm(`This request will require ${inputTokens} input tokens at an unknown cost.`);
-                            if (!go) {
-                                return;
-                            }
-                        }
-                        if (+totalCost > 0.5) {
-                            const go = confirm(`This request will cost an estimated $${totalCost} (the actual cost may be more) and require ${prompts} prompt(s).`);
-                            if (!go) {
-                                return;
-                            }
-                        }
+                        // if (totalCost === -1 && inputTokens > 4000) {
+                        //     const go = confirm(`This request will require ${inputTokens} input tokens at an unknown cost.`);
+                        //     if (!go) {
+                        //         return;
+                        //     }
+                        // }
+                        // if (+totalCost > 0.5) {
+                        //     const go = confirm(`This request will cost an estimated $${totalCost} (the actual cost may be more) and require ${prompts} prompt(s).`);
+                        //     if (!go) {
+                        //         return;
+                        //     }
+                        // }
                     }
 
                     let updatedConversation: Conversation;
@@ -181,6 +181,11 @@ export function useSendService() {
                         };
                     }
                     console.log("updated: ", updatedConversation.messages);
+
+                    if (!updatedConversation.model) {
+                        console.log("WARNING: MODEL IS UNDEFINED SETTING TO DEFAULT: ", getDefaultModel(DefaultModels.DEFAULT));       
+                    }
+
                     homeDispatch({
                         field: 'selectedConversation',
                         value: updatedConversation,
@@ -191,7 +196,8 @@ export function useSendService() {
 
                     const settings = getSettings(featureFlags);
                     // if both artifact and smart messages is off then it returnes with the messages right away 
-                    const prepareMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService, featureFlags, homeDispatch, settings.featureOptions);
+                    const prepareMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService, featureFlags, homeDispatch, 
+                                                                     settings.featureOptions, getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST));
                     
                     const chatBody: ChatBody = {
                         model: updatedConversation.model, 
@@ -207,6 +213,7 @@ export function useSendService() {
                     }
 
                     if (featureFlags.artifacts) {
+                        // account for plugin on/off features 
                         const astFeatureOptions = message.data?.assistant?.definition?.featureOptions;
                         //option A
                             // either there is no options defined or there is and it needs to be true 

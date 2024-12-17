@@ -1,139 +1,78 @@
+import { doRequestOp } from "./doRequestOp";
 
+const URL_PATH = "/amplifymin";
 
-export const updateAdminConfigs = async (configs: any[], abortSignal = null) => {
+export const updateAdminConfigs = async (configs: any[]) => {
     const op = {
-        op: '/configs/update',
-        data: {
-            configurations: configs
-        },
-        method: 'POST'
-    };
-
-    const response = await fetch('/api/admin/adminOps', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(op),
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-    
-    try {
-        return 'success' in result ? result : {"success":false, "message" : "Unkown Internal Error"};
-    } catch (e) {
-        console.error("Error making post request: ", e);
-        return {"success": false, "message": "Unkown Internal Error"};
-    }
-};
+        data: { configurations: configs },
+        path: URL_PATH,
+        op: "/configs/update",
+    };
+    return await doRequestOp(op);
+}
 
 
-
-
-export const getAdminConfigs = async (abortSignal = null) => {
+export const getAdminConfigs = async () => {
     const op = {
-        op: '/configs/get',
-        method: 'GET'
+        method: 'GET',
+        path: URL_PATH,
+        op: "/configs/get",
     };
-
-    const response = await fetch('/api/admin/adminOps', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(op),
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-    
-
-    try {
-        return 'success' in result ? result : {"success":false, "message" : "Unkown Internal Error"};
-    } catch (e) {
-        console.error("Error making post request: ", e);
-        return {"success": false, "message": "Unkown Internal Error"};
-    }
-};
+    return await doRequestOp(op);
+}
 
 
-export const getFeatureFlags = async (abortSignal = null) => {
+export const getFeatureFlags = async () => {
     const op = {
-        op: '/feature_flags/get',
-        method: 'GET'
+        method: 'GET',
+        path: URL_PATH,
+        op: "/feature_flags/get",
     };
+    return await doRequestOp(op);
+}
 
-    const response = await fetch('/api/admin/adminOps', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(op),
-        signal: abortSignal,
-    });
 
-    const result = await response.json();
-
-    try {
-        return 'success' in result ? result : {"success":false, "message" : "Unkown Internal Error"};
-    } catch (e) {
-        console.error("Error making post request: ", e);
-        return {"success": false, "message": "Unkown Internal Error"};
-    }
-};
+export const getPowerPoints = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: "/pptx_templates/get",
+    };
+    return await doRequestOp(op);
+}
 
 
 
+export const getAvailableModels = async () => {
+    const op = {
+        method: 'GET',
+        path: "/available_models",
+        op: "/get",
+    };
+    return await doRequestOp(op);
+}
 
 
-
-export const terminateEmbedding = async (key: any,  abortSignal = null) => {
+export const terminateEmbedding = async (key: any) => {
     const op = {
         data: {object_key: key},
+        method: 'POST',
+        path: "/embedding",
         op: '/terminate',
-        method: 'POST'
     };
-
-    const response = await fetch('/api/admin/embeddingOps', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(op),
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-
-    try {
-        return result;
-    } catch (e) {
-        console.error("Error making post request: ", e);
-        return false;
-    }
-};
+    return await doRequestOp(op);
+}
 
 
-
-
-export const getInFlightEmbeddings = async (abortSignal = null) => {
+export const getInFlightEmbeddings = async () => {
     const op = {
+        method: 'GET',
+        path: "/embedding",
         op: '/sqs/get',
-        method: 'GET'
     };
 
-    const response = await fetch('/api/admin/embeddingOps', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(op),
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-
+    const result = await doRequestOp(op);
     try {
         const resultBody = result ? JSON.parse(result.body || '{}') : {"success": false};
         if (resultBody.success) {
@@ -142,10 +81,10 @@ export const getInFlightEmbeddings = async (abortSignal = null) => {
             return null;
         }
     } catch (e) {
-        console.error("Error making post request: ", e);
+        console.error("Error parsing result body: ", e);
         return null;
     }
-};
+}
 
 
 export const testEndpoint = async (url: string, key: string, model:string) => {
@@ -166,4 +105,33 @@ export const testEndpoint = async (url: string, key: string, model:string) => {
       return false;
     }
   };
-  
+
+
+export const uploadPptx = async (data: {fileName: string, isAvailable: boolean, 
+    amplifyGroups: string[], contentType:string, md5: any}) => {
+
+    const op = {
+        method: 'POST',
+        data: data,
+        path: URL_PATH,
+        op: "/pptx_templates/upload",
+    };
+    return await doRequestOp(op);
+}
+
+
+
+export const deletePptx = async (templateName: string) => {
+    const op = {
+        method: 'DELETE',
+        path: URL_PATH,
+        op: "/pptx_templates/delete",
+        queryParams: {"template_name": templateName}
+    };
+    return await doRequestOp(op);
+}
+
+
+
+
+

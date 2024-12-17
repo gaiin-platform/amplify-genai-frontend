@@ -1,4 +1,8 @@
-import { PathType } from "@/components/Chat/JsPDF";
+
+import { OpDef } from "@/types/op";
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/ops";
 
 
 const failureResponse = (reason: string) => {
@@ -106,4 +110,31 @@ export const execOpGet = async (path:string, errorHandler=(e:any)=>{}) => {
     else {
         return {success:false, message:`Error in exec get op: ${response.statusText} .`}
     }
+}
+
+export const registerOps = async (ops:OpDef[]) => {
+
+    const {success, message, data} = await doOpsOp(
+        '/register',
+        {ops: ops});
+
+    if(!success){
+        return failureResponse(message);
+    }
+
+    return {success:true, message:"User Ops fetched successfully.", data:data};
+}
+
+
+export const deleteOp = async (op:any) => {
+
+    const {success, message, data} = await doOpsOp(
+        '/delete',
+        {op: op});
+
+    if(!success){
+        return failureResponse(message);
+    }
+
+    return {success:true, message:"User Ops fetched successfully.", data:data};
 }

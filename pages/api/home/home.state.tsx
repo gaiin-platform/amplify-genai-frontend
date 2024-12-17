@@ -1,7 +1,7 @@
 import { Conversation, Message } from '@/types/chat';
 import { ErrorMessage } from '@/types/error';
 import { FolderInterface} from '@/types/folder';
-import { Model, ModelID } from '@/types/model';
+import { Model, Models } from '@/types/model';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
 import { Status } from "@/types/workflow";
@@ -17,8 +17,6 @@ import { Group } from '@/types/groups';
 import { Artifact } from '@/types/artifacts';
 
 
-type HandleSend = (request: any) => void;
-
 export interface HomeInitialState {
   defaultAccount: Account | undefined;
   chatEndpoint: string | null;
@@ -29,7 +27,13 @@ export interface HomeInitialState {
   artifactIsStreaming: boolean
   modelError: ErrorMessage | null;
   status: Status[];
-  models: Model[];
+
+  // models: Model[]; // models shown to the user 
+  availableModels: Models, 
+  defaultModelId: string | undefined; // user settings will have priority over this value else come from admin settings
+  cheapestModelId: string | undefined;
+  advancedModelId: string | undefined;
+
   folders: FolderInterface[];
   conversations: Conversation[];
   artifacts: any[];
@@ -45,12 +49,10 @@ export interface HomeInitialState {
   currentFolder: FolderInterface | undefined;
   messageError: boolean;
   searchTerm: string;
-  defaultModelId: ModelID | undefined;
   featureFlags: { [key: string]: boolean },
   workspaceMetadata: Workspace;
   selectedAssistant: Assistant | null;
   page: string;
-  defaultFunctionCallModel: string | null;
   statsService: StatsServices;
   currentRequestId: string | null;
   latestDataDisclosureUrlPDF: string;
@@ -69,6 +71,8 @@ export interface HomeInitialState {
   syncingConversations: boolean;
   syncingPrompts: boolean;
   hiddenGroupFolders: FolderInterface[];
+  powerPointTemplateOptions: string[];
+  amplifyUsers: string[];
 
 }
 
@@ -83,7 +87,11 @@ export const initialState: HomeInitialState = {
   messageIsStreaming: false,
   artifactIsStreaming: false,
   modelError: null,
-  models: [],
+  // models: [],
+  availableModels: {},
+  defaultModelId: undefined,
+  cheapestModelId: undefined,
+  advancedModelId: undefined,
   folders: [],
   conversations: [],
   artifacts:[], // for saved/remote artifacts
@@ -110,49 +118,13 @@ export const initialState: HomeInitialState = {
   currentFolder: undefined,
   messageError: false,
   searchTerm: '',
-  defaultModelId: undefined,
   selectedAssistant: null,
   page: 'chat',
   currentRequestId: null,
 
-  featureFlags: {
-    assistantsEnabled: true,
-    promptOptimizer: true,
-    ragEnabled: true,
-    sourcesEnabled: true,
-    uploadDocuments: true,
-    assistantCreator: true,
-    assistants: true,
-    overrideUneditablePrompts: false,
-    overrideInvisiblePrompts: false,
-    extractDocumentsLocally: false,
-    enableMarket: false,
-    promptPrefixCreate: false,
-    outputTransformerCreate: false,
-    workflowRun: true,
-    workflowCreate: false,
-    rootPromptCreate: true,
-    pluginsOnInput: true, // if all plugin features are disables, then this should be disabled. ex. ragEnabled, codeInterpreterEnabled etc.
-    dataSourceSelectorOnInput: true,
-    followUpCreate: true,
-    marketItemDelete: false,
-    automation: true,
-    codeInterpreterEnabled: true,
-    dataDisclosure: true,
-    storeCloudConversations: true,
-    qiSummary: false,
-    apiKeys: true,
-    assistantAdminInterface: false,
-    createAstAdminGroups: false,
-    adminInterface: true,
-    artifacts: true,
-    mtdCost: true,
-    highlighter: true,
-    assistantApis: true
-  },
+  featureFlags: {},
 
   statsService: noOpStatsServices,
-  defaultFunctionCallModel: null,
   latestDataDisclosureUrlPDF: '',
   latestDataDisclosureHTML: '',
   inputEmail: '',
@@ -168,4 +140,6 @@ export const initialState: HomeInitialState = {
   syncingConversations: true,
   syncingPrompts: true,
   hiddenGroupFolders: [],
+  powerPointTemplateOptions: [],
+  amplifyUsers: []
 };

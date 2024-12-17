@@ -37,7 +37,7 @@ import {VariableModal} from "@/components/Chat/VariableModal";
 import {parseEditableVariables} from "@/utils/app/prompts";
 import {v4 as uuidv4} from 'uuid';
 import {fillInTemplate} from "@/utils/app/prompts";
-import {Model, ModelID, Models} from "@/types/model";
+import {DefaultModels, Model} from "@/types/model";
 import {Prompt} from "@/types/prompt";
 import {WorkflowDefinition} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
@@ -92,7 +92,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 selectedConversation,
                 selectedAssistant,
                 conversations,
-                models,
+                availableModels,
                 modelError,
                 loading,
                 prompts,
@@ -103,14 +103,20 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 storageSelection,
                 messageIsStreaming,
                 chatEndpoint,
-                folders
+                folders,
             },
             setLoadingMessage,
             handleUpdateConversation,
             dispatch: homeDispatch,
             handleAddMessages: handleAddMessages,
-            handleUpdateSelectedConversation
+            handleUpdateSelectedConversation, getDefaultModel
         } = useContext(HomeContext);
+
+        // there should be a model id now since on fetchModels, I set it
+        const getDefaultModelIdFromLocalStorage = () => {
+            let defaultModel = localStorage.getItem('defaultModel');
+            return defaultModel ? JSON.parse(defaultModel) : '';
+        }
 
         const foldersRef = useRef(folders);
 
@@ -132,10 +138,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             conversationsRef.current = conversations;
         }, [conversations]);
     
-        const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
+        const filteredModels = filterModels(availableModels, getSettings(featureFlags).hiddenModelIds);
 
         const {handleSend:handleSendService} = useSendService();
-        const [selectedModelId, setSelectedModelId] = useState<ModelID | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id || Models[defaultModelId ?? ModelID.GPT_4o_MINI] );
+        const [selectedModelId, setSelectedModelId] = useState<string | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id || defaultModelId || getDefaultModelIdFromLocalStorage() );
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
         const [showSettings, setShowSettings] = useState<boolean>(false);
@@ -162,6 +168,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [selectedConversationState, setSelectedConversationState] = useState<Conversation | undefined>(selectedConversation);
 
         useEffect(() => {
+            if (selectedConversation && selectedConversation.model && selectedConversation.model.id !== selectedModelId) setSelectedModelId(selectedConversation.model.id);
             setSelectedConversationState(selectedConversation);
             
             const renameConversation = async() => {
@@ -172,7 +179,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     const promptMessages = cloneDeep(updatedConversation.messages);
                     promptMessages[0].content = `Look at the following prompt: "${promptMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`
                     
-                    promptForData(chatEndpoint || '', promptMessages.slice(0,1), Models[ModelID.CLAUDE_3_HAIKU], "Respond with only the title name and nothing else.", statsService, 10)
+                    promptForData(chatEndpoint || '', promptMessages.slice(0,1), getDefaultModel(DefaultModels.CHEAPEST), "Respond with only the title name and nothing else.", statsService, 10)
                                  .then(customName => {
                                     let updatedName: string = customName ?? '';
                                     if (!customName) {
@@ -193,6 +200,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (selectedConversation?.messages.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
         }, [selectedConversation]);
 
+        
 
         useEffect(() => {
             const handleEvent = (event:any) => {
@@ -213,15 +221,27 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (astModel && selectedModelId !== astModel) setSelectedModelId(astModel);
             if (astModel && selectedConversation && selectedConversation.model?.id !== astModel) handleUpdateConversation(selectedConversation, {
                                         key: 'model',
-                                        value: models.find(
-                                        (model: Model) => model.id === astModel,
-                                        ),
+                                        value: Object.values(availableModels).find(
+                                                      (model: Model) => model.id === astModel,
+                                               ),
                                     });
             
             if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) {
-                if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id as ModelID);
+                if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id);
             }
         }, [selectedAssistant, selectedConversation]);
+
+        useEffect(() => {
+            // ensure the modelId and selectedConversation model are in sync.
+            if (selectedConversation && selectedConversation.model?.id !== selectedModelId) {
+                handleUpdateConversation(selectedConversation, {
+                                        key: 'model',
+                                        value: Object.values(availableModels).find(
+                                                      (model: Model) => model.id === selectedModelId,
+                                               ),
+                                    });
+            }
+        }, [selectedModelId]);
 
         const updateMessage = (selectedConversation: Conversation, updatedMessage: Message, updateIndex: number) => {
             let updatedConversation = {
@@ -735,14 +755,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 });
 
             } else {
-                defaultModelId &&
                 homeDispatch({
                     field: 'selectedConversation',
                     value: {
                         id: uuidv4(),
                         name: t('New Conversation'),
                         messages: [],
-                        model: Models[defaultModelId as ModelID],
+                        model: getDefaultModel(DefaultModels.DEFAULT),
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
@@ -879,8 +898,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         <div
                                             className="text-center text-3xl font-semibold text-gray-800 dark:text-gray-100">
                                             {filteredModels.length === 0 ? (
-                                                <div>
-                                                    <Spinner size="16px" className="mx-auto"/>
+                                                <div className='flex flex-row gap-2 text-lg justify-center items-center'>
+                                                    <Spinner size="16px" /> 
+                                                    Loading Models...
                                                 </div>
                                             ) : (
                                                 'Start a new conversation.'
@@ -1040,7 +1060,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 |
                                             </>
                                         )}
-                                        { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' } { selectedAssistant?.definition?.data?.model ? Models[selectedAssistant.definition.data.model as ModelID].name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
+                                        { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' } { selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={(e) => {
@@ -1193,6 +1213,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             )}
                         </div>
 
+                       {filteredModels.length > 0 && 
                         <ChatInput
                             handleUpdateModel={handleUpdateModel}
                             stopConversationRef={stopConversationRef}
@@ -1210,7 +1231,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 }
                             }}
                             showScrollDownButton={showScrollDownButton}
-                        />
+                        />}
                     </div>
                 )}
             </div>

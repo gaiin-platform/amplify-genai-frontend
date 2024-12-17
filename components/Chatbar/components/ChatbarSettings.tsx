@@ -1,4 +1,4 @@
-import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot } from '@tabler/icons-react';
+import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot, IconUser, IconSettingsBolt } from '@tabler/icons-react';
 import { useContext, useState } from 'react';
 
 
@@ -96,11 +96,12 @@ export const ChatbarSettings = () => {
                 }}
             />
 
+            {featureFlags.integrations && 
             <SidebarButton
               text={t('Integrations')}
               icon={<IconBinaryTree2 size={18} />}
               onClick={() => setIsIntegrationsOpen(true)}
-            />
+            />}
 
 
             <SidebarButton
@@ -111,12 +112,12 @@ export const ChatbarSettings = () => {
 
             <IntegrationsDialog open={isIntegrationsOpen} onClose={()=>{setIsIntegrationsOpen(false)}}/>
 
-            <SettingDialog
+            {isSettingDialogOpen && <SettingDialog
                 open={isSettingDialogOpen}
                 onClose={() => {
                     setIsSettingDialog(false);
                 }}
-            />
+            />}
 
             <AccountDialog
                 open={isAccountDialogVisible}

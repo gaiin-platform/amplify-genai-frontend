@@ -2,54 +2,10 @@ import {AssistantDefinition} from "@/types/assistant";
 import {Message, newMessage} from "@/types/chat";
 import {Stopper} from "@/utils/app/tools";
 import {v4 as uuidv4} from 'uuid';
+import { doRequestOp } from "./doRequestOp";
 
-const failureResponse = (messages: Message[], reason: string) => {
-    return {
-        success: false,
-        messages: [
-            messages,
-            newMessage({
-                role: "assistant",
-                data: {isError: true},
-                content: reason,
-            })
-        ]
-    }
-}
+const URL_PATH =  "/assistant";
 
-const doAssistantOp = async (stopper: Stopper, opName: string, data: any, errorHandler = (e: any) => {
-}) => {
-    const op = {
-        data: data,
-        op: opName
-    };
-
-    console.log("Assistant Op:", op);
-
-    const response = await fetch('/api/assistant/op', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: stopper.signal,
-        body: JSON.stringify(op),
-    });
-
-    console.log("Assistant Op response:", response);
-
-    if (response.ok) {
-        try {
-            const result = await response.json();
-            console.log("Assistant Op result:", result);
-
-            return result;
-        } catch (e) {
-            return {success: false, message: "Error parsing response."};
-        }
-    } else {
-        return {success: false, message: `Error calling assistant: ${response.statusText} .`}
-    }
-}
 
 const addData = (data: { [key: string]: any }) => {
     return (m: Message) => {
@@ -130,41 +86,23 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
 };
 
 
-export const listAssistants = async (abortSignal = null) => {
-    const response = await fetch('/api/assistant/list', {
+export const listAssistants = async () => {
+    const op = {
         method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-    });
+        path: URL_PATH,
+        op: "/list",
+    };
+    const result =  await doRequestOp(op);
+    return result.success ? result.data : [];
+}
 
-    const result = await response.json();
-
-    if (result.success) {
-        return result.data;
-    } else {
-        console.error("Error listing assistants: ", result.message);
-        return [];
-    }
-};
-
-export const deleteAssistant = async (assistantId: string, abortSignal = null) => {
-    const response = await fetch('/api/assistant/op', {
+export const deleteAssistant = async (assistantId: string) => {
+    const op = {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({op: "/delete", data: {assistantId}}),
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-
-    if (result.success) {
-        return true;
-    } else {
-        console.error("Error deleting assistant: ", result.message);
-        return false;
-    }
-};
+        path: URL_PATH,
+        op: "/delete",
+        data: {assistantId}
+    };
+    const result =  await doRequestOp(op);
+    return result.success;
+}

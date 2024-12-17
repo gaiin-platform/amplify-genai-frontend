@@ -16,7 +16,7 @@ import { DEFAULT_ASSISTANT } from "@/types/assistant";
 import HomeContext from "@/pages/api/home/home.context";
 import { Prompt } from "@/types/prompt";
 import { deleteAssistant } from "@/services/assistantService";
-import { ModelID, Models } from "@/types/model";
+import { DefaultModels } from "@/types/model";
 import { FolderInterface, SortType } from "@/types/folder";
 import {v4 as uuidv4} from 'uuid';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
@@ -50,9 +50,9 @@ interface Props {
     const [allItemsChecked, setAllItemsChecked] = useState<boolean>(false);
 
     const {
-        state: { statsService, selectedAssistant, defaultModelId, checkedItems, folders, prompts, conversations,
+        state: { statsService, selectedAssistant, checkedItems, folders, prompts, conversations,
                  selectedConversation, checkingItemType, syncingConversations, syncingPrompts}, handleDeleteFolder,
-        dispatch: homeDispatch, handleCreateFolder, handleSelectConversation
+        dispatch: homeDispatch, handleCreateFolder, handleSelectConversation, getDefaultModel
     } = useContext(HomeContext);
 
     const isConvSide = label === 'Conversations';
@@ -183,7 +183,7 @@ interface Props {
                     id: uuidv4(),
                     name: 'New Conversation',
                     messages: [],
-                    model: lastConversation?.model ?? Models[defaultModelId as ModelID],
+                    model: lastConversation?.model ?? getDefaultModel(DefaultModels.DEFAULT),
                     prompt: DEFAULT_SYSTEM_PROMPT,
                     temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
                     folderId: folder.id,
@@ -197,14 +197,13 @@ interface Props {
             handleSelectConversation(selectedConversation);
     
         } else {
-            defaultModelId &&
             homeDispatch({
                 field: 'selectedConversation',
                 value: {
                     id: uuidv4(),
                     name: 'New Conversation',
                     messages: [],
-                    model: Models[defaultModelId as ModelID],
+                    model: getDefaultModel(DefaultModels.DEFAULT),
                     prompt: DEFAULT_SYSTEM_PROMPT,
                     temperature: DEFAULT_TEMPERATURE,
                     folderId: null,

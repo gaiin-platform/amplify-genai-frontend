@@ -9,6 +9,7 @@ import { FolderInterface, FolderType } from '@/types/folder';
 
 import { HomeInitialState } from './home.state';
 import {Account} from "@/types/accounts";
+import { DefaultModels, Model } from '@/types/model';
 
 export type Processor = (data:any) => {};
 
@@ -43,6 +44,7 @@ export interface HomeContextProps {
   clearWorkspace: () => Promise<void>;
   handleAddMessages: (selectedConversation: Conversation | undefined, messages: any[]) => void;
   setLoadingMessage: (s:string) => void;
+  getDefaultModel: (defaultType: DefaultModels) => Model
 }
 
 const HomeContext = createContext<HomeContextProps>(undefined!);
