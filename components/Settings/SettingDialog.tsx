@@ -13,7 +13,7 @@ import FlagsMap, { Flag } from '../ReusableComponents/FlagsMap';
 import { Modal } from '../ReusableComponents/Modal';
 import { saveUserSettings } from '@/services/settingsService';
 import { Model } from '@/types/model';
-import cloneDeep from 'lodash/cloneDeep';
+import toast from 'react-hot-toast';
 
   interface Props {
   open: boolean;
@@ -70,7 +70,6 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
     }
   const initModelOption = () => {
       return modelOptionFlags.reduce((acc:{[key:string]:boolean}, x) => {
-        console.log(availableModels);
         const k = x.key as ModelKey;
         const allModels = availableModels && Object.keys(availableModels).includes(k) ? availableModels[k] : []; 
         acc[x.key] =  allModels.length > 0 && allModels.every((model: any) => !hiddenModelIds.includes(model.id));
@@ -114,7 +113,11 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
     onClose();
 
    const result = await saveUserSettings(updatedSettings);
-    if (!result) alert("Settings failed to update in the cloud at the time. However, your changes have been saved and applied locally within this browser. ");
+    if (!result) {
+      alert("Settings failed to update in the cloud at the time. However, your changes have been saved and applied locally within this browser. ");
+    } else {
+      toast("Settings saved succsessully");
+    }
 
   };
 
