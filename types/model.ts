@@ -5,6 +5,7 @@ export interface Model {
   description: string;
   inputContextWindow: number;
   supportsImages: boolean;
+  provider: string;
 }
 
 export interface Models {

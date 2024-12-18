@@ -49,25 +49,6 @@ export const fetchAllSystemIds = async () => {
 }
 
 
-// export const fetchAllSystemIds = async (abortSignal = null) => {
-//     const response = await fetch('/api/apikeys/opget' + `?path=${encodeURIComponent("/get_system_ids")}`, {
-//         method: 'GET',
-//         headers: {
-//             'Content-Type': 'application/json',
-//         },
-//         signal: abortSignal,
-//     });
-
-//     const result = await response.json();
-//     try {
-//         return result.success ? result.data : [];
-//     } catch (e) {
-//         console.error("Error during api key system id request: ", e);
-//         return [];
-//     }
-// };
-
-
 export const deactivateApiKey = async (apiKeyId: string) => {
     const op = {
         method: 'POST',
@@ -76,10 +57,8 @@ export const deactivateApiKey = async (apiKeyId: string) => {
         op: '/key/deactivate'
     };
     const result =  await doRequestOp(op);
-    return 'success' in result ? result.success : false;
+    return result.success;
 }
-
-
 
 
 export const updateApiKeys = async (data: any) => {

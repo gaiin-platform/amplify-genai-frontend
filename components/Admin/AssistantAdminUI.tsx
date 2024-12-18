@@ -1178,7 +1178,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             <label className='ml-auto mt-2 mr-20 text-sm flex flex-row gap-3 text-black dark:text-neutral-100'
                                 // title={"Use the assistant id in "}
                                 > 
-                                    <div className={`mt-1.5 ${selectedAssistant?.data?.isPublished ? "bg-green-400 dark:bg-green-300": "bg-gray-400, dark:bg-gray-500"}`} 
+                                    <div className={`mt-1.5 ${selectedAssistant?.data?.isPublished ? "bg-green-400 dark:bg-green-300": "bg-gray-400 dark:bg-gray-500"}`} 
                                                                     style={{width: '8px', height: '8px', borderRadius: '50%'}}></div>
                                     {/* {showAstgp ? 
                                         <div className='flex flex-row'>
@@ -1203,7 +1203,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             </label>
                             </>
                         }
-                            <button className={`${activeSubTab === label ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black dark:bg-gray-600 dark:text-white'} ml-auto mr-[-16px]`} 
+                            <button className={`${activeSubTab === label ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black dark:bg-gray-600 dark:text-white'} h-[36px] rounded-md ml-auto mr-[-16px] whitespace-nowrap`} 
                             key={label}
                             onClick={() => {
                                 setActiveSubTab(label);

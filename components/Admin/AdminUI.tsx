@@ -6,7 +6,7 @@ import InputsMap from "../ReusableComponents/InputMap";
 import { deletePptx, getAdminConfigs, getInFlightEmbeddings, terminateEmbedding, testEndpoint, updateAdminConfigs, uploadPptx } from "@/services/adminService";
 import { AdminConfigTypes, Embedding, EmbeddingsConfig, Endpoint, FeatureFlag, FeatureFlagConfig, OpenAIModelsConfig, providers, SupportedModel, SupportedModelsConfig } from "@/types/admin";
 import ExpansionComponent from "../Chat/ExpansionComponent";
-import { IconCheck, IconPlus, IconRefresh,  IconTrash, IconX, IconEdit, IconKey, IconCircleX, IconFileUpload, IconFileTypeDocx, IconFileTypePpt, IconChevronRight, IconChevronLeft, IconFileTypeCsv, IconFileTypeJs } from "@tabler/icons-react";
+import { IconCheck, IconPlus, IconRefresh,  IconTrash, IconX, IconEdit, IconKey, IconCircleX, IconFileUpload, IconFileTypeDocx, IconFileTypePpt, IconChevronRight, IconChevronLeft, IconFileTypeCsv, IconFileTypeJs, IconTags, IconMessage } from "@tabler/icons-react";
 import { EmailsAutoComplete } from "../Emails/EmailsAutoComplete";
 import { LoadingIcon } from "../Loader/LoadingIcon";
 import Checkbox from "../ReusableComponents/CheckBox";
@@ -18,13 +18,12 @@ import { ActiveTabs } from "../ReusableComponents/ActiveTabs";
 import ActionButton from "../ReusableComponents/ActionButton";
 import { OpDef } from "@/types/op";
 import { AMPLIFY_ASSISTANTS_GROUP_NAME, amplifyAssistants } from "@/utils/app/amplifyAssistants";
-import { HTTPRequestSelect } from "../Promptbar/components/AssistantModal";
 import { RateLimiter } from "../Settings/AccountComponents/RateLimit";
 import { noRateLimit, PeriodType, RateLimit, rateLimitObj } from "@/types/rateLimit";
 import { adminTabHasChanges, calculateMd5, uploadFileAsAdmin } from "@/utils/app/admin";
 import { GroupUpdateType } from "@/types/groups";
 import { AssistantDefinition } from "@/types/assistant";
-import { replaceAstAdminGroupKey, updateGroupAssistants } from "@/services/groupsService";
+import { createAmplifyAssistants, replaceAstAdminGroupKey, updateGroupAssistants } from "@/services/groupsService";
 import { buildStyles, CircularProgressbar } from "react-circular-progressbar";
 import { deleteOp, registerOps } from "@/services/opsService";
 import { fetchApiDocTemplates, uploadApiDoc } from "@/services/apiKeysService";
@@ -32,6 +31,7 @@ import { IconFileCode } from "@tabler/icons-react";
 import { uploadDataDisclosure } from "@/services/dataDisclosureService";
 import { Model } from "@/types/model";
 import Search from "../Search";
+import { HTTPRequestSelect } from "../CustomAPI/CustomAPIEditor";
 
 interface Props {
     open: boolean;
@@ -65,6 +65,9 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [isAddingAvailModel, setIsAddingAvailModel] = useState< { model: SupportedModel, 
                                                                     action: 'Adding' | 'Editing'} | null>(null);  
     const [hoveredAvailModel, setHoveredAvailModel] = useState<string>('');  
+    const [modelsSearchTerm, setModelsSearchTerm] = useState<string>(''); 
+    const [showModelsSearch, setShowModelsSearch] = useState<boolean>(true); 
+
 
     const [features, setFeatures] = useState<FeatureFlagConfig>({}); 
     const [hoveredException, setHoveredException] = useState<{ feature: string; username: string } | null>(null);
@@ -93,8 +96,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
 //////////////////// Vars for Data Tab //////////////////////////
 
-    const [amplifyAstGroupId, setAmplifyAstGroupId] = useState<string>('');
-    const [isCreatingAmpAstGroup, setIsCreatingAmpAstGroup] = useState<string[] | null>(null);
 
     const [ops, setOps] = useState<OpDef[]>([]);
     const [hoveredOp, setHoveredOp] = useState<number>(-1);  
@@ -103,13 +104,21 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [hoveredNewOp, setHoveredNewOp] = useState<number>(-1);  
     const [hoveredParam, setHoveredParam] = useState<{opIdx:number, paramIdx:number} | null>(null); 
     const [isDeletingOp, setIsDeletingOp] = useState<number>(-1);
-
+    const [opSearchTerm, setOpSearchTerm] = useState<string>(''); 
+    const [showOpSearch, setShowOpSearch] = useState<boolean>(true);  
+    const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('name'); 
 
 
     const [astGroups, setAstGroups] = useState<Ast_Group_Data[]>([]);
     const [changedAstGroups, setChangedAstGroups] = useState<string[]>([]);
     const [hoveredAstGroup, setHoveredAstGroup] = useState<string>('');  
-    const [keyReplacementLoading, setKeyReplacementLoading] = useState<string>('');  
+    const [keyReplacementLoading, setKeyReplacementLoading] = useState<string>(''); 
+    const [astGroupSearchTerm, setAstGroupSearchTerm] = useState<string>(''); 
+    const [showAstGroupSearch, setShowAstGroupsSearch] = useState<boolean>(true);      
+    const [amplifyAstGroupId, setAmplifyAstGroupId] = useState<string>('');
+    const [creatingAmpAsts, setCreatingAmpAsts] = useState<string[] | null>(null);
+    const [isCreatingAmpAstGroup, setIsCreatingAmpAstGroup] = useState<boolean>(false);
+    const [isAddingAst, setIsAddingAst] = useState<string>('');      
 
 
     const [templates, setTemplates] = useState<Pptx_TEMPLATES[]>([]);
@@ -134,6 +143,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [hoveredAmpGroup, setHoveredAmpGroup] = useState<string>('');  
     const [hoveredAmpMember, setHoveredAmpMember] = useState<{ ampGroup: string; username: string } | null>(null);
     const [isAddingAmpGroups, setIsAddingAmpGroups] = useState<Amplify_Group | null>(null);
+    const [ampGroupSearchTerm, setAmpGroupSearchTerm] = useState<string>(''); 
+    const [showAmpGroupSearch, setShowAmpGroupsSearch] = useState<boolean>(true);  
 
 
 //////////////////// Vars for Embeedings Tab ////////////////////
@@ -152,7 +163,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             const result = await getAdminConfigs();
             if (result.success) {
                 const data = result.data;
-                console.log(result.data);
                 setAdmins(data[AdminConfigTypes.ADMINS] || []);
                 setFeatures(data[AdminConfigTypes.FEATURE_FLAGS] || {});
                 setAppVars(data[AdminConfigTypes.APP_VARS] || {});
@@ -174,7 +184,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 });
                 setAvailableModels(Object.fromEntries(updatedModels));
                 const astAdminGroups: Ast_Group_Data[] = data[AdminConfigTypes.AST_ADMIN_GROUPS] || [];
-                console.log(astAdminGroups)
                 const amplifyAstGroupFound = astAdminGroups.find((g: Ast_Group_Data) => 
                                                                   g.groupName === AMPLIFY_ASSISTANTS_GROUP_NAME);
                 if (amplifyAstGroupFound) setAmplifyAstGroupId(amplifyAstGroupFound.group_id);
@@ -203,9 +212,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
       }, [open, loadData])
   
 
-useEffect(() => {
-    console.log(unsavedConfigs)
-}, [unsavedConfigs])
 
     function camelToTitleCase(str: string) {
         return str
@@ -217,32 +223,10 @@ useEffect(() => {
     const handleGetEmbeddings = async () => {
         setLoadingEmbeddings(true);
         const resultData = await getInFlightEmbeddings();
-        console.log(resultData)
         if (resultData) {
             setHasRetrievedEmbeddings(true);
             setEmbeddings({ embeddings:
                 resultData as Embedding[]});
-                // setEmbeddings({ embeddings: [{
-                //     "messageId": "1b657cb5-d3c7-446e-bbc3-411ae23ba421",
-                //     "eventTime": "2024-11-04T16:49:13.332Z",
-                //     "object": {
-                //         "key": "global/fed53a723104fb82a77c92b3dd1641b7f5a190d666df98a2e521cb724d01f6ee.content.json-1.chunks.json",
-                //         "size": 813,
-                //         "user" : "Karely.rodriguez@vanderbilt.edu"
-                //     }
-                // }, 
-                // {
-                //     "messageId": "1b657cb5-d3c7-23ba421",
-                //     "eventTime": "2024-11-04T16:49:13.332Z",
-                //     "object": {
-                //         "key": "global/fed53a723104fb82a77c92b663dd1641b7f5a190d666df98a2e521cb724d01f6ee.content.json-1.chunks.json",
-                //         "size": 813,
-                //         "user" : "Allen.Karns@vanderbilt.edu"
-    
-                //     },
-                //     terminated: true
-                // }
-                // ] as Embedding[]} );
         } else {
             alert("Unable to retrieve message currently in the sqs. Please try again later...");
         }
@@ -357,7 +341,7 @@ useEffect(() => {
 
     const handleSave = async () => {
         const collectUpdateData =  Array.from(unsavedConfigs).map((type: AdminConfigTypes) => ({type: type, data: getConfigTypeData(type)}));
-        console.log("Saving... ", collectUpdateData);
+        // console.log("Saving... ", collectUpdateData);
 
         if (testEndpoints.length > 0) {
             setLoadingMessage('Testing New Endpoints...');
@@ -370,7 +354,6 @@ useEffect(() => {
         
         setLoadingMessage('Saving Configurations');
         const result = await updateAdminConfigs(collectUpdateData);
-        console.log(result)
         if (result.success) {
             if (unsavedConfigs.has(AdminConfigTypes.FEATURE_FLAGS)) {
                 homeDispatch({ field: 'featureFlags',
@@ -497,9 +480,10 @@ useEffect(() => {
                 if (!newModel.id || !newModel.name || !newModel.provider ||
                       // for availabel models we require inputcontent windonw and token limit otehrwise we dont
                     !(newModel.isAvailable ? newModel.inputContextWindow && newModel.outputTokenLimit : true)
-                )
+                ) {
                 alert("Required fields missing: Please provide ID, name, and provider. If the model is available, include input context window and output token limit. Ensure all required data is set and try again.");
-                return;
+                    return;
+                }
             }
             setAvailableModels({...availableModels, [newModel.id]: newModel})
             updateUnsavedConfigs(AdminConfigTypes.AVAILABLE_MODELS);
@@ -535,40 +519,27 @@ useEffect(() => {
             setIsUploadingTemplate(true);
             try {
                 const md5 = await calculateMd5(uploadedTemplate);
-                console.log(md5); 
                 const result = await uploadPptx({fileName: fileName,
                                                 isAvailable: isAddingTemplate.isAvailable, 
                                                 amplifyGroups : isAddingTemplate.amplifyGroups,
                                                 contentType: uploadedTemplate.type,
                                                 md5: md5
                                             });
-
-                console.log(uploadedTemplate);
-                
-                console.log(String(isAddingTemplate.isAvailable));
-                console.log(isAddingTemplate.amplifyGroups.join(",") );
-
-
                 if (result.success && result.presigned_url) {
                     const presigned = result.presigned_url;
-                    console.log("presigned")
                     const uploadResult = await uploadFileAsAdmin(presigned, uploadedTemplate, md5,
                         {'x-amz-meta-isavailable': String(isAddingTemplate.isAvailable),  
                         'x-amz-meta-amplifygroups': isAddingTemplate.amplifyGroups.join(",") }
                     );
-                    console.log("!!!");
-
-                    console.log(uploadResult);
 
                     if (uploadResult) {
-                        handleTemplateChange(isAddingTemplate.name, [...templates, isAddingTemplate]);
+                        setTemplates([...templates, isAddingTemplate]);
                         setIsAddingTemplate(null);
                         setUploadedTemplate(null);
                         setIsUploadingTemplate(false);
                         toast("PowerPoint template was successfully added."); 
                         return;
                     }
-                    
                 } 
             } catch (error) {
                 console.log("Error getting presigned url and uploading.", error);
@@ -613,39 +584,6 @@ useEffect(() => {
         alert("Unable to upload the API Documentation at this time. Please remove the document and try uploading again."); 
     }
 
-    // const handleApiDocUpload = async (file:File, key: "csv" | "docx" | "json") => {
-    //     let presigned = apiPresignedUrls ? apiPresignedUrls[key] : null;
-    //     let urls = apiPresignedUrls;
-    //     if (!presigned) {
-    //         urls = await handleApiDocPresigned();
-    //         if (urls) {
-    //             presigned = urls[key];
-    //         } else {
-    //             alert("Failed to upload the document at this time. Please try again later...");
-    //             return;
-    //         }
-    //     }
-        // if (presigned) {
-        //     try {
-        //         const md5 = await calculateMd5(file);
-        //         console.log(md5); 
-        //     }
-
-        //     const uploadResult = await uploadFileAsAdmin(presigned, file, md5);
-        //     if (uploadResult) {
-        //         setApiDocsUploaded({...apiDocsUploaded, [key]: true});
-        //         const updatedRemainingUrls: ApiPresignedUrls = {docx: urls?.docx,
-        //                                                         csv: urls?.csv,
-        //                                                         json: urls?.json,
-        //                                                         };
-        //         updatedRemainingUrls[key] = undefined; // presigned can only be used once to upload
-        //         setApiPresignedUrls(updatedRemainingUrls);
-        //         return;
-        //     }   
-        // }
-        // alert("Unable to upload the API Documentation at this time. Please try again later."); 
-    // }
-
 
     const handleDownloadApiDocTemplates = async () => {
         setLoadingMessage("Preparing to Download...");
@@ -668,16 +606,6 @@ useEffect(() => {
         setLoadingMessage("");
     }
 
-    // const handleApiDocPresigned = async () => {
-    //     const result = await uploadApiDocs();
-    //     if (result.success && result.presigned_urls) {
-    //         const urls: ApiPresignedUrls = result.presigned_urls;
-    //         setApiPresignedUrls(urls);
-    //         return urls;
-    //     }
-    //     return null;
-    // }
-    
     const handleTemplateChange = (name: string, updatedTemplates: Pptx_TEMPLATES[]) => {
         setTemplates(updatedTemplates);
         if (!changedTemplates.includes(name)) setChangedTemplates([...changedTemplates, name]);
@@ -686,17 +614,22 @@ useEffect(() => {
 
     const handleRegisterOps = async () => {
         setIsRegisteringOps(true);
-        for (let i = 0; i < newOps.length; i++) {
-            const op = newOps[i];
+        const updatedNewOps = [...newOps];
+        for (let i = 0; i < updatedNewOps.length; i++) {
+            const op:OpDef = updatedNewOps[i];
             if (!op.id || !op.url || (op.tags && op.tags.length === 0)) {
                 alert('One or more operations have missing function name, endpoint path, or empty tags.');
                 setIsRegisteringOps(false);
                 return;
+            } else if (op.method && ["GET", "DELETE"].includes(op.method)) {
+                // ensure get and delete do not have params 
+                updatedNewOps[i] = {...op, params: []}
             }
         }
-        const result = await registerOps(newOps);
+        const result = await registerOps(updatedNewOps);
         if (result.success) {
-            setOps([...ops, ...newOps]);
+            setOpSearchTerm('');
+            setOps([...ops, ...updatedNewOps]);
             setNewOps([]);
             toast("Successfully registered ops");
         } else {
@@ -741,19 +674,35 @@ useEffect(() => {
 
 
 
-    const handleCreateAssistant = async (astDefs: AssistantDefinition[], ) => {
-        // if (updateType === GroupUpdateType.ADD) setCurNewAstPrompt(null); 
-        const updateAstData = { "group_id": amplifyAstGroupId, 
-                                "update_type": GroupUpdateType.ADD, 
-                                "assistants": astDefs };
-        statsService.updateGroupAssistantsEvent(updateAstData);
-        const result = await updateGroupAssistants(updateAstData);
-        return (result.success) ? result.assistantData[0]  
-                                : {
-                                    id: null,
-                                    assistantId: null,
-                                    provider: 'amplify'
-                                  };
+    const handleCreateAmpAsts = async ( ) => {
+        if (creatingAmpAsts) {
+            if (creatingAmpAsts.length === 0) {
+                alert("You must select at least one Amplify assistant to continue.");
+                return;
+            }
+            setIsCreatingAmpAstGroup(true);
+            const astDefs = creatingAmpAsts.map((ast: string) => (amplifyAssistants as any)[ast]);
+            const result = await createAmplifyAssistants(astDefs);
+            if (result.success) {
+                const groupId = result.data.id;
+                setAmplifyAstGroupId(groupId);
+                const ampAstGroup = {
+                    group_id : groupId, 
+                    groupName : "Amplify Assistants", 
+                    amplifyGroups : [],
+                    createdBy : userEmail,
+                    isPublic : false,
+                    numOfAssistants: astDefs.length,
+                    supportConvAnalysis: false
+                } as Ast_Group_Data;
+                setAstGroups([...astGroups, ampAstGroup]);
+                toast("Successfully created Amplify Assistants group");
+                setIsCreatingAmpAstGroup(false);
+                return;
+            }
+        }
+        alert("Failed to create Amplify Assistant group. Please try again later...");
+        setIsCreatingAmpAstGroup(false);
     }
 
     const handleAddAssistant = async (astDefs: AssistantDefinition[] ) => {
@@ -761,23 +710,17 @@ useEffect(() => {
             const updatedData = {...ast.data, groupId: amplifyAstGroupId};
             return {...ast, groupId: amplifyAstGroupId, data: updatedData};
         });
-        toast("Adding assistant...");
         const updateAstData = { "group_id": amplifyAstGroupId, 
                                 "update_type": GroupUpdateType.ADD, 
                                 "assistants": asts };
         statsService.updateGroupAssistantsEvent(updateAstData);
         const result = await updateGroupAssistants(updateAstData);
+        setIsAddingAst('');
         if (result.success) {
             toast("Successfully added assistant");
         } else {
             alert("Unable to add a copy of the assistant at this time. Please try again later...");
         }
-        // return (result.success) ? result.assistantData[0]  
-        //                         : {
-        //                             id: null,
-        //                             assistantId: null,
-        //                             provider: 'amplify'
-        //                           };
     }
 
     const handleDeleteTemplate = async (name: string) => {
@@ -791,7 +734,7 @@ useEffect(() => {
             } else {
                 alert("Unable to delete the PowerPoint template at this time. Please try again later...");
             }
-            setDeletingTemplate(name);
+            setDeletingTemplate('');
         }  
     }
     
@@ -1032,9 +975,13 @@ useEffect(() => {
                                 label={"Add Feature"}
                                 clearOnConfirm={false}
                                 onConfirm={() => {
+                                    setFeatureSearchTerm('');
                                     if (isAddingFeature.name) {
                                         const updatedName = isAddingFeature.name.replace(/\s(.)/g, (_, c) => c.toUpperCase()).replace(/^\w/, c => c.toLowerCase());
-                                        console.log("updated name");
+                                        if (Object.keys(features).includes(updatedName)) {
+                                            alert("Feature flag names must be unique. Please try another name.");
+                                            return;
+                                        }
                                         handleUpdateFeatureFlags(updatedName, isAddingFeature.featureData);
                                         setIsAddingFeature(null);
                                     } else {
@@ -1047,7 +994,7 @@ useEffect(() => {
                             />
                             
                             }
-                            { showFeatureSearch &&
+                            { showFeatureSearch && !isAddingFeature && 
                             <div className="ml-auto mr-10" style={{transform: 'translateY(36px)'}}>
                                 <Search
                                 placeholder={'Search Feature Flags...'}
@@ -1140,7 +1087,10 @@ useEffect(() => {
                     <div className="ml-4 mt-2">
                         <ExpansionComponent 
                             onOpen={() => setShowFeatureSearch(true)}
-                            onClose={() => setShowFeatureSearch(false)}
+                            onClose={() => {
+                                setShowFeatureSearch(false);
+                                setFeatureSearchTerm('');
+                            }}
                             title={'Manage Features'} 
                             content={ 
                                 <div className="mr-5 pr-4">
@@ -1320,6 +1270,7 @@ useEffect(() => {
                                 top={"mt-4"}
                                 label={"Add Model"}
                                 onConfirm={() => {
+                                    setModelsSearchTerm('');
                                     handleAddOrUpdateAvailableModels();
                                 }}
                                 onCancel={() => {
@@ -1328,6 +1279,14 @@ useEffect(() => {
                             />
                             
                             }
+                            { showModelsSearch && Object.keys(availableModels).length > 0 && !isAddingAvailModel &&
+                            <div className="ml-auto mr-16" style={{transform: 'translateY(25px)'}}>
+                                <Search
+                                placeholder={'Search Models...'}
+                                searchTerm={modelsSearchTerm}
+                                onSearch={(searchTerm: string) => setModelsSearchTerm(searchTerm.toLocaleLowerCase())}
+                                />
+                            </div>}
                     </div>
                     <div className="mx-4"> 
                         {isAddingAvailModel && 
@@ -1418,10 +1377,15 @@ useEffect(() => {
 
                         {Object.keys(availableModels).length > 0 ?
                             <ExpansionComponent 
+                            onOpen={() => setShowModelsSearch(true)}
+                            onClose={() => {
+                                setShowModelsSearch(false);
+                                setModelsSearchTerm('');
+                            }}
                             title={'Manage Models'} 
                             content={ 
                                 <div className="mr-4">
-                                    <div className="mt-4 flex flex-row justify-between mr-6"> 
+                                    <div className="mt-4 flex flex-row justify-between mr-8"> 
                                         <ModelDefaultSelect 
                                             models={Object.values(availableModels).filter((m:SupportedModel) => 
                                                     m.isAvailable && !m.id.includes('embedding'))}
@@ -1487,7 +1451,10 @@ useEffect(() => {
                                         </thead>
                                         <tbody>
                                         {Object.values(availableModels)
-                                               .filter((availModel: SupportedModel) => isAddingAvailModel?.model.id !== availModel.id)
+                                               .filter((availModel: SupportedModel) => 
+                                                (isAddingAvailModel?.model.id !== availModel.id) && 
+                                                (modelsSearchTerm ? availModel.name.toLowerCase()
+                                                                   .includes(modelsSearchTerm) : true))
                                                .sort((a, b) => a.name.localeCompare(b.name))
                                                .map((availModel: SupportedModel) => 
                                             <tr key={availModel.id}  className="text-xs"
@@ -1545,11 +1512,11 @@ useEffect(() => {
                                                 </td>
 
                                                 <td className="border border-neutral-500 p-2 w-[85px]">
-                                                    <div className="flex justify-center">  {availModel.inputTokenCost} </div>
+                                                    <div className="flex justify-center">  ${availModel.inputTokenCost} </div>
                                                 </td>
 
                                                 <td className="border border-neutral-500 p-2 w-[85px]">
-                                                    <div className="flex justify-center"> {availModel.outputTokenCost} </div>
+                                                    <div className="flex justify-center"> ${availModel.outputTokenCost} </div>
                                                 </td>
 
                                                 <td className="border border-neutral-500 text-center">
@@ -1847,6 +1814,7 @@ useEffect(() => {
                             if (Object.keys(ampGroups).includes(name)){
                                 alert(`There already exists a group with the name ${name}.\n\n Please change the group name to create the Amplify Group.`);
                             } else {
+                                setAmpGroupSearchTerm('');
                                 handleUpdateAmpGroups({...ampGroups, [name] : isAddingAmpGroups});
                                 setIsAddingAmpGroups(null);
                             }
@@ -1856,6 +1824,15 @@ useEffect(() => {
                         }}
                     /> 
                     }
+
+                    { showAmpGroupSearch && !isAddingAmpGroups && Object.keys(ampGroups).length > 0 &&
+                            <div className="ml-auto mr-12" style={{transform: 'translateY(36px)'}}>
+                                <Search
+                                placeholder={'Search Amplify Groups...'}
+                                searchTerm={ampGroupSearchTerm}
+                                onSearch={(searchTerm: string) => setAmpGroupSearchTerm(searchTerm.toLocaleLowerCase())}
+                                />
+                            </div>}
 
                 </div>
                 
@@ -1923,6 +1900,11 @@ useEffect(() => {
                 <div className="ml-6">
                     {Object.keys(ampGroups).length > 0 ?
                             <ExpansionComponent 
+                            onOpen={() => setShowAmpGroupsSearch(true)}
+                            onClose={() => {
+                                setShowAmpGroupsSearch(false);
+                                setAmpGroupSearchTerm('');
+                            }}
                             title={'Manage Amplify Groups'} 
                             content={ 
                                 <>
@@ -1942,7 +1924,10 @@ useEffect(() => {
                                         </tr>
                                         </thead>
                                         <tbody>
-                                        {Object.values(ampGroups).map((group: Amplify_Group) => 
+                                        {Object.values(ampGroups)
+                                               .filter((group: Amplify_Group) => ampGroupSearchTerm ? 
+                                                        group.groupName.toLowerCase().includes(ampGroupSearchTerm) : true)
+                                               .map((group: Amplify_Group) => 
                                             <tr key={group.groupName}
                                                 onMouseEnter={() => setHoveredAmpGroup(group.groupName)}
                                                 onMouseLeave={() => setHoveredAmpGroup('')}>
@@ -1954,9 +1939,7 @@ useEffect(() => {
 
                                                 <div className={`flex items-center ${addingMembersTo === group.groupName ? "flex-col":'flex-row'}`}>
                                                 <div
-                                                    className={`flex items-center ${addingMembersTo === group.groupName ? "flex-wrap": "overflow-x-auto"}`}
-                                                    
-                                                >
+                                                    className={`flex items-center ${addingMembersTo === group.groupName ? "flex-wrap": "overflow-x-auto"}`} >
                                                     {group.members?.map((user, idx) => (
                                                     <div key={idx} className="flex items-center gap-1 mr-1"
                                                         onMouseEnter={() => {
@@ -2081,6 +2064,7 @@ useEffect(() => {
                                 allowedFileExtensions={['docx']}
                                 onAttach={(file:File, fileName: string) => {
                                     const overriddenFile = new File([file], "data_disclosure.docx", { type: file.type });
+                                    console.log(overriddenFile)
                                     handleDataDisclosureUpload(overriddenFile);
                                 }}
                                 completeCheck={() => dataDisclosureUploaded}
@@ -2167,16 +2151,16 @@ useEffect(() => {
                 <div className="ml-6">
                     <div className="flex flex-row gap-2">
                         <label className="text-[1rem] font-bold"> Amplify Group Assistants</label>
-                        {amplifyAstGroupId ?
-                                <div className={`mt-1.5 bg-green-400 dark:bg-green-300`} 
+                        {amplifyAstGroupId || isCreatingAmpAstGroup ?
+                                <div className={`mt-1.5 ${isCreatingAmpAstGroup ? "bg-gray-400 dark:bg-gray-500" : "bg-green-400 dark:bg-green-300"}`} 
                                  style={{width: '8px', height: '8px', borderRadius: '50%'}}
                                  title="The Amplify Assistants Group exists."> </div>
                         :
-                        (!isCreatingAmpAstGroup ?
+                        (!creatingAmpAsts ?
                         <button 
-                            className="ml-2 mb-1 mt-[-2px] py-1 px-2 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 hover:dark:bg-gray-700 mr-[-16px] rounded transition-colors duration-100 cursor-pointer" 
+                            className="ml-2 mt-[-2px] py-1 px-2 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 hover:dark:bg-gray-700 mr-[-16px] rounded transition-colors duration-100 cursor-pointer" 
                             onClick={() => {
-                                setIsCreatingAmpAstGroup([]);
+                                setCreatingAmpAsts([]);
                                 }}
                             title="It appears you currently do not have an Amplify Assistants group. If this is a mistake you will not be able to successfully create another one."
                             >
@@ -2187,36 +2171,38 @@ useEffect(() => {
                             top={"mt-[1px]"}
                             label={"Create Amplify Assistants Group With Selected Assistants"}
                             onConfirm={() => {
-                                //TODO
+                                handleCreateAmpAsts();
+                                setAstGroupSearchTerm('');
                             }}
                             onCancel={() => {
-                                setIsCreatingAmpAstGroup(null);
+                                setCreatingAmpAsts(null);
                             }}
                         />
                         )
                         }
                     </div>
-                    <div className="ml-8 pr-10 mb-8 mt-2">
+                    <div className="ml-8 pr-10 mb-6 mt-4">
                         <InfoBox content={
                             <span className="ml-1 text-xs w-full px-4 text-center"> 
-                            {!isCreatingAmpAstGroup 
+                            {!creatingAmpAsts 
                                 ? "Amplify Assistants are accessible to all users. You can modify these assistants through the Assistant Admin Interface. To access this interface, make sure the required feature flag is enabled under the Configurations tab. Navigate to the Assistant Admin Interface by clicking on the gear icon located in the left sidebar menu on the main Home screen. If you do not see the Assistant Admin Interface option, try to refresh the page and/or double-check the Assistant Admin Interface feature flag."
                                 : "Please select the assistants you want to include in the Amplify Assistants group. Once you've made your selections, click the green checkmark to create the group."}
                             </span>
                         }/>
+                        <div className="mt-4"></div>
                         {Object.keys(amplifyAssistants).map((ast: any) =>
                             <div key={ast} className="mt-2 flex flex-row">
                                 <div className="flex flex-row gap-2"> 
-                                    {isCreatingAmpAstGroup && 
+                                    {creatingAmpAsts && 
                                         <Checkbox
                                         id={`amplifyAsts_${ast}`}
                                         label=""
-                                        checked={isCreatingAmpAstGroup.includes(ast)}
+                                        checked={creatingAmpAsts.includes(ast)}
                                         onChange={(isChecked: boolean) => {
                                             if (isChecked) {
-                                                setIsCreatingAmpAstGroup([...isCreatingAmpAstGroup, ast]);
+                                                setCreatingAmpAsts([...creatingAmpAsts, ast]);
                                             } else {
-                                                setIsCreatingAmpAstGroup(isCreatingAmpAstGroup
+                                                setCreatingAmpAsts(creatingAmpAsts
                                                                         .filter((a: string) => a !== ast));
                                             }
                                         }}
@@ -2228,13 +2214,18 @@ useEffect(() => {
                                     {(amplifyAssistants as any)[ast].description}
                                 </label>
 
-                                {!isCreatingAmpAstGroup && amplifyAstGroupId && 
+                                {!creatingAmpAsts && amplifyAstGroupId && 
                                  <button 
-                                    className="ml-4 mb-1 mt-[-2px] py-1 px-2 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 hover:dark:bg-gray-700 mr-[-16px] rounded transition-colors duration-100 cursor-pointer flex flex-row gap-2" 
-                                    onClick={() => handleAddAssistant([(amplifyAssistants as any)[ast]])}
+                                    className={`ml-4 mb-1 mt-[-2px] py-1 px-2 bg-gray-300 dark:bg-gray-600 ${isAddingAst === '' ? "hover:bg-gray-400 hover:dark:bg-gray-700" : ""} mr-[-16px] rounded transition-colors duration-100 cursor-pointer flex flex-row gap-2`}
+                                    onClick={() => {
+                                        setIsAddingAst(ast);
+                                        handleAddAssistant([(amplifyAssistants as any)[ast]]);
+                                    }}
                                     title="Adds a copy of this assistant to the existing Amplify Assistants Group"
+                                    disabled={isAddingAst !== ''}
                                     >
-                                        <IconPlus className="text-blue-400" size={18}/>
+                                    {isAddingAst === ast ? <LoadingIcon style={{ width: "16px", height: "16px" }}/>
+                                    : <IconPlus className="text-blue-400" size={18}/> }
                                     {"Assistant Copy"}
                                         
                                 </button>}
@@ -2246,8 +2237,23 @@ useEffect(() => {
 
                     <label className="text-[1rem] font-bold"> Groups</label>
                     <div className="ml-6 mt-4">
+                        
                     {astGroups.length > 0 ?
+                        <>
+                            {showAstGroupSearch && 
+                            <div className="h-[0px] ml-auto mr-14 w-[278px]" style={{transform: 'translateY(-30px)'}}>
+                                <Search
+                                placeholder={'Search Assistant Admin Groups...'}
+                                searchTerm={astGroupSearchTerm}
+                                onSearch={(searchTerm: string) => setAstGroupSearchTerm(searchTerm.toLocaleLowerCase())}
+                                />
+                            </div>}
                             <ExpansionComponent 
+                            onOpen={() => setShowAstGroupsSearch(true)}
+                            onClose={() => {
+                                setShowAstGroupsSearch(false);
+                                setAstGroupSearchTerm('');
+                            }}
                             title={'Manage Assistant Admin Groups'} 
                             content={ 
                                 <>
@@ -2264,7 +2270,9 @@ useEffect(() => {
                                         </tr>
                                         </thead>
                                         <tbody>
-                                        {astGroups.map((group: Ast_Group_Data) => 
+                                        {astGroups.filter((group: Ast_Group_Data) => astGroupSearchTerm ? 
+                                                   group.groupName.toLowerCase().includes(astGroupSearchTerm) : true)
+                                                  .map((group: Ast_Group_Data) => 
                                             <tr key={group.group_id}
                                                 onMouseEnter={() => setHoveredAstGroup(group.group_id)}
                                                 onMouseLeave={() => setHoveredAstGroup('')}>
@@ -2357,7 +2365,7 @@ useEffect(() => {
                                 </>
                             }
                             isOpened={true}
-                        />  
+                        />  </>
                             :
                             <>No Assistant Admin Groups listed. </>
                         }
@@ -2370,11 +2378,7 @@ useEffect(() => {
                         <button
                             title={'Add Op'} disabled={isRegisteringOps}
                             className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 ${isRegisteringOps ? "" : "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10"}`}
-                            onClick={() => {
-                               setNewOps([...newOps, emptyOps()]);
-                            }
-                            }
-                        >
+                            onClick={() => setNewOps([...newOps, emptyOps()])}>
                             <IconPlus size={16}/>
                         </button>
 
@@ -2390,7 +2394,7 @@ useEffect(() => {
 
                 </div>
 
-                <div className="mx-6 mr-10">
+                <div className="mx-6 mr-4">
                     
                     { newOps.length > 0 && 
                     <div className="mb-4 flex flex-col gap-4">
@@ -2592,17 +2596,51 @@ useEffect(() => {
                         }
                         isOpened={true}
                     />
-                    <br></br>
 
                     { ops.length > 0 && 
+                    <div className="mt-8">
+                    { showOpSearch && 
+                        <div className="h-[0px] items-center ml-[200px] mr-14 flex flex-row gap-4"
+                             style={{transform: 'translateY(6px)'}}>
+                         <div className="ml-auto"> Search by</div>
+                         <div className="w-[140px] flex items-center rounded-md border border-neutral-600 bg-neutral-200 dark:bg-[#39394a] p-1">
+                         {["name", "tag"].map((search: string) => 
+                         <button onMouseDown={(e) =>  e.preventDefault()}
+                                className={`flex flex-row gap-2 py-1 px-2 text-[12px] rounded-md focus:outline-none ${ opSearchBy === search ? 'bg-white dark:bg-[#1f1f29] text-neutral-900 dark:text-neutral-100 font-bold transform scale-105' : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
+                                }`}
+                                disabled={opSearchBy === search}
+                                onClick={(e) => {  
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setOpSearchBy(search as "name" | "tag");
+                                }}
+                            > <div className="mt-0.5">{ search === "tag" ?
+                                <IconTags size={14}/> : <IconMessage size={14} />}</div>
+                                <label className={`${opSearchBy === search ? "" : "cursor-pointer"} mt-[-1px] mr-0.5`}>{search}</label>
+                            </button>
+                         ) }
+                        </div>
+                        <div className="w-[200px]" >
+                            <Search
+                            placeholder={'Search Ops...'}
+                            searchTerm={opSearchTerm}
+                            onSearch={(searchTerm: string) => setOpSearchTerm(searchTerm.toLocaleLowerCase())}
+                            />
+                        </div>
+                    </div>}
                     <ExpansionComponent
+                        onOpen={() => setShowOpSearch(true)}
+                        onClose={() => {
+                            setShowOpSearch(false);
+                            setOpSearchTerm('');
+                        }}
                         title={"Manage Ops"}
                         content={
-                        <>
+                        <div style={{ maxHeight: '500px', overflowY: 'auto', overflowX: 'hidden'}}>
                         <table className="mt-4 border-collapse w-full" >
-                            <thead>
-                            <tr className="bg-gray-200 dark:bg-[#373844] ">
-                                {['Function Name', 'Tags', 'Path', 'Method', 'Parameters', 'Description',]
+                            <thead className="sticky top-0">
+                            <tr className="bg-gray-200 dark:bg-[#373844]">
+                                {['Function Name', 'Tags', 'Path', 'Method', 'Parameters', 'Description']
                                  .map((title, i) => (
                                 <th key={i}
                                     className=" text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
@@ -2613,8 +2651,10 @@ useEffect(() => {
                             </tr>
                             </thead>
                             <tbody>
-                            {ops.map((op: OpDef, opIdx: number) => 
-                                <tr key={op.id}
+                            {ops.filter((op: OpDef) => opSearchTerm ? 
+                                (opSearchBy === 'name' ? op.name : (op.tags?.join("") ?? '')).toLowerCase().includes(opSearchTerm) : true)
+                                .map((op: OpDef, opIdx: number) => 
+                                <tr key={op.id} 
                                     onMouseEnter={() => setHoveredOp(opIdx)}
                                     onMouseLeave={() => setHoveredOp(-1)}>
                                     <td className="text-center border border-neutral-500 p-2">
@@ -2670,7 +2710,7 @@ useEffect(() => {
 
 
                                     <td>
-                                        <div className="w-[30px] flex-shrink-0">
+                                        <div className="w-[30px] flex-shrink-0 mr-6">
                                         {hoveredOp === opIdx  || isDeletingOp === opIdx ?
                                         <button
                                             title={"Delete Op"}
@@ -2691,10 +2731,10 @@ useEffect(() => {
                             )}
                             </tbody>
                         </table>
-                        </>
+                        </div>
                         }
                         isOpened={true}
-                    />}
+                    /> </div>}
                 </div>
 
                 <div className="flex flex-row gap-3 mb-2 ">
@@ -2715,6 +2755,10 @@ useEffect(() => {
                         label={"Add Template"}
                         onConfirm={() => {
                             if (uploadedTemplate) {
+                                if (templates.find((t: Pptx_TEMPLATES) => t.name === isAddingTemplate.name)) {
+                                    alert("PowerPoint template names must be unique. Please rename your file and try again.");
+                                    return;
+                                }
                                 handleTemplateUpload(isAddingTemplate.name);
                             } else {
                                 alert("Please upload a powerpoint template.");
@@ -2739,7 +2783,6 @@ useEffect(() => {
                             onAttach={(file:File, fileName: string) => {
                                 setUploadedTemplate(file);
                                 setIsAddingTemplate({...isAddingTemplate, name: fileName});
-                                console.log(isAddingTemplate);
                             }}
                             completeCheck={() => isAddingTemplate.name != ''}
                             onRemove={() => {
@@ -2969,7 +3012,7 @@ useEffect(() => {
                                         </tr>
                                     ))}
                                 </tbody>
-                            </table> : <>No Embeddings Currently Found in the SQS.</>}
+                            </table> : <>It looks like Embbeddings is operating Correctly. There are no embeddings currently backed up in SQS.</>}
                         </div>
                         : 
                         ( loadingEmbeddings?
@@ -3459,9 +3502,3 @@ interface PromptCostAlert {
     alertMessage: string;
     cost: Number;
 }
-
-// interface ApiPresignedUrls {
-//     docx: string | undefined, 
-//     csv: string | undefined, 
-//     json: string | undefined
-// }

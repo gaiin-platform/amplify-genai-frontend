@@ -33,7 +33,6 @@ export const doRequestOp = async (opData: opData, abortSignal = null) => {
                 return { success: false, message: `Error parsing response from ${request}.` };
             }
         } else {
-            console.log("\n!!", request, "\n", response);
             console.log(`Error calling.\n ${request}: ${response.statusText}.`);
             return {success: false, message:`Error calling ${request}: ${response.statusText}.`}
         }

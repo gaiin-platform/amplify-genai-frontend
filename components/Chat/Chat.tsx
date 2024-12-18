@@ -63,6 +63,7 @@ import { getSettings } from '@/utils/app/settings';
 import { filterModels } from '@/utils/app/models';
 import { promptForData } from '@/utils/app/llm';
 import cloneDeep from 'lodash/cloneDeep';
+import { useSession } from 'next-auth/react';
 
 
 interface Props {
@@ -111,6 +112,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             handleAddMessages: handleAddMessages,
             handleUpdateSelectedConversation, getDefaultModel
         } = useContext(HomeContext);
+
+        const { data: session } = useSession();
+        const userEmail = session?.user?.email;
 
         // there should be a model id now since on fetchModels, I set it
         const getDefaultModelIdFromLocalStorage = () => {
@@ -701,11 +705,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         };
 
         const handleScrollUp = () => {
-            chatContainerRef.current?.scrollTo({
-                top: 30,
-                behavior: 'smooth',
-            });
+            if (modelSelectRef && modelSelectRef.current) {
+                const rect = modelSelectRef.current.getBoundingClientRect();
+                
+                // Check if the element is fully in view, partially in view, or not visible
+                const inView = (
+                    rect.top >= 0 &&
+                    rect.left >= 0 &&
+                    rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+                    rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+                );
+        
+                if (!inView) {
+                    modelSelectRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                }
+            }
         };
+        
 
         const handleSettings = () => {
             setShowSettings(!showSettings);
@@ -847,9 +863,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     isFetching = true;
 
                     try {
-                        const result = await doMtdCostOp();
-                        if (result && result.item && result.item["MTD Cost"] !== undefined) {
-                            setMtdCost(`$${result.item["MTD Cost"].toFixed(2)}`);
+                        const result = await doMtdCostOp(userEmail ?? '');
+                        if (result && "MTD Cost" in result && result["MTD Cost"] !== undefined) {
+                            setMtdCost(`$${result["MTD Cost"].toFixed(2)}`);
                         } else {
                             setMtdCost('$0.00');
                         }
@@ -1068,11 +1084,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 e.stopPropagation();
                                                 handleSettings();
 
-                                                if (!showSettings) {
-                                                    handleScrollUp();
-                                                } else {
-                                                    handleScrollDown();
-                                                } 
+                                                if (!showSettings) handleScrollUp();
+                                                // } else {
+                                                //     handleScrollDown();
+                                                // } 
                                                 
                                             }}
                                             title="Chat Settings"
@@ -1135,7 +1150,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     </div>
                                     <div ref={modelSelectRef}></div>
                                     
-                                        <div
+                                        <div 
                                             className="flex flex-col md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl ">
                                             { showSettings && !(selectedAssistant?.definition?.data?.model) &&
                                                 <div
