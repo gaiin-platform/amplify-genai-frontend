@@ -2606,6 +2606,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                          <div className="w-[140px] flex items-center rounded-md border border-neutral-600 bg-neutral-200 dark:bg-[#39394a] p-1">
                          {["name", "tag"].map((search: string) => 
                          <button onMouseDown={(e) =>  e.preventDefault()}
+                                key={search}
                                 className={`flex flex-row gap-2 py-1 px-2 text-[12px] rounded-md focus:outline-none ${ opSearchBy === search ? 'bg-white dark:bg-[#1f1f29] text-neutral-900 dark:text-neutral-100 font-bold transform scale-105' : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
                                 }`}
                                 disabled={opSearchBy === search}
