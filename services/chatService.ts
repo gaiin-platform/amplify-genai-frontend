@@ -36,6 +36,10 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
         Object.entries(chatBody).filter(([key, _]) => !keysToExclude.includes(key))
     );
 
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // Use the timzezone to get the user's local time
+    const time = new Date().toLocaleString('en-US', {timeZone: timeZone});
+
     let requestBody = {
         model: chatBody.model.id,
         temperature: chatBody.temperature,
@@ -50,6 +54,9 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
             ...chatBody.messages
         ],
         options: {
+            // Determine the current timezone
+            timeZone,
+            time,
             requestId: uuidv4(),
             ...vendorProps
         }
