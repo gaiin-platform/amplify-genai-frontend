@@ -21,36 +21,26 @@ const addDataToMessages = (messages: Message[], data: { [key: string]: any }) =>
 
 export const createAssistant = async (assistantDefinition: AssistantDefinition, abortSignal = null) => {
     if (!("disclaimer" in assistantDefinition)) assistantDefinition.disclaimer = '';
-
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/create",
+        data: {...assistantDefinition}
+    };
+    
     if (assistantDefinition.provider === 'openai') {
         if (assistantDefinition.dataSources) {
             assistantDefinition.fileKeys = assistantDefinition.dataSources.map((ds) => ds.id);
         }
 
-        const response = await fetch('/api/assistant/op', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({op: "/create", data: assistantDefinition}),
-            signal: abortSignal,
-        });
+        const result =  await doRequestOp(op);
 
-        const result = await response.json();
         const id = result.data.assistantId;
         return {assistantId: id, id, provider: 'openai'};
     } else if (assistantDefinition.provider === 'amplify') {
-        const response = await fetch('/api/assistant/op', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({op: "/create", data: assistantDefinition}),
-            signal: abortSignal,
-        });
 
         try {
-            const result = await response.json();
+            const result =  await doRequestOp(op);
 
             console.log("Create Assistant result:", result);
 

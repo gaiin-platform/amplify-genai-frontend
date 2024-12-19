@@ -195,10 +195,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         ...(definition.data && definition.data.apiOptions || {})
     }
 
-    const initialSelectedApis = definition.data?.operations.filter(
+    const initialSelectedApis = definition.data?.operations?.filter(
       (api:any) => api.type !== "http") || [];
 
-    const initialApiCapabilities = definition.data?.operations.filter(
+    const initialApiCapabilities = definition.data?.operations?.filter(
       (api:any) => api.type === "http") || [];
 
     const preexistingDocumentIds = (definition.dataSources || []).map(ds => ds.id); 
@@ -331,7 +331,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 return acc;
                             }, {})
                         );
-            if (ast.tags) setTags(ast.tags);
+            if (ast.tags) setTags(ast.tags ? ast.tags.join(", "): '');
             if (ast.disclaimer) setDisclaimer(ast.disclaimer);
         }
     }
@@ -402,7 +402,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         });
         // do the same for 
         newAssistant.tools = selectedApis || [];
-
         const tagsList = tags.split(",").map((x: string) => x.trim());
         newAssistant.tags = tagsList
         newAssistant.data.tags = tagsList;
