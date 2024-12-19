@@ -370,6 +370,7 @@ const AutonomousBlock: React.FC<Props> = (
                     }
                 }
             )
+            homeDispatch({ field: 'selectedConversation', value: conversation });
 
             const context = {
                 conversation,

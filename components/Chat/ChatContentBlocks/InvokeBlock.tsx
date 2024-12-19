@@ -107,6 +107,7 @@ const InvokeBlock: React.FC<Props> = ({
 
   const runAction = async (action: any) => {
     try {
+
       if (!isLast || hasExecuted[id] || message.data.automation) {
         console.log(
           'Skipping execution of action:',
@@ -121,6 +122,8 @@ const InvokeBlock: React.FC<Props> = ({
         return;
       }
       hasExecuted[id] = true;
+
+      console.log("############### Updating message with automation status");
 
       homeDispatch({
         type: 'conversation',
@@ -140,6 +143,8 @@ const InvokeBlock: React.FC<Props> = ({
           ],
         },
       });
+
+      homeDispatch({ field: 'selectedConversation', value: conversation });
 
       const context = {
         conversation,

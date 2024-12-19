@@ -28,6 +28,11 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
   const [loadingIntegrations, setLoadingIntegrations] = useState(true);
 
   const integrationsList = [
+    {name: "Google Calendar",
+      id: "google_calendar",
+      icon: IconBrandGoogleDrive,
+      description: "This integration allows assistants to manage your Google Calendar, create events, and schedule meetings."
+    },
     {
       name: "Google Sheets",
       id: "google_sheets",
