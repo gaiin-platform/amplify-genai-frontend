@@ -131,6 +131,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
 
     const [dataDisclosureUploaded, setDataDisclosureUploaded] = useState<boolean>(false);
+    
 
     const [showUploadApiDocs, setShowUploadApiDocs] = useState<boolean>(false);
     // const [apiPresignedUrls, setApiPresignedUrls] = useState<ApiPresignedUrls | null>(null);
@@ -570,18 +571,28 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         alert("Unable to upload the Data Disclosure file at this time. Please try again later."); 
     }
 
-    const handleApiDocUpload = async (file:File) => {
+
+    const handleApiDocUpload = async (file: File) => {
         try {
             const md5 = await calculateMd5(file);
             const result = await uploadApiDoc(file.name, md5);
             if (result.success && result.presigned_url) {
                 const uploadResult = await uploadFileAsAdmin(result.presigned_url, file, md5);
-                if (uploadResult) return; 
+                if (uploadResult) {
+                    const fileType = file.name.split('.').pop()?.toLowerCase();
+                    setApiDocsUploaded(prev => ({
+                        ...prev,
+                        csv: fileType === 'csv' ? true : prev.csv,
+                        docx: fileType === 'docx' ? true : prev.docx,
+                        json: fileType === 'json' ? true : prev.json
+                    }));
+                    return;
+                }
             }
         } catch (error) {
-            console.log(`Failed to get presigend url api doc. ${error}`);
-        } 
-        alert("Unable to upload the API Documentation at this time. Please remove the document and try uploading again."); 
+            console.log(`Failed to get presigned url api doc. ${error}`);
+        }
+        alert("Unable to upload the API Documentation at this time. Please remove the document and try uploading again.");
     }
 
 
@@ -2098,6 +2109,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                     handleApiDocUpload(overriddenFile);
                                 }}
                                 completeCheck={() => apiDocsUploaded.docx}
+
                                 onRemove={() => {
                                     setApiDocsUploaded({...apiDocsUploaded, docx: false});
                                 }}
