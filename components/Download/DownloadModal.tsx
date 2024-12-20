@@ -280,9 +280,9 @@ export const DownloadModal: FC<DownloadModalProps> = (
                conversionOptions.templateName = templateSelection;
             }
 
-            const result = await convert(conversionOptions, await sharedData);
+            const result = await convert(conversionOptions, sharedData);
 
-            statsService.downloadItemEvent(conversionOptions, await sharedData);
+            statsService.downloadItemEvent(conversionOptions, sharedData);
 
             let resultArrived = false;
             let triesLeft = 60;
