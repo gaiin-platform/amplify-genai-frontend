@@ -1,51 +1,43 @@
 import { doRequestOp } from "./doRequestOp";
 
-const URL_PATH =  "/data-disclosure";
+const URL_PATH = "/data-disclosure";
 
 
-export const checkDataDisclosureDecision = async (email: string, abortSignal = null) => {
-    const response = await fetch('/api/datadisclosure/check', {
-        signal: abortSignal,
-    });
-
-    if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-    return response.json();
-};
-
-export const saveDataDisclosureDecision = async (email: string, acceptedDataDisclosure: boolean, abortSignal = null) => {
-    const response = await fetch('/api/datadisclosure/save', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({data: { email: email, acceptedDataDisclosure: acceptedDataDisclosure }}),
-        signal: abortSignal,
-    });
-
-    if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-    return response.json();
-};
-
-export const getLatestDataDisclosure = async (abortSignal = null) => {
-    const response = await fetch('/api/datadisclosure/latest', {
-        signal: abortSignal,
-    });
-
-    if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-    return response.json();
-};
-
-
-
-export const uploadDataDisclosure = async (content_md5:string) => {
+export const checkDataDisclosureDecision = async () => {
     const op = {
-        data: {md5: content_md5},
+        method: 'GET',
+        path: URL_PATH,
+        op: '/check',
+    };
+    return await doRequestOp(op);
+}
+
+
+export const saveDataDisclosureDecision = async (email: string, acceptedDataDisclosure: boolean) => {
+    const op = {
+        data: {data: { email: email, acceptedDataDisclosure: acceptedDataDisclosure }},
+        method: 'POST',
+        path: URL_PATH,
+        op: '/save',
+    };
+    return await doRequestOp(op);
+}
+
+
+
+export const getLatestDataDisclosure = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: "/latest",
+    };
+    return await doRequestOp(op);
+}
+
+
+export const uploadDataDisclosure = async (data: any) => {
+    const op = {
+        data: data,
         method: 'POST',
         path: URL_PATH,
         op: '/upload',

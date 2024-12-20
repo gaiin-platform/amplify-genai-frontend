@@ -17,12 +17,13 @@ import cloneDeep from 'lodash/cloneDeep';
 import { Prompt } from '@/types/prompt';
 import { isAssistant } from '@/utils/app/assistants';
 import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
-import { APIDownloadFile, fetchFile } from '@/components/Chat/ChatContentBlocks/APIDocBlock';
+import { APIDownloadFile } from '@/components/Chat/ChatContentBlocks/APIDocBlock';
 import { ReservedTags } from '@/types/tags';
 import toast from 'react-hot-toast';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { InfoBox } from '@/components/ReusableComponents/InfoBox';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
+import { fetchFile } from '@/utils/app/files';
 
 interface Props {
     apiKeys: ApiKey[];
