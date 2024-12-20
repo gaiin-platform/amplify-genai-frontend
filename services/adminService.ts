@@ -48,7 +48,7 @@ export const getAvailableModels = async () => {
     const op = {
         method: 'GET',
         path: "/available_models",
-        op: "/get",
+        op: "",
     };
     return await doRequestOp(op);
 }

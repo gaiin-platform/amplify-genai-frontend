@@ -604,14 +604,14 @@ const onAssistantChange = (assistant: Assistant) => {
                 className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
                
                {!showScrollDownButton && !messageIsStreaming && !artifactIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
-               (selectedConversation && selectedConversation.messages.length > 0) &&  (
+               (selectedConversation && selectedConversation.messages?.length > 0) &&  (
                <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert  hover:text-neutral-900 dark:hover:text-neutral-100">
                 <button
                     className="mt-5 cursor-pointer border border-gray-300 dark:border-gray-600 rounded px-2 py-1"
                     style={{ fontSize: '0.9rem' }} 
                     onClick={async () => {
                         // setShowPromptList(false);
-                        if (selectedConversation && selectedConversation.messages.length > 2) {
+                        if (selectedConversation && selectedConversation.messages?.length > 2) {
                             setShowMessageSelectDialog(true);
                         } else {
                             setCroppedConversation(cloneDeep(selectedConversation));

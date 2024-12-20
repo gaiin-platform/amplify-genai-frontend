@@ -6,11 +6,11 @@ import InputsMap from "../ReusableComponents/InputMap";
 import { deletePptx, getAdminConfigs, getInFlightEmbeddings, terminateEmbedding, testEndpoint, updateAdminConfigs, uploadPptx } from "@/services/adminService";
 import { AdminConfigTypes, Embedding, EmbeddingsConfig, Endpoint, FeatureFlag, FeatureFlagConfig, OpenAIModelsConfig, providers, SupportedModel, SupportedModelsConfig } from "@/types/admin";
 import ExpansionComponent from "../Chat/ExpansionComponent";
-import { IconCheck, IconPlus, IconRefresh,  IconTrash, IconX, IconEdit, IconKey, IconCircleX, IconFileUpload, IconFileTypeDocx, IconFileTypePpt, IconChevronRight, IconChevronLeft, IconFileTypeCsv, IconFileTypeJs, IconTags, IconMessage } from "@tabler/icons-react";
+import { IconCheck, IconPlus, IconRefresh,  IconTrash, IconX, IconEdit, IconKey, IconCircleX, IconFileUpload, IconFileTypeDocx, IconFileTypePpt, IconChevronRight, IconChevronLeft, IconFileTypeCsv, IconFileTypeJs, IconTags, IconMessage, IconFileTypePdf } from "@tabler/icons-react";
 import { EmailsAutoComplete } from "../Emails/EmailsAutoComplete";
 import { LoadingIcon } from "../Loader/LoadingIcon";
 import Checkbox from "../ReusableComponents/CheckBox";
-import { userFriendlyDate } from "@/utils/app/date";
+import { generateTimestamp, userFriendlyDate } from "@/utils/app/date";
 import toast from "react-hot-toast";
 import React from "react";
 import { InfoBox } from "../ReusableComponents/InfoBox";
@@ -134,9 +134,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     
 
     const [showUploadApiDocs, setShowUploadApiDocs] = useState<boolean>(false);
-    // const [apiPresignedUrls, setApiPresignedUrls] = useState<ApiPresignedUrls | null>(null);
-    const [apiDocsUploaded, setApiDocsUploaded] = useState<{csv: boolean, docx: boolean, json: boolean}>(
-                                                           {csv: false, docx: false, json: false});
+    const [apiDocsUploaded, setApiDocsUploaded] = useState<{csv: boolean, pdf: boolean, json: boolean}>(
+                                                           {csv: false, pdf: false, json: false});
 
 
     const [ampGroups, setAmpGroups] = useState<Amplify_Groups>({});
@@ -214,12 +213,14 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
   
 
 
-    function camelToTitleCase(str: string) {
+      function camelToTitleCase(str: string) {
         return str
             .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space between lowercase and uppercase letters
             .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2') // Keep consecutive uppercase letters together
+            .replace(/\$/g, ' $') // Add a space before any dollar sign
             .replace(/^./, char => char.toUpperCase()); // Capitalize the first letter
     }
+    
     
     const handleGetEmbeddings = async () => {
         setLoadingEmbeddings(true);
@@ -552,25 +553,28 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     }
 
     const handleDataDisclosureUpload = async (file:File) => {
+        const type =  file.type;
+        const latestName = `data_disclosure_${generateTimestamp()}.pdf`;
+        const pdfFile = new File([file], latestName, { type: type });
         try {
-                const md5 = await calculateMd5(file);
-                console.log(md5);  
-                const result = await uploadDataDisclosure(md5);
-                if (result.success && result.presigned_url) {
-                    const presigned = result.presigned_url;
-                
-                        const uploadResult = await uploadFileAsAdmin(presigned, file, md5);
-                        if (uploadResult) {
-                            setDataDisclosureUploaded(true);
-                            return;
-                }  
+            const md5 = await calculateMd5(pdfFile);
+            console.log(md5);  
+            const result = await uploadDataDisclosure({ fileName: latestName,
+                                                        contentType : type,
+                                                        md5: md5,
+                                                     });
+            if (result.success && result.presigned_url) {
+                const uploadResult = await uploadFileAsAdmin(result.presigned_url, pdfFile, md5);
+                if (uploadResult) {
+                    setDataDisclosureUploaded(true);
+                    return;  
+            }  
         }
         } catch (error) {
             console.log("Error getting presigned url and uploading.", error);
         } 
         alert("Unable to upload the Data Disclosure file at this time. Please try again later."); 
     }
-
 
     const handleApiDocUpload = async (file: File) => {
         try {
@@ -580,12 +584,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 const uploadResult = await uploadFileAsAdmin(result.presigned_url, file, md5);
                 if (uploadResult) {
                     const fileType = file.name.split('.').pop()?.toLowerCase();
-                    setApiDocsUploaded(prev => ({
-                        ...prev,
-                        csv: fileType === 'csv' ? true : prev.csv,
-                        docx: fileType === 'docx' ? true : prev.docx,
-                        json: fileType === 'json' ? true : prev.json
-                    }));
+                    setApiDocsUploaded({...apiDocsUploaded, [fileType as 'csv' | 'docx' | 'json']: true});
                     return;
                 }
             }
@@ -1310,11 +1309,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                     id = {AdminConfigTypes.AVAILABLE_MODELS}
                                     inputs={ [ {label: 'Model ID', key: 'id', placeholder: 'Model ID', disabled: isAddingAvailModel.model.isBuiltIn},
                                                 {label: 'Name', key: 'name', placeholder: 'Model Name'},
-                                                {label: "Description", key: 'description', placeholder: 'Description Displayed to the User'}
+                                                {label: "Description", key: 'description', placeholder: 'Description Displayed to the User'},
+                                                {label: 'System Prompt', key: 'systemPrompt', placeholder: 'Additional System Prompt'},
                                             ]}
                                     state = {{id : isAddingAvailModel.model.id, 
                                             description : isAddingAvailModel.model.description, 
                                             name: isAddingAvailModel.model.name, 
+                                            systemPrompt: isAddingAvailModel.model.systemPrompt
                                         }}
                                     inputChanged = {(key:string, value:string) => {
                                         let updated = {...isAddingAvailModel.model, [key]: value};
@@ -1322,7 +1323,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                     }}
                                     /> 
                                     <div className="flex flex-row"> 
-                                        <div className="w-[95px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
+                                        <div className="w-[122px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
                                             title={"Provider"}
                                             >
                                             {"Provider"}
@@ -1350,14 +1351,16 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                     {modelNumberInputs('inputContextWindow', isAddingAvailModel.model.inputContextWindow, 1000, true,
                                          "Models Conversation Input Token Context Window" )}
 
-                                    {modelNumberInputs('inputTokenCost', isAddingAvailModel.model.inputTokenCost, .0001, false,
+                                    {modelNumberInputs('inputTokenCost$', isAddingAvailModel.model.inputTokenCost, .0001, false,
                                          "Models Input Token Cost/1k" )}
 
                                     {modelNumberInputs('outputTokenLimit', isAddingAvailModel.model.outputTokenLimit, 1000, true, 
                                         "Output Token Limit Set By Models Provider" )}
 
-                                    {modelNumberInputs('outputTokenCost', isAddingAvailModel.model.outputTokenCost, .0001, false,
+                                    {modelNumberInputs('outputTokenCost$', isAddingAvailModel.model.outputTokenCost, .0001, false,
                                          "Models Output Token Cost/1k" )}
+                                    {modelActiveCheck('supportsSystemPrompts', isAddingAvailModel.model.supportsSystemPrompts, "Model Supports System Prompts" )}
+
                                     {!isAddingAvailModel.model.id.includes('embed') && <>
                                     {modelActiveCheck('supportsImages', isAddingAvailModel.model.supportsImages,
                                                       "Model Supports Base-64 Encoded Images Attached to Prompts" )}
@@ -1448,12 +1451,14 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                     <table className="mt-4 border-collapse w-full" >
                                         <thead>
                                         <tr className="bg-gray-200 dark:bg-[#373844] text-sm">
-                                            {['Name', 'ID',  'Supports Images', 'Available', 'Provider', 'Description',
-                                              'Input Context Window', 'Output Token Limit', 'Input Token Cost / 1k', 'Output Token Cost / 1k', 
+                                            {['Name', 'ID',  'Provider', 'Available', 'Supports Images',
+                                              'Supports System Prompts', 'Additional System Prompt',
+                                              'Description', 'Input Context Window', 'Output Token Limit', 
+                                              'Input Token Cost / 1k', 'Output Token Cost / 1k', 
                                               'Available to User via Amplify Group Membership',
                                             ].map((title, i) => (
                                             <th key={i}
-                                                className="px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300" >
+                                                className="text-[0.8rem] px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300" >
                                                 {title}
                                             </th>
                                             ))}
@@ -1474,18 +1479,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                 <td className="border border-neutral-500 p-2">
                                                     {availModel.name}
                                                 </td>
+
                                                 <td className="border border-neutral-500 p-2 break-words max-w-[160px]">
                                                     {availModel.id}
                                                 </td>
 
-                                                <td className="border border-neutral-500 px-4 py-2 w-[60px]"
-                                                    title="Model Support for Base64-Encoded Images">
-                                                    {availModel.id.includes('embed') ? 
-                                                    <div className="text-center">N/A</div> :
-                                                     <div className="flex justify-center">
-                                                        {availModel.supportsImages ? <IconCheck className= 'text-green-600' size={18} /> 
-                                                                                : <IconX  className='text-red-600' size={18} />}
-                                                    </div> }                          
+                                                <td className="border border-neutral-500 p-2 break-words ">
+                                                    <div className="flex justify-center">  {availModel.provider ?? 'Unknown Provider'} </div>
                                                 </td>
 
                                                 <td className="border border-neutral-500 p-2 w-[60px]"
@@ -1498,37 +1498,52 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                     </div>}
                                                 </td>
 
-                                                <td className="border border-neutral-500 p-2 break-words ">
-                                                    <div className="flex justify-center">  {availModel.provider ?? 'Unknown Provider'} </div>
+                                                <td className="border border-neutral-500 px-4 py-2 w-[60px]"
+                                                    title="Model Support for Base64-Encoded Images">
+                                                    {availModel.id.includes('embed') ? 
+                                                    <div className="text-center">N/A</div> :
+                                                     <div className="flex justify-center">
+                                                        {availModel.supportsImages ? <IconCheck className= 'text-green-600' size={18} /> 
+                                                                                : <IconX  className='text-red-600' size={18} />}
+                                                    </div> }                          
                                                 </td>
 
-                                                <td className="border border-neutral-500 w-[230px]">
-                                                    <div className=" flex justify-center break-words overflow-y-auto" 
-                                                        style={{maxWidth: 250}}>  
-                                                        <textarea
-                                                         className="w-full rounded-r border border-neutral-500 px-1 bg-transparent dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
-                                                        value={availModel.description ?? 'N/A'}
-                                                        disabled={true}
-                                                        rows={2} 
-                                                        />
-                                                    </div>
+
+                                                <td className="border border-neutral-500 px-4 py-2 w-[74px]"
+                                                    title="Model Support System Prompts">
+                                                    <div className="flex justify-center">
+                                                        {availModel.supportsSystemPrompts ? <IconCheck className= 'text-green-600' size={18} /> : 
+                                                        <IconX  className='text-red-600' size={18} />}
+                                                    </div>                           
                                                 </td>
 
-                                                <td className="border border-neutral-500 p-2 w-[80px]">
-                                                    <div className="flex justify-center"> {availModel.inputContextWindow} </div>
-                                                </td>
+                                                {["systemPrompt", "description"].map((s:string) => 
+                                                    <td className="border border-neutral-500 text-center" key={s}>
+                                                        {availModel[s as keyof SupportedModel] ?
+                                                        <div className=" flex justify-center break-words overflow-y-auto w-[200px]" >  
+                                                            <textarea
+                                                            className="w-full rounded-r border border-neutral-500 px-1 bg-transparent dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                                                            value={availModel[s as keyof SupportedModel] as string}
+                                                            disabled={true}
+                                                            rows={2} 
+                                                            /> 
+                                                        </div>: 'N/A'}
+                                                    </td>
+                                                )}
 
-                                                <td className="border border-neutral-500 p-2 w-[80px]">
-                                                    <div className="flex justify-center"> {availModel.outputTokenLimit} </div>
-                                                </td>
+                                                {["inputContextWindow", "outputTokenLimit"].map((s: string) => 
+                                                    <td className="border border-neutral-500 p-2 w-[68px]" key={s}>
+                                                        <div className="flex justify-center"> 
+                                                            {availModel[s as keyof SupportedModel]} </div>
+                                                    </td>
+                                                )}
 
-                                                <td className="border border-neutral-500 p-2 w-[85px]">
-                                                    <div className="flex justify-center">  ${availModel.inputTokenCost} </div>
-                                                </td>
-
-                                                <td className="border border-neutral-500 p-2 w-[85px]">
-                                                    <div className="flex justify-center"> ${availModel.outputTokenCost} </div>
-                                                </td>
+                                                {["inputTokenCost", "outputTokenCost"].map((s: string) => 
+                                                    <td className="border border-neutral-500 p-2 w-[85px]"  key={s}>
+                                                        <div className="flex justify-center">  
+                                                            ${availModel[s as keyof SupportedModel]} </div>
+                                                    </td>
+                                                )}
 
                                                 <td className="border border-neutral-500 text-center">
                                                     {availModel.exclusiveGroupAvailability && availModel.exclusiveGroupAvailability.length > 0 ?
@@ -2067,16 +2082,14 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 {titleLabel('Upload Documents' )}
                 <div className="mx-6 flex flex-row gap-20">
                         <div className="flex flex-row gap-2">
-                            <IconFileTypeDocx className="ml-1 mt-1" size={18}/>
-                            <label className="mt-0.5 text-[1rem]"> Data Disclosure</label>
+                            <IconFileTypePdf className="ml-1 mt-1" size={18}/>
+                            <label className="mt-0.5 text-[1rem]" title="Upload pdf file"> Data Disclosure</label>
                             <div className="max-h-20"> 
                                 <FileUpload
                                 id={"data_disclosure"}
-                                allowedFileExtensions={['docx']}
+                                allowedFileExtensions={['pdf']}
                                 onAttach={(file:File, fileName: string) => {
-                                    const overriddenFile = new File([file], "data_disclosure.docx", { type: file.type });
-                                    console.log(overriddenFile)
-                                    handleDataDisclosureUpload(overriddenFile);
+                                    handleDataDisclosureUpload(file);
                                 }}
                                 completeCheck={() => dataDisclosureUploaded}
                                 onRemove={() => {
@@ -2100,20 +2113,20 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             </button>
                             {showUploadApiDocs && 
                             <>
-                            <> <IconFileTypeDocx className="flex-shrink-0 mt-1 ml-3" size={18}/>
+                            <> <IconFileTypePdf className="flex-shrink-0 mt-1 ml-3" size={18}/>
                             <FileUpload
-                                id={"api_documentation_docx"}
-                                allowedFileExtensions={['docx']}
+                                id={"api_documentation_pdf"}
+                                allowedFileExtensions={['pdf']}
                                 onAttach={(file:File, fileName: string) => {
-                                    const overriddenFile = new File([file], "Amplify_API_Documentation.docx", { type: file.type });
+                                    const overriddenFile = new File([file], "Amplify_API_Documentation.pdf", { type: file.type });
                                     handleApiDocUpload(overriddenFile);
                                 }}
-                                completeCheck={() => apiDocsUploaded.docx}
+                                completeCheck={() => apiDocsUploaded.pdf}
 
                                 onRemove={() => {
-                                    setApiDocsUploaded({...apiDocsUploaded, docx: false});
+                                    setApiDocsUploaded({...apiDocsUploaded, pdf: false});
                                 }}
-                                label="API Docx"
+                                label="API PDF"
                             /></>
                             <> <IconFileTypeCsv className="flex-shrink-0 mt-1 ml-5" size={18}/>
                             <FileUpload
@@ -3315,11 +3328,11 @@ useEffect(() => {
     if (uploadedDocument && documentState >= 5 && documentState < 100) {
         if (completeCheck()) {
             setDocumentState(100);
-            console.log("loaded!!");
-
         } else {
-            setDocumentState(documentState +5);
-            console.log("loading..");
+            setTimeout( () => {
+              setDocumentState(documentState +5);
+            }, 200
+            );            
         }
     }
 
@@ -3329,9 +3342,8 @@ useEffect(() => {
 
 const handleFile = async (file:File, name: string) => {
     try {
-        onAttach(file, name);
         setDocumentState(5); // starts simulation 
-
+        onAttach(file, name);
     } catch (error) {
         console.error("Failed to handle file:", error);
     }
@@ -3429,6 +3441,8 @@ const emptySupportedModel = () => {
     description: '',
     exclusiveGroupAvailability: [],
     supportsImages: false,
+    supportsSystemPrompts: false, 
+    systemPrompt: '',
 
     defaultCheapestModel: false, // recommend cheaper model
     defaultAdvancedModel: false,// recommend more expensive 

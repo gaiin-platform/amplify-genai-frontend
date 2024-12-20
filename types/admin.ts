@@ -124,12 +124,14 @@ export interface EmbeddingsConfig  {
     description: string;
     exclusiveGroupAvailability: string[];
     supportsImages: boolean;
+    supportsSystemPrompts: boolean;
+    systemPrompt: string;
 
     defaultCheapestModel: boolean; // recommend cheaper model
     defaultAdvancedModel: boolean; // recommend more expensive 
     defaultEmbeddingsModel: boolean
-    defaultQAModel: boolean
-
+    defaultQAModel: boolean;
+    
     isDefault: boolean;
     isAvailable: boolean;
     isBuiltIn: boolean;

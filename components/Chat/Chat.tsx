@@ -750,7 +750,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             throttledScrollDown();
             selectedConversation &&
             setCurrentMessage(
-                selectedConversation.messages[selectedConversation.messages.length - 2],
+                selectedConversation.messages[selectedConversation.messages?.length - 2],
             );
         }, [selectedConversation, throttledScrollDown]);
 
@@ -791,7 +791,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const handlePromptTemplateDialogCancel = (canceled: boolean) => {
             if (canceled) {
-                if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
+                if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages?.length == 0) {
                     handleDeleteConversation(selectedConversation);
                 }
             }
@@ -802,7 +802,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (selectedConversation
                 && selectedConversation.promptTemplate
                 && isAssistant(selectedConversation.promptTemplate)
-                && selectedConversation.messages.length == 0) {
+                && selectedConversation.messages?.length == 0) {
                     
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
@@ -810,7 +810,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     if (prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
-            else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
+            else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages?.length == 0) {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
                     // make sure assistant hasnt been deleted 
@@ -819,7 +819,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
                 setIsPromptTemplateDialogVisible(true);
-            } else if (selectedConversation && selectedConversation.workflowDefinition && selectedConversation.messages.length == 0) {
+            } else if (selectedConversation && selectedConversation.workflowDefinition && selectedConversation.messages?.length == 0) {
                 //alert("Prompt Template");
                 const workflowVariables = Object.entries(selectedConversation.workflowDefinition.inputs.parameters)
                     .map(([k, v]) => k);
@@ -888,7 +888,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 // @ts-ignore
         return (
             <>
-            {selectedConversation && selectedConversation.messages.length > 0 && 
+            {selectedConversation && selectedConversation.messages?.length > 0 && 
             featureFlags.highlighter && getSettings(featureFlags).featureOptions.includeHighlighter && 
                 <PromptHighlightedText 
                 onSend={(message) => {
@@ -907,7 +907,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             ref={chatContainerRef}
                             onScroll={handleScroll}
                         >
-                            {selectedConversation && selectedConversation.messages.length === 0 && filteredModels ? (
+                            {selectedConversation && selectedConversation.messages?.length === 0 && filteredModels ? (
                                 <>
                                     <div
                                         className="mx-auto flex flex-col space-y-1 md:space-y-8 px-3 pt-5 md:pt-10 sm:max-w-[600px]">

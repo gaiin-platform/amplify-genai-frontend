@@ -118,28 +118,13 @@ const getPrompt = (type: QiSummaryType) => {
 }
 
 
-export const uploadToQiS3 = async (data:any, type: QiSummaryType, errorHandler=(e:any)=>{}) => {
-
-    const response = await fetch('/api/qi/upload', {
+export const uploadToQiS3 = async (data:any, type: QiSummaryType) => {
+    const op = {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: null,
-        body: JSON.stringify({'data': data, 'type': type.toLowerCase()}),
-    });
-
-
-    if (response.ok){
-        try {
-            const result = await response.json();
-
-            return JSON.parse(result.body);
-        } catch (e){
-            return {success:false, message:"Error parsing response."};
-        }
-    }
-    else {
-        return {success:false, message:`Error calling upload qi to s3: ${response.statusText} .`}
-    }
+        path: URL_PATH,
+        op: `/upload/${type}`,
+        data: data
+    };
+    const result = await doRequestOp(op);
+    return JSON.parse(result.body);
 }

@@ -86,6 +86,10 @@ import { getAvailableModels, getFeatureFlags, getPowerPoints } from '@/services/
 import { DefaultModels, Model } from '@/types/model';
 import { ErrorMessage } from '@/types/error';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
+import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import DOMPurify from 'dompurify';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -121,6 +125,9 @@ const Home = ({
 
     const [loadingAmplify, setLoadingAmplify] = useState<boolean>(true);
 
+    const [dataDisclosure, setDataDisclosure] = useState<{url: string, html: string | null}|null>(null);
+    const [hasAcceptedDataDisclosure, sethasAcceptedDataDisclosure] = useState<boolean | null> (null);
+
     const { data: session, status } = useSession();
     const [user, setUser] = useState<DefaultUser | null>(null);
 
@@ -149,10 +156,7 @@ const Home = ({
             selectedAssistant,
             page,
             statsService,
-            latestDataDisclosureUrlPDF,
-            latestDataDisclosureHTML,
             inputEmail,
-            hasAcceptedDataDisclosure,
             hasScrolledToBottom,
             featureFlags,
             storageSelection,
@@ -743,7 +747,7 @@ const Home = ({
 
                     //save default model 
                     localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
-                    console.log("Default: ", defaultModel);
+                    // console.log("Default: ", defaultModel);
 
                     console.log("Selected conv model: ",selectedConversation?.model);
                 } else {
@@ -758,6 +762,33 @@ const Home = ({
             } 
         };
 
+        const fetchDataDisclosureDecision = async (featureOn: boolean) => {
+            if (featureOn) {
+                try {
+                    const decision = await checkDataDisclosureDecision();
+                    const decisionBodyObject = JSON.parse(decision.body);
+                    const decisionValue = decisionBodyObject.acceptedDataDisclosure;
+                    // console.log("Decision: ", decisionValue);
+                    sethasAcceptedDataDisclosure(decisionValue);
+                    if (!decisionValue) { // Fetch the latest data disclosure only if the user has not accepted it
+                        const latestDisclosure = await getLatestDataDisclosure();
+                        console.log(latestDisclosure);
+                        const latestDisclosureBodyObject = JSON.parse(latestDisclosure.body);
+                        const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
+                        const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
+                        setDataDisclosure({url: latestDisclosureUrlPDF, html: latestDisclosureHTML});
+
+                        checkScrollableContent();
+                    }
+                } catch (error) {
+                    console.error('Failed to check data disclosure decision:', error);
+                    sethasAcceptedDataDisclosure(false);
+                }
+            }
+
+            setLoadingAmplify(false); 
+        };
+
         const fetchAccounts = async () => {      
             console.log("Fetching Accounts...");
             try {
@@ -765,7 +796,6 @@ const Home = ({
                 if (response.success) {
                     const defaultAccount = response.data.find((account: any) => account.isDefault);
                     if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
-                    setLoadingAmplify(false); 
                     dispatch({ field: 'defaultAccount', value: defaultAccount || noCoaAccount});  
                     return;
                 } else {
@@ -774,8 +804,7 @@ const Home = ({
             } catch (e) {
                 console.log("Failed to fetch accounts: ", e);
             }
-            dispatch({ field: 'defaultAccount', value: noCoaAccount}); 
-            setLoadingAmplify(false);    
+            dispatch({ field: 'defaultAccount', value: noCoaAccount});   
         };
 
         const fetchAmplifyUsers = async () => {      
@@ -1021,6 +1050,7 @@ const Home = ({
 
         const handleFeatureDependantOnLoadData = async () => {
             const flags = await fetchFeatureFlags();
+            fetchDataDisclosureDecision(flags.dataDisclosure);
             if (flags.artifacts) fetchArtifacts(); // fetch artifacts 
 
             //Conversation, prompt, folder dependent calls
@@ -1032,12 +1062,12 @@ const Home = ({
             
             // independent function calls / high priority
             fetchModels();
+            handleFeatureDependantOnLoadData(); 
             fetchAccounts();  // fetch accounts for chatting charging
             fetchSettings(); // fetch user settings
             fetchAmplifyUsers();
             fetchPowerPoints();
-            
-            handleFeatureDependantOnLoadData();   
+ 
         } 
     
     }, [user]);
@@ -1263,58 +1293,15 @@ const Home = ({
         }
     };
 
-    useEffect(() => {
-        if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
-            const fetchDataDisclosureDecision = async () => {
-                const { hasAcceptedDataDisclosure } = contextValue.state;
-                if (user?.email && (!hasAcceptedDataDisclosure)) {
-                    try {
-                        const decision = await checkDataDisclosureDecision(user?.email);
-                        const decisionBodyObject = JSON.parse(decision.item.body);
-                        const decisionValue = decisionBodyObject.acceptedDataDisclosure;
-                        // console.log("Decision: ", decisionValue);
-                        dispatch({ field: 'hasAcceptedDataDisclosure', value: decisionValue });
-                        if (!decisionValue) { // Fetch the latest data disclosure only if the user has not accepted it
-                            const latestDisclosure = await getLatestDataDisclosure();
-                            const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
-                            const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
-                            const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
-                            dispatch({ field: 'latestDataDisclosureUrlPDF', value: latestDisclosureUrlPDF });
-                            dispatch({ field: 'latestDataDisclosureHTML', value: latestDisclosureHTML });
 
-                            checkScrollableContent();
-                        }
-                    } catch (error) {
-                        console.error('Failed to check data disclosure decision:', error);
-                        dispatch({ field: 'hasAcceptedDataDisclosure', value: false });
-                    }
-                }
-            };
-
-            if (user?.email) fetchDataDisclosureDecision();
-        }
-    }, [user,
-        hasAcceptedDataDisclosure,
-        featureFlags.dataDisclosure]);
-
-    if (session) {
-        if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
-            if (hasAcceptedDataDisclosure === null) {
-                return (
-                    <main className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}>
-                        <div className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
-                            <Loader />
-                            <h1 className="mb-4 text-2xl font-bold">Loading...</h1>
-                        </div>
-                    </main>
-                );
-            } else if (!hasAcceptedDataDisclosure) {
+    if (session) {                          // dont want to go here if its null
+        if (featureFlags.dataDisclosure && hasAcceptedDataDisclosure === false) {// && window.location.hostname !== 'localhost'
                 return (
                     <main className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}>
                         <div className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
                             <h1 className="text-2xl font-bold dark:text-white">Amplify Data Disclosure Agreement</h1>
-                            <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', marginBottom: '10px' }}>Download the data disclosure agreement</a>
-                            {latestDataDisclosureHTML ? (
+                            {dataDisclosure?.url && <a className="hover:text-blue-500" href={dataDisclosure.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', marginBottom: '10px' }}>Download the data disclosure agreement</a>}
+                            {dataDisclosure && dataDisclosure.html ? (
                                 <div
                                     className="data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black text-left"
                                     style={{
@@ -1323,11 +1310,18 @@ const Home = ({
                                         padding: '20px',
                                         marginBottom: '10px',
                                         height: '500px',
-                                        width: '30%',
+                                        width: '35%',
                                     }}
                                     onScroll={handleScroll}
-                                    dangerouslySetInnerHTML={{ __html: latestDataDisclosureHTML }}
-                                />
+                                    dangerouslySetInnerHTML={{ __html: dataDisclosure.html }}
+                                > 
+                                {/*  for when we try out markitdown in pdf to md conversion in the backend
+                                <DataDisclosure
+                                content='dataDisclosure.html'
+                                /> */}
+                                    
+                                </div>
+
                             ) : (
                                 <div className="flex flex-col items-center justify-center" style={{ height: '500px', width: '30%' }}>
                                     <Loader />
@@ -1355,7 +1349,7 @@ const Home = ({
                                             if (inputEmail.toLowerCase() === user.email.toLowerCase()) {
                                                 if (hasScrolledToBottom) {
                                                     saveDataDisclosureDecision(user.email, true);
-                                                    dispatch({ field: 'hasAcceptedDataDisclosure', value: true });
+                                                    sethasAcceptedDataDisclosure(true);
                                                 } else {
                                                     alert('You must scroll to the bottom of the disclosure before accepting.');
                                                 }
@@ -1374,7 +1368,7 @@ const Home = ({
                                         if (inputEmail.toLowerCase() === user.email.toLowerCase()) {
                                             if (hasScrolledToBottom) {
                                                 saveDataDisclosureDecision(user.email, true);
-                                                dispatch({ field: 'hasAcceptedDataDisclosure', value: true });
+                                                sethasAcceptedDataDisclosure(true);
                                             } else {
                                                 alert('You must scroll to the bottom of the disclosure before accepting.');
                                             }
@@ -1403,7 +1397,6 @@ const Home = ({
                         </div>
                     </main>
                 );
-            }
         }
 
         // @ts-ignore
@@ -1592,3 +1585,75 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
         },
     };
 };
+
+
+
+
+interface DDProps {
+    content: string;
+}
+
+const DataDisclosure: React.FC<DDProps> = ({ content }) => {
+    return (
+    <div>
+    <MemoizedReactMarkdown
+    // className="prose dark:prose-invert flex-1" 
+    remarkPlugins={[remarkGfm, remarkMath]}
+    components={{
+        a({href, title, children, ...props}) {
+            switch (true) {
+                case href && (href.startsWith('http://') || href.startsWith('https://')):
+                    const safeHref = href ? DOMPurify.sanitize(href) : '';
+                    return (
+                        <a
+                            className="text-[#5495ff]"
+                            href={safeHref}
+                            target="_blank"
+                            rel="noopener noreferrer" // prevent tabnabbing attack
+                        >
+                            {children}
+                        </a>
+                    );
+
+                case href && href.startsWith('mailto:'):
+                    return (
+                        <a  href={href}>
+                            {children}
+                        </a>
+                    );
+                default:
+                    return <>{children}</>;
+            } 
+        },
+
+        table({children}) {
+            return (
+                <div style={{ overflowX: 'auto'}}>
+                    <table className="w-full border-collapse border border-black px-3 py-1 dark:border-white">
+                        {children}
+                    </table>
+                </div>
+            );
+        },
+        th({children}) {
+            return (
+                <th className="break-words border border-black bg-gray-500 px-3 py-1 text-white dark:border-white">
+                    {children}
+                </th>
+            );
+        },
+        td({children}) {
+
+            return (
+                <td className="break-words border border-black px-3 py-1 dark:border-white">
+                    {children}
+                </td>
+            );
+        },
+    }}
+>
+    {content}
+</MemoizedReactMarkdown>
+</div>);
+};
+
