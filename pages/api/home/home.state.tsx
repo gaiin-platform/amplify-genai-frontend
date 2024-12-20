@@ -55,10 +55,7 @@ export interface HomeInitialState {
   page: string;
   statsService: StatsServices;
   currentRequestId: string | null;
-  latestDataDisclosureUrlPDF: string;
-  latestDataDisclosureHTML: string;
   inputEmail: string;
-  hasAcceptedDataDisclosure: boolean | null;
   hasScrolledToBottom: boolean;
   storageSelection: string | null;
   ops: { [key: string]: Op };
@@ -125,10 +122,7 @@ export const initialState: HomeInitialState = {
   featureFlags: {},
 
   statsService: noOpStatsServices,
-  latestDataDisclosureUrlPDF: '',
-  latestDataDisclosureHTML: '',
   inputEmail: '',
-  hasAcceptedDataDisclosure: null,
   hasScrolledToBottom: false,
   storageSelection: null,
   allFoldersOpenConvs: false,

@@ -4,6 +4,7 @@ export interface Model {
   name: string;
   description: string;
   inputContextWindow: number;
+  outputTokenLimit: number;
   supportsImages: boolean;
   provider: string;
 }
