@@ -93,42 +93,59 @@ export function checkContentReady(url: string, maxSeconds: number): Promise<any>
     });
 }
 
-
-
 export const getFileDownloadUrl = async (key:string, groupId: string | undefined) => {
-    const op = {
+    const response = await fetch('/api/files/download', {
         method: 'POST',
-        path: URL_PATH,
-        op: "/download",
-        data: {
-            key:key,
-            groupId:groupId
-        }
-    };
-    const result = await doRequestOp(op);
-    return {success: result.success, key: key, downloadUrl: result.downloadUrl};
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            data:{
+                key:key,
+                groupId:groupId
+            }
+        }),
+        signal: null,
+    });
+
+
+    if (!response.ok) {
+        return {success: false};
+    }
+
+    const result = await response.json();
+
+    return {success: result.success, key:key, downloadUrl:result.downloadUrl};
 }
-
-
 
 export const addFile = async (metadata:AttachedDocument, file: File, onProgress?: (progress: number) => void, abortSignal:AbortSignal|null= null, tags: string[] = []) => {
 
-    const op = {
+    const response = await fetch('/api/files/upload', {
         method: 'POST',
-        path: URL_PATH,
-        op: "/upload",
-        data: {
-            actions:[],
-            type:metadata.type,
-            name:metadata.name,
-            knowledgeBase:"default",
-            tags:tags,
-            data:{},
-            groupId: metadata.groupId
-        }
-    };
-    const result = await doRequestOp(op);
-    console.log(result)
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            data:{
+                actions:[],
+                type:metadata.type,
+                name:metadata.name,
+                knowledgeBase:"default",
+                tags:tags,
+                data:{},
+                groupId: metadata.groupId
+            }
+        }),
+        signal: abortSignal,
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to get presigned url: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    console.log("result", result);
 
     const key = result.key;
     const uploadUrl = result.url;
@@ -136,6 +153,9 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
     const statusUrl = result.statusUrl || null;
     const metadataUrl = result.metadataUrl || null 
 
+    // console.log("contentUrl", contentUrl);
+    // console.log("statusUrl", statusUrl);
+    // console.log("metadataUrl", metadataUrl);
 
     const {response:uploadResponse, abort:abort} = uploadFileToS3(file, uploadUrl, (progress: number) => {
         if (onProgress) {
@@ -212,52 +232,99 @@ export type FileQueryResult = {
     };
 };
 
+export const deleteTags = async (tags:string[], abortSignal:AbortSignal|null= null):Promise<DeleteTagsResult> => {
 
-export const deleteTags = async (tags:string[]) => {
-    const op = {
-        method: 'POST',
-        path: URL_PATH,
-        op: "/tags/delete",
-        data: {tags: tags}
-    };
-    return await doRequestOp(op);
-}
+        const response = await fetch('/api/files/deleteTag', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                data: {
+                    tags: tags
+                }
+            }),
+            signal: abortSignal,
+        });
 
-
-
-export const listTags = async () => {
-    const op = {
-        method: 'GET',
-        path: URL_PATH,
-        op: "/tags/list",
-    };
-    return await doRequestOp(op);
-}
-
-
-
-export const setTags = async (file:FileRecord) => {
-    const op = {
-        method: 'POST',
-        path: URL_PATH,
-        op: "/set_tags",
-        data: {
-            id: file.id,
-            tags: file.tags
+        if (!response.ok) {
+            throw new Error(`Failed to delete tags: ${response.status}`);
         }
-    };
-    return await doRequestOp(op);
+
+        const result = await response.json();
+
+        return result;
 }
 
+export const listTags = async (abortSignal:AbortSignal|null= null):Promise<ListTagsResult> => {
 
+        const response = await fetch('/api/files/listTags', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                data: {}
+            }),
+            signal: abortSignal,
+        });
 
-export const queryUserFiles = async (query:FileQuery, abortSignal:AbortSignal|null= null) => {
-    const op = {
+        if (!response.ok) {
+            throw new Error(`Failed to list tags: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        return result;
+}
+
+export const setTags = async (file:FileRecord, abortSignal:AbortSignal|null= null):Promise<FileUpdateTagsResult> => {
+
+    const response = await fetch('/api/files/setTags', {
         method: 'POST',
-        path: URL_PATH,
-        op: "/query",
-        data: {...query}
-    };
-    return await doRequestOp(op);
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            data: {
+                id: file.id,
+                tags: file.tags
+            }
+        }),
+        signal: abortSignal,
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to update tags user file: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    return result;
 }
 
+export const queryUserFiles = async (query:FileQuery, abortSignal:AbortSignal|null= null):Promise<FileQueryResult> => {
+
+    const response = await fetch('/api/files/query', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            data: {
+                ...query
+            }
+        }),
+        signal: abortSignal,
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to query user files: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    console.log("result", result);
+
+    return result;
+}
