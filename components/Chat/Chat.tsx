@@ -201,7 +201,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 })
                 }
             }
-            if (selectedConversation?.messages.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
+            if (selectedConversation?.messages?.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
         }, [selectedConversation]);
 
         
@@ -985,7 +985,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                             if (selectedConversation && selectedConversation.model) {
 
                                                                 const tokens = Math.floor(1000 * (r / 3.0)) + 1;
-
+                                                                console.log(tokens);
                                                                 handleUpdateConversation(selectedConversation, {
                                                                     key: 'maxTokens',
                                                                     value: tokens,

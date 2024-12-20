@@ -330,20 +330,21 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         const advancedId = updatedModels.find((m:SupportedModel) => m.defaultAdvancedModel);
         homeDispatch({ field: 'advancedModelId', value: advancedId });
 
-        homeDispatch({ field: 'availableModels', value: updatedModels
-                              .map((m:SupportedModel) => ({ id: m.id,
+        const availModels: Model[] = updatedModels.filter((m:SupportedModel) => m.isAvailable)
+                                     .map((m:SupportedModel) => ({ id: m.id,
                                                             "name": m.name,
                                                             "description": m.description ?? '',
                                                             "inputContextWindow": m.inputContextWindow,
                                                             "supportsImages": m.supportsImages,
-                                                            } as Model))}); 
+                                                            } as Model));
+        homeDispatch({ field: 'availableModels', value: availModels}); 
     }
       
       
 
     const handleSave = async () => {
         const collectUpdateData =  Array.from(unsavedConfigs).map((type: AdminConfigTypes) => ({type: type, data: getConfigTypeData(type)}));
-        // console.log("Saving... ", collectUpdateData);
+        console.log("Saving... ", collectUpdateData);
 
         if (testEndpoints.length > 0) {
             setLoadingMessage('Testing New Endpoints...');
@@ -465,7 +466,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setIsAddingAvailModel({...isAddingAvailModel, model: updated});
                 }}
         /> 
-        {camelToTitleCase(key)} </div>: null;
+        {camelToTitleCase(key.replace('Cost', 'Cost$'))} </div>: null;
     
     useEffect(() => {
         if (isAddingAvailModel && supportedModelsRef.current) {
@@ -1310,7 +1311,9 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                     inputs={ [ {label: 'Model ID', key: 'id', placeholder: 'Model ID', disabled: isAddingAvailModel.model.isBuiltIn},
                                                 {label: 'Name', key: 'name', placeholder: 'Model Name'},
                                                 {label: "Description", key: 'description', placeholder: 'Description Displayed to the User'},
-                                                {label: 'System Prompt', key: 'systemPrompt', placeholder: 'Additional System Prompt'},
+                                                {label: 'System Prompt', key: 'systemPrompt', placeholder: 'Additional System Prompt', 
+                                                 description: "This will be appended to the system prompt as an additional set of instructions." 
+                                                },
                                             ]}
                                     state = {{id : isAddingAvailModel.model.id, 
                                             description : isAddingAvailModel.model.description, 
@@ -1351,13 +1354,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                     {modelNumberInputs('inputContextWindow', isAddingAvailModel.model.inputContextWindow, 1000, true,
                                          "Models Conversation Input Token Context Window" )}
 
-                                    {modelNumberInputs('inputTokenCost$', isAddingAvailModel.model.inputTokenCost, .0001, false,
+                                    {modelNumberInputs('inputTokenCost', isAddingAvailModel.model.inputTokenCost, .0001, false,
                                          "Models Input Token Cost/1k" )}
 
                                     {modelNumberInputs('outputTokenLimit', isAddingAvailModel.model.outputTokenLimit, 1000, true, 
                                         "Output Token Limit Set By Models Provider" )}
 
-                                    {modelNumberInputs('outputTokenCost$', isAddingAvailModel.model.outputTokenCost, .0001, false,
+                                    {modelNumberInputs('outputTokenCost', isAddingAvailModel.model.outputTokenCost, .0001, false,
                                          "Models Output Token Cost/1k" )}
                                     {modelActiveCheck('supportsSystemPrompts', isAddingAvailModel.model.supportsSystemPrompts, "Model Supports System Prompts" )}
 

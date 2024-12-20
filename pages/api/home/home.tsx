@@ -596,16 +596,13 @@ const Home = ({
             ...conversation,
             [data.key]: data.value,
         };
-
-        // console.log("Updated Conversation", updatedConversation)
-
-
         const { single, all } = updateConversation(
             updatedConversation,
             conversations, 
         );
 
         if (selectedConversation && selectedConversation.id === updatedConversation.id) {
+            console.log("handleUpdate conv: ",conversationWithUncompressedMessages(single) );
             dispatch({field: 'selectedConversation', value: conversationWithUncompressedMessages(single)});
         }
 
@@ -717,7 +714,10 @@ const Home = ({
         }
     }, [session]);
 
-
+    // useEffect(() => {
+    //     console.log("New selected Conv: ", selectedConversation);
+        
+    // }, [selectedConversation]);
 
     // Amplify Data Calls - Happens Right After On Load--------------------------------------------
 
@@ -747,9 +747,6 @@ const Home = ({
 
                     //save default model 
                     localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
-                    // console.log("Default: ", defaultModel);
-
-                    console.log("Selected conv model: ",selectedConversation?.model);
                 } else {
                     console.log("Failed to fetch models.");
                     const message = 'There was a problem retrieving the available models, please contact our support team.';

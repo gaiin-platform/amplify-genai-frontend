@@ -53,7 +53,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
               accumulator.anthropic.push({ id: model.id, name: model.name });
           } else if (model.id.includes('mistral')) {
               accumulator.mistral.push({ id: model.id, name: model.name });
-          } else if (model.id.includes('gpt')) {
+          } else if (model.id.includes('gpt') || model.id.includes('o1')) {
               accumulator.gpt.push({ id: model.id, name: model.name });
           }
           return accumulator;

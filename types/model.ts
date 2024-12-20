@@ -16,6 +16,6 @@ export interface Models {
 
 export enum DefaultModels {
   DEFAULT = 'defaultModelId',
-  ADVANCED = 'cheapestModelId',
-  CHEAPEST = 'advancedModelId',
+  ADVANCED = 'advancedModelId',
+  CHEAPEST = 'cheapestModelId',
 }
