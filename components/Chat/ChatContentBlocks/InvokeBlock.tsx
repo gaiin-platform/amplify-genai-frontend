@@ -20,7 +20,7 @@ import {
 import { getSettings } from '@/utils/app/settings';
 import { deepMerge } from '@/utils/app/state';
 
-import { Conversation, Message, newMessage } from '@/types/chat';
+import { Conversation, Message, MessageType, newMessage } from '@/types/chat';
 import { FolderInterface } from '@/types/folder';
 import { ApiCall, OpDef } from '@/types/op';
 import { Prompt } from '@/types/prompt';
@@ -108,6 +108,15 @@ const InvokeBlock: React.FC<Props> = ({
   const runAction = async (action: any) => {
     try {
 
+      let actionData = null;
+      try {
+        actionData = JSON5.parse(action);
+      } catch (e) {
+        console.log("Invalid action spec: "+ action);
+        console.error(e);
+        return null;
+      }
+
       if (!isLast || hasExecuted[id] || message.data.automation) {
         console.log(
           'Skipping execution of action:',
@@ -122,6 +131,62 @@ const InvokeBlock: React.FC<Props> = ({
         return;
       }
       hasExecuted[id] = true;
+
+
+      // Count the number of messages with data.actionResult
+
+      console.log("Last four messages: ", conversation.messages.slice(-4));
+
+      const errorsValues = conversation.messages.slice(-4).map(
+        (m, idx):number => {
+          if(m.data && m.data.actionResult){
+            try {
+              const data = JSON5.parse(m.content);
+              return (data.result && data.result.success) ? 0 : 1;
+            } catch (error) {
+              return 0;
+            }
+          }
+          else {
+            return 0;
+          }
+        },
+      );
+
+      console.log("Errors values: ", errorsValues);
+
+      // Count the number of errors over the last 4 messages
+      const errorCount = errorsValues.reduce((a, b) => a + b, 0);
+      console.log("Error count over last four messages: "+errorCount);
+
+
+      const title = actionData.name;
+
+      if(title === 'tellUser'){
+        //alert("Tell user!")
+
+        //alert(actionData.payload.message);
+        //alert(message.content);
+
+        homeDispatch({
+          type: 'conversation',
+          action: {
+            type: 'updateMessages',
+            conversationId: conversation.id,
+            messages: [
+              {...message, content: actionData.payload.message},
+            ],
+          },
+        });
+        homeDispatch({
+          type: 'conversation',
+          action: {
+            type: 'selectConversation',
+            conversationId: conversation.id,
+          },
+        });
+        return;
+      }
 
       console.log("############### Updating message with automation status");
 
@@ -151,16 +216,6 @@ const InvokeBlock: React.FC<Props> = ({
       };
 
       const shouldConfirm = false;
-      let actionData = null;
-
-      try {
-        actionData = JSON5.parse(action);
-      } catch (e) {
-        console.error(e);
-        return null;
-      }
-
-      const title = actionData.name;
 
       homeDispatch({ field: 'loading', value: true });
       homeDispatch({ field: 'messageIsStreaming', value: true });
@@ -174,6 +229,8 @@ const InvokeBlock: React.FC<Props> = ({
         message: message.id,
         operationDefinition: opDef
       };
+
+      console.log("Executing action:", requestData);
 
       const result = await executeAssistantApiCall(requestData);
 
@@ -226,9 +283,15 @@ const InvokeBlock: React.FC<Props> = ({
 
         console.log('Sources list:', sourcesList);
 
-        const feedbackMessage = {
+        let feedbackMessage = {
           result: result,
         };
+
+        if(!result.success && errorCount > 0){
+          feedbackMessage = {
+            result: {instructions:"Stop and tell the user that you have run into repeated errors and ask if you should try again.", error:result},
+          };
+        }
 
         const assistantId =
           getServerSelectedAssistant(message) || selectedAssistant?.id;
