@@ -1,7 +1,7 @@
 import { useMemo, useReducer } from 'react';
 import {HomeInitialState} from "@/pages/api//home/home.state";
 import {Conversation, Message} from "@/types/chat";
-import {conversationWithUncompressedMessages} from "@/utils/app/conversation";
+import {conversationWithCompressedMessages, conversationWithUncompressedMessages} from "@/utils/app/conversation";
 import {v4 as uuidv4} from "uuid";
 
 // Extracts property names from initial state of reducer to allow typesafe dispatch objects
@@ -162,13 +162,13 @@ export const useHomeReducer = ({ initialState }: { initialState: HomeInitialStat
     const updatedConversations = conversations.map(
         (c) => {
           if (c.id === conversation.id) {
-            return updatedConversation;
+            return conversationWithCompressedMessages(updatedConversation);
           }
           return c;
         },
     );
     if (updatedConversations.length === 0) {
-      updatedConversations.push(updatedConversation);
+      updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
     }
 
     const updatedSelectedConversation =

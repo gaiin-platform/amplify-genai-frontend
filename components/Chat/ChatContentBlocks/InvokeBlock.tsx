@@ -178,13 +178,14 @@ const InvokeBlock: React.FC<Props> = ({
             ],
           },
         });
-        homeDispatch({
-          type: 'conversation',
-          action: {
-            type: 'selectConversation',
-            conversationId: conversation.id,
-          },
-        });
+        // contains error, was this a mistake?
+        // homeDispatch({
+        //   type: 'conversation',
+        //   action: {
+        //     type: 'selectConversation',
+        //     conversationId: conversation.id,
+        //   },
+        // });
         return;
       }
 
