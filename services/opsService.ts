@@ -57,6 +57,19 @@ export const getOpsForUser = async () => {
     return {success:true, message:"User Ops fetched successfully.", data:data};
 }
 
+export const getOpsForUserAllTags = async () => {
+
+    const {success, message, data} = await doOpsOp(
+      '/get_all_tags',
+      {});
+
+    if(!success){
+        return failureResponse(message);
+    }
+
+    return {success:true, message:"User Ops fetched successfully.", data:data};
+}
+
 export const execOp = async (path:string, data:any, errorHandler=(e:any)=>{}) => {
     const op = {
         data: data,

@@ -16,7 +16,7 @@ import { AstGroupTypeData } from '@/types/groups';
 import React from 'react';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { executeAssistantApiCall } from '@/services/assistantAPIService';
-import { getOpsForUser } from '@/services/opsService';
+import { getOpsForUser, getOpsForUserAllTags } from '@/services/opsService';
 import ApiItem from '@/components/AssistantApi/ApiItem';
 import { getSettings } from '@/utils/app/settings';
 import { API, APIComponent } from '@/components/CustomAPI/CustomAPIEditor';
@@ -249,8 +249,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         window.addEventListener('astGroupDataUpdate', handleEvent);
 
 
-        getOpsForUser().then((ops) => {
+        //getOpsForUserAllTags()
+        getOpsForUser()
+          .then((ops) => {
             if(ops.success){
+                console.log(ops.data);
                 setAvailableApis(ops.data);
             }
         });
@@ -707,6 +710,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     >
                                         <option value="v1">v1</option>
                                         <option value="v2">v2</option>
+                                        <option value="v3">v3</option>
                                         <option value="custom">custom</option>
                                     </select>
 
