@@ -3,7 +3,7 @@ import { newMessage } from '@/types/chat';
 import { getAsyncResult } from '@/services/assistantAPIService';
 
 export const isPollingResult = (result: any) => {
-  return !!result.data.retryIn;
+  return result && result.data && !!result.data.retryIn;
 }
 
 export const pollForResult = async (pollConfig: any, handleAddMessages: any, selectedConversation: any) => {

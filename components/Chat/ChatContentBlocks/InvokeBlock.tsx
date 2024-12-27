@@ -93,7 +93,7 @@ const InvokeBlock: React.FC<Props> = ({
   const { handleSend } = useSendService();
 
   const shouldProvideResultToAssistant = (result:any) => {
-    return result && result.data && !result.data.humanOnly;
+    return !(result && result.data && result.data?.humanOnly);
   }
 
   const getAssistantResultView = (result:any) => {
@@ -232,19 +232,30 @@ const InvokeBlock: React.FC<Props> = ({
       homeDispatch({ field: 'loading', value: true });
       homeDispatch({ field: 'messageIsStreaming', value: true });
 
+      let result = null;
+
       const opDef = resolveOpDef(message, actionData.name);
 
-      const requestData = {
-        action: actionData,
-        conversation: selectedConversation?.id,
-        assistant: selectedAssistant?.id,
-        message: message.id,
-        operationDefinition: opDef
-      };
+      if(opDef) {
 
-      console.log("Executing action:", requestData);
+        const requestData = {
+          action: actionData,
+          conversation: selectedConversation?.id,
+          assistant: selectedAssistant?.id,
+          message: message.id,
+          operationDefinition: opDef
+        };
 
-      let result = await executeAssistantApiCall(requestData);
+        console.log("Executing action:", requestData);
+
+        result = await executeAssistantApiCall(requestData);
+      }
+      else {
+        result = {
+          "success":false,
+          "message":"No operation definition found for action. Double check that you " +
+            "specified a name and other needed items to invoke the function"};
+      }
 
       if(isPollingResult(result)){
         result = await pollForResult({retryIn:1000}, handleAddMessages, selectedConversation);
