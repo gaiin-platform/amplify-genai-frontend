@@ -236,7 +236,7 @@ const InvokeBlock: React.FC<Props> = ({
 
       const opDef = resolveOpDef(message, actionData.name);
 
-      if(opDef) {
+      // if(opDef) {
 
         const requestData = {
           action: actionData,
@@ -249,13 +249,13 @@ const InvokeBlock: React.FC<Props> = ({
         console.log("Executing action:", requestData);
 
         result = await executeAssistantApiCall(requestData);
-      }
-      else {
-        result = {
-          "success":false,
-          "message":"No operation definition found for action. Double check that you " +
-            "specified a name and other needed items to invoke the function"};
-      }
+      // }
+      // else {
+      //   result = {
+      //     "success":false,
+      //     "message":"No operation definition found for action. Double check that you " +
+      //       "specified a name and other needed items to invoke the function"};
+      // }
 
       if(isPollingResult(result)){
         result = await pollForResult({retryIn:1000}, handleAddMessages, selectedConversation);
