@@ -30,6 +30,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import ExpansionComponent from '@/components/Chat/ExpansionComponent';
 
 import JSON5 from 'json5';
+import { isPollingResult, pollForResult } from '@/utils/app/resultPolling';
 
 interface Props {
   conversation: Conversation;
@@ -75,6 +76,7 @@ const InvokeBlock: React.FC<Props> = ({
   }, [prompts]);
 
   const conversationsRef = useRef(conversations);
+  const selectedConversationRef = useRef(selectedConversation);
 
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -90,6 +92,14 @@ const InvokeBlock: React.FC<Props> = ({
 
   const { handleSend } = useSendService();
 
+  const shouldProvideResultToAssistant = (result:any) => {
+    return result && result.data && !result.data.humanOnly;
+  }
+
+  const getAssistantResultView = (result:any) => {
+    return result;
+  }
+
   const getServerSelectedAssistant = (message: Message) => {
     const aid =
       message.data && message.data.state
@@ -104,6 +114,7 @@ const InvokeBlock: React.FC<Props> = ({
   const getOpTitle = (message: Message, url: string) => {
     return 'Remote Operation';
   };
+
 
   const runAction = async (action: any) => {
     try {
@@ -233,9 +244,11 @@ const InvokeBlock: React.FC<Props> = ({
 
       console.log("Executing action:", requestData);
 
-      const result = await executeAssistantApiCall(requestData);
+      let result = await executeAssistantApiCall(requestData);
 
-      console.log('Result of operation:', result);
+      if(isPollingResult(result)){
+        result = await pollForResult({retryIn:1000}, handleAddMessages, selectedConversation);
+      }
 
       if (result && result.metaEvents) {
         const metaEvents = result.metaEvents;
@@ -285,13 +298,41 @@ const InvokeBlock: React.FC<Props> = ({
         console.log('Sources list:', sourcesList);
 
         let feedbackMessage = {
-          result: result,
+          result: getAssistantResultView(result),
         };
 
         if(!result.success && errorCount > 0){
           feedbackMessage = {
             result: {instructions:"Stop and tell the user that you have run into repeated errors and ask if you should try again.", error:result},
           };
+        }
+
+        if(!shouldProvideResultToAssistant(result)){
+          // This is for large responses that should not be sent to the assistant
+          // for efficiency reasons
+
+          handleAddMessages(selectedConversationRef.current, [
+            newMessage(
+              {
+                role:"assistant",
+                content:"I have completed the operation.",
+                data:{
+                  actionResult:true,
+                  actionResultView:{
+                    data: result,
+                  },
+                  state: {
+                    sources: sourcesList
+                  }
+                }
+              }
+            )
+          ]);
+
+          homeDispatch({ field: 'messageIsStreaming', value: false });
+          homeDispatch({ field: 'loading', value: false });
+
+          return;
         }
 
         const assistantId =
