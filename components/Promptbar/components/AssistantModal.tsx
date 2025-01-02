@@ -238,6 +238,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     useEffect(() => {
         additionalGroupDataRef.current = additionalGroupData;
+        // console.log(additionalGroupData)
     }, [additionalGroupData]);
 
     const validateApiInfo = (api: any) => {
@@ -397,7 +398,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         });
         // do the same for 
         newAssistant.tools = selectedApis || [];
-        const tagsList = tags.split(",").map((x: string) => x.trim());
+        const tagsList = tags ? tags.split(",").map((x: string) => x.trim()) : [];
         newAssistant.tags = tagsList
         newAssistant.data.tags = tagsList;
         newAssistant.data.conversationTags = conversationTags ? conversationTags.split(",").map((x: string) => x.trim()) : [];

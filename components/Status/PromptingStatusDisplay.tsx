@@ -1,22 +1,5 @@
-import React, { useState } from 'react';
-import {
-    IconBolt,
-    IconRobot,
-    IconCheck,
-    IconAperture,
-    IconInfoHexagon,
-    IconAssembly,
-    IconBlockquote,
-    IconAlignBoxBottomRight,
-    IconRepeat,
-    IconApiApp,
-    IconSend, IconFileCheck,
-} from '@tabler/icons-react';
+import React from 'react';
 import { Status } from "@/types/workflow";
-import Loader from "@/components/Loader/Loader";
-
-import {IconClearAll, IconSettings, IconShare, IconDownload} from '@tabler/icons-react';
-import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {PromptStatus} from "@/components/Status/PromptStatus";
 
 interface PromptingStatusDisplayProps {

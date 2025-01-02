@@ -454,6 +454,15 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             {camelToTitleCase(key)}          
         </button>  : null;
 
+    
+    const isAvailableCheck = (isAvailable: boolean, handleClick: () => void, styling: string = '') => 
+        <button title={isAvailable ? "Click to set as unavailable"        
+                                   : "Click to set as available" } 
+            className={`cursor-pointer dark:text-neutral-200 text-neutral-900 ${styling}`} 
+            onClick={handleClick}>
+            {isAvailable ? <IconCheck className='text-green-600 hover:opacity-60' size={18} /> 
+                         : <IconX  className='text-red-600 hover:opacity-60' size={18} />}       
+        </button>
                                                                                                             // parsing should happen in the change
     const modelNumberInputs = (key: string, value: number | null, step: number, parseInteger: boolean, description: string) => 
         isAddingAvailModel ? <div id={key} title={description} className="flex flex-row gap-3 dark:text-neutral-200 text-neutral-900">
@@ -1496,8 +1505,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                     {availModel.id.includes('embed') ? 
                                                     <div className="text-center">N/A</div> :
                                                     <div className="flex justify-center">
-                                                        {availModel.isAvailable ? <IconCheck className= 'text-green-600' size={18} /> 
-                                                                                : <IconX  className='text-red-600' size={18} />}    
+                                                        {isAvailableCheck(availModel.isAvailable, () => {
+                                                            const updatedModel = {...availableModels[availModel.id], isAvailable: !availModel.isAvailable};
+                                                            setAvailableModels({...availableModels, [availModel.id]: updatedModel});
+                                                            updateUnsavedConfigs(AdminConfigTypes.AVAILABLE_MODELS);
+                                                        })}   
                                                     </div>}
                                                 </td>
 
@@ -2832,17 +2844,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         <label className="ml-4 h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
                         >Available </label>
 
-                        <button title={isAddingTemplate.isAvailable ? "Click to set as unavailable"        
-                                                            : "Click to set as available" } 
-                            className="h-[40px] px-1 items-center cursor-pointer dark:text-neutral-200 text-neutral-900
-                                        bg-gray-200 dark:bg-[#40414F]"
-                            onClick={() => {
-                                setIsAddingTemplate({...isAddingTemplate, isAvailable: !isAddingTemplate.isAvailable});
-                            }}>
-                        {isAddingTemplate.isAvailable ? 
-                            <IconCheck className='text-green-600 hover:opacity-60' size={20} /> :
-                            <IconX  className='text-red-600 hover:opacity-60' size={20} />}       
-                        </button>
+                        
+                        {isAvailableCheck(isAddingTemplate.isAvailable, () => {
+                            setIsAddingTemplate({...isAddingTemplate, isAvailable: !isAddingTemplate.isAvailable});
+                        }, "h-[40px] px-1 items-center bg-gray-200 dark:bg-[#40414F]")} 
 
                         <div className="ml-4 flex flex-col mt-[-32px]">
                             <InfoBox content={
@@ -2898,20 +2903,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                 <td className="border border-neutral-500 px-4 py-2"
                                                     title="Available to All Amplify Users">
                                                     <div className="flex justify-center">
-                                                        <button title={pptx.isAvailable ? "Click to set as unavailable"        
-                                                                                      : "Click to set as available" } 
-                                                        className="cursor-pointer flex flex-row gap-7 dark:text-neutral-200 text-neutral-900"
-                                                        onClick={() => {
-                                                            const updatedTemplate = {...pptx, isAvailable: !pptx.isAvailable};
+                                                    {isAvailableCheck(pptx.isAvailable, () => {
+                                                        const updatedTemplate = {...pptx, isAvailable: !pptx.isAvailable};
                                                             handleTemplateChange(pptx.name, 
                                                                                 templates.map((t:Pptx_TEMPLATES) =>
                                                                                 t.name === pptx.name ?      
                                                                                      updatedTemplate : t ));
-                                                        }}>
-                                                    {pptx.isAvailable  ? <IconCheck className='text-green-600 hover:opacity-60' size={18} /> 
-                                                            : <IconX  className='text-red-600 hover:opacity-60' size={18} />}       
-                                                    </button>
-
+                                                    })} 
                                                     </div>                           
                                                 </td>
 

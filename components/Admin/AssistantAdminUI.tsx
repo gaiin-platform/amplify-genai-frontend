@@ -944,10 +944,13 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         if (!allEmails) fetchEmails();
     }, [open]);
 
+    useEffect(()=>{
+        setAdditionalGroupData({});
+    }, [activeSubTab]) 
 
     useEffect(()=>{
         setActiveAstTab(selectedAssistant?.data?.assistant?.definition.assistantId);
-    }, [selectedAssistant])
+    }, [selectedAssistant]) 
 
     useEffect(() => {
         const nonAdminGroups = groups.filter((g: Group) => g.members[user] === GroupAccessType.READ);
@@ -982,7 +985,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
     useEffect(() => {
         const fetchConversations = async () => {
-            if (open && selectedAssistant) {
+            if (open && selectedGroup && selectedAssistant && !!selectedGroup?.supportConvAnalysis) {
                 setLoadingActionMessage('Fetching conversations...');
                 const assistantId = selectedAssistant.data?.assistant?.definition.assistantId;
                 // console.log('Assistant ID:', assistantId);
@@ -1015,7 +1018,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
     useEffect(() => {
         const fetchDashboardData = async () => {
-            if (open && selectedAssistant) {
+            if (open && selectedGroup && selectedAssistant && !!selectedGroup?.supportConvAnalysis) {
                 setLoadingActionMessage('Fetching dashboard data...');
                 const assistantId = selectedAssistant.data?.assistant?.definition.assistantId;
                 if (assistantId) {
@@ -1082,8 +1085,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     }
 
     const handleCreateAssistantPrompt = (group: Group) => {
-        
-        setAdditionalGroupData({});
         const newPrompt = createEmptyPrompt('', group.id);
 
         const assistantDef: AssistantDefinition = {
@@ -1178,12 +1179,14 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             
                                 Delete Assistant
                             </button>
-                            <label className='ml-auto mt-2 mr-20 text-sm flex flex-row gap-3 text-black dark:text-neutral-100'
+                            <label className='ml-auto mt-2 text-sm flex flex-row gap-3 text-black dark:text-neutral-100'
                                 // title={"Use the assistant id in "}
                                 > 
                                     <div className={`mt-1.5 ${selectedAssistant?.data?.isPublished ? "bg-green-400 dark:bg-green-300": "bg-gray-400 dark:bg-gray-500"}`} 
                                                                     style={{width: '8px', height: '8px', borderRadius: '50%'}}></div>
-                                        Assistant Id: {selectedAssistant.data.assistant.definition.assistantId}
+                                    <div className='overflow-x-auto flex grow whitespace-nowrap'>  
+                                         Assistant Id: {selectedAssistant.data.assistant.definition.assistantId}
+                                    </div>
                             </label>
                             </>
                         }
@@ -1192,8 +1195,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             onClick={() => {
                                 setActiveSubTab(label);
                                 setSelectedAssistant(undefined);
-                                
-                                setAdditionalGroupData({});
                                 }}
                             title="Manage users and assistant group types"
                             >
@@ -1240,7 +1241,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                 
                
             case 'edit_assistant':
-                return ( selectedAssistant ? <div key="admin_edit"> 
+                return ( selectedAssistant && !showCreateGroupAssistant ? <div key="admin_edit"> 
                     <AssistantModal
                          assistant={selectedAssistant}
                          onSave={ () => {} }
@@ -1368,6 +1369,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                             onSave={()=> {
                                             }}
                                             onCancel={()=>{
+                                                setAdditionalGroupData({});
                                                 setShowCreateGroupAssistant(null);
                                             }}
                                             onUpdateAssistant={ (astprompt: Prompt) => {
@@ -1456,7 +1458,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                         onClick={() => {
                                                             setSelectedAssistant(ast)
                                                             setActiveSubTab(DEFAULT_SUB_TAB);
-                                                            setAdditionalGroupData({});
                                                         }}
                                                         title={selectedAssistant?.data?.isPublished ? 'Published':'Unpublished'}
                                                         className={`p-2 rounded-t flex flex-shrink-0 ${activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId ? 'border-l border-t border-r border-neutral-400 text-black dark:border-gray-500 dark:text-white shadow-[2px_0_1px_rgba(0,0,0,0.1),-2px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}
@@ -1472,7 +1473,9 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                         <div className="flex items-center">
                                             <button
                                                 className="flex flex-row ml-auto px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                                                onClick={() => {
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
                                                     setShowCreateGroupAssistant(selectedGroup.name);
                                                 }}
                                             >
@@ -1872,6 +1875,9 @@ interface AssistantModalProps {
 
 // To add more configuarations to the assistant, add components here and ensure the change is set in additionalGroupData
 export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId, astData = {}, groupTypes=[], additionalGroupData, setAdditionalGroupData, groupConvAnalysisSupport}) => {
+    const {
+        state: { availableModels } 
+      } = useContext(HomeContext);
     const [isPublished, setIsPublished] = useState<boolean>(astData.isPublished ?? false);
     const [enforceModel, setEnforceModel] = useState<boolean>(!!astData.model);
 
@@ -1881,6 +1887,11 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
     const updateCategories = (categories: string[]) => {
         setAnalysisCategories(categories);
         setAdditionalGroupData({...additionalGroupData, analysisCategories: categories });
+    }
+
+    const checkAvailableModel = () => {
+        const validIds = Object.keys(availableModels);
+        return validIds.includes(astData.model) ? astData.model : undefined;
     }
 
 
@@ -1903,7 +1914,9 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
                     label="Enforce Model"
                     checked={enforceModel}
                     onChange={(isChecked: boolean) => {
-                        if (!isChecked)  setAdditionalGroupData({...additionalGroupData, model: undefined});
+                        if (!isChecked) {
+                            setAdditionalGroupData({...additionalGroupData, model: undefined});
+                        } else if (astData.model) setAdditionalGroupData({...additionalGroupData, model: astData.model});
 
                         setEnforceModel(isChecked);
                     }}
@@ -1912,8 +1925,9 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
             <div className={`ml-6 flex flex-col ${enforceModel ? "" :'opacity-40'}`}>
                 All conversations will be set to this model and unable to be changed by the user.
                 <ModelSelect
+                    applyModelFilter={false}
                     isTitled={false}
-                    modelId={astData.model}
+                    modelId={checkAvailableModel()}
                     isDisabled={!enforceModel}
                     disableMessage=''
                     handleModelChange={(model:string) => {
@@ -1939,16 +1953,22 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
                 Allow access to view user conversations with the assistant and perform analysis.
                 <br></br>
                 {"Define custom categories to classify interactions and evaluate the assistant's performance for quality, relevance, and effectiveness."}
-
-                <TagsList label={"Categories"}
+                <br className='mb-2'></br>
+                <ExpansionComponent
+                    title='Manage Category List'
+                    content={
+                    <TagsList label={"Categories"}
                     addMessage={"List categories separated by commas:"}
                     tags={analysisCategories}
                     setTags={(categories) => updateCategories(categories)}
                     removeTag={(category) => updateCategories(analysisCategories.filter((t:string) => t !== category))}
                     isDisabled={!astSupportConvAnalysis}/>
+                }
+                />
+                
 
             </div></>}
-        <br className='my-1'></br>
+        <br className='mb-1'></br>
         <GroupTypesAstData
             groupId={groupId}
             astPromptId={astId}
@@ -2178,155 +2198,160 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
                     onChange={(e) =>  setUserQuestion(e.target.value)}
                     rows={2}
                 />
-            </div>
-        }
 
-        { Object.entries(groupTypeData)
-                .filter(([type]) => selectedTypes.includes(type))
-                .map(([type, data]) => (
-                    <ExpansionComponent 
-                    key={type}
-                    isOpened={true}
-                    title={type}
-                    content={
-                        
-                        <div className='flex flex-col gap-2 my-4 text-black dark:text-neutral-200' key={type}> 
-                            <div className='flex flex-row'>
-                                {data.isDisabled ? "Disable Message For User" : "Additional Instructions" }
-                                <div className='ml-auto mr-4 flex flex-row gap-2'>
-                                            <input
-                                                className='ml-2'
-                                                type="checkbox"
-                                                checked={data.isDisabled}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) {
-                                                        updateGroupType(type, 'isDisabled', true);
-                                                    } else {
-                                                        updateGroupType(type, 'isDisabled', false);
-                                                    } 
-                                                }}
-                                            />
-                                            Disable chat for this group type
-                                </div>
-
-                            </div>
-                            {data.isDisabled ?
-                                 <textarea
-                                    className= "mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                    style={{resize: 'none'}}
-                                    placeholder={`Message to display for selected disabled type: ${type}`}
-                                    value={data.disabledMessage}
-                                    onChange={(e) =>  updateGroupType(type, 'disabledMessage', e.target.value)}
-                                    rows={3}
-                                />
-                                :
-                                <textarea
-                                className= "mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                style={{resize: 'none'}}
-                                placeholder={`Additional instructions specific for this group type: ${type}`}
-                                value={data.additionalInstructions}
-                                onChange={(e) => updateGroupType(type, 'additionalInstructions', e.target.value)}
-                                rows={3}
-                            />}
-                            
-                            { !data.isDisabled &&  (
-                            <>
-                            Additional Data Sources
-                            
-                                <div className="flex flex-row items-center">
+            <ExpansionComponent
+                title='Manage Selected Group Type Data'
+                content={
+                Object.entries(groupTypeData)
+                        .filter(([type]) => selectedTypes.includes(type))
+                        .map(([type, data]) => (
+                            <ExpansionComponent 
+                            key={type}
+                            isOpened={true}
+                            title={type}
+                            content={
                                 
-                                <button
-                                    title='Add Files'
-                                    className={`left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:hover:text-neutral-200 dark:bg-opacity-50 dark:text-neutral-100 `}
-                                    onClick={(e) => {
-                                        e.preventDefault(); 
-                                        e.stopPropagation();
-                                        setShowDataSourceSelector(showDataSourceSelector === type ? '' : type);
-                                    }}
-                                    onKeyDown={(e) => {
+                                <div className='flex flex-col gap-2 my-4 text-black dark:text-neutral-200' key={type}> 
+                                    <div className='flex flex-row'>
+                                        {data.isDisabled ? "Disable Message For User" : "Additional Instructions" }
+                                        <div className='ml-auto mr-4 flex flex-row gap-2'>
+                                                    <input
+                                                        className='ml-2'
+                                                        type="checkbox"
+                                                        checked={data.isDisabled}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                updateGroupType(type, 'isDisabled', true);
+                                                            } else {
+                                                                updateGroupType(type, 'isDisabled', false);
+                                                            } 
+                                                        }}
+                                                    />
+                                                    Disable chat for this group type
+                                        </div>
 
-                                    }}
-                                >
-                                    <IconFiles size={20}/>
-                                </button>
-
-                                <AttachFile id={`__attachFile_admin_${type}_${groupId}_${astPromptId}`}
-                                            groupId={groupId}
-                                            disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
-                                            onAttach={(doc) => { 
-                                                console.log("onAttach")
-
-                                                updateGroupType(type, 'dataSources', [...groupTypeDataRef.current[type].dataSources, doc]);
-                                            }}
-                                            onSetMetadata={(doc, metadata) => {
-                                                updateGroupType(type, 'dataSources', groupTypeDataRef.current[type].dataSources.map(x =>
-                                                    x.id === doc.id ? { ...x, metadata } : x
-                                                ));
-                                            }}
-                                            onSetKey={(doc, key) => {
-                                                updateGroupType(type, 'dataSources', groupTypeDataRef.current[type].dataSources.map(x =>
-                                                    x.id === doc.id ? { ...x, key } : x
-                                                ));
-                                            }}
-                                            onUploadProgress={(doc, progress) => {
-                                                updateDocumentState(type, doc.id, progress);
-                                            }}
-                                />
-                            </div>
-
-                            <FileList 
-                                documents={data.dataSources.filter((ds:AttachedDocument) => !(preexistingDSids[type].includes(ds.id)))} 
-                                documentStates={data.documentState}
-                                setDocuments={(docs:AttachedDocument[]) => updateGroupType(type, 'dataSources', docs)} 
-                            />
-                            
-                            {showDataSourceSelector === type && (
-                                 <div className="mt-[-40px] flex flex-col justify-center overflow-x-hidden">
-                                    <div className="relative top-[306px] left-1">
+                                    </div>
+                                    {data.isDisabled ?
+                                        <textarea
+                                            className= "mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                            style={{resize: 'none'}}
+                                            placeholder={`Message to display for selected disabled type: ${type}`}
+                                            value={data.disabledMessage}
+                                            onChange={(e) =>  updateGroupType(type, 'disabledMessage', e.target.value)}
+                                            rows={3}
+                                        />
+                                        :
+                                        <textarea
+                                        className= "mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                        style={{resize: 'none'}}
+                                        placeholder={`Additional instructions specific for this group type: ${type}`}
+                                        value={data.additionalInstructions}
+                                        onChange={(e) => updateGroupType(type, 'additionalInstructions', e.target.value)}
+                                        rows={3}
+                                    />}
+                                    
+                                    { !data.isDisabled &&  (
+                                    <>
+                                    Additional Data Sources
+                                    
+                                        <div className="flex flex-row items-center">
+                                        
                                         <button
-                                            type="button" style={{width: "100px"}}
-                                            className="px-4 py-3 rounded-lg hover:text-gray-900 hover:bg-blue-100 bg-gray-100 w-full dark:hover:bg-gray-700 dark:hover:text-white bg-50 dark:bg-gray-800"
-                                            onClick={() => {
-                                                setShowDataSourceSelector('');
+                                            title='Add Files'
+                                            className={`left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:hover:text-neutral-200 dark:bg-opacity-50 dark:text-neutral-100 `}
+                                            onClick={(e) => {
+                                                e.preventDefault(); 
+                                                e.stopPropagation();
+                                                setShowDataSourceSelector(showDataSourceSelector === type ? '' : type);
+                                            }}
+                                            onKeyDown={(e) => {
+
                                             }}
                                         >
-                                            Close
+                                            <IconFiles size={20}/>
                                         </button>
-                                    </div>
-                                    <div className="rounded bg-white dark:bg-[#343541]">
-                                        <DataSourceSelector
-                                            minWidth="500px"
-                                            height='310px'
-                                            onDataSourceSelected={(d) => {
-                                                const doc = {
-                                                    id: d.id,
-                                                    name: d.name || "",
-                                                    raw: null,
-                                                    type: d.type || "",
-                                                    data: "",
-                                                    metadata: d.metadata,
-                                                };
-                                                updateGroupType(type, 'dataSources', [...groupTypeData[type].dataSources, doc]);
-                                                updateDocumentState(type, doc.id, 100);
-                                            }}
+
+                                        <AttachFile id={`__attachFile_admin_${type}_${groupId}_${astPromptId}`}
+                                                    groupId={groupId}
+                                                    disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
+                                                    onAttach={(doc) => { 
+                                                        console.log("onAttach")
+
+                                                        updateGroupType(type, 'dataSources', [...groupTypeDataRef.current[type].dataSources, doc]);
+                                                    }}
+                                                    onSetMetadata={(doc, metadata) => {
+                                                        updateGroupType(type, 'dataSources', groupTypeDataRef.current[type].dataSources.map(x =>
+                                                            x.id === doc.id ? { ...x, metadata } : x
+                                                        ));
+                                                    }}
+                                                    onSetKey={(doc, key) => {
+                                                        updateGroupType(type, 'dataSources', groupTypeDataRef.current[type].dataSources.map(x =>
+                                                            x.id === doc.id ? { ...x, key } : x
+                                                        ));
+                                                    }}
+                                                    onUploadProgress={(doc, progress) => {
+                                                        updateDocumentState(type, doc.id, progress);
+                                                    }}
                                         />
                                     </div>
+
+                                    <FileList 
+                                        documents={data.dataSources.filter((ds:AttachedDocument) => !(preexistingDSids[type].includes(ds.id)))} 
+                                        documentStates={data.documentState}
+                                        setDocuments={(docs:AttachedDocument[]) => updateGroupType(type, 'dataSources', docs)} 
+                                    />
+                                    
+                                    {showDataSourceSelector === type && (
+                                        <div className="mt-[-40px] flex flex-col justify-center overflow-x-hidden">
+                                            <div className="relative top-[306px] left-1">
+                                                <button
+                                                    type="button" style={{width: "100px"}}
+                                                    className="px-4 py-3 rounded-lg hover:text-gray-900 hover:bg-blue-100 bg-gray-100 w-full dark:hover:bg-gray-700 dark:hover:text-white bg-50 dark:bg-gray-800"
+                                                    onClick={() => {
+                                                        setShowDataSourceSelector('');
+                                                    }}
+                                                >
+                                                    Close
+                                                </button>
+                                            </div>
+                                            <div className="rounded bg-white dark:bg-[#343541]">
+                                                <DataSourceSelector
+                                                    minWidth="500px"
+                                                    height='310px'
+                                                    onDataSourceSelected={(d) => {
+                                                        const doc = {
+                                                            id: d.id,
+                                                            name: d.name || "",
+                                                            raw: null,
+                                                            type: d.type || "",
+                                                            data: "",
+                                                            metadata: d.metadata,
+                                                        };
+                                                        updateGroupType(type, 'dataSources', [...groupTypeData[type].dataSources, doc]);
+                                                        updateDocumentState(type, doc.id, 100);
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )} 
+
+                                    { preexistingDSids[type].length > 0  &&
+                                        <ExistingFileList 
+                                            label={`${type} Data Sources`} boldTitle={false}
+                                            documents={data.dataSources.filter((ds:AttachedDocument) => preexistingDSids[type].includes(ds.id))} 
+                                            setDocuments={(docs:AttachedDocument[]) => updateGroupType(type, 'dataSources', docs)} />
+                                    }   
+
+                                </>)}
+
                                 </div>
-                            )} 
+                            } />
+                    ))
+                }
+            />
+            </div>
 
-                            { preexistingDSids[type].length > 0  &&
-                                <ExistingFileList 
-                                    label={`${type} Data Sources`} boldTitle={false}
-                                    documents={data.dataSources.filter((ds:AttachedDocument) => preexistingDSids[type].includes(ds.id))} 
-                                    setDocuments={(docs:AttachedDocument[]) => updateGroupType(type, 'dataSources', docs)} />
-                            }   
 
-                        </>)}
-
-                        </div>
-                    } />
-            ))
-            
         }
     </div>
 }

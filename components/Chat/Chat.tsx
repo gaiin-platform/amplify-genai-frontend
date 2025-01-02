@@ -268,7 +268,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             const updatedMessages: Message[] =
                 updatedConversation.messages.map((message, index) => {
                     if (index === updateIndex) {
-                        return {...updatedMessage};
+                        return {...message, content: updatedMessage.content};
                     }
                     return message;
                 });
