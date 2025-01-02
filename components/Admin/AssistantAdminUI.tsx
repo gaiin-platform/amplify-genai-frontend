@@ -909,9 +909,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     const [selectedAssistant, setSelectedAssistant] = useState<Prompt | undefined>(openToAssistant || selectedGroup?.assistants[0]);
 
     const [activeAstTab, setActiveAstTab] = useState<string | undefined>(selectedAssistant?.data?.assistant?.definition.assistantId);
-    const [activeSubTab, setActiveSubTab] = useState<SubTabType>(openToAssistant ? "edit_assistant" : "conversations");
-    const [showAstgp, setShowAstgp] = useState<boolean>(false);
+    const DEFAULT_SUB_TAB = 'dashboard' as SubTabType;
+    const [activeSubTab, setActiveSubTab] = useState<SubTabType>(openToAssistant ? "edit_assistant" : DEFAULT_SUB_TAB);
 
+    const [additionalGroupData, setAdditionalGroupData] = useState<any>({});
 
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics | null>(null);
@@ -964,7 +965,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         if ((selectedAssistant && (selectedAssistant.groupId !== selectedGroup?.id 
                                || !(selectedGroup?.assistants.find((ast:Prompt) => ast?.data?.assistant?.definition.assistantId === selectedAssistant.data?.assistant?.definition.assistantId)))) 
              || (!selectedAssistant && (selectedGroup?.assistants && selectedGroup?.assistants.length > 0))) setSelectedAssistant(selectedGroup?.assistants[0]);
-        if (activeSubTab === 'group') setActiveSubTab('conversations')
+        if (activeSubTab === 'group') setActiveSubTab(DEFAULT_SUB_TAB)
     }, [selectedGroup]);
 
 
@@ -1081,6 +1082,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     }
 
     const handleCreateAssistantPrompt = (group: Group) => {
+        
+        setAdditionalGroupData({});
         const newPrompt = createEmptyPrompt('', group.id);
 
         const assistantDef: AssistantDefinition = {
@@ -1101,7 +1104,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         if (!newPrompt.data.assistant) newPrompt.data.assistant = {};
 
         newPrompt.data.assistant.definition = assistantDef;
-        // setCurNewAstPrompt(newPrompt);
         return newPrompt
     }
 
@@ -1163,7 +1165,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     const renderSubTabs = () => (
         <div className="flex flex-col w-full text-[1.05rem]">
             <div className="flex flex-row gap-6 mb-4 px-4 w-full">
-                {subTabs.map((label: SubTabType) => 
+                {subTabs.filter((t: SubTabType) =>  t !== 'conversations' || selectedGroup?.supportConvAnalysis)
+                    .map((label: SubTabType) => 
                      label === 'group' ? (
                         <>
                         {selectedAssistant && selectedAssistant?.data?.assistant?.definition && 
@@ -1180,26 +1183,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                 > 
                                     <div className={`mt-1.5 ${selectedAssistant?.data?.isPublished ? "bg-green-400 dark:bg-green-300": "bg-gray-400 dark:bg-gray-500"}`} 
                                                                     style={{width: '8px', height: '8px', borderRadius: '50%'}}></div>
-                                    {/* {showAstgp ? 
-                                        <div className='flex flex-row'>
-                                            <ActionButton
-                                                handleClick={() => setShowAstgp(false)}
-                                                title="Hide Assistant Id"
-                                            >
-                                                <IconEyeClosed size={18} /> 
-                                            </ActionButton>   */}
                                         Assistant Id: {selectedAssistant.data.assistant.definition.assistantId}
-                                        {/* </div>
-                                        : 
-                                        <div className='flex flex-row'>
-                                            <ActionButton
-                                                    handleClick={() => setShowAstgp(true)}
-                                                    title="Show Assistant Id"
-                                                >
-                                                    <IconEye size={18} />
-                                            </ActionButton> 
-                                        Assistant Id </div>
-                                        }  */}
                             </label>
                             </>
                         }
@@ -1208,6 +1192,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             onClick={() => {
                                 setActiveSubTab(label);
                                 setSelectedAssistant(undefined);
+                                
+                                setAdditionalGroupData({});
                                 }}
                             title="Manage users and assistant group types"
                             >
@@ -1220,7 +1206,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                         </> 
                     ) :
                     (selectedAssistant ? ( 
-                         <button key={label} className={`${activeSubTab === label ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black dark:bg-gray-600 dark:text-white'} px-4 py-2 ${!selectedAssistant?'hidden':'visible'}`} 
+                        <button key={label} className={`${activeSubTab === label ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black dark:bg-gray-600 dark:text-white'} 
+                                                        px-4 py-2 ${!selectedAssistant?'hidden':'visible'}`} 
                         onClick={() => setActiveSubTab( label )}>
                             {formatLabel(label)}
                         </button>    
@@ -1236,8 +1223,12 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
             case 'conversations':
                 return ( selectedAssistant ? <ConversationTable conversations={conversations} /> : <></>);
             case 'dashboard':
-                // console.log('Current dashboardMetrics:', dashboardMetrics);
-                // console.log('Current selectedAssistant:', selectedAssistant);
+                if (!selectedGroup?.supportConvAnalysis) return <div className='w-full text-center text-lg'>
+                {"Access to dashboard metrics and assistant conversation history is not currently available for this group."} 
+                <br></br>
+                To request access to these features, please reach out to Amplify for approval.
+                </div>
+                  
                 return (
                     selectedAssistant && dashboardMetrics ?
                         <Dashboard metrics={dashboardMetrics} /> :
@@ -1253,13 +1244,16 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                     <AssistantModal
                          assistant={selectedAssistant}
                          onSave={ () => {} }
-                         onCancel={ () => setActiveSubTab("conversations")}  
+                         onCancel={ () => setActiveSubTab(DEFAULT_SUB_TAB)}  
                          onUpdateAssistant={ (astprompt: Prompt) => {
+                            
+                            setAdditionalGroupData({});
                             if (selectedGroup)  {
                                 astprompt.groupId = selectedGroup?.id;
                                 astprompt.folderId = selectedGroup?.id;
                                 const updatedAssistants = selectedGroup?.assistants.map((ast: Prompt) => {
                                                         if (ast.data?.assistant?.definition.assistantId === astprompt.data?.assistant?.definition.assistantId) {
+                                                            astprompt.data = {...astprompt?.data, noEdit: false}; 
                                                             return astprompt;
                                                         }
                                                         return ast;
@@ -1297,6 +1291,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                          translateY={'-5%'}
                          embed={true}
                          blackoutBackground={false}
+                         additionalGroupData={additionalGroupData} 
                          onCreateAssistant={(astDef:AssistantDefinition) => { return handleCreateAssistant(astDef, GroupUpdateType.UPDATE)}}
                          >  
                             <AssistantModalConfigs
@@ -1304,6 +1299,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                 astId={selectedAssistant.id}
                                 astData={selectedAssistant?.data}
                                 groupTypes={selectedGroup?.groupTypes}
+                                additionalGroupData={additionalGroupData}
+                                setAdditionalGroupData={setAdditionalGroupData}
+                                groupConvAnalysisSupport={!!selectedGroup?.supportConvAnalysis}
+                            
                             />
                          </AssistantModal>
                 </div>
@@ -1353,7 +1352,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             role="dialog"
                         >
                             {loadingActionMessage && (
-                                <div className="absolute inset-0 flex items-center justify-center z-60"
+                                <div className="absolute inset-0 flex items-center justify-center z-60" key={"loading"}
                                     style={{ transform: `translateY(-40%)`}}>
                                     <div className="p-3 flex flex-row items-center  border border-gray-500 bg-[#202123]">
                                         <LoadingIcon style={{ width: "24px", height: "24px" }}/>
@@ -1372,8 +1371,11 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                 setShowCreateGroupAssistant(null);
                                             }}
                                             onUpdateAssistant={ (astprompt: Prompt) => {
+                                                
+                                                setAdditionalGroupData({});
                                                 astprompt.groupId = selectedGroup.id;
                                                 astprompt.folderId = selectedGroup.id;
+                                                astprompt.data = {...astprompt?.data, noEdit: false}; 
                                                 setSelectedAssistant(astprompt);
                                                 const updatedGroup =  {...selectedGroup, assistants: [...selectedGroup.assistants, astprompt]};
                                                 const updatedGroups = adminGroups.map((g:Group) => {
@@ -1399,6 +1401,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                             additionalTemplates={allAssistants()}
                                             autofillOn={true}
                                             translateY='-4%'
+                                            additionalGroupData={additionalGroupData}
                                             onCreateAssistant={(astDef:AssistantDefinition) => { return handleCreateAssistant(astDef, GroupUpdateType.ADD)}}
                                             >
                                                
@@ -1406,13 +1409,16 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                     groupId={selectedGroup.id}
                                                     astId={`${selectedGroup.id}_${selectedGroup.assistants.length}`}
                                                     groupTypes={selectedGroup.groupTypes}
+                                                    additionalGroupData={additionalGroupData}
+                                                    setAdditionalGroupData={setAdditionalGroupData}
+                                                    groupConvAnalysisSupport={!!selectedGroup.supportConvAnalysis}
                                                 />
                                             </AssistantModal>
                                         
                                         </div>
                                          
                                     )}
-                            <div className='flex flex-row gap-2' key={selectedGroup?.id}> 
+                            <div className='flex flex-row gap-2' key={`${selectedGroup?.id}_GroupSelect`}> 
                                 <GroupSelect
                                     groups={adminGroups}
                                     selectedGroup={selectedGroup}
@@ -1436,7 +1442,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
                             { selectedGroup && 
                             <>
-                                <div key={selectedGroup.id}>
+                                <div key={`${selectedGroup?.id}_Assistants`}>
                                     <div className="mb-4 flex flex-row items-center justify-between bg-transparent rounded-t border-b border-neutral-400  dark:border-white/20">
                                         {selectedGroup.assistants.length === 0 && <label className='text-center text-black dark:text-white text-lg'
                                                                                     style={{width: `${innderWindow.width * 0.75}px`}}>
@@ -1449,7 +1455,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                         key={ast.name}
                                                         onClick={() => {
                                                             setSelectedAssistant(ast)
-                                                            setActiveSubTab("dashboard");
+                                                            setActiveSubTab(DEFAULT_SUB_TAB);
+                                                            setAdditionalGroupData({});
                                                         }}
                                                         title={selectedAssistant?.data?.isPublished ? 'Published':'Unpublished'}
                                                         className={`p-2 rounded-t flex flex-shrink-0 ${activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId ? 'border-l border-t border-r border-neutral-400 text-black dark:border-gray-500 dark:text-white shadow-[2px_0_1px_rgba(0,0,0,0.1),-2px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}
@@ -1858,14 +1865,25 @@ interface AssistantModalProps {
     astId: string;
     astData?: any;
     groupTypes?: string[];
+    additionalGroupData: any;
+    setAdditionalGroupData: (data: any) => void;
+    groupConvAnalysisSupport: boolean;
 }
 
-// To add more configuarations to the assistant, add components here and ensure the change is sent through CustomEvent 'astGroupDataUpdate'
-export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId, astData = {}, groupTypes=[]}) => {
+// To add more configuarations to the assistant, add components here and ensure the change is set in additionalGroupData
+export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId, astData = {}, groupTypes=[], additionalGroupData, setAdditionalGroupData, groupConvAnalysisSupport}) => {
     const [isPublished, setIsPublished] = useState<boolean>(astData.isPublished ?? false);
     const [enforceModel, setEnforceModel] = useState<boolean>(!!astData.model);
 
-    
+    const [astSupportConvAnalysis, setAstSupportConvAnalysis] = useState<boolean>(astData.supportConvAnalysis ?? false);
+    const [analysisCategories, setAnalysisCategories] = useState<string[]>(astData.analysisCategories ?? []);
+
+    const updateCategories = (categories: string[]) => {
+        setAnalysisCategories(categories);
+        setAdditionalGroupData({...additionalGroupData, analysisCategories: categories });
+    }
+
+
     return <div className='flex flex-col' key={astId}> 
             <div className='mb-4 flex flex-row gap-3 text-[1.05rem]'>
                 <Checkbox
@@ -1873,7 +1891,8 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
                     label="Publish assistant to read-access members"
                     checked={isPublished}
                     onChange={(isChecked: boolean) => {
-                        window.dispatchEvent(new CustomEvent('astGroupDataUpdate', { detail: { astId: astId, data: {isPublished: isChecked} }} ));
+                        setAdditionalGroupData({...additionalGroupData, isPublished: isChecked });
+
                         setIsPublished(isChecked);
                     }}
                 />
@@ -1884,24 +1903,51 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
                     label="Enforce Model"
                     checked={enforceModel}
                     onChange={(isChecked: boolean) => {
-                        if (!isChecked)
-                        window.dispatchEvent(new CustomEvent('astGroupDataUpdate', { detail: { astId: astId, data: {model: undefined} }} ));
+                        if (!isChecked)  setAdditionalGroupData({...additionalGroupData, model: undefined});
+
                         setEnforceModel(isChecked);
                     }}
                 />
             </div>
-        <div className={`ml-6 flex flex-col ${enforceModel ? "" :'opacity-40'}`}>
-            All conversations will be set to this model and unable to be changed by the user.
-            <ModelSelect
-                isTitled={false}
-                modelId={astData.model}
-                isDisabled={!enforceModel}
-                disableMessage=''
-                handleModelChange={(model:string) => {
-                    window.dispatchEvent(new CustomEvent('astGroupDataUpdate', { detail: { astId: astId, data: {model: model} }} ));
-                }}
-            />
-        </div>
+            <div className={`ml-6 flex flex-col ${enforceModel ? "" :'opacity-40'}`}>
+                All conversations will be set to this model and unable to be changed by the user.
+                <ModelSelect
+                    isTitled={false}
+                    modelId={astData.model}
+                    isDisabled={!enforceModel}
+                    disableMessage=''
+                    handleModelChange={(model:string) => {
+                        setAdditionalGroupData({...additionalGroupData, model: model});
+                    }}
+                />
+            </div>
+
+            { groupConvAnalysisSupport && <>
+            <div className='mt-4 flex flex-row gap-3 text-[1rem]'>
+                <Checkbox
+                    id="supportAnalysis"
+                    label="Support Conversation Analysis"
+                    checked={astSupportConvAnalysis}
+                    onChange={(isChecked: boolean) => {
+                        setAdditionalGroupData({...additionalGroupData, supportConvAnalysis: isChecked});
+
+                        setAstSupportConvAnalysis(isChecked);
+                    }}
+                />
+            </div>
+            <div className={`ml-6 flex flex-col ${astSupportConvAnalysis ? "" :'opacity-40'}`}>
+                Allow access to view user conversations with the assistant and perform analysis.
+                <br></br>
+                {"Define custom categories to classify interactions and evaluate the assistant's performance for quality, relevance, and effectiveness."}
+
+                <TagsList label={"Categories"}
+                    addMessage={"List categories separated by commas:"}
+                    tags={analysisCategories}
+                    setTags={(categories) => updateCategories(categories)}
+                    removeTag={(category) => updateCategories(analysisCategories.filter((t:string) => t !== category))}
+                    isDisabled={!astSupportConvAnalysis}/>
+
+            </div></>}
         <br className='my-1'></br>
         <GroupTypesAstData
             groupId={groupId}
@@ -1909,6 +1955,8 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
             assistantGroupData={astData.groupTypeData ?? {}}
             groupUserTypeQuestion={astData.groupUserTypeQuestion}
             groupTypes={groupTypes}
+            additionalGroupData={additionalGroupData}
+            setAdditionalGroupData={setAdditionalGroupData}
         />
     </div>
 }
@@ -1970,7 +2018,7 @@ export const GroupTypesAst: FC<TypeProps> = ({groupTypes, setGroupTypes, canAddT
             }
 
             <TagsList label={"Types"}
-                    addMessage={"List group types:"}
+                    addMessage={"List group types separated by commas:"}
                     tags={groupTypes}
                     setTags={(tags) => setGroupTypes(tags)}
                     removeTag={(tag) =>  setGroupTypes(groupTypes.filter((t:string) => t !== tag))}
@@ -1985,9 +2033,11 @@ interface TypeAstProps {
     assistantGroupData: AstGroupTypeData;
     groupUserTypeQuestion: string | undefined;
     groupTypes: string[];
+    additionalGroupData: any;
+    setAdditionalGroupData: (data: any) => void;
 }
 
-export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assistantGroupData, groupUserTypeQuestion, groupTypes}) => {
+export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assistantGroupData, additionalGroupData, setAdditionalGroupData, groupUserTypeQuestion, groupTypes}) => {
     const preexistingDSids: {[key:string]:string[]} = {};
 
     const initialDs = (dataSources: any) => {
@@ -2050,18 +2100,14 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
             }
             return acc;
         }, {});
-        window.dispatchEvent(new CustomEvent('astGroupDataUpdate', { detail: { astId: astPromptId, 
-                                                                                data: {groupTypeData: filteredGroupTypeData} 
-                                                                            }
-                                                                    } ));
+        setAdditionalGroupData({...additionalGroupData, groupTypeData: filteredGroupTypeData});
+
         }, 100);
     },[groupTypeData, selectedTypes])
 
     useEffect(() => {
-        window.dispatchEvent(new CustomEvent('astGroupDataUpdate', { detail: { astId: astPromptId, 
-                                                                                data: {groupUserTypeQuestion: userQuestion} 
-                                                                            }
-                                                                    } ));
+        setAdditionalGroupData({...additionalGroupData, groupUserTypeQuestion: userQuestion});
+
     },[userQuestion])
 
     const updateGroupType = (type: string, property: string, value: any) => {
