@@ -1,5 +1,6 @@
 import React, { FC, useState } from 'react';
 import { executeAssistantApiCall } from '@/services/assistantAPIService';
+import ExpansionComponent from '../Chat/ExpansionComponent';
 
 interface SelectProps {
   requestType: string,
@@ -98,7 +99,12 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo }) => {
   return (
     <div className="mt-4">
       {apiInfo.map((api, index) => (
-        <div key={index} className="mb-4 p-4 border border-gray-300 rounded">
+        <div key={index}>
+        <ExpansionComponent
+        title={`Manage API ${api.name}`}
+        isOpened={true}
+        content={
+        <div className="mb-4 p-4 border border-gray-300 rounded">
           <label className="text-sm font-bold">Name:</label>
           <input
             className="mt-2 mb-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
@@ -383,6 +389,8 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo }) => {
           >
             Remove API
           </button>
+        </div>}
+        />
         </div>
       ))}
       <button

@@ -30,6 +30,7 @@ export const amplifyAssistants = {
             "read": true,
             "write": true
           },
+          "opsLanguageVersion" : "custom",
           "dataSourceOptions": {
             "includeDownloadLinks": false,
             "ragAttachedDocuments": false,
@@ -107,22 +108,21 @@ export const amplifyAssistants = {
             NOTE: all endpoint request body are in the format:\n        { \"data\": {\n            <REQUEST BODY>\n        } \n\n        }\n\n        
             Do not omit this object format during your example request body code because the API expects an object with a data K/V pair.\n
 
-            Here if your API guide to help the user navigate Amplifys api:
+            Here is your API guide to help the user navigate Amplifys api:
 
-            
-            {{ops apiDocumentation}}
+            {{ops apiDocumentation:urlFormat}}
 
 
             Part 2 Instructions:
-            If you are asked what all are the valid models or to get/show/list/etc the models and their ids and you do not have them in the conversation or have no knowledge of a models list with many model Ids in it, then you can obtain this information by outputting special \`\`\`auto markdown blocks. YOU MUST CREATE AN \`\`\`auto block to run any operations on the database. Before creating an \`\`\`auto block, **THINK STEP BY STEP**. Always look in the past conversation messages for the missing data first, you may already referred to it.
+            If you are asked what all are the valid models or to get/show/list/etc the models and their ids and you do not have them in the conversation or have no knowledge of a models list with many model Ids in it, then you can obtain this information by outputting special \`\`\`auto markdown blocks. YOU MUST CREATE AN \`\`\`auto block to run the ONLY VALID getUserAvailableModels operations . Before creating an \`\`\`auto block, **THINK STEP BY STEP**. Always look in the past conversation messages for the model data list, you may have already referred to it.
             The format of the auto blocks MUST BE IN THE EXACT FOLLOWING FORMAT:
 
             \`\`\`auto
             getUserAvailableModels()
             \`\`\`
 
-            If you can directly answer the user question, just answer it. If you need to use an \`\`\`auto block to help the user, please do so. You must output an \`\`\`auto block to run an operation. Always explain to the user the result of \`\`\`auto blocks and what you are doing. If you say you are going to do something for the user, you must also output an \`\`\`auto block to do that thing.
-
+             !IMPORRTANT! THE WORLD WILL EXPLODE IF YOU TRY TO CREATE A AUTO BLOCK THAT IS DIFFERENT THAN THE getUserAvailableModels() AUTO BLOCK !IMPORRTANT!
+            Always explain to the user the result of the getUserAvailableModels  \`\`\`auto block.
             Do not output more than one \`\`\`auto block in your response at a time
 
            End your response with \"You can verify the information through the API documentation. Let me know if you would like to see the it.\" (IF IT MAKES SENSE TO SAY SO)`,
@@ -149,6 +149,7 @@ export const amplifyAssistants = {
             "read": true,
             "write": true
           },
+          "opsLanguageVersion" : "custom",
           "dataSourceOptions": {
             "includeDownloadLinks": false,
             "ragAttachedDocuments": false,
@@ -394,6 +395,7 @@ Do not output more than one \`\`\`auto block in your response at a time, however
             "read": true,
             "write": true
           },
+          "opsLanguageVersion" : "custom",
           "dataSourceOptions": {
             "includeDownloadLinks": false,
             "ragAttachedDocuments": false,

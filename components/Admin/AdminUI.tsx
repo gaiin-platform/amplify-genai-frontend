@@ -359,6 +359,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         const result = await updateAdminConfigs(collectUpdateData);
         if (result.success) {
             if (unsavedConfigs.has(AdminConfigTypes.FEATURE_FLAGS)) {
+                // to do doesnt account for exclusives think about pulling them again from home same with groups
                 homeDispatch({ field: 'featureFlags',
                                value: { ...features, 'adminInterface': admins.includes(userEmail ?? '')} });
                 localStorage.setItem('mixPanelOn', JSON.stringify(features.mixPanel ?? false));
@@ -1440,8 +1441,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                         />
 
                                         <ModelDefaultSelect                     
-                                            models={Object.values(availableModels).filter((m:SupportedModel) => 
-                                                    m.isAvailable && !m.id.includes('embedding'))}
+                                            models={Object.values(availableModels).filter((m:SupportedModel) => !m.id.includes('embed'))}
                                             selectedKey="defaultQAModel"
                                             label={camelToTitleCase('defaultQ&AModel')}
                                             description="The Q&A model will be used for generating context-aware questions to enhance document embeddings"
@@ -2180,7 +2180,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     <div className="flex flex-row gap-2">
                         <label className="text-[1rem] font-bold"> Amplify Group Assistants</label>
                         {amplifyAstGroupId || isCreatingAmpAstGroup ?
-                                <div className={`mt-1.5 ${isCreatingAmpAstGroup ? "bg-gray-400 dark:bg-gray-500" : "bg-green-400 dark:bg-green-300"}`} 
+                                <div className={`mt-1.5 ml-0.5 ${isCreatingAmpAstGroup ? "bg-gray-400 dark:bg-gray-500 animate-pulse" : "bg-green-400 dark:bg-green-300"}`} 
                                  style={{width: '8px', height: '8px', borderRadius: '50%'}}
                                  title="The Amplify Assistants Group exists."> </div>
                         :
@@ -2190,7 +2190,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             onClick={() => {
                                 setCreatingAmpAsts([]);
                                 }}
-                            title="It appears you currently do not have an Amplify Assistants group. If this is a mistake you will not be able to successfully create another one."
+                            // title="It appears you currently do not have an Amplify Assistants group. If this is a mistake you will not be able to successfully create another one."
                             >
                             {"Create Amplify Assistants Group"}
                                 
@@ -2608,8 +2608,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                             <span className='mb-2 ml-5 text-[0.8rem] font-bold'> {"How to use Ops in Assistants"}  </span>        
                                             
                                         </div>
-                                        <span className='mb-2 ml-5'> 1. It is required to list the ops tag in the assistant instructions in the format: {"{{ops <op_tag>}}" }</span> 
-                                        <span className='mb-2 ml-5'> {'2. The assistant must be instructed to produce an auto block with the function name in order to execute the op request. The auto block MUST be in the format (includes parentheses):'}  </span> 
+                                        <span className='mb-1 ml-5'> * It is required to add the ops tag in your assistant instructions in the format: {"{{ops <op_tag>}}" }</span> 
+                                        <span className='mb-2 ml-5'> &nbsp;&nbsp; {'The assistant will automatically be instructed to produce an auto block with the function name in order to execute the op request. The auto block will be in the format):'}  </span> 
                                         <span className='mb-2 flex justify-center'> ```auto
                                                                                         <br></br>
                                                                                         {"<function_name()>"}
