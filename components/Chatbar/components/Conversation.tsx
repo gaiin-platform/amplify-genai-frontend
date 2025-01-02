@@ -23,7 +23,7 @@ import HomeContext from '@/pages/api/home/home.context';
 
 import ChatbarContext from '@/components/Chatbar/Chatbar.context';
 import { uploadConversation } from '@/services/remoteConversationService';
-import { isLocalConversation, isRemoteConversation } from '@/utils/app/conversationStorage';
+import { isLocalConversation, isRemoteConversation } from '@/utils/app/conversation';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 
 interface Props {

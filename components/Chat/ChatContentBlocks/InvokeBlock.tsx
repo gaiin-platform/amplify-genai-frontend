@@ -64,9 +64,9 @@ const InvokeBlock: React.FC<Props> = ({
       prompts,
     },
     shouldStopConversation,
-    handleCreateFolder,
+    handleConversationAction,
     dispatch: homeDispatch,
-    handleAddMessages: handleAddMessages,
+    handleAddMessages,
   } = useContext(HomeContext);
 
   const promptsRef = useRef(prompts);
@@ -173,55 +173,43 @@ const InvokeBlock: React.FC<Props> = ({
 
       const title = actionData.name;
 
-      if(title === 'tellUser'){
+      if (title === 'tellUser') {
         //alert("Tell user!")
 
         //alert(actionData.payload.message);
         //alert(message.content);
 
-        homeDispatch({
-          type: 'conversation',
-          action: {
-            type: 'updateMessages',
-            conversationId: conversation.id,
-            messages: [
-              {...message, content: actionData.payload.message},
-            ],
-          },
-        });
-        // contains error, was this a mistake?
-        // homeDispatch({
-        //   type: 'conversation',
-        //   action: {
-        //     type: 'selectConversation',
-        //     conversationId: conversation.id,
-        //   },
-        // });
+        await handleConversationAction({
+              type: 'updateMessages',
+              conversation: conversation,
+              messages: [
+                {...message, content: actionData.payload.message},
+              ],
+            });
+
         return;
       }
 
       console.log("############### Updating message with automation status");
 
-      homeDispatch({
-        type: 'conversation',
-        action: {
-          type: 'updateMessages',
-          conversationId: conversation.id,
-          messages: [
-            {
-              ...message,
-              data: {
-                ...message.data,
-                automation: {
-                  status: 'running',
+      await handleConversationAction({
+              type: 'updateMessages',
+              conversation: conversation,
+              messages: [
+                {
+                  ...message,
+                  data: {
+                    ...message.data,
+                    automation: {
+                      status: 'running',
+                    },
+                  },
                 },
-              },
-            },
-          ],
-        },
-      });
+              ],
+            });
 
-      homeDispatch({ field: 'selectedConversation', value: conversation });
+
+      // homeDispatch({ field: 'selectedConversation', value: conversation });
 
       const context = {
         conversation,

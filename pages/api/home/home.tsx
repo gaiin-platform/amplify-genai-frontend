@@ -6,7 +6,7 @@ import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
-import { CloudConvAttr, getIsLocalStorageSelection, isRemoteConversation, pickConversationAttributes, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
+import { getIsLocalStorageSelection, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import cloneDeep from 'lodash/cloneDeep';
 import {styled} from "styled-components";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
@@ -23,14 +23,15 @@ import {
     updateConversation,
     compressAllConversationMessages,
     conversationWithUncompressedMessages,
-    conversationWithCompressedMessages,
+    isRemoteConversation,
+    deleteConversationCleanUp,
 } from '@/utils/app/conversation';
 import { getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
 import { getSettings, saveSettings } from '@/utils/app/settings';
 import { getAccounts } from "@/services/accountService";
 
-import { Conversation, Message } from '@/types/chat';
+import { Conversation, Message, newMessage } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
 import { FolderInterface, FolderType } from '@/types/folder';
 // import { ModelID, Models, Model } from '@/types/model';
@@ -63,7 +64,7 @@ import WorkspaceList from "@/components/Workspace/WorkspaceList";
 import { Market } from "@/components/Market/Market";
 import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
-import { useHomeReducer } from "@/hooks/useHomeReducer";
+import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants } from '@/services/assistantService';
@@ -99,24 +100,19 @@ const LoadingIcon = styled(Icon3dCubeSphere)`
 
 
 interface Props {
-    // defaultModelId: ModelID;
-    
     ClientId: string | null;
     cognitoDomain: string | null;
     cognitoClientId: string | null;
     mixPanelToken: string;
     chatEndpoint: string | null;
-    // availableModels: string | null;
 }
 
 
 const Home = ({
-    // defaultModelId,
     cognitoClientId,
     cognitoDomain,
     mixPanelToken,
     chatEndpoint,
-    // availableModels
 }: Props) => {
     const { t } = useTranslation('chat');
     const [initialRender, setInitialRender] = useState<boolean>(true);
@@ -219,39 +215,6 @@ const Home = ({
         };
     }, []);
 
-//////////////////////////////////////////////////////
-
-    // useEffect(() => {
-        
-    //     if (availableModels) {
-    //         const modelList = availableModels.split(",");
-
-    //         const models: Model[] = modelList.reduce((result: Model[], model: string) => {
-    //             const model_name = model;
-
-    //             for (const [key, value] of Object.entries(ModelID)) {
-    //                 if (value === model_name && modelList.includes(model_name)) {
-    //                     result.push({
-    //                         id: model_name,
-    //                         name: Models[value].name,
-    //                         maxLength: Models[value].maxLength,
-    //                         tokenLimit: Models[value].tokenLimit,
-    //                         actualTokenLimit: Models[value].actualTokenLimit,
-    //                         inputCost: Models[value].inputCost,
-    //                         outputCost: Models[value].outputCost,
-    //                         description: Models[value].description
-    //                     });
-    //                 }
-    //             }
-    //             return result;
-    //         }, []);
-
-    //         dispatch({ field: 'models', value: models });
-    //     }
-    // }, [availableModels, dispatch]);
-
-
-//////////////////////////////////////////////////////
 
     useEffect(() => {
         if (chatEndpoint) dispatch({ field: 'chatEndpoint', value: chatEndpoint });
@@ -301,12 +264,10 @@ const Home = ({
             if (!isModelAvailable) { // for cases when the model used in these conversation are no longer available to the user
                 const validModel =  getDefaultModel(DefaultModels.DEFAULT);
                 newSelectedConv.model = validModel;
-                if (isRemoteConversation(newSelectedConv)) uploadConversation(newSelectedConv, foldersRef.current);
-
-                let updatedConversations: Conversation[] = [...conversationsRef.current];
-                updatedConversations.map((c: Conversation) => {return {...c, model: validModel}});
-                dispatch({field: 'conversations', value: updatedConversations});
-                saveConversations(updatedConversations);
+                await handleUpdateConversation(conversation, {
+                    key: 'model',
+                    value: validModel,
+                })
             }
 
             dispatch({ field: 'page', value: 'chat' });
@@ -314,6 +275,7 @@ const Home = ({
             dispatch({  field: 'selectedConversation',
                         value: newSelectedConv
                     });
+
         }
     };
 
@@ -399,7 +361,7 @@ const Home = ({
             const updatedConversations = conversationsRef.current.reduce((acc: Conversation[], c:Conversation) => {
                                             if (c.folderId === folderId) {
                                                 statsService.deleteConversationEvent(c);
-                                                if (isRemoteConversation(c)) deleteRemoteConversation(c.id);
+                                                deleteConversationCleanUp(c);
                                             } else {
                                                 acc.push(c);
                                             }
@@ -482,8 +444,6 @@ const Home = ({
                 break
         }
         const updatedFolders = foldersRef.current.filter((f:FolderInterface) => (f.id !== folderId));
-        console.log("Deleting folder ", folderId, "of type: ", updatedFolders);
-
         
         dispatch({ field: 'folders', value: updatedFolders });
         saveFolders(updatedFolders);
@@ -547,44 +507,24 @@ const Home = ({
     };
 
     const handleUpdateSelectedConversation = (updatedConversation: Conversation) => {
-        // console.log("update selected: ", updatedConversation);
-        let updatedConversations: Conversation[] = [...conversationsRef.current];
+        const { single, all } = updateConversation(
+            updatedConversation,
+            [...conversationsRef.current], 
+        );
 
-        if (selectedConversation && selectedConversation.isLocal) {
-            updatedConversations = updatedConversations.map(
-                (conversation:Conversation) => {
-                    if (conversation.id === selectedConversation.id) {
-                        return conversationWithCompressedMessages(updatedConversation);
-                    }
-                    return conversation;
-                },
-            );
-            if (updatedConversations.length === 0) updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-            
-        } else {
-            uploadConversation(updatedConversation, foldersRef.current);
-            updatedConversations = updatedConversations.map(
-                (conversation:Conversation) => {
-                    if (selectedConversation && conversation.id === selectedConversation.id) {
-                        return pickConversationAttributes(cloneDeep(updatedConversation), CloudConvAttr) as Conversation;
-                    }
-                    return conversation;
-                },
-            );
-            if (updatedConversations.length === 0) updatedConversations.push( pickConversationAttributes(updatedConversation, CloudConvAttr) as Conversation );
-        }
+        if (isRemoteConversation(updatedConversation)) uploadConversation(single, foldersRef.current);
     
         dispatch({
             field: 'selectedConversation',
-            value: updatedConversation,
+            value: single,
         }); 
 
-        dispatch({field: 'conversations', value: updatedConversations});
-        saveConversations(updatedConversations);
+        dispatch({field: 'conversations', value: all});
     }
 
+    
 
-    const handleUpdateConversation = (
+    const handleUpdateConversation = async (
         conversation: Conversation,
         data: KeyValuePair,
     ) => {
@@ -592,8 +532,12 @@ const Home = ({
         // console.log("Previous Conversation: ", conversation)
         // console.log("Updating data: ", data)
 
-        const updatedConversation = {
-            ...conversation,
+        const completeConversation: Conversation | null | undefined = await getCompleteConversation(conversation);
+        // would only happen in cases of faiing to fetch remote conversation which already has a failed alert
+        if (!completeConversation) return; 
+       
+        const updatedConversation: Conversation = { // will be the full conversation 
+            ...completeConversation,
             [data.key]: data.value,
         };
         const { single, all } = updateConversation(
@@ -601,15 +545,21 @@ const Home = ({
             conversations, 
         );
 
-        if (selectedConversation && selectedConversation.id === updatedConversation.id) {
-            console.log("handleUpdate conv: ",conversationWithUncompressedMessages(single) );
-            dispatch({field: 'selectedConversation', value: conversationWithUncompressedMessages(single)});
-        }
-
-        if (isRemoteConversation(updatedConversation)) uploadConversation(conversationWithUncompressedMessages(single), foldersRef.current);
+        if (selectedConversation && (conversation.id === selectedConversation.id)) dispatch({field: 'selectedConversation', value: single});
+        if (isRemoteConversation(conversation)) uploadConversation(single, foldersRef.current);
        
         dispatch({ field: 'conversations', value: all });
     };
+
+    const getCompleteConversation = async (conversation: Conversation) => {
+        const isRemote = isRemoteConversation(conversation);
+        const isSelected = selectedConversation && (conversation.id === selectedConversation.id);
+
+        return isSelected ? selectedConversation :
+                 isRemote ? await fetchRemoteConversation(conversation.id) 
+                          : conversationWithUncompressedMessages(conversation);
+    }
+
 
     const clearWorkspace = async () => {
         dispatch({ field: 'conversations', value: [] });
@@ -636,47 +586,40 @@ const Home = ({
         }
     }, [conversationStateId]);
 
-    // useEffect(() => {
-    //     const getOps = async () => {
-    //         try {
-    //             const ops = await getOpsForUser();
-    //
-    //             const opMap:{[key:string]:any} = {};
-    //             ops.data.forEach((op:any) => {
-    //                 opMap[op.id] = op;
-    //             })
-    //
-    //             console.log("Ops", opMap)
-    //             dispatch({field: 'ops', value: opMap});
-    //         } catch (e) {
-    //             console.error('Error getting ops', e);
-    //         }
-    //     }
-    //     if(session?.user) {
-    //        getOps();
-    //     }
-    // }, [user]);
 
-    const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
+    const handleAddMessages = (selectedConversation: Conversation | undefined, messages: any) => {
         if (selectedConversation) {
             dispatch(
                 {
                     type: 'conversation',
                     action: {
                         type: 'addMessages',
-                        conversationId: selectedConversation.id,
+                        conversation: selectedConversation,
                         messages: messages
                     }
                 }
             )
         }
-
-
     };
+
+    
+    const handleConversationAction = async (conversationAction: ConversationAction) => {
+        // check if we have the entire conversation 
+        let conversation = conversationAction.conversation;
+
+        const completeConversation: Conversation | null | undefined = await getCompleteConversation(conversation);
+        // would only happen in cases of faiing to fetch remote conversation which already has a failed alert
+        if (!completeConversation) return; 
+
+        dispatch({
+            type: 'conversation',
+            action: conversationAction,
+          });
+        
+    }
 
     const getDefaultModel = (defaultType: DefaultModels) => {
         let model: Model | undefined = undefined;
-       
         switch (defaultType) {
             case (DefaultModels.DEFAULT): 
                 if (defaultModelId) model = availableModels[defaultModelId];
@@ -743,7 +686,8 @@ const Home = ({
                     dispatch({ field: 'defaultModelId', value: defaultModel.id });
                     dispatch({ field: 'cheapestModelId', value: response.data.cheapest.id });
                     dispatch({ field: 'advancedModelId', value: response.data.advanced.id });
-                    dispatch({ field: 'availableModels', value: models});  
+                    const modelMap = models.reduce((acc:any, model:any) => ({...acc, [model.id]: model}), {});
+                    dispatch({ field: 'availableModels', value: modelMap});  
 
                     //save default model 
                     localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
@@ -1410,6 +1354,8 @@ const Home = ({
                     handleSelectConversation,
                     handleUpdateConversation,
                     handleUpdateSelectedConversation, 
+                    handleConversationAction,
+                    getCompleteConversation,
                     preProcessingCallbacks,
                     postProcessingCallbacks,
                     addPreProcessingCallback,
@@ -1565,9 +1511,7 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
 
     return {
         props: {
-            // availableModels,
             chatEndpoint,
-            // defaultModelId,
             mixPanelToken,
             cognitoClientId,
             cognitoDomain,

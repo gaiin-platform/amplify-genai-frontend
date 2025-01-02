@@ -52,8 +52,9 @@ const AutonomousBlock: React.FC<Props> = (
         },
         shouldStopConversation,
         handleCreateFolder,
+        handleConversationAction,
         dispatch: homeDispatch,
-        handleAddMessages: handleAddMessages
+        handleAddMessages
     } = useContext(HomeContext);
 
 
@@ -297,14 +298,11 @@ const AutonomousBlock: React.FC<Props> = (
                     if(chat){
                         moved[chatId] = "Moved successfully.";
                         chat.folderId = folder.id;
-                        homeDispatch({
-                            type: 'conversation',
-                            action: {
-                                type: 'changeFolder',
-                                conversationId: chat.id,
-                                folderId: folder.id
-                            }
-                        })
+                        handleConversationAction( {
+                                    type: 'changeFolder',
+                                    conversation: chat,
+                                    folderId: folder.id
+                                });
                     }
                     else {
                         moved[chatId] = "Chat not found.";
@@ -352,25 +350,22 @@ const AutonomousBlock: React.FC<Props> = (
             }
             hasExecuted[id] = true;
 
-            homeDispatch(
+            handleConversationAction(
                 {
-                    type: 'conversation',
-                    action: {
-                        type: 'updateMessages',
-                        conversationId: conversation.id,
-                        messages: [{
-                            ...message,
-                            data: {
-                                ...message.data,
-                                automation: {
-                                    status: "running"
-                                }
+                    type: 'updateMessages',
+                    conversation: conversation,
+                    messages: [{
+                        ...message,
+                        data: {
+                            ...message.data,
+                            automation: {
+                                status: "running"
                             }
-                        }]
-                    }
+                        }
+                    }]
                 }
-            )
-            homeDispatch({ field: 'selectedConversation', value: conversation });
+            );
+            // homeDispatch({ field: 'selectedConversation', value: conversation });
 
             const context = {
                 conversation,
