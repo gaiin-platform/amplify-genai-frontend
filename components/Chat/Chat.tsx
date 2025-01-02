@@ -17,7 +17,7 @@ import {
 
 import {useTranslation} from 'next-i18next';
 
-import { saveConversations} from '@/utils/app/conversation';
+import { deleteConversationCleanUp, saveConversations} from '@/utils/app/conversation';
 import {throttle} from '@/utils/data/throttle';
 
 import {Conversation, DataSource, Message, MessageType, newMessage} from '@/types/chat';
@@ -49,8 +49,7 @@ import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
 import {useSendService} from "@/hooks/useChatSendService";
 import {CloudStorage} from './CloudStorage';
-import { getIsLocalStorageSelection, isRemoteConversation } from '@/utils/app/conversationStorage';
-import { deleteRemoteConversation } from '@/services/remoteConversationService';
+import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
 import { Artifacts } from '../Artifacts/Artifacts';
@@ -109,8 +108,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             setLoadingMessage,
             handleUpdateConversation,
             dispatch: homeDispatch,
-            handleAddMessages: handleAddMessages,
-            handleUpdateSelectedConversation, getDefaultModel
+            handleUpdateSelectedConversation,
+             getDefaultModel,
         } = useContext(HomeContext);
 
         const { data: session } = useSession();
@@ -144,8 +143,22 @@ export const Chat = memo(({stopConversationRef}: Props) => {
     
         const filteredModels = filterModels(availableModels, getSettings(featureFlags).hiddenModelIds);
 
+        const initSelectedModel = () => {
+            const id =  selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id || defaultModelId || getDefaultModelIdFromLocalStorage();
+            if (id && filteredModels.find((m: Model) => m.id == id)) return id;
+
+            if (filteredModels.length > 0 && selectedConversation) {
+                const updatedModel = filteredModels[0];
+                handleUpdateSelectedConversation({...selectedConversation, model: updatedModel});
+                return updatedModel.id;
+            }
+
+            return undefined;
+        }
+
         const {handleSend:handleSendService} = useSendService();
-        const [selectedModelId, setSelectedModelId] = useState<string | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id || defaultModelId || getDefaultModelIdFromLocalStorage() );
+        // console.log(selectedConversation?.model?.id );
+        const [selectedModelId, setSelectedModelId] = useState<string | undefined>(initSelectedModel());
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
         const [showSettings, setShowSettings] = useState<boolean>(false);
@@ -172,7 +185,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [selectedConversationState, setSelectedConversationState] = useState<Conversation | undefined>(selectedConversation);
 
         useEffect(() => {
-            if (selectedConversation && selectedConversation.model && selectedConversation.model.id !== selectedModelId) setSelectedModelId(selectedConversation.model.id);
+            if (selectedConversation && selectedConversation.model && selectedConversation.model.id !== selectedModelId) {
+                setSelectedModelId(selectedConversation.model.id);
+            }
             setSelectedConversationState(selectedConversation);
             
             const renameConversation = async() => {
@@ -223,29 +238,27 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             const astModel = selectedAssistant?.definition?.data?.model;
             
             if (astModel && selectedModelId !== astModel) setSelectedModelId(astModel);
-            if (astModel && selectedConversation && selectedConversation.model?.id !== astModel) handleUpdateConversation(selectedConversation, {
-                                        key: 'model',
-                                        value: Object.values(availableModels).find(
-                                                      (model: Model) => model.id === astModel,
-                                               ),
-                                    });
+            if (astModel && selectedConversation && selectedConversation.model?.id !== astModel) {
+                const model:Model | undefined = Object.values(availableModels).find(
+                                                          (model: Model) => model.id === astModel,
+                                                   );
+                if (model) handleUpdateSelectedConversation({...selectedConversation, model: model});
+            }
             
             if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) {
                 if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id);
             }
         }, [selectedAssistant, selectedConversation]);
 
-        useEffect(() => {
-            // ensure the modelId and selectedConversation model are in sync.
-            if (selectedConversation && selectedConversation.model?.id !== selectedModelId) {
-                handleUpdateConversation(selectedConversation, {
-                                        key: 'model',
-                                        value: Object.values(availableModels).find(
-                                                      (model: Model) => model.id === selectedModelId,
-                                               ),
-                                    });
-            }
-        }, [selectedModelId]);
+        // useEffect(() => {
+        //     // ensure the modelId and selectedConversation model are in sync.
+        //     if (selectedConversation && selectedConversation.model?.id !== selectedModelId && !selectedAssistant?.definition?.data?.model) {
+        //         const model:Model | undefined = Object.values(availableModels).find(
+        //                 (model: Model) => model.id === selectedModelId,
+        //         );
+        //         if (model) handleUpdateSelectedConversation({...selectedConversation, model: model});
+        //     }
+        // }, [selectedModelId]);
 
         const updateMessage = (selectedConversation: Conversation, updatedMessage: Message, updateIndex: number) => {
             let updatedConversation = {
@@ -755,7 +768,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, [selectedConversation, throttledScrollDown]);
 
         const handleDeleteConversation = (conversation: Conversation) => {
-            if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
+            deleteConversationCleanUp(conversation);
             const updatedConversations = conversationsRef.current.filter(
                 (c:Conversation) => c.id !== conversation.id,
             );
@@ -1075,8 +1088,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 </button>
                                                 |
                                             </>
-                                        )}
-                                        { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' } { selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
+                                        )}                 
+                                                                                                              {/* Should be in sync with selectedModelId now:      old   selectedConversation?.model?.name || ''*/}
+                                        { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' } {selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={(e) => {

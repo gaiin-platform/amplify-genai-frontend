@@ -20,6 +20,7 @@ import { getOpsForUser, getOpsForUserAllTags } from '@/services/opsService';
 import ApiItem from '@/components/AssistantApi/ApiItem';
 import { getSettings } from '@/utils/app/settings';
 import { API, APIComponent } from '@/components/CustomAPI/CustomAPIEditor';
+import Search from '@/components/Search';
 
 
 interface Props {
@@ -40,6 +41,7 @@ interface Props {
     autofillOn?:boolean;
     embed?: boolean;
     children?: ReactElement;
+    additionalGroupData?: any;
 }
 
 const dataSourceFlags = [
@@ -122,7 +124,7 @@ const apiOptionFlags = [
 
 export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc, 
                                           disableEdit=false, title, onCreateAssistant,height, width = `${window.innerWidth * 0.6}px`,
-                                          translateY, blackoutBackground=true, additionalTemplates, autofillOn=false, embed=false, children}) => {
+                                          translateY, blackoutBackground=true, additionalTemplates, autofillOn=false, embed=false, additionalGroupData, children}) => {
     const {t} = useTranslation('promptbar');
 
     const { state: { prompts, featureFlags} , setLoadingMessage} = useContext(HomeContext);
@@ -215,10 +217,28 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [messageOptions, setMessageOptions] = useState<{ [key: string]: boolean }>(initialMessageOptionState);
     const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(initialFeatureOptionState);
     const [apiOptions, setAPIOptions] = useState<{ [key: string]: boolean }>(initialAPIOptionState);
-    const [availableApis, setAvailableApis] = useState<any[]>([]);
+    const [availableApis, setAvailableApis] = useState<any[] | null>(null);
+    const [apiSearchTerm, setApiSearchTerm] = useState<string>(''); 
     const [selectedApis, setSelectedApis] = useState<any[]>(initialSelectedApis);
 
     const [apiInfo, setApiInfo] = useState<API[]>(initialApiCapabilities || []);
+
+    useEffect(() => {
+        
+        if (availableApis === null) getOpsForUser().then((ops) => {
+                                            if(ops.success){
+                                                // console.log(ops.data);
+                                                setAvailableApis(ops.data);
+                                            }
+                                        });
+    }, [availableApis]);
+    
+
+    const additionalGroupDataRef = useRef<any>({});
+
+    useEffect(() => {
+        additionalGroupDataRef.current = additionalGroupData;
+    }, [additionalGroupData]);
 
     const validateApiInfo = (api: any) => {
         return api.RequestType && api.URL && api.Description;
@@ -239,34 +259,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [selectTemplateId, setSelectTemplateId] =  useState<any>("");
 
 
-    const [additionalGroupData, setAdditionalGroupData] = useState<any>({});
-
-    useEffect(() => {
-        const handleEvent = (event:any) => {
-            const detail = event.detail;
-            if (assistant.id === detail.astId) setAdditionalGroupData((prevData:any) => ({ ...prevData, ...detail.data }));
-        };
-        window.addEventListener('astGroupDataUpdate', handleEvent);
-
-
-        //getOpsForUserAllTags()
-        getOpsForUser()
-          .then((ops) => {
-            if(ops.success){
-                console.log(ops.data);
-                setAvailableApis(ops.data);
-            }
-        });
-
-        return () => {
-            window.removeEventListener('astGroupDataUpdate', handleEvent);
-        };
-    }, []);
-
-    // useEffect(() => {
-    //     console.log("Assistant Modal", additionalGroupData);
-    // }, [additionalGroupData]);
-
     const [uri, setUri] = useState<string|null>(definition.uri || null);
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
@@ -277,13 +269,13 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     };
     
     const prepAdditionalData = () => {
-        if (!additionalGroupData || !additionalGroupData.groupTypeData) {
-            return additionalGroupData;
+        if (!additionalGroupDataRef.current || !additionalGroupDataRef.current.groupTypeData) {
+            return additionalGroupDataRef.current;
         }
     
         // Prepare the transformed groupTypeData, if available
         const updatedGroupTypeData = Object.fromEntries(
-            Object.entries(additionalGroupData.groupTypeData as AstGroupTypeData).map(([type, info]) => {
+            Object.entries(additionalGroupDataRef.current.groupTypeData as AstGroupTypeData).map(([type, info]) => {
                 // Update the dataSources with new id formatting
                 const updatedDataSources = info.dataSources.map(ds => {
                             const prefix = "s3://";
@@ -307,7 +299,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
  
          // Create a new object for additionalGroupData that includes the transformed groupTypeData
          return {
-             ...additionalGroupData,
+             ...additionalGroupDataRef.current,
              groupTypeData: updatedGroupTypeData
          };
         
@@ -340,7 +332,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     }
 
     const handleUpdateApiItem = (id: string, checked: boolean) => {
-        const api = availableApis.find((api) => api.id === id);
+        const api = availableApis?.find((api) => api.id === id);
         if (!api) return;
         const newSelectedApis = checked ? [...selectedApis, api] : selectedApis.filter((api) => api.id !== id);
         setSelectedApis(newSelectedApis);
@@ -445,11 +437,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         if (assistant.groupId) newAssistant.data.groupId = assistant.groupId;
         
         const updatedAdditionalGroupData = prepAdditionalData();
-
         newAssistant.data = {...newAssistant.data, ...updatedAdditionalGroupData};
-
-        console.log("_________\n\n\n", newAssistant, "_________\n\n\n");
-
+        
         const {id, assistantId, provider} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant, null);
         if (!id) {
             alert("Unable to save the assistant at this time, please try again later...");
@@ -470,7 +459,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
         setIsLoading(false);
         setLoadingMessage("");
-
 
         onSave();
     }
@@ -802,25 +790,42 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                           }}
                                         />
                                     </div>
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2 mb-2">
+
+
+                                    {!availableApis || availableApis.length > 0 &&
+                                    <div className="flex flex-row text-sm font-bold text-black dark:text-neutral-200 mt-2 mb-2">
                                         {t('Enabled API Capabilities')}
+                                        {availableApis && 
+                                         <div className="h-0 ml-auto" style={{transform: 'translateY(-18px)'}}>
+                                            <Search
+                                            placeholder={'Search APIs...'}
+                                            searchTerm={apiSearchTerm}
+                                            onSearch={(searchTerm: string) => setApiSearchTerm(searchTerm.toLocaleLowerCase())}
+                                            />
+                                        </div>}
                                     </div>
-                                    <div className="h-[400px] overflow-y-auto">
-                                        {availableApis.length > 0 &&
-                                          availableApis.map((api, index) => (
-                                            <ApiItem
-                                              selected={selectedApis.some((selectedApi) => selectedApi.id === api.id)}
-                                              key={index}
-                                              api={api}
-                                              index={index}
-                                              onChange={handleUpdateApiItem} />
-                                          ))}
-                                    </div>
+                                    }
+
+                                    {availableApis && availableApis.length > 0 ?
+                                        <div className="max-h-[400px] overflow-y-auto">
+                                            {availableApis.filter((api) => (apiSearchTerm ? 
+                                                                   api.name.toLowerCase().includes(apiSearchTerm) : true))
+                                                          .map((api, index) => (
+                                                <ApiItem
+                                                selected={selectedApis.some((selectedApi) => selectedApi.id === api.id)}
+                                                key={index}
+                                                api={api}
+                                                index={index}
+                                                onChange={handleUpdateApiItem} />
+                                            ))}
+                                        </div> : <>Loading...</>
+                                    }
 
 
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-8 mb-2">
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-8 mb-1">
                                         {t('Custom API Capabilities')}
                                     </div>
+
                                     <APIComponent
                                       apiInfo={apiInfo}
                                       setApiInfo={setApiInfo}

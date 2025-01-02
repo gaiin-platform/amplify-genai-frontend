@@ -38,5 +38,6 @@ export interface Group {
   members: Members;
   assistants: Prompt[];
   groupTypes: string[];
+  supportConvAnalysis?: boolean;
 }
 

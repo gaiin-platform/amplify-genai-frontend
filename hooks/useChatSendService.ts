@@ -14,7 +14,7 @@ import {ReservedTags} from "@/types/tags";
 import {deepMerge} from "@/utils/app/state";
 import toast from "react-hot-toast";
 import {OutOfOrderResults} from "@/utils/app/outOfOrder";
-import {conversationWithCompressedMessages, saveConversations} from "@/utils/app/conversation";
+import {conversationWithCompressedMessages, remoteForConversationHistory, saveConversations} from "@/utils/app/conversation";
 import {getHook} from "@/utils/app/chathooks";
 import {AttachedDocument} from "@/types/attacheddocument";
 import {Prompt} from "@/types/prompt";
@@ -44,7 +44,7 @@ export type ChatRequest = {
 export function useSendService() {
     const {
         state: {selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService},
-        handleUpdateConversation, getDefaultModel,
+        getDefaultModel,
         postProcessingCallbacks,
         dispatch:homeDispatch,
     } = useContext(HomeContext);
@@ -163,7 +163,7 @@ export function useSendService() {
                         //     }
                         // }
                     }
-
+                    console.log("Model in use: ",selectedConversation.model.name );
                     let updatedConversation: Conversation;
                     if (deleteCount) {
                         const updatedMessages = [... selectedConversation.messages];
@@ -224,7 +224,7 @@ export function useSendService() {
                                     // or the assistant has it turned on
                         if ((!astFeatureOptions && settings.featureOptions.includeArtifacts) || (astFeatureOptions && astFeatureOptions.IncludeArtifactsInstr)) {
                              chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
-                             console.log("ARTIFACT PROMPT ADDED")
+                            //  console.log("ARTIFACT PROMPT ADDED")
                         } 
                     }
 
@@ -529,6 +529,11 @@ export function useSendService() {
                                         saveConversations(updatedConversations);
                                     } else {
                                         uploadConversation(updatedConversation, foldersRef.current);
+                                        if (conversationsRef.current.length === 0) {
+                                            const updatedConversations: Conversation[] = [remoteForConversationHistory(updatedConversation)];
+                                            homeDispatch({field: 'conversations', value: updatedConversations});
+                                            saveConversations(updatedConversations);
+                                        }
                                     }
                                     homeDispatch({field: 'messageIsStreaming', value: false});
                                     homeDispatch({field: 'loading', value: false});
@@ -591,6 +596,12 @@ export function useSendService() {
                                 saveConversations(updatedConversations);
                             } else {
                                 uploadConversation(updatedConversation, foldersRef.current);
+
+                                if (conversationsRef.current.length === 0) {
+                                    const updatedConversations: Conversation[] = [remoteForConversationHistory(updatedConversation)];
+                                    homeDispatch({field: 'conversations', value: updatedConversations});
+                                    saveConversations(updatedConversations);
+                                }
                             }
 
                             homeDispatch({field: 'messageIsStreaming', value: false});

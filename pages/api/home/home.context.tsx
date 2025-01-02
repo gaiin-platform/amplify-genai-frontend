@@ -1,7 +1,7 @@
 import { Dispatch, createContext } from 'react';
 
 //import { ActionType } from '@/hooks/useCreateReducer';
-import { ActionType } from '@/hooks/useHomeReducer';
+import { ActionType, ConversationAction } from '@/hooks/useHomeReducer';
 
 import {Conversation, Message} from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
@@ -34,6 +34,9 @@ export interface HomeContextProps {
     data: KeyValuePair,
   ) => void;
   handleUpdateSelectedConversation: (conversation: Conversation,) => void;
+  handleAddMessages: (selectedConversation: Conversation | undefined, messages: any[]) => void;
+  handleConversationAction: (conversationAction: ConversationAction) => Promise<void>;
+  getCompleteConversation: (selectedConversation: Conversation) => Promise<Conversation | null | undefined>;
   // New callback-related operations.
   preProcessingCallbacks: Processor[];
   postProcessingCallbacks: Processor[];
@@ -42,9 +45,8 @@ export interface HomeContextProps {
   addPostProcessingCallback: (callback: Processor) => void;
   removePostProcessingCallback: (callback: Processor) => void;
   clearWorkspace: () => Promise<void>;
-  handleAddMessages: (selectedConversation: Conversation | undefined, messages: any[]) => void;
   setLoadingMessage: (s:string) => void;
-  getDefaultModel: (defaultType: DefaultModels) => Model
+  getDefaultModel: (defaultType: DefaultModels) => Model;
 }
 
 const HomeContext = createContext<HomeContextProps>(undefined!);

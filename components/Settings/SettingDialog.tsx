@@ -24,50 +24,75 @@ export const modelOptionFlags = [
   {
     "label": "OpenAI",
     "key": "allOpenAI",
-    "defaultValue": false
+    "defaultValue": false,
+    "identifers": ['gpt', 'o1']
   },
   {
       "label": "Claude",
       "key": "allClaude",
-      "defaultValue": false
+      "defaultValue": false,
+      "identifers": ['anthropic']
   },
   {
       "label": "Mistral",
       "key": "allMistral",
-      "defaultValue": false
+      "defaultValue": false,
+      "identifers": ['mistral']
   },
+  {
+    "label": "Llama",
+    "key": "allLlama",
+    "defaultValue": false,
+    "identifers": ['llama']
+},
   ];
-  
+
+
+
 type ModelKey = (typeof modelOptionFlags)[number]["key"];
+
 
 export const SettingDialog: FC<Props> = ({ open, onClose }) => {
   const { t } = useTranslation('settings');
-  const { dispatch: homeDispatch, state:{statsService, featureFlags, availableModels: allAvailableModels} } = useContext(HomeContext);
+  const { dispatch: homeDispatch, state:{statsService, featureFlags, availableModels: allAvailableModels, defaultModelId} } = useContext(HomeContext);
   const initSettings: Settings = getSettings(featureFlags);
-  const [hiddenModelIds, setHiddenModelIds] = useState<string[]>(initSettings.hiddenModelIds);
+  const [hiddenModelIds, setHiddenModelIds] = useState<string[]>(initSettings.hiddenModelIds.filter((id:string) => id !== defaultModelId));
+
 
   const getAvailableModels = () => {
     const models: Model[] = Object.values(allAvailableModels);
-    const sortedModels = models.reduce((accumulator: { anthropic: any[], mistral: any[], gpt: any[] }, model: Model) => {
-          if (model.id.includes('anthropic')) {
-              accumulator.anthropic.push({ id: model.id, name: model.name });
-          } else if (model.id.includes('mistral')) {
-              accumulator.mistral.push({ id: model.id, name: model.name });
-          } else if (model.id.includes('gpt') || model.id.includes('o1')) {
-              accumulator.gpt.push({ id: model.id, name: model.name });
-          }
-          return accumulator;
-      }, { anthropic: [], mistral: [], gpt: [] });
 
-      sortedModels.anthropic.sort((a:any, b:any) => b.name.length - a.name.length);
-      sortedModels.mistral.sort((a:any, b:any) => b.name.length - a.name.length);
-      sortedModels.gpt.sort((a:any, b:any) => b.name.length - a.name.length);
+    type ModelsMap = {
+      [K in ModelKey]: { id: string; name: string }[];
+    };
 
-      return {allOpenAI : sortedModels.gpt, 
-              allClaude : sortedModels.anthropic, 
-              allMistral : sortedModels.mistral
-      } as Record<ModelKey, any[]>;
+    const sortedModels = modelOptionFlags.reduce((acc, flag) => {
+      acc[flag.key] = [];
+      return acc;
+    }, {} as ModelsMap);
+
+    models.forEach((model) => {
+      const matchedOption = modelOptionFlags.find(flag => {
+            // Check if any pattern matches the model.id
+            const identifers = flag.identifers;
+
+            return !!identifers.find((identifier: string) => model.id.includes(identifier));
+        }
+      );
+
+      if (matchedOption) sortedModels[matchedOption.key].push({ id: model.id, name: model.name });
+    });
+
+
+      Object.entries(sortedModels).forEach(([key, models]) => 
+          sortedModels[key] = (models as any).sort((a: any, b: any) => b.name.length - a.name.length),
+      );
+
+      return sortedModels;
+
     }
+
+
   const initModelOption = () => {
       return modelOptionFlags.reduce((acc:{[key:string]:boolean}, x) => {
         const k = x.key as ModelKey;
@@ -100,6 +125,11 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
 
 
   const handleSave = async () => {
+    if (Object.values(allAvailableModels).every((model: Model) => hiddenModelIds.includes(model.id))) {
+        alert("All models are currently set to be hidden. At least one model needs to remain visible, please adjust your selection.");
+        return;
+    }
+
     if (theme !== initSettings.theme) statsService.setThemeEvent(theme);
     homeDispatch({ field: 'lightMode', value: theme });
 
@@ -108,7 +138,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
                                         hiddenModelIds: hiddenModelIds
                                       }
     statsService.saveSettingsEvent(updatedSettings);
-    console.log(updatedSettings);
+    // console.log(updatedSettings);
     saveSettings(updatedSettings);
     onClose();
 
@@ -131,7 +161,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
   
       if (JSON.stringify(modelOptions) !== JSON.stringify(updatedModelOptions)) setModelOptions(updatedModelOptions);
     }
-    console.log(hiddenModelIds);
+    // console.log(hiddenModelIds);
   }, [hiddenModelIds])
 
   const handleModelOptionChange = (key: ModelKey, isChecked: boolean) => {
@@ -149,10 +179,12 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
 
 const modelLabel = (modelId: string, name: string) => {
   const isVisible = !hiddenModelIds.includes(modelId);
+  const isDisabled = modelId === defaultModelId;
   return <div key={modelId} className={` text-sm ${isVisible ? "text-blue-600":""}`}> 
           <button
-            title={`${isVisible ? "Hide" : "Show"} model from selection menus`}
-            className="p-1 hover:opacity-70"
+            disabled={isDisabled}
+            title={isDisabled? "Default model can't be hidden": `${isVisible ? "Hide" : "Show"} model from selection menus`}
+            className={`p-1 ${!isDisabled ? "hover:opacity-70":""} whitespace-nowrap overflow-hidden text-ellipsis`}
             onClick={()=>{
               if (isVisible) {
                 setHiddenModelIds([...hiddenModelIds, modelId]);
@@ -233,34 +265,38 @@ const modelLabel = (modelId: string, name: string) => {
                   </div> 
             </div>      
             <div className='flex flex-row pr-8'>
-              <div className='w-[96px] border border-gray-300 mr-[-1px] mt-[-2px] dark:border-neutral-700 px-2'>
-              <div className='mt-1'>
-                <FlagsMap 
-                  id={'modelOptionFlags'}
-                  flags={modelOptionFlags.filter((f: Flag) => availableModels[f.key].length > 0 )}
-                  state={modelOptions}
-                  flagChanged={(key, value) => {
-                    handleModelOptionChange(key as ModelKey, value);
-                  }}
-                /> 
+              <div className='w-[100px] border border-gray-300 mr-[-1px] mt-[-2px] dark:border-neutral-700 px-2'>
+                <div className='mt-1'>
+                  <FlagsMap 
+                    id={'modelOptionFlags'}
+                    flags={modelOptionFlags.filter((f: Flag) => availableModels[f.key].length > 0 )}
+                    state={modelOptions}
+                    flagChanged={(key, value) => {
+                      handleModelOptionChange(key as ModelKey, value);
+                    }}
+                  /> 
                 </div> 
               </div>
-              <table className="mt-[-2px] flex-grow mr-4 overflow-x-auto table-auto border-collapse border border-gray-300 dark:border-neutral-700">
-                <tbody>
 
-                  {Object.values(availableModels).map((modelsArray, rowIndex) => (
-                    modelsArray.length > 0 && (
-                      <tr key={rowIndex}>
-                        {modelsArray.map((m: { id: string; name: string }) => (
-                          <td key={m.id} className="px-4 border border-gray-300 dark:border-neutral-700">
-                            {modelLabel(m.id, m.name)}
-                          </td>
-                        ))}
-                      </tr>
-                    )
-                  ))}
-                </tbody>
-              </table>
+                <div className="overflow-x-auto w-full">
+                  <table className="table-auto border-collapse w-full">
+                    <tbody>
+                      {Object.values(availableModels).map((modelsArray, rowIndex) => (
+                        <tr key={rowIndex}>
+                          {modelsArray.map((m: { id: string; name: string }) => (
+                            <td
+                              key={m.id}
+                              className="border border-gray-300 dark:border-neutral-700 px-4"
+                            >
+                              {modelLabel(m.id, m.name)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
             </div>
                   
             </>}

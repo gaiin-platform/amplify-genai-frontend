@@ -9,7 +9,7 @@ import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {ConversionOptions, convert} from "@/services/downloadService";
 import { LatestExportFormat } from "@/types/export";
-import { isRemoteConversation } from "@/utils/app/conversationStorage";
+import { isRemoteConversation } from "@/utils/app/conversation";
 import { fetchMultipleRemoteConversations } from "@/services/remoteConversationService";
 
 export interface DownloadModalProps {

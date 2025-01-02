@@ -107,9 +107,8 @@ export const createAmplifyAssistants = async (astDefs: AssistantDefinition[]) =>
     const op = {
         method: 'POST',
         path: URL_PATH,
-        op: "/groups/assistants/amplify",
+        op: "/assistants/amplify",
         data: {assistants: astDefs},
     };
-    const result = await doRequestOp(op);
-    return  result.success ? result.data : null;
+    return await doRequestOp(op);
 }

@@ -3,7 +3,7 @@ import { FolderInterface } from "@/types/folder";
 import { compressConversation, saveConversations, uncompressConversation } from "@/utils/app/conversation";
 import { doRequestOp } from "./doRequestOp";
 
-const URL_PATH =  "/state";
+const URL_PATH =  "/state/conversation";
 
 
 export const uploadConversation = async (conversation: Conversation, folders: FolderInterface[], abortSignal = null) => {
@@ -43,17 +43,15 @@ export const uploadConversation = async (conversation: Conversation, folders: Fo
 };
 
 
-export const fetchRemoteConversation = async (conversationId: string, conversations: Conversation[], dispatch: any, abortSignal = null) => {
-    
-    const response = await fetch('/api/remoteconversation/op' + `?conversationId=${encodeURIComponent(conversationId)}&path=${encodeURIComponent("/get")}`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-    });
+export const fetchRemoteConversation = async (conversationId: string, conversations?: Conversation[], dispatch?: any, abortSignal = null) => {
+     const op = {
+            method: 'GET',
+            path: URL_PATH,
+            op: "/get",
+            queryParams: {"conversationId": conversationId}
+        };
+    const result = await doRequestOp(op);
 
-    const result = await response.json();
     const resultBody = result ? JSON.parse(result.body || '{}') : {"success": false};
     if (resultBody.success) {
         return uncompressConversation(resultBody.conversation);
@@ -62,12 +60,14 @@ export const fetchRemoteConversation = async (conversationId: string, conversati
         let message = "Unfortunately, we are unable to get your cloud-stored conversation at this time. Please try again later...";
         if (resultBody.type === 'NoSuchKey') {
             message =  "This conversation is no longer accessible, it has been made private in another browser or has been removed by another device.";
-            //remove conv
-            const updatedConversations = conversations.filter((c: Conversation) => c.id !== conversationId);
-            dispatch({ field: 'conversations', value: updatedConversations });
-            saveConversations(updatedConversations);
+            
+            if (dispatch && conversations) { //remove conv from history 
+                const updatedConversations = conversations.filter((c: Conversation) => c.id !== conversationId);
+                dispatch({ field: 'conversations', value: updatedConversations });
+                saveConversations(updatedConversations);
+            } 
         }
-        alert(message)
+        alert(message);
         return null;
     }
 };
