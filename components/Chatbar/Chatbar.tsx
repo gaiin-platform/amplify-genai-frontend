@@ -5,7 +5,7 @@ import { useTranslation } from 'next-i18next';
 import { useCreateReducer } from '@/hooks/useCreateReducer';
 
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
-import { saveConversations } from '@/utils/app/conversation';
+import { saveConversations, isLocalConversation, isRemoteConversation, deleteConversationCleanUp } from '@/utils/app/conversation';
 
 import { Conversation } from '@/types/chat';
 import { SupportedExportFormats } from '@/types/export';
@@ -20,7 +20,7 @@ import { ChatbarInitialState, initialState } from './Chatbar.state';
 
 import { v4 as uuidv4 } from 'uuid';
 import {FolderInterface, SortType} from "@/types/folder";
-import { getIsLocalStorageSelection, isLocalConversation, isRemoteConversation } from '@/utils/app/conversationStorage';
+import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation } from '@/services/remoteConversationService';
 import { uncompressMessages } from '@/utils/app/messages';
 import { getDateName } from '@/utils/app/date';
@@ -89,8 +89,7 @@ export const Chatbar = () => {
   };
 
   const handleDeleteConversation = (conversation: Conversation) => {
-
-    if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
+    deleteConversationCleanUp(conversation);
     
     const updatedConversations = conversationsRef.current.filter(
       (c: Conversation) => c.id !== conversation.id,

@@ -1,8 +1,10 @@
+import { Conversation, Message } from "@/types/chat";
 import { doRequestOp } from "./doRequestOp";
+import { conversationWithUncompressedMessages } from "@/utils/app/conversation";
 
 const URL_PATH =  "/assistant";
 
-export const deleteAssistant = async (assistantId: string) => {
+const deleteOpenAIAssistant = async (assistantId: string) => {
     const op = {
         method: 'DELETE',
         path: URL_PATH,
@@ -14,7 +16,7 @@ export const deleteAssistant = async (assistantId: string) => {
 }
 
 
-export const deleteThread = async (threadId: string) => {
+const deleteOpenAiThread = async (threadId: string) => {
     const op = {
         method: 'DELETE',
         path: URL_PATH,
@@ -36,3 +38,13 @@ export const getPresignedDownloadUrl = async (data:any) => {
     return await doRequestOp(op);
 };
 
+
+
+export const deleteCodeInterpreterConversation = (conversation: Conversation) => {
+    const threads: string[] = conversationWithUncompressedMessages(conversation).messages
+                                          .map(m => m.codeInterpreterMessageData?.threadId)
+                                          .filter(Boolean);
+    threads.forEach((t: string) => deleteOpenAiThread(t));
+    const astId = conversation.codeInterpreterAssistantId;
+    if (astId) deleteOpenAIAssistant(astId);
+}

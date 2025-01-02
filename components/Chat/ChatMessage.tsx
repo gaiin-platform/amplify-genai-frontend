@@ -11,7 +11,7 @@ import {
 } from '@tabler/icons-react';
 import React, {FC, memo, useContext, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'next-i18next';
-import {saveConversations, updateConversation} from '@/utils/app/conversation';
+import {isRemoteConversation, saveConversations, updateConversation} from '@/utils/app/conversation';
 import {Conversation, DataSource, Message} from '@/types/chat';
 import HomeContext from '@/pages/api/home/home.context';
 import ChatFollowups from './ChatFollowups';
@@ -25,7 +25,6 @@ import PromptingStatusDisplay from "@/components/Status/PromptingStatusDisplay";
 import ChatSourceBlock from "@/components/Chat/ChatContentBlocks/ChatSourcesBlock";
 import DataSourcesBlock from "@/components/Chat/ChatContentBlocks/DataSourcesBlock";
 import ChatCodeInterpreterFileBlock from './ChatContentBlocks/ChatCodeInterpreterFilesBlock';import { uploadConversation } from '@/services/remoteConversationService';
-import { isRemoteConversation } from '@/utils/app/conversationStorage';
 import { downloadDataSourceFile } from '@/utils/app/files';
 import { Stars } from './Stars';
 import { saveUserRating } from '@/services/groupAssistantService';
@@ -265,7 +264,11 @@ export const ChatMessage: FC<Props> = memo(({
         statsService.forkConversationEvent();
         if (selectedConversation) {
             setLoadingMessage("Forking Conversation...");
-            const newConversation = cloneDeep({...selectedConversation,  id: uuidv4(), messages: selectedConversation?.messages.slice(0, messageIndex + 1)});
+            const newConversation = cloneDeep({...selectedConversation,  id: uuidv4(), codeInterpreterAssistantId: undefined,
+                                               messages: selectedConversation?.messages.slice(0, messageIndex + 1)
+                                                         .map((m:Message) => {
+                                                            return {...m, codeInterpreterMessageData: undefined}; 
+                                                         })});
             if (isRemoteConversation(newConversation)) await uploadConversation(newConversation, foldersRef.current);
             statsService.newConversationEvent();
 

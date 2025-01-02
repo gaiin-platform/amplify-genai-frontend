@@ -22,9 +22,8 @@ import {v4 as uuidv4} from 'uuid';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { CheckItemType } from "@/types/checkItem";
 import { savePrompts } from "@/utils/app/prompts";
-import { isRemoteConversation } from '@/utils/app/conversationStorage';
-import { deleteRemoteConversation, fetchMultipleRemoteConversations, uploadConversation } from '@/services/remoteConversationService';
-import { conversationWithUncompressedMessages, saveConversations } from "@/utils/app/conversation";
+import { fetchMultipleRemoteConversations, uploadConversation } from '@/services/remoteConversationService';
+import { deleteConversationCleanUp, isRemoteConversation, saveConversations } from "@/utils/app/conversation";
 import { getDateName } from "@/utils/app/date";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import React from "react";
@@ -159,7 +158,7 @@ interface Props {
                                     { const remove = conversations.includes(c) 
                                           if (remove) {
                                             statsService.deleteConversationEvent(c);
-                                              if (isRemoteConversation(c)) deleteRemoteConversation(c.id);
+                                            deleteConversationCleanUp(c);
                                           }
                                           return !remove;
                                      });
