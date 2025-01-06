@@ -161,9 +161,10 @@ export interface remoteConvData {
     folder: FolderInterface | null;
 }
 
-export const updateWithRemoteConversations = async (remoteConversations: remoteConvData[], conversations: Conversation[], folders:FolderInterface[], dispatch:any ) => {
-    // console.log("Remote len: ", remoteConversations?.length);
-    if (remoteConversations) {
+export const updateWithRemoteConversations = async (remoteConversations: remoteConvData[] | null, conversations: Conversation[], folders:FolderInterface[], dispatch:any ) => {
+    if (!remoteConversations) alert("Unable to sync local conversations with those stored in the cloud. Please refresh the page to try again...");
+
+    if (remoteConversations && remoteConversations.length > 0 ) {
         let updatedFolders = cloneDeep(folders);
         const newFolders: FolderInterface[] = [];
         const currentConversationsMap = new Map();
@@ -173,7 +174,7 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
             const remoteConv = cd.conversation;
             // check if there is record of this conversation in the current browser
             const existsLocally = currentConversationsMap.get(remoteConv.id);
-            let folderExists = updatedFolders.find((f:FolderInterface) => remoteConv.folderId ? f.id === remoteConv.folderId : null);
+            let folderExists = remoteConv.folderId ? updatedFolders.find((f:FolderInterface) =>  f.id === remoteConv.folderId) : null;
             if (!existsLocally || (existsLocally && remoteConv.name !== existsLocally.name) 
                                || (!folderExists && cd.folder)) {
                 if (!folderExists && cd.folder) {
@@ -193,16 +194,15 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
         });
         
         const updatedConversations = Array.from(currentConversationsMap.values());
-        console.log("updated conv len: ", updatedConversations.length);
+        // console.log("updated conv len: ", updatedConversations.length);
 
         dispatch({field: 'conversations', value: updatedConversations});
         saveConversations(updatedConversations);
         return {newfolders: newFolders};
 
-    } else {
-        alert("Unable to sync local conversations with those stored in the cloud. Please refresh the page to try again...");
-        return {newfolders: []};
-    }
+    } 
+
+    return {newfolders: []};
     
 };
 
@@ -210,7 +210,7 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
 export const includeRemoteConversationData = async (conversationHistory: Conversation[], failMessage: string, uncompressLocal: boolean) => {
     if (!conversationHistory) return [];
     // Filter and get the ids of remote conversations
-    const remoteConversationIds = conversationHistory.filter(isRemoteConversation).map(c => c.id);
+    const remoteConversationIds = conversationHistory.filter(c => isRemoteConversation(c)).map(c => c.id);
     
     if (remoteConversationIds.length === 0) return conversationHistory;
     

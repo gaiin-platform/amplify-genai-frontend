@@ -5,41 +5,26 @@ import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH =  "/state/conversation";
 
+const NO_SUCH_KEY_ERROR = 'NoSuchKey';
 
 export const uploadConversation = async (conversation: Conversation, folders: FolderInterface[], abortSignal = null) => {
     // always ensure isLocal is false just in case
     conversation.isLocal = false;
     const compressedConversation = compressConversation(conversation);
     const folder = conversation.folderId ? folders.find((f: FolderInterface) => conversation.folderId ===f.id) : null;
-    const data = {op: "/upload", data: {conversation: compressedConversation,
-                                        conversationId: conversation.id,
-                                        folder: folder
-                                        }   
-                 }
 
-    const response = await fetch('/api/remoteconversation/op', {
+    const op = {
         method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-
-    try {
-
-        if (JSON.parse(result.body).success) {
-            return true;
-        } else {
-            console.error("Error fetching conversation: ", result.message);
-            return false;
-        }
-    } catch (e) {
-        console.error("Error fetching conversation: ", e);
-        return false;
-    }
+        path: URL_PATH,
+        op: "/upload",
+        data: {conversation: compressedConversation,
+            conversationId: conversation.id,
+            folder: folder
+            } 
+    };
+    
+    const result = await doRequestOp(op);
+    return result.success;
 };
 
 
@@ -51,14 +36,12 @@ export const fetchRemoteConversation = async (conversationId: string, conversati
             queryParams: {"conversationId": conversationId}
         };
     const result = await doRequestOp(op);
-
-    const resultBody = result ? JSON.parse(result.body || '{}') : {"success": false};
-    if (resultBody.success) {
-        return uncompressConversation(resultBody.conversation);
+    if (result.success) {
+        return uncompressConversation(result.conversation);
     } else {
         console.error("Error fetching conversation: ", result.message);
         let message = "Unfortunately, we are unable to get your cloud-stored conversation at this time. Please try again later...";
-        if (resultBody.type === 'NoSuchKey') {
+        if (result.type === NO_SUCH_KEY_ERROR) {
             message =  "This conversation is no longer accessible, it has been made private in another browser or has been removed by another device.";
             
             if (dispatch && conversations) { //remove conv from history 
@@ -74,20 +57,17 @@ export const fetchRemoteConversation = async (conversationId: string, conversati
 // only used for the initial sync conversations 
 export const fetchAllRemoteConversations = async (abortSignal = null) => {
     try {
-        const response = await fetch(`/api/remoteconversation/op?path=${encodeURIComponent("/get_all")}`, {
+        const op = {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            signal: abortSignal,
-        });
-
-        const result = await response.json();
-        const resultBody = result ? JSON.parse(result.body || '{}') : { "success": false };
+            path: URL_PATH,
+            op: "/get_all"
+        };
+        
+        const result = await doRequestOp(op);
 
         // Check if the request was successful
-        if (resultBody.success) {
-            const presignedUrl = resultBody.presignedUrl;
+        if (result.success) {
+            const presignedUrl = result.presignedUrl;
 
             // Fetch the actual conversation data using the presigned URL
             const conversationResponse = await fetch(presignedUrl, {
@@ -117,21 +97,16 @@ export const fetchAllRemoteConversations = async (abortSignal = null) => {
 export const fetchMultipleRemoteConversations = async (conversationIds: string[], abortSignal = null) => {
     if (conversationIds.length === 0) return [];
 
-    const data = {op: "/get_multiple", data: {conversationIds: conversationIds}}
-
-    const response = await fetch('/api/remoteconversation/op', {
+    const op = {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-    const resultBody = result ? JSON.parse(result.body || '{}') : {"success": false};
-    if (resultBody.success) {
-        const presignedUrl = resultBody.presignedUrl;
+        path: URL_PATH,
+        op: "/get_multiple",
+        data:  {conversationIds: conversationIds}
+    };
+    
+    const result = await doRequestOp(op);
+    if (result.success) {
+        const presignedUrl = result.presignedUrl;
 
         // Fetch the actual conversation data using the presigned URL
         const conversationResponse = await fetch(presignedUrl, {
@@ -155,45 +130,30 @@ export const fetchMultipleRemoteConversations = async (conversationIds: string[]
 
 
 export const deleteRemoteConversation = async (conversationId: string, abortSignal = null) => {
-    const response = await fetch('/api/remoteconversation/op' + `?conversationId=${encodeURIComponent(conversationId)}&path=${encodeURIComponent("/delete")}`, {
+
+    const op = {
         method: 'DELETE',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-
-    try {
-        return result && JSON.parse(result.body).success;  
-    } catch(e) {
-        console.error("Error deleting conversation: ", result.message || e);
-        return false;
-    }
+        path: URL_PATH,
+        op: "/delete",
+        queryParams: {"conversationId": conversationId}
+    };
+    
+    const result = await doRequestOp(op);
+    return result.success;
 };
 
 
 
 
-export const deleteMultipleRemoteConversations = async (ConversationIds: string[], abortSignal = null) => {
-    const data = {op: "/delete_multiple", data: {conversationIds: ConversationIds}}
-
-    const response = await fetch('/api/remoteconversation/op', {
+export const deleteMultipleRemoteConversations = async (conversationIds: string[], abortSignal = null) => {
+    const op = {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-    try {
-        return result && JSON.parse(result.body).success
-    } catch (e) {
-        console.error("Error deleting conversations: ", result.message || e);
-        return false;
-    }
+        path: URL_PATH,
+        op: "/delete_multiple",
+        data:  {conversationIds: conversationIds}
+    };
+    
+    const result = await doRequestOp(op);
+    return result.success;
 };
 
