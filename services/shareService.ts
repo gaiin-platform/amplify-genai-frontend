@@ -6,42 +6,37 @@ const URL_PATH =  "/state";
 
 export const shareItems = async (user:string, sharedWith:string[], note:string, sharedData:ExportFormatV4, abortSignal= null)=> {
 
-    const response = await fetch('/api/share/share', {
+    const op = {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({name:"share", data:{note, sharedWith, sharedData} }),
-        signal: abortSignal,
-    });
-
-    return response;
+        path: URL_PATH,
+        data: {note, sharedWith, sharedData},
+        op: "/share",
+    };
+    
+    return await doRequestOp(op);
 };
 
-export const getSharedItems = async (user:string, abortSignal= null)=> {
+export const getSharedItems = async ()=> {
 
-    const response = await fetch('/api/share/shared', {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-    });
-
-    return response;
+    const op = {
+            method: 'GET',
+            path: URL_PATH,
+            op: "/share",
+        };
+        
+    return await doRequestOp(op);
 };
 
-export const loadSharedItem = async (user:string, key:string, abortSignal= null)=> {
-    const response = await fetch('/api/share/sharedload', {
+export const loadSharedItem = async (key:string)=> {
+    const op = {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ data:{key} }),
-        signal: abortSignal,
-    });
+        path: URL_PATH,
+        data: {key},
+        op: "/share/load",
+    };
+    
+    return await doRequestOp(op);
 
-    return response;
 };
 
 

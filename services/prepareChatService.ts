@@ -217,11 +217,9 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `
 `;
 
 
-export const getFocusedMessages = async (chatEndpoint:string, conversation:Conversation, statsService: any, featureFlags: any,
-                                         homeDispatch:any, featureOptions: { [key: string]: boolean }, advancedModel: Model, cheapestModel: Model) => {
-    const isSmartMessagesOn = featureOptions.includeFocusedMessages;
-    const isArtifactsOn = featureOptions.includeArtifacts && featureFlags.artifacts;
-
+export const getFocusedMessages = async (chatEndpoint:string, conversation:Conversation, statsService: any, 
+                                         isArtifactsOn: boolean, isSmartMessagesOn: boolean, 
+                                         homeDispatch:any, advancedModel: Model, cheapestModel: Model) => {
     if (!isArtifactsOn && !isSmartMessagesOn)  return conversation.messages;
     
     const controller = new AbortController();

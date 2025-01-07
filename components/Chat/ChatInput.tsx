@@ -18,7 +18,7 @@ import {
 import {useTranslation} from 'next-i18next';
 import {parsePromptVariables} from "@/utils/app/prompts";
 import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
-import {Plugin} from '@/types/plugin';
+import {Plugin, PluginID} from '@/types/plugin';
 import {Prompt} from '@/types/prompt';
 import {AttachFile} from "@/components/Chat/AttachFile";
 import {FileList} from "@/components/Chat/FileList";
@@ -41,20 +41,22 @@ import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import { createQiSummary } from '@/services/qiService';
 import MessageSelectModal from './MesssageSelectModal';
 import cloneDeep from 'lodash/cloneDeep';
-import FeaturePlugins from './FeaturePlugins';
+import FeaturePlugin from './FeaturePluginSelector/FeaturePlugins';
 import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
 import React from 'react';
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 
 interface Props {
-    onSend: (message: Message, plugin: Plugin | null, documents: AttachedDocument[]) => void;
+    onSend: (message: Message, documents: AttachedDocument[]) => void;
     onRegenerate: () => void;
     handleUpdateModel: (model: Model) => void;
     onScrollDownClick: () => void;
     stopConversationRef: MutableRefObject<boolean>;
     textareaRef: MutableRefObject<HTMLTextAreaElement | null>;
     showScrollDownButton: boolean;
+    plugins: Plugin[];
+    setPlugins: (p: Plugin[]) => void;
 }
 
 export const ChatInput = ({
@@ -65,6 +67,8 @@ export const ChatInput = ({
                               textareaRef,
                               handleUpdateModel,
                               showScrollDownButton,
+                              plugins,
+                              setPlugins
                           }: Props) => {
     const {t} = useTranslation('chat');
 
@@ -143,7 +147,6 @@ export const ChatInput = ({
     
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
-    const [plugin, setPlugin] = useState<Plugin | null>(null);
     //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
     const [availableAssistants, setAvailableAssistants] = useState<Assistant[]>([DEFAULT_ASSISTANT]);
     const [showAssistantSelect, setShowAssistantSelect] = useState(false);
@@ -320,9 +323,8 @@ const onAssistantChange = (assistant: Assistant) => {
             return d;
         });
 
-        onSend(msg, plugin, updatedDocuments || []);
+        onSend(msg, updatedDocuments || []);
         setContent('');
-        // setPlugin(null);
         setDocuments([]);
         setDocumentState({});
         setDocumentMetadata({});
@@ -409,10 +411,7 @@ const onAssistantChange = (assistant: Assistant) => {
             e.preventDefault();
             handleSend();
         } 
-        // else if (e.key === '/' && e.metaKey) {
-        //     e.preventDefault();
-        //     setShowPluginSelect(!showPluginSelect);
-        // }
+       
     };
 
     const updatePromptListVisibility = useCallback((text: string) => {
@@ -576,23 +575,23 @@ const onAssistantChange = (assistant: Assistant) => {
     }
 
     useEffect(() => {
-        if (plugin)  homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
-      }, [plugin]);
+        const containsCodeInterpreter = plugins.map((p: Plugin) => p.id).includes(PluginID.CODE_INTERPRETER);
+        if (containsCodeInterpreter) homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+      }, [plugins]);
 
       useEffect(() => {
-        if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugin(null);
+        if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER ));
       }, [selectedAssistant]);
 
-      
 
     return (
         <>
         { featureFlags.pluginsOnInput &&
           getSettings(featureFlags).featureOptions.includePluginSelector &&
             <div className='relative z-20' style={{height: 0}}>
-                <FeaturePlugins
-                plugin={plugin}
-                setPlugin={setPlugin}
+                <FeaturePlugin
+                plugins={plugins}
+                setPlugins={setPlugins}
                 />
             </div>
             }

@@ -41,9 +41,10 @@ export const getPresignedDownloadUrl = async (data:any) => {
 
 
 export const deleteCodeInterpreterConversation = (conversation: Conversation) => {
-    const threads: string[] = conversationWithUncompressedMessages(conversation).messages
-                                          .map(m => m.codeInterpreterMessageData?.threadId)
-                                          .filter(Boolean);
+    const threads: Set<string> = new Set(
+                        conversationWithUncompressedMessages(conversation).messages
+                                .map(m => m.data?.state?.codeInterpreter?.threadId)
+                                .filter(Boolean));
     threads.forEach((t: string) => deleteOpenAiThread(t));
     const astId = conversation.codeInterpreterAssistantId;
     if (astId) deleteOpenAIAssistant(astId);

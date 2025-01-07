@@ -3,21 +3,28 @@ import { FC, ReactElement, useState } from 'react';
 import ActionButton from './ActionButton';
 import { IconX } from '@tabler/icons-react';
 
+interface OptionButtons {
+  label: string;
+  handleClick: () => void; 
+}
 
 interface Props {
   title?: string; 
   content: ReactElement;
   width?: () => number;
   height?: () => number;
-  showButtons?: boolean;
+  showClose?: boolean;
   showCancel?: boolean;
   showSubmit?: boolean;
   onCancel?: () => void; 
   onSubmit?: () => void; 
   submitLabel?: string;
+  additionalButtonOptions?: OptionButtons[];
 }
 
-  export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{}, submitLabel="Submit", showButtons=true, showCancel=true, showSubmit=true}) => {
+  export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{}, 
+                                    showClose=true, showCancel=true, showSubmit=true, submitLabel="Submit",
+                                    additionalButtonOptions=[]}) => {
 
 
  const modalRef = useRef<HTMLDivElement>(null);
@@ -82,6 +89,7 @@ interface Props {
                         <div className="text-xl pb-4 font-bold text-black dark:text-neutral-200">
                             {title && <>{title}</>}
                             </div>
+                            { showClose && 
                             <div className='ml-auto mr-[-6px]'>
                             <ActionButton
                                 handleClick={() => onCancel()}
@@ -89,7 +97,7 @@ interface Props {
                             >
                                 <IconX size={22}/>
                             </ActionButton>
-                            </div>   
+                            </div> }  
                         </div>
 
                         <div className="overflow-y-auto" style={{ maxHeight: `${innderWindow.height * 0.8}px` }}>
@@ -97,25 +105,21 @@ interface Props {
                             <br className='mt-[40px]'></br>
                         </div>
 
-                        {showButtons && <div className="flex flex-row gap-2 mb-2 w-full fixed bottom-0 left-0 px-4 pb-2">
-                          {showCancel &&
-                            <button
-                                    type="button"
-                                    className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                                    onClick={() => onCancel()}
-                                    >
-                                    {'Cancel'}
-                                </button>
-                          }
-                          {showSubmit &&
-                                <button
-                                    type="button"
-                                    className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                                    onClick={() => onSubmit()}
-                                    >
-                                    {submitLabel}
-                                </button>
-                          }
+                        {
+                         <div className="flex flex-row gap-2 mb-2 w-full fixed bottom-0 left-0 px-4 pb-2">
+                          {[...additionalButtonOptions, 
+                            ...(showSubmit ? [{label: submitLabel, handleClick: () => onSubmit()}] : []),
+                            ...(showCancel ? [{label: "Cancel", handleClick: () => onCancel()}] : [])
+                          ]
+                                           .map((option: OptionButtons, index: number) => 
+                            <button key={index}
+                              type="button"
+                              className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                              onClick={option.handleClick}
+                              >
+                              {option.label}
+                          </button>
+                          )}
                          </div>}
                     </div>
                 </div>

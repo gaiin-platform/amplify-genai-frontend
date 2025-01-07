@@ -93,6 +93,8 @@ export const compressAllConversationMessages = (conversations: Conversation[]) =
       if (isLocalConversation(c) && c.compressedMessages === undefined) {
          const compressed = compressMessages(c.messages);
          return {...c, messages: [], compressedMessages : compressed}
+      } else if (isRemoteConversation(c) && c.messages.length > 0) {
+        return remoteForConversationHistory(c);
       }
       return c; 
     });

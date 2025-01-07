@@ -28,7 +28,7 @@ export const uploadConversation = async (conversation: Conversation, folders: Fo
 };
 
 
-export const fetchRemoteConversation = async (conversationId: string, conversations?: Conversation[], dispatch?: any, abortSignal = null) => {
+export const fetchRemoteConversation = async (conversationId: string, conversations?: Conversation[], dispatch?: any) => {
      const op = {
             method: 'GET',
             path: URL_PATH,
@@ -95,7 +95,7 @@ export const fetchAllRemoteConversations = async (abortSignal = null) => {
 
 
 export const fetchMultipleRemoteConversations = async (conversationIds: string[], abortSignal = null) => {
-    if (conversationIds.length === 0) return [];
+    if (conversationIds.length === 0) return {data: []};
 
     const op = {
         method: 'POST',
@@ -116,14 +116,16 @@ export const fetchMultipleRemoteConversations = async (conversationIds: string[]
 
         if (!conversationResponse.ok) {
             console.error("Error fetching conversation data from presigned URL");
-            return null;
+            return {data: null};
         }
 
         const conversationData = await conversationResponse.json();
-        return conversationData.map((c:number[]) => uncompressConversation(c)); 
+        return {data: conversationData.map((c:number[]) => uncompressConversation(c)), 
+                failedByNoSuchKey: result.noSuchKeyConversations,
+                failed: result.failed}; 
     } else {
         console.error("Error fetching presigned URL: ", result.message);
-        return null;
+        return {data: null};
     }
 };
 

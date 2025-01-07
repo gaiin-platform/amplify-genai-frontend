@@ -506,6 +506,31 @@ const Home = ({
         dispatch({ field: 'loading', value: false });
     };
 
+    const handleForkConversation = async (messageIndex: number, setAsSelected = true) => {
+            statsService.forkConversationEvent();
+            if (selectedConversation) {
+                setLoadingMessage("Forking Conversation...");
+                const newConversation = cloneDeep({...selectedConversation,  id: uuidv4(), codeInterpreterAssistantId: undefined,
+                                                   messages: selectedConversation?.messages.slice(0, messageIndex + 1)
+                                                             .map((m:Message) => {
+                                                                if ( m.data?.state?.codeInterpreter ) {
+                                                                    const {codeInterpreter, ...state} = m.data?.state;
+                                                                    return {...m, data: {...m.data, state : state}}
+                                                                }
+                                                                return m;
+                                                             })});
+                if (isRemoteConversation(newConversation)) await uploadConversation(newConversation, foldersRef.current);
+                statsService.newConversationEvent();
+    
+                const updatedConversations = [...conversations, newConversation];
+                dispatch({ field: 'conversations', value: updatedConversations });
+                saveConversations(updatedConversations);
+                setLoadingMessage("");
+                if (setAsSelected) await handleSelectConversation(newConversation);
+            }
+            
+    };
+
     const handleUpdateSelectedConversation = (updatedConversation: Conversation) => {
         const { single, all } = updateConversation(
             updatedConversation,
@@ -1072,6 +1097,8 @@ const Home = ({
             dispatch({ field: 'workflows', value: JSON.parse(workflows) });
         }
 
+        let folderIds: string[] = [];
+
         const folders = localStorage.getItem('folders');
         const foldersParsed = JSON.parse(folders ? folders : '[]')
         if (folders) {
@@ -1084,16 +1111,17 @@ const Home = ({
             if (!assistantsFolder) updatedFolders.push( baseAssistantFolder );
             
             dispatch({ field: 'folders', value: updatedFolders});
+            folderIds = updatedFolders.map((f: FolderInterface) => f.id)
         }
-
 
         // Create a string for the current date like Oct-18-2021
         const dateName = getDateName();
 
         const conversationHistory = localStorage.getItem('conversationHistory');
         let conversations: Conversation[] = JSON.parse(conversationHistory ? conversationHistory : '[]');
-        //ensure all conversation messagea are compressed 
-        conversations = compressAllConversationMessages(conversations);
+        //ensure all conversation messagea are compressed and folder exists
+        conversations = compressAllConversationMessages(conversations).map((c: Conversation) => 
+                                            !c.folderId || folderIds.includes(c.folderId) ? c : {...c, folderId: null});
 
         // call fetach all conversations 
         const lastConversation: Conversation | null = (conversations.length > 0) ? conversations[conversations.length - 1] : null;
@@ -1348,6 +1376,7 @@ const Home = ({
                     handleNewConversation,
                     handleStopConversation,
                     shouldStopConversation,
+                    handleForkConversation,
                     handleCreateFolder,
                     handleDeleteFolder,
                     handleUpdateFolder,

@@ -29,7 +29,7 @@ export const ArtifactsSaved: FC<Props> = ({
   iconSize, isArtifactsOpen
 }) => {
   const { 
-    state: { selectedConversation, conversations, folders, artifacts, statsService}, dispatch: homeDispatch, handleUpdateSelectedConversation
+    state: { selectedConversation, conversations, folders, artifacts, statsService, messageIsStreaming}, dispatch: homeDispatch, handleUpdateSelectedConversation
   } = useContext(HomeContext);
 
 
@@ -92,6 +92,7 @@ const handleUpdateConversation = (updatedConversation: Conversation, artifact: A
 }
 
 const handleAddArtifactToConversation = async (key: string, index:number) => {
+    if (messageIsStreaming) return;
     setLoadingItem(index);
     statsService.bringArtifactToAnotherConversationEvent(key);
     const result = await getArtifact(key);

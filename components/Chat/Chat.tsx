@@ -47,7 +47,7 @@ import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {DownloadModal} from "@/components/Download/DownloadModal";
 import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
-import {useSendService} from "@/hooks/useChatSendService";
+import {ChatRequest, useSendService} from "@/hooks/useChatSendService";
 import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
@@ -63,26 +63,14 @@ import { filterModels } from '@/utils/app/models';
 import { promptForData } from '@/utils/app/llm';
 import cloneDeep from 'lodash/cloneDeep';
 import { useSession } from 'next-auth/react';
+import { ConfirmModal } from '../ReusableComponents/ConfirmModal';
+import { getActivePlugins } from '@/utils/app/plugin';
 
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
 }
 
-type ChatRequest = {
-    message: Message;
-    deleteCount?: number;
-    endpoint?: string;
-    plugin: Plugin | null;
-    existingResponse?: any;
-    rootPrompt: string | null;
-    documents?: AttachedDocument[] | null;
-    uri?: string | null;
-    options?: { [key: string]: any };
-    assistantId?: string;
-    prompt?: Prompt;
-    conversationId?: string;
-};
 
 export const Chat = memo(({stopConversationRef}: Props) => {
         const {t} = useTranslation('chat');
@@ -109,7 +97,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             handleUpdateConversation,
             dispatch: homeDispatch,
             handleUpdateSelectedConversation,
-             getDefaultModel,
+            getDefaultModel, handleForkConversation
         } = useContext(HomeContext);
 
         const { data: session } = useSession();
@@ -155,7 +143,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             return undefined;
         }
-
+        
+        const [plugins, setPlugins] = useState<Plugin[] | null>(null);
         const {handleSend:handleSendService} = useSendService();
         // console.log(selectedConversation?.model?.id );
         const [selectedModelId, setSelectedModelId] = useState<string | undefined>(initSelectedModel());
@@ -173,7 +162,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
         // const [isDownloadingFile, setIsDownloadingFile] = useState<boolean>(false);
 
-
         const messagesEndRef = useRef<HTMLDivElement>(null);
         const chatContainerRef = useRef<HTMLDivElement>(null);
         const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -182,13 +170,16 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [artifactIndex, setArtifactIndex] = useState<number>(0);
         const [isRenaming, setIsRenaming] = useState<boolean>(false);
 
+        const [showOnEditMessagePrompt, setShowOnEditMessagePrompt] = useState< {editedMessage: Message, index: number}| null>(null);
+
+
         const [selectedConversationState, setSelectedConversationState] = useState<Conversation | undefined>(selectedConversation);
 
         useEffect(() => {
+            setSelectedConversationState(selectedConversation);
             if (selectedConversation && selectedConversation.model && selectedConversation.model.id !== selectedModelId) {
                 setSelectedModelId(selectedConversation.model.id);
             }
-            setSelectedConversationState(selectedConversation);
             
             const renameConversation = async() => {
                 setIsRenaming(true);
@@ -233,6 +224,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             };
         }, []);
 
+        useEffect(() => {
+            if (!plugins) setPlugins(getActivePlugins(getSettings(featureFlags)));
+        }, [featureFlags]);
 
         useEffect(() =>{
             const astModel = selectedAssistant?.definition?.data?.model;
@@ -291,7 +285,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             (
                 message: Message,
                 deleteCount = 0,
-                plugin: Plugin | null = null,
                 existingResponse = null,
                 rootPrompt: string | null = null,
                 documents?: AttachedDocument[] | null,
@@ -301,10 +294,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 const conversationId = selectedConversation?.id;
 
+                const chatPlugins = plugins ?? [];// Plugins are set up top now, they are basically conversation configs now.
+
                 return {
                     message,
                     deleteCount,
-                    plugin,
+                    plugins : chatPlugins, 
                     existingResponse,
                     rootPrompt,
                     documents,
@@ -404,7 +399,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         let [action, path] = action_path.split("/");
                         if (action === "send") {
                             const content = path;
-                            const request = createChatRequest(newMessage({role: 'user', content: content}), 0, null);
+                            const request = createChatRequest(newMessage({role: 'user', content: content}), 0);
                             handleSend(request);
                         } else if (action === "template") {
                             const name = path;
@@ -504,7 +499,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         // do not involve a prompt template start here.
         
         
-        const routeMessage = (message: Message, deleteCount: number | undefined, plugin: Plugin | null | undefined, documents: AttachedDocument[] | null) => {
+        const routeMessage = (message: Message, deleteCount: number | undefined, documents: AttachedDocument[] | null) => {
 
             if (message.type == MessageType.PROMPT
                 || message.type == MessageType.ROOT
@@ -554,7 +549,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     const request = createChatRequest(
                         message,
                         deleteCount,
-                        plugin,
                         null,
                         null,
                         documents,
@@ -567,7 +561,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                     handleSend(request);
                 } else {
-                    const request = createChatRequest(message, deleteCount, plugin, null, null, documents);
+                    const request = createChatRequest(message, deleteCount, null, null, documents);
                     handleSend(request);
                 }
             } else {
@@ -638,7 +632,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     message.type === MessageType.ROOT ||
                     message.type === MessageType.PREFIX_PROMPT) {
 
-                    const request = createChatRequest(message, 0, null, null, null, documents);
+                    const request = createChatRequest(message, 0, null, null, documents);
                     request.prompt = templateData;
 
                     let assistantId = null;
@@ -906,7 +900,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 <PromptHighlightedText 
                 onSend={(message) => {
                     setCurrentMessage(message);
-                    routeMessage(message, 0, null, []);
+                    routeMessage(message, 0, []);
                 }} 
                 />
             }
@@ -1075,6 +1069,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             <>
                                                 <button
                                                     className="ml-2 mr-2 cursor-pointer hover:opacity-50"
+                                                    disabled={messageIsStreaming}
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
@@ -1098,10 +1093,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 e.stopPropagation();
                                                 handleSettings();
 
-                                                if (!showSettings) handleScrollUp();
-                                                // } else {
-                                                //     handleScrollDown();
-                                                // } 
+                                                if (!showSettings && !messageIsStreaming) handleScrollUp();
                                                 
                                             }}
                                             title="Chat Settings"
@@ -1111,6 +1103,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
+                                            disabled={messageIsStreaming}
                                             onClick={onClearAll}
                                             title="Clear Messages"
                                         >
@@ -1118,6 +1111,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         </button>
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
+                                            disabled={messageIsStreaming}
                                             onClick={() => setIsShareDialogVisible(true)}
                                             title="Share"
                                         >
@@ -1125,6 +1119,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         </button>
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
+                                            disabled={messageIsStreaming}
                                             onClick={(e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
@@ -1147,6 +1142,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             |
                                             <button
                                                 className="ml-2 mr-2 cursor-pointer hover:opacity-50"
+                                                disabled={messageIsStreaming}
                                                 onClick={(e) => {
                                                     e.preventDefault();
                                                     e.stopPropagation();
@@ -1196,10 +1192,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 message={message}
                                                 messageIndex={index}
                                                 onChatRewrite={handleChatRewrite}
-                                                onSend={(message) => {
-                                                    setCurrentMessage(message[0]);
-                                                    routeMessage(message[0], 0, null, []);
-                                                }}
                                                 onSendPrompt={runPrompt}
                                                 handleCustomLinkClick={handleCustomLinkClick}
                                                 onEdit={(editedMessage) => {
@@ -1208,7 +1200,17 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     setCurrentMessage(editedMessage);
 
                                                     if (editedMessage.role != "assistant") {
-                                                        routeMessage(editedMessage, selectedConversationState?.messages.length - index, null, []);
+                                                        const lastUserMessageIndex = selectedConversationState?.messages
+                                                                                                               .map(msg => msg.role)
+                                                                                                               .lastIndexOf('user');                                                                                                    
+
+                                                        if (index === lastUserMessageIndex) {
+                                                            routeMessage(editedMessage, selectedConversationState?.messages.length - index, []);
+                                                        } else {
+                                                            // ask to fork or overwrite 
+                                                            setShowOnEditMessagePrompt({editedMessage: editedMessage, index: index});
+                                                        }
+                                                        
                                                     } else {
                                                         console.log("updateMessage");
                                                         updateMessage(selectedConversationState, editedMessage, index);
@@ -1238,6 +1240,32 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             }}
                                         />
                                     )}
+
+                                    {showOnEditMessagePrompt && 
+                                    <ConfirmModal
+                                    title='Save a Copy of the Conversation?'
+                                    message="Would you like to save a copy of the conversation with the original messages before finalizing your edits? Once the changes are applied, any messages following the edited one will be removed and resubmitted to the model, effectively updating and overwriting the conversation."
+                                    onDeny={() => {
+                                        const data = {...showOnEditMessagePrompt};
+                                        setShowOnEditMessagePrompt(null);
+                                        if (selectedConversationState) routeMessage(data.editedMessage, 
+                                            selectedConversationState.messages.length - data.index, []);
+                                     }}
+                                     denyLabel='Overwrite Only'
+                                     onConfirm={async () => {
+                                        if (selectedConversationState) {
+                                            const len = selectedConversationState?.messages.length;
+                                            const data = {...showOnEditMessagePrompt};
+                                            setShowOnEditMessagePrompt(null);
+                                            await handleForkConversation(len - 1, false);
+                                            updateMessage(selectedConversationState, data.editedMessage, data.index);
+                                            routeMessage(data.editedMessage, len - data.index, []);
+                                        }}}
+                                        confirmLabel="Save Copy"
+                                    />
+
+                                    }
+
                                 </>
                             )}
                         </div>
@@ -1247,19 +1275,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             handleUpdateModel={handleUpdateModel}
                             stopConversationRef={stopConversationRef}
                             textareaRef={textareaRef}
-                            onSend={(message, plugin, documents: AttachedDocument[] | null) => {
+                            onSend={(message, documents: AttachedDocument[] | null) => {
                                 setCurrentMessage(message);
                                 //handleSend(message, 0, plugin);
-                                routeMessage(message, 0, plugin, documents);
+                                routeMessage(message, 0, documents);
                             }}
                             onScrollDownClick={handleScrollDown}
                             onRegenerate={() => {
                                 if (currentMessage) {
                                     //handleSend(currentMessage, 2, null);
-                                    routeMessage(currentMessage, 2, null, null);
+                                    routeMessage(currentMessage, 2, null);
                                 }
                             }}
                             showScrollDownButton={showScrollDownButton}
+                            plugins={plugins ?? []}
+                            setPlugins={setPlugins}
                         />}
                     </div>
                 )}
