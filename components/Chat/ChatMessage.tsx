@@ -39,7 +39,6 @@ export interface Props {
     message: Message;
     messageIndex: number;
     onEdit?: (editedMessage: Message) => void,
-    onSend: (message: Message[]) => void,
     onSendPrompt: (prompt: Prompt) => void,
     onChatRewrite: (message: Message, updateIndex: number, requestedRewrite: string, prefix: string, suffix: string, feedback: string) => void,
     handleCustomLinkClick: (message: Message, href: string) => void,
@@ -50,7 +49,6 @@ export const ChatMessage: FC<Props> = memo(({
                                                 message,
                                                 messageIndex,
                                                 onEdit,
-                                                onSend,
                                                 onSendPrompt,
                                                 handleCustomLinkClick,
                                                 onChatRewrite
@@ -63,7 +61,7 @@ export const ChatMessage: FC<Props> = memo(({
         dispatch: homeDispatch,
         setLoadingMessage,
         handleUpdateSelectedConversation,
-        handleSelectConversation
+        handleForkConversation
     } = useContext(HomeContext);
 
 
@@ -260,26 +258,6 @@ export const ChatMessage: FC<Props> = memo(({
         }
     };
 
-    const handleForkConversation = async () => {
-        statsService.forkConversationEvent();
-        if (selectedConversation) {
-            setLoadingMessage("Forking Conversation...");
-            const newConversation = cloneDeep({...selectedConversation,  id: uuidv4(), codeInterpreterAssistantId: undefined,
-                                               messages: selectedConversation?.messages.slice(0, messageIndex + 1)
-                                                         .map((m:Message) => {
-                                                            return {...m, codeInterpreterMessageData: undefined}; 
-                                                         })});
-            if (isRemoteConversation(newConversation)) await uploadConversation(newConversation, foldersRef.current);
-            statsService.newConversationEvent();
-
-            const updatedConversations = [...conversationsRef.current, newConversation];
-            homeDispatch({ field: 'conversations', value: updatedConversations });
-            saveConversations(updatedConversations);
-            setLoadingMessage("");
-            handleSelectConversation(newConversation);
-        }
-        
-    };
 
     const handleFeedbackSubmit = () => {
         if (selectedConversation && currentRating !== undefined) {
@@ -413,7 +391,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     </div>
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                        onClick={handleForkConversation}
+                                        onClick={() => handleForkConversation(messageIndex)}
                                         title="Branch Into A Conversation"
                                     >
                                         <IconArrowFork size={20}/>
@@ -473,6 +451,8 @@ export const ChatMessage: FC<Props> = memo(({
                                         <ChatCodeInterpreterFileBlock
                                             messageIsStreaming={messageIsStreaming}
                                             message={message}
+                                            selectedConversation={selectedConversation}
+                                            updateConversation={handleUpdateSelectedConversation}
                                         />
                                         <ChatSourceBlock
                                             messageIsStreaming={messageIsStreaming}
@@ -542,7 +522,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     </button>
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                        onClick={handleForkConversation}
+                                        onClick={() => handleForkConversation(messageIndex)}
                                         title="Branch Into A Conversation"
                                     >
                                         <IconArrowFork size={20}/>
