@@ -12,7 +12,6 @@ export interface Message {
   type: string | undefined;
   data: any | undefined;
   label?: string;
-  codeInterpreterMessageData?: any | undefined;
   topicData?: messageTopicData;
 }
 
