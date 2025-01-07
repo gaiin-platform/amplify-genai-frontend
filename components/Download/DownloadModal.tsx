@@ -211,7 +211,8 @@ export const DownloadModal: FC<DownloadModalProps> = (
                     let conversation = conv;
                     if (selectedConversation && conversation.id !== selectedConversation.id &&
                         isRemoteConversation(conv)) {
-                            const cloudConv = await fetchMultipleRemoteConversations([conv.id]);
+                            const cloudConvResult = await fetchMultipleRemoteConversations([conv.id]);
+                            const cloudConv = cloudConvResult.data;
                             if (cloudConv && cloudConv.length > 0) conversation = cloudConv[0];
                         }
                     switch (includeMode) {

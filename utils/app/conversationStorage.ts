@@ -217,14 +217,20 @@ export const includeRemoteConversationData = async (conversationHistory: Convers
     const fetchedRemoteConversations = await fetchMultipleRemoteConversations(remoteConversationIds);
     // console.log(fetchedRemoteConversations);
     // Create a map of remote conversation ids to fetched conversations for quick lookup
-    const fetchedRemoteConversationsMap = new Map(fetchedRemoteConversations.map((c:Conversation) => [c.id, c]));
+    const fetchedRemoteConversationsMap = new Map(fetchedRemoteConversations.data.map((c:Conversation) => [c.id, c]));
 
-    const failedToFetch: string[] = [];
+    const failedToFetchByNoSuchKey: string[] = fetchedRemoteConversations.failedByNoSuchKey;
+    console.log("Currently no such key conversations in history: ", failedToFetchByNoSuchKey);
+    const failedToFetch: string[] = fetchedRemoteConversations.failed;
+
+    const alertFailed: string[] = [];
+
     const combinedConversations = conversationHistory.map(c => {
         if (isRemoteConversation(c)) {
             const cloudConversation = fetchedRemoteConversationsMap.get(c.id);
             if (!cloudConversation) {
-                failedToFetch.push(c.name);
+                // if not in  no such key then push
+                if (failedToFetch.includes(c.id)) alertFailed.push(c.name);
                 return undefined;
             }
             return { ...(uncompressLocal ? cloudConversation : conversationWithCompressedMessages(cloudConversation as Conversation)), isLocal: true };
@@ -237,8 +243,8 @@ export const includeRemoteConversationData = async (conversationHistory: Convers
         
     }).filter((c): c is Conversation => c !== undefined);
 
-    if (failedToFetch.length > 0) {
-        alert(`Conversation${failedToFetch.length === 1 ? '' : 's'}: ${failedToFetch.join(", ")} failed to ${failMessage}`);
-    }
+    if (alertFailed.length > 0) {
+        alert(`Conversation${alertFailed.length === 1 ? '' : 's'}: ${alertFailed.join(", ")} failed to ${failMessage}`);
+    } 
     return combinedConversations;
 };
