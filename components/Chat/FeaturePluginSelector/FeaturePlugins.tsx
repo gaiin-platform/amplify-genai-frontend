@@ -1,20 +1,21 @@
 import { useCallback, useRef, useState, useContext, useEffect } from 'react';
 import { IconSparkles } from '@tabler/icons-react';
-import { Plugin } from '@/types/plugin';
-import { PluginSelect } from './PluginSelect';
+import { Plugin, PluginID, PluginList } from '@/types/plugin';
+import { PluginSelector } from './PluginSelector';
 import HomeContext from '@/pages/api/home/home.context';
 import React from 'react';
 
 interface Props {
-    plugin: Plugin | null;
-    setPlugin: (p: Plugin | null) => void;
-
+    plugins: Plugin[];
+    setPlugins: (p: Plugin[]) => void;
 }
 
-const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
+const FeaturePlugin = ({ plugins, setPlugins }: Props) => {
     const {
         state: { pluginLocation }, dispatch: homeDispatch
     } = useContext(HomeContext);
+
+    const codeInterpreterPlugin:Plugin | undefined = PluginList.find((p:Plugin) => p.id === PluginID.CODE_INTERPRETER);
 
     const [hide, setHide] = useState(false);
     const [showPluginSelect, setShowPluginSelect] = useState(false);
@@ -62,8 +63,6 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
     
         // Call the function to ensure the plugin is within bounds
         ensureWithinBounds();
-        // window.addEventListener('resize', ensureWithinBounds);
-        // return () => window.removeEventListener('resize', ensureWithinBounds);
     }, [width]); // Dependencies array
 
 
@@ -131,6 +130,9 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
     }, [onMouseDrag]);
 
 
+    const codeInterpreterEnabled = () => {
+        return codeInterpreterPlugin ? !!plugins.find((p:Plugin) => p.id === PluginID.CODE_INTERPRETER) : false;
+    }
 
 
     return ( hide ? <></> :
@@ -146,23 +148,20 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
                 }}
                 ref={draggableRef}
             >
-                {showPluginSelect ?
-                (
-                <div className="pluginSelect bottom-full absolute mb-[-14px] rounded bg-white dark:bg-[#343541]"
+                <div className={`${showPluginSelect ? 'pluginSelect bottom-full absolute mb-[-14px] rounded bg-white dark:bg-[#343541]' : 'hidden'}`}
                 >
-                    <PluginSelect
-                        plugin={plugin}
-                        onPluginChange={(selectedPlugin) => {
-                            setPlugin(selectedPlugin);
+                    <PluginSelector
+                        plugins={plugins}
+                        onPluginChange={(selectedPlugins) => {
+                            setPlugins(selectedPlugins);
                         }}
                         setShowPluginSelect={setShowPluginSelect}
                         isDragging={isDragging}
                     />
                 </div>
-                ) :
-                (
-                <button
-                    title={`${!plugin ? "Select Feature\nNote: You will not be able to use at the same time as a selected Assistant" : plugin.name}`}
+                {!showPluginSelect && 
+                <button // \nNote: You will not be able to use at the same time as a selected Assistant
+                    title={`${!codeInterpreterEnabled() ? "Select Enabled Features" : codeInterpreterPlugin?.name}`}
                     className="p-1.5 text-neutral-800 bg-neutral-100 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-neutral-600 dark:text-white dark:hover:bg-neutral-500"
                     style={{
                         cursor: isDragging? "grabbing": "pointer",
@@ -173,20 +172,20 @@ const FeaturePlugins = ({ plugin, setPlugin }: Props) => {
                         alignItems: 'center',
                         justifyContent: 'center',
                         boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)',
-                        border: `${plugin && !showPluginSelect ? '1px solid #00ff00' : 'none'}`, 
+                        border: `${codeInterpreterEnabled() ? '1px solid #00ff00' : 'none'}`, 
                         transition: 'all 0.7s ease' 
                         
                     }}
                     onClick={() => {if ( startPosition === positionRef.current ) setShowPluginSelect(!showPluginSelect)}
                     }
                 >
-                    {showPluginSelect || !plugin? <IconSparkles size={24} /> : <plugin.iconComponent/>}
+                    {showPluginSelect || !codeInterpreterEnabled() ? <IconSparkles size={24} /> : codeInterpreterPlugin && <codeInterpreterPlugin.iconComponent/>}
                 </button>
-            )}
+            }
 
             </div>
         </>
     );
 }
 
-export default FeaturePlugins;
+export default FeaturePlugin;

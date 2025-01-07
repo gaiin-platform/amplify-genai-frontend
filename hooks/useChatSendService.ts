@@ -30,7 +30,7 @@ export type ChatRequest = {
     message: Message;
     endpoint?: string;
     deleteCount?: number;
-    plugin?: Plugin | null;
+    plugins?: Plugin[];
     existingResponse?: any;
     rootPrompt?: string | null;
     documents?: AttachedDocument[] | null;
@@ -123,7 +123,7 @@ export function useSendService() {
                     let {
                         message,
                         deleteCount,
-                        plugin,
+                        plugins,
                         existingResponse,
                         rootPrompt,
                         documents,
@@ -132,15 +132,11 @@ export function useSendService() {
                         conversationId
                     } = request;
 
-
+                    const pluginIds: string[] = plugins?.map((plugin: Plugin) => plugin.id) ?? [];
                     const {content, label} = getPrefix(selectedConversation, message);
                     if (content) {
                         message.content = content + " " + message.content;
                         message.label = label;
-                    }
-
-                    if (!featureFlags.ragEnabled) {
-                        options = {...(options || {}), skipRag: true};
                     }
 
                     if (selectedConversation
@@ -194,10 +190,15 @@ export function useSendService() {
                     homeDispatch({field: 'loading', value: true});
                     homeDispatch({field: 'messageIsStreaming', value: true});
 
-                    const settings = getSettings(featureFlags);
+                    const featureOptions = getSettings(featureFlags).featureOptions;
+                    const isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts && 
+                                          pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER);
+                    const isSmartMessagesOn = featureOptions.includeFocusedMessages && pluginIds.includes(PluginID.SMART_MESSAGES);
+                    
                     // if both artifact and smart messages is off then it returnes with the messages right away 
-                    const prepareMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService, featureFlags, homeDispatch, 
-                                                                     settings.featureOptions, getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST));
+                    const prepareMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService,
+                                                                     isArtifactsOn, isSmartMessagesOn, homeDispatch, 
+                                                                     getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST));
                     
                     const chatBody: ChatBody = {
                         model: updatedConversation.model, 
@@ -208,21 +209,18 @@ export function useSendService() {
                         conversationId
                     };
 
-                    if (featureFlags.artifacts && settings.featureOptions.includeArtifacts) {
+                    if (featureFlags.artifacts && featureOptions.includeArtifacts) { 
                         chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
                     }
 
-                    if (featureFlags.artifacts) {
+                    if (isArtifactsOn) {
                         // account for plugin on/off features 
                         const astFeatureOptions = message.data?.assistant?.definition?.featureOptions;
-                        //option A
-                            // either there is no options defined or there is and it needs to be true 
-                            // not defined in cases of old ast used and when no assistant is in use 
-                        // if ((!astFeatureOptions || astFeatureOptions.IncludeArtifactsInstr) && settings.featureOptions.includeArtifacts) {
 
-                        //option B - either no feature option and user has the setting on 
-                                    // or the assistant has it turned on
-                        if ((!astFeatureOptions && settings.featureOptions.includeArtifacts) || (astFeatureOptions && astFeatureOptions.IncludeArtifactsInstr)) {
+                        // ast feature option trumps 
+                        // either no ast feature option exists
+                        // or the assistant has it turned on
+                        if ((!astFeatureOptions) || (astFeatureOptions.IncludeArtifactsInstr)) {
                              chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
                             //  console.log("ARTIFACT PROMPT ADDED")
                         } 
@@ -230,16 +228,6 @@ export function useSendService() {
 
                     if (uri) {
                         chatBody.endpoint = uri;
-                    }
-
-                    if (!featureFlags.codeInterpreterEnabled) {
-                        //check if we need
-                        options =  {...(options || {}), skipCodeInterpreter: true};
-                    } else{
-                        if (updatedConversation.codeInterpreterAssistantId) {
-                            chatBody.codeInterpreterAssistantId = updatedConversation.codeInterpreterAssistantId;
-                            options =  {...(options || {}), skipRag: true};
-                        }
                     }
 
                     if (documents && documents.length > 0) {
@@ -260,6 +248,23 @@ export function useSendService() {
                         });
                     }
 
+                    //PLUGINS before options is assigned
+                                                                                       //in case no plugins are defined, we want to keep the default behavior
+                    if (!featureFlags.ragEnabled || (!pluginIds.includes(PluginID.RAG) && plugins)) {
+                        options = {...(options || {}), skipRag: true};
+                    }
+
+                    if (!featureFlags.codeInterpreterEnabled) { 
+                        //check if we need
+                        options =  {...(options || {}), skipCodeInterpreter: true};
+                    } else { 
+                        if (pluginIds.includes(PluginID.CODE_INTERPRETER)) {
+                            chatBody.codeInterpreterAssistantId = updatedConversation.codeInterpreterAssistantId;
+                            options =  {...(options || {}), skipRag: true, codeInterpreterOnly: true};
+                            statsService.codeInterpreterInUseEvent();
+                        }
+                    }
+
                     if (selectedConversation && selectedConversation.tags) {
                         const tags = selectedConversation.tags;
                         if (tags.includes(ReservedTags.ASSISTANT_BUILDER)) {
@@ -270,26 +275,10 @@ export function useSendService() {
                             options = {
                                 ...(options || {}),
                                 skipRag: true,
-                                ragOnly: true
+                                ragOnly: false
                             };
                         }
                     }
-
-                    //PLUGINS 
-                    if (plugin?.id === PluginID.CODE_INTERPRETER) {
-                        options =  {...(options || {}), codeInterpreterOnly: true};
-                        statsService.codeInterpreterInUseEvent();
-                    } else if (plugin?.id === PluginID.NO_RAG) {
-                        options = {
-                            ...(options || {}),
-                            skipRag: true,
-                            ragOnly: false
-                        };
-                    } 
-                    // else if (plugin?.id === PluginID.RAG_EVAL) {
-                    //     //
-                    // }
-                
 
                     if (options) {
                         Object.assign(chatBody, options);
@@ -407,9 +396,6 @@ export function useSendService() {
                             let done = false;
                             let isFirst = true;
                             let text = '';
-                            let codeInterpreterData = {};
-                            // i find once a run on a thread is marked incomplete/failed/requires_action etc it will not work if you try again right away, better to just start with a new thread
-                            let codeInterpreterNeedsNewThread = false;
 
                             // Reset the status display
                             homeDispatch({
@@ -451,7 +437,6 @@ export function useSendService() {
                                     if (!outOfOrder) {
                                         // check if codeInterpreterAssistantId
                                         const assistantIdMatch = chunkValue.match(/codeInterpreterAssistantId=(.*)/);
-                                        const responseMatch = chunkValue.match(/codeInterpreterResponseData=(.*)/);
 
                                         if (assistantIdMatch) {
                                             const assistantIdExtracted = assistantIdMatch[1];
@@ -462,21 +447,7 @@ export function useSendService() {
                                             };
                                             //move onto the next iteration
                                             continue;
-                                        } else if (responseMatch) {
-                                            //if we get a match we know its a json guaranteed
-                                            const responseData = JSON.parse(responseMatch[1]);
-                                            if (responseData['success'] && responseData['data'] && 'textContent' in responseData['data'].data) {
-                                                codeInterpreterData = responseData['data'].data;
-                                                text += responseData['data'].data.textContent;
-
-                                            } else {
-                                                console.log(responseData.error);
-                                                if (responseData.error.includes("Error with run status")) codeInterpreterNeedsNewThread = true;
-                                                text += "Something went wrong with code interpreter... please try again.";
-                                            }
-
-                                            continue;
-                                        }
+                                        } 
 
                                         text += chunkValue;
                                     } else {
@@ -498,10 +469,8 @@ export function useSendService() {
                                                         content: text,
                                                         data: {...(message.data || {}), state: currentState}
                                                     };
-                                                if (Object.keys(codeInterpreterData).length !== 0)  assistantMessage['codeInterpreterMessageData'] = codeInterpreterData;
                                                 return assistantMessage
                                             }
-                                            if (codeInterpreterNeedsNewThread && message.codeInterpreterMessageData && 'threadId' in message.codeInterpreterMessageData)  delete message.codeInterpreterMessageData.threadId
                                             return message;
                                         });
                                     updatedConversation = {

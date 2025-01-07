@@ -3,6 +3,8 @@ import { ConversationStorage } from './conversationStorage';
 import { FolderInterface, SortType } from './folder';
 import { Model } from './model';
 import { PluginLocation } from './plugin';
+import { PluginID } from './plugin';
+
 import { Prompt } from './prompt';
 
 // keep track of local storage schema
@@ -19,6 +21,7 @@ export interface LocalStorage {
   showPromptbar: boolean;
   storageSelection: ConversationStorage;
   pluginLocation: PluginLocation;
+  enabledPlugins: {[key in PluginID] : boolean};
   chatFolderSort: SortType,
   promptFolderSort: SortType;
   hiddenGroupFolders: FolderInterface[];
