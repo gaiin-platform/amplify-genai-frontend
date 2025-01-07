@@ -49,13 +49,14 @@ export const featureOptionFlags = [
     "label": "Plugin Selector",
     "key": "includePluginSelector",
     "defaultValue": true,
-    "description": "The Plugin Selector allows customization of the experience by enabling or disabling specific tools. For example, you can disable the retrieval-augmented generation (RAG) feature or enable Code Interpreter."
+    "description": "The Plugin Selector allows customization of the experience by enabling or disabling specific tools. For example, you can disable the retrieval-augmented generation (RAG) feature, enable Code Interpreter, or turn on and off enabled settings."
   }, 
   {
     "label": "Prompt Highlighter",
     "key": "includeHighlighter",
     "defaultValue": false,
-    "description" : "Highlight text in assistant messages or artifacts for three key purposes: prompt against selected content, prompt for fast inline edits, or create and insert new compositions by combining multiple highlighted sections. \nThis feature streamlines the process of interacting with and revising text, making it easy to generate responses, modify content, or draft new sections based on your selections."
+    "description" : "Highlight text in assistant messages or artifact content for two key purposes: prompt against selected content or prompt for fast inline edits. \nThis feature streamlines the process of interacting with and revising text, making it easy to generate responses, modify content, or draft new sections based on your selections."
+    // "description" : "Highlight text in assistant messages or artifact content for three key purposes: prompt against selected content, prompt for fast inline edits, or create and insert new compositions by combining multiple highlighted sections. \nThis feature streamlines the process of interacting with and revising text, making it easy to generate responses, modify content, or draft new sections based on your selections."
   },
  
 ];

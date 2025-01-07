@@ -1344,7 +1344,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
                                         { Object.values(providers).map((p:keyof typeof providers) => 
                                             <button key={p}
-                                            className={`w-[200px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 
+                                            className={`w-[200px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-300 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 
                                             ${p === isAddingAvailModel.model.provider as keyof typeof providers ? "cursor-default" : "opacity-60 hover:opacity-80"}`}
                                             disabled={p === isAddingAvailModel.model.provider as keyof typeof providers}
                                             onClick={() => {
@@ -2388,7 +2388,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                         title={"Replace Group API Key"}
                                                         type="button"
                                                         disabled={keyReplacementLoading !== ''}
-                                                        className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:text-gray-300 focus:outline-none"
+                                                        className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
                                                         onClick={() => {handleReplaceGroupKey(group.group_id)}}>
                                                         {keyReplacementLoading === group.group_id ? 
                                                              <LoadingIcon style={{ width: "20px", height: "20px" }}/> : <IconKey size={20}/>} 
@@ -3045,7 +3045,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         ( loadingEmbeddings?
                             <label className="flex flex-row items-center ml-6  mt-2 py-1 px-2"> 
                                     <LoadingIcon style={{ width: "16px", height: "16px" }}/>
-                                    <span className="ml-2 text-white">{'Loading Embeddings...'}</span>
+                                    <span className="ml-2">{'Loading Embeddings...'}</span>
                                 
                             </label>
                         :
