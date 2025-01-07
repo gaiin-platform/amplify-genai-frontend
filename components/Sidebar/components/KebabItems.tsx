@@ -66,7 +66,7 @@ export const KebabActionItem: FC<ActionProps> = ({label, type, handleAction, set
 
 
   return (
-    <div className="w-[72px] flex items-center gap-1 flex-row pr-1 pl-1 cursor-pointer border-b dark:border-white/20 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
+    <div className="min-w-[72px] flex items-center gap-1 flex-row pr-1 pl-1 cursor-pointer border-b dark:border-white/20 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
       title={`${label} ${type.includes('Folders') ? "Entire Folder" : type}`}>
     
       <div className="text-neutral-900 dark:text-neutral-100">{icon}</div>
