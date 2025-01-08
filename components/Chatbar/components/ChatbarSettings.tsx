@@ -109,7 +109,7 @@ export const ChatbarSettings = () => {
                     text={t('Memory')}
                     icon={<IconDeviceSdCard size={18} />}
                     onClick={() => {
-                        // TODO: implement interface
+                        // TODO: implement interface here
                     }}
                 />
             )}
