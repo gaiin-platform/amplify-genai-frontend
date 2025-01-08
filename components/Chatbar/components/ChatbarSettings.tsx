@@ -1,4 +1,4 @@
-import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot } from '@tabler/icons-react';
+import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot, IconDeviceSdCard } from '@tabler/icons-react';
 import { useContext, useState } from 'react';
 
 
@@ -14,6 +14,7 @@ import ChatbarContext from '../Chatbar.context';
 import {AccountDialog} from "@/components/Settings/AccountComponents/AccountDialog";
 import toast from 'react-hot-toast';
 import { IntegrationsDialog } from '@/components/Integrations/IntegrationsDialog';
+import { getSettings } from '@/utils/app/settings';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
@@ -90,6 +91,15 @@ export const ChatbarSettings = () => {
               onClick={() => setIsIntegrationsOpen(true)}
             />
 
+            {featureFlags.memory && getSettings(featureFlags).featureOptions.includeMemory && (
+                <SidebarButton
+                    text={t('Memory')}
+                    icon={<IconDeviceSdCard size={18} />}
+                    onClick={() => {
+                        // TODO: implement interface
+                    }}
+                />
+            )}
 
             <SidebarButton
                 text={t('Send Feedback')}

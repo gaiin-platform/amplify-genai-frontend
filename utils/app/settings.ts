@@ -56,7 +56,12 @@ export const featureOptionFlags = [
     "defaultValue": false,
     "description" : "Highlight text in assistant messages or artifacts for three key purposes: prompt against selected content, prompt for fast inline edits, or create and insert new compositions by combining multiple highlighted sections. \nThis feature streamlines the process of interacting with and revising text, making it easy to generate responses, modify content, or draft new sections based on your selections."
   },
- 
+  {
+    "label": "Memory",
+    "key": "includeMemory",
+    "defaultValue": false,
+    "description": "Enable long-term memory for users and assistants, storing key information from past conversations. This feature enhances contextual understanding, delivering more personalized and coherent responses over time. Users have full control, approving all memories before they're saved."
+  }
 ];
 
 
@@ -67,6 +72,8 @@ const featureOptionDefaults = (featureFlags:any) =>  featureOptionFlags.reduce((
       if (featureFlags.pluginsOnInput) acc[x.key] = x.defaultValue;
   } else if (x.key === "includeHighlighter") {
     if (featureFlags.highlighter) acc[x.key] = x.defaultValue;
+  } else if (x.key === "includeMemory") {
+    if (featureFlags.memory) acc[x.key] = x.defaultValue;
   } else {
       acc[x.key] = x.defaultValue;
   }
