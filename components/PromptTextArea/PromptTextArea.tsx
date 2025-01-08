@@ -22,7 +22,7 @@ interface PromptTextAreaProps {
 
 const PromptTextArea: React.FC<PromptTextAreaProps> = ({temperature, stopButtonText = "Stop",rootPromptTemplate, rootPromptText, generateButtonText , promptTemplate, promptTemplateString}) => {
 
-    const {state: {featureFlags, models}} = useContext(HomeContext);
+    const {state: {featureFlags, availableModels}} = useContext(HomeContext);
 
     const [textAreaValue, setTextAreaValue] = useState('');
     const [selectedModel, setSelectedModel] = useState<Model | undefined>(undefined);
@@ -39,7 +39,7 @@ const PromptTextArea: React.FC<PromptTextAreaProps> = ({temperature, stopButtonT
         setTextAreaValue(event.target.value);
     };
 
-    const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
+    const filteredModels = filterModels(availableModels, getSettings(featureFlags).hiddenModelIds);
 
     const handleSubmit = (updatedVariables: string[], documents:AttachedDocument[]|null, prompt?:Prompt) => {
 

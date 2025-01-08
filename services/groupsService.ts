@@ -1,231 +1,114 @@
-import { AmpCognGroups} from "@/types/groups";
+import { AssistantDefinition } from "@/types/assistant";
+import { doRequestOp } from "./doRequestOp";
 
+const URL_PATH =  "/groups";
 
-export const createAstAdminGroup = async (data: any,  abortSignal = null) => {
+export const createAstAdminGroup = async (data: any) => {
     const op = {
-        data: data,
-        op: '/create'
-    };
-
-    const response = await fetch('/api/groups/ops', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(op),
-        signal: abortSignal,
-    });
+        path: URL_PATH,
+        op: "/create",
+        data: data,
+    };
+    const result = await doRequestOp(op);
+    return  result.success ? result.data : null;
+}
 
-    const result = await response.json();
 
-    try {
-        return result.success ? result.data : null;
-    
-    } catch (e) {
-        console.error("Error making post request: ", e);
-        return null;
-    }
-};
-
-export const updateGroupTypes = async (data: any,  abortSignal = null) => {
+export const updateGroupTypes = async (data: any) => {
     const op = {
-        data: data,
-        op: '/types/update'
-    };
-
-    const response = await fetch('/api/groups/ops', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(op),
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-
-    try {
-        return 'success' in result ? result.success : false;
-    } catch (e) {
-        console.error("Error making post request: ", e);
-        return false;
-    }
-};
+        path: URL_PATH,
+        op: "/types/update",
+        data: data,
+    };
+    const result = await doRequestOp(op);
+    return result.success;
+}
 
 
 
 
-export const updateGroupMembers = async (data: any,  abortSignal = null) => {
+export const updateGroupMembers = async (data: any) => {
     const op = {
-        data: data,
-        op: '/members/update'
-    };
-
-    const response = await fetch('/api/groups/ops', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(op),
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-
-    try {
-        return 'success' in result ? result.success : false;
-        //
-    } catch (e) {
-        console.error("Error making post request: ", e);
-        return false;
-    }
-};
+        path: URL_PATH,
+        op: "/members/update",
+        data: data,
+    };
+    const result = await doRequestOp(op);
+    return result.success;
+}
 
 
-export const updateGroupMembersPermissions = async (data: any,  abortSignal = null) => {
+
+export const updateGroupMembersPermissions = async (data: any) => {
     const op = {
-        data: data,
-        op: '/members/update_permissions'
-    };
-
-    const response = await fetch('/api/groups/ops', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(op),
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-
-    try {
-        return 'success' in result ? result.success : false;
-        //
-    } catch (e) {
-        console.error("Error making post request: ", e);
-        return false;
-    }
-};
+        path: URL_PATH,
+        op: "/members/update_permissions",
+        data: data,
+    };
+    const result = await doRequestOp(op);
+    return result.success;
+}
 
 
 
-export const updateGroupAssistants = async (data: any,  abortSignal = null) => {
+export const updateGroupAssistants = async (data: any) => {
     const op = {
-        data: data,
-        op: '/assistants/update'
-    };
-
-    const response = await fetch('/api/groups/ops', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(op),
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-
-    try {
-        return result.success ? result : {success: false};
-    } catch (e) {
-        console.error("Error making post request: ", e);
-        return  {success: false};
-    }
-};
+        path: URL_PATH,
+        op: "/assistants/update",
+        data: data,
+    };
+    return await doRequestOp(op);
+}
 
 
-export const deleteAstAdminGroup = async (groupId: string, abortSignal = null) => {
-    
-    const response = await fetch('/api/groups/getDeleteOps' + `?group_id=${encodeURIComponent(groupId)}&path=${encodeURIComponent("/delete")}`, {
+
+export const deleteAstAdminGroup = async (groupId: string) => {
+    const op = {
         method: 'DELETE',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-    try {
-        return 'success' in result ? result.success : false;
-    } catch (e) {
-        console.error("Error making delete group request: ", e);
-        return false;
-    }
-};
+        path: URL_PATH,
+        op: "/delete",
+        queryParams: {"group_id": groupId}
+    };
+    const result = await doRequestOp(op);
+    return result.success;
+}
 
 
-export const fetchAstAdminGroups = async (abortSignal = null) => {
-    const response = await fetch('/api/groups/getDeleteOps' + `?path=${encodeURIComponent("/list")}`, {
+
+export const fetchAstAdminGroups = async () => {
+    const op = {
         method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-    try {
-        // return data looks like  {"success": True, "data": group_info, "incompleteGroupData": failed_to_list}
-        return 'success' in result ? result : {success: false};
-    } catch (e) {
-        console.error("Error making delete group request: ", e);
-        return {success: false};
-    }
-}
-
-
-export const fetchGroupMembers = async (abortSignal = null) => {
-    const response = await fetch('/api/groups/getDeleteOps' + `?path=${encodeURIComponent("/members/list")}`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-    });
-
-    const result = await response.json();
-    try {
-        const res = JSON.parse(result.body)
-        // return data looks like  {"suceess": True, "groupMemberData" : groups_and_members} where groups_and_members looks like { group-names : members_list}
-        return 'success' in res ? res : {success: false};
-    } catch (e) {
-        console.error("Error making delete group request: ", e);
-        return {success: false};
-    }
+        path: URL_PATH,
+        op: "/list",
+    };
+    return await doRequestOp(op);
 }
 
 
 
-
-// for checking is a user is in a certain amplify or cognito group in the congito users table, not the adminGroups
-
-export const checkInAmplifyCognitoGroups = async (groupData: AmpCognGroups, abortSignal = null) => {
-    try {
-        const op = {
-            op: '/in_cognito_amp_groups',
-            data: groupData
-        };
-        
-        const response = await fetch('/api/cognitoGroups/op', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(op),
-            signal: abortSignal,
-        });
-        if (response.ok) {
-            const result = await response.json();
-            return JSON.parse(result.body);
-        } else {
-            console.error("Error response when checking if in cognito group: ", response.statusText);
-            return { success: false, error: `Error response when checking if in cognito group: ${response.statusText}`};
-        }
-    } catch (e) {
-        console.error("Error call to check if in cognito group: ", e);
-        return { success: false, error: "Error call to check if in cognito group."};
-    }
+export const replaceAstAdminGroupKey = async (groupId: string) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/replace_key",
+        data: {groupId : groupId},
+    };
+    const result = await doRequestOp(op);
+    return result.success;
 }
 
+
+export const createAmplifyAssistants = async (astDefs: AssistantDefinition[]) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/assistants/amplify",
+        data: {assistants: astDefs},
+    };
+    return await doRequestOp(op);
+}

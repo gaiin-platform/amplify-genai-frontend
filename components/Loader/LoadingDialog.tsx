@@ -18,7 +18,7 @@ export const LoadingDialog: FC<Props> = ({ open, message}) => {
 
   // Render the dialog.
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
       <div className="fixed inset-0 z-10 overflow-hidden">
         <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
           <div
@@ -28,12 +28,12 @@ export const LoadingDialog: FC<Props> = ({ open, message}) => {
 
           <div
             ref={modalRef}
-            className="shadow-[0_5px_12px_rgba(0,0,0,0.5)] inline-block max-h-[400px] transform overflow-y-auto rounded-lg border border-gray-300 dark:border-neutral-900 bg-white px-4 pt-5 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 sm:max-h-[600px] sm:w-full sm:max-w-lg sm:p-6 sm:align-middle"
+            className="shadow-[0_5px_12px_rgba(0,0,0,0.5)] inline-block max-h-[200px] transform overflow-y-auto rounded-lg border border-gray-300 dark:border-neutral-900 bg-white px-4 pt-5 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 h-[300px] sm:w-full sm:max-w-lg sm:p-6 sm:align-middle"
             role="dialog"
           >
-            <div className="flex flex-col items-center text-gray-600 dark:text-neutral-100">
-              <Loader size="48"/>
-              <div className="text-xl">{message}</div>
+            <div className="h-full flex flex-col gap-2 items-center justify-center text-gray-600 dark:text-neutral-100">
+              <Loader size="70"/>
+              <div className="text-[1.6rem]">{message}</div>
             </div>
           </div>
         </div>

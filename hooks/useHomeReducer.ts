@@ -1,7 +1,7 @@
 import { useMemo, useReducer } from 'react';
 import {HomeInitialState} from "@/pages/api//home/home.state";
 import {Conversation, Message} from "@/types/chat";
-import {conversationWithUncompressedMessages} from "@/utils/app/conversation";
+import {condenseForConversationHistory} from "@/utils/app/conversation";
 import {v4 as uuidv4} from "uuid";
 
 // Extracts property names from initial state of reducer to allow typesafe dispatch objects
@@ -10,13 +10,13 @@ export type FieldNames<T> = {
 }[keyof T];
 
 
-export type ConversationActionType =
+type ConversationActionType =
     | "addMessage"
     | "deleteMessage"
     | "updateMessage";
 
 
-export type DeleteMessageData = {
+type DeleteMessageData = {
   messsageId: string
 }
 
@@ -24,28 +24,28 @@ export type UpdateMessageData = {
   messsage: Message
 }
 
-export type ConversationAddMessageAction = {
+type ConversationAddMessageAction = {
   type: "addMessages",
-  conversationId: string,
+  conversation: Conversation,
   afterMessageId?: string,
   messages: Message[],
 }
 
-export type ConversationDeleteMessageAction = {
+type ConversationDeleteMessageAction = {
   type: "deleteMessages",
-  conversationId: string,
+  conversation: Conversation,
   messages: Message[],
 }
 
-export type ConversationUpdateMessageAction = {
+type ConversationUpdateMessageAction = {
   type: "updateMessages",
-  conversationId: string,
+  conversation: Conversation,
   messages: Message[],
 }
 
-export type ConversationChangeFolderAction = {
+type ConversationChangeFolderAction = {
   type: "changeFolder",
-  conversationId: string,
+  conversation: Conversation,
   folderId: string,
 }
 
@@ -124,14 +124,13 @@ export const useHomeReducer = ({ initialState }: { initialState: HomeInitialStat
 
     // Find the conversation with the given id
     const conversationFound = conversations.find(
-        (conversation) => conversation.id === action.conversationId,
+        (conversation) => conversation.id === action.conversation.id,
     );
 
     if(!conversationFound) return state;
 
-    const conversation = conversationWithUncompressedMessages(conversationFound);
+    let conversation = action.conversation;
 
-    // @ts-ignore
     const doUpdate = (action:ConversationAction) => {
       switch (action.type) {
         case "addMessages":
@@ -158,21 +157,22 @@ export const useHomeReducer = ({ initialState }: { initialState: HomeInitialStat
     };
 
     const updatedConversation = doUpdate(action);
+    // console.log("updated: ", updatedConversation);
+
+    const updatedConversationForHistory  = condenseForConversationHistory(updatedConversation);
+
 
     const updatedConversations = conversations.map(
         (c) => {
-          if (c.id === conversation.id) {
-            return updatedConversation;
-          }
+          if (c.id === conversation.id) return updatedConversationForHistory;
           return c;
         },
     );
-    if (updatedConversations.length === 0) {
-      updatedConversations.push(updatedConversation);
-    }
 
-    const updatedSelectedConversation =
-        selectedConversation && selectedConversation.id === conversation.id ? updatedConversation : selectedConversation;
+    if (updatedConversations.length === 0) updatedConversations.push(updatedConversationForHistory);
+
+    const updatedSelectedConversation = selectedConversation && selectedConversation.id === conversation.id ? updatedConversation : selectedConversation;
+    // console.log("selected new: ", updatedSelectedConversation);
 
     return {
         ...state,

@@ -38,6 +38,9 @@ export interface OpDef {
     type: string;
     params: Record<string, string>[];
     data?: OpData;
+    tag?: string;
+    tags?: string[];
+
 }
 
 export interface Op extends OpDef {

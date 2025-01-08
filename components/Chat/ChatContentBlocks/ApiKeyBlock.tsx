@@ -12,6 +12,7 @@ import toast from "react-hot-toast";
 import React from "react";
 import { fixJsonString } from "@/utils/app/errorHandling";
 import { ApiKeyOps } from "@/types/apikeys";
+import { DefaultModels } from "@/types/model";
 
 
 interface KeyData {
@@ -39,7 +40,8 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
     const [data, setData] = useState<any>(null);
     const [requiredCreateKeys, setRequiredCreateKeys] = useState<any>(null);
     const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
-    const {state:{statsService, messageIsStreaming, chatEndpoint},  dispatch:homeDispatch} = useContext(HomeContext);
+    const {state:{statsService, messageIsStreaming, chatEndpoint, advancedModelId, availableModels, selectedConversation}, 
+           dispatch:homeDispatch, getDefaultModel} = useContext(HomeContext);
     const { data: session } = useSession();
 
     const [isCreated, setIsCreated] = useState<boolean>(false);
@@ -51,7 +53,8 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
 
     const repairJson = async () => {
         console.log("Attempting to fix json...");
-        const fixedJson: string | null = await fixJsonString(chatEndpoint || "", statsService, content, "Failed to create artifact, attempting to fix...");
+        const model = getDefaultModel(DefaultModels.ADVANCED);
+        const fixedJson: string | null = await fixJsonString(model, chatEndpoint || "", statsService, content, "Failed to create artifact, attempting to fix...");
          // try to repair json
          const parsed:any  = fixedJson ? JSON.parse(fixedJson) : null;
         if (parsed && parsed.DATA) {

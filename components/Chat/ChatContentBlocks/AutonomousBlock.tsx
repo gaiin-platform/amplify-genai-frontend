@@ -1,29 +1,21 @@
-import {
-    IconFileCheck,
-} from '@tabler/icons-react';
+
 import React, {useContext, useEffect, useRef} from "react";
-import JSON5 from "json5";
 import HomeContext from "@/pages/api/home/home.context";
 import {useSendService} from "@/hooks/useChatSendService";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {execOp} from "@/services/opsService";
-import {ApiCall, OpDef} from "@/types/op";
 import {useSession} from "next-auth/react";
 import {getDbsForUser} from "@/services/pdbService";
 import {
     getApiCalls,
-    getServerProvidedOpFormat,
     getServerProvidedOps,
-    parseApiCalls,
     resolveOpDef,
     resolveServerHandler
 } from "@/utils/app/ops";
 import { FolderInterface } from '@/types/folder';
 import { Prompt } from '@/types/prompt';
 import {deepMerge} from "@/utils/app/state";
-import { getSettings } from '@/utils/app/settings';
-import { filterModels } from '@/utils/app/models';
 
 interface Props {
     conversation: Conversation;
@@ -49,17 +41,20 @@ const AutonomousBlock: React.FC<Props> = (
             selectedConversation,
             selectedAssistant,
             conversations,
+            availableModels,
             folders,
-            models,
             prompts,
             defaultModelId,
+            advancedModelId,
+            cheapestModelId,
             featureFlags,
             workspaceMetadata
         },
         shouldStopConversation,
         handleCreateFolder,
+        handleConversationAction,
         dispatch: homeDispatch,
-        handleAddMessages: handleAddMessages
+        handleAddMessages
     } = useContext(HomeContext);
 
 
@@ -119,6 +114,8 @@ const AutonomousBlock: React.FC<Props> = (
         "/models": "Listing the available models",
         "/prompts": "Listing the available prompts",
         "/defaultModelId": "Getting the default model ID",
+        "/advancedModelId": "Getting the defautl advanced model ID",
+        "/cheapestModelId": "Getting the default cheapest model ID",
         "/featureFlags": "Getting the feature flags",
         "/workspaceMetadata": "Getting the workspace metadata",
         "/selectedConversation": "Getting the selected conversation",
@@ -247,13 +244,19 @@ const AutonomousBlock: React.FC<Props> = (
             return await getDbsForUser();
         },
         "/models": (params:any) => {
-            return  filterModels(models, getSettings(featureFlags).modelOptions);
+            return  Object.values(availableModels);
         },
         "/prompts": (params:any) => {
             return promptsRef.current;
         },
         "/defaultModelId": (params:any) => {
             return defaultModelId;
+        },
+        "/advancedModelId": (params:any) => {
+            return advancedModelId;
+        },
+        "/cheapestModelId": (params:any) => {
+            return cheapestModelId;
         },
         "/featureFlags": (params:any) => {
             return featureFlags;
@@ -295,14 +298,11 @@ const AutonomousBlock: React.FC<Props> = (
                     if(chat){
                         moved[chatId] = "Moved successfully.";
                         chat.folderId = folder.id;
-                        homeDispatch({
-                            type: 'conversation',
-                            action: {
-                                type: 'changeFolder',
-                                conversationId: chat.id,
-                                folderId: folder.id
-                            }
-                        })
+                        handleConversationAction( {
+                                    type: 'changeFolder',
+                                    conversation: chat,
+                                    folderId: folder.id
+                                });
                     }
                     else {
                         moved[chatId] = "Chat not found.";
@@ -350,24 +350,22 @@ const AutonomousBlock: React.FC<Props> = (
             }
             hasExecuted[id] = true;
 
-            homeDispatch(
+            handleConversationAction(
                 {
-                    type: 'conversation',
-                    action: {
-                        type: 'updateMessages',
-                        conversationId: conversation.id,
-                        messages: [{
-                            ...message,
-                            data: {
-                                ...message.data,
-                                automation: {
-                                    status: "running"
-                                }
+                    type: 'updateMessages',
+                    conversation: conversation,
+                    messages: [{
+                        ...message,
+                        data: {
+                            ...message.data,
+                            automation: {
+                                status: "running"
                             }
-                        }]
-                    }
+                        }
+                    }]
                 }
-            )
+            );
+            // homeDispatch({ field: 'selectedConversation', value: conversation });
 
             const context = {
                 conversation,

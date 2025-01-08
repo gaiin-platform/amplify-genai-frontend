@@ -2,6 +2,7 @@ import React, { useState, useEffect, ReactNode, useContext, useRef } from 'react
 import { CloseSidebarButton, OpenSidebarButton } from "@/components/Sidebar/components/OpenCloseButton";
 import HomeContext from '@/pages/api/home/home.context';
 import { AssistantAdminUI, CreateAdminDialog } from '../Admin/AssistantAdminUI';
+import { AdminUI } from '../Admin/AdminUI';
 
 interface TabProps {
     icon: ReactNode;
@@ -31,6 +32,8 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
     // Set the initial state based on whether the user is on a mobile browser
     const [isOpen, setIsOpen] = useState(!isMobileBrowser());
     const [showAssistantAdmin, setShowAssistantAdmin] = useState<boolean>(false);
+    const [showAdminInterface, setShowAdminInterface] = useState<boolean>(false);
+
     const [isArtifactsOpen, setIsArtifactsOpen] = useState<boolean>(false);
     const [groupModalData, setGroupModalData] = useState<any>(undefined);
 
@@ -40,26 +43,37 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
 
     const isMultipleTabs = childrenArray.length > 1;
 
+    const handleAdmin = (isOpen: boolean) => {
+        if (isOpen && isArtifactsOpen)  window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false }} ));
+        setIsOpen(!isOpen);
+    }
 
     useEffect(() => {
+        const handleAstAdminEvent = (event:any) => {
+            const isAdminOpen = event.detail.isOpen;
+            handleAdmin(isAdminOpen);
+            setGroupModalData(event.detail.data);
+            setShowAssistantAdmin(isAdminOpen);  
+        };
+
         const handleAdminEvent = (event:any) => {
             const isAdminOpen = event.detail.isOpen;
-            if (isAdminOpen && isArtifactsOpen)  window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false }} ));
-            setGroupModalData(event.detail.data);
-
-            setIsOpen(!isAdminOpen);
-            setShowAssistantAdmin(isAdminOpen);  
-
+            handleAdmin(isAdminOpen);
+            setShowAdminInterface(isAdminOpen);  
         };
+
         const handleArtifactEvent = (event:any) => {
             const isArtifactsOpen = event.detail.isOpen;
             setIsOpen(!isArtifactsOpen);
             setIsArtifactsOpen(isArtifactsOpen);
         };
-        window.addEventListener('openAstAdminInterfaceTrigger', handleAdminEvent);
+
+        window.addEventListener('openAstAdminInterfaceTrigger', handleAstAdminEvent);
+        window.addEventListener('openAdminInterfaceTrigger', handleAdminEvent);
         window.addEventListener('openArtifactsTrigger', handleArtifactEvent);
         return () => {
-            window.removeEventListener('openAstAdminInterfaceTrigger', handleAdminEvent);
+            window.removeEventListener('openAstAdminInterfaceTrigger', handleAstAdminEvent);
+            window.removeEventListener('openAdminInterfaceTrigger', handleAdminEvent);
             window.removeEventListener('openArtifactsTrigger', handleArtifactEvent);
         };
     }, []);
@@ -68,6 +82,10 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
     useEffect(() => {
         if ( isOpen) setShowAssistantAdmin(false);
     }, [isOpen]);
+
+    const triggerOnce = () => {
+        return side === 'left'
+    };
 
     return isOpen ? (
         
@@ -101,12 +119,19 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
     ) : (
         //if we are going to use collapse side bars, interface takes up whole page, we can list the item here 
         <>
-        {(isArtifactsOpen && side === 'left' || !isArtifactsOpen) && <OpenSidebarButton onClick={toggleOpen} side={side} isDisabled={showAssistantAdmin}/>}
+        {(isArtifactsOpen && triggerOnce() || !isArtifactsOpen) && <OpenSidebarButton onClick={toggleOpen} side={side} isDisabled={showAssistantAdmin || showAdminInterface}/>}
         
         <AssistantAdminUI
-            open={showAssistantAdmin && side === 'left'}
+            open={showAssistantAdmin && triggerOnce()}
             openToGroup={groupModalData?.group}
             openToAssistant={groupModalData?.assistant}
+        />
+
+        <AdminUI
+            open={showAdminInterface && triggerOnce()}
+            onClose={() => {
+                window.dispatchEvent(new CustomEvent('openAdminInterfaceTrigger', { detail: { isOpen: false }} ));
+            }  }
         />
         </>
         

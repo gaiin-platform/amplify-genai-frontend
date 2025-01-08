@@ -17,7 +17,7 @@ import {
 
 import {useTranslation} from 'next-i18next';
 
-import { saveConversations} from '@/utils/app/conversation';
+import { deleteConversationCleanUp, saveConversations} from '@/utils/app/conversation';
 import {throttle} from '@/utils/data/throttle';
 
 import {Conversation, DataSource, Message, MessageType, newMessage} from '@/types/chat';
@@ -37,7 +37,7 @@ import {VariableModal} from "@/components/Chat/VariableModal";
 import {parseEditableVariables} from "@/utils/app/prompts";
 import {v4 as uuidv4} from 'uuid';
 import {fillInTemplate} from "@/utils/app/prompts";
-import {Model, ModelID, Models} from "@/types/model";
+import {DefaultModels, Model} from "@/types/model";
 import {Prompt} from "@/types/prompt";
 import {WorkflowDefinition} from "@/types/workflow";
 import {AttachedDocument} from "@/types/attacheddocument";
@@ -47,10 +47,9 @@ import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {DownloadModal} from "@/components/Download/DownloadModal";
 import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
-import {useSendService} from "@/hooks/useChatSendService";
+import {ChatRequest, useSendService} from "@/hooks/useChatSendService";
 import {CloudStorage} from './CloudStorage';
-import { getIsLocalStorageSelection, isRemoteConversation } from '@/utils/app/conversationStorage';
-import { deleteRemoteConversation } from '@/services/remoteConversationService';
+import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
 import { Artifacts } from '../Artifacts/Artifacts';
@@ -63,26 +62,15 @@ import { getSettings } from '@/utils/app/settings';
 import { filterModels } from '@/utils/app/models';
 import { promptForData } from '@/utils/app/llm';
 import cloneDeep from 'lodash/cloneDeep';
+import { useSession } from 'next-auth/react';
+import { ConfirmModal } from '../ReusableComponents/ConfirmModal';
+import { getActivePlugins } from '@/utils/app/plugin';
 
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
 }
 
-type ChatRequest = {
-    message: Message;
-    deleteCount?: number;
-    endpoint?: string;
-    plugin: Plugin | null;
-    existingResponse?: any;
-    rootPrompt: string | null;
-    documents?: AttachedDocument[] | null;
-    uri?: string | null;
-    options?: { [key: string]: any };
-    assistantId?: string;
-    prompt?: Prompt;
-    conversationId?: string;
-};
 
 export const Chat = memo(({stopConversationRef}: Props) => {
         const {t} = useTranslation('chat');
@@ -92,7 +80,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 selectedConversation,
                 selectedAssistant,
                 conversations,
-                models,
+                availableModels,
                 modelError,
                 loading,
                 prompts,
@@ -103,14 +91,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 storageSelection,
                 messageIsStreaming,
                 chatEndpoint,
-                folders
+                folders,
             },
             setLoadingMessage,
             handleUpdateConversation,
             dispatch: homeDispatch,
-            handleAddMessages: handleAddMessages,
-            handleUpdateSelectedConversation
+            handleUpdateSelectedConversation,
+            getDefaultModel, handleForkConversation
         } = useContext(HomeContext);
+
+        const { data: session } = useSession();
+        const userEmail = session?.user?.email;
+
+        // there should be a model id now since on fetchModels, I set it
+        const getDefaultModelIdFromLocalStorage = () => {
+            let defaultModel = localStorage.getItem('defaultModel');
+            return defaultModel ? JSON.parse(defaultModel) : '';
+        }
 
         const foldersRef = useRef(folders);
 
@@ -132,10 +129,25 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             conversationsRef.current = conversations;
         }, [conversations]);
     
-        const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
+        const filteredModels = filterModels(availableModels, getSettings(featureFlags).hiddenModelIds);
 
+        const initSelectedModel = () => {
+            const id =  selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id || defaultModelId || getDefaultModelIdFromLocalStorage();
+            if (id && filteredModels.find((m: Model) => m.id == id)) return id;
+
+            if (filteredModels.length > 0 && selectedConversation) {
+                const updatedModel = filteredModels[0];
+                handleUpdateSelectedConversation({...selectedConversation, model: updatedModel});
+                return updatedModel.id;
+            }
+
+            return undefined;
+        }
+        
+        const [plugins, setPlugins] = useState<Plugin[] | null>(null);
         const {handleSend:handleSendService} = useSendService();
-        const [selectedModelId, setSelectedModelId] = useState<ModelID | undefined>(selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id || Models[defaultModelId ?? ModelID.GPT_4o_MINI] );
+        // console.log(selectedConversation?.model?.id );
+        const [selectedModelId, setSelectedModelId] = useState<string | undefined>(initSelectedModel());
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
         const [showSettings, setShowSettings] = useState<boolean>(false);
@@ -150,7 +162,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
         // const [isDownloadingFile, setIsDownloadingFile] = useState<boolean>(false);
 
-
         const messagesEndRef = useRef<HTMLDivElement>(null);
         const chatContainerRef = useRef<HTMLDivElement>(null);
         const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -159,10 +170,16 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [artifactIndex, setArtifactIndex] = useState<number>(0);
         const [isRenaming, setIsRenaming] = useState<boolean>(false);
 
+        const [showOnEditMessagePrompt, setShowOnEditMessagePrompt] = useState< {editedMessage: Message, index: number}| null>(null);
+
+
         const [selectedConversationState, setSelectedConversationState] = useState<Conversation | undefined>(selectedConversation);
 
         useEffect(() => {
             setSelectedConversationState(selectedConversation);
+            if (selectedConversation && selectedConversation.model && selectedConversation.model.id !== selectedModelId) {
+                setSelectedModelId(selectedConversation.model.id);
+            }
             
             const renameConversation = async() => {
                 setIsRenaming(true);
@@ -172,7 +189,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     const promptMessages = cloneDeep(updatedConversation.messages);
                     promptMessages[0].content = `Look at the following prompt: "${promptMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`
                     
-                    promptForData(chatEndpoint || '', promptMessages.slice(0,1), Models[ModelID.CLAUDE_3_HAIKU], "Respond with only the title name and nothing else.", statsService, 10)
+                    promptForData(chatEndpoint || '', promptMessages.slice(0,1), getDefaultModel(DefaultModels.CHEAPEST), "Respond with only the title name and nothing else.", statsService, 10)
                                  .then(customName => {
                                     let updatedName: string = customName ?? '';
                                     if (!customName) {
@@ -190,9 +207,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 })
                 }
             }
-            if (selectedConversation?.messages.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
+            if (selectedConversation?.messages?.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
         }, [selectedConversation]);
 
+        
 
         useEffect(() => {
             const handleEvent = (event:any) => {
@@ -206,22 +224,35 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             };
         }, []);
 
+        useEffect(() => {
+            if (!plugins) setPlugins(getActivePlugins(getSettings(featureFlags)));
+        }, [featureFlags]);
 
         useEffect(() =>{
             const astModel = selectedAssistant?.definition?.data?.model;
             
             if (astModel && selectedModelId !== astModel) setSelectedModelId(astModel);
-            if (astModel && selectedConversation && selectedConversation.model?.id !== astModel) handleUpdateConversation(selectedConversation, {
-                                        key: 'model',
-                                        value: models.find(
-                                        (model: Model) => model.id === astModel,
-                                        ),
-                                    });
+            if (astModel && selectedConversation && selectedConversation.model?.id !== astModel) {
+                const model:Model | undefined = Object.values(availableModels).find(
+                                                          (model: Model) => model.id === astModel,
+                                                   );
+                if (model) handleUpdateSelectedConversation({...selectedConversation, model: model});
+            }
             
             if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) {
-                if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id as ModelID);
+                if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id);
             }
         }, [selectedAssistant, selectedConversation]);
+
+        // useEffect(() => {
+        //     // ensure the modelId and selectedConversation model are in sync.
+        //     if (selectedConversation && selectedConversation.model?.id !== selectedModelId && !selectedAssistant?.definition?.data?.model) {
+        //         const model:Model | undefined = Object.values(availableModels).find(
+        //                 (model: Model) => model.id === selectedModelId,
+        //         );
+        //         if (model) handleUpdateSelectedConversation({...selectedConversation, model: model});
+        //     }
+        // }, [selectedModelId]);
 
         const updateMessage = (selectedConversation: Conversation, updatedMessage: Message, updateIndex: number) => {
             let updatedConversation = {
@@ -231,7 +262,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             const updatedMessages: Message[] =
                 updatedConversation.messages.map((message, index) => {
                     if (index === updateIndex) {
-                        return {...updatedMessage};
+                        return {...message, content: updatedMessage.content};
                     }
                     return message;
                 });
@@ -254,7 +285,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             (
                 message: Message,
                 deleteCount = 0,
-                plugin: Plugin | null = null,
                 existingResponse = null,
                 rootPrompt: string | null = null,
                 documents?: AttachedDocument[] | null,
@@ -264,10 +294,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 const conversationId = selectedConversation?.id;
 
+                const chatPlugins = plugins ?? [];// Plugins are set up top now, they are basically conversation configs now.
+
                 return {
                     message,
                     deleteCount,
-                    plugin,
+                    plugins : chatPlugins, 
                     existingResponse,
                     rootPrompt,
                     documents,
@@ -367,7 +399,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         let [action, path] = action_path.split("/");
                         if (action === "send") {
                             const content = path;
-                            const request = createChatRequest(newMessage({role: 'user', content: content}), 0, null);
+                            const request = createChatRequest(newMessage({role: 'user', content: content}), 0);
                             handleSend(request);
                         } else if (action === "template") {
                             const name = path;
@@ -467,7 +499,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         // do not involve a prompt template start here.
         
         
-        const routeMessage = (message: Message, deleteCount: number | undefined, plugin: Plugin | null | undefined, documents: AttachedDocument[] | null) => {
+        const routeMessage = (message: Message, deleteCount: number | undefined, documents: AttachedDocument[] | null) => {
 
             if (message.type == MessageType.PROMPT
                 || message.type == MessageType.ROOT
@@ -517,7 +549,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     const request = createChatRequest(
                         message,
                         deleteCount,
-                        plugin,
                         null,
                         null,
                         documents,
@@ -530,7 +561,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                     handleSend(request);
                 } else {
-                    const request = createChatRequest(message, deleteCount, plugin, null, null, documents);
+                    const request = createChatRequest(message, deleteCount, null, null, documents);
                     handleSend(request);
                 }
             } else {
@@ -601,7 +632,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     message.type === MessageType.ROOT ||
                     message.type === MessageType.PREFIX_PROMPT) {
 
-                    const request = createChatRequest(message, 0, null, null, null, documents);
+                    const request = createChatRequest(message, 0, null, null, documents);
                     request.prompt = templateData;
 
                     let assistantId = null;
@@ -681,11 +712,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         };
 
         const handleScrollUp = () => {
-            chatContainerRef.current?.scrollTo({
-                top: 30,
-                behavior: 'smooth',
-            });
+            if (modelSelectRef && modelSelectRef.current) {
+                const rect = modelSelectRef.current.getBoundingClientRect();
+                
+                // Check if the element is fully in view, partially in view, or not visible
+                const inView = (
+                    rect.top >= 0 &&
+                    rect.left >= 0 &&
+                    rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+                    rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+                );
+        
+                if (!inView) {
+                    modelSelectRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                }
+            }
         };
+        
 
         const handleSettings = () => {
             setShowSettings(!showSettings);
@@ -714,12 +757,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             throttledScrollDown();
             selectedConversation &&
             setCurrentMessage(
-                selectedConversation.messages[selectedConversation.messages.length - 2],
+                selectedConversation.messages[selectedConversation.messages?.length - 2],
             );
         }, [selectedConversation, throttledScrollDown]);
 
         const handleDeleteConversation = (conversation: Conversation) => {
-            if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
+            deleteConversationCleanUp(conversation);
             const updatedConversations = conversationsRef.current.filter(
                 (c:Conversation) => c.id !== conversation.id,
             );
@@ -735,14 +778,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 });
 
             } else {
-                defaultModelId &&
                 homeDispatch({
                     field: 'selectedConversation',
                     value: {
                         id: uuidv4(),
                         name: t('New Conversation'),
                         messages: [],
-                        model: Models[defaultModelId as ModelID],
+                        model: getDefaultModel(DefaultModels.DEFAULT),
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
@@ -756,7 +798,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const handlePromptTemplateDialogCancel = (canceled: boolean) => {
             if (canceled) {
-                if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
+                if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages?.length == 0) {
                     handleDeleteConversation(selectedConversation);
                 }
             }
@@ -767,7 +809,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (selectedConversation
                 && selectedConversation.promptTemplate
                 && isAssistant(selectedConversation.promptTemplate)
-                && selectedConversation.messages.length == 0) {
+                && selectedConversation.messages?.length == 0) {
                     
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
@@ -775,7 +817,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     if (prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
-            else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages.length == 0) {
+            else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages?.length == 0) {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
                     // make sure assistant hasnt been deleted 
@@ -784,7 +826,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
                 setIsPromptTemplateDialogVisible(true);
-            } else if (selectedConversation && selectedConversation.workflowDefinition && selectedConversation.messages.length == 0) {
+            } else if (selectedConversation && selectedConversation.workflowDefinition && selectedConversation.messages?.length == 0) {
                 //alert("Prompt Template");
                 const workflowVariables = Object.entries(selectedConversation.workflowDefinition.inputs.parameters)
                     .map(([k, v]) => k);
@@ -828,9 +870,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     isFetching = true;
 
                     try {
-                        const result = await doMtdCostOp();
-                        if (result && result.item && result.item["MTD Cost"] !== undefined) {
-                            setMtdCost(`$${result.item["MTD Cost"].toFixed(2)}`);
+                        const result = await doMtdCostOp(userEmail ?? '');
+                        if (result && "MTD Cost" in result && result["MTD Cost"] !== undefined) {
+                            setMtdCost(`$${result["MTD Cost"].toFixed(2)}`);
                         } else {
                             setMtdCost('$0.00');
                         }
@@ -853,12 +895,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 // @ts-ignore
         return (
             <>
-            {selectedConversation && selectedConversation.messages.length > 0 && 
+            {selectedConversation && selectedConversation.messages?.length > 0 && 
             featureFlags.highlighter && getSettings(featureFlags).featureOptions.includeHighlighter && 
                 <PromptHighlightedText 
                 onSend={(message) => {
                     setCurrentMessage(message);
-                    routeMessage(message, 0, null, []);
+                    routeMessage(message, 0, []);
                 }} 
                 />
             }
@@ -872,15 +914,16 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             ref={chatContainerRef}
                             onScroll={handleScroll}
                         >
-                            {selectedConversation && selectedConversation.messages.length === 0 && filteredModels ? (
+                            {selectedConversation && selectedConversation.messages?.length === 0 && filteredModels ? (
                                 <>
                                     <div
                                         className="mx-auto flex flex-col space-y-1 md:space-y-8 px-3 pt-5 md:pt-10 sm:max-w-[600px]">
                                         <div
                                             className="text-center text-3xl font-semibold text-gray-800 dark:text-gray-100">
                                             {filteredModels.length === 0 ? (
-                                                <div>
-                                                    <Spinner size="16px" className="mx-auto"/>
+                                                <div className='flex flex-row gap-2 text-lg justify-center items-center'>
+                                                    <Spinner size="16px" /> 
+                                                    Loading Models...
                                                 </div>
                                             ) : (
                                                 'Start a new conversation.'
@@ -949,7 +992,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                             if (selectedConversation && selectedConversation.model) {
 
                                                                 const tokens = Math.floor(1000 * (r / 3.0)) + 1;
-
+                                                                console.log(tokens);
                                                                 handleUpdateConversation(selectedConversation, {
                                                                     key: 'maxTokens',
                                                                     value: tokens,
@@ -1026,6 +1069,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             <>
                                                 <button
                                                     className="ml-2 mr-2 cursor-pointer hover:opacity-50"
+                                                    disabled={messageIsStreaming}
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
@@ -1039,8 +1083,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 </button>
                                                 |
                                             </>
-                                        )}
-                                        { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' } { selectedAssistant?.definition?.data?.model ? Models[selectedAssistant.definition.data.model as ModelID].name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
+                                        )}                 
+                                                                                                              {/* Should be in sync with selectedModelId now:      old   selectedConversation?.model?.name || ''*/}
+                                        { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' } {selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={(e) => {
@@ -1048,11 +1093,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 e.stopPropagation();
                                                 handleSettings();
 
-                                                if (!showSettings) {
-                                                    handleScrollUp();
-                                                } else {
-                                                    handleScrollDown();
-                                                } 
+                                                if (!showSettings && !messageIsStreaming) handleScrollUp();
                                                 
                                             }}
                                             title="Chat Settings"
@@ -1062,6 +1103,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
+                                            disabled={messageIsStreaming}
                                             onClick={onClearAll}
                                             title="Clear Messages"
                                         >
@@ -1069,6 +1111,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         </button>
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
+                                            disabled={messageIsStreaming}
                                             onClick={() => setIsShareDialogVisible(true)}
                                             title="Share"
                                         >
@@ -1076,6 +1119,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         </button>
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
+                                            disabled={messageIsStreaming}
                                             onClick={(e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
@@ -1098,6 +1142,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             |
                                             <button
                                                 className="ml-2 mr-2 cursor-pointer hover:opacity-50"
+                                                disabled={messageIsStreaming}
                                                 onClick={(e) => {
                                                     e.preventDefault();
                                                     e.stopPropagation();
@@ -1115,7 +1160,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     </div>
                                     <div ref={modelSelectRef}></div>
                                     
-                                        <div
+                                        <div 
                                             className="flex flex-col md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl ">
                                             { showSettings && !(selectedAssistant?.definition?.data?.model) &&
                                                 <div
@@ -1147,10 +1192,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 message={message}
                                                 messageIndex={index}
                                                 onChatRewrite={handleChatRewrite}
-                                                onSend={(message) => {
-                                                    setCurrentMessage(message[0]);
-                                                    routeMessage(message[0], 0, null, []);
-                                                }}
                                                 onSendPrompt={runPrompt}
                                                 handleCustomLinkClick={handleCustomLinkClick}
                                                 onEdit={(editedMessage) => {
@@ -1159,7 +1200,17 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     setCurrentMessage(editedMessage);
 
                                                     if (editedMessage.role != "assistant") {
-                                                        routeMessage(editedMessage, selectedConversationState?.messages.length - index, null, []);
+                                                        const lastUserMessageIndex = selectedConversationState?.messages
+                                                                                                               .map(msg => msg.role)
+                                                                                                               .lastIndexOf('user');                                                                                                    
+
+                                                        if (index === lastUserMessageIndex) {
+                                                            routeMessage(editedMessage, selectedConversationState?.messages.length - index, []);
+                                                        } else {
+                                                            // ask to fork or overwrite 
+                                                            setShowOnEditMessagePrompt({editedMessage: editedMessage, index: index});
+                                                        }
+                                                        
                                                     } else {
                                                         console.log("updateMessage");
                                                         updateMessage(selectedConversationState, editedMessage, index);
@@ -1189,28 +1240,57 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             }}
                                         />
                                     )}
+
+                                    {showOnEditMessagePrompt && 
+                                    <ConfirmModal
+                                    title='Save a Copy of the Conversation?'
+                                    message="Would you like to save a copy of the conversation with the original messages before finalizing your edits? Once the changes are applied, any messages following the edited one will be removed and resubmitted to the model, effectively updating and overwriting the conversation."
+                                    onDeny={() => {
+                                        const data = {...showOnEditMessagePrompt};
+                                        setShowOnEditMessagePrompt(null);
+                                        if (selectedConversationState) routeMessage(data.editedMessage, 
+                                            selectedConversationState.messages.length - data.index, []);
+                                     }}
+                                     denyLabel='Overwrite Only'
+                                     onConfirm={async () => {
+                                        if (selectedConversationState) {
+                                            const len = selectedConversationState?.messages.length;
+                                            const data = {...showOnEditMessagePrompt};
+                                            setShowOnEditMessagePrompt(null);
+                                            await handleForkConversation(len - 1, false);
+                                            updateMessage(selectedConversationState, data.editedMessage, data.index);
+                                            routeMessage(data.editedMessage, len - data.index, []);
+                                        }}}
+                                        confirmLabel="Save Copy"
+                                    />
+
+                                    }
+
                                 </>
                             )}
                         </div>
 
+                       {filteredModels.length > 0 && 
                         <ChatInput
                             handleUpdateModel={handleUpdateModel}
                             stopConversationRef={stopConversationRef}
                             textareaRef={textareaRef}
-                            onSend={(message, plugin, documents: AttachedDocument[] | null) => {
+                            onSend={(message, documents: AttachedDocument[] | null) => {
                                 setCurrentMessage(message);
                                 //handleSend(message, 0, plugin);
-                                routeMessage(message, 0, plugin, documents);
+                                routeMessage(message, 0, documents);
                             }}
                             onScrollDownClick={handleScrollDown}
                             onRegenerate={() => {
                                 if (currentMessage) {
                                     //handleSend(currentMessage, 2, null);
-                                    routeMessage(currentMessage, 2, null, null);
+                                    routeMessage(currentMessage, 2, null);
                                 }
                             }}
                             showScrollDownButton={showScrollDownButton}
-                        />
+                            plugins={plugins ?? []}
+                            setPlugins={setPlugins}
+                        />}
                     </div>
                 )}
             </div>

@@ -71,23 +71,20 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
     }, [user]);
 
     const fetchSWYData = async (name: string) => {
-        try {
             if (name) {
                 try {
-                    const result = await getSharedItems(name);
-                    if (result.ok) {
-                        const items = await result.json();
-                        const grouped = groupBy('sharedBy', items.item);
+                    const result = await getSharedItems();
+                    if (result.success) {
+                        const grouped = groupBy('sharedBy', result.items);
                         setGroupedItems(grouped);
                     }
 
+                } catch (e) {
+                   alert("Unable to fetch your shared items. Please check your Internet connection and try again later.")
                 } finally {
                     if (activeTab === "SWY") setIsLoading(false);
                 }
             }
-        } catch (e) {
-           alert("Unable to fetch your shared items. Please check your Internet connection and try again later.")
-        }
     };
 
     const fetchYSData = async (name: string) => {

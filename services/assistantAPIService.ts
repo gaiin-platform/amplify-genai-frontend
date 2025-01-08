@@ -1,25 +1,31 @@
-export const executeAssistantApiCall = async (data: any) => {
-    try {
-        // console.log("DATA:", data);
-        const response = await fetch('/api/assistantApi/op', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-        });
+import { doRequestOp } from "./doRequestOp";
 
-        if (response.ok) {
-            try {
-                const result = await response.json();
-                return result;
-            } catch (e) {
-                return { success: false, message: "Error parsing response." };
-            }
-        } else {
-            return { success: false, message: `Error executing custom auto: ${response.statusText}.` }
-        }
-    } catch (error) {
-        return { success: false, message: `Network error: ${error}` };
-    }
+const URL_PATH =  "/assistant-api";
+
+export const executeAssistantApiCall = async (data: any) => {
+    const op = {
+        //url: 'http://localhost:3015',
+        method: 'POST',
+        path: URL_PATH,
+        op: "/execute-custom-auto",
+        data: data
+    };
+    return await doRequestOp(op);
 }
+
+export const getAsyncResult = async (data: any) => {
+
+    const sleepTime = data.sleepTime || 1000;
+    console.log("Sleeping for", sleepTime);
+    await new Promise((resolve) => setTimeout(resolve, sleepTime));
+
+    const op = {
+        //url: 'http://localhost:3015',
+        method: 'POST',
+        path: URL_PATH,
+        op: "/get-job-result",
+        data: data
+    };
+    return await doRequestOp(op);
+}
+

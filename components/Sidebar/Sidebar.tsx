@@ -1,9 +1,10 @@
 import { IconFolderPlus, IconMistOff, IconPlus } from '@tabler/icons-react';
-import { ReactNode, useState } from 'react';
+import { ReactNode, useContext, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Search from '../Search';
 import { KebabMenu } from './components/KebabMenu';
 import { SortType } from '@/types/folder';
+import HomeContext from '@/pages/api/home/home.context';
 
 
 interface Props<T> {
@@ -42,7 +43,7 @@ const Sidebar = <T,>({
   setFolderSort,
 }: Props<T>) => {
 
-
+  const { state: { messageIsStreaming}} = useContext(HomeContext);
   const { t } = useTranslation('promptbar');
 
   const allowDrop = (e: any) => {
@@ -57,7 +58,9 @@ const Sidebar = <T,>({
     e.target.style.background = 'none';
   };
 
-  const addItemButton = (width: string) => ( <button className={`text-sidebar flex ${width} flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-gray-500/10`}
+  const addItemButton = (width: string) => ( <button className={`text-sidebar flex ${width} flex-shrink-0 select-none items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 dark:text-white transition-colors duration-200 
+                              ${side === 'left' && messageIsStreaming ? "cursor-not-allowed" : "hover:bg-gray-500/10 cursor-pointer "}`}
+                              disabled={side === 'left' && messageIsStreaming}
                               onClick={() => {
                                 handleCreateItem();
                                 handleSearchTerm('');

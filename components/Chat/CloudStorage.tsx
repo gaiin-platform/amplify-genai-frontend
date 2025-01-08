@@ -7,8 +7,8 @@ import { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 
 import HomeContext from '@/pages/api/home/home.context';
-import { handleConversationIsLocalChange, isRemoteConversation } from '@/utils/app/conversationStorage';
-import { saveConversations } from '@/utils/app/conversation';
+import { handleConversationIsLocalChange} from '@/utils/app/conversationStorage';
+import { saveConversations, isRemoteConversation } from '@/utils/app/conversation';
 import { Conversation } from '@/types/chat';
 
 
@@ -22,7 +22,7 @@ export const CloudStorage: FC<Props> = ({
   iconSize
 }) => {
   const { 
-    state: { selectedConversation, conversations, folders, statsService}, dispatch: homeDispatch
+    state: { selectedConversation, conversations, folders, statsService, messageIsStreaming}, dispatch: homeDispatch
   } = useContext(HomeContext);
 
   const conversationsRef = useRef(conversations);
@@ -74,7 +74,8 @@ const handleConversationLockChange = async () => {
 }
 
 return  <button
-    className="ml-2 cursor-pointer hover:opacity-50 pr-2"
+    className={`ml-2 ${messageIsStreaming ? "cursor-not-allowed": "cursor-pointer"} hover:opacity-50 pr-2`}
+    disabled={messageIsStreaming}
     onClick={(e) => {
         if (confirm(title() + confirmationMessage())) handleConversationLockChange();
     }}

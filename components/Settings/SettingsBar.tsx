@@ -10,7 +10,6 @@ import { exportData, importData } from '@/utils/app/importExport';
 
 import { Conversation } from '@/types/chat';
 import { LatestExportFormat, SupportedExportFormats } from '@/types/export';
-import { ModelID, Models } from '@/types/model';
 
 import HomeContext from '@/pages/api/home/home.context';
 
@@ -25,6 +24,7 @@ import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {Prompt} from "@/types/prompt";
 import {FolderInterface} from "@/types/folder";
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
+import { DefaultModels } from '@/types/model';
 
 export const SettingsBar = () => {
     const { t } = useTranslation('sidebar');
@@ -39,8 +39,8 @@ export const SettingsBar = () => {
     const [sharedFolders, setSharedFolders] = useState<FolderInterface[]>([])
 
     const {
-        state: {  defaultModelId, conversations, prompts, folders, statsService, storageSelection},
-        dispatch: homeDispatch,
+        state: {  conversations, prompts, folders, statsService, storageSelection},
+        dispatch: homeDispatch, getDefaultModel
     } = useContext(HomeContext);
 
     const foldersRef = useRef(folders);
@@ -71,7 +71,7 @@ export const SettingsBar = () => {
     };
 
     const handleImportConversations = (data: SupportedExportFormats) => {
-        const { history, folders, prompts }: LatestExportFormat = importData(data, conversationsRef.current, promptsRef.current, foldersRef.current);
+        const { history, folders, prompts }: LatestExportFormat = importData(data, conversationsRef.current, promptsRef.current, foldersRef.current, getDefaultModel(DefaultModels.DEFAULT));
         homeDispatch({ field: 'conversations', value: history });
         homeDispatch({
             field: 'selectedConversation',
@@ -84,14 +84,13 @@ export const SettingsBar = () => {
     };
 
     const handleClearConversations = () => {
-        defaultModelId &&
         homeDispatch({
             field: 'selectedConversation',
             value: {
                 id: uuidv4(),
                 name: t('New Conversation'),
                 messages: [],
-                model: Models[defaultModelId as ModelID],
+                model: getDefaultModel(DefaultModels.DEFAULT),
                 prompt: DEFAULT_SYSTEM_PROMPT,
                 temperature: DEFAULT_TEMPERATURE,
                 folderId: null,

@@ -4,10 +4,11 @@ import {Workspace} from "@/types/workspace";
 const STORAGE_KEY = 'settings';
 
 export const getSettings = (featureFlags:any): Settings => {
+  // filter settings to ensure all models are still available 
   let settings: Settings = {
     theme: 'dark',
     featureOptions: featureOptionDefaults(featureFlags),
-    modelOptions: modelOptionDefaults
+    hiddenModelIds: []
   };
   const settingsJson = localStorage.getItem(STORAGE_KEY);
   if (settingsJson) {
@@ -41,20 +42,21 @@ export const featureOptionFlags = [
   {
       "label": "Smart Focused Messages",
       "key": "includeFocusedMessages",
-      "defaultValue": false,
+      "defaultValue": true,
       "description" : "Automatically filter and send only the most relevant messages from the conversation based on the current user prompt. Instead of sending the entire conversation history, this feature ensures that only the messages closely related to your request are shared, making responses more efficient."
   },
   {
     "label": "Plugin Selector",
     "key": "includePluginSelector",
     "defaultValue": true,
-    "description": "The Plugin Selector allows customization of the experience by enabling or disabling specific tools. For example, you can disable the retrieval-augmented generation (RAG) feature or enable Code Interpreter."
+    "description": "The Plugin Selector allows customization of the experience by enabling or disabling specific tools. For example, you can disable the retrieval-augmented generation (RAG) feature, enable Code Interpreter, or turn on and off enabled settings."
   }, 
   {
     "label": "Prompt Highlighter",
     "key": "includeHighlighter",
     "defaultValue": false,
-    "description" : "Highlight text in assistant messages or artifacts for three key purposes: prompt against selected content, prompt for fast inline edits, or create and insert new compositions by combining multiple highlighted sections. \nThis feature streamlines the process of interacting with and revising text, making it easy to generate responses, modify content, or draft new sections based on your selections."
+    "description" : "Highlight text in assistant messages or artifact content for two key purposes: prompt against selected content or prompt for fast inline edits. \nThis feature streamlines the process of interacting with and revising text, making it easy to generate responses, modify content, or draft new sections based on your selections."
+    // "description" : "Highlight text in assistant messages or artifact content for three key purposes: prompt against selected content, prompt for fast inline edits, or create and insert new compositions by combining multiple highlighted sections. \nThis feature streamlines the process of interacting with and revising text, making it easy to generate responses, modify content, or draft new sections based on your selections."
   },
   {
     "label": "Memory",
@@ -81,27 +83,6 @@ const featureOptionDefaults = (featureFlags:any) =>  featureOptionFlags.reduce((
 }, {});
 
 
-export const modelOptionFlags = [
-{
-  "label": "OpenAI",
-  "key": "allOpenAI",
-  "defaultValue": true
-},
-{
-    "label": "Claude",
-    "key": "allClaude",
-    "defaultValue": true
-},
-{
-    "label": "Mistral",
-    "key": "allMistral",
-    "defaultValue": true
-},
-];
 
-const modelOptionDefaults = modelOptionFlags.reduce((acc:{[key:string]:boolean}, x) => {
-  acc[x.key] = x.defaultValue;
-  return acc;
-}, {});
 
 

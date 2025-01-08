@@ -1,8 +1,7 @@
 export interface Settings {
   theme: Theme;
-  modelOptions: { [key: string]: boolean };
+  hiddenModelIds: string[];
   featureOptions: { [key: string]: boolean };
-
 }
 
 

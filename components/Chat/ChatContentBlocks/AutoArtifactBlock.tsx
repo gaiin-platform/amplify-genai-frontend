@@ -5,12 +5,13 @@ import {Conversation, Message, newMessage} from "@/types/chat";
 import {getSession} from "next-auth/react"
 import {deepMerge} from "@/utils/app/state";
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";
-import { ModelID, Models } from "@/types/model";
 import { IconHammer } from "@tabler/icons-react";
 import { Artifact, ArtifactBlockDetail, ArtifactMessageStatus, validArtifactTypes } from "@/types/artifacts";
 import { lzwCompress, lzwUncompress } from "@/utils/app/lzwCompression";
 import { getDateName } from "@/utils/app/date";
 import { fixJsonString } from "@/utils/app/errorHandling";
+import { DefaultModels } from "@/types/model";
+import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codeblock";
 
 
 interface Props {
@@ -27,14 +28,15 @@ const AutoArtifactsBlock: React.FC<Props> = ({content, ready, message}) => {
             folders,
             statsService,
             chatEndpoint,
-            artifactIsStreaming
-
+            artifactIsStreaming,
         },
-        dispatch: homeDispatch, handleUpdateSelectedConversation
+        dispatch: homeDispatch, handleUpdateSelectedConversation, getDefaultModel
     } = useContext(HomeContext);
 
     const [llmPrompted, setLlmPrompted]  = useState<boolean>(false);
-    const [versionContentList, setVersionContentList]  = useState<string[]>([]);
+    const versionContentMapRef  = useRef<{[key:string]:string}>({});
+
+
     const shouldAbortRef  = useRef<boolean>(false);
 
     const conversationsRef = useRef(conversations);
@@ -110,14 +112,14 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `Follow these structural guidelines strictl
 const ARTIFACT_VERSION_INSTRUCTIONS = `
     It is required to have a complete and/or fully functional artifact version.
 
-1. **Referencing Components**: You will be provided with an ordered list where each index corresponds to a specific component of the artifact. The index acts as the key, and the content of the component is the value. 
-Components are to be referred to by their index in the format '~{index}'.
+1. **Referencing Components**: You will be provided with an Map where each the key corresponds to a specific section of the artifact and the content of the component is the value. 
+Components are to be referred to by their key in the format '~A{number}'.
 
 2. **Updating Components**:
-   - If you are updating a component, include the complete content of that component including edits in the new version, regardless of the extent of changes.
-   - For any component that remains unchanged, reference it using the '~{index}' format, where 'index' is the position of the component in the provided list.
+   - If you are updating a component section, include the complete content of that section including edits in the new version, regardless of the extent of changes.
+   - For any component sections that remains unchanged, reference it using the '~A{number}' format, where number comes from the key values in the format 'A{number}'
 
-3. **Example Response Format**: structurinng the new version of an artifact with JavaScript at index 0 (~0)  you decided there will be no changes applied to this section, HTML at index 1 (~1)  you determine you will be applying changes , and a new CSS component:
+3. **Example Response Format**: structurinng the new version of an artifact with JavaScript at key A0 (~A0)  you decided there will be no changes applied to this section, HTML at index A1 (~1) you determine you will be applying changes, and a new CSS component:
 
    ~A0
 
@@ -130,12 +132,16 @@ Components are to be referred to by their index in the format '~{index}'.
    /* ... */
    \`\`\`
 
-5. **Consistency**: Ensure that the new version maintains the integrity and functionality of the artifact. All components, whether updated or referenced by their index, should work together seamlessly in the new version.
-If you provide a ~# then assume I will insert the context for that specific referenced content and thus does not need to be reproduced by you. 
+5. **Consistency**: Ensure that the new version maintains the integrity and functionality of the artifact. All component sections, whether updated or referenced by their key, should work together seamlessly in the new version.
+If you provide a ~A# then assume I will insert the context for that specific referenced content and thus does not need to be reproduced by you. 
+
+Please save yourself work, if you can reuse any part of the the Artifact Context (when it makes sense to do so) then you must provide a ~A# so, we can save tokens.
+You goal is to maximize the saved tokens **while providing the user with a qulity response (top priority)**. 
 `;
 
 const repairJson = async () => {
-    const fixedJson: string | null = await fixJsonString(chatEndpoint || "", statsService, content, "Failed to create artifact, attempting to fix...");
+    const model = getDefaultModel(DefaultModels.ADVANCED);
+    const fixedJson: string | null = await fixJsonString( model, chatEndpoint || "", statsService, content, "Failed to create artifact, attempting to fix...");
      // try to repair json
      if (fixedJson) {
         message.data.artifactStatus = ArtifactMessageStatus.RETRY;   
@@ -209,20 +215,19 @@ const appendRelevantArtifacts = (includeArtifactsId: string[], currentId: string
             const lastArtifact = artifacts.slice(-1)[0].contents;
             const content = lzwUncompress(lastArtifact);
             if (id === currentId) {
-                versionInstr += ARTIFACT_VERSION_INSTRUCTIONS + '\nThis is the latest version of the artifact you will now create a new version for:\n';
-                let parts = content.split(/(```[\s\S]*?```)/g);
-                // Process each part to split further at new lines if it's not a code block
-                let contentList = parts.flatMap(part => {
-                // Check if the part is a code block
-                if (/^```[\s\S]*```$/.test(part)) {
-                    return [part];
-                } else {
-                    return part.split('\n').filter(line => line.trim() !== ''); // Split at new lines and filter out empty lines
+                versionInstr += ARTIFACT_VERSION_INSTRUCTIONS + '\nArtifact Context split up into parts:\n';
+                let contentList: string[] = extractCodeBlocksAndText(content).map((detail: CodeBlockDetails) => 
+                                                                                   detail.extension === ".txt" ? detail.code :
+                                                                                   `\`\`\` ${detail.language} ${detail.code}\`\`\` `    
+                                                                                   );
+                                                                                    
+                if (contentList.length > 0){
+                    const contentMap: {[key:string]:string} = {};
+                    contentList.forEach((part: string, index: number) => contentMap[`A${index}`] = part );
+                    versionContentMapRef.current = contentMap;
+                    versionInstr += JSON.stringify(contentMap);
                 }
-                });
-                setVersionContentList(contentList);
-                const contentToString = contentList.map((part: string, index: number) => `A${index}\n${part}\n\n` );
-                versionInstr += contentToString.join('');
+               
             } else {
                 instr += `Artifact ID: ${id}, Content: ${content}\n\n`;
             }
@@ -299,7 +304,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             homeDispatch({field: "selectedArtifacts", value: selectArtifacts});
             
             const chatBody = {
-            model: selectedConversation.model || Models[ModelID.GPT_4o_AZ],
+            model: selectedConversation.model ?? getDefaultModel(DefaultModels.ADVANCED),
             messages: [{role: 'user', content: llmInstructions} as Message],
             key: accessToken,
             prompt: ARTIFACT_CUSTOM_INSTRUCTIONS,
@@ -328,7 +333,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             let text = selectedConversation.messages[messageLen].content + '\n\n';
             let artifactText: string = '';
 
-            const placeholderRegex = /\~A(\d+)/;
+            const placeholderRegex = /\~A(\d+)/g;
 
             let isAssistantMsg = false;
 
@@ -336,30 +341,28 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             try {
                 
                 while (!done) {
-
                     // @ts-ignore
-                    const {value, done: doneReading} = await reader.read();
-                    done = doneReading;
+                    const {value, done} = await reader.read();
                     const chunkValue = decoder.decode(value);
-                    if (done || controller.signal.aborted) break;
-                    buffer += chunkValue;
+                    if (chunkValue) buffer += chunkValue;
 
                     if (buffer.length > 7) {
-
                         // replace tag references with content:
-                        if (placeholderRegex.test(buffer)) {
-                            console.log(" buffer contains tag: ", buffer)
-                            buffer = buffer.replace(placeholderRegex, (match, index) => {
-                                let arrayIndex = parseInt(index, 10);
-                                // Check if the index is within the bounds of the versionContentList array
-                                if (arrayIndex >= 0 && arrayIndex < versionContentList.length) {
-                                    return versionContentList[arrayIndex];
+                        if (versionContentMapRef.current && placeholderRegex.test(buffer)) {
+                            console.log("Buffer contains tag(s):", buffer);
+                        
+                            buffer = buffer.replace(placeholderRegex, (match) => {
+                                // Remove the leading `~` so the key becomes A<number>
+                                const key = match.slice(1);
+                                // Check if the key exists in versionContentMapRef.current
+                                if (key in versionContentMapRef.current) {
+                                    console.log("Tag replaced with context in the Buffer", key);
+                                    return `\n${versionContentMapRef.current[key]}\n`;
                                 } else {
-                                    console.log(" buffer contained an out of bounds tag: ", buffer)
+                                    console.log("Buffer contained a tag with an invalid key:", key);
                                     return '';
                                 }
                             });
-                            console.log(" buffer contained tag: ", buffer)
                         }
                     
                         if ((buffer.includes(startMarker) && !isAssistantMsg) || (buffer.includes(endMarker) && isAssistantMsg)) {
@@ -367,25 +370,27 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                             let splitText;
                             if (buffer.includes(startMarker)) {
                                 splitText = buffer.split(startMarker);
+
                                 // Everything before the start marker goes to artifactText
                                 artifactText += splitText[0];
                                 // Everything after the start marker goes to text
-                                buffer = splitText[1];
+                                text += splitText[1];
                                 isAssistantMsg = true;
                             } else if (buffer.includes(endMarker)) {
                                 splitText = buffer.split(endMarker);
+
                                 // Everything before the end marker goes to text
                                 text += splitText[0];
                                 // Everything after the end marker goes to artifactText
-                                buffer = splitText[1];
+                                artifactText += splitText[1];
                                 isAssistantMsg = false;
                             }
                         
                             // Clean up buffer by removing the markers
-                            buffer = '';
+                            buffer = ''; // if buffer is clear then we have already added to the correct vars and need to update both
                         }
 
-                        if (isAssistantMsg) {
+                        if (isAssistantMsg || !buffer) {
                             text += buffer;
                             let updatedMessages: Message[] = [];
                             updatedMessages = updatedConversation.messages.map((message, index) => {
@@ -407,13 +412,15 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                                 value: updatedConversation,
                             }); 
                         
-                        } else {
+                        } 
+                        if (!isAssistantMsg || !buffer) {
                             artifactText += buffer;
                             selectArtifacts[selectArtifacts.length - 1].contents = lzwCompress(artifactText);
                             homeDispatch({field: "selectedArtifacts", value: selectArtifacts});
                         }
                         buffer = '';
                     }
+                    if (done || controller.signal.aborted) break;
                 }
             
             } finally {

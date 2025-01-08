@@ -2,11 +2,10 @@ import { ConversationStorage } from "@/types/conversationStorage";
 import { Conversation } from "@/types/chat";
 import { deleteMultipleRemoteConversations, deleteRemoteConversation, fetchMultipleRemoteConversations, uploadConversation } from "@/services/remoteConversationService";
 import cloneDeep from 'lodash/cloneDeep';
-import { conversationWithCompressedMessages, conversationWithUncompressedMessages, saveConversations } from "./conversation";
+import { conversationWithCompressedMessages, conversationWithUncompressedMessages, isLocalConversation, isRemoteConversation, remoteForConversationHistory, saveConversations } from "./conversation";
 import { FolderInterface } from "@/types/folder";
 
 
-export const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType', 'codeInterpreterAssistantId' ];
 
 //handle all local, 
 const handleAllLocal = async (conversations: Conversation[], statsService: any) => {
@@ -52,7 +51,7 @@ const handleAllCloud = async (conversations: Conversation[], folders: FolderInte
                 }
                 statsService.moveConversationRemoteEvent(conversation);
                 //strip conversation
-                const newCloudConversation = pickConversationAttributes(conversation, CloudConvAttr) as Conversation;// remove most details  , 'data' ??
+                const newCloudConversation = remoteForConversationHistory(conversation);
                 newCloudConversation.isLocal = false;
                 return newCloudConversation;
             }
@@ -79,7 +78,7 @@ const handleConversationLocalToCloud = async (selectedConversation: Conversation
     const updatedConversations: Conversation[] = conversations.map(
             (conversation) => {
                 if (conversation.id === selectedConversation.id) {
-                    const cloudConversation = pickConversationAttributes(selectedConversation, CloudConvAttr) as Conversation;// remove most details  do we need: 'data' ??
+                    const cloudConversation = remoteForConversationHistory(selectedConversation);
                     cloudConversation.isLocal = false;
                     return cloudConversation;
                 }
@@ -139,20 +138,9 @@ export const getIsLocalStorageSelection = (storageSelection: string | null) => {
   
 export const saveStorageSettings = (storage: ConversationStorage) => {
     localStorage.setItem('storageSelection', storage.storageLocation);
-
 };
 
 
-export function pickConversationAttributes<T extends object, K extends keyof T>(obj: T, props: K[]): Pick<T, K> {
-    const result = {} as Pick<T, K>;
-    props.forEach(prop => {
-        if (prop in obj) {
-            result[prop] = obj[prop];
-        }
-    });
-   
-    return {...result, messages: []} ;
-}
 
 //currently unused
 export const syncCloudConversation = async (selectedConversation: Conversation, conversations: Conversation[], folders: FolderInterface[], dispatch: any) => {
@@ -167,22 +155,16 @@ export const syncCloudConversation = async (selectedConversation: Conversation, 
 }
 
 
-export const isRemoteConversation = (conversation: Conversation) => {
-    return ('isLocal' in conversation && !conversation.isLocal)
-}
-
-export const isLocalConversation = (conversation: Conversation) => {
-    return !('isLocal' in conversation) || conversation.isLocal;
-}
 
 export interface remoteConvData {
     conversation: Conversation;
     folder: FolderInterface | null;
 }
 
-export const updateWithRemoteConversations = async (remoteConversations: remoteConvData[], conversations: Conversation[], folders:FolderInterface[], dispatch:any ) => {
-    console.log("Remote len: ", remoteConversations?.length);
-    if (remoteConversations) {
+export const updateWithRemoteConversations = async (remoteConversations: remoteConvData[] | null, conversations: Conversation[], folders:FolderInterface[], dispatch:any ) => {
+    if (!remoteConversations) alert("Unable to sync local conversations with those stored in the cloud. Please refresh the page to try again...");
+
+    if (remoteConversations && remoteConversations.length > 0 ) {
         let updatedFolders = cloneDeep(folders);
         const newFolders: FolderInterface[] = [];
         const currentConversationsMap = new Map();
@@ -192,7 +174,7 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
             const remoteConv = cd.conversation;
             // check if there is record of this conversation in the current browser
             const existsLocally = currentConversationsMap.get(remoteConv.id);
-            let folderExists = updatedFolders.find((f:FolderInterface) => remoteConv.folderId ? f.id === remoteConv.folderId : null);
+            let folderExists = remoteConv.folderId ? updatedFolders.find((f:FolderInterface) =>  f.id === remoteConv.folderId) : null;
             if (!existsLocally || (existsLocally && remoteConv.name !== existsLocally.name) 
                                || (!folderExists && cd.folder)) {
                 if (!folderExists && cd.folder) {
@@ -212,38 +194,43 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
         });
         
         const updatedConversations = Array.from(currentConversationsMap.values());
-        console.log("updated conv len: ", updatedConversations.length);
+        // console.log("updated conv len: ", updatedConversations.length);
 
         dispatch({field: 'conversations', value: updatedConversations});
         saveConversations(updatedConversations);
         return {newfolders: newFolders};
 
-    } else {
-        alert("Unable to sync local conversations with those stored in the cloud. Please refresh the page to try again...");
-        return {newfolders: []};
-    }
+    } 
+
+    return {newfolders: []};
     
 };
 
 
-export const includeRemoteConversationData = async (localConversations: Conversation[], message: string, uncompressLocal: boolean) => {
-    if (!localConversations) return [];
+export const includeRemoteConversationData = async (conversationHistory: Conversation[], failMessage: string, uncompressLocal: boolean) => {
+    if (!conversationHistory) return [];
     // Filter and get the ids of remote conversations
-    const remoteConversationIds = localConversations.filter(isRemoteConversation).map(c => c.id);
+    const remoteConversationIds = conversationHistory.filter(c => isRemoteConversation(c)).map(c => c.id);
     
-    if (remoteConversationIds.length === 0) return localConversations;
+    if (remoteConversationIds.length === 0) return conversationHistory;
     
     const fetchedRemoteConversations = await fetchMultipleRemoteConversations(remoteConversationIds);
     // console.log(fetchedRemoteConversations);
     // Create a map of remote conversation ids to fetched conversations for quick lookup
-    const fetchedRemoteConversationsMap = new Map(fetchedRemoteConversations.map((c:Conversation) => [c.id, c]));
+    const fetchedRemoteConversationsMap = new Map(fetchedRemoteConversations.data.map((c:Conversation) => [c.id, c]));
 
-    const failedToFetch: string[] = [];
-    const combinedConversations = localConversations.map(c => {
+    const failedToFetchByNoSuchKey: string[] = fetchedRemoteConversations.failedByNoSuchKey;
+    console.log("Currently no such key conversations in history: ", failedToFetchByNoSuchKey);
+    const failedToFetch: string[] = fetchedRemoteConversations.failed;
+
+    const alertFailed: string[] = [];
+
+    const combinedConversations = conversationHistory.map(c => {
         if (isRemoteConversation(c)) {
             const cloudConversation = fetchedRemoteConversationsMap.get(c.id);
             if (!cloudConversation) {
-                failedToFetch.push(c.name);
+                // if not in  no such key then push
+                if (failedToFetch.includes(c.id)) alertFailed.push(c.name);
                 return undefined;
             }
             return { ...(uncompressLocal ? cloudConversation : conversationWithCompressedMessages(cloudConversation as Conversation)), isLocal: true };
@@ -256,8 +243,8 @@ export const includeRemoteConversationData = async (localConversations: Conversa
         
     }).filter((c): c is Conversation => c !== undefined);
 
-    if (failedToFetch.length > 0) {
-        alert(`Conversation${failedToFetch.length === 1 ? '' : 's'}: ${failedToFetch.join(", ")} failed to ${message}`);
-    }
+    if (alertFailed.length > 0) {
+        alert(`Conversation${alertFailed.length === 1 ? '' : 's'}: ${alertFailed.join(", ")} failed to ${failMessage}`);
+    } 
     return combinedConversations;
 };

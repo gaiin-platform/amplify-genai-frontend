@@ -69,8 +69,7 @@ export const promptForData = async (chatEndpoint:string, messages: Message[], mo
         
                 text += chunkValue;
             }
-            // console.log(text)
-            console.log("final llm response: ", text);
+            // console.log("final llm response: ", text);
             return text;
         } finally {
             if (reader) {

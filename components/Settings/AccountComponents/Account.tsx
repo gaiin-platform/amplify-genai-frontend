@@ -107,7 +107,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
     }
 
     const handleSave = async () => {
-        console.log("accts saved: ", accounts)
+        // console.log("accts saved: ", accounts)
 
         if (accounts.length === 0) {
             alert("You must have at least one account.");

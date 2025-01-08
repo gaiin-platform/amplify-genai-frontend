@@ -10,7 +10,6 @@ import AssistantBlock from "@/components/Chat/ChatContentBlocks/AssistantBlock";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {parsePartialJson} from "@/utils/app/data";
 import AutonomousBlock from "@/components/Chat/ChatContentBlocks/AutonomousBlock";
-import CustomAutoBlock from "@/components/Chat/ChatContentBlocks/CustomAutoBlock";
 import {useContext, useEffect, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
@@ -177,7 +176,7 @@ const ChatContentBlock: React.FC<Props> = (
                         }
                         break;
                     case 'invoke':
-                        if (selectedConversation && featureFlags.assistantAPIs) {
+                        if (selectedConversation && featureFlags.assistantApis) {
                             return (
                                 <InvokeBlock
                                     message={message}

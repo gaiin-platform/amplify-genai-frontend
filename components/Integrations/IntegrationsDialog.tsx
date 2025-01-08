@@ -22,12 +22,19 @@ interface Props {
 
 export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
   const { t } = useTranslation('settings');
-  const { dispatch: homeDispatch, state: { statsService, featureFlags, models } } = useContext(HomeContext);
+  const { dispatch: homeDispatch, state: { statsService} } = useContext(HomeContext);
+  const [connectingStates, setConnectingStates] = useState<{[key: string]: boolean}>({});
+
   const [connectedIntegrations, setConnectedIntegrations] = useState<string[]>([]);
   const [loadingStates, setLoadingStates] = useState<{[key: string]: boolean}>({});
   const [loadingIntegrations, setLoadingIntegrations] = useState(true);
 
   const integrationsList = [
+    {name: "Google Calendar",
+      id: "google_calendar",
+      icon: IconBrandGoogleDrive,
+      description: "This integration allows assistants to manage your Google Calendar, create events, and schedule meetings."
+    },
     {
       name: "Google Sheets",
       id: "google_sheets",
@@ -101,6 +108,7 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
   }
 
   const handleConnect = async (id: string) => {
+    setConnectingStates(prev => ({ ...prev, [id]: true }));
 
     let location = null;
     try {
@@ -108,14 +116,13 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
       location = res.result.body.Location;
     } catch (e) {
       alert("An error occurred. Please try again.");
+      setConnectingStates(prev => ({ ...prev, [id]: false }));
       return;
     }
 
     try {
-
       const isHttpsUrl = (url: string): boolean => /^https:\/\//.test(url);
       if (isHttpsUrl(location)) {
-
         const width = 600;
         const height = 600;
         const left = (window.screen.width - width) / 2;
@@ -128,21 +135,25 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
         );
 
         if (authWindow) {
-
           const checkWindow = setInterval(() => {
             if (authWindow.closed) {
               clearInterval(checkWindow);
               refreshUserIntegrations();
+              setConnectingStates(prev => ({ ...prev, [id]: false }));
             }
           }, 500);
 
           authWindow.focus();
+        } else {
+          setConnectingStates(prev => ({ ...prev, [id]: false }));
         }
       } else {
         alert("An error occurred. Please try again.");
+        setConnectingStates(prev => ({ ...prev, [id]: false }));
       }
     } catch (e) {
       alert("An error occurred. Please try again.");
+      setConnectingStates(prev => ({ ...prev, [id]: false }));
     }
   };
 
@@ -154,8 +165,8 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
 
   return (
     <Modal
-      width={window.innerWidth * 0.62}
-      height={window.innerHeight * 0.88}
+      width={() => window.innerWidth * 0.62}
+      height={() => window.innerHeight * 0.88}
       title={'Integrations'}
       showCancel={false}
       onCancel={onClose}
@@ -195,17 +206,16 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
                       handleConnect(integration.id);
                     }
                   }}
-                  disabled={loadingStates[integration.id]}
+                  disabled={loadingStates[integration.id] || connectingStates[integration.id]}
                   className={`px-4 py-2 rounded-md whitespace-nowrap ${
                     connectedIntegrations.includes(integration.id)
                       ? 'bg-red-500 text-white'
                       : 'bg-blue-500 text-white'
-                  } ${loadingStates[integration.id] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  } ${(loadingStates[integration.id] || connectingStates[integration.id]) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  {loadingStates[integration.id] ? (
+                  {loadingStates[integration.id] || connectingStates[integration.id] ? (
                     <IconLoader2 className="animate-spin w-5 h-5 inline-block" />
-                  ) : (
-                    connectedIntegrations.includes(integration.id) ? 'Disconnect' : 'Connect'
+                  ) : (connectedIntegrations.includes(integration.id) ? 'Disconnect' : 'Connect'
                   )}
                 </button>
               </div>

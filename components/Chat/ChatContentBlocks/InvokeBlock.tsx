@@ -20,7 +20,7 @@ import {
 import { getSettings } from '@/utils/app/settings';
 import { deepMerge } from '@/utils/app/state';
 
-import { Conversation, Message, newMessage } from '@/types/chat';
+import { Conversation, Message, MessageType, newMessage } from '@/types/chat';
 import { FolderInterface } from '@/types/folder';
 import { ApiCall, OpDef } from '@/types/op';
 import { Prompt } from '@/types/prompt';
@@ -30,6 +30,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import ExpansionComponent from '@/components/Chat/ExpansionComponent';
 
 import JSON5 from 'json5';
+import { isPollingResult, pollForResult } from '@/utils/app/resultPolling';
 
 interface Props {
   conversation: Conversation;
@@ -60,16 +61,12 @@ const InvokeBlock: React.FC<Props> = ({
       selectedAssistant,
       conversations,
       folders,
-      models,
       prompts,
-      defaultModelId,
-      featureFlags,
-      workspaceMetadata,
     },
     shouldStopConversation,
-    handleCreateFolder,
+    handleConversationAction,
     dispatch: homeDispatch,
-    handleAddMessages: handleAddMessages,
+    handleAddMessages,
   } = useContext(HomeContext);
 
   const promptsRef = useRef(prompts);
@@ -79,6 +76,7 @@ const InvokeBlock: React.FC<Props> = ({
   }, [prompts]);
 
   const conversationsRef = useRef(conversations);
+  const selectedConversationRef = useRef(selectedConversation);
 
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -93,6 +91,14 @@ const InvokeBlock: React.FC<Props> = ({
   const { data: session, status } = useSession();
 
   const { handleSend } = useSendService();
+
+  const shouldProvideResultToAssistant = (result:any) => {
+    return !(result && result.data && result.data?.humanOnly);
+  }
+
+  const getAssistantResultView = (result:any) => {
+    return result;
+  }
 
   const getServerSelectedAssistant = (message: Message) => {
     const aid =
@@ -109,8 +115,19 @@ const InvokeBlock: React.FC<Props> = ({
     return 'Remote Operation';
   };
 
+
   const runAction = async (action: any) => {
     try {
+
+      let actionData = null;
+      try {
+        actionData = JSON5.parse(action);
+      } catch (e) {
+        console.log("Invalid action spec: "+ action);
+        console.error(e);
+        return null;
+      }
+
       if (!isLast || hasExecuted[id] || message.data.automation) {
         console.log(
           'Skipping execution of action:',
@@ -126,57 +143,111 @@ const InvokeBlock: React.FC<Props> = ({
       }
       hasExecuted[id] = true;
 
-      homeDispatch({
-        type: 'conversation',
-        action: {
-          type: 'updateMessages',
-          conversationId: conversation.id,
-          messages: [
-            {
-              ...message,
-              data: {
-                ...message.data,
-                automation: {
-                  status: 'running',
-                },
-              },
-            },
-          ],
+
+      // Count the number of messages with data.actionResult
+
+      console.log("Last four messages: ", conversation.messages.slice(-4));
+
+      const errorsValues = conversation.messages.slice(-4).map(
+        (m, idx):number => {
+          if(m.data && m.data.actionResult){
+            try {
+              const data = JSON5.parse(m.content);
+              return (data.result && data.result.success) ? 0 : 1;
+            } catch (error) {
+              return 0;
+            }
+          }
+          else {
+            return 0;
+          }
         },
-      });
+      );
+
+      console.log("Errors values: ", errorsValues);
+
+      // Count the number of errors over the last 4 messages
+      const errorCount = errorsValues.reduce((a, b) => a + b, 0);
+      console.log("Error count over last four messages: "+errorCount);
+
+
+      const title = actionData.name;
+
+      if (title === 'tellUser') {
+        //alert("Tell user!")
+
+        //alert(actionData.payload.message);
+        //alert(message.content);
+
+        await handleConversationAction({
+              type: 'updateMessages',
+              conversation: conversation,
+              messages: [
+                {...message, content: actionData.payload.message},
+              ],
+            });
+
+        return;
+      }
+
+      console.log("############### Updating message with automation status");
+
+      await handleConversationAction({
+              type: 'updateMessages',
+              conversation: conversation,
+              messages: [
+                {
+                  ...message,
+                  data: {
+                    ...message.data,
+                    automation: {
+                      status: 'running',
+                    },
+                  },
+                },
+              ],
+            });
+
+
+      // homeDispatch({ field: 'selectedConversation', value: conversation });
 
       const context = {
         conversation,
       };
 
       const shouldConfirm = false;
-      let actionData = null;
-
-      try {
-        actionData = JSON5.parse(action);
-      } catch (e) {
-        console.error(e);
-        return null;
-      }
-
-      const title = actionData.name;
 
       homeDispatch({ field: 'loading', value: true });
       homeDispatch({ field: 'messageIsStreaming', value: true });
 
+      let result = null;
+
       const opDef = resolveOpDef(message, actionData.name);
 
-      const requestData = {
-        action: actionData,
-        conversation: selectedConversation?.id,
-        assistant: selectedAssistant?.id,
-        message: message.id,
-        operationDefinition: opDef
-      };
+      // if(opDef) {
 
-      const result = await executeAssistantApiCall(requestData);
+        const requestData = {
+          action: actionData,
+          conversation: selectedConversation?.id,
+          assistant: selectedAssistant?.id,
+          message: message.id,
+          operationDefinition: opDef
+        };
 
-      console.log('Result of operation:', result);
+        console.log("Executing action:", requestData);
+
+        result = await executeAssistantApiCall(requestData);
+      // }
+      // else {
+      //   result = {
+      //     "success":false,
+      //     "message":"No operation definition found for action. Double check that you " +
+      //       "specified a name and other needed items to invoke the function"};
+      // }
+
+      if(isPollingResult(result)){
+        result = await pollForResult({retryIn:1000}, handleAddMessages, selectedConversation);
+      }
 
       if (result && result.metaEvents) {
         const metaEvents = result.metaEvents;
@@ -225,9 +296,43 @@ const InvokeBlock: React.FC<Props> = ({
 
         console.log('Sources list:', sourcesList);
 
-        const feedbackMessage = {
-          result: result,
+        let feedbackMessage = {
+          result: getAssistantResultView(result),
         };
+
+        if(!result.success && errorCount > 0){
+          feedbackMessage = {
+            result: {instructions:"Stop and tell the user that you have run into repeated errors and ask if you should try again.", error:result},
+          };
+        }
+
+        if(!shouldProvideResultToAssistant(result)){
+          // This is for large responses that should not be sent to the assistant
+          // for efficiency reasons
+
+          handleAddMessages(selectedConversationRef.current, [
+            newMessage(
+              {
+                role:"assistant",
+                content:"I have completed the operation.",
+                data:{
+                  actionResult:true,
+                  actionResultView:{
+                    data: result,
+                  },
+                  state: {
+                    sources: sourcesList
+                  }
+                }
+              }
+            )
+          ]);
+
+          homeDispatch({ field: 'messageIsStreaming', value: false });
+          homeDispatch({ field: 'loading', value: false });
+
+          return;
+        }
 
         const assistantId =
           getServerSelectedAssistant(message) || selectedAssistant?.id;

@@ -50,7 +50,7 @@ export const UserTagsList: FC<Props> = ({
     useEffect(() => {
         const fetchTags = async () => {
             try {
-                const response = await listTags(null);
+                const response = await listTags();
                 const sortedTags = response.data.tags.sort((a: string, b: string) => a.localeCompare(b));
                 setTags(sortedTags);
             } catch (e) {

@@ -13,6 +13,7 @@ import { isAssistant } from "@/utils/app/assistants";
 import { conversationWithCompressedMessages, saveConversations } from "@/utils/app/conversation";
 import { saveFolders } from "@/utils/app/folders";
 import { savePrompts } from "@/utils/app/prompts";
+import { DefaultModels } from "@/types/model";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -65,7 +66,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
     const {
         state: {folders: localFolders, conversations: localConversations,  prompts:localPrompts, },
-        dispatch: homeDispatch, handleSelectConversation
+        dispatch: homeDispatch, handleSelectConversation, getDefaultModel
     } = useContext(HomeContext);
 
     const foldersRef = useRef(localFolders);
@@ -236,7 +237,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
         console.log("Cleaned up export: ", cleanedUpExport);
 
-        const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport, conversationsRef.current, promptsRef.current, foldersRef.current);
+        const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport, conversationsRef.current, promptsRef.current, foldersRef.current, getDefaultModel(DefaultModels.DEFAULT));
 
         // console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);
 
@@ -328,10 +329,9 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
                 const shareFetcher:ImportFetcher = async () => {
 
-                    const result = await loadSharedItem(user?.email || "", importKey);
-                    if (result.ok) {
-                        const item = await result.json();
-                        const sharedData = JSON.parse(item.item) as ExportFormatV4;
+                    const result = await loadSharedItem(importKey);
+                    if (result.success) {
+                        const sharedData = JSON.parse(result.item) as ExportFormatV4;
 
                         return {success: true, message:"Loaded share successfully.", data: sharedData};
                     } else {
@@ -382,7 +382,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                     <div className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true"/>
                     <div
                         className="border-neutral-400 dark:border-neutral-600 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:p-6 sm:align-middle"
-                        role="dialog" style={{maxHeight: window.innerHeight * 0.6, width: window.innerWidth * 0.45}}
+                        role="dialog" style={{maxHeight: window.innerHeight * 0.6, width: window.innerWidth * (isImporting ? 0.3 : 0.45)}}
                     >
                         {
                             isImporting && (
