@@ -7,6 +7,7 @@ import { Account, noCoaAccount } from "@/types/accounts";
 import { RateLimiter } from './RateLimit';
 import { formatRateLimit, PeriodType, RateLimit, rateLimitObj, UNLIMITED } from '@/types/rateLimit';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
+import toast from 'react-hot-toast';
 
 
 interface Props {
@@ -130,6 +131,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
             setUnsavedChanged(false);
             setHasEdits(false);
             setAddedAccounts([]);
+            toast("Account changes saved.");
         }
         setIsSaving(false);
         
