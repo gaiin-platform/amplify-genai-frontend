@@ -86,26 +86,45 @@ export const getInFlightEmbeddings = async () => {
     }
 }
 
+const endpointRequest = async (url:string, key: string, data: any) => {
+    try {
+        const response = await fetch('/api/admin/testEndpoint', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url, key, body: data}),
+        });
+    
+        const result = await response.json();
+        return result.success;
+      } catch (e) {
+        console.error('Error testing endpoint: ', e);
+        return false;
+      }
+}
 
 export const testEndpoint = async (url: string, key: string, model:string) => {
-    try {
-      const response = await fetch('/api/admin/testEndpoint', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url, key, model }),
-      });
-  
-      const result = await response.json();
-      console.log("TEST: ", result )
-      return result.success;
-    } catch (e) {
-      console.error('Error testing endpoint: ', e);
-      return false;
-    }
+    return endpointRequest(url, key, {  max_tokens: 50,
+                                        temperature: 1,
+                                        top_p: 1,
+                                        n: 1,
+                                        stream: false,
+                                        model: model,
+                                        messages: [
+                                            {
+                                                role: "user",
+                                                content: "This is a test. Say Hi!",
+                                            },
+                                        ],
+                                    });
   };
 
+
+  export const testEmbeddingEndpoint = async (url: string, key: string) => {
+    return endpointRequest( url, key, { input: "This is a smaple input" } );
+  };
+  
 
 export const uploadPptx = async (data: {fileName: string, isAvailable: boolean, 
     amplifyGroups: string[], contentType:string, md5: any}) => {

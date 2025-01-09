@@ -28,7 +28,7 @@ import { fetchFile } from '@/utils/app/files';
 interface Props {
     apiKeys: ApiKey[];
     setApiKeys: (k:ApiKey[]) => void;
-    setUnsavedChanged: (b: boolean) => void;
+    setUnsavedChanges: (b: boolean) => void;
     onClose: () => void;
     accounts: Account[];
     defaultAccount: Account;
@@ -57,7 +57,7 @@ const formatAccessType = (accessType: string) => {
     return String(accessType).replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())                                                          
 }
 
-export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onClose, accounts, defaultAccount}) => {
+export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onClose, accounts, defaultAccount}) => {
     const { state: {featureFlags, statsService, amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
 
     const { data: session } = useSession();
@@ -95,7 +95,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
     
     useEffect(() => {
         const handleEvent = (event: any) => {
-            setUnsavedChanged(true);
+            setUnsavedChanges(true);
             console.log("editedApiKey was triggered", event.detail);
             const apiKeyId = event.detail.id;
             const updates = event.detail.edits; 
@@ -217,13 +217,14 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
             alert('failedKeys' in result ? `API keys: ${result.failedKeys.join(", ")} failed to update. Please try again.` : "We are unable to update your key(s) at this time...")
         } else {
             statsService.updateApiKeyEvent(Object.values(editedKeys));
+            setUnsavedChanges(false);
+            toast("API changes saved.");
         }
     };
 
     const handleSave = async () => {
         setIsSaving(true);
-        if (Object.keys(editedKeys).length !== 0) handleApplyEdits();
-        setUnsavedChanged(false);
+        if (Object.keys(editedKeys).length !== 0) await handleApplyEdits();
         setIsSaving(false);
     };
 

@@ -204,7 +204,7 @@ useEffect(() => {
                                         <ApiKeys
                                         apiKeys={apiKeys}
                                         setApiKeys={setApiKeys}
-                                        setUnsavedChanged={setApiUnsavedChanges}
+                                        setUnsavedChanges={setApiUnsavedChanges}
                                         onClose={close}
                                         accounts={accounts}
                                         defaultAccount={defaultAccount}

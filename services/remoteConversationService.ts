@@ -60,29 +60,16 @@ export const fetchAllRemoteConversations = async (abortSignal = null) => {
         const op = {
             method: 'GET',
             path: URL_PATH,
-            op: "/get_all"
+            op: "/get/all"
         };
         
         const result = await doRequestOp(op);
 
         // Check if the request was successful
         if (result.success) {
-            const presignedUrl = result.presignedUrl;
-
-            // Fetch the actual conversation data using the presigned URL
-            const conversationResponse = await fetch(presignedUrl, {
-                method: 'GET',
-                signal: abortSignal,
-            });
-
-            if (!conversationResponse.ok) {
-                console.error("Error fetching conversation data from presigned URL");
-                return null;
-            }
-
-            const conversationData = await conversationResponse.json();
-            // console.log("uncompress retrieved conversations len: ", conversationData.length);
-            return conversationData;
+            if (!result.presignedUrls) return [];
+            return await fetchConversationPresignedUrls(result.presignedUrls);
+            
         } else {
             console.error("Error fetching presigned URL: ", result.message);
             return null;
@@ -93,6 +80,32 @@ export const fetchAllRemoteConversations = async (abortSignal = null) => {
     }
 };
 
+export const fetchEmptyRemoteConversations = async (abortSignal = null) => {
+    try {
+        const op = {
+            method: 'GET',
+            path: URL_PATH,
+            op: "/get/empty"
+        };
+        
+        const result = await doRequestOp(op);
+
+        // Check if the request was successful
+        if (result.success) {
+            if (!result.presignedUrls) return {data: null};
+            const conversations = await fetchConversationPresignedUrls(result.presignedUrls);
+            return { data: conversations, nonEmptyIds: result.nonEmptyIds }
+
+        } else {
+            console.error("Error fetching presigned URL: ", result.message);
+            return {data: null};
+        }
+    } catch (error) {
+        console.error("Error during fetch: ", error);
+        return {data: null};
+    }
+};
+
 
 export const fetchMultipleRemoteConversations = async (conversationIds: string[], abortSignal = null) => {
     if (conversationIds.length === 0) return {data: []};
@@ -100,29 +113,18 @@ export const fetchMultipleRemoteConversations = async (conversationIds: string[]
     const op = {
         method: 'POST',
         path: URL_PATH,
-        op: "/get_multiple",
+        op: "/get/multiple",
         data:  {conversationIds: conversationIds}
     };
     
     const result = await doRequestOp(op);
     if (result.success) {
-        const presignedUrl = result.presignedUrl;
-
-        // Fetch the actual conversation data using the presigned URL
-        const conversationResponse = await fetch(presignedUrl, {
-            method: 'GET',
-            signal: abortSignal,
-        });
-
-        if (!conversationResponse.ok) {
-            console.error("Error fetching conversation data from presigned URL");
-            return {data: null};
-        }
-
-        const conversationData = await conversationResponse.json();
+        const conversationData = await fetchConversationPresignedUrls(result.presignedUrls);
+        if (!conversationData) return {data: null};
         return {data: conversationData.map((c:number[]) => uncompressConversation(c)), 
-                failedByNoSuchKey: result.noSuchKeyConversations,
-                failed: result.failed}; 
+            failedByNoSuchKey: result.noSuchKeyConversations,
+            failed: result.failed}; 
+
     } else {
         console.error("Error fetching presigned URL: ", result.message);
         return {data: null};
@@ -130,6 +132,27 @@ export const fetchMultipleRemoteConversations = async (conversationIds: string[]
 };
 
 
+const fetchConversationPresignedUrls = async (presignedUrls: string[]) => {
+    let conversationData: any = [];
+
+    for (let i=0; i < presignedUrls.length; i++) {
+        const presigned_url = presignedUrls[i];
+        const response = await fetch(presigned_url, {
+            method: 'GET',
+            signal: null,
+        });
+
+        if (!response.ok) {
+          console.error("Error fetching presigned at index:", i);
+          return null; //   continue;
+        
+        }
+
+        const chunkData = await response.json();
+        conversationData = [...conversationData, ...chunkData];
+    }
+    return conversationData;
+}
 
 export const deleteRemoteConversation = async (conversationId: string, abortSignal = null) => {
 

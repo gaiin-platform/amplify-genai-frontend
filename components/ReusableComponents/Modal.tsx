@@ -108,8 +108,8 @@ interface Props {
                         {
                          <div className="flex flex-row gap-2 mb-2 w-full fixed bottom-0 left-0 px-4 pb-2">
                           {[...additionalButtonOptions, 
-                            ...(showSubmit ? [{label: submitLabel, handleClick: () => onSubmit()}] : []),
-                            ...(showCancel ? [{label: "Cancel", handleClick: () => onCancel()}] : [])
+                            ...(showCancel ? [{label: "Cancel", handleClick: () => onCancel()}] : []),
+                            ...(showSubmit ? [{label: submitLabel, handleClick: () => onSubmit()}] : [])
                           ]
                                            .map((option: OptionButtons, index: number) => 
                             <button key={index}

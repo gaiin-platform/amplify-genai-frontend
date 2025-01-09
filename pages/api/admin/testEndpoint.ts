@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 
 const testEndpoint = async (req: NextApiRequest, res: NextApiResponse) => {
-  const { url, key, model } = req.body;
+  const { url, key, body } = req.body;
 
   try {
     const headers = {
@@ -13,22 +13,7 @@ const testEndpoint = async (req: NextApiRequest, res: NextApiResponse) => {
     const response = await fetch(url, {
       method: 'POST', // Adjust the method as needed
       headers,
-      body: JSON.stringify(
-        {
-            max_tokens: 50,
-            temperature: 1,
-            top_p: 1,
-            n: 1,
-            stream: false,
-            model: model,
-            messages: [
-              {
-                role: "user",
-                content: "This is a test. Say Hi!",
-              },
-            ],
-          }
-      ),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {

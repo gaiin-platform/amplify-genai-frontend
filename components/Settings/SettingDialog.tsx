@@ -108,14 +108,17 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [modelOptions, setModelOptions] = useState<{ [key: string]: boolean }>(initModelOption());
 
+
+  const featuresChanged = () => {
+    return JSON.stringify(featureOptions) !== JSON.stringify(initSettings.featureOptions);
+  }
   useEffect(() => {
     if (open) statsService.openSettingsEvent();
   }, [open])
 
   useEffect(()=> {
 
-    const hasChanges = theme !== initSettings.theme || 
-                       JSON.stringify(featureOptions) !== JSON.stringify(initSettings.featureOptions) ||
+    const hasChanges = theme !== initSettings.theme || featuresChanged() ||
                        JSON.stringify(hiddenModelIds) !== JSON.stringify(initSettings.hiddenModelIds);
     setHasUnsavedChanges(hasChanges);
 
@@ -141,6 +144,8 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
     // console.log(updatedSettings);
     saveSettings(updatedSettings);
     onClose();
+    // update plugin in selector according to new feature settings
+    if (featuresChanged()) window.dispatchEvent(new Event('updateFeatureSettings'));
 
    const result = await saveUserSettings(updatedSettings);
     if (!result) {

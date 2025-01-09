@@ -89,7 +89,7 @@ export const basePrompts = {
         "folderId": "amplify_helpers",
         "type": "prompt",
         "data": {
-          "rootPromptId": "caeda9db-c8b6-4464-b3be-43f545bc1686",
+          "rootPromptId": "powerPoint_assistant",
           "requiredTags": []
         }
       },
@@ -112,7 +112,7 @@ export const basePrompts = {
         "folderId": "amplify_helpers",
         "type": "prompt",
         "data": {
-          "rootPromptId": "e66fd073-cc18-4b5c-94ca-d13f4530534d",
+          "rootPromptId": "visualization_assistant",
           "requiredTags": []
         }
       },
@@ -135,7 +135,7 @@ export const basePrompts = {
         "folderId": "amplify_helpers",
         "type": "prompt",
         "data": {
-          "rootPromptId": "76780be7-d157-48a2-8fb0-b394187653b6",
+          "rootPromptId": "diagram_assistant",
           "requiredTags": []
         }
       }
