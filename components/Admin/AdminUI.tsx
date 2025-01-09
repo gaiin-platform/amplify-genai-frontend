@@ -3053,7 +3053,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                         </tr>
                                     ))}
                                 </tbody>
-                            </table> : <>It looks like Embbeddings is operating Correctly. There are no embeddings currently backed up in SQS.</>}
+                            </table> : <>It looks like Embbeddings is operating correctly. There are no embeddings currently backed up in SQS.</>}
                         </div>
                         : 
                         ( loadingEmbeddings?
