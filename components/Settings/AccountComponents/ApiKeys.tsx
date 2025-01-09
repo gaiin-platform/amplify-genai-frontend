@@ -893,7 +893,7 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
     }, [options]);
 
     return (
-         <div className='flex flex-row gap-2' >
+         <div className='flex flex-row gap-2 text-xs' >
             <input type="checkbox" checked={fullAccess} onChange={(e) => {
                     const checked = e.target.checked;
                     setFullAccess(checked);
@@ -904,9 +904,9 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
                         }, {} as Record<string, boolean>)
                     );
                 }} />
-            <label className="text-sm mr-3" htmlFor="FullAccess">Full Access</label>
+            <label className="mr-3 whitespace-nowrap" htmlFor="FullAccess">Full Access</label>
             {Object.keys(options).map((key: string) => (
-                <div key={key}>
+                <div key={key} className='whitespace-nowrap'>
                 <input type="checkbox" checked={options[key]} onChange={() => {
                     setOptions((prevOptions:any) => {
                         const newOptions = { ...prevOptions, [key]: !prevOptions[key] };
@@ -915,7 +915,7 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
                     })
                 }}/>
 
-                <label className="text-sm ml-2 mr-3" htmlFor={key}>{formatAccessType(key)}</label>
+                <label className="ml-2 mr-3 " htmlFor={key}>{formatAccessType(key)}</label>
 
                 </div>
             ))}
