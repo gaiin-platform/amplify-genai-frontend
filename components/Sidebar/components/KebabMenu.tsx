@@ -22,8 +22,8 @@ import {v4 as uuidv4} from 'uuid';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { CheckItemType } from "@/types/checkItem";
 import { savePrompts } from "@/utils/app/prompts";
-import { fetchMultipleRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
-import { deleteConversationCleanUp, isRemoteConversation, saveConversations } from "@/utils/app/conversation";
+import { fetchEmptyRemoteConversations, fetchMultipleRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
+import { conversationWithUncompressedMessages, deleteConversationCleanUp, isRemoteConversation, saveConversations } from "@/utils/app/conversation";
 import { getDateName } from "@/utils/app/date";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import React from "react";
@@ -154,13 +154,13 @@ interface Props {
 
     const handleDeleteConversations = (conversations: Conversation[] = checkedItemsRef.current) => {
         handleSearchTerm('');
-        const updatedConversations = items.filter( (c: Conversation) => 
-                                    { const remove = conversations.includes(c) 
-                                          if (remove) {
+        const updatedConversations = items.filter( (c: Conversation) => {
+                                        const remove = conversations.includes(c);
+                                        if (remove) {
                                             statsService.deleteConversationEvent(c);
                                             deleteConversationCleanUp(c);
-                                          }
-                                          return !remove;
+                                        }
+                                        return !remove;
                                      });
         
         const updatedLength = updatedConversations.length;
@@ -276,24 +276,35 @@ interface Props {
         }>((acc, c:Conversation) => {
             if (isRemoteConversation(c)) {
                 acc.remoteConversationIdMap[c.id] = c;
-            } else if (c.compressedMessages && c.compressedMessages.length === 0) {
+            } else if (conversationWithUncompressedMessages(c).messages.length === 0) {
                 acc.localEmptyConversations.push(c);
             }
             return acc;
         }, { remoteConversationIdMap: {}, localEmptyConversations: [] });
+
         const remoteConversationIds: string[] = Object.keys(remoteConversationIdMap);
         if (remoteConversationIds.length > 0 && localEmptyConversations.length > 0 ) {
             toast("Removing Empty Conversations...");
-            const fetchRemoteConversations = await fetchMultipleRemoteConversations(remoteConversationIds);
-            const remoteConversations = fetchRemoteConversations.data;
-            // filter the for empty messages 
-            const emptyRemoteConversations:Conversation[] = remoteConversations ? remoteConversations.filter((c:Conversation) => c.messages.length === 0) : [];
+            const fetchRemoteConversations = await fetchEmptyRemoteConversations();
 
-            // add the no such key conversations 
-            const failedConversations: string[] = fetchRemoteConversations.failedByNoSuchKey;
-            failedConversations.forEach((id: string) => {
-                if (remoteConversationIdMap.hasOwnProperty(id)) emptyRemoteConversations.push(remoteConversationIdMap[id]);
-            });
+            let emptyRemoteConversations:Conversation[] = [];
+            if (fetchRemoteConversations.data) {
+                console.log("Contains empty conversations");
+                emptyRemoteConversations = fetchRemoteConversations.data;
+                const emptyRemoteConversationIds: string[] = emptyRemoteConversations.map((c:Conversation) => c.id);
+
+                // remove no such key conversations
+                const presentIds: string[] =  [...fetchRemoteConversations.nonEmptyIds, ...emptyRemoteConversationIds];
+                const possibleNoSuchKeyIds = remoteConversationIds.filter((id: string) => !presentIds.includes(id));
+                 //check that it is truly a no such key  
+                const fetchPossibleNoSuchKey = await fetchMultipleRemoteConversations(possibleNoSuchKeyIds);
+                if (fetchPossibleNoSuchKey.failedByNoSuchKey) {
+                     // add the no such key conversations 
+                    fetchPossibleNoSuchKey.failedByNoSuchKey.forEach((id: string) => {
+                        emptyRemoteConversations.push(remoteConversationIdMap[id]);
+                    });
+                }
+            }
             handleDeleteConversations([...localEmptyConversations, ...emptyRemoteConversations]);
         }  else {
             toast("No Empty Conversations To Remove");
