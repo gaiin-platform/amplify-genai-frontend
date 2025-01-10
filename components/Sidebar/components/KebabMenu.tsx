@@ -155,7 +155,8 @@ interface Props {
     const handleDeleteConversations = (conversations: Conversation[] = checkedItemsRef.current) => {
         handleSearchTerm('');
         const updatedConversations = items.filter( (c: Conversation) => {
-                                        const remove = conversations.includes(c);
+                                        const remove = !!conversations.find((conv: Conversation) => c.id === conv.id);
+                                        
                                         if (remove) {
                                             statsService.deleteConversationEvent(c);
                                             deleteConversationCleanUp(c);

@@ -99,38 +99,37 @@ export const Chatbar = () => {
 
     const updatedLength = updatedConversations.length;
     if (updatedLength > 0) {
-    let lastConversation = updatedConversations[updatedLength - 1];
-    
-
-    let selectedConversation: Conversation = {...lastConversation};
-    if (lastConversation.name !== 'New Conversation' && (conversation.name !== 'New Conversation')) { // handle if you delete this new conversation 
+      let lastConversation = updatedConversations[updatedLength - 1];
       
-      const date = getDateName();
 
-      // See if there is a folder with the same name as the date
-      let folder = foldersRef.current.find((f: FolderInterface) => f.name === date);
-      if (!folder) {
-          folder = handleCreateFolder(date, "chat");
+      let selectedConversation: Conversation = {...lastConversation};
+      if (lastConversation.name !== 'New Conversation' && (conversation.name !== 'New Conversation')) { // handle if you delete this new conversation 
+        
+        const date = getDateName();
+
+        // See if there is a folder with the same name as the date
+        let folder = foldersRef.current.find((f: FolderInterface) => f.name === date);
+        if (!folder) {
+            folder = handleCreateFolder(date, "chat");
+        }
+
+        const newConversation: Conversation = {
+          id: uuidv4(),
+          name: t('New Conversation'),
+          messages: [],
+          model: lastConversation?.model ?? getDefaultModel(DefaultModels.DEFAULT),
+          prompt: DEFAULT_SYSTEM_PROMPT,
+          temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
+          folderId: folder.id,
+          promptTemplate: null
+        };
+        updatedConversations.push(newConversation)
+        selectedConversation = {...newConversation}
+        
       }
-      
-      // const resolveModel = lastConversation?.model ? lastConversation.model
 
-      const newConversation: Conversation = {
-        id: uuidv4(),
-        name: t('New Conversation'),
-        messages: [],
-        model: lastConversation?.model ?? getDefaultModel(DefaultModels.DEFAULT),
-        prompt: DEFAULT_SYSTEM_PROMPT,
-        temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
-        folderId: folder.id,
-        promptTemplate: null
-      };
-      updatedConversations.push(newConversation)
-      selectedConversation = {...newConversation}
-    }
-
-    localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
-    handleSelectConversation(selectedConversation);
+      localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
+      handleSelectConversation(selectedConversation);
 
     } else {
       homeDispatch({
