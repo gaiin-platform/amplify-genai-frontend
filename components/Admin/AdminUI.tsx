@@ -685,7 +685,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                  });
             if (result.success) {
                 toast("Successfully deleted OP");
-                setOps((prevItems) => prevItems.filter((_, idx) => index !== idx));
+                setOps((prevItems) => prevItems.filter((i) => i.id !== op.id));
             } else {
                 alert("Unable to delete the Op. Please try again...");
             }
@@ -1356,9 +1356,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                             {"Provider"}
                                         </div>
 
+                                        <div className="max-w-[730px]">
                                         { Object.values(providers).map((p:keyof typeof providers) => 
                                             <button key={p}
-                                            className={`w-[200px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-300 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 
+                                            className={`w-[182.5px] h-[39px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-300 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 
                                             ${p === isAddingAvailModel.model.provider as keyof typeof providers ? "cursor-default" : "opacity-60 hover:opacity-80"}`}
                                             disabled={p === isAddingAvailModel.model.provider as keyof typeof providers}
                                             onClick={() => {
@@ -1369,6 +1370,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                             </button>
                                             
                                         )}
+                                        </div>
                                     </div>
 
 
