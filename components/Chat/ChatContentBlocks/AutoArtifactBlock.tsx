@@ -406,8 +406,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             } catch (error) {
                 if (!controller.signal.aborted) console.error("Artifact Streaming Error occurred", error);
             } finally {
-                window.removeEventListener('killArtifactRequest', handleStopGenerationEvent);
-                if (reader) {
+                if (reader && !controller.signal.aborted) {
                     await reader.cancel(); 
                     reader.releaseLock();
                 } 
@@ -426,10 +425,13 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
         } catch (e) {
             console.error("Error prompting for Artifact Messages: ", e);
         }   
+        // clean up event listener
+        window.removeEventListener('killArtifactRequest', handleStopGenerationEvent);
+
         setTimeout(() => {
             const event = new CustomEvent( 'triggerChatReRender' );
             window.dispatchEvent(event);
-        }, 200)
+        }, 300)
         
     }
 }
