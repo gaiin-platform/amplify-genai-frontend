@@ -27,7 +27,6 @@ export interface HomeContextProps {
   handleDeleteFolder: (folderId: string) => void;
   handleUpdateFolder: (folderId: string, name: string) => void;
   handleForkConversation: (messageIndex: number, setAsSelected?: boolean) => Promise<void>;
-  handleStopConversation: () => Promise<void>;
   shouldStopConversation: () => boolean;
   handleSelectConversation: (conversation: Conversation) => void;
   handleUpdateConversation: (
