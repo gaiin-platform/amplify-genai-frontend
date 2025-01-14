@@ -143,11 +143,27 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             return undefined;
         }
+
+        const getSelectModel = () => {
+            const model: Model | undefined = Object.values(availableModels)
+                                                   .find((model: Model) => model.id === selectedModelId);
+            return model;
+        }
+        
+        const calculateInitSliderValue = (conversationMaxTokens: number | undefined) => {
+            const model: Model | undefined = getSelectModel();
+            const modelMaxTokens = model ? model.outputTokenLimit : 4096; 
+            if (!conversationMaxTokens) return 3;
+            
+            const sliderValue = (conversationMaxTokens / modelMaxTokens) * 6;
+            const initialSliderValue = Math.max(0, Math.min(6, sliderValue));
+            return Math.round(initialSliderValue * 10) / 10; // Round to the nearest 0.1
+        };
         
         const [plugins, setPlugins] = useState<Plugin[] | null>(null);
         const {handleSend:handleSendService} = useSendService();
-        // console.log(selectedConversation?.model?.id );
         const [selectedModelId, setSelectedModelId] = useState<string | undefined>(initSelectedModel());
+        const [responseSliderState, setResponseSliderState] = useState<number>(calculateInitSliderValue(selectedConversation?.maxTokens));
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
         const [showSettings, setShowSettings] = useState<boolean>(false);
@@ -156,11 +172,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [isAccountDialogVisible, setIsAccountDialogVisible] = useState<boolean>(false);
         const [isShareDialogVisible, setIsShareDialogVisible] = useState<boolean>(false);
         const [variables, setVariables] = useState<string[]>([]);
-        const [showScrollDownButton, setShowScrollDownButton] =
-            useState<boolean>(false);
+        const [showScrollDownButton, setShowScrollDownButton] = useState<boolean>(false);
         const [promptTemplate, setPromptTemplate] = useState<Prompt | null>(null);
         const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
-        // const [isDownloadingFile, setIsDownloadingFile] = useState<boolean>(false);
 
         const messagesEndRef = useRef<HTMLDivElement>(null);
         const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -244,15 +258,25 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }, [selectedAssistant, selectedConversation]);
 
-        // useEffect(() => {
-        //     // ensure the modelId and selectedConversation model are in sync.
-        //     if (selectedConversation && selectedConversation.model?.id !== selectedModelId && !selectedAssistant?.definition?.data?.model) {
-        //         const model:Model | undefined = Object.values(availableModels).find(
-        //                 (model: Model) => model.id === selectedModelId,
-        //         );
-        //         if (model) handleUpdateSelectedConversation({...selectedConversation, model: model});
-        //     }
-        // }, [selectedModelId]);
+
+        useEffect(() => {
+            handleResponseTokenChange(responseSliderState);
+        }, [selectedModelId]);
+
+
+        const handleResponseTokenChange = (r: number) => {
+            if (selectedConversation) {
+                const model: Model | undefined = getSelectModel();
+                const modelMaxTokens = model ? model.outputTokenLimit : 4096; 
+                const tokens = Math.floor((r / 6) * modelMaxTokens);
+                // console.log("Token change" , tokens);
+                handleUpdateConversation(selectedConversation, {
+                    key: 'maxTokens',
+                    value: tokens,
+                })
+            }
+        }
+
 
         const updateMessage = (selectedConversation: Conversation, updatedMessage: Message, updateIndex: number) => {
             let updatedConversation = {
@@ -987,17 +1011,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     />
 
                                                     <ResponseTokensSlider
+                                                        responseSliderState={responseSliderState}
                                                         label={t('Response Length')}
                                                         onResponseTokenRatioChange={(r) => {
-                                                            if (selectedConversation && selectedConversation.model) {
-
-                                                                const tokens = Math.floor(1000 * (r / 3.0)) + 1;
-                                                                console.log(tokens);
-                                                                handleUpdateConversation(selectedConversation, {
-                                                                    key: 'maxTokens',
-                                                                    value: tokens,
-                                                                })
-                                                            }
+                                                            setResponseSliderState(r);
+                                                            handleResponseTokenChange(r);
                                                         }}
                                                     />
                                                     </>
