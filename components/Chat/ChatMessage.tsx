@@ -8,6 +8,7 @@ import {
     IconMail,
     IconArrowFork,
     IconHighlight,
+    IconLibrary,
 } from '@tabler/icons-react';
 import React, {FC, memo, useContext, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'next-i18next';
@@ -34,6 +35,10 @@ import cloneDeep from 'lodash/cloneDeep';
 import { v4 as uuidv4 } from 'uuid';
 import AssistantMessageHighlight from './ChatContentBlocks/AssistantMessageHighlight';
 import { getSettings } from '@/utils/app/settings';
+import { lzwCompress } from '@/utils/app/lzwCompression';
+import { inferArtifactType } from '@/utils/app/artifacts';
+import { Artifact } from '@/types/artifacts';
+import { getDateName } from '@/utils/app/date';
 
 export interface Props {
     message: Message;
@@ -177,6 +182,35 @@ export const ChatMessage: FC<Props> = memo(({
     }, [message.content]);
 
 
+    const handleCreateArtifactFromMessage = (content: string) => {
+        if (selectedConversation) {
+            const artifactId = `Artifact${Math.floor(100000 + Math.random() * 900000)}`;
+            const inferenceType = inferArtifactType(content);
+            const artifactDetail = {
+                            artifactId: artifactId,
+                            name: "Artifact", 
+                            createdAt: getDateName(),
+                            description: '',
+                            version: 1 
+                        }
+
+            const artifact: Artifact = {...artifactDetail, 
+                                            contents: lzwCompress(content), 
+                                            tags: [],
+                                            type: inferenceType
+                                        }
+            
+            homeDispatch({field: "selectedArtifacts", value: [artifact]});
+            window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: true, artifactIndex:  0}} ));
+
+            const updatedConversation = {...selectedConversation};
+            updatedConversation.artifacts = {...(updatedConversation.artifacts ?? {}), [artifactId]: [artifact] };
+            const messageData = updatedConversation.messages[messageIndex].data;
+            updatedConversation.messages[messageIndex].data.artifacts = [...(messageData.artifacts ?? []), artifactDetail];
+    
+            handleUpdateSelectedConversation(updatedConversation);
+        }
+    }
 
     const handleDownload = async (dataSource: DataSource) => {
         //alert("Downloading " + dataSource.name + " from " + dataSource.id);
@@ -392,7 +426,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={() => handleForkConversation(messageIndex)}
-                                        title="Branch Into A Conversation"
+                                        title="Branch Into New Conversation"
                                     >
                                         <IconArrowFork size={20}/>
                                     </button>
@@ -487,6 +521,15 @@ export const ChatMessage: FC<Props> = memo(({
                                             <IconCopy size={20}/>
                                         </button>
                                     )}
+
+                                    <button
+                                        className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                        onClick={() => handleCreateArtifactFromMessage(messageContent)}
+                                        title="Turn Into Artifact"
+                                    >
+                                        <IconLibrary size={20}/>
+                                    </button>
+
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={() => setIsDownloadDialogVisible(true)}
@@ -503,6 +546,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             <IconMail size={20}/>
                                         </a>
                                     </button>
+
                                     {featureFlags.highlighter && 
                                      getSettings(featureFlags).featureOptions.includeHighlighter && 
                                         <button
@@ -523,11 +567,10 @@ export const ChatMessage: FC<Props> = memo(({
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={() => handleForkConversation(messageIndex)}
-                                        title="Branch Into A Conversation"
+                                        title="Branch Into New Conversation"
                                     >
                                         <IconArrowFork size={20}/>
                                     </button>
-
 
                                 </div>}
                             </div>
