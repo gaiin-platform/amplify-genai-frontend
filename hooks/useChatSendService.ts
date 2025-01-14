@@ -209,10 +209,6 @@ export function useSendService() {
                         conversationId
                     };
 
-                    if (featureFlags.artifacts && featureOptions.includeArtifacts) { 
-                        chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
-                    }
-
                     if (isArtifactsOn) {
                         // account for plugin on/off features 
                         const astFeatureOptions = message.data?.assistant?.definition?.featureOptions;
@@ -283,6 +279,8 @@ export function useSendService() {
                     if (options) {
                         Object.assign(chatBody, options);
                     }
+
+                    console.log("Chatbody:", chatBody);
 
                     const parseMessageType = (message: string): {
                         prefix: "chat" | "json" | "json!" | "csv" | "fn";
