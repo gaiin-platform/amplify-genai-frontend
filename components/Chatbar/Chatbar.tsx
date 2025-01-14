@@ -161,7 +161,7 @@ export const Chatbar = () => {
   };
 
   const handleDrop = (e: any) => {
-    if (e.dataTransfer) {
+    if (e.dataTransfer && e.dataTransfer.getData('conversation')) {
       const conversation = JSON.parse(e.dataTransfer.getData('conversation'));
       handleUpdateConversation(conversation, { key: 'folderId', value: 0 });
       chatDispatch({ field: 'searchTerm', value: '' });

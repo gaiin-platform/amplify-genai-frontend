@@ -5,10 +5,6 @@ import React, { useContext, useEffect, useRef } from 'react';
 import { useSendService } from '@/hooks/useChatSendService';
 
 import { executeAssistantApiCall } from '@/services/assistantAPIService';
-import { execOp } from '@/services/opsService';
-import { getDbsForUser } from '@/services/pdbService';
-
-import { filterModels } from '@/utils/app/models';
 import {
   getApiCalls,
   getServerProvidedOpFormat,

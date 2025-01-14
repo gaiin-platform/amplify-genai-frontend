@@ -104,3 +104,21 @@ export const uploadArtifact = async (filename: string, content: string, tags:str
         console.error('Error uploading artifact:', error);
     }
 };
+
+
+export const inferArtifactType = (content: string) => {
+    switch (true) {
+        case (/import\s+React|useState|useEffect|<\w+\s|return\s*\(\s*<|React\./.test(content)):
+            return 'react';
+        case (/document\.|addEventListener|setTimeout|fetch|console\./.test(content)):
+            return 'static';
+        case (/^\s*{[\s\S]*}\s*$|^\s*\[[\s\S]*\]\s*$/.test(content)): // Matches JSON objects or arrays
+            return 'json';
+        case (/^.+(,|\t).+$/m.test(content)):
+            return 'csv';
+        case (/^<svg[\s\S]*<\/svg>$/.test(content)): 
+            return 'svg';
+        default:
+            return 'text';
+    }
+}

@@ -16,7 +16,7 @@ import { AstGroupTypeData } from '@/types/groups';
 import React from 'react';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { executeAssistantApiCall } from '@/services/assistantAPIService';
-import { getOpsForUser, getOpsForUserAllTags } from '@/services/opsService';
+import { getOpsForUser } from '@/services/opsService';
 import ApiItem from '@/components/AssistantApi/ApiItem';
 import { getSettings } from '@/utils/app/settings';
 import { API, APIComponent } from '@/components/CustomAPI/CustomAPIEditor';

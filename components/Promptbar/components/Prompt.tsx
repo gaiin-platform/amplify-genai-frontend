@@ -213,7 +213,7 @@ export const PromptComponent = ({ prompt }: Props) => {
             <div className="relative flex w-full">
                 <button
                     className="w-full  cursor-pointer p-1 items-center gap-1 rounded-lg p-2 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
-                    draggable={prompt.id.startsWith("astg") ? false : true} 
+                    draggable={prompt.id.startsWith("astg") || isBase ? false : true} 
                     onClick={(e) => {
                         e.stopPropagation();
 
@@ -247,7 +247,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
                 </button>
 
-                { checkPrompts && !prompt.groupId &&  ( //&& !isReserved
+                { checkPrompts && !groupId && !isBase &&  ( //&& !isReserved
                     <div className="relative flex items-center">
                         <div key={prompt.id} className="absolute right-4 z-10">
                             <input

@@ -91,6 +91,7 @@ import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdo
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import DOMPurify from 'dompurify';
+// import { WorkspaceLegacyMessage } from '@/components/Workspace/WorkspaceLegacyMessage';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -314,25 +315,6 @@ const Home = ({
         return stopConversationRef.current;
     }
 
-    const handleStopConversation = async () => {
-        stopConversationRef.current = true;
-
-        if (currentRequestId) {
-            try{
-                await killRequest(currentRequestId);
-            } catch(e) {
-                console.error("Error killing request", e);
-            }
-        }
-
-        setTimeout(() => {
-            stopConversationRef.current = false;
-
-            dispatch({field: 'loading', value: false});
-            dispatch({field: 'messageIsStreaming', value: false});
-            dispatch({field: 'status', value: []});
-        }, 1000);
-    };
 
     const handleCreateFolder = (name: string, type: FolderType):FolderInterface => {
 
@@ -1374,7 +1356,6 @@ const Home = ({
                 value={{
                     ...contextValue,
                     handleNewConversation,
-                    handleStopConversation,
                     shouldStopConversation,
                     handleForkConversation,
                     handleCreateFolder,
@@ -1442,6 +1423,7 @@ const Home = ({
                             >
                                 <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
                                 <Tab icon={<IconShare />} title="Share"><SharedItemsList /></Tab>
+                                {/* <Tab icon={<IconTournament />} title="Workspaces"><WorkspaceLegacyMessage /></Tab> */}
                                 <Tab icon={<IconTournament />} title="Workspaces"><WorkspaceList /></Tab>
                                 <Tab icon={<IconSettings />} title="Settings"><SettingsBar /></Tab>
                             </TabSidebar>

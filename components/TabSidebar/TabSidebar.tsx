@@ -37,14 +37,13 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
     const [isArtifactsOpen, setIsArtifactsOpen] = useState<boolean>(false);
     const [groupModalData, setGroupModalData] = useState<any>(undefined);
 
-
     const childrenArray = React.Children.toArray(children) as React.ReactElement<TabProps>[]; // here we assert that all children are ReactElements
     const toggleOpen = () => setIsOpen(!isOpen);
 
     const isMultipleTabs = childrenArray.length > 1;
 
     const handleAdmin = (isOpen: boolean) => {
-        if (isOpen && isArtifactsOpen)  window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false }} ));
+        if (isOpen && isArtifactsOpen) window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false }} ));
         setIsOpen(!isOpen);
     }
 
@@ -68,13 +67,30 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
             setIsArtifactsOpen(isArtifactsOpen);
         };
 
+        const handleTabSwitchEvent = (event:any) => {
+            if (isMultipleTabs) {
+                const eventSide = event.detail.side;
+                if (side === eventSide && !isOpen) setIsOpen(true);
+                if (eventSide === 'right' && isArtifactsOpen) setIsArtifactsOpen(false);
+                
+                const switchToIndex = childrenArray.findIndex(
+                    (child) => child.props.title === event.detail.tab
+                );
+                setActiveTab(switchToIndex);
+            }
+        };
+
         window.addEventListener('openAstAdminInterfaceTrigger', handleAstAdminEvent);
         window.addEventListener('openAdminInterfaceTrigger', handleAdminEvent);
         window.addEventListener('openArtifactsTrigger', handleArtifactEvent);
+        window.addEventListener('homeChatBarTabSwitch', handleTabSwitchEvent);
+
         return () => {
             window.removeEventListener('openAstAdminInterfaceTrigger', handleAstAdminEvent);
             window.removeEventListener('openAdminInterfaceTrigger', handleAdminEvent);
             window.removeEventListener('openArtifactsTrigger', handleArtifactEvent);
+            window.removeEventListener('homeChatBarTabSwitch', handleTabSwitchEvent);
+
         };
     }, []);
 
