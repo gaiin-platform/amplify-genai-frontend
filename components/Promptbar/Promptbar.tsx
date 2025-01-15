@@ -178,7 +178,7 @@ const Promptbar = () => {
   
 
   const handleDrop = (e: any) => {
-    if (e.dataTransfer) {
+    if (e.dataTransfer && e.dataTransfer.getData('prompt')) {
       const prompt = JSON.parse(e.dataTransfer.getData('prompt'));
 
       const updatedPrompt = {

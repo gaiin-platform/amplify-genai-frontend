@@ -105,7 +105,7 @@ export const PromptStatus: React.FC<PromptStatusProps> = ({ status }) => {
                 </div>
             </div>
             {status.message && status.summary && (status.summary !== status.message && detailsOpen) && (
-                <div className="mx-2 mt-0 pt-7 px-5 bg-neutral-200 dark:bg-[#343541] rounded-lg">
+                <div className="mx-2 mt-0 py-2 px-5 bg-neutral-200 dark:bg-[#343541] rounded-lg">
                     <PromptStatusDetails status={status}/>
                 </div>
             )}

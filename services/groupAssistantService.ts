@@ -1,3 +1,8 @@
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/assistant";
+
+
 const failureResponse = (reason: string) => {
     return {
         success: false,

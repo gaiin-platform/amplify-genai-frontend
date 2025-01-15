@@ -8,6 +8,7 @@ import {
   IconX,
   IconPin,
   IconPinFilled,
+  IconEyeOff,
 } from '@tabler/icons-react';
 import {
   KeyboardEvent,
@@ -24,7 +25,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import React from 'react';
 import { baseAssistantFolder, isBaseFolder } from '@/utils/app/basePrompts';
 import ActionButton from '../ReusableComponents/ActionButton';
-import { saveFolders } from '@/utils/app/folders';
+import { hideGroupFolder, saveFolders } from '@/utils/app/folders';
 
 interface Props {
   currentFolder: FolderInterface;
@@ -52,7 +53,9 @@ const Folder = ({
   const [checkFolders, setCheckFolders] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
 
-  const showEditDelete =  !currentFolder.isGroupFolder && !isBaseFolder(currentFolder.id) && currentFolder.id !== baseAssistantFolder.id;
+  const canDropInto =  !currentFolder.isGroupFolder && !isBaseFolder(currentFolder.id);
+  const showEditDelete = canDropInto && currentFolder.id !== baseAssistantFolder.id;
+  
 
   const handleEnterDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {
@@ -72,6 +75,13 @@ const Folder = ({
     saveFolders(updatedFolders);
   };
 
+  const handleHideGroupFolder = (folder: FolderInterface) => {
+    const updatedFolders = folders.filter((f:FolderInterface) => (f.id !== folder.id));
+    homeDispatch({ field: 'folders', value: updatedFolders });
+    saveFolders(updatedFolders);
+    hideGroupFolder(folder);
+  };
+
   const handleRename = () => {
     handleUpdateFolder(currentFolder.id, renameValue);
     setRenameValue('');
@@ -89,11 +99,13 @@ const Folder = ({
   };
 
   const allowDrop = (e: any) => {
-    e.preventDefault();
+    if (canDropInto) {
+      e.preventDefault();
+    } 
   };
 
   const highlightDrop = (e: any) => {
-    e.target.style.background = '#343541';
+    if (canDropInto) e.target.style.background = '#343541';
   };
 
   const removeHighlight = (e: any) => {
@@ -232,7 +244,7 @@ const Folder = ({
             </div>
           )}
 
-          {!isDeleting && !isRenaming && isHovered && !checkFolders && showEditDelete && (
+          {!isDeleting && !isRenaming && isHovered && !checkFolders && (
             <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
               <ActionButton
                 handleClick={(e) => {
@@ -246,7 +258,18 @@ const Folder = ({
                   <IconPin size={18} /> 
                 }
               </ActionButton>
-
+              {currentFolder.isGroupFolder && 
+                <ActionButton
+                handleClick={(e) => {
+                  e.stopPropagation();
+                  handleHideGroupFolder(currentFolder);
+                }}
+                title="Hide Folder"
+              >
+                  <IconEyeOff size={18} /> 
+              </ActionButton>
+              }
+              { showEditDelete && <>
               <ActionButton
                 handleClick={(e) => {
                   e.stopPropagation();
@@ -267,6 +290,7 @@ const Folder = ({
               >
                 <IconTrash size={18} />
               </ActionButton>
+              </>}
             </div>
           )}
         </div>

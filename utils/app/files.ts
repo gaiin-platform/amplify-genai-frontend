@@ -52,3 +52,18 @@ async function downloadImageFromPresignedUrl(presignedUrl: string, filename: str
     }
   }
   
+
+  export async function fetchFile(presignedUrl: string) {
+    if (!presignedUrl) return null;
+    try {
+      const response = await fetch(presignedUrl);
+      if (!response.ok) throw new Error('Failed to fetch file');
+  
+      const fileBlob = await response.blob();
+
+      return URL.createObjectURL(fileBlob);
+    } catch (error) {
+      console.error('Error fetching or displaying file:', error);
+      return "";
+    }
+  }

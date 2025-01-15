@@ -32,3 +32,18 @@ export const sortFoldersByDate = (a: FolderInterface, b: FolderInterface) => {
 export const sortFoldersByName = (a: FolderInterface, b: FolderInterface) => {
   return a.name.localeCompare(b.name);
 }
+
+export const hideGroupFolder = (hideFolder:FolderInterface) => {
+  const savedHiddenFolders = localStorage.getItem('hiddenGroupFolders');
+  const hiddenFolders = savedHiddenFolders ? JSON.parse(savedHiddenFolders) : [];
+    // check its not already there
+  const present = hiddenFolders.find((f:FolderInterface) => f.id == hideFolder.id);
+  if (!present) localStorage.setItem('hiddenGroupFolders', JSON.stringify([...hiddenFolders, hideFolder]));
+
+}
+
+
+export const getHiddenGroupFolders = () => {
+  const savedHiddenFolders = localStorage.getItem('hiddenGroupFolders');
+  return savedHiddenFolders ? JSON.parse(savedHiddenFolders) : [];
+}

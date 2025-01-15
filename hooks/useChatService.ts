@@ -9,15 +9,15 @@ import {wrapResponse, stringChunkCallback} from "@/utils/app/responseWrapper";
 
 import {getSession} from "next-auth/react"
 import json5 from "json5";
-import {ModelID, Models} from "@/types/model";
 import {newStatus} from "@/types/workflow";
+import { DefaultModels } from "@/types/model";
 
 export function useChatService() {
     const {
-        state: {statsService, chatEndpoint, defaultAccount, defaultModelId},
+        state: {statsService, chatEndpoint, defaultAccount},
         preProcessingCallbacks,
         postProcessingCallbacks,
-        dispatch,
+        dispatch, getDefaultModel
     } = useContext(HomeContext);
 
     const killRequest = async (requestId:string) => {
@@ -113,6 +113,7 @@ export function useChatService() {
 
         preProcessingCallbacks.forEach(callback => callback({chatBody: chatBody}));
     
+        if (!chatBody.model)  chatBody.model = getDefaultModel(DefaultModels.DEFAULT);;
 
         let response = null;
 
@@ -202,11 +203,9 @@ export function useChatService() {
 
     const routeChatRequest = async (chatBody: ChatBody, abortSignal?: AbortSignal) => {
         const message = chatBody.messages.slice(-1)[0];
-
         
-        if (!chatBody.model && defaultModelId) {
-            chatBody.model = Models[defaultModelId as ModelID];
-        }
+        if (!chatBody.model) chatBody.model = getDefaultModel(DefaultModels.DEFAULT);;
+        
 
         const {prefix, body, options} = parseMessageType(message.content || "");
 

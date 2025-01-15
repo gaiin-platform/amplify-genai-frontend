@@ -214,8 +214,8 @@ export const SaveWorkspaceModal: FC<SharingModalProps> = (
             if (sharedBy && sharingNote) {
                 try {
                     const result = await shareItems(sharedBy, sharedWith, sharingNote, sharedData);
-
-                    if (result.ok) {
+                   
+                    if (result.success) {
                         setIsSharing(false);
                         toast("Saved successfully");
                         homeDispatch({field: 'workspaceDirty', value: false});

@@ -18,7 +18,6 @@ export const ExampleChat: FC<Props> = ({messages}) => {
                         key={i}
                         message={message}
                         messageIndex={i}
-                        onSend={() => {}}
                         onSendPrompt={() => {}}
                         onChatRewrite={() => {}}
                         handleCustomLinkClick={() => {}}

@@ -21,3 +21,13 @@ export interface ApiKeyList {
     keyOwner: ApiKey[], 
     keyDelegate: ApiKey[]
 }
+
+
+
+export enum ApiKeyOps {
+    CREATE = 'CREATE',
+    GET = 'GET',
+    DEACTIVATE = 'DEACTIVATE',
+    UPDATE = 'UPDATE',
+
+}

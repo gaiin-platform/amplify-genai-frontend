@@ -1,6 +1,4 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-
-import { OPENAI_API_HOST } from '@/utils/app/const';
 import { cleanSourceText } from '@/utils/server/google';
 
 import { Message, newMessage } from '@/types/chat';

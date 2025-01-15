@@ -1,54 +1,51 @@
+import { Conversation, Message } from "@/types/chat";
+import { doRequestOp } from "./doRequestOp";
+import { conversationWithUncompressedMessages } from "@/utils/app/conversation";
 
+const URL_PATH =  "/assistant";
 
-
-export const deleteAssistant = async (assistantId: string, abortSignal = null) => {
-    
-    const response = await fetch('/api/codeInterpreter/delete' + `?assistantId=${encodeURIComponent(assistantId)}&path=${encodeURIComponent("/delete")}`, {
+const deleteOpenAIAssistant = async (assistantId: string) => {
+    const op = {
         method: 'DELETE',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-    });
+        path: URL_PATH,
+        op: "/openai/delete",
+        queryParams: {"assistantId" : assistantId}
+    };
+    const result = await doRequestOp(op);
+    return result.success;
+}
 
-    const result = await response.json();
-    try {
-        if (result.success) {
-            return true;
-        } else {
-            console.error("Error deleting code interpreter: ", result.message);
-            return false;
-        }
-    } catch (e) {
-        console.error("Error during delete conde interpreter request: ", e);
-        return false;
-    }
+
+const deleteOpenAiThread = async (threadId: string) => {
+    const op = {
+        method: 'DELETE',
+        path: URL_PATH,
+        op: "/openai/thread/delete",
+        queryParams: { "threadId": threadId }
+    };
+    const result = await doRequestOp(op);
+    return result.success;
+};
+
+
+export const getPresignedDownloadUrl = async (data:any) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/files/download/codeinterpreter",
+        data: data
+    };
+    return await doRequestOp(op);
 };
 
 
 
-export const getPresignedDownloadUrl = async (data:any, errorHandler=(e:any)=>{}) => {
-
-    const response = await fetch('/api/codeInterpreter/download', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: null,
-        body: JSON.stringify({'data': data}),
-    });
-
-
-    if (response.ok){
-        try {
-            const result = await response.json();
-
-            return result;
-        } catch (e){
-            return {success:false, message:"Error parsing response."};
-        }
-    }
-    else {
-        return {success:false, message:`Error calling assistant: ${response.statusText} .`}
-    }
+export const deleteCodeInterpreterConversation = (conversation: Conversation) => {
+    const threads: Set<string> = new Set(
+                        conversationWithUncompressedMessages(conversation).messages
+                                .map(m => m.data?.state?.codeInterpreter?.threadId)
+                                .filter(Boolean));
+    threads.forEach((t: string) => deleteOpenAiThread(t));
+    const astId = conversation.codeInterpreterAssistantId;
+    if (astId) deleteOpenAIAssistant(astId);
 }

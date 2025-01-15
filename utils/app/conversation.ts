@@ -1,19 +1,20 @@
 import { Conversation, Message } from '@/types/chat';
 import { lzwCompress, lzwUncompress } from '@/utils/app/lzwCompression';
 import { compressMessages, uncompressMessages } from './messages';
-import { isLocalConversation } from './conversationStorage';
+import { deleteCodeInterpreterConversation } from '@/services/codeInterpreterService';
+import { deleteRemoteConversation } from '@/services/remoteConversationService';
 
 export const updateConversation = (
-  updatedConversation: Conversation,
+  updatedConversation: Conversation, // expected to be the complete conversation 
   allConversations: Conversation[],
 ) => {
   const updatedConversations = allConversations.map((c) => {
     if (c.id === updatedConversation.id) {
-      return conversationWithCompressedMessages(updatedConversation);
+      return condenseForConversationHistory(updatedConversation);
     }
     return c;
   });
-
+  
   saveConversations(updatedConversations);
 
   return {
@@ -22,7 +23,31 @@ export const updateConversation = (
   };
 };
 
+export const isRemoteConversation = (conversation: Conversation) => {
+  return ('isLocal' in conversation && !conversation.isLocal)
+}
+
+
+export const isLocalConversation = (conversation: Conversation) => {
+  return !('isLocal' in conversation) || conversation.isLocal;
+}
+
+
+export const condenseForConversationHistory = (conversation: Conversation) => {
+  return isLocalConversation(conversation) ? conversationWithCompressedMessages(conversation) 
+                                           : remoteForConversationHistory(conversation);
+};
+
+
+export const deleteConversationCleanUp = (conversation: Conversation) => {
+  if (conversation.codeInterpreterAssistantId) deleteCodeInterpreterConversation(conversation);
+  if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
+}
+
+
+
 export const saveConversations = (conversations: Conversation[]) => {
+  // TODO ensure all conversations are compressed or stripped
   try {
     localStorage.setItem('conversationHistory', JSON.stringify(conversations));
   } catch (error) {
@@ -46,6 +71,42 @@ export const saveConversationsDirect = (conversations: Conversation[]) => {
   }
 };
 
+
+
+export const conversationWithCompressedMessages = (conversation: Conversation) => {
+  //already compresed
+  if ((!conversation.messages || conversation.messages.length === 0) && conversation.compressedMessages) return conversation;
+  const compressedMessages = compressMessages(conversation.messages);
+  return {...conversation, messages: [], compressedMessages: compressedMessages} as Conversation;
+}
+
+export const conversationWithUncompressedMessages = (conversation: Conversation) => {
+  if (!conversation.compressedMessages && conversation.messages) return conversation;
+  const compressedMessage = conversation.compressedMessages ?? [];
+  const uncompressedMessages = uncompressMessages(compressedMessage);
+  return {...conversation, messages: uncompressedMessages, compressedMessages: undefined} as Conversation;
+}
+
+export const compressAllConversationMessages = (conversations: Conversation[]) => {
+  try {
+    return conversations.map((c) => {
+      if (isLocalConversation(c) && c.compressedMessages === undefined) {
+         const compressed = compressMessages(c.messages);
+         return {...c, messages: [], compressedMessages : compressed}
+      } else if (isRemoteConversation(c) && c.messages.length > 0) {
+        return remoteForConversationHistory(c);
+      }
+      return c; 
+    });
+  } catch {
+    console.log("Failed to compress all messages");
+    return conversations;
+  }
+}
+
+
+
+
 export const compressConversation = (conversation: Conversation) => {
   try {
     const data = JSON.stringify(conversation);
@@ -64,32 +125,18 @@ export const uncompressConversation = (compressedData: number[]) => {
   } 
 }
 
+export const remoteForConversationHistory = (conversation: Conversation) => {
+  const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType', 'codeInterpreterAssistantId' ];
+  return pickConversationAttributes(conversation, CloudConvAttr) as Conversation;
+};
 
-export const compressAllConversationMessages = (conversations: Conversation[]) => {
-  try {
-    return conversations.map((c) => {
-      if (isLocalConversation(c) && c.compressedMessages === undefined) {
-         const compressed = compressMessages(c.messages);
-         return {...c, messages: [], compressedMessages : compressed}
+function pickConversationAttributes<T extends object, K extends keyof T>(obj: T, props: K[]): Pick<T, K> {
+  const result = {} as Pick<T, K>;
+  props.forEach(prop => {
+      if (prop in obj) {
+          result[prop] = obj[prop];
       }
-      return c; 
-    });
-  } catch {
-    console.log("Failed to compress all messages");
-    return conversations;
-  }
-}
-
-export const conversationWithCompressedMessages = (conversation: Conversation) => {
-  //already compresed
-  if ((!conversation.messages || conversation.messages.length === 0) && conversation.compressedMessages) return conversation;
-  const compressedMessages = compressMessages(conversation.messages);
-  return {...conversation, messages: [], compressedMessages: compressedMessages} as Conversation;
-}
-
-export const conversationWithUncompressedMessages = (conversation: Conversation) => {
-  if (!conversation.compressedMessages && conversation.messages) return conversation;
-  const compressedMessage = conversation.compressedMessages ?? [];
-  const uncompressedMessages = uncompressMessages(compressedMessage);
-  return {...conversation, messages: uncompressedMessages, compressedMessages: undefined} as Conversation;
+  });
+ 
+  return {...result, messages: []} ;
 }

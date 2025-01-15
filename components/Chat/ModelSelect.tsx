@@ -3,33 +3,36 @@ import { useContext, useEffect, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
-import { Model, ModelID } from '@/types/model';
+import { Model } from '@/types/model';
 
 import HomeContext from '@/pages/api/home/home.context';
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 interface Props {
-  modelId: ModelID | undefined;
+  modelId: string | undefined;
   isDisabled?: boolean;
   handleModelChange?: (e: string) => void
   isTitled?: boolean;
+  applyModelFilter?:boolean;
   disableMessage?: string;
 }
 
 
-export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleModelChange, isTitled=true, disableMessage = "Model has been predetermined and can not be changed"}) => {
+export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleModelChange, isTitled=true, applyModelFilter = true,
+                                              disableMessage = "Model has been predetermined and can not be changed"}) => {
   const { t } = useTranslation('chat');
   const {
-    state: { selectedConversation, models,  defaultModelId, featureFlags},
+    state: { selectedConversation, defaultModelId, featureFlags, availableModels}, 
     handleUpdateConversation,
   } = useContext(HomeContext);
 
-  const [selectModel, setSelectModel] = useState<ModelID | undefined>(modelId ?? defaultModelId);
-  const filteredModels = filterModels(models, getSettings(featureFlags).modelOptions);
+  const [selectModel, setSelectModel] = useState<string | undefined>(modelId ?? defaultModelId);
+  const models = applyModelFilter ? filterModels(availableModels, getSettings(featureFlags).hiddenModelIds) : Object.values(availableModels);
 
   useEffect(()=>{
     setSelectModel(modelId);
-    if (!isDisabled && handleModelChange && !modelId && defaultModelId) setTimeout(() => {handleModelChange(defaultModelId)}, 100); 
+    // edge case in component use in Assistant Admin ui
+    if (!isDisabled && handleModelChange && !modelId && defaultModelId) {handleModelChange(defaultModelId)}; 
   }
   ,[modelId, isDisabled]);
 
@@ -46,7 +49,7 @@ export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleM
         ),
       });
     }
-    setSelectModel(updatedModel as ModelID);
+    setSelectModel(updatedModel);
     
   };
   
@@ -64,7 +67,7 @@ export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleM
           onChange={handleChange}
           title={isDisabled ? disableMessage : "Select Model"}
         >
-          {filteredModels.map((model: Model) => (
+          {models.map((model: Model) => (
             <option
               key={model.id}
               value={model.id}

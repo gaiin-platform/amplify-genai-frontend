@@ -92,7 +92,8 @@ const useEventService = (mixPanelToken:string) => {
 
     const ifReady = (fn: any) => {
         return async (...args: any[]) => {
-            if (eventServiceReady) {
+            // console.log("is mix panel on?", localStorage.getItem('mixPanelOn'));
+            if (eventServiceReady && JSON.parse(localStorage.getItem('mixPanelOn') ?? 'false')) {
                 fn(...args);
             }
         }
@@ -365,7 +366,7 @@ const useEventService = (mixPanelToken:string) => {
             try {
                 const data = {
                     messageCount: chatBody.messages.length,
-                    modelId: chatBody.model.id,
+                    modelId: chatBody.model?.id ?? 'undefined',
                     messagesCharacters: chatBody.messages.reduce((acc, m) => acc + m.content.length, 0),
                 }
 
@@ -380,7 +381,7 @@ const useEventService = (mixPanelToken:string) => {
             try {
                 const data = {
                     messageCount: chatBody.messages.length,
-                    modelId: chatBody.model.id,
+                    modelId: chatBody.model?.id ?? 'undefined',
                     messagesCharacters: chatBody.messages.reduce((acc, m) => acc + m.content.length, 0),
                     updateIndex: updateIndex,
                 }

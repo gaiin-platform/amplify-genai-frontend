@@ -47,7 +47,7 @@ export const getAssistant = (prompt: Prompt): AssistantDefinition => {
     return prompt.data?.assistant.definition;
 }
 
-export const getAssistantFromMessage = (message: Message): AssistantDefinition => {
+export const getAssistantFromMessage = (message: Message): AssistantDefinition | null => {
     return (message.data && message.data.assistant && message.data.assistant.definition) ?
         message.data?.assistant.definition : null;
 }

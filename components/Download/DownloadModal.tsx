@@ -9,7 +9,7 @@ import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {ConversionOptions, convert} from "@/services/downloadService";
 import { LatestExportFormat } from "@/types/export";
-import { isRemoteConversation } from "@/utils/app/conversationStorage";
+import { isRemoteConversation } from "@/utils/app/conversation";
 import { fetchMultipleRemoteConversations } from "@/services/remoteConversationService";
 
 export interface DownloadModalProps {
@@ -56,7 +56,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
         showInclude = true,
     }) => {
     const {
-        state: {prompts, conversations, folders, statsService, selectedConversation},
+        state: {prompts, conversations, folders, statsService, selectedConversation, powerPointTemplateOptions},
     } = useContext(HomeContext);
 
     const promptsRef = useRef(prompts);
@@ -103,16 +103,6 @@ export const DownloadModal: FC<DownloadModalProps> = (
     const [conversationsChecked, setConversationsChecked] = useState(false);
     const [foldersChecked, setFoldersChecked] = useState(false);
 
-    const powerPointTemplateOptions = [
-        "none",
-        "celestial.pptx",
-        "frame.pptx",
-        "gallery.pptx",
-        "integral.pptx",
-        "ion.pptx",
-        "parcel.pptx",
-        "vapor.pptx",
-    ];
 
     const wordTemplateOptions = [
         "none",
@@ -221,7 +211,8 @@ export const DownloadModal: FC<DownloadModalProps> = (
                     let conversation = conv;
                     if (selectedConversation && conversation.id !== selectedConversation.id &&
                         isRemoteConversation(conv)) {
-                            const cloudConv = await fetchMultipleRemoteConversations([conv.id]);
+                            const cloudConvResult = await fetchMultipleRemoteConversations([conv.id]);
+                            const cloudConv = cloudConvResult.data;
                             if (cloudConv && cloudConv.length > 0) conversation = cloudConv[0];
                         }
                     switch (includeMode) {
@@ -290,9 +281,9 @@ export const DownloadModal: FC<DownloadModalProps> = (
                conversionOptions.templateName = templateSelection;
             }
 
-            const result = await convert(conversionOptions, await sharedData);
+            const result = await convert(conversionOptions, sharedData);
 
-            statsService.downloadItemEvent(conversionOptions, await sharedData);
+            statsService.downloadItemEvent(conversionOptions, sharedData);
 
             let resultArrived = false;
             let triesLeft = 60;
@@ -450,9 +441,10 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                         <select
                                             className={shadow}
                                             onChange={(e) => {
-                                                if(e.target.value === 'pptx'){
+                                                if(e.target.value === 'pptx' && powerPointTemplateOptions.length > 0){
                                                     setTemplateOptions(powerPointTemplateOptions);
-                                                    setTemplateSelection("celestial.pptx");
+                                                    const defaultTemplate = powerPointTemplateOptions.includes("vanderbilt_1.pptx") ? "vanderbilt_1.pptx" : powerPointTemplateOptions[0];
+                                                    setTemplateSelection(defaultTemplate);
                                                 }
                                                 else {
                                                     setTemplateOptions(wordTemplateOptions);
@@ -463,7 +455,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                             value={format}
                                         >
                                             <option value="docx">Word</option>
-                                            <option value="pptx">PowerPoint</option>
+                                            { powerPointTemplateOptions.length > 0 && <option value="pptx">PowerPoint</option>}
                                         </select>
                                         </div>
 

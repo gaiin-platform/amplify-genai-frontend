@@ -3,6 +3,7 @@ import HomeContext from "@/pages/api/home/home.context";
 import { useSession } from "next-auth/react";
 import Loader from "@/components/Loader/Loader";
 import cloneDeep from 'lodash/cloneDeep';
+import {throttle} from '@/utils/data/throttle';
 
 import {
     IconCheck,
@@ -34,7 +35,6 @@ import { getAllArtifacts, saveArtifact, shareArtifact } from "@/services/artifac
 import { downloadArtifacts, uploadArtifact } from "@/utils/app/artifacts";
 import { EmailsAutoComplete } from "../Emails/EmailsAutoComplete";
 import { Group } from "@/types/groups";
-import { fetchEmailSuggestions } from "@/services/emailAutocompleteService";
 import { includeGroupInfoBox, stringToColor } from "../Emails/EmailsList";
 import { Conversation } from "@/types/chat";
 import React from "react";
@@ -49,7 +49,8 @@ import { getDateName } from "@/utils/app/date";
 
 
 export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts 
-    const {state:{statsService, selectedConversation, selectedArtifacts, artifactIsStreaming, conversations, folders, groups, featureFlags},
+    const {state:{statsService, selectedConversation, selectedArtifacts, artifactIsStreaming, 
+                  conversations, folders, groups, featureFlags, amplifyUsers},
            dispatch:homeDispatch, handleUpdateSelectedConversation} = useContext(HomeContext);
 
     const [selectArtifactList, setSelectArtifactList] = useState<Artifact[]>(selectedArtifacts ?? []);
@@ -96,8 +97,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
         if (selectedArtifacts)  setSelectArtifactList(selectedArtifacts);
     },[selectedArtifacts]);
 
-    const markdownComponentRef = useRef<HTMLDivElement>(null);
-    const divRef = useRef<HTMLDivElement>(null);
+    const artifactEndRef = useRef<HTMLDivElement>(null);
 
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
     const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -120,16 +120,26 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
 
     useEffect(() => {
         const fetchEmails = async () => {
-            const emailSuggestions =  await fetchEmailSuggestions("*");
+            const emailSuggestions =  amplifyUsers;
             // add groups  #groupName
             const groupForMembers = groups.map((group:Group) => `#${group.name}`);
-            setAllEmails(emailSuggestions.emails ? [...emailSuggestions.emails,
-                                                    ...groupForMembers].filter((e: string) => e !== user) : []);
+            setAllEmails(emailSuggestions ? [...emailSuggestions,
+                                             ...groupForMembers].filter((e: string) => e !== user) : []);
         };
         if (!allEmails) fetchEmails();
     }, [open]);
 
+    const scrollDown = () => {
+        if (artifactIsStreaming) {
+            artifactEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    };
 
+    const throttledScrollDown = throttle(scrollDown, 250);
+    
+    useEffect(() => {
+        throttledScrollDown();
+    }, [selectedConversation, throttledScrollDown]);
 
     useEffect(() => {
         if (isSaving || isSharing || isUploading) setIsModalOpen(true);
@@ -395,7 +405,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 
    return ( 
    <div className={`flex-0 text-base overflow-hidden min-h-screen bg-gray-200 dark:bg-[#343541] text-black dark:text-white border-l border-black px-4`}>
-        <div className="flex flex-col" ref={markdownComponentRef}> 
+        <div className="flex flex-col" > 
             {/* Modals */}
            
                 {isLoading && 
@@ -533,16 +543,18 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                         
                         {!isEditing && !isPreviewing &&  selectArtifactList && (
                             <div className="mt-8 flex flex-grow overflow-y-auto overflow-x-hidden justify-center" style={{height: innerHeight - 140}} 
-                                    ref={divRef}
                             >
                                 <ArtifactContentBlock
                                     artifactIsStreaming={artifactIsStreaming}
                                     selectedArtifact={selectArtifactList[versionIndex]}
                                     artifactId={selectArtifactList[versionIndex].artifactId}
                                     versionIndex={versionIndex}
+                                    artifactEndRef={artifactEndRef}
                                 />
                             </div>
+                            
                         )}
+                        
                         {isEditing && ( 
                            
                             <ArtifactEditor
