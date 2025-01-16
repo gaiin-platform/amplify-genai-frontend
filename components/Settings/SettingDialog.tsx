@@ -311,7 +311,7 @@ const modelLabel = (modelId: string, name: string) => {
             <div className='pr-4'>
             <FlagsMap 
               id={'featureOptionFlags'}
-              flags={featureOptionFlags}
+              flags={featureOptionFlags.filter((f: Flag) => Object.keys(initSettings.featureOptions).includes(f.key))}
               state={featureOptions}
               flagChanged={(key, value) => {
                 setFeatureOptions({...featureOptions, [key]: value});
