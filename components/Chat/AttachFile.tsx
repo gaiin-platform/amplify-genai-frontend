@@ -184,6 +184,11 @@ const handleFile = async (file:any,
 
     try {
         let type:string = file.type;
+        const extension = file.name.split('.').pop()?.toLowerCase();
+
+        if (!type && (extension === 'ts' || extension === 'tsx')) {
+            type = 'application/octet-stream'; // AWS S3 expects typescript files to be this type
+        }
 
         let size = file.size;
         const fileName = file.name.replace(/[_\s]+/g, '_');;
@@ -214,7 +219,7 @@ const handleFile = async (file:any,
         if(uploadDocuments) {
             try {
 
-                const {key, response, statusUrl, metadataUrl, contentUrl, abortController} = await addFile({id: uuidv4(), name: fileName, raw: "", type: file.type, data: "", groupId}, file,
+                const {key, response, statusUrl, metadataUrl, contentUrl, abortController} = await addFile({id: uuidv4(), name: fileName, raw: "", type: type, data: "", groupId}, file,
                     (progress: number) => {
                         if (onUploadProgress && progress < 95) {
                             onUploadProgress(document, progress);
