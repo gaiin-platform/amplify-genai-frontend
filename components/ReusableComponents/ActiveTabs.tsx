@@ -38,9 +38,10 @@ export const ActiveTabs: FC<Props> = ({tabs, width}) => {
 
     if (tabs && tabs.length === 0 ) return <></>;
     return ( 
-        <div ref={tabRef} className="flex flex-col gap-2">
-            <div className="z-50 fixed flex flex-row gap-1 rounded-t border-b dark:border-white/20 bg-neutral-100 dark:bg-[#2b2c36] "
-              style={{width: innerWidth}}>
+        <div ref={tabRef} className="flex flex-col gap-2"
+        style={{width: innerWidth}}>
+            <div className="z-50 fixed flex flex-row gap-1 rounded-t border-b dark:border-white/20 bg-neutral-100 dark:bg-[#2b2c36]"
+              style={{width: innerWidth * 0.98, overflowY: 'auto'}}>
                     {tabs.map((tab: tab, index: number) => 
                         <button
                             title={tab.title}
