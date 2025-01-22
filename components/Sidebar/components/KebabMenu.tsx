@@ -454,7 +454,7 @@ interface Props {
                                              setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconShare size={14} />} />
                             {<KebabItem label="Clean" handleAction={() => { cleanEmptyFolders() }} icon={<IconTrashFilled size={14} />} title="Remove Empty Folders" />}
                             <KebabItem label="Open All" handleAction={() => { openCloseFolders(true) } } icon={<IconFolderOpen size={13} />}  title="Open All Folders" />
-                            <KebabItem label="Close All" handleAction={() => { openCloseFolders(false) }} icon={<IconFolder size={14}/>}   title="Close All Folders"/>
+                            <KebabItem label="Close All" handleAction={() => { openCloseFolders(false) }} icon={<IconFolder size={13}/>}   title="Close All Folders"/>
                             {!isConvSide && hasHiddenGroupFolders()  &&  <KebabItem label="Unhide" handleAction={() => { unHideHiddenGroupFolders() }} icon={<IconEye size={14} />} title="Unhide Hidden Group Folders" /> }  
                         </KebabMenuItems>
                     </div>
