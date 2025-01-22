@@ -290,7 +290,7 @@ interface Props {
 
             let emptyRemoteConversations:Conversation[] = [];
             if (fetchRemoteConversations.data) {
-                console.log("Contains empty conversations");
+                // console.log("Contains empty conversations");
                 emptyRemoteConversations = fetchRemoteConversations.data;
                 const emptyRemoteConversationIds: string[] = emptyRemoteConversations.map((c:Conversation) => c.id);
 

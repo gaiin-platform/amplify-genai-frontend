@@ -28,11 +28,13 @@ const ChatSourceBlock: React.FC<Props> = (
 
     return <div>
         <ExpansionComponent title={getDisplayName(name)}
-            content={sources.map((source, index) => (
+            content={ sources && sources.length > 0 ?
+            sources.map((source, index) => (
             <div key={index}>
                 <ChatSource source={source} index={index + 1}/>
-            </div>
-        ))}/>
+            </div> )) :
+            <div className="text-gray-400 text-sm ml-1">No Sources to Display</div>
+        }/>
     </div>;
 };
 
