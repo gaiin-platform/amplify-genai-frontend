@@ -14,6 +14,10 @@ export const getSettings = (featureFlags:any): Settings => {
   if (settingsJson) {
     try {
       let savedSettings = JSON.parse(settingsJson) as Settings;
+      const allowedFeatureOptions = settings.featureOptions;
+      for (const key in savedSettings.featureOptions) {
+        if (!allowedFeatureOptions.hasOwnProperty(key)) delete savedSettings.featureOptions[key];
+      }
       settings = Object.assign(settings, savedSettings);
 
     } catch (e) {

@@ -3,7 +3,7 @@ import { FC, useContext, useEffect, useRef, useState } from "react";
 import { Modal } from "../ReusableComponents/Modal";
 import HomeContext from "@/pages/api/home/home.context";
 import InputsMap from "../ReusableComponents/InputMap";
-import { deletePptx, getAdminConfigs, getInFlightEmbeddings, terminateEmbedding, testEndpoint, updateAdminConfigs, uploadPptx } from "@/services/adminService";
+import { deletePptx, getAdminConfigs, getInFlightEmbeddings, terminateEmbedding, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs, uploadPptx } from "@/services/adminService";
 import { AdminConfigTypes, Embedding, EmbeddingsConfig, Endpoint, FeatureFlag, FeatureFlagConfig, OpenAIModelsConfig, providers, SupportedModel, SupportedModelsConfig } from "@/types/admin";
 import ExpansionComponent from "../Chat/ExpansionComponent";
 import { IconCheck, IconPlus, IconRefresh,  IconTrash, IconX, IconEdit, IconKey, IconCircleX, IconFileUpload, IconFileTypeDocx, IconFileTypePpt, IconChevronRight, IconChevronLeft, IconFileTypeCsv, IconFileTypeJs, IconTags, IconMessage, IconFileTypePdf } from "@tabler/icons-react";
@@ -86,12 +86,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [isDeletingEndpoint, setIsDeletingEndpoint] = useState<string | null>(null);
     const [deleteEndpointsList, setDeleteEndpointsList] = useState<number[]>([]);
     const [hoveredEndpoint, setHoveredEndpoint] = useState<{ model: string; index: number } | null>(null);
-    //TODO
-    // const [testEndpoints, setTestEndpoints] = useState<{ url: string; key: string, model:string}[]>([
-    //     {url: "https://vu-ai-gpt-east.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-02-15-preview",key: "25aad0c8e1604dca8a78fa28180cb57a",model: "gpt-4o-mini"}
-    // ]);
-
-    const [testEndpoints, setTestEndpoints] = useState<{ url: string; key: string, model:string}[]>([]);
+    const testEndpointsRef = useRef<{ url: string; key: string, model:string}[]>([]);
 
 
 //////////////////// Vars for Data Tab //////////////////////////
@@ -301,17 +296,36 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         return newModel;
                     })
                 };
-                if (toTest.length > 0) setTestEndpoints(toTest);
+                if (toTest.length > 0) testEndpointsRef.current = toTest;
                 return cleanedOpenAiEndpoints;
         }   
     }
 
+    const processUrl = (url: string) => {
+        return url.endsWith('/') ? url : `${url}/`;
+    }
+
 
     const callTestEndpoints = async () => {
-        for (const endpoint of testEndpoints) {
+        for (const endpoint of testEndpointsRef.current) {
           const label = `Url: ${endpoint.url}\nKey: ${endpoint.key}`;
           setLoadingMessage(`Testing Endpoint:\n${label}`);
-          const result = await testEndpoint(endpoint.url, endpoint.key, endpoint.model);
+          let result:any = null;
+          const model = endpoint.model;
+          if (model.includes('embed')) {
+            const url = processUrl(endpoint.url);
+            const completion = `openai/deployments/${endpoint.model}/embeddings?api-version=2024-02-01`;
+            result =  await testEmbeddingEndpoint(`${url}${completion}`, endpoint.key);
+
+          } else if (model === "code-interpreter") {
+            const url = processUrl(endpoint.url);
+            const completion = "openai/deployments/gpt-4o/chat/completions?api-version=2024-08-01-preview";
+            result =  await testEndpoint(`${url}${completion}`, endpoint.key, "gpt-4o");
+
+          } else {
+            result =  await testEndpoint(endpoint.url, endpoint.key, model);
+          }
+         
           if (!result) {
             alert(`Failed to make contact with the new endpoint:\n${label}\n\nPlease check the endpoint data and try saving changes again.`);
             setLoadingMessage(``);
@@ -345,13 +359,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const handleSave = async () => {
         const collectUpdateData =  Array.from(unsavedConfigs).map((type: AdminConfigTypes) => ({type: type, data: getConfigTypeData(type)}));
         console.log("Saving... ", collectUpdateData);
-
-        if (testEndpoints.length > 0) {
+        console.log(" testing: ", testEndpointsRef.current);
+        if (testEndpointsRef.current.length > 0) {
             setLoadingMessage('Testing New Endpoints...');
             const success = await callTestEndpoints();
             if (!success) {
                 setLoadingMessage('');
-                return;
+                if (!confirm("Do you want to continue applying your changes anyway?")) return;
             }
         }
         
@@ -367,7 +381,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             if (unsavedConfigs.has(AdminConfigTypes.AVAILABLE_MODELS)) saveUpdateAvailableModels();
             toast("Configurations successfully saved");
             setUnsavedConfigs(new Set());
-            setTestEndpoints([]);
+            testEndpointsRef.current = [];
         } else {
             if (result.data && Object.keys(result.data).length !== unsavedConfigs.size) {
                 const unsucessful: AdminConfigTypes[] = [];
@@ -671,7 +685,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                  });
             if (result.success) {
                 toast("Successfully deleted OP");
-                setOps((prevItems) => prevItems.filter((_, idx) => index !== idx));
+                setOps((prevItems) => prevItems.filter((i) => i.id !== op.id));
             } else {
                 alert("Unable to delete the Op. Please try again...");
             }
@@ -1342,9 +1356,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                             {"Provider"}
                                         </div>
 
+                                        <div className="max-w-[730px]">
                                         { Object.values(providers).map((p:keyof typeof providers) => 
                                             <button key={p}
-                                            className={`w-[200px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-300 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 
+                                            className={`w-[182.5px] h-[39px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-300 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 
                                             ${p === isAddingAvailModel.model.provider as keyof typeof providers ? "cursor-default" : "opacity-60 hover:opacity-80"}`}
                                             disabled={p === isAddingAvailModel.model.provider as keyof typeof providers}
                                             onClick={() => {
@@ -1355,6 +1370,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                             </button>
                                             
                                         )}
+                                        </div>
                                     </div>
 
 
@@ -3039,7 +3055,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                         </tr>
                                     ))}
                                 </tbody>
-                            </table> : <>It looks like Embbeddings is operating Correctly. There are no embeddings currently backed up in SQS.</>}
+                            </table> : <>It looks like Embbeddings is operating correctly. There are no embeddings currently backed up in SQS.</>}
                         </div>
                         : 
                         ( loadingEmbeddings?

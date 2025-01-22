@@ -14,6 +14,7 @@ import { conversationWithCompressedMessages, saveConversations } from "@/utils/a
 import { saveFolders } from "@/utils/app/folders";
 import { savePrompts } from "@/utils/app/prompts";
 import { DefaultModels } from "@/types/model";
+import toast from "react-hot-toast";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -199,6 +200,26 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         //onSave(selectedItems);
         const exportData = await createExport(compressedConversationsState, selectedFoldersState, selectedPromptsState, "import", false);
 
+        // update folders based on if we already have them or not
+        const duplicateFolderIds: string[] = []; 
+        exportData.folders.forEach((folder: FolderInterface) => {
+            const existing = foldersRef.current.find((f:FolderInterface) => f.name === folder.name);
+            if (existing) {
+                duplicateFolderIds.push(folder.id);
+                if (folder.type === 'chat') {
+                    exportData.history.forEach((c: Conversation) => {
+                        if (c.folderId === folder.id) c.folderId = existing.id;
+                    })
+                } else if (folder.type === 'prompt') {
+                    exportData.prompts.forEach((p: Prompt) => {
+                        if (p.folderId === folder.id)  p.folderId = existing.id;
+                    })
+                }
+            }
+        });
+
+        exportData.folders = exportData.folders.filter((f:FolderInterface) => !duplicateFolderIds.includes(f.id) );
+
         const needsFolderReset = (item: Conversation | Prompt) => {
             return item.folderId != null &&
                 !exportData.folders.some((folder: FolderInterface) => folder.id === item.folderId) &&
@@ -245,8 +266,13 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         saveConversations(history);
 
         if (history && history.length > 0) {
-            handleSelectConversation(history[history.length - 1]);
+            // tab switch
+            window.dispatchEvent(new CustomEvent('homeChatBarTabSwitch', { detail: { tab: "Chats" , side: "left"}} ));
+            const openTo: Conversation = history[history.length - 1];
+            toast(`Chat Opened: ${openTo.name}`);
+            handleSelectConversation(openTo);
         }
+        // if (prompts && prompts.length > 0) // open ast folder
         homeDispatch({field: 'folders', value: folders});
         saveFolders(folders);
         homeDispatch({field: 'prompts', value: prompts});
@@ -371,8 +397,6 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
     }, []);
 
-
-    // ...Other Code...
 
     return (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">

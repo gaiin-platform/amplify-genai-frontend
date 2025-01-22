@@ -245,7 +245,7 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
             key: accessToken,
             prompt: customInstructions,
             temperature: 0.8,
-            maxTokens: 1000,
+            maxTokens: 2000,
             skipRag: true,
             skipCodeInterpreter: true
         };

@@ -38,7 +38,8 @@ export const PromptFolders = ({sort}: Props) => {
   const [isNullFolderHovered, setIsNullFolderHovered] = useState<boolean>(false);
 
   const handleDrop = (e: any, folder?: FolderInterface) => {
-    if (e.dataTransfer) {
+    if (e.dataTransfer && e.dataTransfer.getData('prompt')) {
+
       const prompt = JSON.parse(e.dataTransfer.getData('prompt'));
 
       const updatedPrompt = {

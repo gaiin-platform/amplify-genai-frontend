@@ -33,7 +33,7 @@ export const LoadingDialog: FC<Props> = ({ open, message}) => {
           >
             <div className="h-full flex flex-col gap-2 items-center justify-center text-gray-600 dark:text-neutral-100">
               <Loader size="70"/>
-              <div className="text-[1.6rem]">{message}</div>
+              <div className={`${message.length > 50 ? "text-sm" : "text-[1.4rem]"}`}>{message}</div>
             </div>
           </div>
         </div>

@@ -552,8 +552,13 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
                     }
                     return acc;
             }, []);
+
             setAdminGroups(updatedAdminGroups);
-            if (removingSelfFromGroup) setSelectedGroup(updatedAdminGroups[0]);
+            if (removingSelfFromGroup) {
+                setSelectedGroup(updatedAdminGroups[0]);
+            } else {
+                setSelectedGroup(updatedGroup);
+            }
             setDeleteUsersList([]);
         }
         setLoadingActionMessage('');
@@ -647,7 +652,11 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
             }, []);
             
             setAdminGroups(updatedAdminGroups);
-            if (removingAdminInterfaceAccess) setSelectedGroup(updatedAdminGroups[0]);
+            if (removingAdminInterfaceAccess) {
+                setSelectedGroup(updatedAdminGroups[0]);
+            } else {
+                setSelectedGroup(updatedGroup);
+            }
             
             setEditAccessMap({});
             setIsEditingAccess(false);    
@@ -965,11 +974,16 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
     // if selectedGroup changes then set to conversation tab
     useEffect(() => {
-        if ((selectedAssistant && (selectedAssistant.groupId !== selectedGroup?.id 
-                               || !(selectedGroup?.assistants.find((ast:Prompt) => ast?.data?.assistant?.definition.assistantId === selectedAssistant.data?.assistant?.definition.assistantId)))) 
-             || (!selectedAssistant && (selectedGroup?.assistants && selectedGroup?.assistants.length > 0))) setSelectedAssistant(selectedGroup?.assistants[0]);
-        if (activeSubTab === 'group') setActiveSubTab(DEFAULT_SUB_TAB)
+        if (activeSubTab !== 'group') {
+             if ((selectedAssistant && (selectedAssistant.groupId !== selectedGroup?.id || !(selectedGroup?.assistants.find((ast:Prompt) => ast?.data?.assistant?.definition.assistantId === selectedAssistant.data?.assistant?.definition.assistantId)))) 
+              || (!selectedAssistant && (selectedGroup?.assistants && selectedGroup?.assistants.length > 0))) setSelectedAssistant(selectedGroup?.assistants[0]);
+        }
+       
     }, [selectedGroup]);
+
+    useEffect(() => {
+        if (selectedAssistant && activeSubTab === 'group') setActiveSubTab(DEFAULT_SUB_TAB)
+    }, [selectedAssistant]);
 
 
     useEffect(() => {

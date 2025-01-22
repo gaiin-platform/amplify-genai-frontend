@@ -53,7 +53,9 @@ const Folder = ({
   const [checkFolders, setCheckFolders] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
 
-  const showEditDelete =  !currentFolder.isGroupFolder && !isBaseFolder(currentFolder.id) && currentFolder.id !== baseAssistantFolder.id;
+  const canDropInto =  !currentFolder.isGroupFolder && !isBaseFolder(currentFolder.id);
+  const showEditDelete = canDropInto && currentFolder.id !== baseAssistantFolder.id;
+  
 
   const handleEnterDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {
@@ -97,11 +99,13 @@ const Folder = ({
   };
 
   const allowDrop = (e: any) => {
-    e.preventDefault();
+    if (canDropInto) {
+      e.preventDefault();
+    } 
   };
 
   const highlightDrop = (e: any) => {
-    e.target.style.background = '#343541';
+    if (canDropInto) e.target.style.background = '#343541';
   };
 
   const removeHighlight = (e: any) => {

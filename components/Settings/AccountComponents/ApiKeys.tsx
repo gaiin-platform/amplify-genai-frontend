@@ -28,7 +28,7 @@ import { fetchFile } from '@/utils/app/files';
 interface Props {
     apiKeys: ApiKey[];
     setApiKeys: (k:ApiKey[]) => void;
-    setUnsavedChanged: (b: boolean) => void;
+    setUnsavedChanges: (b: boolean) => void;
     onClose: () => void;
     accounts: Account[];
     defaultAccount: Account;
@@ -57,7 +57,7 @@ const formatAccessType = (accessType: string) => {
     return String(accessType).replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())                                                          
 }
 
-export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onClose, accounts, defaultAccount}) => {
+export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onClose, accounts, defaultAccount}) => {
     const { state: {featureFlags, statsService, amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
 
     const { data: session } = useSession();
@@ -95,7 +95,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
     
     useEffect(() => {
         const handleEvent = (event: any) => {
-            setUnsavedChanged(true);
+            setUnsavedChanges(true);
             console.log("editedApiKey was triggered", event.detail);
             const apiKeyId = event.detail.id;
             const updates = event.detail.edits; 
@@ -217,13 +217,14 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
             alert('failedKeys' in result ? `API keys: ${result.failedKeys.join(", ")} failed to update. Please try again.` : "We are unable to update your key(s) at this time...")
         } else {
             statsService.updateApiKeyEvent(Object.values(editedKeys));
+            setUnsavedChanges(false);
+            toast("API changes saved.");
         }
     };
 
     const handleSave = async () => {
         setIsSaving(true);
-        if (Object.keys(editedKeys).length !== 0) handleApplyEdits();
-        setUnsavedChanged(false);
+        if (Object.keys(editedKeys).length !== 0) await handleApplyEdits();
         setIsSaving(false);
     };
 
@@ -892,7 +893,7 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
     }, [options]);
 
     return (
-         <div className='flex flex-row gap-2' >
+         <div className='flex flex-row gap-2 text-xs' >
             <input type="checkbox" checked={fullAccess} onChange={(e) => {
                     const checked = e.target.checked;
                     setFullAccess(checked);
@@ -903,9 +904,9 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
                         }, {} as Record<string, boolean>)
                     );
                 }} />
-            <label className="text-sm mr-3" htmlFor="FullAccess">Full Access</label>
+            <label className="mr-3 whitespace-nowrap" htmlFor="FullAccess">Full Access</label>
             {Object.keys(options).map((key: string) => (
-                <div key={key}>
+                <div key={key} className='whitespace-nowrap'>
                 <input type="checkbox" checked={options[key]} onChange={() => {
                     setOptions((prevOptions:any) => {
                         const newOptions = { ...prevOptions, [key]: !prevOptions[key] };
@@ -914,7 +915,7 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
                     })
                 }}/>
 
-                <label className="text-sm ml-2 mr-3" htmlFor={key}>{formatAccessType(key)}</label>
+                <label className="ml-2 mr-3 " htmlFor={key}>{formatAccessType(key)}</label>
 
                 </div>
             ))}

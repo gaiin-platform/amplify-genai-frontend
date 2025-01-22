@@ -199,19 +199,15 @@ export function useSendService() {
                     const prepareMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService,
                                                                      isArtifactsOn, isSmartMessagesOn, homeDispatch, 
                                                                      getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST));
-                    
+                    console.log("tokens: ", updatedConversation.maxTokens);
                     const chatBody: ChatBody = {
                         model: updatedConversation.model, 
                         messages: prepareMessages, //updatedConversation.messages,
                         prompt: rootPrompt || updatedConversation.prompt || "",
                         temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
-                        maxTokens: updatedConversation.maxTokens || 1000,
+                        maxTokens: updatedConversation.maxTokens || (Math.round(updatedConversation.model.outputTokenLimit / 2)),
                         conversationId
                     };
-
-                    if (featureFlags.artifacts && featureOptions.includeArtifacts) { 
-                        chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
-                    }
 
                     if (isArtifactsOn) {
                         // account for plugin on/off features 
@@ -283,6 +279,8 @@ export function useSendService() {
                     if (options) {
                         Object.assign(chatBody, options);
                     }
+
+                    console.log("Chatbody:", chatBody);
 
                     const parseMessageType = (message: string): {
                         prefix: "chat" | "json" | "json!" | "csv" | "fn";
