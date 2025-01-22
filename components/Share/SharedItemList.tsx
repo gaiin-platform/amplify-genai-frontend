@@ -177,7 +177,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                 includePrompts={true}
                 includeFolders={true}/>
 
-            {featureFlags.enableMarket && (
+            {featureFlags.market && (
                 <ShareAnythingToMarketModal
                     open={isMarketModalOpen}
                     onShare={() => {
@@ -191,7 +191,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                     includeFolders={true}/>
             )}
 
-            {featureFlags.enableMarket && (
+            {featureFlags.market && (
             <div className="flex flex-row items-center pt-3 pl-3 pr-3">
                 <div className="flex w-full items-center">
                     <button
@@ -236,7 +236,7 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                         <IconRefresh size={16}/>
                     </button>
                 </div>
-                {featureFlags.enableMarket && (
+                {featureFlags.market && (
                 <div className="flex items-center pl-2">
                     <button
                         className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"

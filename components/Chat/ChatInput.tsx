@@ -706,6 +706,7 @@ const onAssistantChange = (assistant: Assistant) => {
                         {/*    <IconRobot size={20}/>*/}
                         {/*</button>*/}
 
+                        { featureFlags.uploadDocuments &&
                         <AttachFile id="__attachFile"                                                     //  Mistral and gpt 3.5 do not support image files 
                                     disallowedFileExtensions={[ ...COMMON_DISALLOWED_FILE_EXTENSIONS, ...(selectedConversation?.model?.supportsImages 
                                                                                                           ? [] : ["jpg","png","gif", "jpeg", "webp"] ) ]} 
@@ -714,24 +715,22 @@ const onAssistantChange = (assistant: Assistant) => {
                                     onSetKey={handleSetKey}
                                     onSetAbortController={handleDocumentAbortController}
                                     onUploadProgress={handleDocumentState}
-                        />
+                        />}
 
-                        {featureFlags.assistants && (
-                            <button
-                                className={buttonClasses + " mr-4"}
-                                onClick={ () => {
-                                    handleShowAssistantSelector();
-                                    setShowDataSourceSelector(false);
-                                    }
+                        <button
+                            className={buttonClasses + " mr-4"}
+                            onClick={ () => {
+                                handleShowAssistantSelector();
+                                setShowDataSourceSelector(false);
                                 }
-                                onKeyDown={(e) => {
-                                }}
-                                title="Select Assistants"
+                            }
+                            onKeyDown={(e) => {
+                            }}
+                            title="Select Assistants"
 
-                            >
-                                <IconAt size={20}/>
-                            </button>
-                        )}
+                        >
+                            <IconAt size={20}/>
+                        </button>
 
                         {featureFlags.promptOptimizer && isInputInFocus && (
                             <div className='relative mr-[-32px]'>
