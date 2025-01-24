@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useContext } from "react";
 import {Message} from "@/types/chat";
 import {IconDownload, IconFileCheck} from "@tabler/icons-react";
+import HomeContext from "@/pages/api/home/home.context";
 
 interface Props {
     message: Message;
@@ -10,6 +11,8 @@ interface Props {
 
 export const DataSourcesBlock: React.FC<Props> = (
     {message, handleDownload}) => {
+    const { setLoadingMessage } = useContext(HomeContext);
+
 
     if(!message.data || !message.data.dataSources || message.data.dataSources.length < 1){
         return <></>;
@@ -49,8 +52,10 @@ export const DataSourcesBlock: React.FC<Props> = (
                             <div className="mt-3 mr-3 ml-1 p-0 truncate hover:text-neutral-100 dark:hover:text-blue-700"
                             >
                                 <button onClick={() => {
-                                    if(handleDownload){
+                                    if (handleDownload) {
+                                        setLoadingMessage('Downloading File...');
                                         handleDownload(d);
+                                        setLoadingMessage('');
                                     }
                                 }}
                                 >

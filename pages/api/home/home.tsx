@@ -702,16 +702,14 @@ const Home = ({
 
                     //save default model 
                     localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
-                } else {
-                    console.log("Failed to fetch models.");
-                    const message = 'There was a problem retrieving the available models, please contact our support team.';
-                    dispatch({ field: 'modelError', value: {code: null, title: "Failed to Retrieve Models",
-                                                            messageLines: [message]} as ErrorMessage});  
-
-                }
+                    return;
+                } 
             } catch (e) {
                 console.log("Failed to fetch models: ", e);
             } 
+            const message = 'There was a problem retrieving the available models, please contact our support team.';
+                    dispatch({ field: 'modelError', value: {code: null, title: "Failed to Retrieve Models",
+                                                            messageLines: [message]} as ErrorMessage});  
         };
 
         const fetchDataDisclosureDecision = async (featureOn: boolean) => {
@@ -823,7 +821,7 @@ const Home = ({
                 const result = await getFeatureFlags();
                 if (result.success) {
                     const flags: { [key:string] : boolean } = result.data;
-                    console.log("feature flags:", flags)
+                    // console.log("feature flags:", flags)
                     if (flags && Object.keys(flags).length > 0) dispatch({ field: 'featureFlags', value: flags});
                     localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
                     return flags;

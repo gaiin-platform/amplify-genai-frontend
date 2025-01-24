@@ -280,6 +280,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 // Update the dataSources with new id formatting
                 const updatedDataSources = info.dataSources.map(ds => {
                             const prefix = "s3://";
+                            ds.groupId = assistant.groupId;
+                            if (!ds.key) ds.key = ds.id;
                             if (ds.id.startsWith(prefix)) return ds;
                             return {
                                 ...ds,

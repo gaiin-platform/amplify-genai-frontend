@@ -492,9 +492,36 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         /> 
         {camelToTitleCase(key.replace('Cost', 'Cost$'))} </div>: null;
     
+    
+    const scrollToWithOffset = () => {
+        const element = supportedModelsRef.current;
+        if (!element) return;
+      
+        // Check if element is already in viewport
+        const rect = element.getBoundingClientRect();
+        const isInViewport = (
+          rect.top >= 0 &&
+          rect.top <= window.innerHeight - 300
+        );
+      
+        if (!isInViewport) {
+          element.style.position = 'relative';
+          element.style.top = '-55px';
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          
+          setTimeout(() => {
+            element.style.position = '';
+            element.style.top = '';
+          }, 50);
+        }
+      };
+  
+
     useEffect(() => {
         if (isAddingAvailModel && supportedModelsRef.current) {
-            supportedModelsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            scrollToWithOffset();
+            // supportedModelsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
         }
       }, [isAddingAvailModel]); // Run when isAddingAvailModel changes
     
@@ -992,861 +1019,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         </div>
                     </div>
                     </div>
-                
+
                     <div className="flex flex-row gap-3 mb-2 ">
-                            {titleLabel('Feature Flags')}   
-                            <button
-                                title={isAddingFeature ? '' : 'Add Feature'}
-                                disabled={isAddingFeature !== null}
-                                className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingFeature ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
-                                onClick={() => setIsAddingFeature({name: '', featureData: emptyFeature()})
-                                } >
-                                <IconPlus size={16}/>
-                            </button>
-
-                            {isAddingFeature && 
-                                <UserAction
-                                top={"mt-4"}
-                                label={"Add Feature"}
-                                clearOnConfirm={false}
-                                onConfirm={() => {
-                                    setFeatureSearchTerm('');
-                                    if (isAddingFeature.name) {
-                                        const updatedName = isAddingFeature.name.replace(/\s(.)/g, (_, c) => c.toUpperCase()).replace(/^\w/, c => c.toLowerCase());
-                                        if (Object.keys(features).includes(updatedName)) {
-                                            alert("Feature flag names must be unique. Please try another name.");
-                                            return;
-                                        }
-                                        handleUpdateFeatureFlags(updatedName, isAddingFeature.featureData);
-                                        setIsAddingFeature(null);
-                                    } else {
-                                        alert("Feature name is required. Please enter a name and try again. ");
-                                    }
-                                }}
-                                onCancel={() => {
-                                    setIsAddingFeature(null);
-                                }}
-                            />
-                            
-                            }
-                            { showFeatureSearch && !isAddingFeature && 
-                            <div className="ml-auto mr-10" style={{transform: 'translateY(36px)'}}>
-                                <Search
-                                placeholder={'Search Feature Flags...'}
-                                searchTerm={featureSearchTerm}
-                                onSearch={(searchTerm: string) => setFeatureSearchTerm(searchTerm.toLocaleLowerCase())}
-                                />
-                            </div>}
-                    </div>
-
-                        {isAddingFeature && 
-                        <div className="ml-6 flex flex-row flex-shrink-0 mr-4 ">
-                        <label className="mt-1.5 flex-shrink-0 border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center items-center h-[38px]"
-                        >Feature Name </label>
-                        <input title={"Feature names must be unique"}
-                        className="mt-1.5 w-[160px] h-[38px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
-                        placeholder={"Feature Name"}
-                        onChange={(e) =>  setIsAddingFeature({...isAddingFeature, name: e.target.value})}
-                        value={isAddingFeature.name}
-                        />
-
-                        <label className="ml-4 mt-1.5 h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
-                        >Status </label>
-
-                        <button title={isAddingFeature.featureData.enabled ? "Click to disabled"        
-                                                                            : "Click to enabled" } 
-                            className={`mt-1.5 h-[40px] w-[80px] px-1 items-center cursor-pointer
-                                        bg-gray-200 dark:bg-[#40414F] ${isAddingFeature.featureData.enabled
-                                        ? 'text-green-500 hover:text-green-600' : 'text-red-600 hover:text-red-700' }`}
-                            onClick={() => {
-                                const enabled = isAddingFeature.featureData.enabled;
-                                const updatedData = {...isAddingFeature.featureData, enabled: !enabled};
-                                setIsAddingFeature({...isAddingFeature, featureData: updatedData});
-                            }}>
-                        {isAddingFeature.featureData.enabled ? 'Enabled' : 'Disabled'}       
-                        </button>
-
-                        <div className="ml-4 flex-grow flex flex-col mt-[-32px] max-w-[40%]">
-                            <AddEmailWithAutoComplete
-                                            key={`${String(AdminConfigTypes.FEATURE_FLAGS)}_ADD`}
-                                            emails={isAddingFeature.featureData.userExceptions ?? []}
-                                            allEmails={allEmails ?? []}
-                                            handleUpdateEmails={(updatedEmails: Array<string>) => {
-                                                const updatedData = {...isAddingFeature.featureData, userExceptions: updatedEmails};
-                                                setIsAddingFeature({...isAddingFeature, featureData: updatedData});
-                                            }
-                                            }
-                            />
-                             <div className="h-[40px] rounded-r border border-neutral-500 pl-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 overflow-x-auto">
-                            {isAddingFeature.featureData.userExceptions?.map((user, idx) => (
-                                <div key={idx} className="flex items-center gap-1 mr-1">
-                                    <span className="flex flex-row gap-4 py-2 mr-4"> 
-                                        {user} 
-                                        <button
-                                        className={`text-red-500 hover:text-red-800 `}
-                                        onClick={() => {
-                                            if (isAddingFeature.featureData.userExceptions) {
-                                                const updatedUsers = isAddingFeature.featureData.userExceptions
-                                                                 .filter((u: string) => u !== user);
-                                                const updatedData = {...isAddingFeature.featureData, userExceptions: updatedUsers};
-                                                setIsAddingFeature({...isAddingFeature, featureData: updatedData});
-                                            }
-                                        }} >
-                                        <IconTrash size={16} />
-                                        </button>
-                                    </span>
-                                </div>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="flex-grow ml-4 flex flex-col mt-[-32px] max-w-[40%]">
-                            <InfoBox content={
-                                    <span className="ml-1 text-xs w-full text-center"> 
-                                    Members of the following Amplify Groups will be considered exceptions.
-                                    </span>
-                                }/>
-                              
-                            <AmplifyGroupSelect 
-                                groups={Object.keys(ampGroups)}
-                                selected={isAddingFeature.featureData.amplifyGroupExceptions ?? []}
-                                setSelected={(selectedGroups: string[]) => {
-                                    const updatedData = {...isAddingFeature.featureData,
-                                                             amplifyGroupExceptions: selectedGroups};
-                                    setIsAddingFeature({...isAddingFeature, featureData: updatedData});
-                                }}
-                            /> 
-                        </div>
-
-                         </div>}
-                    
-                    <div className="ml-4 mt-2">
-                        <ExpansionComponent 
-                            onOpen={() => setShowFeatureSearch(true)}
-                            onClose={() => {
-                                setShowFeatureSearch(false);
-                                setFeatureSearchTerm('');
-                            }}
-                            title={'Manage Features'} 
-                            content={ 
-                                <div className="mr-5 pr-4">
-                                <InfoBox 
-                                content={
-                                    <span className="text-xs w-full text-center"> 
-                                        When the feature is Enabled, it is active for everyone except the users listed under User Exceptions; when Disabled, the feature is inactive for everyone except those users, who will still have access.
-                                    </span>
-                                }
-                                />
-                                <table className="mt-4 border-collapse w-full" style={{ tableLayout: 'fixed' }}>
-                                    <thead>
-                                    <tr className="bg-gray-200 dark:bg-[#373844] ">
-                                        {['Feature', 'Status', 'User Exceptions', 'User Exceptions by Amplify Group Membership']
-                                          .map((title, index) => (
-                                        <th key={index}
-                                            className="text-center p-0.5 border border-gray-500 text-neutral-600 dark:text-neutral-300"
-                                            style={{
-                                            width: index === 0  ? '22%' // Feature column takes as much space as needed
-                                                 : index === 1 ? '150px' // Fixed width for the Status button column
-                                                 : 'auto', // User Exceptions column takes remaining space
-                                            }}
-                                        >
-                                            {title}
-                                        </th>
-                                        ))}
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    {Object.entries(features)
-                                           .filter(([featureName, featureData]) => featureSearchTerm ? featureName.toLowerCase().includes(featureSearchTerm) : true)
-                                           .sort(([nameA], [nameB]) => nameA.localeCompare(nameB))
-                                           .map(([featureName, featureData]) => (
-                                        <tr key={featureName}>
-                                            {/* Feature Name Column */}
-                                            <td className="border border-neutral-500 px-4 py-2">
-                                                <span className="text-[0.95rem]">{camelToTitleCase(featureName)}</span>
-                                            </td>
-
-                                            {/* Status Button Column */}
-                                            <td className="border border-neutral-500 px-8 py-2 text-center">
-                                                <button
-                                                className={`px-2 py-1 rounded ${
-                                                    featureData.enabled
-                                                    ? 'text-green-500 hover:text-green-600'
-                                                    : 'text-red-600 hover:text-red-700'
-                                                }`}
-                                                title={featureData.enabled ? 'Click to Disable' : 'Click to Enable'}
-                                                onClick={() => {
-                                                    // Toggle feature enabled state
-                                                    handleUpdateFeatureFlags(featureName, {
-                                                    ...featureData,
-                                                    enabled: !featureData.enabled,
-                                                    });
-                                                }}
-                                                >
-                                                {featureData.enabled ? 'Enabled' : 'Disabled'}
-                                                </button>
-                                            </td>
-
-                                            {/* User Exceptions Column */}
-                                            <td className="border border-neutral-500 pl-1 pr-2">
-                                                <div className={`flex items-center ${addingExceptionTo === featureName ? "flex-col":'flex-row'}`}>
-                                                {/* User Exceptions List */}
-                                                <div
-                                                    className={`flex items-center ${addingExceptionTo === featureName ? "flex-wrap w-full": "overflow-x-auto"}`}
-                                                    style={{ maxWidth: '100%' }}
-                                                >
-                                                    {featureData.userExceptions?.map((user, idx) => (
-                                                    <div key={idx} className="flex items-center gap-1 mr-1"
-                                                        onMouseEnter={() => setHoveredException({ feature: featureName, username: user })}
-                                                        onMouseLeave={() => setHoveredException(null)}>
-                                                        
-                                                        <span className="flex flex-row gap-1 py-2 mr-4"> {idx > 0 && <label className="opacity-60">|</label>}
-                                                            {hoveredException?.feature === featureName && 
-                                                             hoveredException?.username === user ?
-                                                            <button
-                                                            className={`text-red-500 hover:text-red-800`}
-                                                            onClick={() => {
-                                                                // Remove user from exceptions
-                                                                const updatedExceptions = featureData.userExceptions?.filter(
-                                                                (u) => u !== user
-                                                                );
-                                                                handleUpdateFeatureFlags(featureName, {
-                                                                ...featureData,
-                                                                userExceptions: updatedExceptions,
-                                                                });
-                                                            }}
-                                                            >
-                                                            <IconTrash size={16} />
-                                                            </button> : <div className="w-[16px]"></div>}
-
-                                                            {user} 
-                                                        </span>
-                                                    </div>
-                                                    ))}
-                                                </div>
-
-                                                {/* Add Exception Input or Button */}
-                                                {addingExceptionTo === featureName ? (
-                                                    <div className="flex flex-row pr-3 ml-2 mt-2" style={{ width: '100%' }}>
-                                                    <ActionButton
-                                                        title="Close"
-                                                        handleClick={() => setAddingExceptionTo(null)}
-                                                    >
-                                                        <IconX size={20}/>   
-                                                    </ActionButton>
-                                                    
-                                                    <div className="flex-grow"> <AddEmailWithAutoComplete
-                                                        key={String(AdminConfigTypes.FEATURE_FLAGS)}
-                                                        emails={featureData.userExceptions ?? []}
-                                                        allEmails={allEmails ?? []}
-                                                        handleUpdateEmails={(updatedExceptions: Array<string>) => {
-                                                        handleUpdateFeatureFlags(featureName, {
-                                                            ...featureData,
-                                                            userExceptions: updatedExceptions,
-                                                        });
-                                                        }}
-                                                    /> </div>
-                                                    </div>
-                                                ) : (
-                                                    <button
-                                                    className="ml-auto flex items-center px-2 text-blue-500 hover:text-blue-600 flex-shrink-0"
-                                                    onClick={() => {
-                                                        setAddingExceptionTo(featureName);
-                                                    }}
-                                                    >
-                                                    <IconPlus size={18} />
-                                                    {!(featureData.userExceptions && featureData.userExceptions.length > 0) && (
-                                                        <span>Add Exceptions</span>
-                                                    )}
-                                                    </button>
-                                                )}
-                                                </div>
-                                            </td>
-
-                                            <td className="border border-neutral-500">
-                                                    <AmplifyGroupSelect 
-                                                    groups={Object.keys(ampGroups)}
-                                                    selected={featureData.amplifyGroupExceptions ?? []}
-                                                    setSelected={(selectedGroups: string[]) => {
-                                                        handleUpdateFeatureFlags(featureName, {
-                                                            ...featureData,
-                                                            amplifyGroupExceptions: selectedGroups,
-                                                        });
-                                                    }}
-                                                    />
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    </tbody>
-                                </table>
-                                </div>
-                            
-                            }
-                            isOpened={true}
-                        />
-                    </div>
-
-
-                    <div ref={supportedModelsRef} className="flex flex-row gap-3 mb-2 ">
-                            {titleLabel('Supported Models')}
-                            <button
-                                title={isAddingAvailModel ? '' : 'Add Model'}
-                                disabled={isAddingAvailModel !== null}
-                                className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingAvailModel ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
-                                onClick={() => {
-                                    setIsAddingAvailModel({ model: emptySupportedModel(), action: 'Adding'});
-                                }
-                                }
-                            >
-                                <IconPlus size={16}/>
-                            </button>
-
-                            {isAddingAvailModel && 
-                                <UserAction
-                                top={"mt-4"}
-                                label={"Add Model"}
-                                onConfirm={() => {
-                                    setModelsSearchTerm('');
-                                    handleAddOrUpdateAvailableModels();
-                                }}
-                                onCancel={() => {
-                                    setIsAddingAvailModel(null);
-                                }}
-                            />
-                            
-                            }
-                            { showModelsSearch && Object.keys(availableModels).length > 0 && !isAddingAvailModel &&
-                            <div className="ml-auto mr-16" style={{transform: 'translateY(25px)'}}>
-                                <Search
-                                placeholder={'Search Models...'}
-                                searchTerm={modelsSearchTerm}
-                                onSearch={(searchTerm: string) => setModelsSearchTerm(searchTerm.toLocaleLowerCase())}
-                                />
-                            </div>}
-                    </div>
-                    <div className="mx-4"> 
-                        {isAddingAvailModel && 
-                         <div className="flex flex-col mx-8 mb-6">
-                            <label className="text-[1.05rem] w-full text-center"> {isAddingAvailModel.action} Model</label>
-
-                            <div className="flex flex-row gap-6 mb-4 w-full"> 
-                                <div className="flex-grow">
-                                    <InputsMap
-                                    id = {AdminConfigTypes.AVAILABLE_MODELS}
-                                    inputs={ [ {label: 'Model ID', key: 'id', placeholder: 'Model ID', disabled: isAddingAvailModel.model.isBuiltIn},
-                                                {label: 'Name', key: 'name', placeholder: 'Model Name'},
-                                                {label: "Description", key: 'description', placeholder: 'Description Displayed to the User'},
-                                                {label: 'System Prompt', key: 'systemPrompt', placeholder: 'Additional System Prompt', 
-                                                 description: "This will be appended to the system prompt as an additional set of instructions." 
-                                                },
-                                            ]}
-                                    state = {{id : isAddingAvailModel.model.id, 
-                                            description : isAddingAvailModel.model.description, 
-                                            name: isAddingAvailModel.model.name, 
-                                            systemPrompt: isAddingAvailModel.model.systemPrompt
-                                        }}
-                                    inputChanged = {(key:string, value:string) => {
-                                        let updated = {...isAddingAvailModel.model, [key]: value};
-                                        setIsAddingAvailModel({...isAddingAvailModel, model: updated});
-                                    }}
-                                    /> 
-                                    <div className="flex flex-row"> 
-                                        <div className="w-[122px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
-                                            title={"Provider"}
-                                            >
-                                            {"Provider"}
-                                        </div>
-
-                                        <div className="max-w-[730px]">
-                                        { Object.values(providers).map((p:keyof typeof providers) => 
-                                            <button key={p}
-                                            className={`w-[182.5px] h-[39px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-300 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 
-                                            ${p === isAddingAvailModel.model.provider as keyof typeof providers ? "cursor-default" : "opacity-60 hover:opacity-80"}`}
-                                            disabled={p === isAddingAvailModel.model.provider as keyof typeof providers}
-                                            onClick={() => {
-                                                let updated = {...isAddingAvailModel.model, provider: p};
-                                                setIsAddingAvailModel({...isAddingAvailModel, model: updated})
-                                            }}>
-                                            {p}
-                                            </button>
-                                            
-                                        )}
-                                        </div>
-                                    </div>
-
-
-                                </div>
-
-                                <div className="mx-6 flex flex-col gap-1.5 mt-3"> 
-                                    {modelNumberInputs('inputContextWindow', isAddingAvailModel.model.inputContextWindow, 1000, true,
-                                         "Models Conversation Input Token Context Window" )}
-
-                                    {modelNumberInputs('inputTokenCost', isAddingAvailModel.model.inputTokenCost, .0001, false,
-                                         "Models Input Token Cost/1k" )}
-
-                                    {modelNumberInputs('outputTokenLimit', isAddingAvailModel.model.outputTokenLimit, 1000, true, 
-                                        "Output Token Limit Set By Models Provider" )}
-
-                                    {modelNumberInputs('outputTokenCost', isAddingAvailModel.model.outputTokenCost, .0001, false,
-                                         "Models Output Token Cost/1k" )}
-                                    {modelActiveCheck('supportsSystemPrompts', isAddingAvailModel.model.supportsSystemPrompts, "Model Supports System Prompts" )}
-
-                                    {!isAddingAvailModel.model.id.includes('embed') && <>
-                                    {modelActiveCheck('supportsImages', isAddingAvailModel.model.supportsImages,
-                                                      "Model Supports Base-64 Encoded Images Attached to Prompts" )}
-                                    {modelActiveCheck('isAvailable', isAddingAvailModel.model.isAvailable, 
-                                                      "Is Available to All Amplify Users as a Model Selection Options" )}
-                                    </>}
-                                </div> 
-
-                            </div>  
-
-                                <InfoBox content={
-                                    <span className="text-xs w-full text-center"> 
-                                    If the Model is not available for all users, it will be exclusively available for the following Amplify Groups
-                                    </span>
-                                }/>
-                                
-                                <AmplifyGroupSelect 
-                                    groups={Object.keys(ampGroups)}
-                                    selected={isAddingAvailModel.model.exclusiveGroupAvailability ?? []}
-                                    setSelected={(selectedGroups: string[]) => {
-                                        const updated = {...isAddingAvailModel.model, 
-                                                         exclusiveGroupAvailability: selectedGroups};
-                                        setIsAddingAvailModel({...isAddingAvailModel, model: updated})
-                                    }}
-                                />
-                         </div>    
-                        }
-
-                        {Object.keys(availableModels).length > 0 ?
-                            <ExpansionComponent 
-                            onOpen={() => setShowModelsSearch(true)}
-                            onClose={() => {
-                                setShowModelsSearch(false);
-                                setModelsSearchTerm('');
-                            }}
-                            title={'Manage Models'} 
-                            content={ 
-                                <div className="mr-4">
-                                    <div className="mt-4 flex flex-row justify-between mr-8"> 
-                                        <ModelDefaultSelect 
-                                            models={Object.values(availableModels).filter((m:SupportedModel) => 
-                                                    m.isAvailable && !m.id.includes('embedding'))}
-                                            selectedKey="isDefault"
-                                            label="Default User Model"
-                                            description="This will be the default selected model for user conversations"
-                                            setUpdatedModels={handleUpdateDefaultModel}
-                                        />
-
-                                        <ModelDefaultSelect 
-                                            models={Object.values(availableModels).filter((m:SupportedModel) => 
-                                                    m.isAvailable && !m.id.includes('embedding'))}
-                                            selectedKey="defaultAdvancedModel"
-                                            label={camelToTitleCase('defaultAdvancedModel')}
-                                            description="The advanced model is used for requests needing more complex reasoning and is automatically utilized by Amplify when required."
-                                            setUpdatedModels={handleUpdateDefaultModel}
-                                        />
-
-                                        <ModelDefaultSelect 
-                                            models={Object.values(availableModels).filter((m:SupportedModel) => 
-                                                    m.isAvailable && !m.id.includes('embedding'))}
-                                            selectedKey="defaultCheapestModel"
-                                            label={camelToTitleCase('defaultCheapestModel')}
-                                            description="The cheapest model is used for requests requiring less complex reasoning and is automatically utilized by Amplify when required."
-                                            setUpdatedModels={handleUpdateDefaultModel}
-                                        />
-
-                                        <ModelDefaultSelect 
-                                            models={Object.values(availableModels).filter((m:SupportedModel) => 
-                                                    m.id.includes('embed'))}
-                                            selectedKey="defaultEmbeddingsModel"
-                                            label={camelToTitleCase('defaultEmbeddingsModel')}
-                                            description="The embedding model will be used when requesting embeddings"
-                                            setUpdatedModels={handleUpdateDefaultModel}
-                                        />
-
-                                        <ModelDefaultSelect                     
-                                            models={Object.values(availableModels).filter((m:SupportedModel) => !m.id.includes('embed'))}
-                                            selectedKey="defaultQAModel"
-                                            label={camelToTitleCase('defaultQ&AModel')}
-                                            description="The Q&A model will be used for generating context-aware questions to enhance document embeddings"
-                                            setUpdatedModels={handleUpdateDefaultModel}
-                                        />
-                                        
-                                        
-                                    </div>
-
-                                    <table className="mt-4 border-collapse w-full" >
-                                        <thead>
-                                        <tr className="bg-gray-200 dark:bg-[#373844] text-sm">
-                                            {['Name', 'ID',  'Provider', 'Available', 'Supports Images',
-                                              'Supports System Prompts', 'Additional System Prompt',
-                                              'Description', 'Input Context Window', 'Output Token Limit', 
-                                              'Input Token Cost / 1k', 'Output Token Cost / 1k', 
-                                              'Available to User via Amplify Group Membership',
-                                            ].map((title, i) => (
-                                            <th key={i}
-                                                className="text-[0.8rem] px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300" >
-                                                {title}
-                                            </th>
-                                            ))}
-                                             
-                                        </tr>
-                                        </thead>
-                                        <tbody>
-                                        {Object.values(availableModels)
-                                               .filter((availModel: SupportedModel) => 
-                                                (isAddingAvailModel?.model.id !== availModel.id) && 
-                                                (modelsSearchTerm ? availModel.name.toLowerCase()
-                                                                   .includes(modelsSearchTerm) : true))
-                                               .sort((a, b) => a.name.localeCompare(b.name))
-                                               .map((availModel: SupportedModel) => 
-                                            <tr key={availModel.id}  className="text-xs"
-                                                onMouseEnter={() => setHoveredAvailModel(availModel.id)}
-                                                onMouseLeave={() => setHoveredAvailModel('')}>
-                                                <td className="border border-neutral-500 p-2">
-                                                    {availModel.name}
-                                                </td>
-
-                                                <td className="border border-neutral-500 p-2 break-words max-w-[160px]">
-                                                    {availModel.id}
-                                                </td>
-
-                                                <td className="border border-neutral-500 p-2 break-words ">
-                                                    <div className="flex justify-center">  {availModel.provider ?? 'Unknown Provider'} </div>
-                                                </td>
-
-                                                <td className="border border-neutral-500 p-2 w-[60px]"
-                                                    title="Available to All Users">
-                                                    {availModel.id.includes('embed') ? 
-                                                    <div className="text-center">N/A</div> :
-                                                    <div className="flex justify-center">
-                                                        {isAvailableCheck(availModel.isAvailable, () => {
-                                                            const updatedModel = {...availableModels[availModel.id], isAvailable: !availModel.isAvailable};
-                                                            setAvailableModels({...availableModels, [availModel.id]: updatedModel});
-                                                            updateUnsavedConfigs(AdminConfigTypes.AVAILABLE_MODELS);
-                                                        })}   
-                                                    </div>}
-                                                </td>
-
-                                                <td className="border border-neutral-500 px-4 py-2 w-[60px]"
-                                                    title="Model Support for Base64-Encoded Images">
-                                                    {availModel.id.includes('embed') ? 
-                                                    <div className="text-center">N/A</div> :
-                                                     <div className="flex justify-center">
-                                                        {availModel.supportsImages ? <IconCheck className= 'text-green-600' size={18} /> 
-                                                                                : <IconX  className='text-red-600' size={18} />}
-                                                    </div> }                          
-                                                </td>
-
-
-                                                <td className="border border-neutral-500 px-4 py-2 w-[74px]"
-                                                    title="Model Support System Prompts">
-                                                    <div className="flex justify-center">
-                                                        {availModel.supportsSystemPrompts ? <IconCheck className= 'text-green-600' size={18} /> : 
-                                                        <IconX  className='text-red-600' size={18} />}
-                                                    </div>                           
-                                                </td>
-
-                                                {["systemPrompt", "description"].map((s:string) => 
-                                                    <td className="border border-neutral-500 text-center" key={s}>
-                                                        {availModel[s as keyof SupportedModel] ?
-                                                        <div className=" flex justify-center break-words overflow-y-auto w-[200px]" >  
-                                                            <textarea
-                                                            className="w-full rounded-r border border-neutral-500 px-1 bg-transparent dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
-                                                            value={availModel[s as keyof SupportedModel] as string}
-                                                            disabled={true}
-                                                            rows={2} 
-                                                            /> 
-                                                        </div>: 'N/A'}
-                                                    </td>
-                                                )}
-
-                                                {["inputContextWindow", "outputTokenLimit"].map((s: string) => 
-                                                    <td className="border border-neutral-500 p-2 w-[68px]" key={s}>
-                                                        <div className="flex justify-center"> 
-                                                            {availModel[s as keyof SupportedModel]} </div>
-                                                    </td>
-                                                )}
-
-                                                {["inputTokenCost", "outputTokenCost"].map((s: string) => 
-                                                    <td className="border border-neutral-500 p-2 w-[85px]"  key={s}>
-                                                        <div className="flex justify-center">  
-                                                            ${availModel[s as keyof SupportedModel]} </div>
-                                                    </td>
-                                                )}
-
-                                                <td className="border border-neutral-500 text-center">
-                                                    {availModel.exclusiveGroupAvailability && availModel.exclusiveGroupAvailability.length > 0 ?
-                                                    <AmplifyGroupSelect 
-                                                        isDisabled={true}
-                                                        groups={Object.keys(ampGroups)}
-                                                        selected={availModel.exclusiveGroupAvailability ?? []}
-                                                        setSelected={(selectedGroups: string[]) => {}}
-                                                    /> : <>N/A</>
-                                                }
-                                                </td>
-                                                <td>
-                                                     <div className="w-[30px]">
-                                                      {hoveredAvailModel === availModel.id && (!isAddingAvailModel 
-                                                      || (isAddingAvailModel.action === 'Adding' && JSON.stringify(isAddingAvailModel.model) === JSON.stringify(emptySupportedModel()))) ?
-                                                      <div className="flex flex-row gap-1"> 
-                                                        <ActionButton
-                                                            handleClick={() => {setIsAddingAvailModel( {model: availModel, action: "Editing" })}}
-                                                            title="Edit Model Data">
-                                                            <IconEdit size={22} />
-                                                        </ActionButton> 
-
-                                                        <ActionButton
-                                                            handleClick={() => {
-                                                                const  { [availModel.id]: _, ...remainingModels } = availableModels;
-                                                                setAvailableModels(remainingModels);
-                                                                updateUnsavedConfigs(AdminConfigTypes.AVAILABLE_MODELS);
-                                                            }}
-                                                            title="Delete Model">
-                                                            <IconTrash size={22} />
-                                                        </ActionButton> 
-                                                      </div>
-                                                      : null}
-                                                    </div>
-
-                                                </td>
-                                            </tr>     
-                                        )}
-                                        </tbody>
-                                    </table>
-            
-                                </div>
-                            }
-                            isOpened={true}
-                        />  
-                            :
-                            <>No Supported Models listed. Please add a new model.</>
-                        }
-                    
-                    </div> 
-
-            
-
-                    {titleLabel('Secrets Manager')}
-
-
-                    <div className="ml-8 pr-10">
-                        <div className="flex flex-row gap-3">
-                            {titleLabel('Application Secrets', "[1.05rem]")}
-                            {/* {refresh(AdminConfigTypes.APP_SECRETS, () => {}, false)} */}
-                        </div>
-                        <div className="mx-10">
-                            <InputsMap
-                            id = {AdminConfigTypes.APP_SECRETS}
-                            inputs={Object.keys(appSecrets).sort((a, b) => b.length - a.length)
-                                        .map((secret: string) => {return {label: secret, key: secret}})}
-                            state = {appSecrets}
-                            inputChanged = {(key:string, value:string) => {
-                                setAppSecrets({...appSecrets, [key]: value});
-                                updateUnsavedConfigs(AdminConfigTypes.APP_SECRETS);
-                            }}
-
-                            />    
-                        </div>     
-
-                        <div className="flex flex-row gap-3 mt-4">
-                            {titleLabel('Application Environment Variables', "[1.05rem]")}
-                            {/* {refresh(AdminConfigTypes.APP_VARS, () => {}, false)} */}
-                        </div> 
-
-                        <div className="mx-10">
-                            <InputsMap
-                            id = {AdminConfigTypes.APP_VARS}
-                            inputs={Object.keys(appVars)
-                                        .sort((a, b) => b.length - a.length)
-                                        .map((secret: string) => {return {label: secret, key: secret}})}
-                            state = {appVars}
-                            inputChanged = {(key:string, value:string) => {
-                                setAppVars({...appVars, [key]: value});
-                                updateUnsavedConfigs(AdminConfigTypes.APP_VARS);
-                            }}
-
-                            />      
-                        </div>  
-                    
-
-                        <div className="flex flex-row gap-3 mt-4">
-                            {titleLabel('OpenAi Endpoints', "[1.05rem]")}
-                            {/* {refresh(AdminConfigTypes.OPENAI_ENDPONTS, () => {}, false)} */}
-                        </div> 
-
-                        {openAiEndpoints.models.map((modelData: any, modelIndex: number) => {
-                            return Object.keys(modelData).map((modelName: string) => {
-                                return (
-                                    <div key={modelName} className={`ml-10 flex flex-col gap-2 ${modelIndex > 0 ? 'mt-6': 'mt-2'}`}>
-                                        <div className="flex flex-row gap-2">
-                                            <label className="py-2 text-[0.95rem]">{modelName}</label>
-                                            <button
-                                                title='Add Endpoint'
-                                                className={`ml-2 mt-1 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10`}
-                                                onClick={async () => {
-                                                    const newEndpoint = { url: '', key: '', isNew: true};
-                                                    const updatedModels = [...openAiEndpoints.models];
-                                                    const model = updatedModels[modelIndex];
-                                                    model[modelName].endpoints.push(newEndpoint);
-                                                    setOpenAiEndpoints({ models: updatedModels });
-                                                    updateUnsavedConfigs(AdminConfigTypes.OPENAI_ENDPONTS);
-                                                }
-                                                }
-                                            >
-                                                <IconPlus size={16}/>
-                                            </button>
-
-                                            { modelData[modelName].endpoints.length > 0 &&
-                                            <button
-                                                title="Delete Endpoints"
-                                                disabled={isDeletingEndpoint === modelName}
-                                                className={`mt-1 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 dark:text-neutral-100 transition-colors duration-200 ${isDeletingEndpoint !== modelName ? "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" : ""}`}
-                                                onClick={() => {
-                                                    setIsDeletingEndpoint(modelName);
-                                                    setDeleteEndpointsList([]);
-                                                }}
-                                            >
-                                                <IconTrash size={16} />
-                                            </button>}
-                                        
-                                            {isDeletingEndpoint === modelName && (
-                                                <>
-                                                <UserAction
-                                                    label={"Remove Endpoints"}
-                                                    onConfirm={() => {
-                                                        const updatedModels = [...openAiEndpoints.models];
-                                                        const model = updatedModels[modelIndex];
-                                                        model[modelName].endpoints = model[modelName].endpoints.filter(
-                                                            (_, idx) => !deleteEndpointsList.includes(idx)
-                                                        );
-                                                        handleUpdateEndpoints({ models: updatedModels });
-
-                                                    }}
-                                                    onCancel={() => {
-                                                        setIsDeletingEndpoint(null);
-                                                        setDeleteEndpointsList([]);
-                                                    }}
-                                                />
-                                                <div className="mt-1.5">
-                                                    <Checkbox
-                                                        id={`selectAll${modelName}${AdminConfigTypes.OPENAI_ENDPONTS}`}
-                                                        label=""
-                                                        checked={deleteEndpointsList.length === modelData[modelName].endpoints.length}
-                                                        onChange={(isChecked: boolean) => {
-                                                            if (isChecked) {
-                                                                setDeleteEndpointsList(Array.from({ length: modelData[modelName].endpoints.length }, (_, i) => i));
-                                                            } else {
-                                                                setDeleteEndpointsList([]);
-                                                            }
-                                                        }}
-                                                    />
-                                                </div>
-                                                </>
-                                            )}
-                                            
-                                        </div> 
-
-                                        {modelData[modelName].endpoints.map((endpoint: Endpoint, index:number) => 
-                                            <div className="flex flex-row mr-10 mt-2" key={index}
-                                                onMouseEnter={() => setHoveredEndpoint({ model: modelName, index })}
-                                                onMouseLeave={() => setHoveredEndpoint(null)}
-                                            >
-                                                <div className="min-w-[30px] flex items-center"> 
-                                                    {isDeletingEndpoint === modelName ? (
-                                                            <Checkbox
-                                                                id={`${modelName}${index}${AdminConfigTypes.OPENAI_ENDPONTS}`}
-                                                                label=""
-                                                                checked={deleteEndpointsList.includes(index)}
-                                                                onChange={(isChecked: boolean) => {
-                                                                    if (isChecked) {
-                                                                        setDeleteEndpointsList((prev) => [...prev, index]);
-                                                                    } else {
-                                                                    setDeleteEndpointsList((prev) => prev.filter((i) => i !== index));
-                                                                    }
-                                                                }}
-                                                            />
-                                                    ) : 
-                                                    <>
-                                                    {hoveredEndpoint &&
-                                                    hoveredEndpoint.model === modelName &&
-                                                    hoveredEndpoint.index === index && (
-                                                        <button
-                                                            type="button"
-                                                            className="p-0.5 ml-[-4px] text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                                            onClick={() => {
-                                                                const updatedModels = [...openAiEndpoints.models];
-                                                                const model = updatedModels[modelIndex];
-                                                                model[modelName].endpoints.splice(index, 1);
-                                                                handleUpdateEndpoints({ models: updatedModels });
-                                                            }}
-                                                        >
-                                                            <IconTrash size={20} />
-                                                        </button>
-                                                    )}
-                                                    </>}
-                                                </div>
-
-                                                <div className="w-full">
-                                                    <div className="flex flex-row gap-2"> 
-                                                        <label className="py-1 text-[0.9rem] ml-1">Url</label>
-
-                                                        <input
-                                                            id={`${modelName}-${index}-url`}
-                                                            className="w-full rounded-lg border border-neutral-500 px-4 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100"
-                                                            value={endpoint.url}
-                                                            onChange={(e) => {
-                                                                // Update the endpoint url
-                                                                const updatedModels = [...openAiEndpoints.models];
-                                                                const model = updatedModels[modelIndex];
-                                                                model[modelName].endpoints[index].url = e.target.value;
-                                                                handleUpdateEndpoints({ models: updatedModels });
-                                                            }}
-                                                        />
-                                                    </div>  
-                                                    <div className="flex flex-row gap-2"> 
-                                                        <label className="py-1 text-[0.9rem]">Key</label>
-
-                                                        <input
-                                                            id={`${modelName}-${index}-key`}
-                                                            className="w-full rounded-lg border border-neutral-500 px-4 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100"
-                                                            value={endpoint.key}
-                                                            onChange={(e) => {
-                                                                // Update the endpoint key
-                                                                const updatedModels = [...openAiEndpoints.models];
-                                                                const model = updatedModels[modelIndex];
-                                                                model[modelName].endpoints[index].key = e.target.value;
-                                                                handleUpdateEndpoints({ models: updatedModels });
-                                                            }}
-                                                        />
-                                
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                        )}
-                        
-                                    </div>)
-                                    
-                                })
-                            })
-                            
-                        }
-
-                    </div> 
-                    </>
-            },
-
-
-///////////////////////////////////////////////////////////////////////////////
-
-            // Manage Feature Data Tab
-                    
-            {label: `Manage Feature Data${adminTabHasChanges(Array.from(unsavedConfigs), 'feature_data') ? " * " : ""}`,
-             content:
-                <>
-                <div className="flex flex-row gap-3 mb-2 ">
                     {titleLabel('Amplify Groups')}
                     <button
                         title={isAddingAmpGroups ? "" : 'Add Amplify Group'}
@@ -1965,141 +1139,141 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             title={'Manage Amplify Groups'} 
                             content={ 
                                 <>
-                                    <table className="mt-4 border-collapse w-full mr-10" >
-                                        <thead>
-                                        <tr className="bg-gray-200 dark:bg-[#373844] ">
-                                            {['Group Name', 'Members', 'Membership by Amplify Groups', 'Created By'
-                                            ].map((title, i) => (
-                                            <th key={i}
-                                                className="px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
-                                                style={{width: i === 0 || i === 3 ? "15%" 
-                                                        : "35%", 
-                                                }}> 
-                                                {title}
-                                            </th>
-                                            ))}
-                                        </tr>
-                                        </thead>
-                                        <tbody>
-                                        {Object.values(ampGroups)
-                                               .filter((group: Amplify_Group) => ampGroupSearchTerm ? 
-                                                        group.groupName.toLowerCase().includes(ampGroupSearchTerm) : true)
-                                               .map((group: Amplify_Group) => 
-                                            <tr key={group.groupName}
-                                                onMouseEnter={() => setHoveredAmpGroup(group.groupName)}
-                                                onMouseLeave={() => setHoveredAmpGroup('')}>
-                                                <td className="border border-neutral-500 px-4 py-2 break-words max-w-[200px]">
-                                                    {group.groupName}
-                                                </td>
-
-                                                <td className="flex-grow border border-neutral-500 pl-1 pr-2 max-w-[300px]">
-
-                                                <div className={`flex items-center ${addingMembersTo === group.groupName ? "flex-col":'flex-row'}`}>
-                                                <div
-                                                    className={`flex items-center ${addingMembersTo === group.groupName ? "flex-wrap": "overflow-x-auto"}`} >
-                                                    {group.members?.map((user, idx) => (
-                                                    <div key={idx} className="flex items-center gap-1 mr-1"
-                                                        onMouseEnter={() => {
-                                                            if (group.includeFromOtherGroups !== undefined)
-                                                                setHoveredAmpMember( {ampGroup: group.groupName,     
-                                                                                      username: user})
-                                                        }}
-                                                        onMouseLeave={() => setHoveredAmpMember(null)}>
-                                                        
-                                                        <span className="flex flex-row gap-1 py-2 mr-4"> {idx > 0 && <label className="opacity-60">|</label>}
-                                                            { hoveredAmpMember?.ampGroup === group.groupName && hoveredAmpMember?.username === user ?
-                                                            <button
-                                                            className={`text-red-500 hover:text-red-800 `}
-                                                            onClick={() => {
-                                                                const updatedMembers = group.members?.filter(
-                                                                (u) => u !== user
-                                                                );
-                                                                const updatedGroup = {...group, members: updatedMembers}
-                                                                handleUpdateAmpGroups({...ampGroups, [group.groupName] : updatedGroup});
-                                                            }} >
-                                                            <IconTrash size={16} />
-                                                            </button> : <div className="w-[16px]"></div>}
-                                                            {user} 
-                                                        </span>
-                                                    </div>
-                                                    ))}
-                                                </div>
-
-                                                {addingMembersTo === group.groupName && 
-                                                 group.includeFromOtherGroups !== undefined ? (
-                                                    <div className="flex flex-row pr-3 ml-2 mt-2" style={{ width: '100%' }}>
-                                                    <ActionButton
-                                                        title="Close"
-                                                        handleClick={() => setAddingMembersTo(null)}
-                                                    >
-                                                        <IconX size={20}/>   
-                                                    </ActionButton>
-                                                    
-                                                    <div className=""> <AddEmailWithAutoComplete
-                                                        key={`${String(AdminConfigTypes.AMPLIFY_GROUPS)}_EDIT`}
-                                                        emails={group.members ?? []}
-                                                        allEmails={allEmails ?? []}
-                                                        handleUpdateEmails={(updatedMembers: Array<string>) => {
-                                                            const updatedGroup = {...group, members: updatedMembers}
-                                                            handleUpdateAmpGroups({...ampGroups, [group.groupName] : updatedGroup});
-                                                        }}
-                                                    /> </div>
-                                                    </div>
-                                                ) : (
-                                                    (group.includeFromOtherGroups !== undefined ?
-                                                    <button
-                                                    className="ml-auto flex items-center px-2 text-blue-500 hover:text-blue-600 flex-shrink-0"
-                                                    onClick={() => setAddingMembersTo(group.groupName)}
-                                                    >
-                                                    <IconPlus size={18} />
-                                                    {!(group.members && group.members.length > 0) && (
-                                                        <span>Add Members</span>
-                                                    )}
-                                                    </button> : null)
-                                                )}
-                                                </div>
+                                <table className="mt-4 border-collapse w-full mr-10" >
+                                    <thead>
+                                    <tr className="bg-gray-200 dark:bg-[#373844] ">
+                                        {['Group Name', 'Members', 'Membership by Amplify Groups', 'Created By'
+                                        ].map((title, i) => (
+                                        <th key={i}
+                                            className="px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
+                                            style={{width: i === 0 || i === 3 ? "15%" 
+                                                    : "35%", 
+                                            }}> 
+                                            {title}
+                                        </th>
+                                        ))}
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    {Object.values(ampGroups)
+                                            .filter((group: Amplify_Group) => ampGroupSearchTerm ? 
+                                                    group.groupName.toLowerCase().includes(ampGroupSearchTerm) : true)
+                                            .map((group: Amplify_Group) => 
+                                        <tr key={group.groupName}
+                                            onMouseEnter={() => setHoveredAmpGroup(group.groupName)}
+                                            onMouseLeave={() => setHoveredAmpGroup('')}>
+                                            <td className="border border-neutral-500 px-4 py-2 break-words max-w-[200px]">
+                                                {group.groupName}
                                             </td>
 
-                                                <td className="border border-neutral-500 max-w-[300px]">
-                                                    {group.includeFromOtherGroups !== undefined ?
-                                                    <AmplifyGroupSelect 
-                                                        groups={Object.keys(ampGroups).filter((k: string) => 
-                                                                                    k != group.groupName)}
-                                                        selected={group.includeFromOtherGroups}
-                                                        setSelected={(selectedGroups: string[]) => {
-                                                            const updatedGroup = {...group, includeFromOtherGroups: selectedGroups}
-                                                            handleUpdateAmpGroups({...ampGroups, [group.groupName] : updatedGroup});
-                                                        }}
-                                                    /> : <div className="text-center">N/A</div>
-                                                    }
-                                                </td>
+                                            <td className="flex-grow border border-neutral-500 pl-1 pr-2 max-w-[300px]">
 
-                                                <td className="text-center border border-neutral-500 px-4 py-2 break-words max-w-[300px]">
-                                                    {group.createdBy}
-                                                </td>
-
-                                                <td>
-                                                    <div className="w-[50px] flex-shrink-0">
-                                                    {hoveredAmpGroup === group.groupName && group.includeFromOtherGroups !== undefined ?
-                                                    <button
-                                                        title={"Delete Amplify Group"}
-                                                        type="button"
-                                                        className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
-                                                        onClick={() => {
-                                                            const { [group.groupName]: _, ...remainingGroups } = ampGroups;
-                                                            handleUpdateAmpGroups(remainingGroups);
-                                                        }}
-                                                        >
-                                                        <IconTrash size={20} />
-                                                    </button>
+                                            <div className={`flex items-center ${addingMembersTo === group.groupName ? "flex-col":'flex-row'}`}>
+                                            <div
+                                                className={`flex items-center ${addingMembersTo === group.groupName ? "flex-wrap": "overflow-x-auto"}`} >
+                                                {group.members?.map((user, idx) => (
+                                                <div key={idx} className="flex items-center gap-1 mr-1"
+                                                    onMouseEnter={() => {
+                                                        if (group.includeFromOtherGroups !== undefined)
+                                                            setHoveredAmpMember( {ampGroup: group.groupName,     
+                                                                                    username: user})
+                                                    }}
+                                                    onMouseLeave={() => setHoveredAmpMember(null)}>
                                                     
-                                                    : null}
-                                                    </div>
-                                                </td>
-                                            </tr>     
-                                        )}
-                                        </tbody>
-                                    </table> 
+                                                    <span className="flex flex-row gap-1 py-2 mr-4"> {idx > 0 && <label className="opacity-60">|</label>}
+                                                        { hoveredAmpMember?.ampGroup === group.groupName && hoveredAmpMember?.username === user ?
+                                                        <button
+                                                        className={`text-red-500 hover:text-red-800 `}
+                                                        onClick={() => {
+                                                            const updatedMembers = group.members?.filter(
+                                                            (u) => u !== user
+                                                            );
+                                                            const updatedGroup = {...group, members: updatedMembers}
+                                                            handleUpdateAmpGroups({...ampGroups, [group.groupName] : updatedGroup});
+                                                        }} >
+                                                        <IconTrash size={16} />
+                                                        </button> : <div className="w-[16px]"></div>}
+                                                        {user} 
+                                                    </span>
+                                                </div>
+                                                ))}
+                                            </div>
+
+                                            {addingMembersTo === group.groupName && 
+                                                group.includeFromOtherGroups !== undefined ? (
+                                                <div className="flex flex-row pr-3 ml-2 mt-2" style={{ width: '100%' }}>
+                                                <ActionButton
+                                                    title="Close"
+                                                    handleClick={() => setAddingMembersTo(null)}
+                                                >
+                                                    <IconX size={20}/>   
+                                                </ActionButton>
+                                                
+                                                <div className=""> <AddEmailWithAutoComplete
+                                                    key={`${String(AdminConfigTypes.AMPLIFY_GROUPS)}_EDIT`}
+                                                    emails={group.members ?? []}
+                                                    allEmails={allEmails ?? []}
+                                                    handleUpdateEmails={(updatedMembers: Array<string>) => {
+                                                        const updatedGroup = {...group, members: updatedMembers}
+                                                        handleUpdateAmpGroups({...ampGroups, [group.groupName] : updatedGroup});
+                                                    }}
+                                                /> </div>
+                                                </div>
+                                            ) : (
+                                                (group.includeFromOtherGroups !== undefined ?
+                                                <button
+                                                className="ml-auto flex items-center px-2 text-blue-500 hover:text-blue-600 flex-shrink-0"
+                                                onClick={() => setAddingMembersTo(group.groupName)}
+                                                >
+                                                <IconPlus size={18} />
+                                                {!(group.members && group.members.length > 0) && (
+                                                    <span>Add Members</span>
+                                                )}
+                                                </button> : null)
+                                            )}
+                                            </div>
+                                        </td>
+
+                                            <td className="border border-neutral-500 max-w-[300px]">
+                                                {group.includeFromOtherGroups !== undefined ?
+                                                <AmplifyGroupSelect 
+                                                    groups={Object.keys(ampGroups).filter((k: string) => 
+                                                                                k != group.groupName)}
+                                                    selected={group.includeFromOtherGroups}
+                                                    setSelected={(selectedGroups: string[]) => {
+                                                        const updatedGroup = {...group, includeFromOtherGroups: selectedGroups}
+                                                        handleUpdateAmpGroups({...ampGroups, [group.groupName] : updatedGroup});
+                                                    }}
+                                                /> : <div className="text-center">N/A</div>
+                                                }
+                                            </td>
+
+                                            <td className="text-center border border-neutral-500 px-4 py-2 break-words max-w-[300px]">
+                                                {group.createdBy}
+                                            </td>
+
+                                            <td>
+                                                <div className="w-[50px] flex-shrink-0">
+                                                {hoveredAmpGroup === group.groupName && group.includeFromOtherGroups !== undefined ?
+                                                <button
+                                                    title={"Delete Amplify Group"}
+                                                    type="button"
+                                                    className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
+                                                    onClick={() => {
+                                                        const { [group.groupName]: _, ...remainingGroups } = ampGroups;
+                                                        handleUpdateAmpGroups(remainingGroups);
+                                                    }}
+                                                    >
+                                                    <IconTrash size={20} />
+                                                </button>
+                                                
+                                                : null}
+                                                </div>
+                                            </td>
+                                        </tr>     
+                                    )}
+                                    </tbody>
+                                </table> 
             
                                 </>
                             }
@@ -2109,7 +1283,839 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             <>No Amplify Groups listed. </>
                         }
                 </div>
+                
+                </>
+            },
 
+
+///////////////////////////////////////////////////////////////////////////////
+            // Supported Models
+
+            {label: 'Supported Models',
+                content:
+                <>
+                    <div ref={supportedModelsRef} className="flex flex-row gap-3 mb-2" >
+                    {titleLabel('Supported Models')}
+                    <button
+                        title={isAddingAvailModel ? '' : 'Add Model'}
+                        disabled={isAddingAvailModel !== null}
+                        className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingAvailModel ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
+                        onClick={() => {
+                            setIsAddingAvailModel({ model: emptySupportedModel(), action: 'Adding'});
+                        }
+                        }
+                    >
+                        <IconPlus size={16}/>
+                    </button>
+
+                    {isAddingAvailModel && 
+                        <UserAction
+                        top={"mt-4"}
+                        label={"Add Model"}
+                        onConfirm={() => {
+                            setModelsSearchTerm('');
+                            handleAddOrUpdateAvailableModels();
+                        }}
+                        onCancel={() => {
+                            setIsAddingAvailModel(null);
+                        }}
+                    />
+                    
+                    }
+                    { showModelsSearch && Object.keys(availableModels).length > 0 && !isAddingAvailModel &&
+                    <div className="ml-auto mr-16" style={{transform: 'translateY(14px)'}}>
+                        <Search
+                        placeholder={'Search Models...'}
+                        searchTerm={modelsSearchTerm}
+                        onSearch={(searchTerm: string) => setModelsSearchTerm(searchTerm.toLocaleLowerCase())}
+                        />
+                    </div>}
+                    </div>
+                    <div className="mx-4"> 
+                        {isAddingAvailModel && 
+                         <div className="flex flex-col mx-8 mb-6">
+                            <label className="text-[1.05rem] w-full text-center"> {isAddingAvailModel.action} Model</label>
+
+                            <div className="flex flex-row gap-6 mb-4 w-full"> 
+                                <div className="flex-grow">
+                                    <InputsMap
+                                    id = {AdminConfigTypes.AVAILABLE_MODELS}
+                                    inputs={ [ {label: 'Model ID', key: 'id', placeholder: 'Model ID', disabled: isAddingAvailModel.model.isBuiltIn},
+                                                {label: 'Name', key: 'name', placeholder: 'Model Name'},
+                                                {label: "Description", key: 'description', placeholder: 'Description Displayed to the User'},
+                                                {label: 'System Prompt', key: 'systemPrompt', placeholder: 'Additional System Prompt', 
+                                                 description: "This will be appended to the system prompt as an additional set of instructions." 
+                                                },
+                                            ]}
+                                    state = {{id : isAddingAvailModel.model.id, 
+                                            description : isAddingAvailModel.model.description, 
+                                            name: isAddingAvailModel.model.name, 
+                                            systemPrompt: isAddingAvailModel.model.systemPrompt
+                                        }}
+                                    inputChanged = {(key:string, value:string) => {
+                                        let updated = {...isAddingAvailModel.model, [key]: value};
+                                        setIsAddingAvailModel({...isAddingAvailModel, model: updated});
+                                    }}
+                                    /> 
+                                    <div className="flex flex-row"> 
+                                        <div className="w-[122px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
+                                            title={"Provider"}
+                                            >
+                                            {"Provider"}
+                                        </div>
+
+                                        <div className="max-w-[730px]">
+                                        { Object.values(providers).map((p:keyof typeof providers) => 
+                                            <button key={p}
+                                            className={`w-[182.5px] h-[39px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-300 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 
+                                            ${p === isAddingAvailModel.model.provider as keyof typeof providers ? "cursor-default" : "opacity-60 hover:opacity-80"}`}
+                                            disabled={p === isAddingAvailModel.model.provider as keyof typeof providers}
+                                            onClick={() => {
+                                                let updated = {...isAddingAvailModel.model, provider: p};
+                                                setIsAddingAvailModel({...isAddingAvailModel, model: updated})
+                                            }}>
+                                            {p}
+                                            </button>
+                                            
+                                        )}
+                                        </div>
+                                    </div>
+
+
+                                </div>
+
+                                <div className="mx-6 flex flex-col gap-1.5 mt-3"> 
+                                    {modelNumberInputs('inputContextWindow', isAddingAvailModel.model.inputContextWindow, 1000, true,
+                                         "Models Conversation Input Token Context Window" )}
+
+                                    {modelNumberInputs('inputTokenCost', isAddingAvailModel.model.inputTokenCost, .0001, false,
+                                         "Models Input Token Cost/1k" )}
+
+                                    {modelNumberInputs('outputTokenLimit', isAddingAvailModel.model.outputTokenLimit, 1000, true, 
+                                        "Output Token Limit Set By Models Provider" )}
+
+                                    {modelNumberInputs('outputTokenCost', isAddingAvailModel.model.outputTokenCost, .0001, false,
+                                         "Models Output Token Cost/1k" )}
+                                    {modelActiveCheck('supportsSystemPrompts', isAddingAvailModel.model.supportsSystemPrompts, "Model Supports System Prompts" )}
+
+                                    {!isAddingAvailModel.model.id.includes('embed') && <>
+                                    {modelActiveCheck('supportsImages', isAddingAvailModel.model.supportsImages,
+                                                      "Model Supports Base-64 Encoded Images Attached to Prompts" )}
+                                    {modelActiveCheck('isAvailable', isAddingAvailModel.model.isAvailable, 
+                                                      "Is Available to All Amplify Users as a Model Selection Options" )}
+                                    </>}
+                                </div> 
+
+                            </div>  
+
+                                <InfoBox content={
+                                    <span className="text-xs w-full text-center"> 
+                                    If the Model is not available for all users, it will be exclusively available for the following Amplify Groups
+                                    </span>
+                                }/>
+                                
+                                <AmplifyGroupSelect 
+                                    groups={Object.keys(ampGroups)}
+                                    selected={isAddingAvailModel.model.exclusiveGroupAvailability ?? []}
+                                    setSelected={(selectedGroups: string[]) => {
+                                        const updated = {...isAddingAvailModel.model, 
+                                                         exclusiveGroupAvailability: selectedGroups};
+                                        setIsAddingAvailModel({...isAddingAvailModel, model: updated})
+                                    }}
+                                />
+                         </div>    
+                        }
+
+                        {Object.keys(availableModels).length > 0 ?
+                        <div className="mr-4">
+                            <div className="mt-4 flex flex-row justify-between mr-8"> 
+                                <ModelDefaultSelect 
+                                    models={Object.values(availableModels).filter((m:SupportedModel) => 
+                                            m.isAvailable && !m.id.includes('embedding'))}
+                                    selectedKey="isDefault"
+                                    label="Default User Model"
+                                    description="This will be the default selected model for user conversations"
+                                    setUpdatedModels={handleUpdateDefaultModel}
+                                />
+
+                                <ModelDefaultSelect 
+                                    models={Object.values(availableModels).filter((m:SupportedModel) => 
+                                            m.isAvailable && !m.id.includes('embedding'))}
+                                    selectedKey="defaultAdvancedModel"
+                                    label={camelToTitleCase('defaultAdvancedModel')}
+                                    description="The advanced model is used for requests needing more complex reasoning and is automatically utilized by Amplify when required."
+                                    setUpdatedModels={handleUpdateDefaultModel}
+                                />
+
+                                <ModelDefaultSelect 
+                                    models={Object.values(availableModels).filter((m:SupportedModel) => 
+                                            m.isAvailable && !m.id.includes('embedding'))}
+                                    selectedKey="defaultCheapestModel"
+                                    label={camelToTitleCase('defaultCheapestModel')}
+                                    description="The cheapest model is used for requests requiring less complex reasoning and is automatically utilized by Amplify when required."
+                                    setUpdatedModels={handleUpdateDefaultModel}
+                                />
+
+                                <ModelDefaultSelect 
+                                    models={Object.values(availableModels).filter((m:SupportedModel) => 
+                                            m.id.includes('embed'))}
+                                    selectedKey="defaultEmbeddingsModel"
+                                    label={camelToTitleCase('defaultEmbeddingsModel')}
+                                    description="The embedding model will be used when requesting embeddings"
+                                    setUpdatedModels={handleUpdateDefaultModel}
+                                />
+
+                                <ModelDefaultSelect                     
+                                    models={Object.values(availableModels).filter((m:SupportedModel) => !m.id.includes('embed'))}
+                                    selectedKey="defaultQAModel"
+                                    label={camelToTitleCase('defaultQ&AModel')}
+                                    description="The Q&A model will be used for generating context-aware questions to enhance document embeddings"
+                                    setUpdatedModels={handleUpdateDefaultModel}
+                                />
+                                
+                                
+                            </div>
+
+                            <table className="mt-4 border-collapse w-full" >
+                                <thead>
+                                <tr className="bg-gray-200 dark:bg-[#373844] text-sm">
+                                    {['Name', 'ID',  'Provider', 'Available', 'Supports Images',
+                                        'Supports System Prompts', 'Additional System Prompt',
+                                        'Description', 'Input Context Window', 'Output Token Limit', 
+                                        'Input Token Cost / 1k', 'Output Token Cost / 1k', 
+                                        'Available to User via Amplify Group Membership',
+                                    ].map((title, i) => (
+                                    <th key={i}
+                                        className="text-[0.8rem] px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300" >
+                                        {title}
+                                    </th>
+                                    ))}
+                                        
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {Object.values(availableModels)
+                                        .filter((availModel: SupportedModel) => 
+                                        (isAddingAvailModel?.model.id !== availModel.id) && 
+                                        (modelsSearchTerm ? availModel.name.toLowerCase()
+                                                            .includes(modelsSearchTerm) : true))
+                                        .sort((a, b) => a.name.localeCompare(b.name))
+                                        .map((availModel: SupportedModel) => 
+                                    <tr key={availModel.id}  className="text-xs"
+                                        onMouseEnter={() => setHoveredAvailModel(availModel.id)}
+                                        onMouseLeave={() => setHoveredAvailModel('')}>
+                                        <td className="border border-neutral-500 p-2">
+                                            {availModel.name}
+                                        </td>
+
+                                        <td className="border border-neutral-500 p-2 break-words max-w-[160px]">
+                                            {availModel.id}
+                                        </td>
+
+                                        <td className="border border-neutral-500 p-2 break-words ">
+                                            <div className="flex justify-center">  {availModel.provider ?? 'Unknown Provider'} </div>
+                                        </td>
+
+                                        <td className="border border-neutral-500 p-2 w-[60px]"
+                                            title="Available to All Users">
+                                            {availModel.id.includes('embed') ? 
+                                            <div className="text-center">N/A</div> :
+                                            <div className="flex justify-center">
+                                                {isAvailableCheck(availModel.isAvailable, () => {
+                                                    const updatedModel = {...availableModels[availModel.id], isAvailable: !availModel.isAvailable};
+                                                    setAvailableModels({...availableModels, [availModel.id]: updatedModel});
+                                                    updateUnsavedConfigs(AdminConfigTypes.AVAILABLE_MODELS);
+                                                })}   
+                                            </div>}
+                                        </td>
+
+                                        <td className="border border-neutral-500 px-4 py-2 w-[60px]"
+                                            title="Model Support for Base64-Encoded Images">
+                                            {availModel.id.includes('embed') ? 
+                                            <div className="text-center">N/A</div> :
+                                                <div className="flex justify-center">
+                                                {availModel.supportsImages ? <IconCheck className= 'text-green-600' size={18} /> 
+                                                                        : <IconX  className='text-red-600' size={18} />}
+                                            </div> }                          
+                                        </td>
+
+
+                                        <td className="border border-neutral-500 px-4 py-2 w-[74px]"
+                                            title="Model Support System Prompts">
+                                            <div className="flex justify-center">
+                                                {availModel.supportsSystemPrompts ? <IconCheck className= 'text-green-600' size={18} /> : 
+                                                <IconX  className='text-red-600' size={18} />}
+                                            </div>                           
+                                        </td>
+
+                                        {["systemPrompt", "description"].map((s:string) => 
+                                            <td className="border border-neutral-500 text-center" key={s}>
+                                                {availModel[s as keyof SupportedModel] ?
+                                                <div className=" flex justify-center break-words overflow-y-auto w-[200px]" >  
+                                                    <textarea
+                                                    className="w-full rounded-r border border-neutral-500 px-1 bg-transparent dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                                                    value={availModel[s as keyof SupportedModel] as string}
+                                                    disabled={true}
+                                                    rows={2} 
+                                                    /> 
+                                                </div>: 'N/A'}
+                                            </td>
+                                        )}
+
+                                        {["inputContextWindow", "outputTokenLimit"].map((s: string) => 
+                                            <td className="border border-neutral-500 p-2 w-[68px]" key={s}>
+                                                <div className="flex justify-center"> 
+                                                    {availModel[s as keyof SupportedModel]} </div>
+                                            </td>
+                                        )}
+
+                                        {["inputTokenCost", "outputTokenCost"].map((s: string) => 
+                                            <td className="border border-neutral-500 p-2 w-[85px]"  key={s}>
+                                                <div className="flex justify-center">  
+                                                    ${availModel[s as keyof SupportedModel]} </div>
+                                            </td>
+                                        )}
+
+                                        <td className="border border-neutral-500 text-center">
+                                            {availModel.exclusiveGroupAvailability && availModel.exclusiveGroupAvailability.length > 0 ?
+                                            <AmplifyGroupSelect 
+                                                isDisabled={true}
+                                                groups={Object.keys(ampGroups)}
+                                                selected={availModel.exclusiveGroupAvailability ?? []}
+                                                setSelected={(selectedGroups: string[]) => {}}
+                                            /> : <>N/A</>
+                                        }
+                                        </td>
+                                        <td>
+                                                <div className="w-[30px]">
+                                                {hoveredAvailModel === availModel.id && (!isAddingAvailModel 
+                                                || (isAddingAvailModel.action === 'Adding' && JSON.stringify(isAddingAvailModel.model) === JSON.stringify(emptySupportedModel()))) ?
+                                                <div className="flex flex-row gap-1"> 
+                                                <ActionButton
+                                                    handleClick={() => {setIsAddingAvailModel( {model: availModel, action: "Editing" })}}
+                                                    title="Edit Model Data">
+                                                    <IconEdit size={22} />
+                                                </ActionButton> 
+
+                                                <ActionButton
+                                                    handleClick={() => {
+                                                        const  { [availModel.id]: _, ...remainingModels } = availableModels;
+                                                        setAvailableModels(remainingModels);
+                                                        updateUnsavedConfigs(AdminConfigTypes.AVAILABLE_MODELS);
+                                                    }}
+                                                    title="Delete Model">
+                                                    <IconTrash size={22} />
+                                                </ActionButton> 
+                                                </div>
+                                                : null}
+                                            </div>
+
+                                        </td>
+                                    </tr>     
+                                )}
+                                </tbody>
+                            </table>
+            
+                                </div>
+                            :
+                            <>No Supported Models listed. Please add a new model.</>
+                        }
+                    
+                    </div> 
+                </>
+            },
+///////////////////////////////////////////////////////////////////////////////
+            // Application Variables
+            { label: 'Application Variables',
+                content : 
+                <>
+                {titleLabel('Application Secrets', "[1rem]")}
+
+                    <div className="mx-4">
+                        <InputsMap
+                        id = {AdminConfigTypes.APP_SECRETS}
+                        inputs={Object.keys(appSecrets).sort((a, b) => b.length - a.length)
+                                    .map((secret: string) => {return {label: secret, key: secret}})}
+                        state = {appSecrets}
+                        inputChanged = {(key:string, value:string) => {
+                            setAppSecrets({...appSecrets, [key]: value});
+                            updateUnsavedConfigs(AdminConfigTypes.APP_SECRETS);
+                        }}
+                        obscure={true}
+                        />    
+                    </div> 
+                    
+                <br className="mt-4"></br>
+
+                {titleLabel('Application Environment Variables', "[1rem]")}
+                    <div className="mx-4">
+                        <InputsMap
+                        id = {AdminConfigTypes.APP_VARS}
+                        inputs={Object.keys(appVars)
+                                    .sort((a, b) => b.length - a.length)
+                                    .map((secret: string) => {return {label: secret, key: secret}})}
+                        state = {appVars}
+                        inputChanged = {(key:string, value:string) => {
+                            setAppVars({...appVars, [key]: value});
+                            updateUnsavedConfigs(AdminConfigTypes.APP_VARS);
+                        }}
+                        obscure={true}
+                        />      
+                    </div>
+                </>
+            },
+
+///////////////////////////////////////////////////////////////////////////////
+            // OpenAi Endpoints
+            { label: 'OpenAi Endpoints',
+                content : 
+                <>
+                {titleLabel('OpenAi Endpoints', "[1.05rem]")}
+                <br></br>
+                <div className="ml-2">
+                 
+                {openAiEndpoints.models.map((modelData: any, modelIndex: number) => {
+                    return Object.keys(modelData).map((modelName: string) => {
+                        return (
+                            <div key={modelName} className={`ml-4 flex flex-col gap-2 ${modelIndex > 0 ? 'mt-6': 'mt-2'}`}>
+                                <div className="flex flex-row gap-2">
+                                    <label className="py-2 text-[0.95rem]">{modelName}</label>
+                                    <button
+                                        title='Add Endpoint'
+                                        className={`ml-2 mt-1 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10`}
+                                        onClick={async () => {
+                                            const newEndpoint = { url: '', key: '', isNew: true};
+                                            const updatedModels = [...openAiEndpoints.models];
+                                            const model = updatedModels[modelIndex];
+                                            model[modelName].endpoints.push(newEndpoint);
+                                            setOpenAiEndpoints({ models: updatedModels });
+                                            updateUnsavedConfigs(AdminConfigTypes.OPENAI_ENDPONTS);
+                                        }
+                                        }
+                                    >
+                                        <IconPlus size={16}/>
+                                    </button>
+
+                                    { modelData[modelName].endpoints.length > 0 &&
+                                    <button
+                                        title="Delete Endpoints"
+                                        disabled={isDeletingEndpoint === modelName}
+                                        className={`mt-1 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 dark:text-neutral-100 transition-colors duration-200 ${isDeletingEndpoint !== modelName ? "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" : ""}`}
+                                        onClick={() => {
+                                            setIsDeletingEndpoint(modelName);
+                                            setDeleteEndpointsList([]);
+                                        }}
+                                    >
+                                        <IconTrash size={16} />
+                                    </button>}
+                                
+                                    {isDeletingEndpoint === modelName && (
+                                        <>
+                                        <UserAction
+                                            label={"Remove Endpoints"}
+                                            onConfirm={() => {
+                                                const updatedModels = [...openAiEndpoints.models];
+                                                const model = updatedModels[modelIndex];
+                                                model[modelName].endpoints = model[modelName].endpoints.filter(
+                                                    (_, idx) => !deleteEndpointsList.includes(idx)
+                                                );
+                                                handleUpdateEndpoints({ models: updatedModels });
+
+                                            }}
+                                            onCancel={() => {
+                                                setIsDeletingEndpoint(null);
+                                                setDeleteEndpointsList([]);
+                                            }}
+                                        />
+                                        <div className="mt-1.5">
+                                            <Checkbox
+                                                id={`selectAll${modelName}${AdminConfigTypes.OPENAI_ENDPONTS}`}
+                                                label=""
+                                                checked={deleteEndpointsList.length === modelData[modelName].endpoints.length}
+                                                onChange={(isChecked: boolean) => {
+                                                    if (isChecked) {
+                                                        setDeleteEndpointsList(Array.from({ length: modelData[modelName].endpoints.length }, (_, i) => i));
+                                                    } else {
+                                                        setDeleteEndpointsList([]);
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        </>
+                                    )}
+                                    
+                                </div> 
+
+                                {modelData[modelName].endpoints.map((endpoint: Endpoint, index:number) => 
+                                    <div className="flex flex-row mr-10 mt-2" key={index}
+                                        onMouseEnter={() => setHoveredEndpoint({ model: modelName, index })}
+                                        onMouseLeave={() => setHoveredEndpoint(null)}
+                                    >
+                                        <div className="min-w-[30px] flex items-center"> 
+                                            {isDeletingEndpoint === modelName ? (
+                                                    <Checkbox
+                                                        id={`${modelName}${index}${AdminConfigTypes.OPENAI_ENDPONTS}`}
+                                                        label=""
+                                                        checked={deleteEndpointsList.includes(index)}
+                                                        onChange={(isChecked: boolean) => {
+                                                            if (isChecked) {
+                                                                setDeleteEndpointsList((prev) => [...prev, index]);
+                                                            } else {
+                                                            setDeleteEndpointsList((prev) => prev.filter((i) => i !== index));
+                                                            }
+                                                        }}
+                                                    />
+                                            ) : 
+                                            <>
+                                            {hoveredEndpoint &&
+                                            hoveredEndpoint.model === modelName &&
+                                            hoveredEndpoint.index === index && (
+                                                <button
+                                                    type="button"
+                                                    className="p-0.5 ml-[-4px] text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                                    onClick={() => {
+                                                        const updatedModels = [...openAiEndpoints.models];
+                                                        const model = updatedModels[modelIndex];
+                                                        model[modelName].endpoints.splice(index, 1);
+                                                        handleUpdateEndpoints({ models: updatedModels });
+                                                    }}
+                                                >
+                                                    <IconTrash size={20} />
+                                                </button>
+                                            )}
+                                            </>}
+                                        </div>
+
+                                        <div className="w-full">
+                                            <InputsMap
+                                                id = {`${AdminConfigTypes.OPENAI_ENDPONTS}-${modelName}-${index}`}
+                                                inputs={[ {label: 'Url', key: 'url', placeholder: 'OpenAI Endpoint'},
+                                                        {label: 'Key', key: 'key', placeholder: 'Api key'},
+                                                        ]}
+                                                state ={{url : endpoint.url, 
+                                                        key : endpoint.key}}
+                                                inputChanged = {(key:string, value:string) => {
+                                                    const updatedModels = [...openAiEndpoints.models];
+                                                    const model = updatedModels[modelIndex];
+                                                    if (key === 'url') {
+                                                        model[modelName].endpoints[index].url = value;
+                                                    } else if (key === 'key') {
+                                                        model[modelName].endpoints[index].key = value;
+                                                    }
+                                                    handleUpdateEndpoints({ models: updatedModels });
+                                                }}
+                                                obscure={true}
+                                            />
+                                        </div>
+                                        
+                                    </div>
+
+                                )}
+                
+                            </div>)
+                            
+                        })
+                    })}
+            
+                </div>
+                </>
+            },
+
+///////////////////////////////////////////////////////////////////////////////
+            // Feature Flags
+
+            {label: 'Feature Flags',
+                content:
+                <>
+                    <div className="flex flex-row gap-3 mb-2 ">
+                            {titleLabel('Feature Flags')}   
+                            <button
+                                title={isAddingFeature ? '' : 'Add Feature'}
+                                disabled={isAddingFeature !== null}
+                                className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingFeature ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
+                                onClick={() => setIsAddingFeature({name: '', featureData: emptyFeature()})
+                                } >
+                                <IconPlus size={16}/>
+                            </button>
+
+                            {isAddingFeature && 
+                                <UserAction
+                                top={"mt-4"}
+                                label={"Add Feature"}
+                                clearOnConfirm={false}
+                                onConfirm={() => {
+                                    setFeatureSearchTerm('');
+                                    if (isAddingFeature.name) {
+                                        const updatedName = isAddingFeature.name.replace(/\s(.)/g, (_, c) => c.toUpperCase()).replace(/^\w/, c => c.toLowerCase());
+                                        if (Object.keys(features).includes(updatedName)) {
+                                            alert("Feature flag names must be unique. Please try another name.");
+                                            return;
+                                        }
+                                        handleUpdateFeatureFlags(updatedName, isAddingFeature.featureData);
+                                        setIsAddingFeature(null);
+                                    } else {
+                                        alert("Feature name is required. Please enter a name and try again. ");
+                                    }
+                                }}
+                                onCancel={() => {
+                                    setIsAddingFeature(null);
+                                }}
+                            />
+                            
+                            }
+                            { showFeatureSearch && !isAddingFeature && 
+                            <div className="ml-auto mr-10" style={{transform: 'translateY(12px)'}}>
+                                <Search
+                                placeholder={'Search Feature Flags...'}
+                                searchTerm={featureSearchTerm}
+                                onSearch={(searchTerm: string) => setFeatureSearchTerm(searchTerm.toLocaleLowerCase())}
+                                />
+                            </div>}
+                    </div>
+
+                        {isAddingFeature && 
+                        <div className="ml-6 flex flex-row flex-shrink-0 mr-4 ">
+                        <label className="mt-1.5 flex-shrink-0 border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center items-center h-[38px]"
+                        >Feature Name </label>
+                        <input title={"Feature names must be unique"}
+                        className="mt-1.5 w-[160px] h-[38px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                        placeholder={"Feature Name"}
+                        onChange={(e) =>  setIsAddingFeature({...isAddingFeature, name: e.target.value})}
+                        value={isAddingFeature.name}
+                        />
+
+                        <label className="ml-4 mt-1.5 h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
+                        >Status </label>
+
+                        <button title={isAddingFeature.featureData.enabled ? "Click to disabled"        
+                                                                            : "Click to enabled" } 
+                            className={`mt-1.5 h-[40px] w-[80px] px-1 items-center cursor-pointer
+                                        bg-gray-200 dark:bg-[#40414F] ${isAddingFeature.featureData.enabled
+                                        ? 'text-green-500 hover:text-green-600' : 'text-red-600 hover:text-red-700' }`}
+                            onClick={() => {
+                                const enabled = isAddingFeature.featureData.enabled;
+                                const updatedData = {...isAddingFeature.featureData, enabled: !enabled};
+                                setIsAddingFeature({...isAddingFeature, featureData: updatedData});
+                            }}>
+                        {isAddingFeature.featureData.enabled ? 'Enabled' : 'Disabled'}       
+                        </button>
+
+                        <div className="ml-4 flex-grow flex flex-col mt-[-32px] max-w-[40%]">
+                            <AddEmailWithAutoComplete
+                                            key={`${String(AdminConfigTypes.FEATURE_FLAGS)}_ADD`}
+                                            emails={isAddingFeature.featureData.userExceptions ?? []}
+                                            allEmails={allEmails ?? []}
+                                            handleUpdateEmails={(updatedEmails: Array<string>) => {
+                                                const updatedData = {...isAddingFeature.featureData, userExceptions: updatedEmails};
+                                                setIsAddingFeature({...isAddingFeature, featureData: updatedData});
+                                            }
+                                            }
+                            />
+                             <div className="h-[40px] rounded-r border border-neutral-500 pl-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 overflow-x-auto">
+                            {isAddingFeature.featureData.userExceptions?.map((user, idx) => (
+                                <div key={idx} className="flex items-center gap-1 mr-1">
+                                    <span className="flex flex-row gap-4 py-2 mr-4"> 
+                                        {user} 
+                                        <button
+                                        className={`text-red-500 hover:text-red-800 `}
+                                        onClick={() => {
+                                            if (isAddingFeature.featureData.userExceptions) {
+                                                const updatedUsers = isAddingFeature.featureData.userExceptions
+                                                                 .filter((u: string) => u !== user);
+                                                const updatedData = {...isAddingFeature.featureData, userExceptions: updatedUsers};
+                                                setIsAddingFeature({...isAddingFeature, featureData: updatedData});
+                                            }
+                                        }} >
+                                        <IconTrash size={16} />
+                                        </button>
+                                    </span>
+                                </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex-grow ml-4 flex flex-col mt-[-32px] max-w-[40%]">
+                            <InfoBox content={
+                                    <span className="ml-1 text-xs w-full text-center"> 
+                                    Members of the following Amplify Groups will be considered exceptions.
+                                    </span>
+                                }/>
+                              
+                            <AmplifyGroupSelect 
+                                groups={Object.keys(ampGroups)}
+                                selected={isAddingFeature.featureData.amplifyGroupExceptions ?? []}
+                                setSelected={(selectedGroups: string[]) => {
+                                    const updatedData = {...isAddingFeature.featureData,
+                                                             amplifyGroupExceptions: selectedGroups};
+                                    setIsAddingFeature({...isAddingFeature, featureData: updatedData});
+                                }}
+                            /> 
+                        </div>
+
+                         </div>}
+                    
+                    <div className="ml-4 mt-2">
+                        <div className="mr-5 pr-4">
+                            <InfoBox 
+                            content={
+                                <span className="text-xs w-full text-center"> 
+                                    When the feature is Enabled, it is active for everyone except the users listed under User Exceptions; when Disabled, the feature is inactive for everyone except those users, who will still have access.
+                                </span>
+                            }
+                            />
+                            <table className="mt-4 border-collapse w-full" style={{ tableLayout: 'fixed' }}>
+                                <thead>
+                                <tr className="bg-gray-200 dark:bg-[#373844] ">
+                                    {['Feature', 'Status', 'User Exceptions', 'User Exceptions by Amplify Group Membership']
+                                        .map((title, index) => (
+                                    <th key={index}
+                                        className="text-center p-0.5 border border-gray-500 text-neutral-600 dark:text-neutral-300"
+                                        style={{
+                                        width: index === 0  ? '22%' // Feature column takes as much space as needed
+                                                : index === 1 ? '150px' // Fixed width for the Status button column
+                                                : 'auto', // User Exceptions column takes remaining space
+                                        }}
+                                    >
+                                        {title}
+                                    </th>
+                                    ))}
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {Object.entries(features)
+                                        .filter(([featureName, featureData]) => featureSearchTerm ? featureName.toLowerCase().includes(featureSearchTerm) : true)
+                                        .sort(([nameA], [nameB]) => nameA.localeCompare(nameB))
+                                        .map(([featureName, featureData]) => (
+                                    <tr key={featureName}>
+                                        {/* Feature Name Column */}
+                                        <td className="border border-neutral-500 px-4 py-2">
+                                            <span className="text-[0.95rem]">{camelToTitleCase(featureName)}</span>
+                                        </td>
+
+                                        {/* Status Button Column */}
+                                        <td className="border border-neutral-500 px-8 py-2 text-center">
+                                            <button
+                                            className={`px-2 py-1 rounded ${
+                                                featureData.enabled
+                                                ? 'text-green-500 hover:text-green-600'
+                                                : 'text-red-600 hover:text-red-700'
+                                            }`}
+                                            title={featureData.enabled ? 'Click to Disable' : 'Click to Enable'}
+                                            onClick={() => {
+                                                // Toggle feature enabled state
+                                                handleUpdateFeatureFlags(featureName, {
+                                                ...featureData,
+                                                enabled: !featureData.enabled,
+                                                });
+                                            }}
+                                            >
+                                            {featureData.enabled ? 'Enabled' : 'Disabled'}
+                                            </button>
+                                        </td>
+
+                                        {/* User Exceptions Column */}
+                                        <td className="border border-neutral-500 pl-1 pr-2">
+                                            <div className={`flex items-center ${addingExceptionTo === featureName ? "flex-col":'flex-row'}`}>
+                                            {/* User Exceptions List */}
+                                            <div
+                                                className={`flex items-center ${addingExceptionTo === featureName ? "flex-wrap w-full": "overflow-x-auto"}`}
+                                                style={{ maxWidth: '100%' }}
+                                            >
+                                                {featureData.userExceptions?.map((user, idx) => (
+                                                <div key={idx} className="flex items-center gap-1 mr-1"
+                                                    onMouseEnter={() => setHoveredException({ feature: featureName, username: user })}
+                                                    onMouseLeave={() => setHoveredException(null)}>
+                                                    
+                                                    <span className="flex flex-row gap-1 py-2 mr-4"> {idx > 0 && <label className="opacity-60">|</label>}
+                                                        {hoveredException?.feature === featureName && 
+                                                            hoveredException?.username === user ?
+                                                        <button
+                                                        className={`text-red-500 hover:text-red-800`}
+                                                        onClick={() => {
+                                                            // Remove user from exceptions
+                                                            const updatedExceptions = featureData.userExceptions?.filter(
+                                                            (u) => u !== user
+                                                            );
+                                                            handleUpdateFeatureFlags(featureName, {
+                                                            ...featureData,
+                                                            userExceptions: updatedExceptions,
+                                                            });
+                                                        }}
+                                                        >
+                                                        <IconTrash size={16} />
+                                                        </button> : <div className="w-[16px]"></div>}
+
+                                                        {user} 
+                                                    </span>
+                                                </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Add Exception Input or Button */}
+                                            {addingExceptionTo === featureName ? (
+                                                <div className="flex flex-row pr-3 ml-2 mt-2" style={{ width: '100%' }}>
+                                                <ActionButton
+                                                    title="Close"
+                                                    handleClick={() => setAddingExceptionTo(null)}
+                                                >
+                                                    <IconX size={20}/>   
+                                                </ActionButton>
+                                                
+                                                <div className="flex-grow"> <AddEmailWithAutoComplete
+                                                    key={String(AdminConfigTypes.FEATURE_FLAGS)}
+                                                    emails={featureData.userExceptions ?? []}
+                                                    allEmails={allEmails ?? []}
+                                                    handleUpdateEmails={(updatedExceptions: Array<string>) => {
+                                                    handleUpdateFeatureFlags(featureName, {
+                                                        ...featureData,
+                                                        userExceptions: updatedExceptions,
+                                                    });
+                                                    }}
+                                                /> </div>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                className="ml-auto flex items-center px-2 text-blue-500 hover:text-blue-600 flex-shrink-0"
+                                                onClick={() => {
+                                                    setAddingExceptionTo(featureName);
+                                                }}
+                                                >
+                                                <IconPlus size={18} />
+                                                {!(featureData.userExceptions && featureData.userExceptions.length > 0) && (
+                                                    <span>Add Exceptions</span>
+                                                )}
+                                                </button>
+                                            )}
+                                            </div>
+                                        </td>
+
+                                        <td className="border border-neutral-500">
+                                                <AmplifyGroupSelect 
+                                                groups={Object.keys(ampGroups)}
+                                                selected={featureData.amplifyGroupExceptions ?? []}
+                                                setSelected={(selectedGroups: string[]) => {
+                                                    handleUpdateFeatureFlags(featureName, {
+                                                        ...featureData,
+                                                        amplifyGroupExceptions: selectedGroups,
+                                                    });
+                                                }}
+                                                />
+                                        </td>
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
+                            </div>
+                        
+                    </div>
+                </>
+            },
+///////////////////////////////////////////////////////////////////////////////
+
+            // Manage Feature Data Tab
+                    
+            {label: `Manage Feature Data${adminTabHasChanges(Array.from(unsavedConfigs), 'feature_data') ? " * " : ""}`,
+             content:
+                <>
                 {titleLabel('Upload Documents' )}
                 <div className="mx-6 flex flex-row gap-20">
                         <div className="flex flex-row gap-2">
@@ -2429,6 +2435,196 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                    
                 </div>
 
+                <div className="flex flex-row gap-3 mb-2 ">
+                    {titleLabel('PowerPoint Templates')}
+                    <button
+                        title={isAddingTemplate ? "" : 'Add PowerPoint Templates'}
+                        disabled={isAddingTemplate !== null}
+                        className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingTemplate ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
+                        onClick={() => setIsAddingTemplate(emptyPptx())}
+                    >
+                        {isUploadingTemplate ? <LoadingIcon style={{ width: "16px", height: "16px" }}/> 
+                                             :  <IconPlus size={16}/>}
+                    </button>
+
+                    {isAddingTemplate && !isUploadingTemplate &&
+                        <UserAction
+                        top={"mt-4"}
+                        label={"Add Template"}
+                        onConfirm={() => {
+                            if (uploadedTemplate) {
+                                if (templates.find((t: Pptx_TEMPLATES) => t.name === isAddingTemplate.name)) {
+                                    alert("PowerPoint template names must be unique. Please rename your file and try again.");
+                                    return;
+                                }
+                                handleTemplateUpload(isAddingTemplate.name);
+                            } else {
+                                alert("Please upload a powerpoint template.");
+                            }
+                        }}
+                        clearOnConfirm={false}
+                        onCancel={() => {
+                            setIsAddingTemplate(null);
+                            setUploadedTemplate(null);
+                        }}
+                    />
+                    }
+
+                </div>
+
+                {isAddingTemplate && 
+                    <div className="ml-6 flex flex-row flex-shrink-0">
+                        <div className="mt-1">
+                        <FileUpload
+                            id={"pptx_upload"}
+                            allowedFileExtensions={['pptx']}
+                            onAttach={(file:File, fileName: string) => {
+                                setUploadedTemplate(file);
+                                setIsAddingTemplate({...isAddingTemplate, name: fileName});
+                            }}
+                            completeCheck={() => isAddingTemplate.name != ''}
+                            onRemove={() => {
+                                setUploadedTemplate(null);
+                                setIsAddingTemplate({...isAddingTemplate, name: ''});
+                            }}
+                        /></div>
+                        <label className="h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
+                        >Template Name </label>
+                        <input
+                        title={!uploadedTemplate ? "Template name will auto-populate once a template has been uploaded"
+                                                 : "" }
+                        className="h-[40px] w-[250px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                        placeholder={"Template Name"}
+                        value={isAddingTemplate.name}
+                        disabled={true}
+                        />
+                        <label className="ml-4 h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
+                        >Available </label>
+
+                        
+                        {isAvailableCheck(isAddingTemplate.isAvailable, () => {
+                            setIsAddingTemplate({...isAddingTemplate, isAvailable: !isAddingTemplate.isAvailable});
+                        }, "h-[40px] px-1 items-center bg-gray-200 dark:bg-[#40414F]")} 
+
+                        <div className="ml-4 flex flex-col mt-[-32px]">
+                            <InfoBox content={
+                                    <span className="ml-1 text-xs w-full text-center"> 
+                                    If the template is not available for all users, it will be exclusively available for the following Amplify Groups
+                                    </span>
+                                }/>
+                           
+                            <AmplifyGroupSelect 
+                                groups={Object.keys(ampGroups)}
+                                selected={isAddingTemplate.amplifyGroups}
+                                setSelected={(selectedGroups: string[]) => {
+                                    setIsAddingTemplate({...isAddingTemplate, amplifyGroups: selectedGroups});
+                                }}
+                            /> 
+                        </div>
+
+                </div>
+                }
+
+
+                <div className="ml-6">
+                    {templates.length > 0 ?
+                            <ExpansionComponent 
+                            title={'Manage PowerPoint Templates'} 
+                            content={ 
+                                <>
+                                    <table className="mt-4 border-collapse w-full" >
+                                        <thead>
+                                        <tr className="bg-gray-200 dark:bg-[#373844] ">
+                                            {['Template Name', 'Public', 'Available to User via Amplify Group Membership'
+                                            ].map((title, i) => (
+                                            <th key={i}
+                                                className="px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
+                                                style={{width: i === 0 ? "25%" 
+                                                             : i === 1 ? "20" :"55%", 
+                                                }}>
+                                                {title}
+                                            </th>
+                                            ))}
+                                             
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        {templates.map((pptx: Pptx_TEMPLATES) => 
+                                            <tr key={pptx.name}
+                                                onMouseEnter={() => setHoveredTemplate(pptx.name)}
+                                                onMouseLeave={() => setHoveredTemplate('')}>
+                                                <td className="text-center border border-neutral-500 px-4 py-2 break-words max-w-[200px]">
+                                                    {pptx.name}
+                                                </td>
+
+                                                <td className="border border-neutral-500 px-4 py-2"
+                                                    title="Available to All Amplify Users">
+                                                    <div className="flex justify-center">
+                                                    {isAvailableCheck(pptx.isAvailable, () => {
+                                                        const updatedTemplate = {...pptx, isAvailable: !pptx.isAvailable};
+                                                            handleTemplateChange(pptx.name, 
+                                                                                templates.map((t:Pptx_TEMPLATES) =>
+                                                                                t.name === pptx.name ?      
+                                                                                     updatedTemplate : t ));
+                                                    })} 
+                                                    </div>                           
+                                                </td>
+
+                                                <td className="border border-neutral-500">
+                                                    <AmplifyGroupSelect 
+                                                    groups={Object.keys(ampGroups)}
+                                                    selected={pptx.amplifyGroups}
+                                                    setSelected={(selectedGroups: string[]) => {
+                                                        const updatedTemplate = {...pptx, amplifyGroups: selectedGroups};
+                                                        handleTemplateChange(pptx.name, 
+                                                                            templates.map((t:Pptx_TEMPLATES) =>
+                                                                            t.name === pptx.name ?      
+                                                                                 updatedTemplate : t ))
+                                                    }}
+                                                    />
+                                                </td>
+
+                                                <td>
+                                                    <div className="w-[30px] flex-shrink-0">
+                                                    {hoveredTemplate === pptx.name || deletingTemplate == pptx.name ?
+                                                    <button
+                                                        title={"Delete Template"}
+                                                        type="button"
+                                                        className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
+                                                        onClick={() => {handleDeleteTemplate(pptx.name)}}
+                                                        >
+                                                        {deletingTemplate == pptx.name ? 
+                                                        <LoadingIcon style={{ width: "20px", height: "20px" }}/> : <IconTrash size={20} />} 
+                                                    </button>
+                                                    
+                                                    : null}
+                                                    </div>
+                                                </td>
+                                            </tr>     
+                                        )}
+                                        </tbody>
+                                    </table>
+            
+                                </>
+                            }
+                            isOpened={true}
+                        />  
+                            :
+                            <>No PowerPoint Templates listed. </>
+                        }
+                </div>
+                
+                </>
+            },
+
+
+///////////////////////////////////////////////////////////////////////////////
+
+            // Ops
+
+            {label: 'Ops',
+                content:
+                <>
                 <div className="flex flex-row gap-3 mb-2 ">
                         {titleLabel('OPs')}
                         <button
@@ -2793,192 +2989,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         isOpened={true}
                     /> </div>}
                 </div>
-
-                <div className="flex flex-row gap-3 mb-2 ">
-                    {titleLabel('PowerPoint Templates')}
-                    <button
-                        title={isAddingTemplate ? "" : 'Add PowerPoint Templates'}
-                        disabled={isAddingTemplate !== null}
-                        className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingTemplate ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
-                        onClick={() => setIsAddingTemplate(emptyPptx())}
-                    >
-                        {isUploadingTemplate ? <LoadingIcon style={{ width: "16px", height: "16px" }}/> 
-                                             :  <IconPlus size={16}/>}
-                    </button>
-
-                    {isAddingTemplate && !isUploadingTemplate &&
-                        <UserAction
-                        top={"mt-4"}
-                        label={"Add Template"}
-                        onConfirm={() => {
-                            if (uploadedTemplate) {
-                                if (templates.find((t: Pptx_TEMPLATES) => t.name === isAddingTemplate.name)) {
-                                    alert("PowerPoint template names must be unique. Please rename your file and try again.");
-                                    return;
-                                }
-                                handleTemplateUpload(isAddingTemplate.name);
-                            } else {
-                                alert("Please upload a powerpoint template.");
-                            }
-                        }}
-                        clearOnConfirm={false}
-                        onCancel={() => {
-                            setIsAddingTemplate(null);
-                            setUploadedTemplate(null);
-                        }}
-                    />
-                    }
-
-                </div>
-
-                {isAddingTemplate && 
-                    <div className="ml-6 flex flex-row flex-shrink-0">
-                        <div className="mt-1">
-                        <FileUpload
-                            id={"pptx_upload"}
-                            allowedFileExtensions={['pptx']}
-                            onAttach={(file:File, fileName: string) => {
-                                setUploadedTemplate(file);
-                                setIsAddingTemplate({...isAddingTemplate, name: fileName});
-                            }}
-                            completeCheck={() => isAddingTemplate.name != ''}
-                            onRemove={() => {
-                                setUploadedTemplate(null);
-                                setIsAddingTemplate({...isAddingTemplate, name: ''});
-                            }}
-                        /></div>
-                        <label className="h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
-                        >Template Name </label>
-                        <input
-                        title={!uploadedTemplate ? "Template name will auto-populate once a template has been uploaded"
-                                                 : "" }
-                        className="h-[40px] w-[250px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
-                        placeholder={"Template Name"}
-                        value={isAddingTemplate.name}
-                        disabled={true}
-                        />
-                        <label className="ml-4 h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
-                        >Available </label>
-
-                        
-                        {isAvailableCheck(isAddingTemplate.isAvailable, () => {
-                            setIsAddingTemplate({...isAddingTemplate, isAvailable: !isAddingTemplate.isAvailable});
-                        }, "h-[40px] px-1 items-center bg-gray-200 dark:bg-[#40414F]")} 
-
-                        <div className="ml-4 flex flex-col mt-[-32px]">
-                            <InfoBox content={
-                                    <span className="ml-1 text-xs w-full text-center"> 
-                                    If the template is not available for all users, it will be exclusively available for the following Amplify Groups
-                                    </span>
-                                }/>
-                           
-                            <AmplifyGroupSelect 
-                                groups={Object.keys(ampGroups)}
-                                selected={isAddingTemplate.amplifyGroups}
-                                setSelected={(selectedGroups: string[]) => {
-                                    setIsAddingTemplate({...isAddingTemplate, amplifyGroups: selectedGroups});
-                                }}
-                            /> 
-                        </div>
-
-                </div>
-                }
-
-
-                <div className="ml-6">
-                    {templates.length > 0 ?
-                            <ExpansionComponent 
-                            title={'Manage PowerPoint Templates'} 
-                            content={ 
-                                <>
-                                    <table className="mt-4 border-collapse w-full" >
-                                        <thead>
-                                        <tr className="bg-gray-200 dark:bg-[#373844] ">
-                                            {['Template Name', 'Public', 'Available to User via Amplify Group Membership'
-                                            ].map((title, i) => (
-                                            <th key={i}
-                                                className="px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
-                                                style={{width: i === 0 ? "25%" 
-                                                             : i === 1 ? "20" :"55%", 
-                                                }}>
-                                                {title}
-                                            </th>
-                                            ))}
-                                             
-                                        </tr>
-                                        </thead>
-                                        <tbody>
-                                        {templates.map((pptx: Pptx_TEMPLATES) => 
-                                            <tr key={pptx.name}
-                                                onMouseEnter={() => setHoveredTemplate(pptx.name)}
-                                                onMouseLeave={() => setHoveredTemplate('')}>
-                                                <td className="text-center border border-neutral-500 px-4 py-2 break-words max-w-[200px]">
-                                                    {pptx.name}
-                                                </td>
-
-                                                <td className="border border-neutral-500 px-4 py-2"
-                                                    title="Available to All Amplify Users">
-                                                    <div className="flex justify-center">
-                                                    {isAvailableCheck(pptx.isAvailable, () => {
-                                                        const updatedTemplate = {...pptx, isAvailable: !pptx.isAvailable};
-                                                            handleTemplateChange(pptx.name, 
-                                                                                templates.map((t:Pptx_TEMPLATES) =>
-                                                                                t.name === pptx.name ?      
-                                                                                     updatedTemplate : t ));
-                                                    })} 
-                                                    </div>                           
-                                                </td>
-
-                                                <td className="border border-neutral-500">
-                                                    <AmplifyGroupSelect 
-                                                    groups={Object.keys(ampGroups)}
-                                                    selected={pptx.amplifyGroups}
-                                                    setSelected={(selectedGroups: string[]) => {
-                                                        const updatedTemplate = {...pptx, amplifyGroups: selectedGroups};
-                                                        handleTemplateChange(pptx.name, 
-                                                                            templates.map((t:Pptx_TEMPLATES) =>
-                                                                            t.name === pptx.name ?      
-                                                                                 updatedTemplate : t ))
-                                                    }}
-                                                    />
-                                                </td>
-
-                                                <td>
-                                                    <div className="w-[30px] flex-shrink-0">
-                                                    {hoveredTemplate === pptx.name || deletingTemplate == pptx.name ?
-                                                    <button
-                                                        title={"Delete Template"}
-                                                        type="button"
-                                                        className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
-                                                        onClick={() => {handleDeleteTemplate(pptx.name)}}
-                                                        >
-                                                        {deletingTemplate == pptx.name ? 
-                                                        <LoadingIcon style={{ width: "20px", height: "20px" }}/> : <IconTrash size={20} />} 
-                                                    </button>
-                                                    
-                                                    : null}
-                                                    </div>
-                                                </td>
-                                            </tr>     
-                                        )}
-                                        </tbody>
-                                    </table>
-            
-                                </>
-                            }
-                            isOpened={true}
-                        />  
-                            :
-                            <>No PowerPoint Templates listed. </>
-                        }
-                </div>
-                
                 </>
             },
-
-
-///////////////////////////////////////////////////////////////////////////////
-
 
             // Embeddings Tab
                     // currently this tab doesnt have changes to report, when it does change to 
@@ -3078,7 +3090,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     }
                    
                    </>
-               },
+            },
+
         ]
         }
         />
