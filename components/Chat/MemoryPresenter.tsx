@@ -82,13 +82,26 @@ export const MemoryPresenter = () => {
                     throw new Error('No project selected');
                 }
                 typeID = projectId;
+                // console.log('Saving project memory:', {
+                //     fact,
+                //     type,
+                //     typeID,
+                //     selectedProject: selectedProjects[index]
+                // });
                 break;
             default:
                 typeID = type;
         }
 
         try {
+            // console.log('Calling doSaveMemoryOp with:', {
+            //     fact,
+            //     type,
+            //     typeID
+            // });
             await doSaveMemoryOp(fact, type, typeID);
+
+            // console.log('Memory save successful');
 
             // Remove the saved fact from the list
             const updatedFacts = extractedFacts.filter((_, i) => i !== index);
@@ -104,6 +117,12 @@ export const MemoryPresenter = () => {
             setSelectedProjects(updatedSelectedProjects);
         } catch (error) {
             console.error('Failed to save memory:', error);
+            console.error('Error details:', {
+                fact,
+                type,
+                typeID,
+                error
+            });
             alert('Failed to save memory item');
         }
     };

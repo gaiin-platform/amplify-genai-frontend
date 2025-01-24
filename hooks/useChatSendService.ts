@@ -42,6 +42,15 @@ export type ChatRequest = {
     conversationId?: string;
 };
 
+interface Memory {
+    content: string;
+    user: string;
+    memory_type: string;
+    memory_type_id: string;
+    id: string;
+    timestamp: string;
+}
+
 export function useSendService() {
     const {
         state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts },
@@ -211,6 +220,11 @@ export function useSendService() {
                         conversationId
                     };
 
+                    if (selectedConversation?.projectId) {
+                        // console.log("Selected Project Memory ID:", selectedConversation.projectId);
+                        chatBody.projectId = selectedConversation.projectId;
+                    }
+
                     // if memory is on, then extract-facts and integrate existing memories into the conversation
                     if (isMemoryOn) {
                         // extract facts from user prompt
@@ -219,12 +233,6 @@ export function useSendService() {
                             .pop()?.content || '';
                         const response = await doExtractFactsOp(userInput);
                         const extractedFacts = JSON.parse(response.body).facts;
-                        // TODO: determine how to stop duplicating facts
-                        console.log("EXTRACTED FACTS:", extractedFacts);
-                        // homeDispatch({
-                        //     field: 'extractedFacts',
-                        //     value: [...(extractedFacts || []), ...extractedFacts]
-                        // });
                         const currentFacts = extractedFacts || [];
                         homeDispatch({
                             field: 'extractedFacts',
@@ -234,18 +242,46 @@ export function useSendService() {
                         });
 
                         // memory fetching
+                        // After doReadMemoryOp() call:
                         const memoriesResponse = await doReadMemoryOp();
-                        const memories = JSON.parse(memoriesResponse.body).memories || [];
+                        const allMemories = JSON.parse(memoriesResponse.body).memories || [];
 
-                        // TODO: only import relevant memories:
-                        // user memories, assistant memories where selected assistant matches assistantId of memories, project memories if project is selected in conversation
+                        // console.log("Retrieved all memories:", allMemories);
+                        // console.log("Current projectId:", chatBody.projectId);
 
-                        const memoryContext = memories.length > 0
-                            ? `Consider these relevant past memories when responding: ${JSON.stringify(memories)}. Use this context to provide more personalized and contextually appropriate responses.`
+                        // Filter memories based on criteria
+                        const relevantMemories = allMemories.filter((memory: any) => {
+                            // Log each memory being evaluated
+                            // console.log("Evaluating memory:", memory);
+
+                            // Check for user memories
+                            if (memory.memory_type === 'user') {
+                                // console.log("✅ Including user memory:", memory.content);
+                                return true;
+                            }
+
+                            // Check for project memories
+                            if (chatBody.projectId && memory.memory_type_id === chatBody.projectId) {
+                                // console.log("✅ Including project memory:", memory.content);
+                                return true;
+                            }
+
+                            // console.log("❌ Excluding memory:", memory.content);
+                            return false;
+                        });
+
+                        // console.log("Final relevant memories:", relevantMemories);
+
+                        const memoryContext = relevantMemories.length > 0
+                            ? `Consider these relevant past memories when responding: ${JSON.stringify(
+                                relevantMemories.map((memory: Memory) => memory.content)
+                            )}. Use this context to provide more personalized and contextually appropriate responses.`
                             : '';
 
                         chatBody.prompt += '\n\n' + memoryContext;
                     }
+
+                    // console.log(chatBody.prompt);
 
                     if (isArtifactsOn) {
                         // account for plugin on/off features 
@@ -318,7 +354,7 @@ export function useSendService() {
                         Object.assign(chatBody, options);
                     }
 
-                    console.log("Chatbody:", chatBody);
+                    // console.log("Chatbody:", chatBody);
 
                     const parseMessageType = (message: string): {
                         prefix: "chat" | "json" | "json!" | "csv" | "fn";
@@ -367,7 +403,7 @@ export function useSendService() {
                             chatBody.endpoint = request.endpoint;
                         }
 
-                        console.log(`Prompt:`, { prefix: prefix, options, message });
+                        // console.log(`Prompt:`, { prefix: prefix, options, message });
 
                         const generateJsonLoose = (): Promise<Response> => {
                             if (options.length === 0) {

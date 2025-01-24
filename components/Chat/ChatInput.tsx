@@ -370,6 +370,11 @@ const onAssistantChange = (assistant: Assistant) => {
         });
 
         onSend(msg, updatedDocuments || []);
+
+        if (selectedProject && selectedConversation) {
+            selectedConversation.projectId = selectedProject.ProjectID;
+        }
+
         setContent('');
         setDocuments([]);
         setDocumentState({});

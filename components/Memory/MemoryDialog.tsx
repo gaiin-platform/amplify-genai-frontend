@@ -60,7 +60,7 @@ const AssistantContent: FC<AssistantContentProps> = ({
                         </thead>
                         <tbody>
                             {assistantMemories.length === 0 ? (
-                                <tr>
+                                <tr key="empty-assistant">
                                     <td colSpan={2} className="text-center py-4">
                                         No memories for this assistant
                                     </td>
@@ -99,6 +99,7 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
     const [selectedAssistant, setSelectedAssistant] = useState<string | null>(null);
     const [assistantMemories, setAssistantMemories] = useState<Memory[]>([]);
     const [editingProject, setEditingProject] = useState<{ id: string, name: string } | null>(null);
+    const [editingProjectMemory, setEditingProjectMemory] = useState<{ id: string, content: string } | null>(null);
 
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
@@ -194,6 +195,46 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
         }
     };
 
+    const handleEditProjectMemory = (memory: Memory) => {
+        setEditingProjectMemory({
+            id: memory.id,
+            content: memory.MemoryItem
+        });
+    };
+
+    const handleCancelEditProjectMemory = () => {
+        setEditingProjectMemory(null);
+    };
+
+    const handleSaveEditProjectMemory = async (memoryId: string) => {
+        if (!editingProjectMemory) return;
+
+        try {
+            const response = await doEditMemoryOp(memoryId, editingProjectMemory.content);
+            if (response.statusCode === 200) {
+                // Refresh memories after successful edit
+                loadMemories();
+            }
+        } catch (error) {
+            console.error('Error editing project memory:', error);
+        }
+        setEditingProjectMemory(null);
+    };
+
+    const handleDeleteProjectMemory = async (memoryId: string) => {
+        if (window.confirm('Are you sure you want to delete this memory?')) {
+            try {
+                const response = await doRemoveMemoryOp(memoryId);
+                if (response.statusCode === 200) {
+                    // Refresh memories after successful deletion
+                    loadMemories();
+                }
+            } catch (error) {
+                console.error('Error deleting project memory:', error);
+            }
+        }
+    };
+
     const projectContent = activeTab === 'Projects' && (
         <div className="flex h-full">
             <div className="w-48 border-r dark:border-neutral-700">
@@ -221,8 +262,10 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
                             </thead>
                             <tbody>
                                 {projectMemories.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={2} className="text-center py-4">No memories for this project</td>
+                                    <tr key="empty-project">
+                                        <td colSpan={3} className="text-center py-4">
+                                            No memories for this project
+                                        </td>
                                     </tr>
                                 ) : (
                                     projectMemories.map((memory) => (
@@ -264,11 +307,13 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
 
                         // If a project is selected, load its memories
                         if (selectedProject) {
-                            const memoryResponse = await doReadMemoryOp();
+                            const memoryResponse = await doReadMemoryOp(selectedProject);
                             if (memoryResponse.statusCode === 200) {
                                 const memoryBody = JSON.parse(memoryResponse.body);
                                 const projectMemories = memoryBody.memories.filter(
-                                    (memory: UserMemoryResponse) => memory.memory_type_id === selectedProject
+                                    (memory: UserMemoryResponse) =>
+                                        memory.memory_type === 'project' &&
+                                        memory.memory_type_id === selectedProject
                                 );
                                 setProjectMemories(projectMemories.map((memory: UserMemoryResponse) => ({
                                     MemoryItem: memory.content,
@@ -353,15 +398,15 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
     }, [activeTab, userEmail, selectedProject, selectedAssistant]);
 
     const tableContent = isLoading ? (
-        <tr>
+        <tr key="loading">
             <td colSpan={2} className="text-center py-4">Loading...</td>
         </tr>
     ) : memories.length === 0 ? (
-        <tr>
+        <tr key="empty">
             <td colSpan={2} className="text-center py-4">No memories found</td>
         </tr>
     ) : (
-        memories.map((memory, index) => (
+        memories.map((memory) => (
             <tr key={memory.id} className="border-b dark:border-neutral-700">
                 <td className="px-4 py-2">
                     {editingMemory && editingMemory?.id === memory.id ? (
@@ -555,21 +600,69 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
                                                 <tr className="border-b dark:border-neutral-700">
                                                     <th className="px-4 py-2 text-left">Memory</th>
                                                     <th className="px-4 py-2 text-left">Created At</th>
+                                                    <th className="px-4 py-2 text-left">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {projectMemories.length === 0 ? (
-                                                    <tr>
-                                                        <td colSpan={2} className="text-center py-4">
+                                                    <tr key="empty-project">
+                                                        <td colSpan={3} className="text-center py-4">
                                                             No memories for this project
                                                         </td>
                                                     </tr>
                                                 ) : (
                                                     projectMemories.map((memory) => (
                                                         <tr key={memory.id} className="border-b dark:border-neutral-700">
-                                                            <td className="px-4 py-2">{memory.MemoryItem}</td>
+                                                            <td className="px-4 py-2">
+                                                                {editingProjectMemory && editingProjectMemory.id === memory.id ? (
+                                                                    <input
+                                                                        type="text"
+                                                                        value={editingProjectMemory.content}
+                                                                        onChange={(e) => setEditingProjectMemory({
+                                                                            ...editingProjectMemory,
+                                                                            content: e.target.value
+                                                                        })}
+                                                                        className="w-full p-1 border rounded dark:bg-neutral-700"
+                                                                    />
+                                                                ) : (
+                                                                    memory.MemoryItem
+                                                                )}
+                                                            </td>
                                                             <td className="px-4 py-2">
                                                                 {new Date(memory.CreatedAt).toLocaleString()}
+                                                            </td>
+                                                            <td className="px-4 py-2">
+                                                                {editingProjectMemory && editingProjectMemory.id === memory.id ? (
+                                                                    <div className="space-x-2">
+                                                                        <button
+                                                                            onClick={() => handleSaveEditProjectMemory(memory.id)}
+                                                                            className="text-green-600 hover:text-green-700"
+                                                                        >
+                                                                            Save
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={handleCancelEditProjectMemory}
+                                                                            className="text-gray-600 hover:text-gray-700"
+                                                                        >
+                                                                            Cancel
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="space-x-2">
+                                                                        <button
+                                                                            onClick={() => handleEditProjectMemory(memory)}
+                                                                            className="text-blue-600 hover:text-blue-700"
+                                                                        >
+                                                                            Edit
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleDeleteProjectMemory(memory.id)}
+                                                                            className="text-red-600 hover:text-red-700"
+                                                                        >
+                                                                            Delete
+                                                                        </button>
+                                                                    </div>
+                                                                )}
                                                             </td>
                                                         </tr>
                                                     ))
