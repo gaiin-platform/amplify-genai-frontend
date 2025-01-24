@@ -4,6 +4,7 @@ import {
     IconAt,
     IconFiles,
     IconSend,
+    IconDeviceSdCard
 } from '@tabler/icons-react';
 import {
     KeyboardEvent,
@@ -46,9 +47,11 @@ import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton"
 import React from 'react';
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
-import { useSession } from 'next-auth/react';
-import { doSaveMemoryOp, doCreateProjectOp, doGetProjectsOp } from '@/services/memoryService';
 import { MemoryPresenter } from "@/components/Chat/MemoryPresenter";
+import { ProjectList } from './ProjectList';
+import { useSession } from 'next-auth/react';
+import { doGetProjectsOp, doReadMemoryOp, doEditMemoryOp, doRemoveMemoryOp, doEditProjectOp, doRemoveProjectOp } from '../../services/memoryService';
+import { ProjectInUse } from './ProjectInUse';
 
 interface Props {
     onSend: (message: Message, documents: AttachedDocument[]) => void;
@@ -60,6 +63,11 @@ interface Props {
     showScrollDownButton: boolean;
     plugins: Plugin[];
     setPlugins: (p: Plugin[]) => void;
+}
+
+interface Project {
+    ProjectID: string;
+    ProjectName: string;
 }
 
 export const ChatInput = ({
@@ -95,6 +103,31 @@ export const ChatInput = ({
     const filteredModels = filterModels(availableModels, getSettings(featureFlags).hiddenModelIds);
     
     const [chatContainerWidth, setChatContainerWidth] = useState(updateSize());
+    const [showProjectList, setShowProjectList] = useState(false);
+    const projectListRef = useRef<HTMLDivElement | null>(null);
+    const { data: session } = useSession();
+    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+    const [projects, setProjects] = useState<Project[]>([]);
+
+    useEffect(() => {
+        const fetchProjects = async () => {
+            if (session?.user?.email) {
+                try {
+                    const response = await doGetProjectsOp(session.user.email);
+                    const parsedBody = JSON.parse(response.body);
+                    const projectsData = parsedBody.projects.map((p: any) => ({
+                        ProjectID: p.id,
+                        ProjectName: p.project
+                    }));
+                    setProjects(projectsData);
+                } catch (error) {
+                    console.error('Error fetching projects:', error);
+                }
+            }
+        };
+
+        fetchProjects();
+    }, [session?.user?.email]);
 
     useEffect(() => {
         const updateWidth = () => {
@@ -178,6 +211,10 @@ export const ChatInput = ({
 
     const handleShowAssistantSelector = () => {
         setShowAssistantSelect(!showAssistantSelect);
+    };
+
+    const handleShowProjectSelector = () => {
+        setShowProjectList(true);
     };
 
     const allDocumentsDoneUploading = () => {
@@ -593,6 +630,43 @@ const onAssistantChange = (assistant: Assistant) => {
         if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER ));
       }, [selectedAssistant]);
 
+    useEffect(() => {
+        const handleOutsideClick = (e: MouseEvent) => {
+            if (
+                promptListRef.current &&
+                !promptListRef.current.contains(e.target as Node)
+            ) {
+                setShowPromptList(false);
+            }
+
+            if (
+                projectListRef.current &&
+                !projectListRef.current.contains(e.target as Node)
+            ) {
+                setShowProjectList(false);
+            }
+
+            if (
+                dataSourceSelectorRef.current &&
+                !dataSourceSelectorRef.current.contains(e.target as Node)
+            ) {
+                setShowDataSourceSelector(false);
+            }
+
+            if (
+                assistantSelectorRef.current &&
+                !assistantSelectorRef.current.contains(e.target as Node)
+            ) {
+                setShowAssistantSelect(false);
+            }
+        };
+
+        window.addEventListener('click', handleOutsideClick);
+
+        return () => {
+            window.removeEventListener('click', handleOutsideClick);
+        };
+    }, []);
 
     return (
         <>
@@ -679,7 +753,13 @@ const onAssistantChange = (assistant: Assistant) => {
                                 homeDispatch({field: 'selectedAssistant', value: asts[0]});
                             }
                         }}/>
-
+                        <ProjectInUse
+                            project={selectedProject}
+                            projectChanged={(project) => {
+                                setSelectedProject(project);
+                                setShowProjectList(false);
+                            }}
+                        />
                         <FileList documents={documents}
                                   documentStates={documentState}
                                   onCancelUpload={onCancelUpload}
@@ -714,6 +794,39 @@ const onAssistantChange = (assistant: Assistant) => {
                         {/*>*/}
                         {/*    <IconRobot size={20}/>*/}
                         {/*</button>*/}
+
+                            {featureFlags.memory && getSettings(featureFlags).featureOptions.includeMemory && (
+                                <button
+                                    className={buttonClasses}
+                                    onClick={handleShowProjectSelector}
+                                    title="Project Memory"
+                                >
+                                    <IconDeviceSdCard size={20} />
+                                </button>
+                            )}
+
+                            {showProjectList && session?.user?.email && (
+                                <div className="absolute left-0 bottom-14 rounded bg-white dark:bg-[#343541]">
+                                    <ProjectList
+                                        currentProject={selectedProject}
+                                        availableProjects={projects}
+                                        onKeyDown={(e: any) => {
+                                            if (e.key === 'Escape') {
+                                                e.preventDefault();
+                                                setShowProjectList(false);
+                                                textareaRef.current?.focus();
+                                            }
+                                        }}
+                                        onProjectChange={(project: Project) => {
+                                            setSelectedProject(project);
+                                            setShowProjectList(false);
+                                            if (textareaRef && textareaRef.current) {
+                                                textareaRef.current.focus();
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            )}
 
                         <AttachFile id="__attachFile"                                                     //  Mistral and gpt 3.5 do not support image files 
                                     disallowedFileExtensions={[ ...COMMON_DISALLOWED_FILE_EXTENSIONS, ...(selectedConversation?.model?.supportsImages 

@@ -82,15 +82,23 @@ export const doCreateProjectOp = async (projectName: string) => {
 }
 
 export const doGetProjectsOp = async (email: string) => {
-    const op = {
-        url: 'https://dev-api.vanderbilt.ai/memory/get-projects',
-        method: 'POST',
-        path: '',
-        op: "",
-        data: { Email: email }
-    };
-    return await doRequestOp(op);
-}
+    try {
+        console.log('Making API call to get projects');
+        const op = {
+            url: 'https://dev-api.vanderbilt.ai/memory/get-projects',
+            method: 'POST',
+            path: '',
+            op: "",
+            data: { Email: email }
+        };
+        const response = await doRequestOp(op);
+        console.log('API response:', response);
+        return response;
+    } catch (error) {
+        console.error('Error in doGetProjectsOp:', error);
+        throw error;
+    }
+};
 
 export const doRemoveProjectOp = async (projectId: string) => {
     const op = {
