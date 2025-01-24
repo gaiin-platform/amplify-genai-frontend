@@ -12,13 +12,13 @@ const ChatSourceBlock: React.FC<Props> = (
 
 
     const getDisplayName = (name: string) => {
-        if(name === "rag"){
+        if (name === "rag") {
             return "Document Search Results (RAG)";
-        }
-        else if(name === "documentContext") {
+        } else if(name === "documentContext") {
             return "Attached Documents";
-        }
-        else {
+        } else if (name === "images") {
+            return "Images"
+        } else {
             // split on camel case and capitalize each first letter
             return name.split(/(?=[A-Z])/).map((word) => {
                 return word.charAt(0).toUpperCase() + word.slice(1);
