@@ -28,6 +28,19 @@ export const doSaveMemoryOp = async (memoryItem: string, memoryType: string, mem
     return await doRequestOp(op);
 }
 
+export const doReadMemoryOp = async () => {
+    const op = {
+        url: 'http://localhost:3015/dev/memory/read-memory',
+        method: 'POST',
+        path: '',
+        op: "",
+        // path: URL_PATH,
+        // op: "/extract-facts",
+        data: {}
+    };
+    return await doRequestOp(op);
+}
+
 export const doCreateProjectOp = async (projectName: string) => {
     const op = {
         url: 'http://localhost:3015/dev/memory/create-project',

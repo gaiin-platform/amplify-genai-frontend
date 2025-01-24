@@ -15,12 +15,14 @@ import {AccountDialog} from "@/components/Settings/AccountComponents/AccountDial
 import toast from 'react-hot-toast';
 import { IntegrationsDialog } from '@/components/Integrations/IntegrationsDialog';
 import { getSettings } from '@/utils/app/settings';
+import { MemoryDialog } from '@/components/Memory/MemoryDialog';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
     const [isSettingDialogOpen, setIsSettingDialog] = useState<boolean>(false);
     const [isAccountDialogVisible, setIsAccountDialogVisible] = useState<boolean>(false);
     const [isIntegrationsOpen, setIsIntegrationsOpen] = useState<boolean>(false);
+    const [isMemoryDialogOpen, setIsMemoryDialogOpen] = useState(false);
 
     const {
         state: {
@@ -108,9 +110,7 @@ export const ChatbarSettings = () => {
                 <SidebarButton
                     text={t('Memory')}
                     icon={<IconDeviceSdCard size={18} />}
-                    onClick={() => {
-                        // TODO: implement interface here
-                    }}
+                    onClick={() => setIsMemoryDialogOpen(true)}
                 />
             )}
 
@@ -134,6 +134,11 @@ export const ChatbarSettings = () => {
                 onClose={() => {
                     setIsAccountDialogVisible(false);
                 }}
+            />
+
+            <MemoryDialog
+                open={isMemoryDialogOpen}
+                onClose={() => setIsMemoryDialogOpen(false)}
             />
 
         </div>
