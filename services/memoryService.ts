@@ -41,6 +41,33 @@ export const doReadMemoryOp = async () => {
     return await doRequestOp(op);
 }
 
+export const doRemoveMemoryOp = async (memoryId: string) => {
+    const op = {
+        url: 'http://localhost:3015/dev/memory/remove-memory',
+        method: 'POST',
+        path: '',
+        op: "",
+        data: {
+            memory_id: memoryId
+        }
+    };
+    return await doRequestOp(op);
+}
+
+export const doEditMemoryOp = async (memoryId: string, content: string) => {
+    const op = {
+        url: 'http://localhost:3015/dev/memory/edit-memory',
+        method: 'POST',
+        path: '',
+        op: "",
+        data: {
+            memory_id: memoryId,
+            content: content
+        }
+    };
+    return await doRequestOp(op);
+}
+
 export const doCreateProjectOp = async (projectName: string) => {
     const op = {
         url: 'http://localhost:3015/dev/memory/create-project',

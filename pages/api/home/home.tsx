@@ -10,6 +10,7 @@ import { getIsLocalStorageSelection, updateWithRemoteConversations } from '@/uti
 import cloneDeep from 'lodash/cloneDeep';
 import {styled} from "styled-components";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import { MemoryDialog } from '@/components/Memory/MemoryDialog';
 
 
 import {
@@ -48,8 +49,9 @@ import {
     IconShare,
     IconMessage,
     IconSettings,
+    IconDeviceSdCard,
+    IconLogout
 } from "@tabler/icons-react";
-import { IconLogout } from "@tabler/icons-react";
 
 import { initialState } from './home.state';
 import useEventService from "@/hooks/useEventService";
@@ -124,6 +126,8 @@ const Home = ({
 
     const [dataDisclosure, setDataDisclosure] = useState<{url: string, html: string | null}|null>(null);
     const [hasAcceptedDataDisclosure, sethasAcceptedDataDisclosure] = useState<boolean | null> (null);
+
+    const [isMemoryDialogOpen, setIsMemoryDialogOpen] = useState(false);
 
     const { data: session, status } = useSession();
     const [user, setUser] = useState<DefaultUser | null>(null);
@@ -1445,6 +1449,25 @@ const Home = ({
 
                             <TabSidebar
                                 side={"right"}
+                                footerComponent={
+                                    featureFlags.memory && getSettings(featureFlags).featureOptions.includeMemory && (
+                                        <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
+                                            <button
+                                                className="dark:text-white w-full"
+                                                onClick={() => setIsMemoryDialogOpen(true)}
+                                            >
+                                                <div className="flex items-center">
+                                                    <IconDeviceSdCard className="m-2" />
+                                                    <span>Memory</span>
+                                                </div>
+                                            </button>
+                                            <MemoryDialog
+                                                open={isMemoryDialogOpen}
+                                                onClose={() => setIsMemoryDialogOpen(false)}
+                                            />
+                                        </div>
+                                    )
+                                }
                             >
                                 <Tab icon={<Icon3dCubeSphere />}><Promptbar /></Tab>
                                 {/*<Tab icon={<IconBook2/>}><WorkflowDefinitionBar/></Tab>*/}
