@@ -9,6 +9,7 @@ import {
   IconPin,
   IconPinFilled,
   IconEyeOff,
+  IconSettingsBolt,
 } from '@tabler/icons-react';
 import {
   KeyboardEvent,
@@ -26,6 +27,9 @@ import React from 'react';
 import { baseAssistantFolder, isBaseFolder } from '@/utils/app/basePrompts';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { hideGroupFolder, saveFolders } from '@/utils/app/folders';
+import { Group, GroupAccessType } from '@/types/groups';
+import { folder } from 'jszip';
+import { useSession } from 'next-auth/react';
 
 interface Props {
   currentFolder: FolderInterface;
@@ -41,9 +45,11 @@ const Folder = ({
   folderComponent
   
 }: Props) => {
-  const { handleDeleteFolder, handleUpdateFolder, state: {selectedConversation, folders, allFoldersOpenPrompts, allFoldersOpenConvs, checkingItemType, checkedItems},
+  const { handleDeleteFolder, handleUpdateFolder, state: {selectedConversation, folders, allFoldersOpenPrompts, allFoldersOpenConvs, checkingItemType, checkedItems, groups},
           dispatch: homeDispatch,} = useContext(HomeContext);
 
+  const { data: session } = useSession();
+  const user = session?.user?.email;
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -157,6 +163,12 @@ const Folder = ({
     }
   }
 
+  const hasAccessToItsGroupAdminInterface = () =>{
+    const interfaceAccessGroups: string[] = groups.filter((g: Group) => [GroupAccessType.ADMIN, GroupAccessType.WRITE ].includes(g.members[user ?? '']))
+                                                  .map((g: Group) => g.id);
+    return interfaceAccessGroups.includes(currentFolder.id);
+  }
+
 
   return (
     <>
@@ -259,6 +271,25 @@ const Folder = ({
                 }
               </ActionButton>
               {currentFolder.isGroupFolder && 
+              <>
+                { hasAccessToItsGroupAdminInterface() && 
+                  <ActionButton
+                  handleClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', 
+                                        { detail: { isOpen: true, 
+                                                    data: { 
+                                                        group: groups.find((g:Group) => g.id === currentFolder.id),
+                                                    } 
+                                                  }} ));
+                    
+                    
+                  }}
+                  title="Open In Assistant Admin Interface"
+                >
+                    <IconSettingsBolt size={18} /> 
+                </ActionButton>}
+
                 <ActionButton
                 handleClick={(e) => {
                   e.stopPropagation();
@@ -268,6 +299,7 @@ const Folder = ({
               >
                   <IconEyeOff size={18} /> 
               </ActionButton>
+              </>
               }
               { showEditDelete && <>
               <ActionButton
