@@ -23,7 +23,7 @@ import { useChatService } from "@/hooks/useChatService";
 import { ARTIFACTS_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { uploadConversation } from "@/services/remoteConversationService";
 import { getFocusedMessages } from '@/services/prepareChatService';
-import { doExtractFactsOp } from '@/services/memoryService';
+import { doExtractFactsOp, doReadMemoryOp } from '@/services/memoryService';
 import { getSettings } from '@/utils/app/settings';
 
 
@@ -197,27 +197,6 @@ export function useSendService() {
                     const isSmartMessagesOn = featureOptions.includeFocusedMessages && pluginIds.includes(PluginID.SMART_MESSAGES);
                     const isMemoryOn = featureFlags.memory && featureOptions.includeMemory;
 
-                    // if memory is on, then extract-facts
-                    if (isMemoryOn) {
-                        // console.log("MEMORY IS ON");
-                        const userInput = updatedConversation.messages
-                            .filter(msg => msg.role === 'user')
-                            .pop()?.content || '';
-                        // console.log("USER INPUT:", userInput);
-
-                        const response = await doExtractFactsOp(userInput);
-                        const extractedFacts = JSON.parse(response.body).facts;
-
-                        console.log("EXTRACTED FACTS:");
-                        console.log(extractedFacts);
-
-                        // TODO: determine how to stop duplicating facts
-                        homeDispatch({
-                            field: 'extractedFacts',
-                            value: [...(extractedFacts || []), ...extractedFacts]
-                        });
-                    }
-
                     // if both artifact and smart messages is off then it returnes with the messages right away 
                     const prepareMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService,
                         isArtifactsOn, isSmartMessagesOn, homeDispatch,
@@ -231,6 +210,31 @@ export function useSendService() {
                         maxTokens: updatedConversation.maxTokens || (Math.round(updatedConversation.model.outputTokenLimit / 2)),
                         conversationId
                     };
+
+                    // if memory is on, then extract-facts and integrate existing memories into the conversation
+                    if (isMemoryOn) {
+                        // extract facts from user prompt
+                        const userInput = updatedConversation.messages
+                            .filter(msg => msg.role === 'user')
+                            .pop()?.content || '';
+                        const response = await doExtractFactsOp(userInput);
+                        const extractedFacts = JSON.parse(response.body).facts;
+                        // TODO: determine how to stop duplicating facts
+                        homeDispatch({
+                            field: 'extractedFacts',
+                            value: [...(extractedFacts || []), ...extractedFacts]
+                        });
+
+                        // memory fetching
+                        const memoriesResponse = await doReadMemoryOp();
+                        const memories = JSON.parse(memoriesResponse.body).memories || [];
+
+                        const memoryContext = memories.length > 0
+                            ? `Consider these relevant past memories when responding: ${JSON.stringify(memories)}. Use this context to provide more personalized and contextually appropriate responses.`
+                            : '';
+
+                        chatBody.prompt += '\n\n' + memoryContext;
+                    }
 
                     if (isArtifactsOn) {
                         // account for plugin on/off features 

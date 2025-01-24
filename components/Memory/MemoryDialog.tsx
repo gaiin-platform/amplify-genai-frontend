@@ -92,7 +92,7 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
     const [activeTab, setActiveTab] = useState<'User' | 'Projects' | 'Assistants'>('User');
     const [memories, setMemories] = useState<Memory[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [editingMemory, setEditingMemory] = useState<string | null>(null);
+    const [editingMemory, setEditingMemory] = useState<{ id: string, content: string } | null>(null);
     const [editContent, setEditContent] = useState('');
     const [selectedProject, setSelectedProject] = useState<string | null>(null);
     const [projectMemories, setProjectMemories] = useState<Memory[]>([]);
@@ -103,40 +103,29 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
     const userEmail = session?.user?.email;
 
     const handleEdit = (memory: Memory) => {
-        setEditingMemory(memory.id);
-        setEditContent(memory.MemoryItem);
+        setEditingMemory({
+            id: memory.id,
+            content: memory.MemoryItem
+        });
     };
 
     const handleCancelEdit = () => {
         setEditingMemory(null);
-        setEditContent('');
     };
 
     const handleSaveEdit = async (memoryId: string) => {
+        if (!editingMemory) return;
+
         try {
-            const response = await doEditMemoryOp(memoryId, editContent);
+            const response = await doEditMemoryOp(memoryId, editingMemory.content);
             if (response.statusCode === 200) {
                 // Refresh memories after successful edit
-                const updatedResponse = await doReadMemoryOp();
-                if (updatedResponse.statusCode === 200) {
-                    const body = JSON.parse(updatedResponse.body);
-                    const userMemories = body.memories.filter(
-                        (memory: UserMemoryResponse) => memory.memory_type === 'user'
-                    );
-                    setMemories(userMemories.map((memory: UserMemoryResponse) => ({
-                        MemoryItem: memory.content,
-                        MemoryType: memory.memory_type,
-                        MemoryTypeID: memory.memory_type_id,
-                        CreatedAt: memory.timestamp,
-                        id: memory.id
-                    })));
-                }
+                loadMemories();
             }
         } catch (error) {
             console.error('Error editing memory:', error);
         }
         setEditingMemory(null);
-        setEditContent('');
     };
 
     const handleDelete = async (memoryId: string) => {
@@ -335,11 +324,14 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
         memories.map((memory, index) => (
             <tr key={memory.id} className="border-b dark:border-neutral-700">
                 <td className="px-4 py-2">
-                    {editingMemory === memory.id ? (
+                    {editingMemory && editingMemory?.id === memory.id ? (
                         <input
                             type="text"
-                            value={editContent}
-                            onChange={(e) => setEditContent(e.target.value)}
+                            value={editingMemory.content}
+                            onChange={(e) => setEditingMemory({
+                                ...editingMemory,
+                                content: e.target.value
+                            })}
                             className="w-full p-1 border rounded dark:bg-neutral-700"
                         />
                     ) : (
@@ -349,7 +341,7 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
                 <td className="px-4 py-2">{new Date(memory.CreatedAt).toLocaleString()}</td>
                 {activeTab === 'User' && (
                     <td className="px-4 py-2">
-                        {editingMemory === memory.id ? (
+                        {editingMemory && editingMemory?.id === memory.id ? (
                             <div className="space-x-2">
                                 <button
                                     onClick={() => handleSaveEdit(memory.id)}
@@ -373,7 +365,7 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
                                     Edit
                                 </button>
                                 <button
-                                    onClick={() => handleDelete(memory.MemoryTypeID)}
+                                    onClick={() => handleDelete(memory.id)}
                                     className="text-red-600 hover:text-red-700"
                                 >
                                     Delete
