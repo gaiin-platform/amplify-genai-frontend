@@ -92,6 +92,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 messageIsStreaming,
                 chatEndpoint,
                 folders,
+                extractedFacts
             },
             setLoadingMessage,
             handleUpdateConversation,

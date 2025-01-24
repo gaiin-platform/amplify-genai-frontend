@@ -44,7 +44,7 @@ export type ChatRequest = {
 
 export function useSendService() {
     const {
-        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService },
+        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts },
         getDefaultModel,
         postProcessingCallbacks,
         dispatch: homeDispatch,
@@ -204,13 +204,17 @@ export function useSendService() {
                             .filter(msg => msg.role === 'user')
                             .pop()?.content || '';
                         // console.log("USER INPUT:", userInput);
-                        const extractedFacts = await doExtractFactsOp(userInput);
+
+                        const response = await doExtractFactsOp(userInput);
+                        const extractedFacts = JSON.parse(response.body).facts;
+
                         console.log("EXTRACTED FACTS:");
                         console.log(extractedFacts);
-                        // TODO: determine how to save extractedFacts and have them available elsewhere
+
+                        // TODO: determine how to stop duplicating facts
                         homeDispatch({
                             field: 'extractedFacts',
-                            value: extractedFacts as string[]
+                            value: [...(extractedFacts || []), ...extractedFacts]
                         });
                     }
 
