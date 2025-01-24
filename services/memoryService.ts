@@ -91,3 +91,30 @@ export const doGetProjectsOp = async (email: string) => {
     };
     return await doRequestOp(op);
 }
+
+export const doRemoveProjectOp = async (projectId: string) => {
+    const op = {
+        url: 'http://localhost:3015/dev/memory/remove-project',
+        method: 'POST',
+        path: '',
+        op: "",
+        data: {
+            ProjectID: projectId
+        }
+    };
+    return await doRequestOp(op);
+}
+
+export const doEditProjectOp = async (projectId: string, projectName: string) => {
+    const op = {
+        url: 'http://localhost:3015/dev/memory/edit-project',
+        method: 'POST',
+        path: '',
+        op: "",
+        data: {
+            ProjectID: projectId,
+            ProjectName: projectName
+        }
+    };
+    return await doRequestOp(op);
+}

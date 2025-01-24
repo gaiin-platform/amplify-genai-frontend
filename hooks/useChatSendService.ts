@@ -229,6 +229,9 @@ export function useSendService() {
                         const memoriesResponse = await doReadMemoryOp();
                         const memories = JSON.parse(memoriesResponse.body).memories || [];
 
+                        // TODO: only import relevant memories:
+                        // user memories, assistant memories where selected assistant matches assistantId of memories, project memories if project is selected in conversation
+
                         const memoryContext = memories.length > 0
                             ? `Consider these relevant past memories when responding: ${JSON.stringify(memories)}. Use this context to provide more personalized and contextually appropriate responses.`
                             : '';

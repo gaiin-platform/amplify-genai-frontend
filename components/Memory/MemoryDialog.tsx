@@ -2,7 +2,7 @@ import { FC, useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'next-i18next';
 import { useSession } from "next-auth/react";
 import { Modal } from '../ReusableComponents/Modal';
-import { doGetProjectsOp, doReadMemoryOp, doEditMemoryOp, doRemoveMemoryOp } from '../../services/memoryService';
+import { doGetProjectsOp, doReadMemoryOp, doEditMemoryOp, doRemoveMemoryOp, doEditProjectOp, doRemoveProjectOp } from '../../services/memoryService';
 
 interface Props {
     open: boolean;
@@ -98,6 +98,7 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
     const [projectMemories, setProjectMemories] = useState<Memory[]>([]);
     const [selectedAssistant, setSelectedAssistant] = useState<string | null>(null);
     const [assistantMemories, setAssistantMemories] = useState<Memory[]>([]);
+    const [editingProject, setEditingProject] = useState<{ id: string, name: string } | null>(null);
 
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
@@ -150,6 +151,45 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
                 }
             } catch (error) {
                 console.error('Error deleting memory:', error);
+            }
+        }
+    };
+
+    const handleEditProject = (project: Memory) => {
+        setEditingProject({
+            id: project.id,
+            name: project.MemoryItem
+        });
+    };
+
+    const handleCancelEditProject = () => {
+        setEditingProject(null);
+    };
+
+    const handleSaveEditProject = async (projectId: string) => {
+        if (!editingProject) return;
+
+        try {
+            const response = await doEditProjectOp(projectId, editingProject.name);
+            if (response.statusCode === 200) {
+                loadMemories();
+            }
+        } catch (error) {
+            console.error('Error editing project:', error);
+        }
+        setEditingProject(null);
+    };
+
+    const handleDeleteProject = async (projectId: string) => {
+        if (window.confirm('Are you sure you want to delete this project?')) {
+            try {
+                const response = await doRemoveProjectOp(projectId);
+                if (response.statusCode === 200) {
+                    setSelectedProject(null);
+                    loadMemories();
+                }
+            } catch (error) {
+                console.error('Error deleting project:', error);
             }
         }
     };
@@ -419,14 +459,64 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
                                     Projects
                                 </div>
                                 {memories.map((project) => (
-                                    <button
-                                        key={project.id}
-                                        className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-neutral-700 
-                    ${selectedProject === project.id ? 'bg-gray-200 dark:bg-neutral-600' : ''}`}
-                                        onClick={() => setSelectedProject(project.id)}
-                                    >
-                                        {project.MemoryItem}
-                                    </button>
+                                    <div key={project.id} className="flex flex-col">
+                                        {editingProject && editingProject.id === project.id ? (
+                                            <div className="px-4 py-2">
+                                                <input
+                                                    type="text"
+                                                    value={editingProject.name}
+                                                    onChange={(e) => setEditingProject({
+                                                        ...editingProject,
+                                                        name: e.target.value
+                                                    })}
+                                                    className="w-full p-1 border rounded dark:bg-neutral-700 mb-2"
+                                                />
+                                                <div className="flex space-x-2">
+                                                    <button
+                                                        onClick={() => handleSaveEditProject(project.id)}
+                                                        className="text-green-600 hover:text-green-700 text-sm"
+                                                    >
+                                                        Save
+                                                    </button>
+                                                    <button
+                                                        onClick={handleCancelEditProject}
+                                                        className="text-gray-600 hover:text-gray-700 text-sm"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-between px-4 py-2 hover:bg-gray-100 dark:hover:bg-neutral-700">
+                                                <button
+                                                    className={`text-left flex-grow ${selectedProject === project.id ? 'bg-gray-200 dark:bg-neutral-600' : ''}`}
+                                                    onClick={() => setSelectedProject(project.id)}
+                                                >
+                                                    {project.MemoryItem}
+                                                </button>
+                                                <div className="flex space-x-2">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleEditProject(project);
+                                                        }}
+                                                        className="text-blue-600 hover:text-blue-700 text-sm"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeleteProject(project.id);
+                                                        }}
+                                                        className="text-red-600 hover:text-red-700 text-sm"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 ))}
                             </div>
                         )}
