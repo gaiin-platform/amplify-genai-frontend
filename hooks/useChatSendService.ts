@@ -220,9 +220,17 @@ export function useSendService() {
                         const response = await doExtractFactsOp(userInput);
                         const extractedFacts = JSON.parse(response.body).facts;
                         // TODO: determine how to stop duplicating facts
+                        console.log("EXTRACTED FACTS:", extractedFacts);
+                        // homeDispatch({
+                        //     field: 'extractedFacts',
+                        //     value: [...(extractedFacts || []), ...extractedFacts]
+                        // });
+                        const currentFacts = extractedFacts || [];
                         homeDispatch({
                             field: 'extractedFacts',
-                            value: [...(extractedFacts || []), ...extractedFacts]
+                            value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
+                                self.indexOf(fact) === index
+                            )
                         });
 
                         // memory fetching
