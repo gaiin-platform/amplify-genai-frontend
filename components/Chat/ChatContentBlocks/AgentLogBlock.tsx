@@ -170,7 +170,7 @@ const AgentLogBlock: React.FC<Props> = ({ message, messageIsStreaming }) => {
       ? message.data.state.agentLog
       : {};
   // console.log("ds",sources)
-  console.log('Agent Log', agentLog);
+  console.log('Reasoning Log', agentLog);
 
   if (!agentLog.data.result) {
     return <></>;
@@ -181,7 +181,7 @@ const AgentLogBlock: React.FC<Props> = ({ message, messageIsStreaming }) => {
   return (
     <div className="mt-3" key={message.id}>
       <ExpansionComponent
-        title="Agent Log"
+        title="Reasoning / Action Log"
         content={agentLog.map((msg: any, idx: number) => (
           <div key={idx}>{getAgentLogItem(msg)}</div>
         ))}
