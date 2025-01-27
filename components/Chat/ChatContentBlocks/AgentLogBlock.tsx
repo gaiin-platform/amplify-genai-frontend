@@ -1,4 +1,4 @@
-import { IconArrowRight, IconCircleCheck, IconBrackets, IconRobot, IconTerminal2, IconUser } from '@tabler/icons-react';
+import { IconArrowRight, IconCircleCheck, IconCircleX, IconBrackets, IconRobot, IconTerminal2, IconUser } from '@tabler/icons-react';
 import React from "react";
 
 
@@ -112,15 +112,20 @@ const getAgentLogItem = (msg: any) => {
       </div>
     );
   } else if (msg.role === 'environment') {
+    const hasError = msg.content?.error;
     return (
       <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#444654] rounded p-2 my-1">
-        <IconTerminal2 className="min-w-[20px] text-green-600 dark:text-green-400" />
+        <IconTerminal2 className="min-w-[20px] text-blue-600 dark:text-blue-400" />
         <div className="w-full">
           <div className="flex items-center gap-2 mb-1">
-            <IconCircleCheck className="min-w-[16px] text-green-700 dark:text-green-300" />
-            <span className="font-medium text-green-700 dark:text-green-300">
-              Result:
-            </span>
+            {hasError ? (
+              <IconCircleX className="min-w-[16px] text-red-600 dark:text-red-400" />
+            ) : (
+              <IconCircleCheck className="min-w-[16px] text-green-700 dark:text-green-300" />
+            )}
+            <span className={`font-medium ${hasError ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>
+           Result:
+         </span>
           </div>
           <MemoizedReactMarkdown
             className="prose dark:prose-invert mt-1"
