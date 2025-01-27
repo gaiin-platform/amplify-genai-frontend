@@ -26,6 +26,7 @@ import { useChatService } from "@/hooks/useChatService";
 import { getSettings } from '@/utils/app/settings';
 import { useSession } from 'next-auth/react';
 import { doSaveMemoryOp, doCreateProjectOp, doGetProjectsOp } from '@/services/memoryService';
+import { Settings } from '@/types/settings';
 
 interface Props {
     onSend: (message: Message, documents: AttachedDocument[]) => void;
@@ -49,6 +50,16 @@ export const MemoryPresenter = () => {
         getDefaultModel,
         dispatch: homeDispatch
     } = useContext(HomeContext);
+
+    let settingRef = useRef<Settings | null>(null);
+        // prevent recalling the getSettings function
+    if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
+    
+    useEffect(() => {
+        const handleEvent = (event:any) => settingRef.current = getSettings(featureFlags)
+        window.addEventListener('updateFeatureSettings', handleEvent);
+        return () => window.removeEventListener('updateFeatureSettings', handleEvent)
+    }, []);
 
     const [factTypes, setFactTypes] = useState<{ [key: string]: string }>({});
     const [selectedProjects, setSelectedProjects] = useState<{ [key: string]: string }>({});
@@ -280,7 +291,7 @@ export const MemoryPresenter = () => {
     return (
         <>
             <div className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
-                {featureFlags.memory && getSettings(featureFlags).featureOptions.includeMemory && selectedConversation && selectedConversation.messages?.length > 0 && extractedFacts.length > 0 && (
+                {featureFlags.memory && settingRef.current?.featureOptions.includeMemory && selectedConversation && selectedConversation.messages?.length > 0 && extractedFacts.length > 0 && (
                     <div>
                         {!isFactsVisible ? (
                             <button

@@ -1,4 +1,4 @@
-import { FC, useContext, useEffect, useState } from 'react';
+import { FC, useContext, useEffect, useRef, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
@@ -55,8 +55,11 @@ type ModelKey = (typeof modelOptionFlags)[number]["key"];
 export const SettingDialog: FC<Props> = ({ open, onClose }) => {
   const { t } = useTranslation('settings');
   const { dispatch: homeDispatch, state:{statsService, featureFlags, availableModels: allAvailableModels, defaultModelId} } = useContext(HomeContext);
-  const initSettings: Settings = getSettings(featureFlags);
-  const [hiddenModelIds, setHiddenModelIds] = useState<string[]>(initSettings.hiddenModelIds.filter((id:string) => id !== defaultModelId));
+  let initSettingsRef = useRef<Settings | null>(null);
+  // prevent recalling the getSettings function
+  if (initSettingsRef.current === null) initSettingsRef.current = getSettings(featureFlags);
+
+  const [hiddenModelIds, setHiddenModelIds] = useState<string[]>(initSettingsRef.current?.hiddenModelIds.filter((id:string) => id !== defaultModelId));
 
 
   const getAvailableModels = () => {
@@ -103,14 +106,14 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
   }
   const availableModels: Record<ModelKey, any[]> = getAvailableModels();
   
-  const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(initSettings.featureOptions);
-  const [theme, setTheme] = useState<Theme>(initSettings.theme);
+  const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(initSettingsRef.current?.featureOptions);
+  const [theme, setTheme] = useState<Theme>(initSettingsRef.current?.theme);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [modelOptions, setModelOptions] = useState<{ [key: string]: boolean }>(initModelOption());
 
 
   const featuresChanged = () => {
-    return JSON.stringify(featureOptions) !== JSON.stringify(initSettings.featureOptions);
+    return JSON.stringify(featureOptions) !== JSON.stringify(initSettingsRef.current?.featureOptions);
   }
   useEffect(() => {
     if (open) statsService.openSettingsEvent();
@@ -118,8 +121,8 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
 
   useEffect(()=> {
 
-    const hasChanges = theme !== initSettings.theme || featuresChanged() ||
-                       JSON.stringify(hiddenModelIds) !== JSON.stringify(initSettings.hiddenModelIds);
+    const hasChanges = theme !== initSettingsRef.current?.theme || featuresChanged() ||
+                       JSON.stringify(hiddenModelIds) !== JSON.stringify(initSettingsRef.current?.hiddenModelIds);
     setHasUnsavedChanges(hasChanges);
 
   }, [theme, featureOptions, hiddenModelIds])
@@ -133,7 +136,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
         return;
     }
 
-    if (theme !== initSettings.theme) statsService.setThemeEvent(theme);
+    if (theme !== initSettingsRef.current?.theme) statsService.setThemeEvent(theme);
     homeDispatch({ field: 'lightMode', value: theme });
 
     const updatedSettings: Settings = { theme: theme, 
@@ -311,7 +314,7 @@ const modelLabel = (modelId: string, name: string) => {
             <div className='pr-4'>
             <FlagsMap 
               id={'featureOptionFlags'}
-              flags={featureOptionFlags.filter((f: Flag) => Object.keys(initSettings.featureOptions).includes(f.key))}
+              flags={featureOptionFlags.filter((f: Flag) => Object.keys(initSettingsRef.current ? initSettingsRef.current.featureOptions: {}).includes(f.key))}
               state={featureOptions}
               flagChanged={(key, value) => {
                 setFeatureOptions({...featureOptions, [key]: value});

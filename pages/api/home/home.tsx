@@ -61,7 +61,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { WorkflowDefinition } from "@/types/workflow";
 import { saveWorkflowDefinitions } from "@/utils/app/workflows";
 import SharedItemsList from "@/components/Share/SharedItemList";
-import { saveFeatures } from "@/utils/app/features";
 import WorkspaceList from "@/components/Workspace/WorkspaceList";
 import { Market } from "@/components/Market/Market";
 import { useSession, signIn, signOut, getSession } from "next-auth/react"
@@ -193,8 +192,23 @@ const Home = ({
         foldersRef.current = folders;
     }, [folders]);
 
-
     const stopConversationRef = useRef<boolean>(false);
+
+    const featureFlagsRef = useRef(featureFlags);
+
+    useEffect(() => {
+        featureFlagsRef.current = featureFlags;
+        window.dispatchEvent(new Event('updateFeatureSettings'));
+    }, [featureFlags]);
+
+    const [settings, setSettings] = useState<Settings>();
+
+    useEffect(() => {
+        const handleEvent = (event:any) => setSettings( getSettings(featureFlagsRef.current) );
+        window.addEventListener('updateFeatureSettings', handleEvent);
+        return () => window.removeEventListener('updateFeatureSettings', handleEvent)
+    }, []);
+
 
 
     // This is where tabs will be sync'd
@@ -285,19 +299,6 @@ const Home = ({
     };
 
 
-
-
-    // Feature OPERATIONS  --------------------------------------------
-
-    const handleToggleFeature = (name: string) => {
-        const features = { ...contextValue.state.featureFlags };
-        features[name] = !features[name];
-
-        dispatch({ field: 'featureFlags', value: features });
-        saveFeatures(features);
-
-        return features;
-    };
 
     // FOLDER OPERATIONS  --------------------------------------------
 
@@ -668,10 +669,6 @@ const Home = ({
         }
     }, [session]);
 
-    // useEffect(() => {
-    //     console.log("New selected Conv: ", selectedConversation);
-        
-    // }, [selectedConversation]);
 
     // Amplify Data Calls - Happens Right After On Load--------------------------------------------
 
@@ -685,13 +682,9 @@ const Home = ({
                     const defaultModel = response.data.default;
                     const models = response.data.models;
                     // console.log(response);
-                    // for on load for those who have no saved default, no last conversations with a valid model reference
+                    // for on-load for those who have no saved default, no last conversations with a valid model reference
                     if (selectedConversation && selectedConversation?.model?.id === '') {
-                        console.log("handle update")
-                        // dispatch({  field: 'selectedConversation',
-                        //     value: {...selectedConversation, model: defaultModel}
-                        // });
-                        handleSelectConversation({...selectedConversation, model: defaultModel});
+                        handleUpdateSelectedConversation({...selectedConversation, model: defaultModel});
                     }
 
                     dispatch({ field: 'defaultModelId', value: defaultModel.id });
@@ -722,7 +715,7 @@ const Home = ({
                     sethasAcceptedDataDisclosure(decisionValue);
                     if (!decisionValue) { // Fetch the latest data disclosure only if the user has not accepted it
                         const latestDisclosure = await getLatestDataDisclosure();
-                        console.log(latestDisclosure);
+                        // console.log(latestDisclosure);
                         const latestDisclosureBodyObject = JSON.parse(latestDisclosure.body);
                         const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
                         const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
@@ -779,6 +772,7 @@ const Home = ({
                 if (result.success) {
                     if (result.data) { 
                         saveSettings(result.data as Settings);
+                        window.dispatchEvent(new Event('updateFeatureSettings'));
                     }
                 } else {
                     console.log("Failed to get user settings: ", result);
@@ -910,7 +904,7 @@ const Home = ({
 
 
             // Handle remote conversations
-            console.log("storeCloudConversations", flags.storeCloudConversations )
+            // console.log("storeCloudConversations", flags.storeCloudConversations )
             if (flags.storeCloudConversations) {
                 syncConversations(updatedConversations, updatedFolders)
                     .then(cloudConversationsResult => {
@@ -1011,10 +1005,10 @@ const Home = ({
             setInitialRender(false);
             
             // independent function calls / high priority
+            fetchSettings(); // fetch user settings
             fetchModels();
             handleFeatureDependantOnLoadData(); 
             fetchAccounts();  // fetch accounts for chatting charging
-            fetchSettings(); // fetch user settings
             fetchAmplifyUsers();
             fetchPowerPoints();
  
@@ -1027,6 +1021,7 @@ const Home = ({
 
     useEffect(() => {
         const settings = getSettings(featureFlags);
+        setSettings(settings);
 
         if (settings.theme) {
             dispatch({
@@ -1448,7 +1443,7 @@ const Home = ({
                             <TabSidebar
                                 side={"right"}
                                 footerComponent={
-                                    featureFlags.memory && getSettings(featureFlags).featureOptions.includeMemory && (
+                                    featureFlags.memory && settings?.featureOptions.includeMemory && (
                                         <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
                                             <button
                                                 className="dark:text-white w-full"
