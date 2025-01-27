@@ -20,10 +20,10 @@ const requestOp =
         }
 
         // Accessing itemData parameters from the request
-        const reqData = transformPayload.decode(req.body.data) || {};
+        const reqData = req.body.data || {};
 
         const method = reqData.method || null;
-        const payload = reqData.data || null;
+        const payload = reqData.data ? transformPayload.decode(reqData.data) : null;
 
         const apiUrl = constructUrl(reqData);
         // @ts-ignore
@@ -70,7 +70,7 @@ const constructUrl = (data: any) => {
   
     if (queryParams && Object.keys(queryParams).length > 0) {
       const queryString = Object.keys(queryParams)
-        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(queryParams[key])}`)
+        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent( transformPayload.decode(queryParams[key]) )}`)
         .join('&');
       apiUrl += `?${queryString}`;
     }

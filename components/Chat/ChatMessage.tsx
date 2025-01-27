@@ -40,6 +40,7 @@ import { inferArtifactType } from '@/utils/app/artifacts';
 import { Artifact } from '@/types/artifacts';
 import { getDateName } from '@/utils/app/date';
 import AgentLogBlock from '@/components/Chat/ChatContentBlocks/AgentLogBlock';
+import { Settings } from '@/types/settings';
 
 export interface Props {
     message: Message;
@@ -83,7 +84,16 @@ export const ChatMessage: FC<Props> = memo(({
         foldersRef.current = folders;
     }, [folders]);
 
-
+    let settingRef = useRef<Settings | null>(null);
+    // prevent recalling the getSettings function
+    if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
+    
+    useEffect(() => {
+        const handleEvent = (event:any) => settingRef.current = getSettings(featureFlags)
+        window.addEventListener('updateFeatureSettings', handleEvent);
+        return () => window.removeEventListener('updateFeatureSettings', handleEvent)
+    }, []);
+    
 
     const markdownComponentRef = useRef<HTMLDivElement>(null);
 
@@ -452,7 +462,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     {(selectedConversation?.messages.length === messageIndex + 1) && (
                                         <PromptingStatusDisplay statusHistory={status}/>
                                     )}
-                                     {featureFlags.highlighter && getSettings(featureFlags).featureOptions.includeHighlighter && 
+                                     {featureFlags.highlighter && settingRef.current.featureOptions.includeHighlighter && 
                                       isHighlightDisplay && !isEditing && 
 
                                         <AssistantMessageHighlight
@@ -555,7 +565,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     </button>
 
                                     {featureFlags.highlighter && 
-                                     getSettings(featureFlags).featureOptions.includeHighlighter && 
+                                     settingRef.current.featureOptions.includeHighlighter && 
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={() => {setIsHighlightDisplay(!isHighlightDisplay)}}

@@ -17,8 +17,12 @@ interface queryParams {
 
 export const doRequestOp = async (opData: opData, abortSignal = null) => {
     const request = `${opData.method} - ${opData.path + opData.op}`;
-
-    const obfuscatedPayload = transformPayload.encode(opData);
+    // const obfuscatedPayload = transformPayload.encode(opData);
+    if (opData.data) opData.data = transformPayload.encode(opData.data); // obfuscate data in payload
+    if (opData.queryParams) Object.entries(opData.queryParams).map(([k, v]) =>  {
+            if (opData.queryParams) opData.queryParams[k] = transformPayload.encode(v)
+    }); // obfuscate query params in payload
+    
 
     try {
         const response = await fetch('/api/requestOp', {
@@ -27,7 +31,7 @@ export const doRequestOp = async (opData: opData, abortSignal = null) => {
                 'Content-Type': 'application/json',
             },
             signal: abortSignal,
-            body: JSON.stringify({ data: obfuscatedPayload }),
+            body: JSON.stringify({ data: opData }),
         });
 
         if (response.ok){

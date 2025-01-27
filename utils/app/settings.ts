@@ -26,7 +26,6 @@ export const getSettings = (featureFlags:any): Settings => {
       }
 
       settings = Object.assign(settings, savedSettings);
-      console.log("Settings: ", settings)
     } catch (e) {
       console.error(e);
     }

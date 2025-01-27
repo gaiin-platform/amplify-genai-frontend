@@ -4,6 +4,7 @@ import { IconGripVertical, IconSparkles, IconX } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { getSettings } from '@/utils/app/settings';
 import { getActivePlugins } from '@/utils/app/plugin';
+import { Settings } from '@/types/settings';
 
 interface Props {
   plugins: Plugin[];
@@ -21,15 +22,19 @@ export const PluginSelector: FC<Props> = ({
 
  const {state: { featureFlags }, dispatch: homeDispatch } = useContext(HomeContext);
 
+ let settingRef = useRef<Settings | null>(null);
+  // prevent recalling the getSettings function
+  if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
+  
+
   //FEATURE FLAG CONSIDERATIONS
   const filterPlugInList = () => {
-    const settings = getSettings(featureFlags);
     return PluginList.filter(plugin => {
              // Do not include the plugin in the list if ragEnabled is false
               if (plugin.id === PluginID.RAG && !featureFlags.ragEnabled) return false; 
               if (plugin.id === PluginID.CODE_INTERPRETER && !featureFlags.codeInterpreterEnabled) return false;
-              if (plugin.id === PluginID.ARTIFACTS && (!featureFlags.artifacts || !settings.featureOptions.includeArtifacts)) return false;
-              if (plugin.id === PluginID.SMART_MESSAGES && !settings.featureOptions.includeFocusedMessages) return false;
+              if (plugin.id === PluginID.ARTIFACTS && (!featureFlags.artifacts || !settingRef.current?.featureOptions.includeArtifacts)) return false;
+              if (plugin.id === PluginID.SMART_MESSAGES && !settingRef.current?.featureOptions.includeFocusedMessages) return false;
               return true; // Include the plugin in the list if no flags block it
           });
   }
@@ -41,8 +46,9 @@ export const PluginSelector: FC<Props> = ({
 
 
   useEffect(() => {
+    settingRef.current = getSettings(featureFlags);
     // we always do this in case the valid plugins change
-    const activePlugins:Plugin[] = getActivePlugins(getSettings(featureFlags), validPlugins);
+    const activePlugins:Plugin[] = getActivePlugins(settingRef.current, validPlugins);
 
     onPluginChange(activePlugins);
     // save localStorage 
@@ -53,14 +59,12 @@ export const PluginSelector: FC<Props> = ({
   // trigger for updated settings, will cause a recheck on the validPlugins
     useEffect(() => {
         const handleEvent = (event:any) => {
-            console.log("Update Feature Settings", event.detail);
-            setValidPlugins(filterPlugInList());
-        };
+          settingRef.current = getSettings(featureFlags);
+          setValidPlugins(filterPlugInList());
+        }
     
         window.addEventListener('updateFeatureSettings', handleEvent);
-        return () => {
-            window.removeEventListener('updateFeatureSettings', handleEvent);
-        };
+        return () => window.removeEventListener('updateFeatureSettings', handleEvent);
     }, []);
 
   const savePluginSelection = (activePlugins: Plugin[]) => {

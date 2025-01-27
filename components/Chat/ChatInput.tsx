@@ -52,6 +52,7 @@ import { ProjectList } from './ProjectList';
 import { useSession } from 'next-auth/react';
 import { doGetProjectsOp, doReadMemoryOp, doEditMemoryOp, doRemoveMemoryOp, doEditProjectOp, doRemoveProjectOp } from '../../services/memoryService';
 import { ProjectInUse } from './ProjectInUse';
+import { Settings } from '@/types/settings';
 
 interface Props {
     onSend: (message: Message, documents: AttachedDocument[]) => void;
@@ -100,7 +101,29 @@ export const ChatInput = ({
         return '100%';
     };
 
-    const filteredModels = filterModels(availableModels, getSettings(featureFlags).hiddenModelIds);
+    let settingRef = useRef<Settings | null>(null);
+    // prevent recalling the getSettings function
+    if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
+    const [filteredModels, setFilteredModels] = useState<Model[]>([]);
+    
+    useEffect(() => {
+        const handleEvent = (event:any) => {
+            settingRef.current = getSettings(featureFlags);
+            if (Object.keys(availableModels).length > 0) {
+                setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
+            }
+        };
+    
+        window.addEventListener('updateFeatureSettings', handleEvent);
+        return () => {
+            window.removeEventListener('updateFeatureSettings', handleEvent);
+        };
+    }, []);
+
+     useEffect(() => {
+            settingRef.current = getSettings(featureFlags);
+            setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
+    }, [availableModels]);
     
     const [chatContainerWidth, setChatContainerWidth] = useState(updateSize());
     const [showProjectList, setShowProjectList] = useState(false);
@@ -676,7 +699,7 @@ const onAssistantChange = (assistant: Assistant) => {
     return (
         <>
         { featureFlags.pluginsOnInput &&
-          getSettings(featureFlags).featureOptions.includePluginSelector &&
+          settingRef.current.featureOptions.includePluginSelector &&
             <div className='relative z-20' style={{height: 0}}>
                 <FeaturePlugin
                 plugins={plugins}
@@ -800,7 +823,7 @@ const onAssistantChange = (assistant: Assistant) => {
                         {/*    <IconRobot size={20}/>*/}
                         {/*</button>*/}
 
-                            {featureFlags.memory && getSettings(featureFlags).featureOptions.includeMemory && (
+                            {featureFlags.memory && settingRef.current.featureOptions.includeMemory && (
                                 <button
                                     className={buttonClasses}
                                     onClick={handleShowProjectSelector}
