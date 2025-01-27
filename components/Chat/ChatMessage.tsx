@@ -39,6 +39,7 @@ import { lzwCompress } from '@/utils/app/lzwCompression';
 import { inferArtifactType } from '@/utils/app/artifacts';
 import { Artifact } from '@/types/artifacts';
 import { getDateName } from '@/utils/app/date';
+import AgentLogBlock from '@/components/Chat/ChatContentBlocks/AgentLogBlock';
 
 export interface Props {
     message: Message;
@@ -463,41 +464,47 @@ export const ChatMessage: FC<Props> = memo(({
                                         
                                         }
                                     {!isEditing && !isHighlightDisplay && (
-                                         <> 
-                                        <div className="flex flex-grow"
-                                             ref={divRef}
-                                        >
-                                            <ChatContentBlock
+                                      <>
+                                          <div className="flex flex-grow"
+                                               ref={divRef}
+                                          >
+                                              <ChatContentBlock
                                                 messageIsStreaming={messageIsStreaming}
                                                 messageIndex={messageIndex}
                                                 message={message}
                                                 selectedConversation={selectedConversation}
                                                 handleCustomLinkClick={handleCustomLinkClick}
-                                            />
-                                        </div>
-                                       
-                                        {featureFlags.artifacts && 
-                                        <ArtifactsBlock 
-                                            message={message}
-                                            messageIndex={messageIndex}
-                                        />}
+                                              />
+                                          </div>
 
-                                        <ChatCodeInterpreterFileBlock
+                                          <AgentLogBlock
+                                            messageIsStreaming={messageIsStreaming}
+                                            message={message}
+                                          />
+
+                                          {featureFlags.artifacts &&
+                                            <ArtifactsBlock
+                                              message={message}
+                                              messageIndex={messageIndex}
+                                            />}
+
+                                          <ChatCodeInterpreterFileBlock
                                             messageIsStreaming={messageIsStreaming}
                                             message={message}
                                             selectedConversation={selectedConversation}
                                             updateConversation={handleUpdateSelectedConversation}
-                                        />
-                                        <ChatSourceBlock
+                                          />
+                                          <ChatSourceBlock
                                             messageIsStreaming={messageIsStreaming}
                                             message={message}
-                                        />
-                                        </>
+                                          />
+                                      </>
                                     )}
+
                                     {isEditing && (
-                                        <AssistantMessageEditor
-                                            message={message}
-                                            handleEditMessage={handleEditMessage}
+                                      <AssistantMessageEditor
+                                        message={message}
+                                        handleEditMessage={handleEditMessage}
                                             setIsEditing={setIsEditing}
                                             isEditing={isEditing}
                                             messageContent={messageContent}
