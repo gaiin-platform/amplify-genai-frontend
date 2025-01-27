@@ -1868,7 +1868,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             
                             }
                             { showFeatureSearch && !isAddingFeature && 
-                            <div className="ml-auto mr-10" style={{transform: 'translateY(12px)'}}>
+                            <div className="ml-auto mr-10" style={{transform: 'translateY(6px)'}}>
                                 <Search
                                 placeholder={'Search Feature Flags...'}
                                 searchTerm={featureSearchTerm}
