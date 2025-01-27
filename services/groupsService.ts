@@ -103,12 +103,12 @@ export const replaceAstAdminGroupKey = async (groupId: string) => {
 }
 
 
-export const createAmplifyAssistants = async (astDefs: AssistantDefinition[]) => {
+export const createAmplifyAssistants = async (astDefs: AssistantDefinition[], admins: string[]) => {
     const op = {
-        method: 'POST',
+        method: 'POST', 
         path: URL_PATH,
         op: "/assistants/amplify",
-        data: {assistants: astDefs},
+        data: {assistants: astDefs, members: admins},
     };
     return await doRequestOp(op);
 }

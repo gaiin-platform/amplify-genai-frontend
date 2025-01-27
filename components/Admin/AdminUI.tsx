@@ -357,9 +357,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
       
 
     const handleSave = async () => {
+        if (Array.from(unsavedConfigs).length === 0) {
+            toast("No Changes to Save");
+            return;
+        }
         const collectUpdateData =  Array.from(unsavedConfigs).map((type: AdminConfigTypes) => ({type: type, data: getConfigTypeData(type)}));
-        console.log("Saving... ", collectUpdateData);
-        console.log(" testing: ", testEndpointsRef.current);
+        // console.log("Saving... ", collectUpdateData);
+        // console.log(" testing: ", testEndpointsRef.current);
         if (testEndpointsRef.current.length > 0) {
             setLoadingMessage('Testing New Endpoints...');
             const success = await callTestEndpoints();
@@ -744,7 +748,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             }
             setIsCreatingAmpAstGroup(true);
             const astDefs = creatingAmpAsts.map((ast: string) => (amplifyAssistants as any)[ast]);
-            const result = await createAmplifyAssistants(astDefs);
+            const result = await createAmplifyAssistants(astDefs, admins);
             if (result.success) {
                 const groupId = result.data.id;
                 setAmplifyAstGroupId(groupId);
