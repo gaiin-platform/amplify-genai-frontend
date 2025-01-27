@@ -15,11 +15,18 @@ export const getSettings = (featureFlags:any): Settings => {
     try {
       let savedSettings = JSON.parse(settingsJson) as Settings;
       const allowedFeatureOptions = settings.featureOptions;
+
+      // Remove keys from savedSettings.featureOptions that are not in allowedFeatureOptions
       for (const key in savedSettings.featureOptions) {
         if (!allowedFeatureOptions.hasOwnProperty(key)) delete savedSettings.featureOptions[key];
       }
-      settings = Object.assign(settings, savedSettings);
+      // Add keys to savedSettings.featureOptions that are in allowedFeatureOptions but missing in savedSettings.featureOptions
+      for (const key in allowedFeatureOptions) {
+        if (!savedSettings.featureOptions.hasOwnProperty(key)) savedSettings.featureOptions[key] = allowedFeatureOptions[key];
+      }
 
+      settings = Object.assign(settings, savedSettings);
+      console.log("Settings: ", settings)
     } catch (e) {
       console.error(e);
     }
