@@ -1,3 +1,5 @@
+import { transformPayload } from "@/utils/app/data";
+
 interface opData {
     // env base api url is used if not provided
     url?: string; // used for running localhost or sending request to another url
@@ -15,6 +17,9 @@ interface queryParams {
 
 export const doRequestOp = async (opData: opData, abortSignal = null) => {
     const request = `${opData.method} - ${opData.path + opData.op}`;
+
+    const obfuscatedPayload = transformPayload.encode(opData);
+
     try {
         const response = await fetch('/api/requestOp', {
             method: 'POST',
@@ -22,13 +27,14 @@ export const doRequestOp = async (opData: opData, abortSignal = null) => {
                 'Content-Type': 'application/json',
             },
             signal: abortSignal,
-            body: JSON.stringify(opData),
+            body: JSON.stringify({ data: obfuscatedPayload }),
         });
 
         if (response.ok){
             try {
-                const result = await response.json();
-                return result;
+                const encodedResult = await response.json();
+                // Decode response
+                return transformPayload.decode(encodedResult.data);
             } catch (e) {
                 return { success: false, message: `Error parsing response from ${request}.` };
             }
