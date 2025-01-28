@@ -15,11 +15,17 @@ export const getSettings = (featureFlags:any): Settings => {
     try {
       let savedSettings = JSON.parse(settingsJson) as Settings;
       const allowedFeatureOptions = settings.featureOptions;
+
+      // Remove keys from savedSettings.featureOptions that are not in allowedFeatureOptions
       for (const key in savedSettings.featureOptions) {
         if (!allowedFeatureOptions.hasOwnProperty(key)) delete savedSettings.featureOptions[key];
       }
-      settings = Object.assign(settings, savedSettings);
+      // Add keys to savedSettings.featureOptions that are in allowedFeatureOptions but missing in savedSettings.featureOptions
+      for (const key in allowedFeatureOptions) {
+        if (!savedSettings.featureOptions.hasOwnProperty(key)) savedSettings.featureOptions[key] = allowedFeatureOptions[key];
+      }
 
+      settings = Object.assign(settings, savedSettings);
     } catch (e) {
       console.error(e);
     }
@@ -62,7 +68,12 @@ export const featureOptionFlags = [
     "description" : "Highlight text in assistant messages or artifact content for two key purposes: prompt against selected content or prompt for fast inline edits. \nThis feature streamlines the process of interacting with and revising text, making it easy to generate responses, modify content, or draft new sections based on your selections."
     // "description" : "Highlight text in assistant messages or artifact content for three key purposes: prompt against selected content, prompt for fast inline edits, or create and insert new compositions by combining multiple highlighted sections. \nThis feature streamlines the process of interacting with and revising text, making it easy to generate responses, modify content, or draft new sections based on your selections."
   },
- 
+  {
+    "label": "Memory",
+    "key": "includeMemory",
+    "defaultValue": false,
+    "description": "Enable long-term memory for users and assistants, storing key information from past conversations. This feature enhances contextual understanding, delivering more personalized and coherent responses over time. Users have full control, approving all memories before they're saved."
+  }
 ];
 
 
@@ -73,6 +84,8 @@ const featureOptionDefaults = (featureFlags:any) =>  featureOptionFlags.reduce((
       if (featureFlags.pluginsOnInput) acc[x.key] = x.defaultValue;
   } else if (x.key === "includeHighlighter") {
     if (featureFlags.highlighter) acc[x.key] = x.defaultValue;
+  } else if (x.key === "includeMemory") {
+    if (featureFlags.memory) acc[x.key] = x.defaultValue;
   } else {
       acc[x.key] = x.defaultValue;
   }

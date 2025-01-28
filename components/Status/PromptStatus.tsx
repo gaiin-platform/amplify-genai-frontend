@@ -23,7 +23,7 @@ interface PromptStatusProps {
 
 export const PromptStatus: React.FC<PromptStatusProps> = ({ status }) => {
 
-    const [detailsOpen, setDetailsOpen] = useState(true);
+    const [detailsOpen, setDetailsOpen] = useState(false);
 
     const getLeadingComponent = (status: Status) => {
         if(status.inProgress) {

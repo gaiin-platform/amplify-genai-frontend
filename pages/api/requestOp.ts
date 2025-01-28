@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import {getServerSession} from "next-auth/next";
 import {authOptions} from "@/pages/api/auth/[...nextauth]";
+import { transformPayload } from "@/utils/app/data";
 
 interface reqPayload {
     method: any, 
@@ -19,10 +20,10 @@ const requestOp =
         }
 
         // Accessing itemData parameters from the request
-        const reqData = req.body || {};
+        const reqData = req.body.data || {};
 
         const method = reqData.method || null;
-        const payload = reqData.data || null;
+        const payload = reqData.data ? transformPayload.decode(reqData.data) : null;
 
         const apiUrl = constructUrl(reqData);
         // @ts-ignore
@@ -44,9 +45,10 @@ const requestOp =
 
             if (!response.ok) throw new Error(`Request to ${apiUrl} failed with status: ${response.status}`);
 
-            const data = await response.json();
+            const responseData = await response.json();
+            const encodedResponse = transformPayload.encode(responseData);
 
-            res.status(200).json(data);
+            res.status(200).json({ data: encodedResponse });
         } catch (error) {
             console.error("Error in requestOp: ", error);
             res.status(500).json({ error: `Could not perform requestOp` });
@@ -68,7 +70,7 @@ const constructUrl = (data: any) => {
   
     if (queryParams && Object.keys(queryParams).length > 0) {
       const queryString = Object.keys(queryParams)
-        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(queryParams[key])}`)
+        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent( transformPayload.decode(queryParams[key]) )}`)
         .join('&');
       apiUrl += `?${queryString}`;
     }

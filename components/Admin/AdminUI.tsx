@@ -155,47 +155,56 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             setLoadData(false);
                 //   statsService.openSettingsEvent(); 
             setLoadingMessage("Loading Admin Interface...");
-            const result = await getAdminConfigs();
-            if (result.success) {
-                const data = result.data;
+            const nonlazyReq = getAdminConfigs(); // start longer call
+           
+            const lazyResult = await getAdminConfigs(true);
+            if (lazyResult.success) {
+                const data = lazyResult.data;
                 setAdmins(data[AdminConfigTypes.ADMINS] || []);
                 setFeatures(data[AdminConfigTypes.FEATURE_FLAGS] || {});
-                setAppVars(data[AdminConfigTypes.APP_VARS] || {});
-                setAppSecrets(data[AdminConfigTypes.APP_SECRETS] || {});
-                const ops:OpDef[] = data[AdminConfigTypes.OPS] || [];
-                setOps(ops.sort((a: OpDef, b: OpDef) => a.name.localeCompare(b.name)))
-                setOpenAiEndpoints(data[AdminConfigTypes.OPENAI_ENDPONTS] || { models: [] });
-                const availableModels = data[AdminConfigTypes.AVAILABLE_MODELS] || {};
-                const baseModel = emptySupportedModel();
-                const updatedModels = Object.entries(availableModels).map(([key, model]) => {
-                    // Create a new object where null values are replaced with baseModel's values
-                    const updatedModel = Object.fromEntries(
-                        Object.entries(model as SupportedModel).map(([prop, value]) => [
-                            prop,
-                            value === null ? baseModel[prop as keyof SupportedModel] : value,
-                        ])
-                    );
-                    return [key, updatedModel];
-                });
-                setAvailableModels(Object.fromEntries(updatedModels));
-                const astAdminGroups: Ast_Group_Data[] = data[AdminConfigTypes.AST_ADMIN_GROUPS] || [];
-                const amplifyAstGroupFound = astAdminGroups.find((g: Ast_Group_Data) => 
-                                                                  g.groupName === AMPLIFY_ASSISTANTS_GROUP_NAME);
-                if (amplifyAstGroupFound) setAmplifyAstGroupId(amplifyAstGroupFound.group_id);
-                setAstGroups(astAdminGroups);
                 setAmpGroups(data[AdminConfigTypes.AMPLIFY_GROUPS] || {})
                 setTemplates(data[AdminConfigTypes.PPTX_TEMPLATES] || []);
                 setRateLimit(data[AdminConfigTypes.RATE_LIMIT || rateLimit]);
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
 
-
-            } else {
-                alert("Unable to fetch admin configurations at this time. Please try again.");
-                onClose();
-            }
-        
+                setLoadingMessage("");
+                setIsLoading(false);
+            
+                const nonlazyResult = await nonlazyReq;
+                if (nonlazyResult.success) {
+                    const data = nonlazyResult.data;
+                
+                    setAppVars(data[AdminConfigTypes.APP_VARS] || {});
+                    setAppSecrets(data[AdminConfigTypes.APP_SECRETS] || {});
+                    const ops:OpDef[] = data[AdminConfigTypes.OPS] || [];
+                    setOps(ops.sort((a: OpDef, b: OpDef) => a.name.localeCompare(b.name)))
+                    setOpenAiEndpoints(data[AdminConfigTypes.OPENAI_ENDPONTS] || { models: [] });
+                    const availableModels = data[AdminConfigTypes.AVAILABLE_MODELS] || {};
+                    const baseModel = emptySupportedModel();
+                    const updatedModels = Object.entries(availableModels).map(([key, model]) => {
+                        // Create a new object where null values are replaced with baseModel's values
+                        const updatedModel = Object.fromEntries(
+                            Object.entries(model as SupportedModel).map(([prop, value]) => [
+                                prop,
+                                value === null ? baseModel[prop as keyof SupportedModel] : value,
+                            ])
+                        );
+                        return [key, updatedModel];
+                    });
+                    setAvailableModels(Object.fromEntries(updatedModels));
+                    const astAdminGroups: Ast_Group_Data[] = data[AdminConfigTypes.AST_ADMIN_GROUPS] || [];
+                    const amplifyAstGroupFound = astAdminGroups.find((g: Ast_Group_Data) => 
+                                                                    g.groupName === AMPLIFY_ASSISTANTS_GROUP_NAME);
+                    if (amplifyAstGroupFound) setAmplifyAstGroupId(amplifyAstGroupFound.group_id);
+                    setAstGroups(astAdminGroups);
+                    return;
+                } 
+            } 
+            alert("Unable to fetch admin configurations at this time. Please try again.");
             setLoadingMessage("");
             setIsLoading(false);
+            onClose();
+            
         }
         if (open && loadData) getConfigs();
 
@@ -357,9 +366,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
       
 
     const handleSave = async () => {
+        if (Array.from(unsavedConfigs).length === 0) {
+            toast("No Changes to Save");
+            return;
+        }
         const collectUpdateData =  Array.from(unsavedConfigs).map((type: AdminConfigTypes) => ({type: type, data: getConfigTypeData(type)}));
-        console.log("Saving... ", collectUpdateData);
-        console.log(" testing: ", testEndpointsRef.current);
+        // console.log("Saving... ", collectUpdateData);
+        // console.log(" testing: ", testEndpointsRef.current);
         if (testEndpointsRef.current.length > 0) {
             setLoadingMessage('Testing New Endpoints...');
             const success = await callTestEndpoints();
@@ -744,7 +757,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             }
             setIsCreatingAmpAstGroup(true);
             const astDefs = creatingAmpAsts.map((ast: string) => (amplifyAssistants as any)[ast]);
-            const result = await createAmplifyAssistants(astDefs);
+            const result = await createAmplifyAssistants(astDefs, admins);
             if (result.success) {
                 const groupId = result.data.id;
                 setAmplifyAstGroupId(groupId);
@@ -1864,7 +1877,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             
                             }
                             { showFeatureSearch && !isAddingFeature && 
-                            <div className="ml-auto mr-10" style={{transform: 'translateY(12px)'}}>
+                            <div className="ml-auto mr-10" style={{transform: 'translateY(6px)'}}>
                                 <Search
                                 placeholder={'Search Feature Flags...'}
                                 searchTerm={featureSearchTerm}

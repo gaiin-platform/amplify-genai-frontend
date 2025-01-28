@@ -70,6 +70,7 @@ export interface HomeInitialState {
   hiddenGroupFolders: FolderInterface[];
   powerPointTemplateOptions: string[];
   amplifyUsers: string[];
+  extractedFacts: string[];
 
 }
 
@@ -135,5 +136,6 @@ export const initialState: HomeInitialState = {
   syncingPrompts: true,
   hiddenGroupFolders: [],
   powerPointTemplateOptions: [],
-  amplifyUsers: []
+  amplifyUsers: [],
+  extractedFacts: []
 };

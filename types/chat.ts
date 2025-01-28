@@ -111,7 +111,7 @@ export interface ChatBody {
   maxTokens?: number;
   [key: string]: any;
   codeInterpreterAssistantId?: string;
-
+  projectId?: string;
 }
 
 export interface Conversation {
@@ -132,4 +132,5 @@ export interface Conversation {
   isLocal?: boolean;
   groupType?: string;
   artifacts?:  { [key: string]: Artifact[]};
+  projectId?: string;
 }

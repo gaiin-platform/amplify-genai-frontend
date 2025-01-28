@@ -65,6 +65,7 @@ import cloneDeep from 'lodash/cloneDeep';
 import { useSession } from 'next-auth/react';
 import { ConfirmModal } from '../ReusableComponents/ConfirmModal';
 import { getActivePlugins } from '@/utils/app/plugin';
+import { Settings } from '@/types/settings';
 
 
 interface Props {
@@ -92,6 +93,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 messageIsStreaming,
                 chatEndpoint,
                 folders,
+                extractedFacts
             },
             setLoadingMessage,
             handleUpdateConversation,
@@ -128,8 +130,30 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         useEffect(() => {
             conversationsRef.current = conversations;
         }, [conversations]);
-    
-        const filteredModels = filterModels(availableModels, getSettings(featureFlags).hiddenModelIds);
+
+        let settingRef = useRef<Settings | null>(null);
+        // prevent recalling the getSettings function
+        if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
+        const [filteredModels, setFilteredModels] = useState<Model[]>([]);
+            
+        useEffect(() => {
+            const handleEvent = (event:any) => {
+                settingRef.current = getSettings(featureFlags);
+                if (Object.keys(availableModels).length > 0) {
+                    setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
+                }
+            };
+        
+            window.addEventListener('updateFeatureSettings', handleEvent);
+            return () => {
+                window.removeEventListener('updateFeatureSettings', handleEvent);
+            };
+        }, []);
+
+        useEffect(() => {
+                settingRef.current = getSettings(featureFlags);
+                setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
+        }, [availableModels]);
 
         const initSelectedModel = () => {
             const id =  selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id || defaultModelId || getDefaultModelIdFromLocalStorage();
@@ -239,7 +263,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, []);
 
         useEffect(() => {
-            if (!plugins) setPlugins(getActivePlugins(getSettings(featureFlags)));
+            if (!plugins && settingRef.current) setPlugins(getActivePlugins(settingRef.current));
         }, [featureFlags]);
 
         useEffect(() =>{
@@ -920,7 +944,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         return (
             <>
             {selectedConversation && selectedConversation.messages?.length > 0 && 
-            featureFlags.highlighter && getSettings(featureFlags).featureOptions.includeHighlighter && 
+            featureFlags.highlighter && settingRef.current.featureOptions.includeHighlighter && 
                 <PromptHighlightedText 
                 onSend={(message) => {
                     setCurrentMessage(message);
