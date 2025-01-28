@@ -13,11 +13,12 @@ export const updateAdminConfigs = async (configs: any[]) => {
 }
 
 
-export const getAdminConfigs = async () => {
+export const getAdminConfigs = async (lazyLoad: boolean = false) => {
     const op = {
         method: 'GET',
         path: URL_PATH,
         op: "/configs/get",
+        queryParams: {"lazy_load" : JSON.stringify(+lazyLoad)}
     };
     return await doRequestOp(op);
 }
