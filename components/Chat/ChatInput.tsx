@@ -133,6 +133,8 @@ export const ChatInput = ({
     const [projects, setProjects] = useState<Project[]>([]);
 
     useEffect(() => {
+        if (!featureFlags.memory) return; // Early return if feature flag is off
+
         const fetchProjects = async () => {
             if (session?.user?.email) {
                 try {
@@ -150,7 +152,7 @@ export const ChatInput = ({
         };
 
         fetchProjects();
-    }, [session?.user?.email]);
+    }, [session?.user?.email, featureFlags.memory]);
 
     useEffect(() => {
         const updateWidth = () => {
@@ -236,8 +238,11 @@ export const ChatInput = ({
         setShowAssistantSelect(!showAssistantSelect);
     };
 
-    const handleShowProjectSelector = () => {
-        setShowProjectList(true);
+    const handleShowProjectSelector = (e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent event from bubbling up
+        setShowProjectList(!showProjectList);
+        setShowDataSourceSelector(false);
+        setShowAssistantSelect(false);
     };
 
     const allDocumentsDoneUploading = () => {
@@ -554,32 +559,6 @@ const onAssistantChange = (assistant: Assistant) => {
        
     }, [content]);
 
-    useEffect(() => {
-        const handleOutsideClick = (e: MouseEvent) => {
-            if (
-                promptListRef.current &&
-                !promptListRef.current.contains(e.target as Node)
-            ) {
-                setShowPromptList(false);
-            }
-
-
-            if (dataSourceSelectorRef.current && !dataSourceSelectorRef.current.contains(e.target as Node)) {
-                setShowDataSourceSelector(false);
-            }
-           
-            if (assistantSelectorRef.current && !assistantSelectorRef.current.contains(e.target as Node)) {
-                setShowAssistantSelect(false);
-            }
-        };
-
-        window.addEventListener('click', handleOutsideClick);
-
-        return () => {
-            window.removeEventListener('click', handleOutsideClick);
-        };
-    }, []);
-
     let buttonClasses = "left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200";
     if (isWorkflowOn) {
         buttonClasses += " bg-green-400 text-white"; // provide your desired 'on' state style classes
@@ -660,31 +639,27 @@ const onAssistantChange = (assistant: Assistant) => {
 
     useEffect(() => {
         const handleOutsideClick = (e: MouseEvent) => {
-            if (
-                promptListRef.current &&
-                !promptListRef.current.contains(e.target as Node)
-            ) {
-                setShowPromptList(false);
-            }
+            const target = e.target as HTMLElement;
 
-            if (
-                projectListRef.current &&
-                !projectListRef.current.contains(e.target as Node)
-            ) {
+            // Check for project button click
+            const projectButton = document.querySelector('[title="Project Memory"]');
+            const isProjectButtonClick = projectButton && (projectButton === target || projectButton.contains(target));
+
+            // Only handle project list clicks if not clicking the project button
+            if (!isProjectButtonClick && projectListRef.current && !projectListRef.current.contains(target)) {
                 setShowProjectList(false);
             }
 
-            if (
-                dataSourceSelectorRef.current &&
-                !dataSourceSelectorRef.current.contains(e.target as Node)
-            ) {
+            // Handle other dropdowns
+            if (promptListRef.current && !promptListRef.current.contains(target)) {
+                setShowPromptList(false);
+            }
+
+            if (dataSourceSelectorRef.current && !dataSourceSelectorRef.current.contains(target)) {
                 setShowDataSourceSelector(false);
             }
 
-            if (
-                assistantSelectorRef.current &&
-                !assistantSelectorRef.current.contains(e.target as Node)
-            ) {
+            if (assistantSelectorRef.current && !assistantSelectorRef.current.contains(target)) {
                 setShowAssistantSelect(false);
             }
         };
@@ -713,10 +688,10 @@ const onAssistantChange = (assistant: Assistant) => {
             
             <div
                 className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
-                <MemoryPresenter></MemoryPresenter>
-               {!showScrollDownButton && !messageIsStreaming && !artifactIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
-               (selectedConversation && selectedConversation.messages?.length > 0) &&  (
-               <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert  hover:text-neutral-900 dark:hover:text-neutral-100">
+                {(featureFlags.memory) && (<MemoryPresenter></MemoryPresenter>)}
+                {!showScrollDownButton && !messageIsStreaming && !artifactIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
+                (selectedConversation && selectedConversation.messages?.length > 0) &&  (
+                <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert  hover:text-neutral-900 dark:hover:text-neutral-100">
                 <button
                     className="mt-5 cursor-pointer border border-gray-300 dark:border-gray-600 rounded px-2 py-1"
                     style={{ fontSize: '0.9rem' }} 
@@ -834,7 +809,7 @@ const onAssistantChange = (assistant: Assistant) => {
                             )}
 
                             {showProjectList && session?.user?.email && (
-                                <div className="absolute left-0 bottom-14 rounded bg-white dark:bg-[#343541]">
+                                <div ref={projectListRef} className="absolute left-0 bottom-14 rounded bg-white dark:bg-[#343541] z-50">
                                     <ProjectList
                                         currentProject={selectedProject}
                                         availableProjects={projects}

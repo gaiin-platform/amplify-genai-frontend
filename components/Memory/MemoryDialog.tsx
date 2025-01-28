@@ -2,7 +2,7 @@ import { FC, useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'next-i18next';
 import { useSession } from "next-auth/react";
 import { Modal } from '../ReusableComponents/Modal';
-import { doGetProjectsOp, doReadMemoryOp, doEditMemoryOp, doRemoveMemoryOp, doEditProjectOp, doRemoveProjectOp } from '../../services/memoryService';
+import { doCreateProjectOp, doGetProjectsOp, doReadMemoryOp, doEditMemoryOp, doRemoveMemoryOp, doEditProjectOp, doRemoveProjectOp } from '../../services/memoryService';
 
 interface Props {
     open: boolean;
@@ -60,7 +60,7 @@ const AssistantContent: FC<AssistantContentProps> = ({
                         </thead>
                         <tbody>
                             {assistantMemories.length === 0 ? (
-                                <tr key="empty-assistant">
+                                <tr key={`empty-assistant-${selectedAssistant}`}>
                                     <td colSpan={2} className="text-center py-4">
                                         No memories for this assistant
                                     </td>
@@ -100,6 +100,8 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
     const [assistantMemories, setAssistantMemories] = useState<Memory[]>([]);
     const [editingProject, setEditingProject] = useState<{ id: string, name: string } | null>(null);
     const [editingProjectMemory, setEditingProjectMemory] = useState<{ id: string, content: string } | null>(null);
+    const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
+    const [newProjectName, setNewProjectName] = useState('');
 
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
@@ -153,6 +155,23 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
             } catch (error) {
                 console.error('Error deleting memory:', error);
             }
+        }
+    };
+
+    const handleCreateProject = async () => {
+        try {
+            if (!newProjectName.trim()) {
+                return;
+            }
+            const response = await doCreateProjectOp(newProjectName);
+            if (response.statusCode === 200) {
+                setNewProjectName('');
+                setIsCreateProjectModalOpen(false);
+                loadMemories(); // Reload the projects list
+            }
+        } catch (error) {
+            console.error('Failed to create project:', error);
+            alert('Failed to create project');
         }
     };
 
@@ -398,11 +417,11 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
     }, [activeTab, userEmail, selectedProject, selectedAssistant]);
 
     const tableContent = isLoading ? (
-        <tr key="loading">
+        <tr key={`loading-${activeTab}`}>
             <td colSpan={2} className="text-center py-4">Loading...</td>
         </tr>
     ) : memories.length === 0 ? (
-        <tr key="empty">
+        <tr key={`empty-${activeTab}`}>
             <td colSpan={2} className="text-center py-4">No memories found</td>
         </tr>
     ) : (
@@ -500,9 +519,49 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
                         {/* Show project sub-tabs when Projects tab is active */}
                         {activeTab === 'Projects' && (
                             <div className="mt-4 border-t dark:border-neutral-700">
-                                <div className="py-2 px-4 text-sm text-gray-500 dark:text-gray-400">
-                                    Projects
+                                <div className="py-2 px-4 flex justify-between items-center">
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                                        Projects
+                                    </span>
+                                    <button
+                                        onClick={() => setIsCreateProjectModalOpen(true)}
+                                        className="text-sm text-blue-600 hover:text-blue-700"
+                                    >
+                                        + New
+                                    </button>
                                 </div>
+
+                                {/* Create Project Modal */}
+                                {isCreateProjectModalOpen && (
+                                    <div className="px-4 py-2 bg-gray-100 dark:bg-neutral-800">
+                                        <input
+                                            type="text"
+                                            value={newProjectName}
+                                            onChange={(e) => setNewProjectName(e.target.value)}
+                                            placeholder="Project name"
+                                            className="w-full p-1 mb-2 border rounded dark:bg-neutral-700"
+                                        />
+                                        <div className="flex space-x-2">
+                                            <button
+                                                onClick={handleCreateProject}
+                                                className="text-green-600 hover:text-green-700 text-sm"
+                                            >
+                                                Create
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setIsCreateProjectModalOpen(false);
+                                                    setNewProjectName('');
+                                                }}
+                                                className="text-gray-600 hover:text-gray-700 text-sm"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Existing projects list */}
                                 {memories.map((project) => (
                                     <div key={project.id} className="flex flex-col">
                                         {editingProject && editingProject.id === project.id ? (
@@ -605,7 +664,7 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
                                             </thead>
                                             <tbody>
                                                 {projectMemories.length === 0 ? (
-                                                    <tr key="empty-project">
+                                                    <tr key={`empty-project-${selectedProject}`}>
                                                         <td colSpan={3} className="text-center py-4">
                                                             No memories for this project
                                                         </td>
