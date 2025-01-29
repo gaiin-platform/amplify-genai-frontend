@@ -13,6 +13,8 @@ import { isAssistant } from "@/utils/app/assistants";
 import { conversationWithCompressedMessages, saveConversations } from "@/utils/app/conversation";
 import { saveFolders } from "@/utils/app/folders";
 import { savePrompts } from "@/utils/app/prompts";
+import { DefaultModels } from "@/types/model";
+import toast from "react-hot-toast";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -65,7 +67,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
     const {
         state: {folders: localFolders, conversations: localConversations,  prompts:localPrompts, },
-        dispatch: homeDispatch, handleSelectConversation
+        dispatch: homeDispatch, handleSelectConversation, getDefaultModel
     } = useContext(HomeContext);
 
     const foldersRef = useRef(localFolders);
@@ -198,6 +200,26 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         //onSave(selectedItems);
         const exportData = await createExport(compressedConversationsState, selectedFoldersState, selectedPromptsState, "import", false);
 
+        // update folders based on if we already have them or not
+        const duplicateFolderIds: string[] = []; 
+        exportData.folders.forEach((folder: FolderInterface) => {
+            const existing = foldersRef.current.find((f:FolderInterface) => f.name === folder.name);
+            if (existing) {
+                duplicateFolderIds.push(folder.id);
+                if (folder.type === 'chat') {
+                    exportData.history.forEach((c: Conversation) => {
+                        if (c.folderId === folder.id) c.folderId = existing.id;
+                    })
+                } else if (folder.type === 'prompt') {
+                    exportData.prompts.forEach((p: Prompt) => {
+                        if (p.folderId === folder.id)  p.folderId = existing.id;
+                    })
+                }
+            }
+        });
+
+        exportData.folders = exportData.folders.filter((f:FolderInterface) => !duplicateFolderIds.includes(f.id) );
+
         const needsFolderReset = (item: Conversation | Prompt) => {
             return item.folderId != null &&
                 !exportData.folders.some((folder: FolderInterface) => folder.id === item.folderId) &&
@@ -236,7 +258,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
         console.log("Cleaned up export: ", cleanedUpExport);
 
-        const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport, conversationsRef.current, promptsRef.current, foldersRef.current);
+        const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport, conversationsRef.current, promptsRef.current, foldersRef.current, getDefaultModel(DefaultModels.DEFAULT));
 
         // console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);
 
@@ -244,8 +266,13 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
         saveConversations(history);
 
         if (history && history.length > 0) {
-            handleSelectConversation(history[history.length - 1]);
+            // tab switch
+            window.dispatchEvent(new CustomEvent('homeChatBarTabSwitch', { detail: { tab: "Chats" , side: "left"}} ));
+            const openTo: Conversation = history[history.length - 1];
+            toast(`Chat Opened: ${openTo.name}`);
+            handleSelectConversation(openTo);
         }
+        // if (prompts && prompts.length > 0) // open ast folder
         homeDispatch({field: 'folders', value: folders});
         saveFolders(folders);
         homeDispatch({field: 'prompts', value: prompts});
@@ -328,10 +355,9 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
                 const shareFetcher:ImportFetcher = async () => {
 
-                    const result = await loadSharedItem(user?.email || "", importKey);
-                    if (result.ok) {
-                        const item = await result.json();
-                        const sharedData = JSON.parse(item.item) as ExportFormatV4;
+                    const result = await loadSharedItem(importKey);
+                    if (result.success) {
+                        const sharedData = JSON.parse(result.item) as ExportFormatV4;
 
                         return {success: true, message:"Loaded share successfully.", data: sharedData};
                     } else {
@@ -372,8 +398,6 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
     }, []);
 
 
-    // ...Other Code...
-
     return (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
             <div className="fixed inset-0 z-10 overflow-hidden">
@@ -382,7 +406,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                     <div className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true"/>
                     <div
                         className="border-neutral-400 dark:border-neutral-600 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:p-6 sm:align-middle"
-                        role="dialog" style={{maxHeight: window.innerHeight * 0.6, width: window.innerWidth * 0.45}}
+                        role="dialog" style={{maxHeight: window.innerHeight * 0.6, width: window.innerWidth * (isImporting ? 0.3 : 0.45)}}
                     >
                         {
                             isImporting && (

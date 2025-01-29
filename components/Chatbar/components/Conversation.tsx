@@ -23,7 +23,7 @@ import HomeContext from '@/pages/api/home/home.context';
 
 import ChatbarContext from '@/components/Chatbar/Chatbar.context';
 import { uploadConversation } from '@/services/remoteConversationService';
-import { isLocalConversation, isRemoteConversation } from '@/utils/app/conversationStorage';
+import { isLocalConversation, isRemoteConversation } from '@/utils/app/conversation';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 
 interface Props {
@@ -51,7 +51,23 @@ export const ConversationComponent = ({ conversation}: Props) => {
   const [renameValue, setRenameValue] = useState('');
   const [checkConversations, setCheckConversations] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
+  const conversationRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    
+    if (selectedConversation?.id === conversation.id) {
+      // Wait a tick (or 100ms) to ensure the folder is open and DOM has updated
+      const timeoutId = setTimeout(() => {
+        if (conversationRef.current && !isInViewport(conversationRef.current)) {
+          conversationRef.current.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+        } 
+      }, 150);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [selectedConversation]);
 
   const handleEnterDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {
@@ -139,8 +155,19 @@ export const ConversationComponent = ({ conversation}: Props) => {
     }
   }
 
+  function isInViewport(el: HTMLElement) {
+    const rect = el.getBoundingClientRect();
+    return (
+      rect.top >= 0 &&
+      rect.left >= 0 &&
+      rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+      rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+    );
+  }
+  
+
   return (
-    <div className="relative flex items-center">
+    <div ref={conversationRef} className="relative flex items-center">
       {isRenaming && selectedConversation?.id === conversation.id ? (
         <div className="flex w-full items-center gap-3 rounded-lg bg-neutral-200 dark:bg-[#343541]/90 p-3">
           {isLocalConversation(conversation) ? <IconMessage size={18} /> 
@@ -149,7 +176,7 @@ export const ConversationComponent = ({ conversation}: Props) => {
                                                   <IconCloudFilled className="hidden dark:block dark:text-neutral-200" size={18} />
                                                 </div>}
           <input
-            className="mr-12 flex-1 overflow-hidden overflow-ellipsis border-neutral-400 bg-transparent text-left text-[12.5px] leading-3 dark:text-white outline-none focus:border-neutral-100"
+            className="mr-12 flex-1 ml-[-8px] overflow-hidden overflow-ellipsis border-neutral-400 bg-transparent text-left text-[12.5px] leading-3 dark:text-white outline-none focus:border-neutral-100"
             type="text"
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}

@@ -1,5 +1,5 @@
-import { IconFileExport, IconSettings, IconHelp, IconCloud, IconRobot } from '@tabler/icons-react';
-import { useContext, useState } from 'react';
+import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot, IconUser, IconSettingsBolt, IconDeviceSdCard } from '@tabler/icons-react';
+import { useContext, useEffect, useRef, useState } from 'react';
 
 
 import { useTranslation } from 'next-i18next';
@@ -13,12 +13,17 @@ import { SidebarButton } from '../../Sidebar/SidebarButton';
 import ChatbarContext from '../Chatbar.context';
 import {AccountDialog} from "@/components/Settings/AccountComponents/AccountDialog";
 import toast from 'react-hot-toast';
+import { IntegrationsDialog } from '@/components/Integrations/IntegrationsDialog';
+import { getSettings } from '@/utils/app/settings';
+import { MemoryDialog } from '@/components/Memory/MemoryDialog';
+import { Settings } from '@/types/settings';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
     const [isSettingDialogOpen, setIsSettingDialog] = useState<boolean>(false);
     const [isAccountDialogVisible, setIsAccountDialogVisible] = useState<boolean>(false);
-
+    const [isIntegrationsOpen, setIsIntegrationsOpen] = useState<boolean>(false);
+    const [isMemoryDialogOpen, setIsMemoryDialogOpen] = useState(false);
 
     const {
         state: {
@@ -26,6 +31,16 @@ export const ChatbarSettings = () => {
         },
         dispatch: homeDispatch, setLoadingMessage
     } = useContext(HomeContext);
+
+    let settingRef = useRef<Settings | null>(null);
+    // prevent recalling the getSettings function
+    if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
+    
+    useEffect(() => {
+        const handleEvent = (event:any) => settingRef.current = getSettings(featureFlags)
+        window.addEventListener('updateFeatureSettings', handleEvent);
+        return () => window.removeEventListener('updateFeatureSettings', handleEvent)
+    }, []);
 
     const {
         handleClearConversations,
@@ -41,7 +56,7 @@ export const ChatbarSettings = () => {
 
             <SidebarButton
                 text={t('Manage Accounts')}
-                icon={<IconSettings size={18} />}
+                icon={<IconUser size={18} />}
                 onClick={() => {
                     //statsService.setThemeEvent();
                     setIsAccountDialogVisible(true)
@@ -55,6 +70,18 @@ export const ChatbarSettings = () => {
                     onClick={() => {
                         // send trigger to close side bars and open the interface 
                         window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: true }} ));
+                      
+                    }}
+                />
+            }
+
+            {featureFlags.adminInterface &&  
+                <SidebarButton
+                    text={t('Admin Interface')}
+                    icon={<IconSettingsBolt size={18} />}
+                    onClick={() => {
+                        // send trigger to close side bars and open the interface 
+                        window.dispatchEvent(new CustomEvent('openAdminInterfaceTrigger', { detail: { isOpen: true }} ));
                       
                     }}
                 />
@@ -83,6 +110,20 @@ export const ChatbarSettings = () => {
                 }}
             />
 
+            {featureFlags.integrations && 
+            <SidebarButton
+              text={t('Integrations')}
+              icon={<IconBinaryTree2 size={18} />}
+              onClick={() => setIsIntegrationsOpen(true)}
+            />}
+
+            {featureFlags.memory && settingRef.current?.featureOptions.includeMemory && (
+                <SidebarButton
+                    text={t('Memory')}
+                    icon={<IconDeviceSdCard size={18} />}
+                    onClick={() => setIsMemoryDialogOpen(true)}
+                />
+            )}
 
             <SidebarButton
                 text={t('Send Feedback')}
@@ -90,20 +131,25 @@ export const ChatbarSettings = () => {
                 onClick={() => window.location.href = 'mailto:amplify@vanderbilt.edu'}
             />
 
+            <IntegrationsDialog open={isIntegrationsOpen} onClose={()=>{setIsIntegrationsOpen(false)}}/>
 
-
-            <SettingDialog
+            {isSettingDialogOpen && <SettingDialog
                 open={isSettingDialogOpen}
                 onClose={() => {
                     setIsSettingDialog(false);
                 }}
-            />
+            />}
 
             <AccountDialog
                 open={isAccountDialogVisible}
                 onClose={() => {
                     setIsAccountDialogVisible(false);
                 }}
+            />
+
+            <MemoryDialog
+                open={isMemoryDialogOpen}
+                onClose={() => setIsMemoryDialogOpen(false)}
             />
 
         </div>

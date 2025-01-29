@@ -1,12 +1,11 @@
 import {  Conversation, Message } from "@/types/chat";
-import { ModelID, Models } from "@/types/model";
 import {getSession} from "next-auth/react"
 import { sendChatRequestWithDocuments } from "./chatService";
-import { KeyValuePair } from "@/types/data";
 import { Artifact, ArtifactBlockDetail } from "@/types/artifacts";
 import { messageTopicData, messageTopicDataPast } from "@/types/topics";
 import { lzwUncompress } from "@/utils/app/lzwCompression";
 import cloneDeep from 'lodash/cloneDeep';
+import { Model } from "@/types/model";
 
 
 const DIVIDER_CUSTOM_INSTRUCTIONS = `
@@ -218,10 +217,9 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `
 `;
 
 
-export const getFocusedMessages = async (chatEndpoint:string, conversation:Conversation, statsService: any, featureFlags: any, homeDispatch:any, featureOptions: { [key: string]: boolean }) => {
-    const isSmartMessagesOn = featureOptions.includeFocusedMessages;
-    const isArtifactsOn = featureOptions.includeArtifacts && featureFlags.artifacts;
-
+export const getFocusedMessages = async (chatEndpoint:string, conversation:Conversation, statsService: any, 
+                                         isArtifactsOn: boolean, isSmartMessagesOn: boolean, 
+                                         homeDispatch:any, advancedModel: Model, cheapestModel: Model) => {
     if (!isArtifactsOn && !isSmartMessagesOn)  return conversation.messages;
     
     const controller = new AbortController();
@@ -242,12 +240,12 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
 
     try {
         const chatBody = {
-            model: Models[ isSmartMessagesOn ? ModelID.CLAUDE_3_5_SONNET : ModelID.GPT_4o_MINI], 
+            model: isSmartMessagesOn ? advancedModel : cheapestModel, 
             messages: messageTopicDataOnly,
             key: accessToken,
             prompt: customInstructions,
             temperature: 0.8,
-            maxTokens: 1000,
+            maxTokens: 2000,
             skipRag: true,
             skipCodeInterpreter: true
         };

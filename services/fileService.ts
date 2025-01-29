@@ -1,4 +1,7 @@
 import {AttachedDocument} from "@/types/attacheddocument";
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/files";
 
 
 const uploadFileToS3 = (
@@ -90,30 +93,6 @@ export function checkContentReady(url: string, maxSeconds: number): Promise<any>
     });
 }
 
-export const getFileDownloadUrl = async (key:string, groupId: string | undefined) => {
-    const response = await fetch('/api/files/download', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            data:{
-                key:key,
-                groupId:groupId
-            }
-        }),
-        signal: null,
-    });
-
-
-    if (!response.ok) {
-        return {success: false};
-    }
-
-    const result = await response.json();
-
-    return {success: result.success, key:key, downloadUrl:result.downloadUrl};
-}
 
 export const addFile = async (metadata:AttachedDocument, file: File, onProgress?: (progress: number) => void, abortSignal:AbortSignal|null= null, tags: string[] = []) => {
 
@@ -229,99 +208,68 @@ export type FileQueryResult = {
     };
 };
 
-export const deleteTags = async (tags:string[], abortSignal:AbortSignal|null= null):Promise<DeleteTagsResult> => {
 
-        const response = await fetch('/api/files/deleteTag', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                data: {
-                    tags: tags
-                }
-            }),
-            signal: abortSignal,
-        });
 
-        if (!response.ok) {
-            throw new Error(`Failed to delete tags: ${response.status}`);
-        }
-
-        const result = await response.json();
-
-        return result;
-}
-
-export const listTags = async (abortSignal:AbortSignal|null= null):Promise<ListTagsResult> => {
-
-        const response = await fetch('/api/files/listTags', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                data: {}
-            }),
-            signal: abortSignal,
-        });
-
-        if (!response.ok) {
-            throw new Error(`Failed to list tags: ${response.status}`);
-        }
-
-        const result = await response.json();
-
-        return result;
-}
-
-export const setTags = async (file:FileRecord, abortSignal:AbortSignal|null= null):Promise<FileUpdateTagsResult> => {
-
-    const response = await fetch('/api/files/setTags', {
+export const getFileDownloadUrl = async (key:string, groupId: string | undefined) => {
+    const op = {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            data: {
-                id: file.id,
-                tags: file.tags
-            }
-        }),
-        signal: abortSignal,
-    });
-
-    if (!response.ok) {
-        throw new Error(`Failed to update tags user file: ${response.status}`);
-    }
-
-    const result = await response.json();
-
-    return result;
+        path: URL_PATH,
+        op: "/download",
+        data: {
+            key:key,
+            groupId:groupId
+        }
+    };
+    const result = await doRequestOp(op);
+    return {success: result.success, key: key, downloadUrl: result.downloadUrl};
 }
 
-export const queryUserFiles = async (query:FileQuery, abortSignal:AbortSignal|null= null):Promise<FileQueryResult> => {
 
-    const response = await fetch('/api/files/query', {
+export const deleteTags = async (tags:string[]) => {
+    const op = {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            data: {
-                ...query
-            }
-        }),
-        signal: abortSignal,
-    });
-
-    if (!response.ok) {
-        throw new Error(`Failed to query user files: ${response.status}`);
-    }
-
-    const result = await response.json();
-
-    console.log("result", result);
-
-    return result;
+        path: URL_PATH,
+        op: "/tags/delete",
+        data: {tags: tags}
+    };
+    return await doRequestOp(op);
 }
+
+
+
+export const listTags = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: "/tags/list",
+    };
+    return await doRequestOp(op);
+}
+
+
+
+export const setTags = async (file:FileRecord) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/set_tags",
+        data: {
+            id: file.id,
+            tags: file.tags
+        }
+    };
+    return await doRequestOp(op);
+}
+
+
+
+export const queryUserFiles = async (query:FileQuery, abortSignal:AbortSignal|null= null) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/query",
+        data: {...query}
+    };
+    return await doRequestOp(op);
+}
+

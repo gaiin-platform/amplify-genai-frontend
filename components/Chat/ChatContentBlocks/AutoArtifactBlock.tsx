@@ -5,12 +5,13 @@ import {Conversation, Message, newMessage} from "@/types/chat";
 import {getSession} from "next-auth/react"
 import {deepMerge} from "@/utils/app/state";
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";
-import { ModelID, Models } from "@/types/model";
 import { IconHammer } from "@tabler/icons-react";
 import { Artifact, ArtifactBlockDetail, ArtifactMessageStatus, validArtifactTypes } from "@/types/artifacts";
 import { lzwCompress, lzwUncompress } from "@/utils/app/lzwCompression";
 import { getDateName } from "@/utils/app/date";
 import { fixJsonString } from "@/utils/app/errorHandling";
+import { DefaultModels, Model } from "@/types/model";
+import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codeblock";
 
 
 interface Props {
@@ -27,15 +28,13 @@ const AutoArtifactsBlock: React.FC<Props> = ({content, ready, message}) => {
             folders,
             statsService,
             chatEndpoint,
-            artifactIsStreaming
-
+            artifactIsStreaming,
         },
-        dispatch: homeDispatch, handleUpdateSelectedConversation
+        dispatch: homeDispatch, handleUpdateSelectedConversation, getDefaultModel
     } = useContext(HomeContext);
+    const llmPromptedRef = useRef<boolean>(false);
 
-    const [llmPrompted, setLlmPrompted]  = useState<boolean>(false);
-    const [versionContentList, setVersionContentList]  = useState<string[]>([]);
-    const shouldAbortRef  = useRef<boolean>(false);
+    const versionContentMapRef  = useRef<{[key:string]:string}>({});
 
     const conversationsRef = useRef(conversations);
 
@@ -110,14 +109,14 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `Follow these structural guidelines strictl
 const ARTIFACT_VERSION_INSTRUCTIONS = `
     It is required to have a complete and/or fully functional artifact version.
 
-1. **Referencing Components**: You will be provided with an ordered list where each index corresponds to a specific component of the artifact. The index acts as the key, and the content of the component is the value. 
-Components are to be referred to by their index in the format '~{index}'.
+1. **Referencing Components**: You will be provided with an Map where each the key corresponds to a specific section of the artifact and the content of the component is the value. 
+Components are to be referred to by their key in the format '~A{number}'.
 
 2. **Updating Components**:
-   - If you are updating a component, include the complete content of that component including edits in the new version, regardless of the extent of changes.
-   - For any component that remains unchanged, reference it using the '~{index}' format, where 'index' is the position of the component in the provided list.
+   - If you are updating a component section, include the complete content of that section including edits in the new version, regardless of the extent of changes.
+   - For any component sections that remains unchanged, reference it using the '~A{number}' format, where number comes from the key values in the format 'A{number}'
 
-3. **Example Response Format**: structurinng the new version of an artifact with JavaScript at index 0 (~0)  you decided there will be no changes applied to this section, HTML at index 1 (~1)  you determine you will be applying changes , and a new CSS component:
+3. **Example Response Format**: structurinng the new version of an artifact with JavaScript at key A0 (~A0)  you decided there will be no changes applied to this section, HTML at index A1 (~1) you determine you will be applying changes, and a new CSS component:
 
    ~A0
 
@@ -130,12 +129,16 @@ Components are to be referred to by their index in the format '~{index}'.
    /* ... */
    \`\`\`
 
-5. **Consistency**: Ensure that the new version maintains the integrity and functionality of the artifact. All components, whether updated or referenced by their index, should work together seamlessly in the new version.
-If you provide a ~# then assume I will insert the context for that specific referenced content and thus does not need to be reproduced by you. 
+5. **Consistency**: Ensure that the new version maintains the integrity and functionality of the artifact. All component sections, whether updated or referenced by their key, should work together seamlessly in the new version.
+If you provide a ~A# then assume I will insert the context for that specific referenced content and thus does not need to be reproduced by you. 
+
+Please save yourself work, if you can reuse any part of the the Artifact Context (when it makes sense to do so) then you must provide a ~A# so, we can save tokens.
+You goal is to maximize the saved tokens **while providing the user with a qulity response (top priority)**. 
 `;
 
 const repairJson = async () => {
-    const fixedJson: string | null = await fixJsonString(chatEndpoint || "", statsService, content, "Failed to create artifact, attempting to fix...");
+    const model = getDefaultModel(DefaultModels.ADVANCED);
+    const fixedJson: string | null = await fixJsonString( model, chatEndpoint || "", statsService, content, "Failed to create artifact, attempting to fix...");
      // try to repair json
      if (fixedJson) {
         message.data.artifactStatus = ArtifactMessageStatus.RETRY;   
@@ -157,12 +160,15 @@ const repairJson = async () => {
 }
 
 useEffect(() => {
-    if ( ready && !message.data.artifactStatus && !artifactIsStreaming && !llmPrompted ) prepareArtifacts(content, true); 
+    if (!llmPromptedRef.current) {
+        llmPromptedRef.current = true;
+        if (ready && !message.data.artifactStatus && !artifactIsStreaming ) prepareArtifacts(content, true); 
+    }
+    
 }, [ready]);
 
 
 const prepareArtifacts = (jsonContent: string, retry: boolean) => {
-    setLlmPrompted(true);
         message.data.artifactStatus = ArtifactMessageStatus.RUNNING;
         homeDispatch({field: 'messageIsStreaming', value: true}); 
         homeDispatch({field: 'artifactIsStreaming', value: true});
@@ -195,9 +201,7 @@ const prepareArtifacts = (jsonContent: string, retry: boolean) => {
 
 
 const appendRelevantArtifacts = (includeArtifactsId: string[], currentId: string) => {
-    console.log(
-        "included artifacts: ", includeArtifactsId
-    );
+    console.log( "included artifacts: ", includeArtifactsId );
     let instr = "These are previous artifacts that may or may not be useful for you to look at:\n"; 
     let versionInstr = '\n\n';
     if ( selectedConversation && includeArtifactsId.length > 0 || 
@@ -209,20 +213,20 @@ const appendRelevantArtifacts = (includeArtifactsId: string[], currentId: string
             const lastArtifact = artifacts.slice(-1)[0].contents;
             const content = lzwUncompress(lastArtifact);
             if (id === currentId) {
-                versionInstr += ARTIFACT_VERSION_INSTRUCTIONS + '\nThis is the latest version of the artifact you will now create a new version for:\n';
-                let parts = content.split(/(```[\s\S]*?```)/g);
-                // Process each part to split further at new lines if it's not a code block
-                let contentList = parts.flatMap(part => {
-                // Check if the part is a code block
-                if (/^```[\s\S]*```$/.test(part)) {
-                    return [part];
-                } else {
-                    return part.split('\n').filter(line => line.trim() !== ''); // Split at new lines and filter out empty lines
+                versionInstr += ARTIFACT_VERSION_INSTRUCTIONS + '\nArtifact Context split up into parts:\n';
+                let contentList: string[] = extractCodeBlocksAndText(content).map((detail: CodeBlockDetails) => 
+                                                                                   detail.extension === ".txt" ? detail.code :
+                                                                                   `\`\`\`${detail.language} \n${detail.code} \n\`\`\` `    
+                                                                                   );
+                                                                                    
+                if (contentList.length > 0){
+                    const contentMap: {[key:string]:string} = {};
+                    contentList.forEach((part: string, index: number) => contentMap[`A${index}`] = part );
+                    versionContentMapRef.current = contentMap;
+                    console.log("CONTENT MAP: ", contentMap )
+                    versionInstr += JSON.stringify(contentMap);
                 }
-                });
-                setVersionContentList(contentList);
-                const contentToString = contentList.map((part: string, index: number) => `A${index}\n${part}\n\n` );
-                versionInstr += contentToString.join('');
+               
             } else {
                 instr += `Artifact ID: ${id}, Content: ${content}\n\n`;
             }
@@ -232,25 +236,17 @@ const appendRelevantArtifacts = (includeArtifactsId: string[], currentId: string
     return instr + versionInstr;
 }
 
-useEffect(() => {
-    const handleStopGenerationEvent = () => {
-        shouldAbortRef.current = true;
-        console.log("kill artifact even trigger recieved and controller. abort: ");
-    }
 
-    window.addEventListener('killArtifactRequest', handleStopGenerationEvent);
-    return () => {
-        window.removeEventListener('killArtifactRequest', handleStopGenerationEvent);
-    };
-},[]);
-
-const shouldAbort = () => {
-    return shouldAbortRef.current;
+const containsPartialMarker = (buffer: string) => {
+    const endChars = buffer.slice(-3);
+    return endChars.includes("~") || endChars.includes("<");
 }
+
 
 const getArtifactMessages = async (llmInstructions: string, artifactDetail: ArtifactBlockDetail, type: string = '') => {
     statsService.createArtifactEvent(type);
     const requestId = Math.random().toString(36).substring(7);
+    console.log("Artifact Request id: ", requestId);
     homeDispatch({field: "currentRequestId", value: requestId});
     if (selectedConversation && selectedConversation?.messages) {
 
@@ -260,28 +256,21 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                                             })
             
         // Create a new controller
-        const controller = new AbortController();   
+        const controller = new AbortController(); 
+
+        const handleStopGenerationEvent = () => {
+            controller.abort();
+            console.log("Kill artifact event trigger, control signal aborted value: " , controller.signal.aborted); 
+        }
+
+        window.addEventListener('killArtifactRequest', handleStopGenerationEvent);
+
         let currentState = {};
         const metaHandler: MetaHandler = {
-            status: (meta: any) => {
-                //console.log("Chat-Status: ", meta);
-                // homeDispatch({type: "append", field: "status", value: newStatus(meta)})
-            },
-            mode: (modeName: string) => {
-                //console.log("Chat-Mode: "+modeName);
-            },
-            state: (state: any) => {
-                currentState = deepMerge(currentState, state);
-            },
-            shouldAbort: () => {
-                // console.log("SHould abort? , ", shouldAbort.current);
-                if (shouldAbort()) {// isnt capturing the value for some reason
-                    console.log('ABORTED MISSION') 
-                    controller.abort();
-                    return true;
-                }
-                return false;
-            }
+            status: (meta: any) => {},
+            mode: (modeName: string) => {},
+            state: (state: any) => currentState = deepMerge(currentState, state),
+            shouldAbort: () => false
         };
         
         try {
@@ -297,14 +286,14 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                                         }
             selectArtifacts.push(artifact);
             homeDispatch({field: "selectedArtifacts", value: selectArtifacts});
-            
+            const model: Model = selectedConversation.model ?? getDefaultModel(DefaultModels.ADVANCED);
             const chatBody = {
-            model: selectedConversation.model || Models[ModelID.GPT_4o_AZ],
+            model: model,
             messages: [{role: 'user', content: llmInstructions} as Message],
             key: accessToken,
             prompt: ARTIFACT_CUSTOM_INSTRUCTIONS,
             temperature: 0.5,
-            maxTokens: 4000,
+            maxTokens: model.outputTokenLimit, // Default to max token
             skipRag: true,
             skipCodeInterpreter: true,
             artifactsMode: true,
@@ -323,43 +312,36 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             const responseData = response.body;
             const reader = responseData ? responseData.getReader() : null;
             const decoder = new TextDecoder();
-            let done = false;
-
             let text = selectedConversation.messages[messageLen].content + '\n\n';
             let artifactText: string = '';
 
-            const placeholderRegex = /\~A(\d+)/;
-
+            const placeholderRegex = /\~A(\d+)/g;
             let isAssistantMsg = false;
-
             let buffer = '';
             try {
-                
-                while (!done) {
-
+                while (!controller.signal.aborted) {
                     // @ts-ignore
-                    const {value, done: doneReading} = await reader.read();
-                    done = doneReading;
+                    const {value, done} = await reader.read();
                     const chunkValue = decoder.decode(value);
-                    if (done || controller.signal.aborted) break;
-                    buffer += chunkValue;
+                    if (chunkValue) buffer += chunkValue;
 
-                    if (buffer.length > 7) {
-
+                    if ((buffer.length > 2 && !containsPartialMarker(buffer)) || done) {
                         // replace tag references with content:
-                        if (placeholderRegex.test(buffer)) {
-                            console.log(" buffer contains tag: ", buffer)
-                            buffer = buffer.replace(placeholderRegex, (match, index) => {
-                                let arrayIndex = parseInt(index, 10);
-                                // Check if the index is within the bounds of the versionContentList array
-                                if (arrayIndex >= 0 && arrayIndex < versionContentList.length) {
-                                    return versionContentList[arrayIndex];
+                        if (versionContentMapRef.current && placeholderRegex.test(buffer)) {
+                            console.log("Buffer contains tag(s):", buffer);
+                        
+                            buffer = buffer.replace(placeholderRegex, (match) => {
+                                // Remove the leading `~` so the key becomes A<number>
+                                const key = match.slice(1);
+                                // Check if the key exists in versionContentMapRef.current
+                                if (key in versionContentMapRef.current) {
+                                    console.log("Tag replaced with context in the Buffer", key);
+                                    return `\n${versionContentMapRef.current[key]}\n`;
                                 } else {
-                                    console.log(" buffer contained an out of bounds tag: ", buffer)
+                                    console.log("Buffer contained a tag with an invalid key:", key);
                                     return '';
                                 }
                             });
-                            console.log(" buffer contained tag: ", buffer)
                         }
                     
                         if ((buffer.includes(startMarker) && !isAssistantMsg) || (buffer.includes(endMarker) && isAssistantMsg)) {
@@ -367,25 +349,27 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                             let splitText;
                             if (buffer.includes(startMarker)) {
                                 splitText = buffer.split(startMarker);
+
                                 // Everything before the start marker goes to artifactText
                                 artifactText += splitText[0];
                                 // Everything after the start marker goes to text
-                                buffer = splitText[1];
+                                text += splitText[1];
                                 isAssistantMsg = true;
                             } else if (buffer.includes(endMarker)) {
                                 splitText = buffer.split(endMarker);
+
                                 // Everything before the end marker goes to text
                                 text += splitText[0];
                                 // Everything after the end marker goes to artifactText
-                                buffer = splitText[1];
+                                artifactText += splitText[1];
                                 isAssistantMsg = false;
                             }
                         
                             // Clean up buffer by removing the markers
-                            buffer = '';
+                            buffer = ''; // if buffer is clear then we have already added to the correct vars and need to update both
                         }
 
-                        if (isAssistantMsg) {
+                        if (isAssistantMsg || !buffer) {
                             text += buffer;
                             let updatedMessages: Message[] = [];
                             updatedMessages = updatedConversation.messages.map((message, index) => {
@@ -407,17 +391,22 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                                 value: updatedConversation,
                             }); 
                         
-                        } else {
+                        } 
+                        if (!isAssistantMsg || !buffer) {
                             artifactText += buffer;
                             selectArtifacts[selectArtifacts.length - 1].contents = lzwCompress(artifactText);
                             homeDispatch({field: "selectedArtifacts", value: selectArtifacts});
                         }
                         buffer = '';
                     }
+
+                    if (done) break;
                 }
             
+            } catch (error) {
+                if (!controller.signal.aborted) console.error("Artifact Streaming Error occurred", error);
             } finally {
-                if (reader) {
+                if (reader && !controller.signal.aborted) {
                     await reader.cancel(); 
                     reader.releaseLock();
                 } 
@@ -429,19 +418,20 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 const lastMessageData = updatedConversation.messages.slice(-1)[0].data;
                 updatedConversation.messages.slice(-1)[0].data.artifactStatus = controller.signal.aborted ? ArtifactMessageStatus.STOPPED : ArtifactMessageStatus.COMPLETE;
                 updatedConversation.messages.slice(-1)[0].data.artifacts = [...(lastMessageData.artifacts ?? []), artifactDetail];
-
                 
                 handleUpdateSelectedConversation(updatedConversation);
-                shouldAbortRef.current = false;
             }
 
         } catch (e) {
             console.error("Error prompting for Artifact Messages: ", e);
         }   
+        // clean up event listener
+        window.removeEventListener('killArtifactRequest', handleStopGenerationEvent);
+
         setTimeout(() => {
             const event = new CustomEvent( 'triggerChatReRender' );
             window.dispatchEvent(event);
-        }, 200)
+        }, 300)
         
     }
 }

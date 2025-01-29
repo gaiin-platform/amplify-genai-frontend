@@ -189,7 +189,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
             try {
                 const result = await shareItems(sharedBy, sharedWith, sharingNote, sharedData);
 
-                if (result.ok) {
+                if (result.success) {
                     statsService.sharedItemEvent(sharedBy, sharedWith, sharingNote, sharedData);
 
                     setIsSharing(false);
@@ -291,7 +291,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                     <div className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true"/>
                     <div
                         className=" border-neutral-400 dark:border-neutral-600 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:p-6 sm:align-middle"
-                        role="dialog" style={{width: window.innerWidth /2}}
+                        role="dialog" style={{width:!isSharing ? window.innerWidth / 2 : window.innerWidth * 0.3}}
                     >
                         {isSharing && (
                             <div className="flex flex-col items-center justify-center">

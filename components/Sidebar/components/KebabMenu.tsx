@@ -4,7 +4,8 @@ import {
     IconX, IconShare, IconTags,
     IconCheck, IconFolderOpen, 
     IconFolder, IconCalendar, IconAbc,
-    IconTrashFilled
+    IconTrashFilled,
+    IconEye
 } from '@tabler/icons-react';
 import { KebabActionItem, actionItemAttr, KebabItem, KebabMenuItems } from "./KebabItems";
 import { ShareAnythingModal } from "@/components/Share/ShareAnythingModal";
@@ -15,19 +16,19 @@ import { DEFAULT_ASSISTANT } from "@/types/assistant";
 import HomeContext from "@/pages/api/home/home.context";
 import { Prompt } from "@/types/prompt";
 import { deleteAssistant } from "@/services/assistantService";
-import { ModelID, Models } from "@/types/model";
+import { DefaultModels } from "@/types/model";
 import { FolderInterface, SortType } from "@/types/folder";
 import {v4 as uuidv4} from 'uuid';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { CheckItemType } from "@/types/checkItem";
 import { savePrompts } from "@/utils/app/prompts";
-import { isRemoteConversation } from '@/utils/app/conversationStorage';
-import { deleteRemoteConversation, fetchMultipleRemoteConversations, uploadConversation } from '@/services/remoteConversationService';
-import { conversationWithUncompressedMessages, saveConversations } from "@/utils/app/conversation";
+import { fetchEmptyRemoteConversations, fetchMultipleRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
+import { conversationWithUncompressedMessages, deleteConversationCleanUp, isRemoteConversation, saveConversations } from "@/utils/app/conversation";
 import { getDateName } from "@/utils/app/date";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import React from "react";
 import toast from "react-hot-toast";
+import { getHiddenGroupFolders, saveFolders } from "@/utils/app/folders";
 
 
 interface Props {
@@ -48,9 +49,9 @@ interface Props {
     const [allItemsChecked, setAllItemsChecked] = useState<boolean>(false);
 
     const {
-        state: { statsService, selectedAssistant, defaultModelId, checkedItems, folders, prompts, conversations,
+        state: { statsService, selectedAssistant, checkedItems, folders, prompts, conversations,
                  selectedConversation, checkingItemType, syncingConversations, syncingPrompts}, handleDeleteFolder,
-        dispatch: homeDispatch, handleCreateFolder, handleSelectConversation
+        dispatch: homeDispatch, handleCreateFolder, handleSelectConversation, getDefaultModel
     } = useContext(HomeContext);
 
     const isConvSide = label === 'Conversations';
@@ -100,12 +101,24 @@ interface Props {
         return false;
     }
 
+    const hasHiddenGroupFolders = () => {
+        return getHiddenGroupFolders().length > 0;
+    }
+
+    const unHideHiddenGroupFolders = () => {
+        const hiddenFolders = getHiddenGroupFolders();
+        const updatedFolders = [...folders, ...hiddenFolders];
+        homeDispatch({ field: 'folders', value: updatedFolders });
+        saveFolders(updatedFolders);
+        localStorage.setItem('hiddenGroupFolders', JSON.stringify([]));
+    }
+
     const toggleDropdown = () => {
         if (checkingItemType) clear();
         setIsMenuOpen(!isMenuOpen);
         handleSearchTerm('');
-
     }
+
     const clear = () => {
         homeDispatch({field: 'checkingItemType', value: null});
         setActionItem(null);
@@ -141,13 +154,14 @@ interface Props {
 
     const handleDeleteConversations = (conversations: Conversation[] = checkedItemsRef.current) => {
         handleSearchTerm('');
-        const updatedConversations = items.filter( (c: Conversation) => 
-                                    { const remove = conversations.includes(c) 
-                                          if (remove) {
+        const updatedConversations = items.filter( (c: Conversation) => {
+                                        const remove = !!conversations.find((conv: Conversation) => c.id === conv.id);
+                                        
+                                        if (remove) {
                                             statsService.deleteConversationEvent(c);
-                                              if (isRemoteConversation(c)) deleteRemoteConversation(c.id);
-                                          }
-                                          return !remove;
+                                            deleteConversationCleanUp(c);
+                                        }
+                                        return !remove;
                                      });
         
         const updatedLength = updatedConversations.length;
@@ -169,7 +183,7 @@ interface Props {
                     id: uuidv4(),
                     name: 'New Conversation',
                     messages: [],
-                    model: lastConversation?.model ?? Models[defaultModelId as ModelID],
+                    model: lastConversation?.model ?? getDefaultModel(DefaultModels.DEFAULT),
                     prompt: DEFAULT_SYSTEM_PROMPT,
                     temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
                     folderId: folder.id,
@@ -183,14 +197,13 @@ interface Props {
             handleSelectConversation(selectedConversation);
     
         } else {
-            defaultModelId &&
             homeDispatch({
                 field: 'selectedConversation',
                 value: {
                     id: uuidv4(),
                     name: 'New Conversation',
                     messages: [],
-                    model: Models[defaultModelId as ModelID],
+                    model: getDefaultModel(DefaultModels.DEFAULT),
                     prompt: DEFAULT_SYSTEM_PROMPT,
                     temperature: DEFAULT_TEMPERATURE,
                     folderId: null,
@@ -243,7 +256,6 @@ interface Props {
     const handleDeleteFolders = () => {
         handleSearchTerm('');
         // console.log(checkedItemsRef.current)
-       
         if (isConvSide) {
             
             const conversationInFolders: Conversation[] = [];
@@ -259,27 +271,78 @@ interface Props {
     }
 
     const cleanEmptyConversations = async () => {
-        const { remoteConversationIds, localEmptyConversations } = conversationsRef.current.reduce<{
-            remoteConversationIds: string[];
+        const { remoteConversationIdMap, localEmptyConversations } = conversationsRef.current.reduce<{
+            remoteConversationIdMap: { [key: string] : Conversation};
             localEmptyConversations: Conversation[];
         }>((acc, c:Conversation) => {
             if (isRemoteConversation(c)) {
-                acc.remoteConversationIds.push(c.id);
-            } else if (c.compressedMessages && c.compressedMessages.length === 0) {
+                acc.remoteConversationIdMap[c.id] = c;
+            } else if (conversationWithUncompressedMessages(c).messages.length === 0) {
                 acc.localEmptyConversations.push(c);
             }
             return acc;
-        }, { remoteConversationIds: [], localEmptyConversations: [] });
+        }, { remoteConversationIdMap: {}, localEmptyConversations: [] });
+
+        const remoteConversationIds: string[] = Object.keys(remoteConversationIdMap);
         if (remoteConversationIds.length > 0 && localEmptyConversations.length > 0 ) {
             toast("Removing Empty Conversations...");
-            const fetchedRemoteConversations = await fetchMultipleRemoteConversations(remoteConversationIds);
-            const emptyRemoteConversations = fetchedRemoteConversations ? fetchedRemoteConversations.filter((c:Conversation) => c.messages.length === 0) : [];
+            const fetchRemoteConversations = await fetchEmptyRemoteConversations();
+
+            let emptyRemoteConversations:Conversation[] = [];
+            if (fetchRemoteConversations.data) {
+                // console.log("Contains empty conversations");
+                emptyRemoteConversations = fetchRemoteConversations.data;
+                const emptyRemoteConversationIds: string[] = emptyRemoteConversations.map((c:Conversation) => c.id);
+
+                // remove no such key conversations
+                const presentIds: string[] =  [...fetchRemoteConversations.nonEmptyIds, ...emptyRemoteConversationIds];
+                const possibleNoSuchKeyIds = remoteConversationIds.filter((id: string) => !presentIds.includes(id));
+                 //check that it is truly a no such key  
+                const fetchPossibleNoSuchKey = await fetchMultipleRemoteConversations(possibleNoSuchKeyIds);
+                if (fetchPossibleNoSuchKey.failedByNoSuchKey) {
+                     // add the no such key conversations 
+                    fetchPossibleNoSuchKey.failedByNoSuchKey.forEach((id: string) => {
+                        emptyRemoteConversations.push(remoteConversationIdMap[id]);
+                    });
+                }
+            }
             handleDeleteConversations([...localEmptyConversations, ...emptyRemoteConversations]);
         }  else {
             toast("No Empty Conversations To Remove");
-
         }
         
+    }
+
+    const cleanEmptyFolders = async () => {
+        let emptyFolderIds: (string | null)[] = [];
+        let allFolderIds: string[] = [];
+        let occupiedFolderIds: Set<string | null> = new Set(); 
+        
+        if (isConvSide) {
+            allFolderIds = folders.filter((f: FolderInterface) => f.type === 'chat')
+                                  .map((f: FolderInterface) => f.id);
+            occupiedFolderIds = new Set<string | null>(conversationsRef.current.map((c: Conversation) => c.folderId));
+        } else {
+            allFolderIds = folders.filter((f: FolderInterface) => f.type === 'prompt')
+                                  .map((f: FolderInterface) => f.id);
+            occupiedFolderIds = new Set<string | null>(promptsRef.current.map((p: Prompt) => (p.folderId)));
+        }
+
+        emptyFolderIds = [...allFolderIds].filter(id => !occupiedFolderIds.has(id));
+
+        if (emptyFolderIds.length > 0) {
+            toast("Removing Empty Folders...");
+
+            console.log("empty folders total len: ", emptyFolderIds.length);
+
+            const updatedFolders = foldersRef.current.filter((f:FolderInterface) => !emptyFolderIds.includes(f.id));
+    
+            homeDispatch({ field: 'folders', value: updatedFolders });
+            saveFolders(updatedFolders);
+
+        } else {
+            toast("No Empty Folders To Remove");
+        }
     }
 
     const handleCheckAll = (isChecked: boolean) => {
@@ -384,13 +447,15 @@ interface Props {
                                 <KebabItem label="Date" handleAction={() => { setFolderSort('date') } } icon={<IconCalendar size={14}/>} title="Sort Folders By Date" />
                             </KebabMenuItems>
 
-                            <KebabActionItem label="Share" type={`${isConvSide?'Chat':'Prompt'}Folders`} handleAction={()=>{setIsShareDialogVisible(true)}} 
-                                             setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconShare size={14} />} />
+
                             <KebabActionItem label="Delete" type={`${isConvSide?'Chat':'Prompt'}Folders`} handleAction={() => { handleDeleteFolders() }} 
                                              setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTrash size={14} />} />
+                            <KebabActionItem label="Share" type={`${isConvSide?'Chat':'Prompt'}Folders`} handleAction={()=>{setIsShareDialogVisible(true)}} 
+                                             setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconShare size={14} />} />
+                            {<KebabItem label="Clean" handleAction={() => { cleanEmptyFolders() }} icon={<IconTrashFilled size={14} />} title="Remove Empty Folders" />}
                             <KebabItem label="Open All" handleAction={() => { openCloseFolders(true) } } icon={<IconFolderOpen size={13} />}  title="Open All Folders" />
-                            <KebabItem label="Close All" handleAction={() => { openCloseFolders(false) }} icon={<IconFolder size={14}/>}   title="Close All Folders"/>
-                            
+                            <KebabItem label="Close All" handleAction={() => { openCloseFolders(false) }} icon={<IconFolder size={13}/>}   title="Close All Folders"/>
+                            {!isConvSide && hasHiddenGroupFolders()  &&  <KebabItem label="Unhide" handleAction={() => { unHideHiddenGroupFolders() }} icon={<IconEye size={14} />} title="Unhide Hidden Group Folders" /> }  
                         </KebabMenuItems>
                     </div>
                 </div>
@@ -434,8 +499,8 @@ interface Props {
                                     item.tags = [...itemTags, ...tags.filter(tag => !itemTags.includes(tag))]
                                     if (isRemoteConversation(item)) {
                                         try {
-                                            const fullConv = await fetchMultipleRemoteConversations([item.id]);
-                                            if (fullConv.length > 0) uploadConversation({...fullConv[0], tags: item.tags}, foldersRef.current);
+                                            const fullConv = await fetchRemoteConversation(item.id);
+                                            if (fullConv) uploadConversation({...fullConv, tags: item.tags}, foldersRef.current);
                                         } catch {
                                             console.log("Failed to update remote conversation with new tags")
                                         } 
@@ -447,8 +512,8 @@ interface Props {
                             item.tags = item.tags?.filter(x => x != tag)
                             if (isRemoteConversation(item)) {
                                 try {
-                                    const fullConv = await fetchMultipleRemoteConversations([item.id]);
-                                    if (fullConv.length > 0) uploadConversation({...fullConv[0], tags: item.tags}, foldersRef.current);
+                                    const fullConv = await fetchRemoteConversation(item.id);
+                                    if (fullConv) uploadConversation({...fullConv, tags: item.tags}, foldersRef.current);
                                 } catch {
                                     console.log("Failed to update remote conversation with updated tags")
                                 }

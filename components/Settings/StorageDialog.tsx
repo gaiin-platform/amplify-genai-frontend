@@ -10,6 +10,7 @@ import { ConversationStorage } from "@/types/conversationStorage";
 import { saveConversations } from '@/utils/app/conversation';
 import React from 'react';
 import { InfoBox } from '../ReusableComponents/InfoBox';
+import toast from 'react-hot-toast';
 
 
 
@@ -29,6 +30,8 @@ export const StorageDialog: FC<Props> = ({ open }) => {
   }, [storageSelection]);
 
   const [selectedOption, setSelectedOption] = useState( storageRef.current || '');
+  const [hasChanges, setHasChanges] = useState(false);
+
 
   const { t } = useTranslation('conversationStorage');
 
@@ -46,9 +49,15 @@ export const StorageDialog: FC<Props> = ({ open }) => {
       foldersRef.current = folders;
   }, [folders]);
 
+  const handleSelectedOptionChanged = (option: string) => {
+      if (!hasChanges) toast('Click "Apply Changes" to save your selection.'); 
+      setSelectedOption(option);
+      setHasChanges(true);
+  }
 
 
   const handleSave = async () => {
+    setHasChanges(false);
     saveStorageSettings({ storageLocation: selectedOption } as ConversationStorage);
     homeDispatch({field: 'storageSelection', value: selectedOption});
 
@@ -61,6 +70,7 @@ export const StorageDialog: FC<Props> = ({ open }) => {
         homeDispatch({field: 'selectedConversation', value: updateSelected});
       }
     }
+    toast("Storage Settings Saved");
     
   };
   
@@ -107,7 +117,9 @@ export const StorageDialog: FC<Props> = ({ open }) => {
                     if (confirm(`${confirmationMessage()} \n\n Would you like to continue?`)) handleSave();
                 }}
                 >
-                {t('Apply Changes')}
+                <>{t('Apply Changes')}
+                  {hasChanges && <span className='ml-0.5 text-[0.9rem]'>*</span>}
+                </>
                 </button>
             </div>
 
@@ -132,7 +144,7 @@ export const StorageDialog: FC<Props> = ({ open }) => {
                       name="storageOption"
                       value="local-only"
                       checked={selectedOption === 'local-only'}
-                      onChange={(e) => setSelectedOption(e.target.value)}
+                      onChange={(e) => handleSelectedOptionChanged(e.target.value)}
                   />
                   <label htmlFor="local-only"> Store all existing and new conversations locally </label>
               </div>
@@ -143,7 +155,7 @@ export const StorageDialog: FC<Props> = ({ open }) => {
                       name="storageOption"
                       value="future-local"
                       checked={selectedOption === 'future-local'}
-                      onChange={(e) => setSelectedOption(e.target.value)}
+                      onChange={(e) => handleSelectedOptionChanged(e.target.value)}
                   />
                   <label htmlFor="future-local"> Store only new conversations locally</label>
               </div>
@@ -172,7 +184,7 @@ export const StorageDialog: FC<Props> = ({ open }) => {
                       name="storageOption"
                       value="cloud-only"
                       checked={selectedOption === 'cloud-only'}
-                      onChange={(e) => setSelectedOption(e.target.value)}
+                      onChange={(e) => handleSelectedOptionChanged(e.target.value)}
                   />
                   <label htmlFor="cloud-only"> Store all existing and new conversations in the cloud</label>
               </div>
@@ -183,7 +195,7 @@ export const StorageDialog: FC<Props> = ({ open }) => {
                       name="storageOption"
                       value="future-cloud"
                       checked={selectedOption === 'future-cloud'}
-                      onChange={(e) => setSelectedOption(e.target.value)}
+                      onChange={(e) => handleSelectedOptionChanged(e.target.value)}
                   />
                   <label htmlFor="future-cloud"> Store only new conversations in the cloud</label>
               </div>

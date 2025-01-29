@@ -1,28 +1,29 @@
 // src/hooks/useChatService.js
-import {useCallback, useContext, useEffect, useRef} from 'react';
+import { useCallback, useContext, useEffect, useRef } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
-import {killRequest as killReq, MetaHandler} from '../services/chatService';
-import {ChatBody, Conversation, CustomFunction, JsonSchema, Message, newMessage} from "@/types/chat";
-import {ColumnsSpec,} from "@/utils/app/csv";
-import {Plugin, PluginID} from '@/types/plugin';
+import { killRequest as killReq, MetaHandler } from '../services/chatService';
+import { ChatBody, Conversation, CustomFunction, JsonSchema, Message, newMessage } from "@/types/chat";
+import { ColumnsSpec, } from "@/utils/app/csv";
+import { Plugin, PluginID } from '@/types/plugin';
 
-import {useSession} from "next-auth/react"
+import { useSession } from "next-auth/react"
 import json5 from "json5";
-import {Model, ModelID, Models} from "@/types/model";
-import {newStatus} from "@/types/workflow";
-import {ReservedTags} from "@/types/tags";
-import {deepMerge} from "@/utils/app/state";
+import { DefaultModels, Model } from "@/types/model";
+import { newStatus } from "@/types/workflow";
+import { ReservedTags } from "@/types/tags";
+import { deepMerge } from "@/utils/app/state";
 import toast from "react-hot-toast";
-import {OutOfOrderResults} from "@/utils/app/outOfOrder";
-import {conversationWithCompressedMessages, saveConversations} from "@/utils/app/conversation";
-import {getHook} from "@/utils/app/chathooks";
-import {AttachedDocument} from "@/types/attacheddocument";
-import {Prompt} from "@/types/prompt";
-import {usePromptFinderService} from "@/hooks/usePromptFinderService";
-import {useChatService} from "@/hooks/useChatService";
+import { OutOfOrderResults } from "@/utils/app/outOfOrder";
+import { conversationWithCompressedMessages, remoteForConversationHistory, saveConversations } from "@/utils/app/conversation";
+import { getHook } from "@/utils/app/chathooks";
+import { AttachedDocument } from "@/types/attacheddocument";
+import { Prompt } from "@/types/prompt";
+import { usePromptFinderService } from "@/hooks/usePromptFinderService";
+import { useChatService } from "@/hooks/useChatService";
 import { ARTIFACTS_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { uploadConversation } from "@/services/remoteConversationService";
 import { getFocusedMessages } from '@/services/prepareChatService';
+import { doExtractFactsOp, doReadMemoryOp } from '@/services/memoryService';
 import { getSettings } from '@/utils/app/settings';
 
 
@@ -30,7 +31,7 @@ export type ChatRequest = {
     message: Message;
     endpoint?: string;
     deleteCount?: number;
-    plugin?: Plugin | null;
+    plugins?: Plugin[];
     existingResponse?: any;
     rootPrompt?: string | null;
     documents?: AttachedDocument[] | null;
@@ -41,12 +42,21 @@ export type ChatRequest = {
     conversationId?: string;
 };
 
+interface Memory {
+    content: string;
+    user: string;
+    memory_type: string;
+    memory_type_id: string;
+    id: string;
+    timestamp: string;
+}
+
 export function useSendService() {
     const {
-        state: {selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService},
-        handleUpdateConversation,
+        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts },
+        getDefaultModel,
         postProcessingCallbacks,
-        dispatch:homeDispatch,
+        dispatch: homeDispatch,
     } = useContext(HomeContext);
 
     const { data: session } = useSession();
@@ -73,57 +83,57 @@ export function useSendService() {
         sendCSVChatRequest
     } = useChatService();
 
-    const {getPrefix} = usePromptFinderService();
+    const { getPrefix } = usePromptFinderService();
 
-    const calculateTokenCost = (chatModel: Model, datasources: AttachedDocument[]) => {
-        let cost = 0;
+    // const calculateTokenCost = (chatModel: Model, datasources: AttachedDocument[]) => {
+    //     let cost = 0;
 
-        datasources.forEach((doc) => {
-            if (doc.metadata?.totalTokens) {
-                cost += doc.metadata.totalTokens;
-            }
-        });
+    //     datasources.forEach((doc) => {
+    //         if (doc.metadata?.totalTokens) {
+    //             cost += doc.metadata.totalTokens;
+    //         }
+    //     });
 
-        const model = Models[chatModel.id as ModelID];
-        if (!model) {
-            return {
-                prompts: -1,
-                inputTokens: cost,
-                inputCost: -1,
-                outputCost: -1,
-                totalCost: -1
-            };
-        }
+    //     const model = Models[chatModel.id as ModelID];
+    //     if (!model) {
+    //         return {
+    //             prompts: -1,
+    //             inputTokens: cost,
+    //             inputCost: -1,
+    //             outputCost: -1,
+    //             totalCost: -1
+    //         };
+    //     }
 
-        const contextWindow = model.actualTokenLimit;
-        // calculate cost / context window rounded up
-        const prompts = Math.ceil(cost / contextWindow);
+    //     const contextWindow = model.actualTokenLimit;
+    //     // calculate cost / context window rounded up
+    //     const prompts = Math.ceil(cost / contextWindow);
 
-        console.log("Prompts", prompts, "Cost", cost, "Context Window", contextWindow);
+    //     console.log("Prompts", prompts, "Cost", cost, "Context Window", contextWindow);
 
-        const outputCost = prompts * model.outputCost;
-        const inputCost = (cost / 1000) * model.inputCost;
+    //     const outputCost = prompts * model.outputCost;
+    //     const inputCost = (cost / 1000) * model.inputCost;
 
-        console.log("Input Cost", inputCost, "Output Cost", outputCost);
+    //     console.log("Input Cost", inputCost, "Output Cost", outputCost);
 
-        return {
-            prompts: prompts,
-            inputCost: inputCost.toFixed(2),
-            inputTokens: cost,
-            outputCost: outputCost.toFixed(2),
-            totalCost: (inputCost + outputCost).toFixed(2)
-        };
-    }
+    //     return {
+    //         prompts: prompts,
+    //         inputCost: inputCost.toFixed(2),
+    //         inputTokens: cost,
+    //         outputCost: outputCost.toFixed(2),
+    //         totalCost: (inputCost + outputCost).toFixed(2)
+    //     };
+    // }
 
     const handleSend = useCallback(
-        async (request:ChatRequest, shouldAbort:()=>boolean) => {
+        async (request: ChatRequest, shouldAbort: () => boolean) => {
             return new Promise(async (resolve, reject) => {
-                if (selectedConversation) { 
+                if (selectedConversation) {
 
                     let {
                         message,
                         deleteCount,
-                        plugin,
+                        plugins,
                         existingResponse,
                         rootPrompt,
                         documents,
@@ -132,41 +142,37 @@ export function useSendService() {
                         conversationId
                     } = request;
 
-
-                    const {content, label} = getPrefix(selectedConversation, message);
+                    const pluginIds: string[] = plugins?.map((plugin: Plugin) => plugin.id) ?? [];
+                    const { content, label } = getPrefix(selectedConversation, message);
                     if (content) {
                         message.content = content + " " + message.content;
                         message.label = label;
-                    }
-
-                    if (!featureFlags.ragEnabled) {
-                        options = {...(options || {}), skipRag: true};
                     }
 
                     if (selectedConversation
                         && selectedConversation?.model
                         && !options?.ragOnly) {
 
-                        const {prompts, inputCost, inputTokens, outputCost, totalCost} =
-                            calculateTokenCost(selectedConversation.model, documents || []);
+                        // const {prompts, inputCost, inputTokens, outputCost, totalCost} =
+                        //     calculateTokenCost(selectedConversation.model, documents || []);
 
-                        if (totalCost === -1 && inputTokens > 4000) {
-                            const go = confirm(`This request will require ${inputTokens} input tokens at an unknown cost.`);
-                            if (!go) {
-                                return;
-                            }
-                        }
-                        if (+totalCost > 0.5) {
-                            const go = confirm(`This request will cost an estimated $${totalCost} (the actual cost may be more) and require ${prompts} prompt(s).`);
-                            if (!go) {
-                                return;
-                            }
-                        }
+                        // if (totalCost === -1 && inputTokens > 4000) {
+                        //     const go = confirm(`This request will require ${inputTokens} input tokens at an unknown cost.`);
+                        //     if (!go) {
+                        //         return;
+                        //     }
+                        // }
+                        // if (+totalCost > 0.5) {
+                        //     const go = confirm(`This request will cost an estimated $${totalCost} (the actual cost may be more) and require ${prompts} prompt(s).`);
+                        //     if (!go) {
+                        //         return;
+                        //     }
+                        // }
                     }
-
+                    console.log("Model in use: ", selectedConversation.model.name);
                     let updatedConversation: Conversation;
                     if (deleteCount) {
-                        const updatedMessages = [... selectedConversation.messages];
+                        const updatedMessages = [...selectedConversation.messages];
                         for (let i = 0; i < deleteCount; i++) {
                             updatedMessages.pop();
                         }
@@ -177,71 +183,130 @@ export function useSendService() {
                     } else {
                         updatedConversation = {
                             ...selectedConversation,
-                            messages: [... selectedConversation.messages, message],
+                            messages: [...selectedConversation.messages, message],
                         };
                     }
                     console.log("updated: ", updatedConversation.messages);
+
+                    if (!updatedConversation.model) {
+                        console.log("WARNING: MODEL IS UNDEFINED SETTING TO DEFAULT: ", getDefaultModel(DefaultModels.DEFAULT));
+                    }
+
                     homeDispatch({
                         field: 'selectedConversation',
                         value: updatedConversation,
                     });
 
-                    homeDispatch({field: 'loading', value: true});
-                    homeDispatch({field: 'messageIsStreaming', value: true});
+                    homeDispatch({ field: 'loading', value: true });
+                    homeDispatch({ field: 'messageIsStreaming', value: true });
 
-                    const settings = getSettings(featureFlags);
+                    const featureOptions = getSettings(featureFlags).featureOptions;
+                    const isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts &&
+                        pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER);
+                    const isSmartMessagesOn = featureOptions.includeFocusedMessages && pluginIds.includes(PluginID.SMART_MESSAGES);
+                    const isMemoryOn = featureFlags.memory && featureOptions.includeMemory;
+
                     // if both artifact and smart messages is off then it returnes with the messages right away 
-                    const prepareMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService, featureFlags, homeDispatch, settings.featureOptions);
-
+                    const prepareMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService,
+                        isArtifactsOn, isSmartMessagesOn, homeDispatch,
+                        getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST));
+                    console.log("tokens: ", updatedConversation.maxTokens);
                     const chatBody: ChatBody = {
-                        model: updatedConversation.model, 
+                        model: updatedConversation.model,
                         messages: prepareMessages, //updatedConversation.messages,
                         prompt: rootPrompt || updatedConversation.prompt || "",
                         temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
-                        maxTokens: updatedConversation.maxTokens || 1000,
+                        maxTokens: updatedConversation.maxTokens || (Math.round(updatedConversation.model.outputTokenLimit / 2)),
                         conversationId
                     };
 
-                    if (featureFlags.artifacts && settings.featureOptions.includeArtifacts) {
-                        chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
+                    if (selectedConversation?.projectId) {
+                        // console.log("Selected Project Memory ID:", selectedConversation.projectId);
+                        chatBody.projectId = selectedConversation.projectId;
                     }
 
-                    if (featureFlags.artifacts) {
-                        const astFeatureOptions = message.data?.assistant?.definition?.featureOptions;
-                        //option A
-                            // either there is no options defined or there is and it needs to be true 
-                            // not defined in cases of old ast used and when no assistant is in use 
-                        // if ((!astFeatureOptions || astFeatureOptions.IncludeArtifactsInstr) && settings.featureOptions.includeArtifacts) {
+                    // if memory is on, then extract-facts and integrate existing memories into the conversation
+                    if (isMemoryOn) {
+                        // extract facts from user prompt
+                        const userInput = updatedConversation.messages
+                            .filter(msg => msg.role === 'user')
+                            .pop()?.content || '';
+                        const response = await doExtractFactsOp(userInput);
+                        const extractedFacts = JSON.parse(response.body).facts;
+                        const currentFacts = extractedFacts || [];
+                        homeDispatch({
+                            field: 'extractedFacts',
+                            value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
+                                self.indexOf(fact) === index
+                            )
+                        });
 
-                        //option B - either no feature option and user has the setting on 
-                                    // or the assistant has it turned on
-                        if ((!astFeatureOptions && settings.featureOptions.includeArtifacts) || (astFeatureOptions && astFeatureOptions.IncludeArtifactsInstr)) {
-                             chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
-                             console.log("ARTIFACT PROMPT ADDED")
-                        } 
+                        // memory fetching
+                        // After doReadMemoryOp() call:
+                        const memoriesResponse = await doReadMemoryOp();
+                        const allMemories = JSON.parse(memoriesResponse.body).memories || [];
+
+                        // console.log("Retrieved all memories:", allMemories);
+                        // console.log("Current projectId:", chatBody.projectId);
+
+                        // Filter memories based on criteria
+                        const relevantMemories = allMemories.filter((memory: any) => {
+                            // Log each memory being evaluated
+                            // console.log("Evaluating memory:", memory);
+
+                            // Check for user memories
+                            if (memory.memory_type === 'user') {
+                                // console.log("✅ Including user memory:", memory.content);
+                                return true;
+                            }
+
+                            // Check for project memories
+                            if (chatBody.projectId && memory.memory_type_id === chatBody.projectId) {
+                                // console.log("✅ Including project memory:", memory.content);
+                                return true;
+                            }
+
+                            // console.log("❌ Excluding memory:", memory.content);
+                            return false;
+                        });
+
+                        // console.log("Final relevant memories:", relevantMemories);
+
+                        const memoryContext = relevantMemories.length > 0
+                            ? `Consider these relevant past memories when responding: ${JSON.stringify(
+                                relevantMemories.map((memory: Memory) => memory.content)
+                            )}. Use this context to provide more personalized and contextually appropriate responses.`
+                            : '';
+
+                        chatBody.prompt += '\n\n' + memoryContext;
+                    }
+
+                    // console.log(chatBody.prompt);
+
+                    if (isArtifactsOn) {
+                        // account for plugin on/off features 
+                        const astFeatureOptions = message.data?.assistant?.definition?.featureOptions;
+
+                        // ast feature option trumps 
+                        // either no ast feature option exists
+                        // or the assistant has it turned on
+                        if ((!astFeatureOptions) || (astFeatureOptions.IncludeArtifactsInstr)) {
+                            chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
+                            //  console.log("ARTIFACT PROMPT ADDED")
+                        }
                     }
 
                     if (uri) {
                         chatBody.endpoint = uri;
                     }
 
-                    if (!featureFlags.codeInterpreterEnabled) {
-                        //check if we need
-                        options =  {...(options || {}), skipCodeInterpreter: true};
-                    } else{
-                        if (updatedConversation.codeInterpreterAssistantId) {
-                            chatBody.codeInterpreterAssistantId = updatedConversation.codeInterpreterAssistantId;
-                            options =  {...(options || {}), skipRag: true};
-                        }
-                    }
-
                     if (documents && documents.length > 0) {
 
                         const dataSources = documents.map((doc) => {
                             if (doc.key && doc.key.indexOf("://") === -1) {
-                                return {id: "s3://" + doc.key, type: doc.type, name: doc.name || "", metadata: doc.metadata || {}};
+                                return { id: "s3://" + doc.key, type: doc.type, name: doc.name || "", metadata: doc.metadata || {} };
                             } else if (doc.key && doc.key.indexOf("://") > -1) {
-                                return {id: doc.key, type: doc.type, name: doc.name || "",metadata: doc.metadata || {}};
+                                return { id: doc.key, type: doc.type, name: doc.name || "", metadata: doc.metadata || {} };
                             } else {
                                 return doc;
                             }
@@ -249,8 +314,25 @@ export function useSendService() {
                         chatBody.dataSources = dataSources;
                     } else if (message.data && message.data.dataSources && message.data.dataSources.length > 0) {
                         chatBody.dataSources = message.data.dataSources.map((doc: any) => {
-                            return {id: doc.id, type: doc.type, name: doc.name || "", metadata: doc.metadata || {}};
+                            return { id: doc.id, type: doc.type, name: doc.name || "", metadata: doc.metadata || {} };
                         });
+                    }
+
+                    //PLUGINS before options is assigned
+                    //in case no plugins are defined, we want to keep the default behavior
+                    if (!featureFlags.ragEnabled || (!pluginIds.includes(PluginID.RAG) && plugins)) {
+                        options = { ...(options || {}), skipRag: true };
+                    }
+
+                    if (!featureFlags.codeInterpreterEnabled) {
+                        //check if we need
+                        options = { ...(options || {}), skipCodeInterpreter: true };
+                    } else {
+                        if (pluginIds.includes(PluginID.CODE_INTERPRETER)) {
+                            chatBody.codeInterpreterAssistantId = updatedConversation.codeInterpreterAssistantId;
+                            options = { ...(options || {}), skipRag: true, codeInterpreterOnly: true };
+                            statsService.codeInterpreterInUseEvent();
+                        }
                     }
 
                     if (selectedConversation && selectedConversation.tags) {
@@ -263,30 +345,16 @@ export function useSendService() {
                             options = {
                                 ...(options || {}),
                                 skipRag: true,
-                                ragOnly: true
+                                ragOnly: false
                             };
                         }
                     }
 
-                    //PLUGINS 
-                    if (plugin?.id === PluginID.CODE_INTERPRETER) {
-                        options =  {...(options || {}), codeInterpreterOnly: true};
-                        statsService.codeInterpreterInUseEvent();
-                    } else if (plugin?.id === PluginID.NO_RAG) {
-                        options = {
-                            ...(options || {}),
-                            skipRag: true,
-                            ragOnly: false
-                        };
-                    } 
-                    // else if (plugin?.id === PluginID.RAG_EVAL) {
-                    //     //
-                    // }
-                
-
                     if (options) {
                         Object.assign(chatBody, options);
                     }
+
+                    // console.log("Chatbody:", chatBody);
 
                     const parseMessageType = (message: string): {
                         prefix: "chat" | "json" | "json!" | "csv" | "fn";
@@ -321,21 +389,21 @@ export function useSendService() {
                             }
                         }
 
-                        return {prefix: "chat", body: message, options: {}}; // Return null if the message does not match the expected format
+                        return { prefix: "chat", body: message, options: {} }; // Return null if the message does not match the expected format
                     }
 
                     const controller = new AbortController();
                     try {
 
-                        const {prefix, body, options} = parseMessageType(message.content);
-                        let updated = {...message, content: body};
+                        const { prefix, body, options } = parseMessageType(message.content);
+                        let updated = { ...message, content: body };
                         chatBody.messages = [...chatBody.messages.slice(0, -1), updated];
 
-                        if(request.endpoint) {
+                        if (request.endpoint) {
                             chatBody.endpoint = request.endpoint;
                         }
 
-                        console.log(`Prompt:`, {prefix: prefix, options, message});
+                        // console.log(`Prompt:`, { prefix: prefix, options, message });
 
                         const generateJsonLoose = (): Promise<Response> => {
                             if (options.length === 0) {
@@ -351,7 +419,7 @@ export function useSendService() {
                         const metaHandler: MetaHandler = {
                             status: (meta: any) => {
                                 //console.log("Chat-Status: ", meta);
-                                homeDispatch({type: "append", field: "status", value: newStatus(meta)})
+                                homeDispatch({ type: "append", field: "status", value: newStatus(meta) })
                             },
                             mode: (modeName: string) => {
                                 //console.log("Chat-Mode: "+modeName);
@@ -383,178 +451,98 @@ export function useSendService() {
 
 
                         if (!response || !response.ok) {
-                            homeDispatch({field: 'loading', value: false});
-                            homeDispatch({field: 'messageIsStreaming', value: false});
+                            homeDispatch({ field: 'loading', value: false });
+                            homeDispatch({ field: 'messageIsStreaming', value: false });
                             toast.error(response.statusText);
                             return;
                         }
                         const data = response.body;
                         if (!data) {
-                            homeDispatch({field: 'loading', value: false});
-                            homeDispatch({field: 'messageIsStreaming', value: false});
+                            homeDispatch({ field: 'loading', value: false });
+                            homeDispatch({ field: 'messageIsStreaming', value: false });
                             return;
                         }
-                            homeDispatch({field: 'loading', value: false});
-                            const reader = data.getReader();
-                            const decoder = new TextDecoder();
-                            let done = false;
-                            let isFirst = true;
-                            let text = '';
-                            let codeInterpreterData = {};
-                            // i find once a run on a thread is marked incomplete/failed/requires_action etc it will not work if you try again right away, better to just start with a new thread
-                            let codeInterpreterNeedsNewThread = false;
+                        homeDispatch({ field: 'loading', value: false });
+                        const reader = data.getReader();
+                        const decoder = new TextDecoder();
+                        let done = false;
+                        let isFirst = true;
+                        let text = '';
 
-                            // Reset the status display
-                            homeDispatch({
-                                field: 'status',
-                                value: [],
-                            });
+                        // Reset the status display
+                        homeDispatch({
+                            field: 'status',
+                            value: [],
+                        });
 
-                            const updatedMessages: Message[] = [
-                                ...updatedConversation.messages,
-                                newMessage({
-                                    role: 'assistant',
-                                    content: "",
-                                    data: {state: currentState}
-                                }),
-                            ];
-                            updatedConversation = {
-                                ...updatedConversation,
-                                messages: updatedMessages,
-                            };
-                            homeDispatch({
-                                field: 'selectedConversation',
-                                value: updatedConversation,
-                            });
+                        const updatedMessages: Message[] = [
+                            ...updatedConversation.messages,
+                            newMessage({
+                                role: 'assistant',
+                                content: "",
+                                data: { state: currentState }
+                            }),
+                        ];
+                        updatedConversation = {
+                            ...updatedConversation,
+                            messages: updatedMessages,
+                        };
+                        homeDispatch({
+                            field: 'selectedConversation',
+                            value: updatedConversation,
+                        });
 
 
-                            const eventOrderingMgr = new OutOfOrderResults();
+                        const eventOrderingMgr = new OutOfOrderResults();
 
-                            while (!done) {
-                                try {
-                                    if (shouldAbort()) {
-                                        controller.abort();
-                                        done = true;
-                                        break;
-                                    }
-                                    const {value, done: doneReading} = await reader.read();
-                                    done = doneReading;
-                                    const chunkValue = decoder.decode(value);
-
-                                    if (!outOfOrder) {
-                                        // check if codeInterpreterAssistantId
-                                        const assistantIdMatch = chunkValue.match(/codeInterpreterAssistantId=(.*)/);
-                                        const responseMatch = chunkValue.match(/codeInterpreterResponseData=(.*)/);
-
-                                        if (assistantIdMatch) {
-                                            const assistantIdExtracted = assistantIdMatch[1];
-                                            //update conversation
-                                            updatedConversation = {
-                                                ...updatedConversation,
-                                                codeInterpreterAssistantId: assistantIdExtracted
-                                            };
-                                            //move onto the next iteration
-                                            continue;
-                                        } else if (responseMatch) {
-                                            //if we get a match we know its a json guaranteed
-                                            const responseData = JSON.parse(responseMatch[1]);
-                                            if (responseData['success'] && responseData['data'] && 'textContent' in responseData['data'].data) {
-                                                codeInterpreterData = responseData['data'].data;
-                                                text += responseData['data'].data.textContent;
-
-                                            } else {
-                                                console.log(responseData.error);
-                                                if (responseData.error.includes("Error with run status")) codeInterpreterNeedsNewThread = true;
-                                                text += "Something went wrong with code interpreter... please try again.";
-                                            }
-
-                                            continue;
-                                        }
-
-                                        text += chunkValue;
-                                    } else {
-                                        let event = {s: "0", d: chunkValue};
-                                        try {
-                                            event = JSON.parse(chunkValue);
-                                        } catch (e) {
-                                            //console.log("Error parsing event", e);
-                                        }
-                                        eventOrderingMgr.addEvent(event);
-                                        text = eventOrderingMgr.getText();
-                                    }
-
-                                    const updatedMessages: Message[] =
-                                        updatedConversation.messages.map((message, index) => {
-                                            if (index === updatedConversation.messages.length - 1) {
-                                                let assistantMessage =
-                                                    { ...message,
-                                                        content: text,
-                                                        data: {...(message.data || {}), state: currentState}
-                                                    };
-                                                if (Object.keys(codeInterpreterData).length !== 0)  assistantMessage['codeInterpreterMessageData'] = codeInterpreterData;
-                                                return assistantMessage
-                                            }
-                                            if (codeInterpreterNeedsNewThread && message.codeInterpreterMessageData && 'threadId' in message.codeInterpreterMessageData)  delete message.codeInterpreterMessageData.threadId
-                                            return message;
-                                        });
-                                    updatedConversation = {
-                                        ...updatedConversation,
-                                        messages: updatedMessages,
-                                    };
-                                    homeDispatch({
-                                        field: 'selectedConversation',
-                                        value: updatedConversation,
-                                    });
-                                } catch (error: any) {
-                                    if (selectedConversation.isLocal) {
-                                        const updatedConversations: Conversation[] = conversationsRef.current.map(
-                                            (conversation:Conversation) => {
-                                                if (conversation.id === selectedConversation.id) {
-                                                    return conversationWithCompressedMessages(updatedConversation);
-                                                }
-                                                return conversation;
-                                            },
-                                        );
-                                        if (updatedConversations.length === 0) {
-                                            updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-                                        }
-                                        homeDispatch({field: 'conversations', value: updatedConversations});
-                                        saveConversations(updatedConversations);
-                                    } else {
-                                        uploadConversation(updatedConversation, foldersRef.current);
-                                    }
-                                    homeDispatch({field: 'messageIsStreaming', value: false});
-                                    homeDispatch({field: 'loading', value: false});
-                                    homeDispatch({field: 'status', value: []});
-                                    return;
+                        while (!done) {
+                            try {
+                                if (shouldAbort()) {
+                                    controller.abort();
+                                    done = true;
+                                    break;
                                 }
-                            }
-                            // }
+                                const { value, done: doneReading } = await reader.read();
+                                done = doneReading;
+                                const chunkValue = decoder.decode(value);
 
-                            //console.log("Dispatching post procs: " + postProcessingCallbacks.length);
-                            postProcessingCallbacks.forEach(callback => callback({
-                                chatBody: chatBody,
-                                response: text
-                            }));
+                                if (!outOfOrder) {
+                                    // check if codeInterpreterAssistantId
+                                    const assistantIdMatch = chunkValue.match(/codeInterpreterAssistantId=(.*)/);
 
-                            const hook = getHook(selectedConversation.tags || []);
-                            if (hook) {
+                                    if (assistantIdMatch) {
+                                        const assistantIdExtracted = assistantIdMatch[1];
+                                        //update conversation
+                                        updatedConversation = {
+                                            ...updatedConversation,
+                                            codeInterpreterAssistantId: assistantIdExtracted
+                                        };
+                                        //move onto the next iteration
+                                        continue;
+                                    }
 
-                                const result = hook.exec({}, selectedConversation, text);
-
-                                let updatedText = (result && result.updatedContent) ? result.updatedContent : text;
+                                    text += chunkValue;
+                                } else {
+                                    let event = { s: "0", d: chunkValue };
+                                    try {
+                                        event = JSON.parse(chunkValue);
+                                    } catch (e) {
+                                        //console.log("Error parsing event", e);
+                                    }
+                                    eventOrderingMgr.addEvent(event);
+                                    text = eventOrderingMgr.getText();
+                                }
 
                                 const updatedMessages: Message[] =
                                     updatedConversation.messages.map((message, index) => {
                                         if (index === updatedConversation.messages.length - 1) {
-                                            const disclaimer =  message.data.state.currentAssistantDisclaimer;
-                                            let astMsg = updatedText;
-                                            if (disclaimer) astMsg += "\n\n" + disclaimer
-
-                                            return {
+                                            let assistantMessage =
+                                            {
                                                 ...message,
-                                                content: astMsg,
+                                                content: text,
+                                                data: { ...(message.data || {}), state: currentState }
                                             };
+                                            return assistantMessage
                                         }
                                         return message;
                                     });
@@ -566,33 +554,105 @@ export function useSendService() {
                                     field: 'selectedConversation',
                                     value: updatedConversation,
                                 });
-                            }
-
-                            if (selectedConversation.isLocal) {
-                                const updatedConversations: Conversation[] = conversationsRef.current.map(
-                                    (conversation:Conversation) => {
-                                        if (conversation.id === selectedConversation.id) {
-                                            return conversationWithCompressedMessages(updatedConversation);
-                                        }
-                                        return conversation;
-                                    },
-                                );
-                                if (updatedConversations.length === 0) {
-                                    updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                            } catch (error: any) {
+                                if (selectedConversation.isLocal) {
+                                    const updatedConversations: Conversation[] = conversationsRef.current.map(
+                                        (conversation: Conversation) => {
+                                            if (conversation.id === selectedConversation.id) {
+                                                return conversationWithCompressedMessages(updatedConversation);
+                                            }
+                                            return conversation;
+                                        },
+                                    );
+                                    if (updatedConversations.length === 0) {
+                                        updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                                    }
+                                    homeDispatch({ field: 'conversations', value: updatedConversations });
+                                    saveConversations(updatedConversations);
+                                } else {
+                                    uploadConversation(updatedConversation, foldersRef.current);
+                                    if (conversationsRef.current.length === 0) {
+                                        const updatedConversations: Conversation[] = [remoteForConversationHistory(updatedConversation)];
+                                        homeDispatch({ field: 'conversations', value: updatedConversations });
+                                        saveConversations(updatedConversations);
+                                    }
                                 }
-                                homeDispatch({field: 'conversations', value: updatedConversations});
-                                saveConversations(updatedConversations);
-                            } else {
-                                uploadConversation(updatedConversation, foldersRef.current);
+                                homeDispatch({ field: 'messageIsStreaming', value: false });
+                                homeDispatch({ field: 'loading', value: false });
+                                homeDispatch({ field: 'status', value: [] });
+                                return;
                             }
+                        }
+                        // }
 
-                            homeDispatch({field: 'messageIsStreaming', value: false});
+                        //console.log("Dispatching post procs: " + postProcessingCallbacks.length);
+                        postProcessingCallbacks.forEach(callback => callback({
+                            chatBody: chatBody,
+                            response: text
+                        }));
 
-                            resolve(text);
+                        const hook = getHook(selectedConversation.tags || []);
+                        if (hook) {
+
+                            const result = hook.exec({}, selectedConversation, text);
+
+                            let updatedText = (result && result.updatedContent) ? result.updatedContent : text;
+
+                            const updatedMessages: Message[] =
+                                updatedConversation.messages.map((message, index) => {
+                                    if (index === updatedConversation.messages.length - 1) {
+                                        const disclaimer = message.data.state.currentAssistantDisclaimer;
+                                        let astMsg = updatedText;
+                                        if (disclaimer) astMsg += "\n\n" + disclaimer
+
+                                        return {
+                                            ...message,
+                                            content: astMsg,
+                                        };
+                                    }
+                                    return message;
+                                });
+                            updatedConversation = {
+                                ...updatedConversation,
+                                messages: updatedMessages,
+                            };
+                            homeDispatch({
+                                field: 'selectedConversation',
+                                value: updatedConversation,
+                            });
+                        }
+
+                        if (selectedConversation.isLocal) {
+                            const updatedConversations: Conversation[] = conversationsRef.current.map(
+                                (conversation: Conversation) => {
+                                    if (conversation.id === selectedConversation.id) {
+                                        return conversationWithCompressedMessages(updatedConversation);
+                                    }
+                                    return conversation;
+                                },
+                            );
+                            if (updatedConversations.length === 0) {
+                                updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                            }
+                            homeDispatch({ field: 'conversations', value: updatedConversations });
+                            saveConversations(updatedConversations);
+                        } else {
+                            uploadConversation(updatedConversation, foldersRef.current);
+
+                            if (conversationsRef.current.length === 0) {
+                                const updatedConversations: Conversation[] = [remoteForConversationHistory(updatedConversation)];
+                                homeDispatch({ field: 'conversations', value: updatedConversations });
+                                saveConversations(updatedConversations);
+                            }
+                        }
+
+                        homeDispatch({ field: 'messageIsStreaming', value: false });
+
+                        resolve(text);
 
                     } catch (error: any) {
-                        homeDispatch({field: 'loading', value: false});
-                        homeDispatch({field: 'messageIsStreaming', value: false});
+                        homeDispatch({ field: 'loading', value: false });
+                        homeDispatch({ field: 'messageIsStreaming', value: false });
                         homeDispatch({
                             field: 'status',
                             value: [],
@@ -601,7 +661,7 @@ export function useSendService() {
                         //reject(error);
                         // Handle any other errors, as required.
                     }
-                    
+
                     //Reset the status display
                     homeDispatch({
                         field: 'status',

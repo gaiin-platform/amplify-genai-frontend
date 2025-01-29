@@ -71,6 +71,7 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
                         index = foundIdx;
                     } else {
                         toast('This version is no longer available, directing you to the latest version of this artifact.');
+                        handleRemoveArtifact(artifact);
                     }
                 } else {
                     index = 0;
@@ -123,7 +124,7 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
                         </div>}
                     {isHovered === i &&
                         <>
-                            <div className="mt-3 mr-2 ml-auto text-[14px]">    
+                            <div className="mt-3 mr-2 ml-auto text-[14px] whitespace-nowrap">    
                                 {artifact.createdAt}
                             </div>
 

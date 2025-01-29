@@ -5,7 +5,7 @@ export interface Prompt {
   name: string;
   description: string;
   content: string;
-  model?: Model;
+  // model?: Model;
   folderId: string | null;
   type: string | undefined;
   data?:{

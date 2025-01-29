@@ -10,12 +10,16 @@ type ExpansionProps = {
     openWidget?: ReactNode;
     closedWidget?: ReactNode;
     isOpened?: boolean;
+    onOpen? : () => void;
+    onClose? : () => void;
 };
 
-const ExpansionComponent: React.FC<ExpansionProps> = ({ title, content, openWidget, closedWidget, isOpened=false }) => {
+const ExpansionComponent: React.FC<ExpansionProps> = ({ title, content, openWidget, closedWidget, isOpened=false, onOpen, onClose}) => {
     const [isOpen, setIsOpen] = useState<boolean>(isOpened);
 
     const handleToggle = (): void => {
+        if (isOpen && onClose) onClose();
+        if (!isOpen && onOpen) onOpen();
         setIsOpen(!isOpen);
     };
 

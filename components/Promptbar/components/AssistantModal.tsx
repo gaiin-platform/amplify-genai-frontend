@@ -10,12 +10,17 @@ import {AttachFile} from "@/components/Chat/AttachFile";
 import {IconFiles, IconCircleX, IconArrowRight} from "@tabler/icons-react";
 import {createAssistant} from "@/services/assistantService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
-import FlagsMap from "@/components/Promptbar/components/FlagsMap";
+import FlagsMap from "@/components/ReusableComponents/FlagsMap";
 import { AssistantDefinition } from '@/types/assistant';
 import { AstGroupTypeData } from '@/types/groups';
 import React from 'react';
 import { AttachedDocument } from '@/types/attacheddocument';
-import { executeCustomAuto } from '@/services/assistantAPIService';
+import { executeAssistantApiCall } from '@/services/assistantAPIService';
+import { getOpsForUser } from '@/services/opsService';
+import ApiItem from '@/components/AssistantApi/ApiItem';
+import { getSettings } from '@/utils/app/settings';
+import { API, APIComponent } from '@/components/CustomAPI/CustomAPIEditor';
+import Search from '@/components/Search';
 
 
 interface Props {
@@ -36,6 +41,7 @@ interface Props {
     autofillOn?:boolean;
     embed?: boolean;
     children?: ReactElement;
+    additionalGroupData?: any;
 }
 
 const dataSourceFlags = [
@@ -118,7 +124,7 @@ const apiOptionFlags = [
 
 export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc, 
                                           disableEdit=false, title, onCreateAssistant,height, width = `${window.innerWidth * 0.6}px`,
-                                          translateY, blackoutBackground=true, additionalTemplates, autofillOn=false, embed=false, children}) => {
+                                          translateY, blackoutBackground=true, additionalTemplates, autofillOn=false, embed=false, additionalGroupData, children}) => {
     const {t} = useTranslation('promptbar');
 
     const { state: { prompts, featureFlags} , setLoadingMessage} = useContext(HomeContext);
@@ -152,7 +158,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     const featureOptionDefaults = featureOptionFlags.reduce((acc:{[key:string]:boolean}, x) => {
         if (x.key === 'IncludeArtifactsInstr') {
-            if (featureFlags.artifacts) acc[x.key] = x.defaultValue;
+            // check settings to see if they have it turned on or off 
+            const settings = getSettings(featureFlags);
+            if (featureFlags.artifacts && settings.featureOptions.includeArtifacts) acc[x.key] = x.defaultValue;
         } else {
             acc[x.key] = x.defaultValue;
         }
@@ -162,7 +170,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     const apiOptionDefaults = apiOptionFlags.reduce((acc: { [key: string]: boolean }, x) => {
         if (x.key === 'IncludeApiInstr') {
-            if (featureFlags.assistantAPIs) acc[x.key] = x.defaultValue;
+            if (featureFlags.assistantApis) acc[x.key] = x.defaultValue;
         } else {
             acc[x.key] = x.defaultValue;
         }
@@ -189,12 +197,18 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         ...(definition.data && definition.data.apiOptions || {})
     }
 
+    const initialSelectedApis = definition.data?.operations?.filter(
+      (api:any) => api.type !== "http") || [];
+
+    const initialApiCapabilities = definition.data?.operations?.filter(
+      (api:any) => api.type === "http") || [];
 
     const preexistingDocumentIds = (definition.dataSources || []).map(ds => ds.id); 
 
     const [isLoading, setIsLoading] = useState(false);
     const [name, setName] = useState(definition.name);
     const [description, setDescription] = useState(definition.description);
+    const [opsLanguageVersion, setOpsLanguageVersion] = useState(definition.data?.opsLanguageVersion || "v1");
     const [content, setContent] = useState(definition.instructions);
     const [disclaimer, setDisclaimer] = useState(definition.disclaimer ?? "");
     const [dataSources, setDataSources] = useState(initialDs);
@@ -203,55 +217,29 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [messageOptions, setMessageOptions] = useState<{ [key: string]: boolean }>(initialMessageOptionState);
     const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(initialFeatureOptionState);
     const [apiOptions, setAPIOptions] = useState<{ [key: string]: boolean }>(initialAPIOptionState);
-    const [apiResponse, setApiResponse] = useState<any>(null);
+    const [availableApis, setAvailableApis] = useState<any[] | null>(null);
+    const [apiSearchTerm, setApiSearchTerm] = useState<string>(''); 
+    const [selectedApis, setSelectedApis] = useState<any[]>(initialSelectedApis);
 
-    const [apiInfo, setApiInfo] = useState<Array<{
-        RequestType: string;
-        URL: string;
-        Parameters: Record<string, string>;
-        Body: string | Record<string, any>;
-        Headers: Record<string, string>;
-        Auth: {
-            type: string;
-            token?: string;
-            username?: string;
-            password?: string;
-        };
-        Description: string;
-    }>>(definition.data?.apiCapabilities || []);
+    const [apiInfo, setApiInfo] = useState<API[]>(initialApiCapabilities || []);
 
-    const handleTestAPI = async (api: any) => {
-        // Clean up the auth object to remove empty values
-        const cleanAuth = {
-            type: api.Auth.type,
-            ...(api.Auth.token && { token: api.Auth.token }),
-            ...(api.Auth.username && { username: api.Auth.username }),
-            ...(api.Auth.password && { password: api.Auth.password })
-        };
+    useEffect(() => {
+        
+        if (availableApis === null) getOpsForUser().then((ops) => {
+                                            if(ops.success){
+                                                // console.log(ops.data);
+                                                setAvailableApis(ops.data);
+                                            }
+                                        });
+    }, [availableApis]);
+    
 
-        // Parse the body if it's a string
-        let cleanBody = api.Body;
-        if (typeof api.Body === 'string') {
-            try {
-                cleanBody = JSON.parse(api.Body);
-            } catch {
-                cleanBody = {};  // If parsing fails, use empty object
-            }
-        }
+    const additionalGroupDataRef = useRef<any>({});
 
-        // Create the request object with the correct structure
-        const requestData = {
-            RequestType: api.RequestType,
-            URL: api.URL,
-            Parameters: api.Parameters || {},
-            Body: cleanBody,
-            Headers: api.Headers || {},
-            Auth: cleanAuth
-        };
-
-        const result = await executeCustomAuto(requestData);
-        setApiResponse(result);
-    };
+    useEffect(() => {
+        additionalGroupDataRef.current = additionalGroupData;
+        // console.log(additionalGroupData)
+    }, [additionalGroupData]);
 
     const validateApiInfo = (api: any) => {
         return api.RequestType && api.URL && api.Description;
@@ -272,24 +260,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [selectTemplateId, setSelectTemplateId] =  useState<any>("");
 
 
-    const [additionalGroupData, setAdditionalGroupData] = useState<any>({});
-
-    useEffect(() => {
-        const handleEvent = (event:any) => {
-            const detail = event.detail;
-            if (assistant.id === detail.astId) setAdditionalGroupData((prevData:any) => ({ ...prevData, ...detail.data }));
-        };
-        window.addEventListener('astGroupDataUpdate', handleEvent);
-    
-        return () => {
-            window.removeEventListener('astGroupDataUpdate', handleEvent);
-        };
-    }, []);
-
-    // useEffect(() => {
-    //     console.log("Assistant Modal", additionalGroupData);
-    // }, [additionalGroupData]);
-
     const [uri, setUri] = useState<string|null>(definition.uri || null);
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
@@ -300,16 +270,18 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     };
     
     const prepAdditionalData = () => {
-        if (!additionalGroupData || !additionalGroupData.groupTypeData) {
-            return additionalGroupData;
+        if (!additionalGroupDataRef.current || !additionalGroupDataRef.current.groupTypeData) {
+            return additionalGroupDataRef.current;
         }
     
         // Prepare the transformed groupTypeData, if available
         const updatedGroupTypeData = Object.fromEntries(
-            Object.entries(additionalGroupData.groupTypeData as AstGroupTypeData).map(([type, info]) => {
+            Object.entries(additionalGroupDataRef.current.groupTypeData as AstGroupTypeData).map(([type, info]) => {
                 // Update the dataSources with new id formatting
                 const updatedDataSources = info.dataSources.map(ds => {
                             const prefix = "s3://";
+                            ds.groupId = assistant.groupId;
+                            if (!ds.key) ds.key = ds.id;
                             if (ds.id.startsWith(prefix)) return ds;
                             return {
                                 ...ds,
@@ -330,7 +302,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
  
          // Create a new object for additionalGroupData that includes the transformed groupTypeData
          return {
-             ...additionalGroupData,
+             ...additionalGroupDataRef.current,
              groupTypeData: updatedGroupTypeData
          };
         
@@ -357,9 +329,16 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 return acc;
                             }, {})
                         );
-
+            if (ast.tags) setTags(ast.tags ? ast.tags.join(", "): '');
             if (ast.disclaimer) setDisclaimer(ast.disclaimer);
         }
+    }
+
+    const handleUpdateApiItem = (id: string, checked: boolean) => {
+        const api = availableApis?.find((api) => api.id === id);
+        if (!api) return;
+        const newSelectedApis = checked ? [...selectedApis, api] : selectedApis.filter((api) => api.id !== id);
+        setSelectedApis(newSelectedApis);
     }
    
 
@@ -398,6 +377,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             newAssistant.uri = uri.trim();
         }
 
+        console.log(dataSources.map((d: any)=> d.name));
+
         newAssistant.dataSources = dataSources.map(ds => {
             if (assistant.groupId) {
                 if (!ds.key) ds.key = ds.id;
@@ -418,8 +399,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             }
         });
         // do the same for 
-        newAssistant.tools = newAssistant.tools || [];
-        const tagsList = tags.split(",").map((x: string) => x.trim());
+        newAssistant.tools = selectedApis || [];
+        const tagsList = tags ? tags.split(",").map((x: string) => x.trim()) : [];
         newAssistant.tags = tagsList
         newAssistant.data.tags = tagsList;
         newAssistant.data.conversationTags = conversationTags ? conversationTags.split(",").map((x: string) => x.trim()) : [];
@@ -434,9 +415,19 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
         newAssistant.data.featureOptions = featureOptions;
 
+        newAssistant.data.opsLanguageVersion = opsLanguageVersion;
+
+        console.log("apiInfo",apiInfo);
+        console.log("selectedApis",selectedApis);
+
+        const combinedOps = [
+          ...selectedApis,
+          ...(apiInfo.map((api) => {return {type:"http", ...api}}))
+        ];
+
         newAssistant.data = {
             ...newAssistant.data,
-            apiCapabilities: apiInfo
+            operations: combinedOps//selectedApis
         };
 
         if (apiOptions.IncludeApiInstr && apiInfo.some(api => !validateApiInfo(api))) {
@@ -449,9 +440,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         if (assistant.groupId) newAssistant.data.groupId = assistant.groupId;
         
         const updatedAdditionalGroupData = prepAdditionalData();
-
         newAssistant.data = {...newAssistant.data, ...updatedAdditionalGroupData};
-
+        
         const {id, assistantId, provider} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant, null);
         if (!id) {
             alert("Unable to save the assistant at this time, please try again later...");
@@ -472,7 +462,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
         setIsLoading(false);
         setLoadingMessage("");
-
 
         onSave();
     }
@@ -641,7 +630,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>}
                             <FileList documents={dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)))} documentStates={documentState}
                                 setDocuments={(docs) => {
-                                setDataSources(docs as any[]);
+                                const preexisting = dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)));
+                                setDataSources([...docs, ...preexisting ]as any[]);
                             }} allowRemoval={!disableEdit}/>
                             {showDataSourceSelector && (
                                 <div className="mt-[-34px] flex flex-col justify-center overflow-hidden">
@@ -683,30 +673,46 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     allowRemoval={!disableEdit}
                                     documents={dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)))} 
                                     setDocuments={(docs) => {
-                                        setDataSources(docs as any[]);
+                                        const newDocs = dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)));
+                                        setDataSources([...docs, ...newDocs] as any[]);
                                 }} />
                             }
                             
                             <ExpansionComponent title={"Advanced"} content={
-                                <div className='text-black dark:text-neutral-200'>
+                                <div className="text-black dark:text-neutral-200">
                                     <div className="text-sm font-bold text-black dark:text-neutral-200">
                                         {t('URI')}
                                     </div>
                                     <input
-                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                        placeholder={t('') || ''}
-                                        value={uri || ""}
-                                        onChange={(e) => setUri(e.target.value)}
-                                        disabled={disableEdit}
+                                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                      placeholder={t('') || ''}
+                                      value={uri || ''}
+                                      onChange={(e) => setUri(e.target.value)}
+                                      disabled={disableEdit}
                                     />
+
+                                    <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
+                                        Assistant Ops Language Version
+                                    </div>
+                                    <select
+                                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                      value={opsLanguageVersion}
+                                      onChange={(e) => setOpsLanguageVersion(e.target.value)}
+                                    >
+                                        <option value="v1">v1</option>
+                                        <option value="v2">v2</option>
+                                        <option value="v3">v3</option>
+                                        <option value="v4">AllAIn</option>
+                                        <option value="custom">custom</option>
+                                    </select>
 
                                     <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
                                         {t('Assistant ID')}
                                     </div>
                                     <input
-                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                        value={definition.assistantId || ""}
-                                        disabled={true}
+                                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                      value={definition.assistantId || ''}
+                                      disabled={true}
                                     />
 
                                     <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
@@ -719,10 +725,13 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                               flags={dataSourceFlags}
                                               state={dataSourceOptions}
                                               flagChanged={
-                                                    (key, value) => {
-                                                        if (!disableEdit) setDataSourceOptions({...dataSourceOptions, [key]: value});
-                                                    }
-                                              }/>
+                                                  (key, value) => {
+                                                      if (!disableEdit) setDataSourceOptions({
+                                                          ...dataSourceOptions,
+                                                          [key]: value,
+                                                      });
+                                                  }
+                                              } />
                                     <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
                                         {t('Message Options')}
                                     </div>
@@ -731,37 +740,43 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                               state={messageOptions}
                                               flagChanged={
                                                   (key, value) => {
-                                                      if (!disableEdit) setMessageOptions({...messageOptions, [key]: value});
+                                                      if (!disableEdit) setMessageOptions({
+                                                          ...messageOptions,
+                                                          [key]: value,
+                                                      });
                                                   }
-                                              }/>
+                                              } />
 
-                                    { Object.keys(featureOptions).length > 0 &&
-                                        <>
-                                        <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
-                                            {t('Feature Options')}
-                                        </div>
-                                        <FlagsMap id={'astFeatureOptionFlags'}
-                                                flags={featureOptionFlags}
-                                                state={featureOptions}
-                                                flagChanged={
-                                                    (key, value) => {
-                                                        if (!disableEdit) setFeatureOptions({...featureOptions, [key]: value});
-                                                    }
-                                                }/>
-                                        </>        
+                                    {Object.keys(featureOptions).length > 0 &&
+                                      <>
+                                          <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                              {t('Feature Options')}
+                                          </div>
+                                          <FlagsMap id={'astFeatureOptionFlags'}
+                                                    flags={featureOptionFlags}
+                                                    state={featureOptions}
+                                                    flagChanged={
+                                                        (key, value) => {
+                                                            if (!disableEdit) setFeatureOptions({
+                                                                ...featureOptions,
+                                                                [key]: value,
+                                                            });
+                                                        }
+                                                    } />
+                                      </>
                                     }
                                     <div className="mt-2 mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
                                         <div className="text-sm font-bold text-black dark:text-neutral-200">
                                             {t('Tags')}
                                         </div>
                                         <input
-                                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                            placeholder={t('Tag names separated by commas.') || ''}
-                                            value={tags}
-                                            title={"Tags for conversations created with this template."}
-                                            onChange={(e) => {
-                                                setTags(e.target.value);
-                                            }}
+                                          className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                          placeholder={t('Tag names separated by commas.') || ''}
+                                          value={tags}
+                                          title={'Tags for conversations created with this template.'}
+                                          onChange={(e) => {
+                                              setTags(e.target.value);
+                                          }}
                                         />
                                     </div>
 
@@ -770,325 +785,66 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             {t('Conversation Tags')}
                                         </div>
                                         <input
-                                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                            placeholder={t('Tag names separated by commas.') || ''}
-                                            value={conversationTags}
-                                            title={"Tags for conversations created with this template."}
-                                            onChange={(e) => {
-                                                setConversationTags(e.target.value);
-                                            }}
+                                          className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                          placeholder={t('Tag names separated by commas.') || ''}
+                                          value={conversationTags}
+                                          title={'Tags for conversations created with this template.'}
+                                          onChange={(e) => {
+                                              setConversationTags(e.target.value);
+                                          }}
                                         />
                                     </div>
-                                    {Object.keys(apiOptions).length > 0 &&
-                                        <>
-                                            <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
-                                                {t('API Options')}
-                                            </div>
-                                            <FlagsMap id={`astAPIOptionFlags-${assistant.id}`}
-                                                flags={apiOptionFlags}
-                                                state={apiOptions}
-                                                flagChanged={(key, value) => {
-                                                    if (!disableEdit) setAPIOptions({ ...apiOptions, [key]: value });
-                                                }}
+
+
+                                    {!availableApis || availableApis.length > 0 &&
+                                    <div className="flex flex-row text-sm font-bold text-black dark:text-neutral-200 mt-2 mb-2">
+                                        {t('Enabled API Capabilities')}
+                                        {availableApis && 
+                                         <div className="h-0 ml-auto" style={{transform: 'translateY(-18px)'}}>
+                                            <Search
+                                            placeholder={'Search APIs...'}
+                                            searchTerm={apiSearchTerm}
+                                            onSearch={(searchTerm: string) => setApiSearchTerm(searchTerm.toLocaleLowerCase())}
                                             />
-                                        </>
+                                        </div>}
+                                    </div>
                                     }
-                                    {apiOptions.IncludeApiInstr && (
-                                        <div className="mt-4">
-                                            {apiInfo.map((api, index) => (
-                                                <div key={index} className="mb-4 p-4 border border-gray-300 rounded">
-                                                    <select
-                                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                        value={api.RequestType}
-                                                        onChange={(e) => {
-                                                            const newApiInfo = [...apiInfo];
-                                                            newApiInfo[index].RequestType = e.target.value;
-                                                            setApiInfo(newApiInfo);
-                                                        }}
-                                                        required
-                                                    >
-                                                        <option value="">Select Request Type</option>
-                                                        <option value="GET">GET</option>
-                                                        <option value="POST">POST</option>
-                                                        <option value="PUT">PUT</option>
-                                                        <option value="DELETE">DELETE</option>
-                                                        <option value="PATCH">PATCH</option>
-                                                    </select>
-                                                    <input
-                                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                        placeholder="URL"
-                                                        value={api.URL}
-                                                        onChange={(e) => {
-                                                            const newApiInfo = [...apiInfo];
-                                                            newApiInfo[index].URL = e.target.value;
-                                                            setApiInfo(newApiInfo);
-                                                        }}
-                                                        required
-                                                    />
-                                                    <div className="mt-2">
-                                                        <label className="text-sm font-bold">Parameters:</label>
-                                                        <button
-                                                            className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                                                            onClick={() => {
-                                                                const newApiInfo = [...apiInfo];
-                                                                newApiInfo[index].Parameters = {
-                                                                    ...newApiInfo[index].Parameters,
-                                                                    '': ''
-                                                                };
-                                                                setApiInfo(newApiInfo);
-                                                            }}
-                                                        >
-                                                            Add Parameter
-                                                        </button>
-                                                        {Object.entries(api.Parameters).map(([key, value], paramIndex) => (
-                                                            <div key={paramIndex} className="flex mt-1">
-                                                                <input
-                                                                    className="w-1/2 mr-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                                    placeholder="Key"
-                                                                    value={key}
-                                                                    onChange={(e) => {
-                                                                        const newApiInfo = [...apiInfo];
-                                                                        const newParams = { ...newApiInfo[index].Parameters };
-                                                                        delete newParams[key];
-                                                                        newParams[e.target.value] = value;
-                                                                        newApiInfo[index].Parameters = newParams;
-                                                                        setApiInfo(newApiInfo);
-                                                                    }}
-                                                                />
-                                                                <input
-                                                                    className="w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                                    placeholder="Value"
-                                                                    value={value}
-                                                                    onChange={(e) => {
-                                                                        const newApiInfo = [...apiInfo];
-                                                                        newApiInfo[index].Parameters[key] = e.target.value;
-                                                                        setApiInfo(newApiInfo);
-                                                                    }}
-                                                                />
-                                                                <button
-                                                                    className="ml-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                                                                    onClick={() => {
-                                                                        const newApiInfo = [...apiInfo];
-                                                                        const newParams = { ...newApiInfo[index].Parameters };
-                                                                        delete newParams[key];
-                                                                        newApiInfo[index].Parameters = newParams;
-                                                                        setApiInfo(newApiInfo);
-                                                                    }}
-                                                                >
-                                                                    Remove
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                    <div className="mt-2">
-                                                        <label className="text-sm font-bold">Headers:</label>
-                                                        <button
-                                                            className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                                                            onClick={() => {
-                                                                const newApiInfo = [...apiInfo];
-                                                                newApiInfo[index].Headers = {
-                                                                    ...newApiInfo[index].Headers,
-                                                                    '': ''
-                                                                };
-                                                                setApiInfo(newApiInfo);
-                                                            }}
-                                                        >
-                                                            Add Header
-                                                        </button>
-                                                        {Object.entries(api.Headers).map(([key, value], headerIndex) => (
-                                                            <div key={headerIndex} className="flex mt-1">
-                                                                <input
-                                                                    className="w-1/2 mr-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                                    placeholder="Key"
-                                                                    value={key}
-                                                                    onChange={(e) => {
-                                                                        const newApiInfo = [...apiInfo];
-                                                                        const newHeaders = { ...newApiInfo[index].Headers };
-                                                                        delete newHeaders[key];
-                                                                        newHeaders[e.target.value] = value;
-                                                                        newApiInfo[index].Headers = newHeaders;
-                                                                        setApiInfo(newApiInfo);
-                                                                    }}
-                                                                />
-                                                                <input
-                                                                    className="w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                                    placeholder="Value"
-                                                                    value={value}
-                                                                    onChange={(e) => {
-                                                                        const newApiInfo = [...apiInfo];
-                                                                        newApiInfo[index].Headers[key] = e.target.value;
-                                                                        setApiInfo(newApiInfo);
-                                                                    }}
-                                                                />
-                                                                <button
-                                                                    className="ml-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                                                                    onClick={() => {
-                                                                        const newApiInfo = [...apiInfo];
-                                                                        const newHeaders = { ...newApiInfo[index].Headers };
-                                                                        delete newHeaders[key];
-                                                                        newApiInfo[index].Headers = newHeaders;
-                                                                        setApiInfo(newApiInfo);
-                                                                    }}
-                                                                >
-                                                                    Remove
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                    <div className="mt-2">
-                                                        <label className="text-sm font-bold">Body:</label>
-                                                        <textarea
-                                                            className="mt-1 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                            placeholder="Request Body (JSON)"
-                                                            value={typeof api.Body === 'object' ? JSON.stringify(api.Body, null, 2) : api.Body}
-                                                            onChange={(e) => {
-                                                                const newApiInfo = [...apiInfo];
-                                                                try {
-                                                                    newApiInfo[index].Body = JSON.parse(e.target.value);
-                                                                } catch {
-                                                                    newApiInfo[index].Body = e.target.value;
-                                                                }
-                                                                setApiInfo(newApiInfo);
-                                                            }}
-                                                            rows={4}
-                                                        />
-                                                        <button
-                                                            className="mt-1 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                                                            onClick={() => {
-                                                                const newApiInfo = [...apiInfo];
-                                                                try {
-                                                                    const bodyString = typeof newApiInfo[index].Body === 'string'
-                                                                        ? newApiInfo[index].Body
-                                                                        : JSON.stringify(newApiInfo[index].Body);
-                                                                    const formattedBody = JSON.parse(bodyString as string);
-                                                                    newApiInfo[index].Body = JSON.stringify(formattedBody, null, 2);
-                                                                } catch (error) {
-                                                                    // If parsing fails, leave the body as is
-                                                                    console.error('Failed to parse or format JSON:', error);
-                                                                }
-                                                                setApiInfo(newApiInfo);
-                                                            }}
-                                                        >
-                                                            Format JSON
-                                                        </button>
-                                                    </div>
-                                                    <div className="mt-2">
-                                                        <label className="text-sm font-bold">Authentication:</label>
-                                                        <select
-                                                            className="ml-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                            value={api.Auth.type}
-                                                            onChange={(e) => {
-                                                                const newApiInfo = [...apiInfo];
-                                                                newApiInfo[index].Auth.type = e.target.value;
-                                                                newApiInfo[index].Auth.token = '';
-                                                                setApiInfo(newApiInfo);
-                                                            }}
-                                                        >
-                                                            <option value="">None</option>
-                                                            <option value="basic">Basic Auth</option>
-                                                            <option value="bearer">Bearer Token</option>
-                                                        </select>
-                                                    </div>
-                                                    {api.Auth.type === 'basic' && (
-                                                        <div className="mt-2">
-                                                            <input
-                                                                className="mr-2 w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                                placeholder="Username"
-                                                                value={api.Auth.username || ''}
-                                                                onChange={(e) => {
-                                                                    const newApiInfo = [...apiInfo];
-                                                                    newApiInfo[index].Auth.username = e.target.value;
-                                                                    setApiInfo(newApiInfo);
-                                                                }}
-                                                            />
-                                                            <input
-                                                                className="w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                                type="password"
-                                                                placeholder="Password"
-                                                                value={api.Auth.password || ''}
-                                                                onChange={(e) => {
-                                                                    const newApiInfo = [...apiInfo];
-                                                                    newApiInfo[index].Auth.password = e.target.value;
-                                                                    setApiInfo(newApiInfo);
-                                                                }}
-                                                            />
-                                                        </div>
-                                                    )}
-                                                    {api.Auth.type === 'bearer' && (
-                                                        <input
-                                                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                            placeholder="Bearer Token"
-                                                            value={api.Auth.token}
-                                                            onChange={(e) => {
-                                                                const newApiInfo = [...apiInfo];
-                                                                newApiInfo[index].Auth.token = e.target.value;
-                                                                setApiInfo(newApiInfo);
-                                                            }}
-                                                        />
-                                                    )}
-                                                    <textarea
-                                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                        placeholder="API Description (what it does and why it's used)"
-                                                        value={api.Description || ''}
-                                                        onChange={(e) => {
-                                                            const newApiInfo = [...apiInfo];
-                                                            newApiInfo[index].Description = e.target.value;
-                                                            setApiInfo(newApiInfo);
-                                                        }}
-                                                        rows={3}
-                                                        required
-                                                    />
-                                                    
-                                                    <button
-                                                        className="mt-2 px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600"
-                                                        onClick={() => handleTestAPI(api)}
-                                                    >
-                                                        Test API
-                                                    </button>
-                                                    {apiResponse && (
-                                                        <div className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded overflow-auto max-h-60">
-                                                            <pre className="text-sm text-gray-800 dark:text-gray-200">{JSON.stringify(apiResponse, null, 2)}</pre>
-                                                        </div>
-                                                    )}
-                                                    <div></div>
-                                                    <button
-                                                        className="mt-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                                                        onClick={() => {
-                                                            const newApiInfo = apiInfo.filter((_, i) => i !== index);
-                                                            setApiInfo(newApiInfo);
-                                                        }}
-                                                    >
-                                                        Remove API
-                                                    </button>
-                                                </div>
+
+                                    {availableApis && availableApis.length > 0 ?
+                                        <div className="max-h-[400px] overflow-y-auto">
+                                            {availableApis.filter((api) => (apiSearchTerm ? 
+                                                                   api.name.toLowerCase().includes(apiSearchTerm) : true))
+                                                          .map((api, index) => (
+                                                <ApiItem
+                                                selected={selectedApis.some((selectedApi) => selectedApi.id === api.id)}
+                                                key={index}
+                                                api={api}
+                                                index={index}
+                                                onChange={handleUpdateApiItem} />
                                             ))}
-                                            <button
-                                                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                                                onClick={() => setApiInfo([...apiInfo, {
-                                                    RequestType: '',
-                                                    URL: '',
-                                                    Parameters: {},
-                                                    Body: {},
-                                                    Headers: {},
-                                                    Auth: { type: '', token: '', username: '', password: '' },
-                                                    Description: ''
-                                                }])}
-                                            >
-                                                Add Additional API
-                                            </button>
-                                        </div>
-                                    )}
+                                        </div> : <>Loading...</>
+                                    }
+
+
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-8 mb-1">
+                                        {t('Custom API Capabilities')}
+                                    </div>
+
+                                    <APIComponent
+                                      apiInfo={apiInfo}
+                                      setApiInfo={setApiInfo}
+                                    />
 
 
                                 </div>
-                            }/>
+                            } />
                         </div>
-                        <div className="flex flex-row items-center justify-end p-4 bg-white dark:bg-[#22232b]">
-                            <button
-                                type="button"
-                                className="mr-2 w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                                onClick={() => {
-                                    onCancel();
+              <div className="flex flex-row items-center justify-end p-4 bg-white dark:bg-[#22232b]">
+                  <button
+                    type="button"
+                    className="mr-2 w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                    onClick={() => {
+                        onCancel();
                                 }}
                             >
                                 {disableEdit ? "Close" : t('Cancel')}
@@ -1128,3 +884,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         </div>
     );
 };
+
+
+

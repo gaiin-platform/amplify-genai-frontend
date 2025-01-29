@@ -1,28 +1,11 @@
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext, useRef, useLayoutEffect } from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import ExpansionComponent from "../ExpansionComponent";
 import { fetchApiDoc } from "@/services/apiKeysService";
 import { DownloadFileButton } from "@/components/ReusableComponents/DownloadFileButton";
 import { IconDownload } from "@tabler/icons-react";
 import React from "react";
-
-
-export async function fetchFile(presignedUrl: string) {
-    console.log(presignedUrl)
-    if (!presignedUrl) return null;
-    try {
-      const response = await fetch(presignedUrl);
-      if (!response.ok) throw new Error('Failed to fetch file');
-  
-      const fileBlob = await response.blob();
-
-      return URL.createObjectURL(fileBlob);
-    } catch (error) {
-      console.error('Error fetching or displaying file:', error);
-      return "";
-    }
-  }
-
+import { fetchFile } from "@/utils/app/files";
 
   interface Props {
     content: string;
@@ -35,7 +18,6 @@ export const ApiDocBlock: React.FC<Props> = ({content}) => {
     const [csvUrl, setCsvUrl] = useState<string | undefined>(undefined);
     const [postmanUrl, setPostmanUrl] = useState<string | undefined>(undefined);
     const [isLoading, setIsLoading] = useState<boolean>(true);
-
 
     useEffect(() => {
         const getUrls = async () => {
@@ -51,48 +33,49 @@ export const ApiDocBlock: React.FC<Props> = ({content}) => {
     }, [content]);
 
     useEffect(() => {
-        if (!messageIsStreaming) setIsLoading(false);
+        if (!messageIsStreaming && (postmanUrl || csvUrl || docFileContents)) setIsLoading(false);
     }, [postmanUrl, csvUrl, docFileContents]);
 
 
-   return <div className="mt-3">
+
+   return <div className="mt-3" key={0}>
         <ExpansionComponent 
             title="Amplify API Documents"
             content={ [
                 isLoading ? <> Loading API Documents...</> :<></>
                 ,
-                <>
+                <div key={"pdf"}>
                 {docFileContents && 
                 <ExpansionComponent 
                     title="View PDF Format"
                     content={
                         <iframe
-                            className='mt-6'
-                            src={docFileContents}
-                            width="560"
-                            height="400"
-                            onError={() => {}}
-                            style={{ border: 'none' }} /> 
+                        className='mt-6'
+                        src={docFileContents}
+                        width="560"
+                        height="400"
+                        onError={() => {}}
+                        style={{ border: 'none' }} /> 
                         } /> }
-                </> ,
+                </div> ,
               
-                <>
+              <div key={"csv"}>
                 {csvUrl && 
                     <APIDownloadFile
                         label="CSV format"
                         presigned_url={csvUrl}
                     />
                 }
-                </>,
+                </div>,
                     
-                <>
+                <div key={"postman"}>
                 {postmanUrl &&
                     <APIDownloadFile
                     label="Postman Collection"
                     presigned_url={postmanUrl}
                     />
                 }
-                </>,
+                </div>,
                     
                     
 

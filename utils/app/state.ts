@@ -11,7 +11,8 @@ export function deepMerge(target: Record<string, any>, ...sources: Record<string
                 deepMerge(target[key] as Record<string, any>, source[key]);
             } else if (Array.isArray(source[key])) {
                 if (!Array.isArray(target[key])) target[key] = [];
-                target[key] = target[key].concat(source[key]);
+                mergeUniqueArrays(target[key], source[key]);
+                // target[key] = target[key].concat(source[key]);
             } else {
                 Object.assign(target, { [key]: source[key] });
             }
@@ -23,4 +24,12 @@ export function deepMerge(target: Record<string, any>, ...sources: Record<string
 
 export function isObject(item: any): item is Record<string, any> {
     return (item && typeof item === 'object' && !Array.isArray(item));
+}
+
+function mergeUniqueArrays(targetArray: any[], sourceArray: any[]) {
+    for (const sourceItem of sourceArray) {
+        if (!targetArray.some(targetItem => JSON.stringify(targetItem) === JSON.stringify(sourceItem) )) {
+            targetArray.push(sourceItem);
+        }
+    }
 }

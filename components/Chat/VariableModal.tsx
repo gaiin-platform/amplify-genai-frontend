@@ -4,9 +4,8 @@ import {Prompt} from '@/types/prompt';
 import {AttachFile} from "@/components/Chat/AttachFile";
 import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 import {WorkflowDefinition} from "@/types/workflow";
-import {ModelID, Model} from "@/types/model";
+import {Model} from "@/types/model";
 import HomeContext from "@/pages/api/home/home.context";
-import JSON5 from 'json5'
 import {getType, parsePromptVariableValues, variableTypeOptions} from "@/utils/app/prompts";
 import {FileList} from "@/components/Chat/FileList";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
@@ -464,7 +463,7 @@ export const VariableModal: FC<Props> = ({
     return (
             <Modal 
                 title={prompt ? prompt.name : ""}
-                height={window.innerHeight * 0.7}
+                height={() => window.innerHeight * 0.7}
                 onCancel={()=>onClose(false)} 
                 onSubmit={() => {
                     handleSubmit();
@@ -642,7 +641,7 @@ export const VariableModal: FC<Props> = ({
 
                     <ModelSelect
                         isTitled={false}
-                        modelId={selectedModel.id as ModelID}
+                        modelId={selectedModel.id}
                         handleModelChange={(modelId:string) => {
                             handleModelChange(modelId)
                         }}

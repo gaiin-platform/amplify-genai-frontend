@@ -1,109 +1,66 @@
-import { PathType } from "@/components/Chat/JsPDF";
+
+import { OpDef } from "@/types/op";
+import { doRequestOp } from "./doRequestOp";
+
+const URL_PATH =  "/ops";
 
 
-const failureResponse = (reason: string) => {
-    return {
-        success: false,
-        message: reason,
-        data: {}
-    }
-}
-
-
-const doOpsOp = async (opName:string, data:any, errorHandler=(e:any)=>{}) => {
+export const getOpsForUser = async (tag?: string) => {
     const op = {
-        data: data,
-        op: opName
-    };
-
-    const response = await fetch('/api/ops/op', {
+        data: tag? {tag: tag} : {},
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: null,
-        body: JSON.stringify(op),
-    });
-
-
-    if (response.ok){
-        try {
-            const result = await response.json();
-
-            return result;
-        } catch (e){
-            return {success:false, message:"Error parsing response."};
-        }
-    }
-    else {
-        return {success:false, message:`Error calling Ops op: ${response.statusText} .`}
-    }
+        path: URL_PATH,
+        op: '/get',
+    };
+    return await doRequestOp(op);
 }
 
-export const getOpsForUser = async () => {
+// in use? didnt find the backend for this call
+// export const getOpsForUserAllTags = async () => {
 
-    const {success, message, data} = await doOpsOp(
-        '/get',
-        {});
+//     const {success, message, data} = await doOpsOp(
+//       '/get_all_tags',
+//       {});
 
-    if(!success){
-        return failureResponse(message);
-    }
+//     if(!success){
+//         return failureResponse(message);
+//     }
 
-    return {success:true, message:"User Ops fetched successfully.", data:data};
-}
+//     return {success:true, message:"User Ops fetched successfully.", data:data};
+// }
 
-export const execOp = async (path:string, data:any, errorHandler=(e:any)=>{}) => {
+const noPayload = ["GET", "DELETE"]
+
+export const execOp = async (path:string, method: string, data?:any, queryParams?: any, url?: string, errorHandler=(e:any)=>{}) => {
     const op = {
-        data: data,
-        path: path
+        url: url, // in case we want to support urls other than our internal api endpoint
+        data: noPayload.includes(method)? null : data,
+        method: method,
+        path: path,
+        op: '',
+        queryParams: queryParams // in case we want to support query params in the future
     };
-
-    const response = await fetch('/api/ops/exec', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: null,
-        body: JSON.stringify(op),
-    });
-
-
-    if (response.ok){
-        try {
-            const result = await response.json();
-
-            return result;
-        } catch (e){
-            return {success:false, message:"Error parsing op exec response."};
-        }
-    }
-    else {
-        return {success:false, message:`Error in exec op: ${response.statusText} .`}
-    }
+    return await doRequestOp(op);
 }
 
-export const execOpGet = async (path:string, errorHandler=(e:any)=>{}) => {
-    
-    const response = await fetch('/api/ops/execGet' + `?path=${encodeURIComponent(path)}` , {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: null,
-    });
+
+export const registerOps = async (ops:OpDef[]) => {
+    const op = {
+        data: {ops: ops},
+        method: 'POST',
+        path: URL_PATH,
+        op: '/register',
+    };
+    return await doRequestOp(op);
+}
 
 
-    if (response.ok){
-        try {
-            const result = await response.json();
-
-            return result;
-        } catch (e){
-            return {success:false, message:"Error parsing op exec get response."};
-        }
-    }
-    else {
-        return {success:false, message:`Error in exec get op: ${response.statusText} .`}
-    }
+export const deleteOp = async (removeOp:any) => {
+    const op = {
+        data: {op: removeOp},
+        method: 'POST',
+        path: URL_PATH,
+        op: '/delete',
+    };
+    return await doRequestOp(op);
 }

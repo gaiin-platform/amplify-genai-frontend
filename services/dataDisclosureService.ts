@@ -1,37 +1,46 @@
-export const checkDataDisclosureDecision = async (email: string, abortSignal = null) => {
-    const response = await fetch('/api/datadisclosure/check', {
-        signal: abortSignal,
-    });
+import { doRequestOp } from "./doRequestOp";
 
-    if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-    return response.json();
-};
+const URL_PATH = "/data-disclosure";
 
-export const saveDataDisclosureDecision = async (email: string, acceptedDataDisclosure: boolean, abortSignal = null) => {
-    const response = await fetch('/api/datadisclosure/save', {
+
+export const checkDataDisclosureDecision = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: '/check',
+    };
+    return await doRequestOp(op);
+}
+
+
+export const saveDataDisclosureDecision = async (email: string, acceptedDataDisclosure: boolean) => {
+    const op = {
+        data: {data: { email: email, acceptedDataDisclosure: acceptedDataDisclosure }},
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({data: { email: email, acceptedDataDisclosure: acceptedDataDisclosure }}),
-        signal: abortSignal,
-    });
+        path: URL_PATH,
+        op: '/save',
+    };
+    return await doRequestOp(op);
+}
 
-    if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-    return response.json();
-};
 
-export const getLatestDataDisclosure = async (abortSignal = null) => {
-    const response = await fetch('/api/datadisclosure/latest', {
-        signal: abortSignal,
-    });
 
-    if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-    return response.json();
-};
+export const getLatestDataDisclosure = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: "/latest",
+    };
+    return await doRequestOp(op);
+}
+
+
+export const uploadDataDisclosure = async (data: any) => {
+    const op = {
+        data: data,
+        method: 'POST',
+        path: URL_PATH,
+        op: '/upload',
+    };
+    return await doRequestOp(op);
+}

@@ -38,27 +38,6 @@ export interface Group {
   members: Members;
   assistants: Prompt[];
   groupTypes: string[];
+  supportConvAnalysis?: boolean;
 }
 
-
-
-////////// Cognito Table Groups /////////////
-
-
-// used for checking if a user is in specific amplify or cognito groups in the cognito users table 
-// by calling fetchInCognitoGroup(amplifyGroups, congnitoGroups)
-
-
-export enum AmplifyGroups {
-  AST_ADMIN_INTERFACE= 'Ast_Admin_Interface',
-  API = 'Amplify_Dev_Api'
-}
-
-export enum CognitoGroups {
-}
-
-export interface AmpCognGroups {
-    amplifyGroups? : string[];
-    cognitoGroups? : string[];
-
-}

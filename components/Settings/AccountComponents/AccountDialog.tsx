@@ -8,7 +8,7 @@ import { getAccounts} from "@/services/accountService";
 import { fetchAllApiKeys } from '@/services/apiKeysService';
 import { ApiKey } from '@/types/apikeys';
 import { IconX } from '@tabler/icons-react';
-import { noRateLimit, RateLimit } from '@/types/rateLimit';
+import { noRateLimit } from '@/types/rateLimit';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 
 interface Props {
@@ -204,7 +204,7 @@ useEffect(() => {
                                         <ApiKeys
                                         apiKeys={apiKeys}
                                         setApiKeys={setApiKeys}
-                                        setUnsavedChanged={setApiUnsavedChanges}
+                                        setUnsavedChanges={setApiUnsavedChanges}
                                         onClose={close}
                                         accounts={accounts}
                                         defaultAccount={defaultAccount}

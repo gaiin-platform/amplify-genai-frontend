@@ -8,10 +8,11 @@ import {
     IconMail,
     IconArrowFork,
     IconHighlight,
+    IconLibrary,
 } from '@tabler/icons-react';
 import React, {FC, memo, useContext, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'next-i18next';
-import {saveConversations, updateConversation} from '@/utils/app/conversation';
+import {isRemoteConversation, saveConversations, updateConversation} from '@/utils/app/conversation';
 import {Conversation, DataSource, Message} from '@/types/chat';
 import HomeContext from '@/pages/api/home/home.context';
 import ChatFollowups from './ChatFollowups';
@@ -25,7 +26,6 @@ import PromptingStatusDisplay from "@/components/Status/PromptingStatusDisplay";
 import ChatSourceBlock from "@/components/Chat/ChatContentBlocks/ChatSourcesBlock";
 import DataSourcesBlock from "@/components/Chat/ChatContentBlocks/DataSourcesBlock";
 import ChatCodeInterpreterFileBlock from './ChatContentBlocks/ChatCodeInterpreterFilesBlock';import { uploadConversation } from '@/services/remoteConversationService';
-import { isRemoteConversation } from '@/utils/app/conversationStorage';
 import { downloadDataSourceFile } from '@/utils/app/files';
 import { Stars } from './Stars';
 import { saveUserRating } from '@/services/groupAssistantService';
@@ -35,12 +35,17 @@ import cloneDeep from 'lodash/cloneDeep';
 import { v4 as uuidv4 } from 'uuid';
 import AssistantMessageHighlight from './ChatContentBlocks/AssistantMessageHighlight';
 import { getSettings } from '@/utils/app/settings';
+import { lzwCompress } from '@/utils/app/lzwCompression';
+import { inferArtifactType } from '@/utils/app/artifacts';
+import { Artifact } from '@/types/artifacts';
+import { getDateName } from '@/utils/app/date';
+import AgentLogBlock from '@/components/Chat/ChatContentBlocks/AgentLogBlock';
+import { Settings } from '@/types/settings';
 
 export interface Props {
     message: Message;
     messageIndex: number;
     onEdit?: (editedMessage: Message) => void,
-    onSend: (message: Message[]) => void,
     onSendPrompt: (prompt: Prompt) => void,
     onChatRewrite: (message: Message, updateIndex: number, requestedRewrite: string, prefix: string, suffix: string, feedback: string) => void,
     handleCustomLinkClick: (message: Message, href: string) => void,
@@ -51,7 +56,6 @@ export const ChatMessage: FC<Props> = memo(({
                                                 message,
                                                 messageIndex,
                                                 onEdit,
-                                                onSend,
                                                 onSendPrompt,
                                                 handleCustomLinkClick,
                                                 onChatRewrite
@@ -64,7 +68,7 @@ export const ChatMessage: FC<Props> = memo(({
         dispatch: homeDispatch,
         setLoadingMessage,
         handleUpdateSelectedConversation,
-        handleSelectConversation
+        handleForkConversation
     } = useContext(HomeContext);
 
 
@@ -80,7 +84,16 @@ export const ChatMessage: FC<Props> = memo(({
         foldersRef.current = folders;
     }, [folders]);
 
-
+    let settingRef = useRef<Settings | null>(null);
+    // prevent recalling the getSettings function
+    if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
+    
+    useEffect(() => {
+        const handleEvent = (event:any) => settingRef.current = getSettings(featureFlags)
+        window.addEventListener('updateFeatureSettings', handleEvent);
+        return () => window.removeEventListener('updateFeatureSettings', handleEvent)
+    }, []);
+    
 
     const markdownComponentRef = useRef<HTMLDivElement>(null);
 
@@ -180,6 +193,35 @@ export const ChatMessage: FC<Props> = memo(({
     }, [message.content]);
 
 
+    const handleCreateArtifactFromMessage = (content: string) => {
+        if (selectedConversation) {
+            const artifactId = `Artifact${Math.floor(100000 + Math.random() * 900000)}`;
+            const inferenceType = inferArtifactType(content);
+            const artifactDetail = {
+                            artifactId: artifactId,
+                            name: "Artifact", 
+                            createdAt: getDateName(),
+                            description: '',
+                            version: 1 
+                        }
+
+            const artifact: Artifact = {...artifactDetail, 
+                                            contents: lzwCompress(content), 
+                                            tags: [],
+                                            type: inferenceType
+                                        }
+            
+            homeDispatch({field: "selectedArtifacts", value: [artifact]});
+            window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: true, artifactIndex:  0}} ));
+
+            const updatedConversation = {...selectedConversation};
+            updatedConversation.artifacts = {...(updatedConversation.artifacts ?? {}), [artifactId]: [artifact] };
+            const messageData = updatedConversation.messages[messageIndex].data;
+            updatedConversation.messages[messageIndex].data.artifacts = [...(messageData.artifacts ?? []), artifactDetail];
+    
+            handleUpdateSelectedConversation(updatedConversation);
+        }
+    }
 
     const handleDownload = async (dataSource: DataSource) => {
         //alert("Downloading " + dataSource.name + " from " + dataSource.id);
@@ -261,22 +303,6 @@ export const ChatMessage: FC<Props> = memo(({
         }
     };
 
-    const handleForkConversation = async () => {
-        statsService.forkConversationEvent();
-        if (selectedConversation) {
-            setLoadingMessage("Forking Conversation...");
-            const newConversation = cloneDeep({...selectedConversation,  id: uuidv4(), messages: selectedConversation?.messages.slice(0, messageIndex + 1)});
-            if (isRemoteConversation(newConversation)) await uploadConversation(newConversation, foldersRef.current);
-            statsService.newConversationEvent();
-
-            const updatedConversations = [...conversationsRef.current, newConversation];
-            homeDispatch({ field: 'conversations', value: updatedConversations });
-            saveConversations(updatedConversations);
-            setLoadingMessage("");
-            handleSelectConversation(newConversation);
-        }
-        
-    };
 
     const handleFeedbackSubmit = () => {
         if (selectedConversation && currentRating !== undefined) {
@@ -410,8 +436,8 @@ export const ChatMessage: FC<Props> = memo(({
                                     </div>
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                        onClick={handleForkConversation}
-                                        title="Branch Into A Conversation"
+                                        onClick={() => handleForkConversation(messageIndex)}
+                                        title="Branch Into New Conversation"
                                     >
                                         <IconArrowFork size={20}/>
                                     </button>
@@ -436,7 +462,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     {(selectedConversation?.messages.length === messageIndex + 1) && (
                                         <PromptingStatusDisplay statusHistory={status}/>
                                     )}
-                                     {featureFlags.highlighter && getSettings(featureFlags).featureOptions.includeHighlighter && 
+                                     {featureFlags.highlighter && settingRef.current.featureOptions.includeHighlighter && 
                                       isHighlightDisplay && !isEditing && 
 
                                         <AssistantMessageHighlight
@@ -448,39 +474,48 @@ export const ChatMessage: FC<Props> = memo(({
                                         
                                         }
                                     {!isEditing && !isHighlightDisplay && (
-                                         <> 
-                                        <div className="flex flex-grow"
-                                             ref={divRef}
-                                        >
-                                            <ChatContentBlock
+                                      <>
+                                          <div className="flex flex-grow"
+                                               ref={divRef}
+                                          >
+                                              <ChatContentBlock
                                                 messageIsStreaming={messageIsStreaming}
                                                 messageIndex={messageIndex}
                                                 message={message}
                                                 selectedConversation={selectedConversation}
                                                 handleCustomLinkClick={handleCustomLinkClick}
-                                            />
-                                        </div>
-                                       
-                                        {featureFlags.artifacts && 
-                                        <ArtifactsBlock 
-                                            message={message}
-                                            messageIndex={messageIndex}
-                                        />}
+                                              />
+                                          </div>
 
-                                        <ChatCodeInterpreterFileBlock
+                                          <AgentLogBlock
                                             messageIsStreaming={messageIsStreaming}
                                             message={message}
-                                        />
-                                        <ChatSourceBlock
+                                            conversationId={selectedConversation?.id || ""}
+                                          />
+
+                                          {featureFlags.artifacts &&
+                                            <ArtifactsBlock
+                                              message={message}
+                                              messageIndex={messageIndex}
+                                            />}
+
+                                          <ChatCodeInterpreterFileBlock
                                             messageIsStreaming={messageIsStreaming}
                                             message={message}
-                                        />
-                                        </>
+                                            selectedConversation={selectedConversation}
+                                            updateConversation={handleUpdateSelectedConversation}
+                                          />
+                                          <ChatSourceBlock
+                                            messageIsStreaming={messageIsStreaming}
+                                            message={message}
+                                          />
+                                      </>
                                     )}
+
                                     {isEditing && (
-                                        <AssistantMessageEditor
-                                            message={message}
-                                            handleEditMessage={handleEditMessage}
+                                      <AssistantMessageEditor
+                                        message={message}
+                                        handleEditMessage={handleEditMessage}
                                             setIsEditing={setIsEditing}
                                             isEditing={isEditing}
                                             messageContent={messageContent}
@@ -504,6 +539,15 @@ export const ChatMessage: FC<Props> = memo(({
                                             <IconCopy size={20}/>
                                         </button>
                                     )}
+
+                                    <button
+                                        className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                                        onClick={() => handleCreateArtifactFromMessage(messageContent)}
+                                        title="Turn Into Artifact"
+                                    >
+                                        <IconLibrary size={20}/>
+                                    </button>
+
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                         onClick={() => setIsDownloadDialogVisible(true)}
@@ -520,8 +564,9 @@ export const ChatMessage: FC<Props> = memo(({
                                             <IconMail size={20}/>
                                         </a>
                                     </button>
+
                                     {featureFlags.highlighter && 
-                                     getSettings(featureFlags).featureOptions.includeHighlighter && 
+                                     settingRef.current.featureOptions.includeHighlighter && 
                                         <button
                                             className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             onClick={() => {setIsHighlightDisplay(!isHighlightDisplay)}}
@@ -539,12 +584,11 @@ export const ChatMessage: FC<Props> = memo(({
                                     </button>
                                     <button
                                         className="invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                                        onClick={handleForkConversation}
-                                        title="Branch Into A Conversation"
+                                        onClick={() => handleForkConversation(messageIndex)}
+                                        title="Branch Into New Conversation"
                                     >
                                         <IconArrowFork size={20}/>
                                     </button>
-
 
                                 </div>}
                             </div>
