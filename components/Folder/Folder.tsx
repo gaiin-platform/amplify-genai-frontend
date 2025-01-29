@@ -45,7 +45,7 @@ const Folder = ({
   folderComponent
   
 }: Props) => {
-  const { handleDeleteFolder, handleUpdateFolder, state: {selectedConversation, folders, allFoldersOpenPrompts, allFoldersOpenConvs, checkingItemType, checkedItems, groups},
+  const { handleDeleteFolder, handleUpdateFolder, state: {selectedConversation, folders, allFoldersOpenPrompts, allFoldersOpenConvs, checkingItemType, checkedItems, groups, featureFlags},
           dispatch: homeDispatch,} = useContext(HomeContext);
 
   const { data: session } = useSession();
@@ -166,7 +166,7 @@ const Folder = ({
   const hasAccessToItsGroupAdminInterface = () =>{
     const interfaceAccessGroups: string[] = groups.filter((g: Group) => [GroupAccessType.ADMIN, GroupAccessType.WRITE ].includes(g.members[user ?? '']))
                                                   .map((g: Group) => g.id);
-    return interfaceAccessGroups.includes(currentFolder.id);
+    return interfaceAccessGroups.includes(currentFolder.id) && featureFlags.assistantAdminInterface;
   }
 
 

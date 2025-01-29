@@ -27,7 +27,14 @@ const isMobileBrowser = () => {
 };
 
 export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerComponent }) => {
-    const { state: { page, syncingPrompts }, dispatch: homeDispatch } = useContext(HomeContext);
+    const { state: { featureFlags }, dispatch: homeDispatch } = useContext(HomeContext);
+    const featureFlagsRef = useRef(featureFlags);
+
+    useEffect(() => {
+        featureFlagsRef.current = featureFlags;
+        window.dispatchEvent(new Event('updateFeatureSettings'));
+    }, [featureFlags]);
+
     const [activeTab, setActiveTab] = useState(0);
     // Set the initial state based on whether the user is on a mobile browser
     const [isOpen, setIsOpen] = useState(!isMobileBrowser());
@@ -49,6 +56,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
 
     useEffect(() => {
         const handleAstAdminEvent = (event:any) => {
+            if (!featureFlagsRef.current.assistantAdminInterface) return;
             const isAdminOpen = event.detail.isOpen;
             handleAdmin(isAdminOpen);
             setGroupModalData(event.detail.data);
@@ -56,6 +64,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
         };
 
         const handleAdminEvent = (event:any) => {
+            if (!featureFlagsRef.current.adminInterface) return;
             const isAdminOpen = event.detail.isOpen;
             handleAdmin(isAdminOpen);
             setShowAdminInterface(isAdminOpen);  
@@ -137,18 +146,20 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
         <>
         {(isArtifactsOpen && triggerOnce() || !isArtifactsOpen) && <OpenSidebarButton onClick={toggleOpen} side={side} isDisabled={showAssistantAdmin || showAdminInterface}/>}
         
-        <AssistantAdminUI
+        {featureFlagsRef.current.assistantAdminInterface && 
+         <AssistantAdminUI
             open={showAssistantAdmin && triggerOnce()}
             openToGroup={groupModalData?.group}
             openToAssistant={groupModalData?.assistant}
-        />
+        /> }
 
+        {featureFlagsRef.current.adminInterface && 
         <AdminUI
             open={showAdminInterface && triggerOnce()}
             onClose={() => {
                 window.dispatchEvent(new CustomEvent('openAdminInterfaceTrigger', { detail: { isOpen: false }} ));
             }  }
-        />
+        />}
         </>
         
     );
