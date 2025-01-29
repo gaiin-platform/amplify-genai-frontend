@@ -19,7 +19,7 @@ import ActionButton from "../ReusableComponents/ActionButton";
 import { OpDef } from "@/types/op";
 import { AMPLIFY_ASSISTANTS_GROUP_NAME, amplifyAssistants } from "@/utils/app/amplifyAssistants";
 import { RateLimiter } from "../Settings/AccountComponents/RateLimit";
-import { noRateLimit, PeriodType, RateLimit, rateLimitObj } from "@/types/rateLimit";
+import { noRateLimit, PeriodType, rateLimitObj } from "@/types/rateLimit";
 import { adminTabHasChanges, calculateMd5, uploadFileAsAdmin } from "@/utils/app/admin";
 import { GroupUpdateType } from "@/types/groups";
 import { AssistantDefinition } from "@/types/assistant";
@@ -46,6 +46,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const [loadData, setLoadData] = useState<boolean>(true);  
     const [isLoading, setIsLoading] = useState<boolean>(true);  
+    const [stillLoadingData, setStillLoadingData] = useState<boolean>(true);  
+
 
     const [unsavedConfigs, setUnsavedConfigs] = useState<Set<AdminConfigTypes>>(new Set());
 
@@ -197,6 +199,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                                     g.groupName === AMPLIFY_ASSISTANTS_GROUP_NAME);
                     if (amplifyAstGroupFound) setAmplifyAstGroupId(amplifyAstGroupFound.group_id);
                     setAstGroups(astAdminGroups);
+                    setStillLoadingData(false);
                     return;
                 } 
             } 
@@ -465,7 +468,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 click();
             }}
         >
-            {refreshingTypes.includes(type) ?  <LoadingIcon style={{ width: "16px", height: "16px" }}/> : <IconRefresh size={16}/>}
+            {refreshingTypes.includes(type) ? <>{loadingIcon()}</> : <IconRefresh size={16}/>}
         </button>
    
     const modelActiveCheck = (key: string, isActive: boolean, title: string) => 
@@ -747,6 +750,12 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     }
 
+    const loadingIcon = (size: number = 16) => <LoadingIcon style={{ width: `${size}px`, height: `${size}px` }}/>
+
+    const loading = <div className="flex flex-row gap-2 ml-10 text-[1.2rem]"> 
+            <>{loadingIcon(22)}</> Loading...
+                    </div>;
+
 
 
     const handleCreateAmpAsts = async ( ) => {
@@ -1011,7 +1020,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             </span>
                             }
                         />
-                        <textarea title="Parameter Description" className="w-full rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                        <textarea title="Parameter Description" className="w-full admin-text dark:border-opacity-50"
                         placeholder={"Alert message to display when the users prompt will cost over the threshold"}
                         value={promptCostAlert.alertMessage}
                         onChange={(e) => {
@@ -1086,7 +1095,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         >Group Name </label>
                         <input
                         title={"Group names must be unique"}
-                        className="w-[200px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                        className="w-[200px] admin-text dark:border-opacity-50"
                         placeholder={"Group Name"}
                         onChange={(e) => {
                             setIsAddingAmpGroups({...isAddingAmpGroups, groupName: e.target.value});
@@ -1122,7 +1131,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             </div>
                                     
                         </div>
-                        <div className="flex-grow ml-4 flex flex-col mt-[-32px] max-w-[40%]">
+                        <div className="flex-grow ml-4 flex flex-col mt-[-26px] max-w-[40%]">
                             <InfoBox content={
                                     <span className="ml-1 text-xs w-full text-center"> 
                                     The group will include all members from the following Amplify Groups
@@ -1141,7 +1150,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 }
 
 
-                <div className="ml-6">
+                <div className="ml-6 mt-6">
                     {Object.keys(ampGroups).length > 0 ?
                             <ExpansionComponent 
                             onOpen={() => setShowAmpGroupsSearch(true)}
@@ -1306,6 +1315,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
             {label: 'Supported Models',
                 content:
+                stillLoadingData ? loading :
                 <>
                     <div ref={supportedModelsRef} className="flex flex-row gap-3 mb-2" >
                     {titleLabel('Supported Models')}
@@ -1641,9 +1651,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             // Application Variables
             { label: 'Application Variables',
                 content : 
+                stillLoadingData ? loading :
                 <>
                 {titleLabel('Application Secrets', "[1rem]")}
-
+                    { Object.keys(appSecrets).length > 0 && true ?
                     <div className="mx-4">
                         <InputsMap
                         id = {AdminConfigTypes.APP_SECRETS}
@@ -1656,11 +1667,12 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         }}
                         obscure={true}
                         />    
-                    </div> 
+                    </div> : <>No Application Secrets Retrieved</>}
                     
                 <br className="mt-4"></br>
 
                 {titleLabel('Application Environment Variables', "[1rem]")}
+                { Object.keys(appSecrets).length > 0 ?
                     <div className="mx-4">
                         <InputsMap
                         id = {AdminConfigTypes.APP_VARS}
@@ -1674,7 +1686,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         }}
                         obscure={true}
                         />      
-                    </div>
+                    </div> : <>No Application Variables Retrieved</>}
                 </>
             },
 
@@ -1682,11 +1694,12 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             // OpenAi Endpoints
             { label: 'OpenAi Endpoints',
                 content : 
+                stillLoadingData ? loading :
                 <>
                 {titleLabel('OpenAi Endpoints', "[1.05rem]")}
                 <br></br>
+                {openAiEndpoints.models.length > 0 ?
                 <div className="ml-2">
-                 
                 {openAiEndpoints.models.map((modelData: any, modelIndex: number) => {
                     return Object.keys(modelData).map((modelName: string) => {
                         return (
@@ -1829,8 +1842,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             
                         })
                     })}
-            
                 </div>
+                : <>No OpenAi Endpoints Retrieved</>}
                 </>
             },
 
@@ -1891,7 +1904,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         <label className="mt-1.5 flex-shrink-0 border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center items-center h-[38px]"
                         >Feature Name </label>
                         <input title={"Feature names must be unique"}
-                        className="mt-1.5 w-[160px] h-[38px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                        className="mt-1.5 w-[160px] h-[38px] admin-text dark:border-opacity-50"
                         placeholder={"Feature Name"}
                         onChange={(e) =>  setIsAddingFeature({...isAddingFeature, name: e.target.value})}
                         value={isAddingFeature.name}
@@ -1946,7 +1959,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                 ))}
                             </div>
                         </div>
-                        <div className="flex-grow ml-4 flex flex-col mt-[-32px] max-w-[40%]">
+                        <div className="flex-grow ml-4 flex flex-col mt-[-27px] max-w-[40%]">
                             <InfoBox content={
                                     <span className="ml-1 text-xs w-full text-center"> 
                                     Members of the following Amplify Groups will be considered exceptions.
@@ -1966,7 +1979,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
                          </div>}
                     
-                    <div className="ml-4 mt-2">
+                    <div className="ml-4 mt-6">
                         <div className="mr-5 pr-4">
                             <InfoBox 
                             content={
@@ -2226,8 +2239,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 <div className="ml-6">
                     <div className="flex flex-row gap-2">
                         <label className="text-[1rem] font-bold"> Amplify Group Assistants</label>
-                        {amplifyAstGroupId || isCreatingAmpAstGroup ?
-                                <div className={`mt-1.5 ml-0.5 ${isCreatingAmpAstGroup ? "bg-gray-400 dark:bg-gray-500 animate-pulse" : "bg-green-400 dark:bg-green-300"}`} 
+                        {amplifyAstGroupId || isCreatingAmpAstGroup || stillLoadingData ?
+                                <div className={`mt-1.5 ml-0.5 ${isCreatingAmpAstGroup || stillLoadingData? "bg-gray-400 dark:bg-gray-500 animate-pulse" : "bg-green-400 dark:bg-green-300"}`} 
                                  style={{width: '8px', height: '8px', borderRadius: '50%'}}
                                  title="The Amplify Assistants Group exists."> </div>
                         :
@@ -2289,7 +2302,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                     {(amplifyAssistants as any)[ast].description}
                                 </label>
 
-                                {!creatingAmpAsts && amplifyAstGroupId && 
+                                {!creatingAmpAsts && !stillLoadingData && amplifyAstGroupId && 
                                  <button 
                                     className={`ml-4 mb-1 mt-[-2px] py-1 px-2 bg-gray-300 dark:bg-gray-600 ${isAddingAst === '' ? "hover:bg-gray-400 hover:dark:bg-gray-700" : ""} mr-[-16px] rounded transition-colors duration-100 cursor-pointer flex flex-row gap-2`}
                                     onClick={() => {
@@ -2299,7 +2312,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                     title="Adds a copy of this assistant to the existing Amplify Assistants Group"
                                     disabled={isAddingAst !== ''}
                                     >
-                                    {isAddingAst === ast ? <LoadingIcon style={{ width: "16px", height: "16px" }}/>
+                                    {isAddingAst === ast ? <>{loadingIcon()}</>
                                     : <IconPlus className="text-blue-400" size={18}/> }
                                     {"Assistant Copy"}
                                         
@@ -2331,6 +2344,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             }}
                             title={'Manage Assistant Admin Groups'} 
                             content={ 
+                                stillLoadingData ? loading :
                                 <>
                                     <table className="mt-4 border-collapse w-full" >
                                         <thead>
@@ -2425,8 +2439,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                         disabled={keyReplacementLoading !== ''}
                                                         className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
                                                         onClick={() => {handleReplaceGroupKey(group.group_id)}}>
-                                                        {keyReplacementLoading === group.group_id ? 
-                                                             <LoadingIcon style={{ width: "20px", height: "20px" }}/> : <IconKey size={20}/>} 
+                                                        {keyReplacementLoading === group.group_id ? <>{loadingIcon(20)}</> : <IconKey size={20}/>} 
                                                     </button>  
                                                      
                                                     : null}
@@ -2456,8 +2469,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingTemplate ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
                         onClick={() => setIsAddingTemplate(emptyPptx())}
                     >
-                        {isUploadingTemplate ? <LoadingIcon style={{ width: "16px", height: "16px" }}/> 
-                                             :  <IconPlus size={16}/>}
+                        {isUploadingTemplate ? <>{loadingIcon()}</> : <IconPlus size={16}/>}
                     </button>
 
                     {isAddingTemplate && !isUploadingTemplate &&
@@ -2506,7 +2518,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         <input
                         title={!uploadedTemplate ? "Template name will auto-populate once a template has been uploaded"
                                                  : "" }
-                        className="h-[40px] w-[250px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                        className="h-[40px] w-[250px] admin-text dark:border-opacity-50"
                         placeholder={"Template Name"}
                         value={isAddingTemplate.name}
                         disabled={true}
@@ -2539,7 +2551,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 }
 
 
-                <div className="ml-6">
+                <div className="ml-6 mt-6">
                     {templates.length > 0 ?
                             <ExpansionComponent 
                             title={'Manage PowerPoint Templates'} 
@@ -2606,8 +2618,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                         className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
                                                         onClick={() => {handleDeleteTemplate(pptx.name)}}
                                                         >
-                                                        {deletingTemplate == pptx.name ? 
-                                                        <LoadingIcon style={{ width: "20px", height: "20px" }}/> : <IconTrash size={20} />} 
+                                                        {deletingTemplate == pptx.name ? <>{loadingIcon(20)}</> : <IconTrash size={20} />} 
                                                     </button>
                                                     
                                                     : null}
@@ -2637,6 +2648,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
             {label: 'Ops',
                 content:
+                stillLoadingData ? loading :
                 <>
                 <div className="flex flex-row gap-3 mb-2 ">
                         {titleLabel('OPs')}
@@ -2748,7 +2760,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                             <label className="border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
                                                             >{"Name"} </label>
                                                             <input
-                                                            className="w-full rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                                                            className="w-full admin-text dark:border-opacity-50"
                                                             placeholder={"Parameter Name"}
                                                             value={p.name}
                                                             onChange={(e) => {
@@ -2782,7 +2794,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                         
                                                         </div>
                                                         <textarea title="Parameter Description"
-                                                            className="w-full rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                                                            className="w-full admin-text dark:border-opacity-50"
                                                             placeholder={"Parameter Description"}
                                                             value={p.description}
                                                             onChange={(e) => {
@@ -2986,8 +2998,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                             onClick={() => {
                                                 handleDeleteOp(op, opIdx);
                                             }}>
-                                            {isDeletingOp === opIdx ? 
-                                                    <LoadingIcon style={{ width: "20px", height: "20px" }}/> : <IconTrash size={20}/>}
+                                            {isDeletingOp === opIdx ? <>{loadingIcon(20)}</>: <IconTrash size={20}/>}
                                         </button>  
                                             
                                         : null}
@@ -3083,11 +3094,9 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             </table> : <>It looks like Embbeddings is operating correctly. There are no embeddings currently backed up in SQS.</>}
                         </div>
                         : 
-                        ( loadingEmbeddings?
+                        ( loadingEmbeddings ?
                             <label className="flex flex-row items-center ml-6  mt-2 py-1 px-2"> 
-                                    <LoadingIcon style={{ width: "16px", height: "16px" }}/>
-                                    <span className="ml-2">{'Loading Embeddings...'}</span>
-                                
+                                <>{loadingIcon()}</> <span className="ml-2">{'Loading Embeddings...'}</span>
                             </label>
                         :
                         <button 
@@ -3225,7 +3234,7 @@ const ModelDefaultSelect: FC<SelectProps> = ({models, selectedKey, label, descri
     return (
         <div className="flex flex-col gap-2 text-center">
             {label}
-            <select className={"mb-2 text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]"} 
+            <select className={"mb-2 text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  custom-shadow"} 
                 value={selected?.name ?? ''}
                 title={description}
                 onChange={(e) => {
