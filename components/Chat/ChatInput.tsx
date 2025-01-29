@@ -713,7 +713,7 @@ const onAssistantChange = (assistant: Assistant) => {
             
             <div
                 className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
-                <MemoryPresenter></MemoryPresenter>
+                {featureFlags.memory && <MemoryPresenter></MemoryPresenter>}
                {!showScrollDownButton && !messageIsStreaming && !artifactIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
                (selectedConversation && selectedConversation.messages?.length > 0) &&  (
                <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert  hover:text-neutral-900 dark:hover:text-neutral-100">
@@ -781,13 +781,14 @@ const onAssistantChange = (assistant: Assistant) => {
                                 homeDispatch({field: 'selectedAssistant', value: asts[0]});
                             }
                         }}/>
+                        {featureFlags.memory && 
                         <ProjectInUse
                             project={selectedProject}
                             projectChanged={(project) => {
                                 setSelectedProject(project);
                                 setShowProjectList(false);
                             }}
-                        />
+                        />}
                         <FileList documents={documents}
                                   documentStates={documentState}
                                   onCancelUpload={onCancelUpload}
@@ -833,7 +834,7 @@ const onAssistantChange = (assistant: Assistant) => {
                                 </button>
                             )}
 
-                            {showProjectList && session?.user?.email && (
+                            {featureFlags.memory && showProjectList && session?.user?.email && (
                                 <div className="absolute left-0 bottom-14 rounded bg-white dark:bg-[#343541]">
                                     <ProjectList
                                         currentProject={selectedProject}
