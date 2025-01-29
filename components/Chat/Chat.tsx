@@ -174,6 +174,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             return model;
         }
         
+        const [windowInnerHeight, setWindowInnerHeight] = useState<number>(window.innerHeight);
+
+        useEffect(() => {
+            const updateInnerWindow = () => setWindowInnerHeight(window.innerHeight);
+            window.addEventListener('resize', updateInnerWindow);
+            return () => window.removeEventListener('resize', updateInnerWindow);
+          }, []);
+
         const calculateInitSliderValue = (conversationMaxTokens: number | undefined) => {
             const model: Model | undefined = getSelectModel();
             const modelMaxTokens = model ? model.outputTokenLimit : 4096; 
@@ -190,6 +198,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [responseSliderState, setResponseSliderState] = useState<number>(calculateInitSliderValue(selectedConversation?.maxTokens));
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
+        const [showAdvancedConvSettings, setShowAdvancedConvSettings] = useState<boolean>(false);
         const [showSettings, setShowSettings] = useState<boolean>(false);
         const [isPromptTemplateDialogVisible, setIsPromptTemplateDialogVisible] = useState<boolean>(false);
         const [isDownloadDialogVisible, setIsDownloadDialogVisible] = useState<boolean>(false);
@@ -767,7 +776,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 const inView = (
                     rect.top >= 0 &&
                     rect.left >= 0 &&
-                    rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+                    rect.bottom <= (windowInnerHeight || document.documentElement.clientHeight) &&
                     rect.right <= (window.innerWidth || document.documentElement.clientWidth)
                 );
         
@@ -958,7 +967,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 ) : (
                     <div >
                         <div
-                            className="container max-h-full overflow-x-hidden" style={{height: window.innerHeight * 0.94}}
+                            className="container max-h-full overflow-x-hidden" style={{height: windowInnerHeight * 0.94}}
                             ref={chatContainerRef}
                             onScroll={handleScroll}
                         >
@@ -987,10 +996,24 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     <div className="flex-grow">
                                                         <ModelSelect modelId={selectedModelId} isDisabled={selectedAssistant?.definition?.data?.model}/>
                                                     </div>
-
-                                                    {featureFlags.storeCloudConversations && <div className="mt-[-5px] absolute top-0 right-0 flex justify-end items-center">
-                                                        <CloudStorage iconSize={20} />
-                                                    </div>}
+                                                    
+                                                    {featureFlags.storeCloudConversations && 
+                                                            <div className="mt-[-5px] absolute top-0 right-8 flex justify-end items-center">
+                                                                <CloudStorage iconSize={20} />
+                                                            </div>}
+                                                        
+                                                        <div className="mt-[-5px] absolute top-0 right-0 flex justify-end items-center">
+                                                            <button
+                                                                className={`ml-2 ${messageIsStreaming ? "cursor-not-allowed": "cursor-pointer"} hover:opacity-50 pr-2`}
+                                                                disabled={messageIsStreaming}
+                                                                onClick={(e) => {
+                                                                    setShowAdvancedConvSettings(!showAdvancedConvSettings);
+                                                                }}
+                                                                title={"Advanced Conversation Settings"}
+                                                                >
+                                                                { <IconSettings className="block text-neutral-500 dark:text-neutral-200" size={20} />} 
+                                                            </button>
+                                                        </div>
                                                     
                                                 </div>
                                                 
@@ -1010,39 +1033,40 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         />
                                                         
                                                     </> :
+                                                    ( showAdvancedConvSettings && 
                                                     <>
-                                                    <SystemPrompt
-                                                        models={filteredModels}
-                                                        handleUpdateModel={handleUpdateModel}
-                                                        conversation={selectedConversation}
-                                                        prompts={promptsRef.current}
-                                                        onChangePrompt={(prompt) =>
-                                                            handleUpdateConversation(selectedConversation, {
-                                                                key: 'prompt',
-                                                                value: prompt,
-                                                            })
-                                                        }
-                                                    />
+                                                        <SystemPrompt
+                                                            models={filteredModels}
+                                                            handleUpdateModel={handleUpdateModel}
+                                                            conversation={selectedConversation}
+                                                            prompts={promptsRef.current}
+                                                            onChangePrompt={(prompt) =>
+                                                                handleUpdateConversation(selectedConversation, {
+                                                                    key: 'prompt',
+                                                                    value: prompt,
+                                                                })
+                                                            }
+                                                        />
+                                                        <TemperatureSlider
+                                                            label={t('Temperature')}
+                                                            onChangeTemperature={(temperature) =>
+                                                                handleUpdateConversation(selectedConversation, {
+                                                                    key: 'temperature',
+                                                                    value: temperature,
+                                                                })
+                                                            }
+                                                        />
 
-                                                    <TemperatureSlider
-                                                        label={t('Temperature')}
-                                                        onChangeTemperature={(temperature) =>
-                                                            handleUpdateConversation(selectedConversation, {
-                                                                key: 'temperature',
-                                                                value: temperature,
-                                                            })
-                                                        }
-                                                    />
-
-                                                    <ResponseTokensSlider
-                                                        responseSliderState={responseSliderState}
-                                                        label={t('Response Length')}
-                                                        onResponseTokenRatioChange={(r) => {
-                                                            setResponseSliderState(r);
-                                                            handleResponseTokenChange(r);
-                                                        }}
-                                                    />
-                                                    </>
+                                                        <ResponseTokensSlider
+                                                            responseSliderState={responseSliderState}
+                                                            label={t('Response Length')}
+                                                            onResponseTokenRatioChange={(r) => {
+                                                                setResponseSliderState(r);
+                                                                handleResponseTokenChange(r);
+                                                            }}
+                                                        />
+                                                    
+                                                    </>)
                                                 }
                                                 {isPromptTemplateDialogVisible && selectedConversation.promptTemplate && (
                                                     <VariableModal
@@ -1206,7 +1230,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             className="flex flex-col md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl ">
                                             { showSettings && !(selectedAssistant?.definition?.data?.model) &&
                                                 <div
-                                                    className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
+                                                    className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border custom-shadow">
                                                     <ModelSelect modelId={selectedModelId}/>
                                                 </div>
                                             }

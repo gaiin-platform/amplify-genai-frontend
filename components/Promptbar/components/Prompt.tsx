@@ -55,7 +55,7 @@ export const PromptComponent = ({ prompt }: Props) => {
     } = useContext(PromptbarContext);
 
     const {
-        state: { statsService, selectedAssistant, checkingItemType, checkedItems, prompts, groups, syncingPrompts},
+        state: { statsService, selectedAssistant, checkingItemType, checkedItems, prompts, groups, syncingPrompts, featureFlags},
         dispatch: homeDispatch,
         handleNewConversation,
         setLoadingMessage,
@@ -269,7 +269,8 @@ export const PromptComponent = ({ prompt }: Props) => {
                             </ActionButton>
                         )}
 
-                        {(!isDeleting && !isRenaming && canEdit && !isBase) && (groupId ? !syncingPrompts : true) && (
+                        {(!isDeleting && !isRenaming && canEdit && !isBase) &&
+                         (groupId ? !syncingPrompts && featureFlags.assistantAdminInterface : true) && (
                             <ActionButton title="Edit Template"
                                 handleClick={() => {
                                     if (groupId) {

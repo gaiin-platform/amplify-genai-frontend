@@ -32,6 +32,7 @@ import { InfoBox } from '../ReusableComponents/InfoBox';
 import { includeGroupInfoBox } from '../Emails/EmailsList';
 import Checkbox from '../ReusableComponents/CheckBox';
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from '@/utils/app/amplifyAssistants';
+import { Modal } from '../ReusableComponents/Modal';
 
 
 interface Conversation {
@@ -1556,21 +1557,23 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
 
 
     return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-20">
-        <div className="fixed inset-0 z-10 overflow-hidden">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div
-              className="hidden sm:inline-block sm:h-screen sm:align-middle"
-              aria-hidden="true"
-            />
-            
-            <div className="dark:border-neutral-600 inline-block h-[600px] transform overflow-hidden rounded-lg border border-gray-300 bg-white px-4 pt-5 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 w-[750px] sm:p-6 sm:align-middle"
-                            style={{ height: `${window.innerHeight * 0.92}px` }}
-                            role="dialog" >
-        
-                
-                <div className='max-h-[calc(100vh-10rem)] h-full flex flex-col overflow overflow-y-auto text-black dark:text-white'>  
-                    <div className="text-lg font-bold text-black dark:text-neutral-200 flex items-center">
+        <Modal 
+            width={() => window.innerWidth * 0.5}
+            height={() => window.innerHeight * 0.8}
+            title={"Assistant Admin Interface "}
+            onCancel={() => {
+                onClose()
+            }} 
+            onSubmit={() => 
+                createGroup({ group_name: groupName,
+                    members: {...groupMembers, [user as string]: GroupAccessType.ADMIN},
+                    types: groupTypes
+                  })
+            }
+            submitLabel={"Create Group"}
+            content={
+                <>
+                                    <div className="text-lg font-bold text-black dark:text-neutral-200 flex items-center">
                             Assistant Admin Interface 
                     </div> 
                     {"You will be able to manage assistants and view key metrics related to user engagement and conversation."}
@@ -1606,38 +1609,11 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
                                 </div>
                             </div>
                         
-                
-
-                </div>
-                    
-                    <div className="mt-2 w-full flex flex-row items-center justify-end bg-white dark:bg-[#22232b]">
-                                    
-                                    <button
-                                        type="button"
-                                        className="mr-2 w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                                        onClick={onClose}
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                                        onClick={()=>{ 
-                                                createGroup({ group_name: groupName,
-                                                              members: {...groupMembers, [user as string]: GroupAccessType.ADMIN},
-                                                              types: groupTypes
-                                                            }
-                                        )
-                                        }}
-                                    >
-                                        Create Group
-                                    </button>
-                    </div>
-           
-           </div>
-          </div>
-        </div>
-    </div> )
+                </>
+            }
+        />
+    )
+    
 }
 
 
@@ -1798,7 +1774,7 @@ export const GroupSelect: FC<SelectProps> = ({groups, selectedGroup, setSelected
     const { state: { featureFlags }, dispatch: homeDispatch } = useContext(HomeContext);
 
      return (
-        <select className={"mb-2 w-full text-xl text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]"} 
+        <select className={"mb-2 w-full text-xl text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  custom-shadow"} 
             value={selectedGroup?.name ?? ''}
             title='Select Group'
             onChange={(event) => {
