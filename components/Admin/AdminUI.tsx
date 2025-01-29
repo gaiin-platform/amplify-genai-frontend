@@ -155,47 +155,56 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             setLoadData(false);
                 //   statsService.openSettingsEvent(); 
             setLoadingMessage("Loading Admin Interface...");
-            const result = await getAdminConfigs();
-            if (result.success) {
-                const data = result.data;
+            const nonlazyReq = getAdminConfigs(); // start longer call
+           
+            const lazyResult = await getAdminConfigs(true);
+            if (lazyResult.success) {
+                const data = lazyResult.data;
                 setAdmins(data[AdminConfigTypes.ADMINS] || []);
                 setFeatures(data[AdminConfigTypes.FEATURE_FLAGS] || {});
-                setAppVars(data[AdminConfigTypes.APP_VARS] || {});
-                setAppSecrets(data[AdminConfigTypes.APP_SECRETS] || {});
-                const ops:OpDef[] = data[AdminConfigTypes.OPS] || [];
-                setOps(ops.sort((a: OpDef, b: OpDef) => a.name.localeCompare(b.name)))
-                setOpenAiEndpoints(data[AdminConfigTypes.OPENAI_ENDPONTS] || { models: [] });
-                const availableModels = data[AdminConfigTypes.AVAILABLE_MODELS] || {};
-                const baseModel = emptySupportedModel();
-                const updatedModels = Object.entries(availableModels).map(([key, model]) => {
-                    // Create a new object where null values are replaced with baseModel's values
-                    const updatedModel = Object.fromEntries(
-                        Object.entries(model as SupportedModel).map(([prop, value]) => [
-                            prop,
-                            value === null ? baseModel[prop as keyof SupportedModel] : value,
-                        ])
-                    );
-                    return [key, updatedModel];
-                });
-                setAvailableModels(Object.fromEntries(updatedModels));
-                const astAdminGroups: Ast_Group_Data[] = data[AdminConfigTypes.AST_ADMIN_GROUPS] || [];
-                const amplifyAstGroupFound = astAdminGroups.find((g: Ast_Group_Data) => 
-                                                                  g.groupName === AMPLIFY_ASSISTANTS_GROUP_NAME);
-                if (amplifyAstGroupFound) setAmplifyAstGroupId(amplifyAstGroupFound.group_id);
-                setAstGroups(astAdminGroups);
                 setAmpGroups(data[AdminConfigTypes.AMPLIFY_GROUPS] || {})
                 setTemplates(data[AdminConfigTypes.PPTX_TEMPLATES] || []);
                 setRateLimit(data[AdminConfigTypes.RATE_LIMIT || rateLimit]);
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
 
-
-            } else {
-                alert("Unable to fetch admin configurations at this time. Please try again.");
-                onClose();
-            }
-        
+                setLoadingMessage("");
+                setIsLoading(false);
+            
+                const nonlazyResult = await nonlazyReq;
+                if (nonlazyResult.success) {
+                    const data = nonlazyResult.data;
+                
+                    setAppVars(data[AdminConfigTypes.APP_VARS] || {});
+                    setAppSecrets(data[AdminConfigTypes.APP_SECRETS] || {});
+                    const ops:OpDef[] = data[AdminConfigTypes.OPS] || [];
+                    setOps(ops.sort((a: OpDef, b: OpDef) => a.name.localeCompare(b.name)))
+                    setOpenAiEndpoints(data[AdminConfigTypes.OPENAI_ENDPONTS] || { models: [] });
+                    const availableModels = data[AdminConfigTypes.AVAILABLE_MODELS] || {};
+                    const baseModel = emptySupportedModel();
+                    const updatedModels = Object.entries(availableModels).map(([key, model]) => {
+                        // Create a new object where null values are replaced with baseModel's values
+                        const updatedModel = Object.fromEntries(
+                            Object.entries(model as SupportedModel).map(([prop, value]) => [
+                                prop,
+                                value === null ? baseModel[prop as keyof SupportedModel] : value,
+                            ])
+                        );
+                        return [key, updatedModel];
+                    });
+                    setAvailableModels(Object.fromEntries(updatedModels));
+                    const astAdminGroups: Ast_Group_Data[] = data[AdminConfigTypes.AST_ADMIN_GROUPS] || [];
+                    const amplifyAstGroupFound = astAdminGroups.find((g: Ast_Group_Data) => 
+                                                                    g.groupName === AMPLIFY_ASSISTANTS_GROUP_NAME);
+                    if (amplifyAstGroupFound) setAmplifyAstGroupId(amplifyAstGroupFound.group_id);
+                    setAstGroups(astAdminGroups);
+                    return;
+                } 
+            } 
+            alert("Unable to fetch admin configurations at this time. Please try again.");
             setLoadingMessage("");
             setIsLoading(false);
+            onClose();
+            
         }
         if (open && loadData) getConfigs();
 
@@ -1868,7 +1877,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             
                             }
                             { showFeatureSearch && !isAddingFeature && 
-                            <div className="ml-auto mr-10" style={{transform: 'translateY(12px)'}}>
+                            <div className="ml-auto mr-10" style={{transform: 'translateY(6px)'}}>
                                 <Search
                                 placeholder={'Search Feature Flags...'}
                                 searchTerm={featureSearchTerm}
@@ -3280,22 +3289,23 @@ interface AmplifyGroupSelectProps {
         setSelectedGroups(updatedSelectedGroups);
         setSelected(updatedSelectedGroups);
       };
+
+      const hasGroupOptions = groups.length > 0;
     
       return (
         <div className="relative w-full" ref={dropdownRef}>
           <button
             type="button"
             className="text-center w-full overflow-x-auto px-4 py-2 text-left text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 flex-grow-0"
-            style={{ whiteSpace: 'nowrap' }}
+            style={{ whiteSpace: 'nowrap', cursor: hasGroupOptions ? "pointer" : 'default' }}
             onClick={() => setIsOpen(!isOpen)}
             disabled={isDisabled}
           >
-            {selectedGroups.length > 0 || isDisabled
-              ? selectedGroups.join(', ')
-              : ('Select Amplify Groups')}
+            {selectedGroups.length > 0 || isDisabled ? selectedGroups.join(', ') 
+                 : hasGroupOptions ? 'Select Amplify Groups' : 'No Amplify Groups Available'}
           </button>
     
-          {isOpen && !isDisabled && (
+          {isOpen && !isDisabled && hasGroupOptions && (
             <ul className="absolute z-10 mt-0.5 max-h-60 w-full overflow-auto rounded-lg border-2 border-neutral-500 bg-white shadow-xl dark:border-neutral-900 dark:bg-[#40414F]">
               {groups.sort((a, b) => a.localeCompare(b))
                      .map((g) => (

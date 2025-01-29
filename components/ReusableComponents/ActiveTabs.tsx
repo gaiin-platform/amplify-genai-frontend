@@ -57,9 +57,9 @@ export const ActiveTabs: FC<Props> = ({tabs, width}) => {
                     )}
                     
             </div>
-            <br className="mt-[75px]"></br>
+            <br className="mt-[40px]"></br>
                         
-            {tabs[activeTab].content} 
+            <div className="mt-8"> {tabs[activeTab].content} </div>
 
         </div>
 
