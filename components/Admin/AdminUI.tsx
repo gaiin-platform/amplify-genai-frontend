@@ -157,6 +157,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             setLoadData(false);
                 //   statsService.openSettingsEvent(); 
             setLoadingMessage("Loading Admin Interface...");
+            setStillLoadingData(true);
             const nonlazyReq = getAdminConfigs(); // start longer call
            
             const lazyResult = await getAdminConfigs(true);
