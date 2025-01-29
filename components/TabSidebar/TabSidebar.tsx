@@ -28,6 +28,13 @@ const isMobileBrowser = () => {
 
 export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerComponent }) => {
     const { state: { featureFlags }, dispatch: homeDispatch } = useContext(HomeContext);
+    const featureFlagsRef = useRef(featureFlags);
+
+    useEffect(() => {
+        featureFlagsRef.current = featureFlags;
+        window.dispatchEvent(new Event('updateFeatureSettings'));
+    }, [featureFlags]);
+
     const [activeTab, setActiveTab] = useState(0);
     // Set the initial state based on whether the user is on a mobile browser
     const [isOpen, setIsOpen] = useState(!isMobileBrowser());
@@ -49,7 +56,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
 
     useEffect(() => {
         const handleAstAdminEvent = (event:any) => {
-            if (!featureFlags.assistantAdminInterface) return;
+            if (!featureFlagsRef.current.assistantAdminInterface) return;
             const isAdminOpen = event.detail.isOpen;
             handleAdmin(isAdminOpen);
             setGroupModalData(event.detail.data);
@@ -57,7 +64,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
         };
 
         const handleAdminEvent = (event:any) => {
-            if (!featureFlags.adminInterface) return;
+            if (!featureFlagsRef.current.adminInterface) return;
             const isAdminOpen = event.detail.isOpen;
             handleAdmin(isAdminOpen);
             setShowAdminInterface(isAdminOpen);  
@@ -139,14 +146,14 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
         <>
         {(isArtifactsOpen && triggerOnce() || !isArtifactsOpen) && <OpenSidebarButton onClick={toggleOpen} side={side} isDisabled={showAssistantAdmin || showAdminInterface}/>}
         
-        {featureFlags.assistantAdminInterface && 
+        {featureFlagsRef.current.assistantAdminInterface && 
          <AssistantAdminUI
             open={showAssistantAdmin && triggerOnce()}
             openToGroup={groupModalData?.group}
             openToAssistant={groupModalData?.assistant}
         /> }
 
-        {featureFlags.adminInterface && 
+        {featureFlagsRef.current.adminInterface && 
         <AdminUI
             open={showAdminInterface && triggerOnce()}
             onClose={() => {
