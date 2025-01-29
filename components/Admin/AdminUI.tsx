@@ -3289,22 +3289,23 @@ interface AmplifyGroupSelectProps {
         setSelectedGroups(updatedSelectedGroups);
         setSelected(updatedSelectedGroups);
       };
+
+      const hasGroupOptions = groups.length > 0;
     
       return (
         <div className="relative w-full" ref={dropdownRef}>
           <button
             type="button"
             className="text-center w-full overflow-x-auto px-4 py-2 text-left text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 flex-grow-0"
-            style={{ whiteSpace: 'nowrap' }}
+            style={{ whiteSpace: 'nowrap', cursor: hasGroupOptions ? "pointer" : 'default' }}
             onClick={() => setIsOpen(!isOpen)}
             disabled={isDisabled}
           >
-            {selectedGroups.length > 0 || isDisabled
-              ? selectedGroups.join(', ')
-              : ('Select Amplify Groups')}
+            {selectedGroups.length > 0 || isDisabled ? selectedGroups.join(', ') 
+                 : hasGroupOptions ? 'Select Amplify Groups' : 'No Amplify Groups Available'}
           </button>
     
-          {isOpen && !isDisabled && (
+          {isOpen && !isDisabled && hasGroupOptions && (
             <ul className="absolute z-10 mt-0.5 max-h-60 w-full overflow-auto rounded-lg border-2 border-neutral-500 bg-white shadow-xl dark:border-neutral-900 dark:bg-[#40414F]">
               {groups.sort((a, b) => a.localeCompare(b))
                      .map((g) => (

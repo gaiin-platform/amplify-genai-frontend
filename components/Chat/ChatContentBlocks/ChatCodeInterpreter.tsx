@@ -5,7 +5,7 @@ import {
 } from '@tabler/icons-react';
 import { DownloadFileButton } from '@/components/ReusableComponents/DownloadFileButton';
 
-interface FileInfo {
+export interface FileInfo {
   type: string;
   values: {
     file_key: string;
