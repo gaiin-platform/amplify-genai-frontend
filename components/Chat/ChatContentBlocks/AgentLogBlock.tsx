@@ -15,6 +15,77 @@ import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdo
 
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import { AgentFileList, AgentFile } from '@/components/Chat/ChatContentBlocks/AgentFilesBlock';
+// Response type from the server
+interface AgentLogData {
+  session: string;
+  handled: boolean;
+  result: any[];  // Could be more specific based on your needs
+  files?: FileMap;
+  changed_files?: string[];
+}
+
+interface AgentLog {
+  data: AgentLogData;
+  // Add other fields if needed
+}
+
+// File information types
+interface FileVersion {
+  version_file_id: string;
+  timestamp: string;
+  size: number;
+  hash: string;
+}
+
+interface FileData {
+  original_name: string;
+  size: number;
+  last_modified: string;
+  versions?: FileVersion[];
+}
+
+interface FileMap {
+  [fileId: string]: FileData;
+}
+
+
+type SupportedMimeType =
+  | 'text/csv'
+  | 'application/pdf'
+  | 'image/png'
+  | 'binary/octet-stream';
+
+/**
+ * Maps file extensions to their corresponding MIME types
+ */
+const mimeTypes: Record<string, SupportedMimeType> = {
+  // Images
+  'png': 'image/png',
+
+  // Documents
+  'csv': 'text/csv',
+  'pdf': 'application/pdf',
+
+  // Binary/Data files
+  'bin': 'binary/octet-stream',
+  'dat': 'binary/octet-stream',
+  'exe': 'binary/octet-stream',
+  'dll': 'binary/octet-stream'
+};
+
+/**
+ * Guesses the MIME type of a file based on its extension.
+ * @param fileName - The name of the file including extension
+ * @returns The guessed MIME type or 'binary/octet-stream' if unknown
+ */
+export function guessMimeType(fileName: string): SupportedMimeType {
+  // Extract the extension from the filename
+  const extension = fileName.toLowerCase().split('.').pop() || '';
+
+  // Return the MIME type if found, otherwise return binary/octet-stream
+  return mimeTypes[extension] || 'binary/octet-stream';
+}
 
 
 const getAgentLogItem = (msg: any) => {
@@ -150,12 +221,14 @@ const getAgentLogItem = (msg: any) => {
   }
 };
 
+
 interface Props {
   messageIsStreaming: boolean;
   message: Message;
+  conversationId: string;
 }
 
-const AgentLogBlock: React.FC<Props> = ({ message, messageIsStreaming }) => {
+const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStreaming }) => {
   if (
     !message ||
     !message.data ||
@@ -176,10 +249,40 @@ const AgentLogBlock: React.FC<Props> = ({ message, messageIsStreaming }) => {
     return <></>;
   }
 
+  let files: AgentFile[] = [];
+  if (agentLog.data.files) {
+    const fileData: FileMap = agentLog.data.files;
+    const changedFiles: string[] = agentLog.data.changed_files || [];
+
+    files = Object.entries(fileData)
+      .filter(([_, file]) => changedFiles.includes(file.original_name))
+      .map(([fileId, file]) => {
+        const fileInfo: AgentFile = {
+          type: guessMimeType(file.original_name),
+          values: {
+            fileId: fileId,
+            fileName: file.original_name,
+            sessionId: conversationId,
+            size: file.size,
+            lastModified: file.last_modified,
+            ...(file.versions && {
+              versions: file.versions.map((version: FileVersion) => ({
+                timestamp: version.timestamp,
+                size: version.size,
+                hash: version.hash,
+                version_file_id: version.version_file_id
+              }))
+            })
+          }
+        };
+        return fileInfo;
+      });
+  }
   agentLog = agentLog.data.result;
 
   return (
     <div className="mt-3" key={message.id}>
+      <AgentFileList files={files} />
       <ExpansionComponent
         title="Reasoning / Action Log"
         content={agentLog.map((msg: any, idx: number) => (

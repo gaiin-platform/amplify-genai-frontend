@@ -490,6 +490,7 @@ export const ChatMessage: FC<Props> = memo(({
                                           <AgentLogBlock
                                             messageIsStreaming={messageIsStreaming}
                                             message={message}
+                                            conversationId={selectedConversation?.id || ""}
                                           />
 
                                           {featureFlags.artifacts &&
