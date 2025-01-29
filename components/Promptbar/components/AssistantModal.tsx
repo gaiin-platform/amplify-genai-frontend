@@ -702,7 +702,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         <option value="v1">v1</option>
                                         <option value="v2">v2</option>
                                         <option value="v3">v3</option>
-                                        <option value="v4">AllAIn</option>
+                                        <option value="v4">Deep VU1</option>
                                         <option value="custom">custom</option>
                                     </select>
 
