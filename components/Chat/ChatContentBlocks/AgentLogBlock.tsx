@@ -89,7 +89,7 @@ export function guessMimeType(fileName: string): SupportedMimeType {
 
 
 const getAgentLogItem = (msg: any) => {
-  if (msg.role === 'assistant' && msg.content.tool === 'exec_code') {
+  if (msg.role === 'assistant' && msg.content && msg.content.tool === 'exec_code') {
     return (
       <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#444654] rounded p-2 my-1 max-w-full">
         <IconTerminal2 className="min-w-[20px] text-blue-600 dark:text-blue-400" />
@@ -137,7 +137,7 @@ const getAgentLogItem = (msg: any) => {
               Execute:
             </span>{' '}
             <span className="text-gray-600 dark:text-gray-300">
-              {msg.content.tool}
+              {msg.content && msg.content.tool ? msg.content.tool : ""}
             </span>
           </div>
         </div>
@@ -163,7 +163,7 @@ const getAgentLogItem = (msg: any) => {
               },
             }}
           >
-            {`\`\`\`json\n${JSON.stringify(msg.content.args, null, 2)}\n\`\`\``}
+            {msg.content && msg.content.args ? `\`\`\`json\n${JSON.stringify(msg.content.args, null, 2)}\n\`\`\`` : ""}
           </MemoizedReactMarkdown>
         </div>
       </div>
@@ -284,7 +284,7 @@ const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStrea
     <div className="mt-3" key={message.id}>
       <AgentFileList files={files} />
       <ExpansionComponent
-        title="Reasoning / Action Log"
+        title="Reasoning / Actions"
         content={agentLog.map((msg: any, idx: number) => (
           <div key={idx}>{getAgentLogItem(msg)}</div>
         ))}
