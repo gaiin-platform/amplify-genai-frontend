@@ -84,7 +84,6 @@ pre:has(div.codeblock) {
     background-color: #40414F;        /* dark:bg-[#40414F] */
     color: #f5f5f5;                   /* dark:text-neutral-100 */
     border-color: #262626;            /* dark:border-neutral-800 */
-    border-opacity: 0.5;              /* dark:border-opacity-50 */
   }
 }
 
@@ -111,5 +110,16 @@ pre:has(div.codeblock) {
 @media (prefers-color-scheme: dark) {
   .tool-bar {
     border-color: #6B7280;  /* dark:border-gray-500 */
+  }
+}
+
+
+.chat-button-blue-color {
+  color: #00a1d8;  /* text-[#00a1d8] */
+}
+
+@media (prefers-color-scheme: dark) {
+  .chat-button-blue-color {
+    color: #8edffa;  /* dark:text-[#8edffa] */
   }
 }

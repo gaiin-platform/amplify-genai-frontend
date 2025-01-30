@@ -6,6 +6,7 @@ import {
     IconSend,
 } from '@tabler/icons-react';
 import {
+    FC,
     KeyboardEvent,
     MutableRefObject,
     useCallback,
@@ -29,18 +30,12 @@ import { doSaveMemoryOp, doCreateProjectOp, doGetProjectsOp } from '@/services/m
 import { Settings } from '@/types/settings';
 
 interface Props {
-    onSend: (message: Message, documents: AttachedDocument[]) => void;
-    onRegenerate: () => void;
-    handleUpdateModel: (model: Model) => void;
-    onScrollDownClick: () => void;
-    stopConversationRef: MutableRefObject<boolean>;
-    textareaRef: MutableRefObject<HTMLTextAreaElement | null>;
-    showScrollDownButton: boolean;
-    plugins: Plugin[];
-    setPlugins: (p: Plugin[]) => void;
+    isFactsVisible: boolean;
+    setIsFactsVisible: (isVisible: boolean) => void;
 }
 
-export const MemoryPresenter = () => {
+export const MemoryPresenter: FC<Props> = ({
+    isFactsVisible, setIsFactsVisible}) => {
     const { t } = useTranslation('chat');
 
     const { killRequest } = useChatService();
@@ -63,7 +58,6 @@ export const MemoryPresenter = () => {
 
     const [factTypes, setFactTypes] = useState<{ [key: string]: string }>({});
     const [selectedProjects, setSelectedProjects] = useState<{ [key: string]: string }>({});
-    const [isFactsVisible, setIsFactsVisible] = useState(false);
 
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
@@ -290,21 +284,15 @@ export const MemoryPresenter = () => {
 
     return (
         <>
-            <div className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
+            <div className="flex flex-col justify-center items-center stretch mx-2 flex flex-row gap-3 last:mb-2 md:mx-4 md:last:mb-6 lg:mx-auto lg:max-w-3xl">
                 {featureFlags.memory && settingRef.current?.featureOptions.includeMemory && selectedConversation && selectedConversation.messages?.length > 0 && extractedFacts.length > 0 && (
                     <div>
-                        {!isFactsVisible ? (
-                            <button
-                                onClick={() => setIsFactsVisible(true)}
-                                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                            >
-                                {extractedFacts.length} facts detected - Click to view
-                            </button>
-                        ) : (
+                        { isFactsVisible && 
                             <div className="extracted-facts">
                                 <button
                                     onClick={() => setIsFactsVisible(false)}
-                                    className="mb-4 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                                    className="absolute mb-4 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                                    style={{transform: 'translateY(-42px)'}}
                                 >
                                     Hide facts
                                 </button>
@@ -320,7 +308,7 @@ export const MemoryPresenter = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {extractedFacts.map((fact, index) => (
+                                        {[...extractedFacts, ...extractedFacts, ...extractedFacts].map((fact, index) => (
                                             <tr key={index}>
                                                 <td style={{ border: '1px solid #ddd', padding: '8px' }}>{fact}</td>
                                                 <td style={{ border: '1px solid #ddd', padding: '8px' }}>
@@ -387,7 +375,7 @@ export const MemoryPresenter = () => {
                                     </tbody>
                                 </table>
                             </div>
-                        )}
+                        }
                     </div>
                 )}
             </div>
