@@ -861,7 +861,7 @@ const onAssistantChange = (assistant: Assistant) => {
                                 "Type a message to chat with Amplify..."
                             }
                             value={content}
-                            rows={2}
+                            rows={1}
                             onCompositionStart={() => setIsTyping(true)}
                             onCompositionEnd={() => setIsTyping(false)}
                             onChange={handleChange}

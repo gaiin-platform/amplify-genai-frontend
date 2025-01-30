@@ -308,7 +308,7 @@ export const MemoryPresenter: FC<Props> = ({
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {[...extractedFacts, ...extractedFacts, ...extractedFacts].map((fact, index) => (
+                                        {[...extractedFacts].map((fact, index) => (
                                             <tr key={index}>
                                                 <td style={{ border: '1px solid #ddd', padding: '8px' }}>{fact}</td>
                                                 <td style={{ border: '1px solid #ddd', padding: '8px' }}>
