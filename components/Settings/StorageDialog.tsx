@@ -89,44 +89,46 @@ export const StorageDialog: FC<Props> = ({ open }) => {
 
   return ( open ? (
           <div
-            className="inline-block transform overflow-y-auto rounded-lg  bg-transparent text-left align-bottom transition-all sm:mt-6  sm:align-middle"
+            className="w-full pr-6  inline-block transform overflow-y-auto rounded-lg  bg-transparent text-left align-bottom transition-all  sm:align-middle"
           >
             <div className="text-lg pb-2 font-bold text-black dark:text-neutral-200 flex items-center">
               {t('Conversation Storage')}
             </div>
 
             <InfoBox
-              content = {
-                <span className="ml-2 text-xs"> 
-                {"These are default settings that could be manually overwritten at the conversation level as indicated by the cloud icon."}
-                <br className='mb-2'></br>
-                {"If you are concerned with privacy, you can store your conversations locally, but they will not be available across multiple devices or browsers."}
-                <div className='mt-1 text-black dark:text-neutral-300 text-sm text-center'> {"*** This configuration applies to the current browser only ***"} </div>
-                </span>
+              content = { 
+              <div className='w-full flex justify-center text-center'>
+                  <span className="ml-2 text-xs"> 
+                  {"These are default settings that could be manually overwritten at the conversation level as indicated by the cloud icon."}
+                  <br className='mb-2'></br>
+                  {"If you are concerned with privacy, you can store your conversations locally, but they will not be available across multiple devices or browsers."}
+                  <div className='mt-1 text-black dark:text-neutral-300 text-sm text-center'> {"*** This configuration applies to the current browser only ***"} </div>
+                  </span>
+                </div>
               }
             />
 
 
-            <div className="flex flex-row text-sm font-bold mt-4 text-black dark:text-neutral-200">
-              {t('Where would you like to store your conversations?')}
-              <button
-                type="button"
-                title='Apply Conversation Storage Changes To The Current Browser'
-                className="text-xs ml-10 p-2 py-1 mt-2  border rounded-lg shadow-md focus:outline-none border-neutral-800 bg-neutral-100 text-black hover:bg-neutral-200"
-                onClick={() => {
-                    if (confirm(`${confirmationMessage()} \n\n Would you like to continue?`)) handleSave();
-                }}
-                >
-                <>{t('Apply Changes')}
-                  {hasChanges && <span className='ml-0.5 text-[0.9rem]'>*</span>}
-                </>
-                </button>
-            </div>
+          <div className="flex flex-row justify-center text-sm font-bold mt-4 text-black dark:text-neutral-200">
+            {t('Where would you like to store your conversations?')}
+            <button
+              type="button"
+              title='Apply Conversation Storage Changes To The Current Browser'
+              className="text-xs ml-10 p-2 py-1  border rounded-lg shadow-md focus:outline-none border-neutral-800 bg-neutral-100 text-black hover:bg-neutral-200"
+              onClick={() => {
+                  if (confirm(`${confirmationMessage()} \n\n Would you like to continue?`)) handleSave();
+              }}
+              >
+              <>{t('Apply Changes')}
+                {hasChanges && <span className='ml-0.5 text-[0.9rem]'>*</span>}
+              </>
+              </button>
+          </div>
 
-        <form className='mt-[-20px]'>
+        <form className='mt-12 flex justify-center ml-6'>
           {/* Local Storage Section */}
-          <div className="mb-4">
-              <div className="mt-4 pb-1 border-b border-gray-300">
+          <div className='mr-12'>
+              <div className="pb-1 border-b border-gray-300">
                   <label className="text-base font-semibold" title='Local storage keeps your conversations only in this browser, ensuring they remain private.' >Local Storage</label>
                   <button
                       type="button"
@@ -162,7 +164,7 @@ export const StorageDialog: FC<Props> = ({ open }) => {
           </div>
 
           {/* Cloud Storage Section */}
-          <div className="mb-4">
+          <div>
               <div className="pb-1 border-b border-gray-300">
                   <label className="text-base font-semibold" title="Cloud storage allows access to your conversations from any device.">Cloud Storage</label>
                   <button
