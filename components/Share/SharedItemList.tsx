@@ -18,12 +18,9 @@ import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
 import HomeContext from "@/pages/api/home/home.context";
 import {ShareAnythingToMarketModal} from "@/components/Share/ShareAnythingToMarketModal";
 import {useSession} from "next-auth/react";
-import { fetchData } from 'next-auth/client/_utils';
-import { Tab, TabSidebar } from '../TabSidebar/TabSidebar';
 import { isAssistantById } from '@/utils/app/assistants';
 import ActionButton from '../ReusableComponents/ActionButton';
 
-type SharedItemsListProps = {};
 
 function groupBy(key: string, array: ShareItem[]): { [key: string]: ShareItem[] } {
     return array.reduce((result: { [key: string]: ShareItem[] }, currentItem) => {
@@ -32,7 +29,7 @@ function groupBy(key: string, array: ShareItem[]): { [key: string]: ShareItem[] 
     }, {});
 }
 
-const SharedItemsList: FC<SharedItemsListProps> = () => {
+const SharedItemsList: FC<{}> = () => {
 
     const {dispatch: homeDispatch, state:{statsService, featureFlags, prompts}} = useContext(HomeContext);
 
@@ -157,9 +154,6 @@ const SharedItemsList: FC<SharedItemsListProps> = () => {
                     onCancel={() => {
                         setImportModalOpen(false);
                     }}
-                    includeConversations={true}
-                    includePrompts={true}
-                    includeFolders={true}
                     importKey={selectedKey}
                     note={selectedNote}
                 />
