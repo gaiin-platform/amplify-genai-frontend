@@ -556,9 +556,10 @@ export const MemoryDialog: FC<Props> = ({ open, onClose }) => {
             width={() => window.innerWidth * 0.62}
             height={() => window.innerHeight * 0.88}
             title="Memory Management"
-            onCancel={onClose}
             onSubmit={onClose}
+            onCancel={onClose}
             submitLabel="Close"
+            showCancel={false}
             content={
                 <div className="flex h-full">
                     <div className="w-48 border-r dark:border-neutral-700">
