@@ -393,6 +393,12 @@ export function useSendService() {
                     }
 
                     const controller = new AbortController();
+                    const handleStopGenerationEvent = () => {
+                        controller.abort();
+                        console.log("Kill chat event trigger, control signal aborted value: " , controller.signal.aborted); 
+                    }
+            
+                    window.addEventListener('killChatRequest', handleStopGenerationEvent);
                     try {
 
                         const { prefix, body, options } = parseMessageType(message.content);
@@ -660,6 +666,9 @@ export function useSendService() {
                         return;
                         //reject(error);
                         // Handle any other errors, as required.
+                    } finally {
+                        
+                        window.removeEventListener('killChatRequest', handleStopGenerationEvent);
                     }
 
                     //Reset the status display

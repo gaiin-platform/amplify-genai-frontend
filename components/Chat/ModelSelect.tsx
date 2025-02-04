@@ -58,7 +58,7 @@ export const ModelSelect: React.FC<Props> = ({modelId, isDisabled=false, handleM
       <label className="mb-2 text-left text-neutral-700 dark:text-neutral-400">
         {isTitled? t('Model'): ""}
       </label>
-      <div className="w-full rounded-lg border border-neutral-200 bg-transparent pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
+      <div className="w-full rounded-lg border border-neutral-200 bg-transparent pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white custom-shadow">
         <select
           disabled={isDisabled}
           className="w-full bg-transparent p-2"

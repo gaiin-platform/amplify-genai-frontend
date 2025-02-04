@@ -492,7 +492,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>
                             <div className="flex flex-row gap-2 ">
                                 <select
-                                    className="my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
+                                    className="my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow"
                                     value={selectTemplateId}
                                     onChange={(e) => setSelectTemplateId(e.target.value ?? '')}
                                     >
@@ -702,7 +702,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         <option value="v1">v1</option>
                                         <option value="v2">v2</option>
                                         <option value="v3">v3</option>
-                                        <option value="v4">AllAIn</option>
+                                        <option value="v4">Deep VU1</option>
                                         <option value="custom">custom</option>
                                     </select>
 

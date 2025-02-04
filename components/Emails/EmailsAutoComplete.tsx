@@ -1,6 +1,4 @@
 import React, { useState, FC, useCallback, useRef, useEffect } from 'react';
-import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
-import debounce from 'lodash.debounce';
 
 
 interface EmailModalProps {
@@ -53,15 +51,6 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEm
         setSuggestions([]); 
     };
 
-    const debouncedFetchSuggestions = useCallback(
-        debounce(async (emailPrefix: string, curInput: string) => {
-            const suggestionData = await fetchEmailSuggestions(emailPrefix);
-            let newSuggestions = (suggestionData && suggestionData.emails) ? suggestionData.emails : [];
-            newSuggestions = newSuggestions.filter((suggestion: string) => !curInput.includes(suggestion) && !alreadyAddedEmails.includes(suggestion));
-            setSuggestions(newSuggestions);  
-        }, 100),
-        []
-    );
 
     const emailSuggestions = (emailPrefix: string, curInput: string) => {
         if (!allEmails) return;
@@ -101,11 +90,7 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEm
                                         const lastQuery = value.split(',').pop();
                                         
                                         if (lastQuery && lastQuery.length > 0 && lastQuery.trim().length > 0) {
-                                            if (allEmails) {
-                                                emailSuggestions(lastQuery.trim(), input);
-                                            } else {
-                                              await debouncedFetchSuggestions(lastQuery.trim(), input);
-                                            }  
+                                            emailSuggestions(lastQuery.trim(), input);
                                         } else {
                                             setSuggestions([]);
                                         }

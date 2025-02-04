@@ -10,7 +10,7 @@ import AssistantBlock from "@/components/Chat/ChatContentBlocks/AssistantBlock";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {parsePartialJson} from "@/utils/app/data";
 import AutonomousBlock from "@/components/Chat/ChatContentBlocks/AutonomousBlock";
-import {useContext, useEffect, useState} from "react";
+import {useContext, useEffect, useRef, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
 import ApiKeyBlock from "./ApiKeyBlock";
@@ -41,7 +41,9 @@ const ChatContentBlock: React.FC<Props> = (
 
     const {
         state: {
-            featureFlags
+            featureFlags,
+            showPromptbar,
+            showChatbar,
         },
     } = useContext(HomeContext);
 
@@ -62,6 +64,33 @@ const ChatContentBlock: React.FC<Props> = (
         transformMessageContent(selectedConversation, message) :
         message.content;
     const isLast = messageIndex == (selectedConversation?.messages.length ?? 0) - 1;
+
+
+    const promptbarRef = useRef(showPromptbar);
+
+    useEffect(() => {
+        promptbarRef.current = showPromptbar;
+        setWindowInnerWidth(calcWidth())
+    }, [showPromptbar]);
+
+    const chatbarRef = useRef(showChatbar);
+
+    useEffect(() => {
+        chatbarRef.current = showChatbar;
+        setWindowInnerWidth(calcWidth())
+    }, [showChatbar]);
+
+
+    const calcWidth = () => window.innerWidth - ((+promptbarRef.current + +chatbarRef.current) * 450);
+    
+
+    const [windowInnerWidth, setWindowInnerWidth] = useState<number>(calcWidth());
+
+    useEffect(() => {
+        const updateInnerWindow = () => setWindowInnerWidth(calcWidth());
+        window.addEventListener('resize', updateInnerWindow);
+        return () => window.removeEventListener('resize', updateInnerWindow);
+        }, []);
  
   // Add local state to trigger re-render
   const [renderKey, setRenderKey] = useState(0);
@@ -81,12 +110,13 @@ const ChatContentBlock: React.FC<Props> = (
 //   console.log(transformedMessageContent)
   
     return (
-    <div className="chatContentBlock" 
+    <div className="chatContentBlock w-full overflow-x-auto" 
+         style={{maxWidth: windowInnerWidth}}
          data-message-index={messageIndex}
          data-original-content={transformedMessageContent}>
     <MemoizedReactMarkdown
     key={renderKey}
-    className="prose dark:prose-invert flex-1" 
+    className="prose dark:prose-invert flex-1 max-w-none w-full" 
     remarkPlugins={[remarkGfm, remarkMath]}
     //onMouseUp={handleTextHighlight}
     //rehypePlugins={[rehypeRaw]}
