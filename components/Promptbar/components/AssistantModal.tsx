@@ -48,42 +48,52 @@ const dataSourceFlags = [
     {
         "label": "Include Download Links for Referenced Documents",
         "key": "includeDownloadLinks",
-        "defaultValue": false
+        "defaultValue": false,
+        "description": "Assistant can include hyperlinks to relevant downloadable documents in its responses."
     },
     {
         "label": "Include Attached Documents in RAG",
         "key": "ragAttachedDocuments",
-        "defaultValue": false
+        "defaultValue": false,
+        "description": "Allows Retrieval-Augmented Generation (RAG) to be performed on user-attached documents. Only the most relevant portions of the document will be provided to the assistant."
     },
     {
         "label": "Include Attached Documents in Prompt",
         "key": "insertAttachedDocuments",
-        "defaultValue": true
+        "defaultValue": true,
+        "description": "The assistant will receive the full content of user-attached documents for comprehensive context. (Recommended)"
+
     },
     {
         "label": "Include Conversation Documents in RAG",
         "key": "ragConversationDocuments",
-        "defaultValue": true
+        "defaultValue": true,
+        "description": "Applies Retrieval-Augmented Generation (RAG) to documents from earlier in the conversation. Only the most relevant portions will be provided to the assistant. (Recommended)"
     },
     {
         "label": "Include Conversation Documents in Prompt",
         "key": "insertConversationDocuments",
-        "defaultValue": false
+        "defaultValue": false,
+        "description": "The assistant receives the full content of documents from earlier in the conversation for comprehensive context."
     },
     {
         "label": "Include Attached Data Source Metadata in Prompt",
         "key": "insertAttachedDocumentsMetadata",
-        "defaultValue": false
+        "defaultValue": false,
+        "description": "Provides the assistant with metadata, including ID, name, type, and properties of currently attached documents for reference purposes. (NOT Recommended)"
     },
     {
         "label": "Include Conversation Data Source Metadata in Prompt",
         "key": "insertConversationDocumentsMetadata",
-        "defaultValue": false
+        "defaultValue": false,
+        "description": "Provides the assistant with metadata, including ID, name, type, and properties of documents from earlier in the conversation for reference purposes. (NOT Recommended)"
     },
     {
         "label": "Disable Data Source Insertion",
         "key": "disableDataSources",
-        "defaultValue": false
+        "defaultValue": false,
+        "description": "Ignores all user-provided documents, preventing their content from being seen by the assistant. (NOT Recommended)"
+
     },
 ];
 
@@ -718,10 +728,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
                                         {t('Data Source Options')}
                                     </div>
-                                    {/*// Documents in past messages*/}
-                                    {/*// Documents attached to prompt*/}
-                                    {/*// Assistant documents*/}
-                                    <FlagsMap id={'dataSourceFlags'}
+                                    <ExpansionComponent
+                                        title='Manage'
+                                        content= {
+                                             <FlagsMap id={'dataSourceFlags'}
                                               flags={dataSourceFlags}
                                               state={dataSourceOptions}
                                               flagChanged={
@@ -732,6 +742,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                       });
                                                   }
                                               } />
+                                        }
+                                    />
+                                   
                                     <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
                                         {t('Message Options')}
                                     </div>
