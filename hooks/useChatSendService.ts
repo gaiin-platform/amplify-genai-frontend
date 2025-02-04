@@ -232,15 +232,33 @@ export function useSendService() {
                             const userInput = updatedConversation.messages
                                 .filter(msg => msg.role === 'user')
                                 .pop()?.content || '';
-                            const response = await doExtractFactsOp(userInput);
-                            const extractedFacts = JSON.parse(response.body).facts;
-                            const currentFacts = extractedFacts || [];
-                            homeDispatch({
-                                field: 'extractedFacts',
-                                value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
-                                    self.indexOf(fact) === index
-                                )
-                            });
+                                
+                            // const response = await doExtractFactsOp(userInput);
+                            // const extractedFacts = JSON.parse(response.body).facts;
+                            // const currentFacts = extractedFacts || [];
+                            // homeDispatch({
+                            //     field: 'extractedFacts',
+                            //     value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
+                            //         self.indexOf(fact) === index
+                            //     )
+                            // });
+
+                            // extract facts without waiting
+                            const factExtractionPromise = doExtractFactsOp(userInput)
+                                .then(response => {
+                                    const extractedFacts = JSON.parse(response.body).facts;
+                                    const currentFacts = extractedFacts || [];
+                                    homeDispatch({
+                                        field: 'extractedFacts',
+                                        value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
+                                            self.indexOf(fact) === index
+                                        )
+                                    });
+                                })
+                                .catch(error => {
+                                    console.warn('Fact extraction failed:', error);
+                                    // Continue with the chat even if fact extraction fails
+                                });
                         }
 
                         // memory fetching
