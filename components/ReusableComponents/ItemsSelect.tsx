@@ -31,6 +31,8 @@ interface Props {
     handleRootPromptIds?: boolean;
 }
 
+const ITEM_TYPES = ['Conversation', 'Folder', 'Prompt'] as const;
+type ItemType = typeof ITEM_TYPES[number];
 
 export const ItemSelect: FC<Props> = (
     { promptOptions, conversationOptions, folderOptions, 
@@ -72,11 +74,26 @@ export const ItemSelect: FC<Props> = (
         foldersRef.current = folders;
     }, [folders]);
 
+    const getItems = (itemType: ItemType) => {
+        switch (itemType) {
+            case 'Prompt':
+                return (includePrompts ? promptFilter(promptOptions ?? promptsRef.current) : []) as Prompt[];
+            case 'Conversation':
+                return (includeConversations ? conversationFilter(conversationOptions ?? conversationsRef.current) : []) as Conversation[];
+            case 'Folder':
+                return (includeFolders ? folderFilter(folderOptions ?? foldersRef.current) : []) as FolderInterface[];
+            default:
+                return [] as any;
+        }
+    };
+
     const itemRefs = useRef<Record<string, React.RefObject<HTMLDivElement>>>({});
 
     const [allPromptsChecked, setAllPromptsChecked] = useState(false);
     const [allConversationsChecked, setAllConversationsChecked] = useState(false);
     const [allFoldersChecked, setAllFoldersChecked] = useState(false);
+    const noItems = ITEM_TYPES.every(type => getItems(type).length === 0);
+
     
     const handlePromptsCheck = (checked:boolean) => {
         // if checked, add all prompts to selected, else remove them
@@ -97,7 +114,7 @@ export const ItemSelect: FC<Props> = (
     };
 
     useEffect(() => {
-        const promptSelection: Prompt[] = promptFilter( promptOptions ?? promptsRef.current);
+        const promptSelection: Prompt[] = getItems("Prompt");
         let updatedCheck = null;
         if (handleRootPromptIds) {
             const ids = promptSelection.map((p: Prompt) => p.id);
@@ -112,19 +129,19 @@ export const ItemSelect: FC<Props> = (
 
 
     useEffect(() => {
-        const conversationSelection = conversationFilter( conversationOptions ?? conversationsRef.current );
+        const conversationSelection = getItems("Conversation");
         const updatedCheck = selectedConversationsState.length === conversationSelection.length;
         if (updatedCheck !== allConversationsChecked) setAllConversationsChecked(updatedCheck);
     }, [selectedConversationsState]);
 
 
     useEffect(() => {
-        const folderSelection = folderFilter( folderOptions ?? foldersRef.current);
+        const folderSelection = getItems("Folder");
         const updatedCheck = selectedFoldersState.length === folderSelection.length;
         if (updatedCheck !== allFoldersChecked) setAllFoldersChecked(updatedCheck);
     }, [selectedFoldersState]);
     
-     const getIcon = (item: any, itemType: string) => {
+     const getIcon = (item: any, itemType: ItemType) => {
         switch (itemType) {
             case 'Folder':
                 return <IconFolder size={18}/>;
@@ -138,7 +155,7 @@ export const ItemSelect: FC<Props> = (
         }
     }
 
-    const handleItemSelect = (item: Prompt | Conversation | FolderInterface, itemType: string) => {
+    const handleItemSelect = (item: Prompt | Conversation | FolderInterface, itemType: ItemType) => {
         switch (itemType) {
             case 'Prompt': {
                 const prompt = item as Prompt;
@@ -210,7 +227,7 @@ export const ItemSelect: FC<Props> = (
         }
     }, []);
 
-    const isSelected = (item: { id: string; }, itemType: string) => {
+    const isSelected = (item: { id: string; }, itemType: ItemType) => {
         switch (itemType) {
             case 'Prompt':
                 return selectedPromptsState.some(selectedItem => selectedItem.id === item.id);
@@ -228,7 +245,7 @@ export const ItemSelect: FC<Props> = (
     }
 
 
-    const renderItem = (item: Prompt | Conversation | FolderInterface, itemType: string) => {
+    const renderItem = (item: Prompt | Conversation | FolderInterface, itemType: ItemType) => {
             // Create a new ref for each item if it does not exist yet.
             if (!itemRefs.current[item.id]) {
                 itemRefs.current[item.id] = React.createRef();
@@ -249,11 +266,11 @@ export const ItemSelect: FC<Props> = (
             );
         };
     
-        const renderScrollableSection = (isVisible: boolean, isChecked: boolean, handleCheck: (e :boolean) => void,
-                                         items: Array<Prompt | Conversation | FolderInterface>, itemType: string) => {
-            return isVisible ? (
-                <>
-                    <div className="mt-6 flex items-center border-b">
+        const renderScrollableSection = (isChecked: boolean, handleCheck: (e :boolean) => void, itemType: ItemType) => {
+            const items:Array<Prompt | Conversation | FolderInterface> = getItems(itemType);
+            if (items.length === 0) return null;
+            return <>
+                    <div className="mt-6 flex items-center border-b border-b-black dark:border-b-white">
                         <div className="ml-2" title={`${isChecked ? "Deselect": "Selectl"} All ${itemType}s`}>
                         <Checkbox
                             id={itemType}
@@ -270,19 +287,20 @@ export const ItemSelect: FC<Props> = (
                             renderItem(item, itemType)
                         )}
                     </div>
-                </>
-                ) : null};
+                    </>
+        };
             
     return (
-        <>
-            {renderScrollableSection(includePrompts, allPromptsChecked, handlePromptsCheck, 
-                                     promptFilter(promptOptions ?? promptsRef.current), 'Prompt')}
-        
-            {renderScrollableSection(includeConversations, allConversationsChecked,handleConversationsCheck,
-                                     conversationFilter(conversationOptions ?? conversationsRef.current), 'Conversation')}
 
-            {renderScrollableSection(includeFolders, allFoldersChecked, handleFoldersCheck, 
-                                     folderFilter(folderOptions ?? foldersRef.current), 'Folder')}
+        noItems ? 
+        <div className="mt-4"> No items available to select </div>
+        :
+        <>
+            {renderScrollableSection(allPromptsChecked, handlePromptsCheck, 'Prompt')}
+        
+            {renderScrollableSection(allConversationsChecked,handleConversationsCheck, 'Conversation')}
+
+            {renderScrollableSection(allFoldersChecked, handleFoldersCheck, 'Folder')}
 
         </>
     );
