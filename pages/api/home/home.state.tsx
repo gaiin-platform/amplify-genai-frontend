@@ -75,7 +75,7 @@ export interface HomeInitialState {
   powerPointTemplateOptions: string[];
   amplifyUsers: string[];
   extractedFacts: string[];
-
+  memoryExtractionEnabled: boolean;
 }
 
 export const initialState: HomeInitialState = {
@@ -145,5 +145,6 @@ export const initialState: HomeInitialState = {
   hiddenGroupFolders: [],
   powerPointTemplateOptions: [],
   amplifyUsers: [],
-  extractedFacts: []
+  extractedFacts: [],
+  memoryExtractionEnabled: true,
 };

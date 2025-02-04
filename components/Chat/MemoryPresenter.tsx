@@ -1,15 +1,5 @@
 import {
-    IconArrowDown,
-    IconPlayerStop,
-    IconAt,
-    IconFiles,
-    IconSend,
-} from '@tabler/icons-react';
-import {
     FC,
-    KeyboardEvent,
-    MutableRefObject,
-    useCallback,
     useContext,
     useEffect,
     useRef,
@@ -17,17 +7,14 @@ import {
 } from 'react';
 
 import { useTranslation } from 'next-i18next';
-import { Conversation, Message, MessageType, newMessage } from '@/types/chat';
-import { Plugin, PluginID } from '@/types/plugin';
-import { AttachedDocument, AttachedDocumentMetadata } from "@/types/attacheddocument";
 import HomeContext from '@/pages/api/home/home.context';
-import { DefaultModels, Model } from "@/types/model";
-import { Assistant, DEFAULT_ASSISTANT } from "@/types/assistant";
+import { DEFAULT_ASSISTANT } from "@/types/assistant";
 import { useChatService } from "@/hooks/useChatService";
 import { getSettings } from '@/utils/app/settings';
 import { useSession } from 'next-auth/react';
 import { doSaveMemoryOp, doCreateProjectOp, doGetProjectsOp } from '@/services/memoryService';
 import { Settings } from '@/types/settings';
+import { Toggle } from '@/components/ReusableComponents/Toggle';
 
 interface Props {
     isFactsVisible: boolean;
@@ -36,13 +23,9 @@ interface Props {
 
 export const MemoryPresenter: FC<Props> = ({
     isFactsVisible, setIsFactsVisible}) => {
-    const { t } = useTranslation('chat');
-
-    const { killRequest } = useChatService();
 
     const {
-        state: { selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming, prompts, featureFlags, currentRequestId, chatEndpoint, statsService, availableModels, extractedFacts },
-        getDefaultModel,
+        state: { selectedConversation, selectedAssistant, featureFlags, extractedFacts, memoryExtractionEnabled },
         dispatch: homeDispatch
     } = useContext(HomeContext);
 
@@ -58,6 +41,7 @@ export const MemoryPresenter: FC<Props> = ({
 
     const [factTypes, setFactTypes] = useState<{ [key: string]: string }>({});
     const [selectedProjects, setSelectedProjects] = useState<{ [key: string]: string }>({});
+    const [loadingStates, setLoadingStates] = useState<{ [key: number]: string }>({});
 
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
@@ -66,7 +50,16 @@ export const MemoryPresenter: FC<Props> = ({
         setFactTypes(prev => ({ ...prev, [index]: value }));
     };
 
+    const handleToggleMemoryExtraction = (enabled: boolean) => {
+        homeDispatch({
+            field: 'memoryExtractionEnabled',
+            value: enabled
+        });
+    };
+
     const handleSaveFact = async (index: number) => {
+        setLoadingStates(prev => ({ ...prev, [index]: 'saving' }));
+
         const fact = extractedFacts[index];
         const type = factTypes[index] || 'user';
 
@@ -87,26 +80,13 @@ export const MemoryPresenter: FC<Props> = ({
                     throw new Error('No project selected');
                 }
                 typeID = projectId;
-                // console.log('Saving project memory:', {
-                //     fact,
-                //     type,
-                //     typeID,
-                //     selectedProject: selectedProjects[index]
-                // });
                 break;
             default:
                 typeID = type;
         }
 
         try {
-            // console.log('Calling doSaveMemoryOp with:', {
-            //     fact,
-            //     type,
-            //     typeID
-            // });
             await doSaveMemoryOp(fact, type, typeID);
-
-            // console.log('Memory save successful');
 
             // Remove the saved fact from the list
             const updatedFacts = extractedFacts.filter((_, i) => i !== index);
@@ -120,19 +100,28 @@ export const MemoryPresenter: FC<Props> = ({
             const updatedSelectedProjects = { ...selectedProjects };
             delete updatedSelectedProjects[index];
             setSelectedProjects(updatedSelectedProjects);
-        } catch (error) {
-            console.error('Failed to save memory:', error);
-            console.error('Error details:', {
-                fact,
-                type,
-                typeID,
-                error
+
+            // Clear loading state on success
+            setLoadingStates(prev => {
+                const newState = { ...prev };
+                delete newState[index];
+                return newState;
             });
+        } catch (error) {
+            // Clear loading state on error
+            setLoadingStates(prev => {
+                const newState = { ...prev };
+                delete newState[index];
+                return newState;
+            });
+            console.error('Failed to save memory:', error);
             alert('Failed to save memory item');
         }
     };
 
     const handleDeleteFact = (index: number) => {
+        setLoadingStates(prev => ({ ...prev, [index]: 'deleting' }));
+        
         // Remove the fact without saving
         const updatedFacts = extractedFacts.filter((_, i) => i !== index);
         homeDispatch({ field: 'extractedFacts', value: updatedFacts });
@@ -141,6 +130,13 @@ export const MemoryPresenter: FC<Props> = ({
         const updatedFactTypes = { ...factTypes };
         delete updatedFactTypes[index];
         setFactTypes(updatedFactTypes);
+
+        // Clear loading state
+        setLoadingStates(prev => {
+            const newState = { ...prev };
+            delete newState[index];
+            return newState;
+        });
     };
 
     const getUserProjects = async () => {
@@ -289,13 +285,20 @@ export const MemoryPresenter: FC<Props> = ({
                     <div>
                         { isFactsVisible && 
                             <div className="extracted-facts">
-                                <button
-                                    onClick={() => setIsFactsVisible(false)}
-                                    className="absolute mb-4 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-                                    style={{transform: 'translateY(-42px)'}}
-                                >
-                                    Hide facts
-                                </button>
+                                <div className="w-full flex justify-between items-center mb-4 px-4">
+                                    <Toggle
+                                        label="Auto-extract new memories"
+                                        enabled={memoryExtractionEnabled}
+                                        onChange={handleToggleMemoryExtraction}
+                                        size="small"
+                                    />
+                                    <button
+                                        onClick={() => setIsFactsVisible(false)}
+                                        className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                                    >
+                                        Hide facts
+                                    </button>
+                                </div>
                                 <table style={{ borderCollapse: 'collapse', width: '100%' }}>
                                     <thead>
                                         <tr>
@@ -359,15 +362,29 @@ export const MemoryPresenter: FC<Props> = ({
                                                 )}
                                                 <td style={{ border: '1px solid #ddd', padding: '8px' }}>
                                                     <div className="flex justify-center gap-4">
-                                                        <button
-                                                            onClick={() => handleSaveFact(index)}
-                                                            disabled={factTypes[index] === 'project' && !selectedProjects[index]}
-                                                            className="hover:opacity-75 transition-opacity"
-                                                        >✅</button>
-                                                        <button
-                                                            onClick={() => handleDeleteFact(index)}
-                                                            className="hover:opacity-75 transition-opacity"
-                                                        >❌</button>
+                                                        {loadingStates[index] === 'saving' ? (
+                                                            <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                            </svg>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => handleSaveFact(index)}
+                                                                disabled={factTypes[index] === 'project' && !selectedProjects[index]}
+                                                                className="hover:opacity-75 transition-opacity"
+                                                            >✅</button>
+                                                        )}
+                                                        {loadingStates[index] === 'deleting' ? (
+                                                            <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                            </svg>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => handleDeleteFact(index)}
+                                                                className="hover:opacity-75 transition-opacity"
+                                                            >❌</button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
