@@ -239,6 +239,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             if(ops.success){
                                                 // console.log(ops.data);
                                                 setAvailableApis(ops.data);
+                                            } else {
+                                                setAvailableApis([]);
                                             }
                                         });
     }, [availableApis]);
@@ -248,7 +250,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     useEffect(() => {
         additionalGroupDataRef.current = additionalGroupData;
-        // console.log(additionalGroupData)
     }, [additionalGroupData]);
 
     const validateApiInfo = (api: any) => {
@@ -809,21 +810,22 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     </div>
 
 
-                                    {!availableApis || availableApis.length > 0 &&
-                                    <div className="flex flex-row text-sm font-bold text-black dark:text-neutral-200 mt-2 mb-2">
-                                        {t('Enabled API Capabilities')}
-                                        {availableApis && 
-                                         <div className="h-0 ml-auto" style={{transform: 'translateY(-18px)'}}>
-                                            <Search
-                                            placeholder={'Search APIs...'}
-                                            searchTerm={apiSearchTerm}
-                                            onSearch={(searchTerm: string) => setApiSearchTerm(searchTerm.toLocaleLowerCase())}
-                                            />
-                                        </div>}
-                                    </div>
-                                    }
+                                    {!availableApis && <>Loading API Capabilities...</>}
 
-                                    {availableApis && availableApis.length > 0 ?
+                                    {availableApis && availableApis.length > 0 &&
+                                        <>
+                                        <div className="flex flex-row text-sm font-bold text-black dark:text-neutral-200 mt-2 mb-2">
+                                            {t('Enabled API Capabilities')}
+                                            {availableApis && 
+                                            <div className="h-0 ml-auto" style={{transform: 'translateY(-18px)'}}>
+                                                <Search
+                                                placeholder={'Search APIs...'}
+                                                searchTerm={apiSearchTerm}
+                                                onSearch={(searchTerm: string) => setApiSearchTerm(searchTerm.toLocaleLowerCase())}
+                                                />
+                                            </div>}
+                                        </div> 
+
                                         <div className="max-h-[400px] overflow-y-auto">
                                             {availableApis.filter((api) => (apiSearchTerm ? 
                                                                    api.name.toLowerCase().includes(apiSearchTerm) : true))
@@ -835,7 +837,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 index={index}
                                                 onChange={handleUpdateApiItem} />
                                             ))}
-                                        </div> : <>Loading...</>
+                                        </div>  
+                                        </>
                                     }
 
 

@@ -42,7 +42,7 @@ export const ApiDocBlock: React.FC<Props> = ({content}) => {
         <ExpansionComponent 
             title="Amplify API Documents"
             content={ [
-                isLoading ? <> Loading API Documents...</> :<></>
+                isLoading ? <> Loading API Documents... </> :<></>
                 ,
                 <div key={"pdf"}>
                 {docFileContents && 
@@ -97,7 +97,7 @@ export const APIDownloadFile: React.FC<DownloadProps> = ({ label, presigned_url,
     <div className="flex justify-start mt-2">
         <DownloadFileButton
             presigned_url={presigned_url}>
-            <div className="flex flex-row gap-2 p-1 text-neutral-400 hover:text-neutral-100"> 
+            <div className="flex flex-row gap-2 p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-100"> 
                 <IconDownload size={IconSize} />
                 {label}
             </div>  

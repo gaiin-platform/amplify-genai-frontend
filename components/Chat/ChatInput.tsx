@@ -732,7 +732,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
                 {showDataSourceSelector && (
                             <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]" 
-                                style={{transform: 'translateY(130px)'}}>
+                                style={{transform: 'translateY(88px)'}}>
                                 <DataSourceSelector
                                     onDataSourceSelected={(d) => {
 

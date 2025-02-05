@@ -1240,7 +1240,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                 return ( selectedAssistant ? <ConversationTable conversations={conversations} /> : <></>);
             case 'dashboard':
                 if (selectedGroup?.assistants.length === 0) return null;
-                if (!selectedGroup?.supportConvAnalysis) return <div className='w-full text-center text-lg'>
+                if (!selectedGroup?.supportConvAnalysis) return <div className='w-full text-center text-lg text-black dark:text-white'>
                 {"Access to dashboard metrics and assistant conversation history is not currently available for this group."} 
                 <br></br>
                 To request access to these features, please reach out to Amplify for approval.
