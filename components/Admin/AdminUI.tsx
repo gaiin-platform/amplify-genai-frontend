@@ -823,9 +823,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         }  
     }
     
+    const admin_text = 'rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50'
 
         
-    if (!open || isLoading) return <></>;
+    if (!open) return <></>;
 
     return <Modal 
     width={() => window.innerWidth - 100}
@@ -838,6 +839,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     onSubmit={() => handleSave()
     }
     submitLabel={"Save Changes"}
+    disableSubmit={unsavedConfigs.size === 0}
     content={
       <div className="text-black dark:text-white overflow-x-hidden">
          <button
@@ -852,6 +854,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             <IconRefresh size={16}/>
         </button>
 
+        { open &&
          <ActiveTabs
             width={() => window.innerWidth * 0.9}
             tabs={[
@@ -1021,7 +1024,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             </span>
                             }
                         />
-                        <textarea title="Parameter Description" className="w-full admin-text dark:border-opacity-50"
+                        <textarea title="Parameter Description" className={`w-full ${admin_text}`}
                         placeholder={"Alert message to display when the users prompt will cost over the threshold"}
                         value={promptCostAlert.alertMessage}
                         onChange={(e) => {
@@ -1096,7 +1099,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         >Group Name </label>
                         <input
                         title={"Group names must be unique"}
-                        className="w-[200px] admin-text dark:border-opacity-50"
+                        className={`w-[200px] ${admin_text}`}
                         placeholder={"Group Name"}
                         onChange={(e) => {
                             setIsAddingAmpGroups({...isAddingAmpGroups, groupName: e.target.value});
@@ -1905,7 +1908,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         <label className="mt-1.5 flex-shrink-0 border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center items-center h-[38px]"
                         >Feature Name </label>
                         <input title={"Feature names must be unique"}
-                        className="mt-1.5 w-[160px] h-[38px] admin-text dark:border-opacity-50"
+                        className={`mt-1.5 w-[160px] h-[38px] ${admin_text}`}
                         placeholder={"Feature Name"}
                         onChange={(e) =>  setIsAddingFeature({...isAddingFeature, name: e.target.value})}
                         value={isAddingFeature.name}
@@ -2519,7 +2522,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         <input
                         title={!uploadedTemplate ? "Template name will auto-populate once a template has been uploaded"
                                                  : "" }
-                        className="h-[40px] w-[250px] admin-text dark:border-opacity-50"
+                        className={`h-[40px] w-[250px] ${admin_text}`}
                         placeholder={"Template Name"}
                         value={isAddingTemplate.name}
                         disabled={true}
@@ -2761,7 +2764,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                             <label className="border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
                                                             >{"Name"} </label>
                                                             <input
-                                                            className="w-full admin-text dark:border-opacity-50"
+                                                            className={`w-full ${admin_text}`}
                                                             placeholder={"Parameter Name"}
                                                             value={p.name}
                                                             onChange={(e) => {
@@ -2795,7 +2798,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                         
                                                         </div>
                                                         <textarea title="Parameter Description"
-                                                            className="w-full admin-text dark:border-opacity-50"
+                                                            className={`w-full ${admin_text}`}
                                                             placeholder={"Parameter Description"}
                                                             value={p.description}
                                                             onChange={(e) => {
@@ -3117,9 +3120,9 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
         ]
         }
-        />
+        /> }
 
-    </div>
+      </div>
 
     }
   />

@@ -1,7 +1,7 @@
 import { Conversation, Message } from '@/types/chat';
 import { ErrorMessage } from '@/types/error';
 import { FolderInterface} from '@/types/folder';
-import { Model, Models } from '@/types/model';
+import {  Models } from '@/types/model';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
 import { Status } from "@/types/workflow";
@@ -15,6 +15,7 @@ import {CheckItemType} from "@/types/checkItem";
 import { PluginLocation } from '@/types/plugin';
 import { Group } from '@/types/groups';
 import { Artifact } from '@/types/artifacts';
+import { ShareItem } from '@/types/export';
 
 
 export interface HomeInitialState {
@@ -45,12 +46,15 @@ export interface HomeInitialState {
   temperature: number;
   showChatbar: boolean;
   showPromptbar: boolean;
-  workspaceDirty: boolean;
+
+  workspaceDirty: boolean; //legacy
+  workspaceMetadata: Workspace; //legacy
+  workspaces: ShareItem[] | null;
+
   currentFolder: FolderInterface | undefined;
   messageError: boolean;
   searchTerm: string;
   featureFlags: { [key: string]: boolean },
-  workspaceMetadata: Workspace;
   selectedAssistant: Assistant | null;
   page: string;
   statsService: StatsServices;
@@ -71,7 +75,7 @@ export interface HomeInitialState {
   powerPointTemplateOptions: string[];
   amplifyUsers: string[];
   extractedFacts: string[];
-
+  memoryExtractionEnabled: boolean;
 }
 
 export const initialState: HomeInitialState = {
@@ -81,7 +85,21 @@ export const initialState: HomeInitialState = {
   loading: false,
   lightMode: 'dark',
   status: [],
+
   workspaceDirty: false,
+  workspaceMetadata: {
+    name: '',
+    description: '',
+    id: uuidv4(),
+    // populate with date tiem string in iso format
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    lastAccessedAt: new Date().toISOString(),
+    tags: [],
+    data: {},
+  },
+  workspaces: null, 
+
   messageIsStreaming: false,
   artifactIsStreaming: false,
   modelError: null,
@@ -95,17 +113,7 @@ export const initialState: HomeInitialState = {
   artifacts:[], // for saved/remote artifacts
   workflows: [],
   ops: {},
-  workspaceMetadata: {
-    name: '',
-    description: '',
-    id: uuidv4(),
-    // populate with date tiem string in iso format
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    lastAccessedAt: new Date().toISOString(),
-    tags: [],
-    data: {},
-  },
+  
   selectedConversation: undefined,
   currentMessage: undefined,
   selectedArtifacts: undefined,
@@ -137,5 +145,6 @@ export const initialState: HomeInitialState = {
   hiddenGroupFolders: [],
   powerPointTemplateOptions: [],
   amplifyUsers: [],
-  extractedFacts: []
+  extractedFacts: [],
+  memoryExtractionEnabled: true,
 };

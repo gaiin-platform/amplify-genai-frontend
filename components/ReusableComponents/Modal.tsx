@@ -6,6 +6,7 @@ import { IconX } from '@tabler/icons-react';
 interface OptionButtons {
   label: string;
   handleClick: () => void; 
+  isDisabled?: boolean;
 }
 
 interface Props {
@@ -16,15 +17,18 @@ interface Props {
   showClose?: boolean;
   showCancel?: boolean;
   showSubmit?: boolean;
-  onCancel?: () => void; 
+  onCancel?: () => void;
+  cancelLabel?: string; 
   onSubmit?: () => void; 
   submitLabel?: string;
+  disableSubmit?: boolean;
   additionalButtonOptions?: OptionButtons[];
+  resizeOnVarChange?: any;
 }
 
   export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{}, 
-                                    showClose=true, showCancel=true, showSubmit=true, submitLabel="Submit",
-                                    additionalButtonOptions=[]}) => {
+                                    showClose=true, showCancel=true, showSubmit=true, cancelLabel= "Cancel", submitLabel="Submit",
+                                    additionalButtonOptions=[], disableSubmit=false, resizeOnVarChange}) => {
 
 
  const modalRef = useRef<HTMLDivElement>(null);
@@ -56,6 +60,9 @@ interface Props {
     };
   }, [onCancel]);
 
+  useEffect(() => {
+    setInnerWindow(getInnerWindowSize());
+  }, [resizeOnVarChange]);
 
   useEffect(() => {
     const updateInnerWindow = () => {
@@ -108,14 +115,16 @@ interface Props {
                         {
                          <div className="flex flex-row gap-2 mb-2 w-full fixed bottom-0 left-0 px-4 pb-2">
                           {[...additionalButtonOptions, 
-                            ...(showCancel ? [{label: "Cancel", handleClick: () => onCancel()}] : []),
-                            ...(showSubmit ? [{label: submitLabel, handleClick: () => onSubmit()}] : [])
+                            ...(showCancel ? [{label: cancelLabel, handleClick: () => onCancel()}] : []),
+                            ...(showSubmit ? [{isDisabled: disableSubmit, label: submitLabel, handleClick: () => onSubmit()}] : [])
                           ]
                                            .map((option: OptionButtons, index: number) => 
                             <button key={index}
                               type="button"
+                              disabled={option.isDisabled}
                               className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                               onClick={option.handleClick}
+                              style={{cursor: option.isDisabled ? "not-allowed" : "pointer", opacity: option.isDisabled ? 0.4 : 1}}
                               >
                               {option.label}
                           </button>

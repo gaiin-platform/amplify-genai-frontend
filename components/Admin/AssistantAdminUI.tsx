@@ -1239,7 +1239,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
             case 'conversations':
                 return ( selectedAssistant ? <ConversationTable conversations={conversations} /> : <></>);
             case 'dashboard':
-                if (!selectedGroup?.supportConvAnalysis) return <div className='w-full text-center text-lg'>
+                if (selectedGroup?.assistants.length === 0) return null;
+                if (!selectedGroup?.supportConvAnalysis) return <div className='w-full text-center text-lg text-black dark:text-white'>
                 {"Access to dashboard metrics and assistant conversation history is not currently available for this group."} 
                 <br></br>
                 To request access to these features, please reach out to Amplify for approval.
@@ -1357,10 +1358,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
             <div className="fixed inset-0 z-10 overflow-hidden">
                 <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                     <div className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true" />
-
-                    {loadingMessage ? (
-                        <LoadingDialog open={true} message={loadingMessage}/>
-                    ) : (
+                        <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
                         <div
                             ref={modalRef} key={selectedGroup?.id}
                             className="inline-block transform rounded-lg border border-gray-300 dark:border-neutral-600 bg-neutral-100 px-4 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:min-h-[636px] sm:w-full sm:p-4 sm:align-middle"
@@ -1507,7 +1505,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             }
                             
                         </div>
-                    )}
                 </div>
             </div>
         </div>
@@ -1573,9 +1570,6 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
             submitLabel={"Create Group"}
             content={
                 <>
-                                    <div className="text-lg font-bold text-black dark:text-neutral-200 flex items-center">
-                            Assistant Admin Interface 
-                    </div> 
                     {"You will be able to manage assistants and view key metrics related to user engagement and conversation."}
                             <div className="text-sm mb-4 text-black dark:text-neutral-200">{message}</div>
 

@@ -20,13 +20,13 @@ export const WorkspaceLegacyMessage: React.FC<Props> = ({  }) => {
                 </p>
                 <ol className="list-decimal list-inside text-sm text-neutral-700 dark:text-neutral-400 mb-4">
                     <li>
-                        <strong>Navigate to Settings:</strong> Click on the gear icon followed by the settings button. Scroll down to the <strong>Legacy Workspaces</strong> header.
+                        <strong>Navigate to Settings:</strong> Click on the gear icon followed by the settings button. Select the <strong>Legacy Workspaces</strong> tab.
                     </li>
                     <li className='mt-3' >
-                        <strong>Select Your Workspace:</strong> Choose one of the saved Workspaces listed below and click to import.
+                        <strong>Select Your Workspace:</strong> Choose one of the saved Workspaces listed.
                     </li>
                     <li className='mt-3' >
-                        <strong>Choose Content to Import:</strong> A modal will pop up, allowing you to select what content to import. Confirm to merge your Workspace content into Amplify.
+                        <strong>Choose Content to Import:</strong> A modal will pop up, allowing you to select what Workspace content to import. Click <strong>Import Items</strong> to merge your Workspace content into Amplify.
                     </li>
                 </ol>
             </div>

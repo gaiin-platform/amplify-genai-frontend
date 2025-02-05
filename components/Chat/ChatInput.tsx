@@ -94,7 +94,7 @@ export const ChatInput = ({
 
 
     const updateSize = () => {
-        const container = document.querySelector(".container");
+        const container = document.querySelector(".chatcontainer");
         if (container) {
           return `${container.getBoundingClientRect().width}px`;
         }
@@ -134,6 +134,8 @@ export const ChatInput = ({
     const [projects, setProjects] = useState<Project[]>([]);
 
     useEffect(() => {
+        if (!featureFlags.memory) return; // Early return if feature flag is off
+
         const fetchProjects = async () => {
             if (session?.user?.email) {
                 try {
@@ -670,11 +672,10 @@ const onAssistantChange = (assistant: Assistant) => {
             </div>
             }
         <div style={{width: chatContainerWidth}}
-            className="absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2 z-15">
+            className="px-14 absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2 z-15">
             
-            
-            <div
-                className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
+            <div className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 ">
+               
                {!showScrollDownButton && !messageIsStreaming && !artifactIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
                (selectedConversation && selectedConversation.messages?.length > 0) &&  (
                <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert  hover:text-neutral-900 dark:hover:text-neutral-100">
@@ -706,7 +707,7 @@ const onAssistantChange = (assistant: Assistant) => {
                     {(messageIsStreaming || artifactIsStreaming) &&  (
                         <>
                             <button
-                                className="mt-16 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 "
+                                className="mt-10 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 "
                                 onClick={handleStopConversation}
                             >
                                 <IconPlayerStop size={16}/> {t('Stop Generating')}
@@ -731,7 +732,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
                 {showDataSourceSelector && (
                             <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]" 
-                                style={{transform: 'translateY(80px)'}}>
+                                style={{transform: 'translateY(88px)'}}>
                                 <DataSourceSelector
                                     onDataSourceSelected={(d) => {
 
@@ -861,7 +862,7 @@ const onAssistantChange = (assistant: Assistant) => {
                                 "Type a message to chat with Amplify..."
                             }
                             value={content}
-                            rows={2}
+                            rows={1}
                             onCompositionStart={() => setIsTyping(true)}
                             onCompositionEnd={() => setIsTyping(false)}
                             onChange={handleChange}
@@ -1039,9 +1040,10 @@ const onAssistantChange = (assistant: Assistant) => {
                     </div>
 
                     
-                    {featureFlags.memory && !isFactsVisible && extractedFacts.length > 0 &&
+                    {featureFlags.memory && !isFactsVisible && selectedConversation && 
+                    selectedConversation.messages?.length > 0 && extractedFacts.length > 0 &&
                     (!messageIsStreaming && !artifactIsStreaming) &&
-                        <button className='relative ml-auto mb-2 text-[1rem] chat-button-blue-color'
+                        <button className='relative ml-auto mb-2 text-[1rem] text-[#1dbff5] dark:text-[#8edffa]'
                         onClick={() => setIsFactsVisible(true)}>
                             {extractedFacts.length} facts detected - Click to view
                         </button>

@@ -275,7 +275,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                 
 
             </div>
-            <div className='border p-2 border-gray-400 dark:border-gray-700 rounded shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]' >
+            <div className='border p-2 border-gray-400 dark:border-gray-700 rounded custom-shadow' >
                 <ExpansionComponent 
                     title={'Create API Key'} 
                     content={

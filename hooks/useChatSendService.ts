@@ -53,7 +53,7 @@ interface Memory {
 
 export function useSendService() {
     const {
-        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts },
+        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled },
         getDefaultModel,
         postProcessingCallbacks,
         dispatch: homeDispatch,
@@ -228,49 +228,57 @@ export function useSendService() {
                     // if memory is on, then extract-facts and integrate existing memories into the conversation
                     if (isMemoryOn) {
                         // extract facts from user prompt
-                        const userInput = updatedConversation.messages
-                            .filter(msg => msg.role === 'user')
-                            .pop()?.content || '';
-                        const response = await doExtractFactsOp(userInput);
-                        const extractedFacts = JSON.parse(response.body).facts;
-                        const currentFacts = extractedFacts || [];
-                        homeDispatch({
-                            field: 'extractedFacts',
-                            value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
-                                self.indexOf(fact) === index
-                            )
-                        });
+                        if (memoryExtractionEnabled) {
+                            const userInput = updatedConversation.messages
+                                .filter(msg => msg.role === 'user')
+                                .pop()?.content || '';
+                                
+                            // const response = await doExtractFactsOp(userInput);
+                            // const extractedFacts = JSON.parse(response.body).facts;
+                            // const currentFacts = extractedFacts || [];
+                            // homeDispatch({
+                            //     field: 'extractedFacts',
+                            //     value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
+                            //         self.indexOf(fact) === index
+                            //     )
+                            // });
+
+                            // extract facts without waiting
+                            const factExtractionPromise = doExtractFactsOp(userInput)
+                                .then(response => {
+                                    const extractedFacts = JSON.parse(response.body).facts;
+                                    const currentFacts = extractedFacts || [];
+                                    homeDispatch({
+                                        field: 'extractedFacts',
+                                        value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
+                                            self.indexOf(fact) === index
+                                        )
+                                    });
+                                })
+                                .catch(error => {
+                                    console.warn('Fact extraction failed:', error);
+                                    // Continue with the chat even if fact extraction fails
+                                });
+                        }
 
                         // memory fetching
-                        // After doReadMemoryOp() call:
                         const memoriesResponse = await doReadMemoryOp();
                         const allMemories = JSON.parse(memoriesResponse.body).memories || [];
 
-                        // console.log("Retrieved all memories:", allMemories);
-                        // console.log("Current projectId:", chatBody.projectId);
-
                         // Filter memories based on criteria
                         const relevantMemories = allMemories.filter((memory: any) => {
-                            // Log each memory being evaluated
-                            // console.log("Evaluating memory:", memory);
-
                             // Check for user memories
                             if (memory.memory_type === 'user') {
-                                // console.log("✅ Including user memory:", memory.content);
                                 return true;
                             }
 
                             // Check for project memories
                             if (chatBody.projectId && memory.memory_type_id === chatBody.projectId) {
-                                // console.log("✅ Including project memory:", memory.content);
                                 return true;
                             }
 
-                            // console.log("❌ Excluding memory:", memory.content);
                             return false;
                         });
-
-                        // console.log("Final relevant memories:", relevantMemories);
 
                         const memoryContext = relevantMemories.length > 0
                             ? `Consider these relevant past memories when responding: ${JSON.stringify(
@@ -280,8 +288,6 @@ export function useSendService() {
 
                         chatBody.prompt += '\n\n' + memoryContext;
                     }
-
-                    // console.log(chatBody.prompt);
 
                     if (isArtifactsOn) {
                         // account for plugin on/off features 
