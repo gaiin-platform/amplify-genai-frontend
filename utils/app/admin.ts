@@ -1,8 +1,8 @@
-import {Admin_Tab, AdminConfigTypes, adminDataTabMap} from "@/types/admin"
+import {AdminTab, AdminConfigTypes, adminDataTabMap} from "@/types/admin"
 import SparkMD5 from 'spark-md5';
 
 
-export function adminTabHasChanges(changes: AdminConfigTypes[], admin_tab: Admin_Tab) {
+export function adminTabHasChanges(changes: AdminConfigTypes[], admin_tab: AdminTab) {
     // filter changes from othertabs 
     const filteredChanges = changes.filter((change: AdminConfigTypes) => adminDataTabMap[admin_tab].includes(change));
     return filteredChanges.length > 0;

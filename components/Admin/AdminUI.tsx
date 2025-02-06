@@ -4,7 +4,7 @@ import { Modal } from "../ReusableComponents/Modal";
 import HomeContext from "@/pages/api/home/home.context";
 import InputsMap from "../ReusableComponents/InputMap";
 import { deletePptx, getAdminConfigs, getInFlightEmbeddings, terminateEmbedding, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs, uploadPptx } from "@/services/adminService";
-import { AdminConfigTypes, Embedding, EmbeddingsConfig, Endpoint, FeatureFlag, FeatureFlagConfig, OpenAIModelsConfig, providers, SupportedModel, SupportedModelsConfig } from "@/types/admin";
+import { AdminConfigTypes, Embedding, EmbeddingsConfig, Endpoint, FeatureFlag, FeatureFlagConfig, OpenAIModelsConfig, modelProviders, SupportedModel, SupportedModelsConfig, ModelProviders, AdminTab } from "@/types/admin";
 import ExpansionComponent from "../Chat/ExpansionComponent";
 import { IconCheck, IconPlus, IconRefresh,  IconTrash, IconX, IconEdit, IconKey, IconCircleX, IconFileUpload, IconFileTypeDocx, IconFileTypePpt, IconChevronRight, IconChevronLeft, IconFileTypeCsv, IconFileTypeJs, IconTags, IconMessage, IconFileTypePdf } from "@tabler/icons-react";
 import { EmailsAutoComplete } from "../Emails/EmailsAutoComplete";
@@ -825,6 +825,9 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     
     const admin_text = 'rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50'
 
+    const tabTitle = (tab: AdminTab) => {
+        return  `${tab}${adminTabHasChanges(Array.from(unsavedConfigs), tab) ? " * " : ""}`;
+    }
         
     if (!open) return <></>;
 
@@ -864,7 +867,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
                 // Configurations Tab
 
-                {label: `Configurations${adminTabHasChanges(Array.from(unsavedConfigs), 'config') ? " * " : ""}`, 
+                {label: tabTitle("Configurations"), 
                  title: unsavedConfigs.size > 0 ? " Contains Unsaved Changes  " : "",
                  content:
                     <> 
@@ -1317,7 +1320,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 ///////////////////////////////////////////////////////////////////////////////
             // Supported Models
 
-            {label: 'Supported Models',
+            {label: tabTitle('Supported Models'),
                 content:
                 stillLoadingData ? loading :
                 <>
@@ -1392,11 +1395,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                         </div>
 
                                         <div className="max-w-[730px]">
-                                        { Object.values(providers).map((p:keyof typeof providers) => 
+                                        { Object.values(modelProviders).map((p:ModelProviders) => 
                                             <button key={p}
                                             className={`w-[182.5px] h-[39px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-300 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 
-                                            ${p === isAddingAvailModel.model.provider as keyof typeof providers ? "cursor-default" : "opacity-60 hover:opacity-80"}`}
-                                            disabled={p === isAddingAvailModel.model.provider as keyof typeof providers}
+                                            ${p === isAddingAvailModel.model.provider as ModelProviders ? "cursor-default" : "opacity-60 hover:opacity-80"}`}
+                                            disabled={p === isAddingAvailModel.model.provider as ModelProviders}
                                             onClick={() => {
                                                 let updated = {...isAddingAvailModel.model, provider: p};
                                                 setIsAddingAvailModel({...isAddingAvailModel, model: updated})
@@ -1653,7 +1656,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             },
 ///////////////////////////////////////////////////////////////////////////////
             // Application Variables
-            { label: 'Application Variables',
+            { label: tabTitle('Application Variables'),
                 content : 
                 stillLoadingData ? loading :
                 <>
@@ -1696,7 +1699,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
 ///////////////////////////////////////////////////////////////////////////////
             // OpenAi Endpoints
-            { label: 'OpenAi Endpoints',
+            { label: tabTitle('OpenAi Endpoints'),
                 content : 
                 stillLoadingData ? loading :
                 <>
@@ -1854,7 +1857,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 ///////////////////////////////////////////////////////////////////////////////
             // Feature Flags
 
-            {label: 'Feature Flags',
+            {label: tabTitle('Feature Flags'),
                 content:
                 <>
                     <div className="flex flex-row gap-3 mb-2 ">
@@ -2143,7 +2146,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
             // Manage Feature Data Tab
                     
-            {label: `Manage Feature Data${adminTabHasChanges(Array.from(unsavedConfigs), 'feature_data') ? " * " : ""}`,
+            {label: tabTitle("Feature Data"),
              content:
                 <>
                 {titleLabel('Upload Documents' )}
@@ -2650,7 +2653,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
             // Ops
 
-            {label: 'Ops',
+            {label: tabTitle('Ops'),
                 content:
                 stillLoadingData ? loading :
                 <>
@@ -3022,7 +3025,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
             // Embeddings Tab
                     // currently this tab doesnt have changes to report, when it does change to 
-                    // `Embeddings${adminTabHasChanges(Array.from(unsavedConfigs), 'embeddings') ? " * " : ""}`
+                    // tabTitle("Embeddings")
             {label: 'Embeddings',
                 content:
                    <>
