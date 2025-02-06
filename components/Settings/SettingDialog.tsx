@@ -27,7 +27,7 @@ export const modelOptionFlags = [
     "label": "OpenAI",
     "key": "allOpenAI",
     "defaultValue": false,
-    "identifers": ['gpt', 'o1']
+    "identifers": ['gpt', 'o1', 'o3']
   },
   {
       "label": "Claude",
