@@ -142,7 +142,10 @@ export function useSendService() {
                         conversationId
                     } = request;
 
-                    const pluginIds: string[] = plugins?.map((plugin: Plugin) => plugin.id) ?? [];
+                    const featureOptions = getSettings(featureFlags).featureOptions;
+                    const pluginActive = featureOptions.includePluginSelector;
+                    const pluginIds: string[] | null = pluginActive ? plugins?.map((plugin: Plugin) => plugin.id) ?? [] : null;
+
                     const { content, label } = getPrefix(selectedConversation, message);
                     if (content) {
                         message.content = content + " " + message.content;
@@ -186,10 +189,12 @@ export function useSendService() {
                             messages: [...selectedConversation.messages, message],
                         };
                     }
-                    console.log("updated: ", updatedConversation.messages);
+                    // console.log("updated: ", updatedConversation.messages);
 
                     if (!updatedConversation.model) {
-                        console.log("WARNING: MODEL IS UNDEFINED SETTING TO DEFAULT: ", getDefaultModel(DefaultModels.DEFAULT));
+                        const defaultModel = getDefaultModel(DefaultModels.DEFAULT)
+                        console.log("WARNING: MODEL IS UNDEFINED SETTING TO DEFAULT: ", defaultModel);
+                        updatedConversation.model = defaultModel;
                     }
 
                     homeDispatch({
@@ -200,10 +205,13 @@ export function useSendService() {
                     homeDispatch({ field: 'loading', value: true });
                     homeDispatch({ field: 'messageIsStreaming', value: true });
 
-                    const featureOptions = getSettings(featureFlags).featureOptions;
                     const isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts &&
-                        pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER);
-                    const isSmartMessagesOn = featureOptions.includeFocusedMessages && pluginIds.includes(PluginID.SMART_MESSAGES);
+                        // we only consider whats in the plugins if we have the feature option for it on.
+                        (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER)));
+                    console.log("Artifacts on: ", isArtifactsOn)
+                    const isSmartMessagesOn = featureOptions.includeFocusedMessages && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
+                    console.log("smart on: ", isSmartMessagesOn)
+
                     const isMemoryOn = featureFlags.memory && featureOptions.includeMemory;
 
                     // if both artifact and smart messages is off then it returnes with the messages right away 
@@ -326,7 +334,7 @@ export function useSendService() {
 
                     //PLUGINS before options is assigned
                     //in case no plugins are defined, we want to keep the default behavior
-                    if (!featureFlags.ragEnabled || (!pluginIds.includes(PluginID.RAG) && plugins)) {
+                    if (!featureFlags.ragEnabled || (plugins && pluginActive && !pluginIds?.includes(PluginID.RAG))) {
                         options = { ...(options || {}), skipRag: true };
                     }
 
@@ -334,7 +342,7 @@ export function useSendService() {
                         //check if we need
                         options = { ...(options || {}), skipCodeInterpreter: true };
                     } else {
-                        if (pluginIds.includes(PluginID.CODE_INTERPRETER)) {
+                        if (pluginIds?.includes(PluginID.CODE_INTERPRETER)) {
                             chatBody.codeInterpreterAssistantId = updatedConversation.codeInterpreterAssistantId;
                             options = { ...(options || {}), skipRag: true, codeInterpreterOnly: true };
                             statsService.codeInterpreterInUseEvent();
