@@ -3,63 +3,45 @@ import { doRequestOp } from "./doRequestOp";
 const URL_PATH =  "/assistant";
 
 
-const failureResponse = (reason: string) => {
-    return {
-        success: false,
-        message: reason,
-        data: {}
-    }
-}
 
-export const getGroupConversationData = async (assistantId: string, conversationId: string, abortSignal = null) => {
+export const getGroupConversationData = async (assistantId: string, conversationId: string) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/get_group_conversations_data",
+        data: { assistantId, conversationId }
+    };
+
+    const result = await doRequestOp(op);
+
     try {
-        const response = await fetch('/api/groupAssistants/getConversationData', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ data: { assistantId, conversationId } }),
-            signal: abortSignal,
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            return { success: true, message: "Group conversation data fetched successfully.", data: result };
-        } else {
-            const errorText = await response.text();
-            console.error(`Error response: ${response.status} ${response.statusText}`, errorText);
-            return { success: false, message: `Error calling group conversation data: ${response.statusText}.`, data: {} };
-        }
+        const resultBody = JSON.parse(result.body || 'false');
+        return resultBody ? {success: true, data: resultBody} : {success: false};
     } catch (e) {
-        console.error("Fetch error:", e);
-        return { success: false, message: "Error fetching group conversation data.", data: {} };
+        console.error("Error parsing result body: ", e);
+        return {success: false};
     }
 }
 
-export const getGroupAssistantConversations = async (assistantId: string, abortSignal = null) => {
+export const getGroupAssistantConversations = async (assistantId: string) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/get_group_assistant_conversations",
+        data: { assistantId: assistantId }
+    };
+    const result = await doRequestOp(op);
+
     try {
-        const response = await fetch('/api/groupAssistants/getConversations', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ data: { assistantId: assistantId } }),
-            signal: abortSignal,
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            return { success: true, message: "Group assistant conversations fetched successfully.", data: result };
-        } else {
-            const errorText = await response.text();
-            console.error(`Error response: ${response.status} ${response.statusText}`, errorText);
-            return { success: false, message: `Error calling group assistant conversations: ${response.statusText}.`, data: {} };
-        }
+        const resultBody = JSON.parse(result.body || 'false');
+        return resultBody ? {success: true, data: resultBody} : {success: false};
     } catch (e) {
-        console.error("Fetch error:", e);
-        return { success: false, message: "Error fetching group assistant conversations.", data: {} };
+        console.error("Error parsing result body: ", e);
+        return {success: false};
     }
+
 }
+
 
 export const getGroupAssistantDashboards = async (
     assistantId: string,
@@ -67,72 +49,52 @@ export const getGroupAssistantDashboards = async (
     endDate?: string,
     includeConversationData?: boolean,
     includeConversationContent?: boolean,
-    abortSignal = null
 ) => {
-    try {
-        const response = await fetch('/api/groupAssistants/getDashboard', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                data: {
-                    assistantId,
-                    startDate,
-                    endDate,
-                    includeConversationData,
-                    includeConversationContent,
-                },
-            }),
-            signal: abortSignal,
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            if (result.body) {
-                const parsedBody = JSON.parse(result.body);
-                return { success: true, message: "Group assistant dashboards fetched successfully.", data: parsedBody };
-            }
-        } else {
-            const errorText = await response.text();
-            console.error(`Error response: ${response.status} ${response.statusText}`, errorText);
-            return { success: false, message: `Error calling group assistant dashboards: ${response.statusText}.`, data: {} };
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/get_group_assistant_dashboards",
+        data: {
+            assistantId,
+            startDate,
+            endDate,
+            includeConversationData,
+            includeConversationContent,
         }
+    };
+
+    const result = await doRequestOp(op);
+    try {
+        const resultBody = JSON.parse(result.body || 'false');
+
+        return resultBody ? {success: true, data: resultBody} : {success: false};
     } catch (e) {
-        console.error("Fetch error:", e);
-        return { success: false, message: "Error fetching group assistant dashboards.", data: {} };
+        console.error("Error parsing result body: ", e);
+        return {success: false};
     }
 }
 
 export const saveUserRating = async (conversationId: string, userRating: number, userFeedback?: string, abortSignal = null) => {
-    try {
-        const body = {
-            data: {
-                conversationId,
-                userRating,
-                userFeedback
-            }
-        };
 
-        const response = await fetch('/api/groupAssistants/saveRating', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(body),
-            signal: abortSignal,
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            return { success: true, message: "User rating and feedback saved successfully.", data: result };
-        } else {
-            const errorText = await response.text();
-            console.error(`Error response: ${response.status} ${response.statusText}`, errorText);
-            return failureResponse(`Error saving user rating and feedback: ${response.statusText}.`);
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/save_user_rating",
+        data: {
+            conversationId,
+            userRating,
+            userFeedback
         }
+    };
+
+    const result = await doRequestOp(op);
+    try {
+        const resultBody = JSON.parse(result.body || 'false');
+
+        return resultBody ? {success: true} : {success: false};
     } catch (e) {
-        console.error("Fetch error:", e);
-        return failureResponse("Error saving user rating and feedback.");
+        console.error("Error parsing result body: ", e);
+        return {success: false};
     }
+
 }

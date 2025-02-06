@@ -187,8 +187,7 @@ const ConversationPopup: FC<{ conversation: Conversation; onClose: () => void }>
                 statsService.getGroupConversationDataEvent(conversation.assistantId, conversation.conversationId);
                 const result = await getGroupConversationData(conversation.assistantId, conversation.conversationId);
                 if (result.success) {
-                    const parsedContent = JSON.parse(result.data.body);
-                    const formattedContent = parsedContent.content.replace(/\\n/g, '\n').replace(/#dataSource:/g, '');
+                    const formattedContent = result.data.content.replace(/\\n/g, '\n').replace(/#dataSource:/g, '');
                     setContent(formattedContent);
 
                 } else {
@@ -1007,18 +1006,11 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                 if (assistantId) {
                     statsService.getGroupAssistantConversationsEvent(assistantId);
                     const result = await getGroupAssistantConversations(assistantId);
-                    // console.log('Full result from service:', result);
                     if (result.success) {
-                        let conversationsData;
-                        if (typeof result.data.body === 'string') {
-                            conversationsData = JSON.parse(result.data.body);
-                        } else {
-                            conversationsData = result.data.body;
-                        }
-                        // console.log('Parsed conversations data:', conversationsData);
+                        let conversationsData = result.data;
                         setConversations(Array.isArray(conversationsData) ? conversationsData : []);
                     } else {
-                        console.error('Failed to fetch conversations:', result.message);
+                        // console.error('Failed to fetch conversations:', result.message);
                         setConversations([]);
                     }
                 } else {
@@ -1042,7 +1034,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                     if (result && result.success) {
                         setDashboardMetrics(result.data.dashboardData);
                     } else {
-                        console.error('Failed to fetch dashboard data:', result?.message || 'Unknown error');
+                        // console.error('Failed to fetch dashboard data:', result?.message || 'Unknown error');
                         setDashboardMetrics(null);
                     }
                 } else {
