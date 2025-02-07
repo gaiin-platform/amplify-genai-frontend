@@ -16,7 +16,6 @@ import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
 import HomeContext from "@/pages/api/home/home.context";
-import {ShareAnythingToMarketModal} from "@/components/Share/ShareAnythingToMarketModal";
 import {useSession} from "next-auth/react";
 import { isAssistantById } from '@/utils/app/assistants';
 import ActionButton from '../ReusableComponents/ActionButton';
@@ -40,7 +39,6 @@ const SharedItemsList: FC<{}> = () => {
       }, [prompts]);
 
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-    const [isMarketModalOpen, setIsMarketModalOpen] = useState<boolean>(false);
     const [importModalOpen, setImportModalOpen] = useState<boolean>(false);
     const [sharedBy, setSharedBy] = useState<string>("");
     const [selectedKey, setSelectedKey] = useState<string>("");
@@ -171,37 +169,6 @@ const SharedItemsList: FC<{}> = () => {
                 includePrompts={true}
                 includeFolders={true}/>
 
-            {featureFlags.market && (
-                <ShareAnythingToMarketModal
-                    open={isMarketModalOpen}
-                    onShare={() => {
-                        setIsMarketModalOpen(false);
-                    }}
-                    onCancel={() => {
-                        setIsMarketModalOpen(false);
-                    }}
-                    includeConversations={true}
-                    includePrompts={true}
-                    includeFolders={true}/>
-            )}
-
-            {featureFlags.market && (
-            <div className="flex flex-row items-center pt-3 pl-3 pr-3">
-                <div className="flex w-full items-center">
-                    <button
-                        className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
-                        onClick={() => {
-                            statsService.openMarketEvent();
-                            homeDispatch({field: 'page', value: 'market'})
-                        }}
-                    >
-                        <IconJetpack size={16}/>
-                        Open Marketplace
-                    </button>
-                </div>
-            </div>
-            )}
-
             <div className="flex flex-row items-center pt-3 pl-2 pr-3">
                 <div className="mb-4 flex items-center space-x-2">
                     <button
@@ -230,19 +197,7 @@ const SharedItemsList: FC<{}> = () => {
                         <IconRefresh size={16}/>
                     </button>
                 </div>
-                {featureFlags.market && (
-                <div className="flex items-center pl-2">
-                    <button
-                        className="text-sidebar flex w-full flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
-                        onClick={() => {
-                            setIsMarketModalOpen(true);
-                        }}
-                    >
-                        <IconRocket size={16}/>
-                        Publish to Market
-                    </button>
-                </div>
-                )}
+    
 
             </div>
 

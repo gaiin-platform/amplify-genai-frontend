@@ -61,7 +61,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { WorkflowDefinition } from "@/types/workflow";
 import { saveWorkflowDefinitions } from "@/utils/app/workflows";
 import SharedItemsList from "@/components/Share/SharedItemList";
-import { Market } from "@/components/Market/Market";
+// import { Market } from "@/components/Market/Market";
 import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
@@ -1455,11 +1455,11 @@ const Home = ({
                                 {page === 'chat' && (
                                     <Chat stopConversationRef={stopConversationRef} />
                                 )}
-                                {page === 'market' && (
+                                {/* {page === 'market' && (
                                     <Market items={[
                                         // {id: "1", name: "Item 1"},
                                     ]} />
-                                )}
+                                )} */}
                                 {page === 'home' && (
                                     <MyHome />
                                 )}
