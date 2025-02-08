@@ -35,7 +35,6 @@ import { getAccounts } from "@/services/accountService";
 import { Conversation, Message, newMessage } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
 import { FolderInterface, FolderType } from '@/types/folder';
-// import { ModelID, Models, Model } from '@/types/model';
 import { Prompt } from '@/types/prompt';
 
 
@@ -846,7 +845,7 @@ const Home = ({
         const syncConversations = async (conversations: Conversation[], folders: FolderInterface[]) => {
             try {
                 const allRemoteConvs = await fetchAllRemoteConversations();
-                if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch);
+                if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch, getDefaultModel(DefaultModels.DEFAULT));
             } catch (e) {
                 console.log("Failed to sync cloud conversations: ", e);
             }

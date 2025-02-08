@@ -145,10 +145,17 @@ export const basePrompts = {
 
 
 export const baseAssistantFolder =  { id: "assistants",
-                                        date: getDate(),
-                                        name: "Assistants",
-                                        type: "prompt",
+                                      date: getDate(),
+                                      name: "Assistants",
+                                      type: "prompt",
                                     } as FolderInterface;
+
+export const baseAgentFolder =  { id: "agents",
+                                  date: getDate(),
+                                  name: "Agents",
+                                  type: "chat",
+                                  pinned: true
+                              } as FolderInterface;
 
 export const baseAssistantCreator: Prompt = {
     "id": "assistant_creator",
