@@ -17,7 +17,6 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
-    if: inputs.enable_ecr_workflow || vars.ENABLE_ECR_WORKFLOW == 'true'
 
     permissions:
       id-token: write
