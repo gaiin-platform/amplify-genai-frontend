@@ -5,25 +5,19 @@ on:
     branches: [main, dev]
   pull_request:
     branches: [main, dev]
+  workflow_dispatch:
+    inputs:
+      enable_ecr_workflow:
+        description: 'Enable ECR workflow'
+        type: boolean
+        default: true
+        required: true
 
 jobs:
-  debug:
-    runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
-    steps:
-      - name: Print Variables
-        run: |
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}"
-          echo "ENABLE_ECR_WORKFLOW: ${{ vars.ENABLE_ECR_WORKFLOW }}"
-          echo "Event name: ${{ github.event_name }}"
-          echo "Ref: ${{ github.ref }}"
-
   docker:
-    needs: debug
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
-    if: ${{ vars.ENABLE_ECR_WORKFLOW == 'true' }}
+    if: inputs.enable_ecr_workflow || vars.ENABLE_ECR_WORKFLOW == 'true'
 
     permissions:
       id-token: write
@@ -34,8 +28,6 @@ jobs:
       full_image: ${{ steps.build-publish.outputs.full_image }}
 
     steps:
-      - name: Debug
-        run: echo "ENABLE_ECR_WORKFLOW value is ${{ vars.ENABLE_ECR_WORKFLOW }}"
       - uses: actions/checkout@v3
 
       - name: Configure AWS Credentials
