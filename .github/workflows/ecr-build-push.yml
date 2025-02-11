@@ -10,6 +10,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+    run: echo "ENABLE_ECR_WORKFLOW value is ${{ vars.ENABLE_ECR_WORKFLOW }}"
     if: ${{ vars.ENABLE_ECR_WORKFLOW == 'true' }}
 
     permissions:
@@ -21,6 +22,8 @@ jobs:
       full_image: ${{ steps.build-publish.outputs.full_image }}
 
     steps:
+      - name: Debug
+        run: echo "ENABLE_ECR_WORKFLOW value is ${{ vars.ENABLE_ECR_WORKFLOW }}"
       - uses: actions/checkout@v3
 
       - name: Configure AWS Credentials
