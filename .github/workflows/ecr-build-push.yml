@@ -10,7 +10,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
-    if: vars.ENABLE_ECR_WORKFLOW == 'true'
+    if: ${{ vars.ENABLE_ECR_WORKFLOW == 'true' }}
 
     permissions:
       id-token: write
