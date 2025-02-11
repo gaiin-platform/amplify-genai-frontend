@@ -16,6 +16,8 @@ jobs:
           echo "Branch: ${{ github.ref_name }}"
           echo "Environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}"
           echo "ENABLE_ECR_WORKFLOW: ${{ vars.ENABLE_ECR_WORKFLOW }}"
+          echo "Event name: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
 
   docker:
     needs: debug
