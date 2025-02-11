@@ -141,6 +141,7 @@ export interface EmbeddingsConfig  {
     outputTokenLimit: number; // max num of tokens a model will respond with (most models have preset max of 4096)
     outputTokenCost: number;
     inputTokenCost: number;
+    cachedTokenCost: number;
     description: string;
     exclusiveGroupAvailability: string[];
     supportsImages: boolean;
