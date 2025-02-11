@@ -12,6 +12,7 @@ export interface Status {
     inProgress:boolean;
     sticky?:boolean;
     icon?:string;
+    animated?:boolean;
 }
 
 export const newStatus = (data:any) => {

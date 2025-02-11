@@ -1,6 +1,6 @@
 import { FC, useEffect, useRef, useState } from "react";
 
-interface tab {
+export interface tab {
     label: string;
     title?: string;
     content: React.ReactElement;

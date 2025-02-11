@@ -158,7 +158,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
     const handleCopy = () => {
         const newPrompt = { ...prompt, id: uuidv4(), name: prompt.name + ' (copy)' };
-        if (isBase) newPrompt.folderId = 'assistants';
+        if (isBase) newPrompt.folderId = null;
         
         handleAddPrompt(newPrompt);
     }

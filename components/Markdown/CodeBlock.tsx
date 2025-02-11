@@ -9,6 +9,8 @@ import {
   generateRandomString,
   programmingLanguages,
 } from '@/utils/app/codeblock';
+import TestButton from '@/components/Artifacts/TestButton';
+import InferSchemaButton from '@/components/Artifacts/InferSchemaButton';
 
 interface Props {
   language: string;
@@ -59,6 +61,9 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
+
+
+
   return (
     <div className="codeblock relative font-sans text-[16px]">
       <div className="flex items-center justify-between py-1.5 px-4">
@@ -79,6 +84,8 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
           >
             <IconDownload size={18} />
           </button>
+          {language === 'python' && <TestButton />}
+          {language === 'python' && <InferSchemaButton code={value} />}
         </div>
       </div>
 

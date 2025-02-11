@@ -35,7 +35,6 @@ import { getAccounts } from "@/services/accountService";
 import { Conversation, Message, newMessage } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
 import { FolderInterface, FolderType } from '@/types/folder';
-// import { ModelID, Models, Model } from '@/types/model';
 import { Prompt } from '@/types/prompt';
 
 
@@ -61,8 +60,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { WorkflowDefinition } from "@/types/workflow";
 import { saveWorkflowDefinitions } from "@/utils/app/workflows";
 import SharedItemsList from "@/components/Share/SharedItemList";
-import WorkspaceList from "@/components/Workspace/WorkspaceList";
-import { Market } from "@/components/Market/Market";
+// import { Market } from "@/components/Market/Market";
 import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
@@ -88,11 +86,9 @@ import { getAvailableModels, getFeatureFlags, getPowerPoints } from '@/services/
 import { DefaultModels, Model } from '@/types/model';
 import { ErrorMessage } from '@/types/error';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
-import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import DOMPurify from 'dompurify';
-// import { WorkspaceLegacyMessage } from '@/components/Workspace/WorkspaceLegacyMessage';
+
+import { WorkspaceLegacyMessage } from '@/components/Workspace/WorkspaceLegacyMessage';
+import { getSharedItems } from '@/services/shareService';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -164,8 +160,8 @@ const Home = ({
             defaultModelId,
             availableModels,
             advancedModelId,
-            cheapestModelId
-
+            cheapestModelId,
+            workspaces
         },
         dispatch,
     } = contextValue;
@@ -355,8 +351,6 @@ const Home = ({
                                             return acc;
                                         }, [] as Conversation[]);
 
-            dispatch({ field: 'conversations', value: updatedConversations });
-            saveConversations(updatedConversations);
 
             if (updatedConversations.length > 0) {
                 const selectedNotDeleted = selectedConversation ?
@@ -389,7 +383,9 @@ const Home = ({
 
                 localStorage.removeItem('selectedConversation');
             }
-                break
+            dispatch({ field: 'conversations', value: updatedConversations });
+            saveConversations(updatedConversations);
+            break
             case 'prompt':
                 const updatedPrompts: Prompt[] =  promptsRef.current.map((p:Prompt) => {
                     if (p.folderId === folderId) {
@@ -414,7 +410,7 @@ const Home = ({
         
                 dispatch({ field: 'prompts', value: updatedPrompts });
                 savePrompts(updatedPrompts);
-                    break
+                break
             case 'workflow':
                 const updatedWorkflows: WorkflowDefinition[] = workflows.map((p:WorkflowDefinition) => {
                     if (p.folderId === folderId) {
@@ -753,7 +749,7 @@ const Home = ({
         const fetchAmplifyUsers = async () => {      
             console.log("Fetching Amplify Users...");
             try {
-                const response = await fetchEmailSuggestions("*");;
+                const response = await fetchEmailSuggestions("*");
                 if (response) {
                     dispatch({ field: 'amplifyUsers', value: response.emails});  
                     return;
@@ -828,10 +824,28 @@ const Home = ({
             return {};
         }
 
+        const fetchWorkspaces = async (user: string) => {      
+            console.log("Fetching user workspaces...");
+            try {
+                const response = await getSharedItems();
+
+                if (response.success) {
+                    const workspaces = response.items.filter((item: { sharedBy: string; }) =>  item.sharedBy === user);
+                    dispatch({ field: 'workspaces', value: workspaces});  
+                    localStorage.setItem('workspaces', JSON.stringify(workspaces));
+                    return;
+                } else {
+                    console.log("Failed to fetch user workspaces.");
+                }
+            } catch (e) {
+                console.log("Failed to fetch user workspaces: ", e);
+            }  
+        };
+
         const syncConversations = async (conversations: Conversation[], folders: FolderInterface[]) => {
             try {
                 const allRemoteConvs = await fetchAllRemoteConversations();
-                if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch);
+                if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch, getDefaultModel(DefaultModels.DEFAULT));
             } catch (e) {
                 console.log("Failed to sync cloud conversations: ", e);
             }
@@ -1006,6 +1020,10 @@ const Home = ({
             
             // independent function calls / high priority
             fetchSettings(); // fetch user settings
+            console.log("has workspaces" , workspaces);
+            // local storage on load should set workspaces if fetched before  
+            // saves us the extra calls   
+            if (workspaces === null) fetchWorkspaces(user.email); 
             fetchModels();
             handleFeatureDependantOnLoadData(); 
             fetchAccounts();  // fetch accounts for chatting charging
@@ -1030,14 +1048,30 @@ const Home = ({
             });
         }
 
-        const workspaceMetadataStr = localStorage.getItem('workspaceMetadata');
-        if (workspaceMetadataStr) {
-            dispatch({ field: 'workspaceMetadata', value: JSON.parse(workspaceMetadataStr) });
+        // will save us the call if a user does not have workspaces 
+        const savedWorkspaces = localStorage.getItem('workspaces');
+        if (savedWorkspaces) {
+            dispatch({ field: 'workspaces', value: JSON.parse(savedWorkspaces) });
         }
+
+        // const workspaceMetadataStr = localStorage.getItem('workspaceMetadata');
+        // if (workspaceMetadataStr) {
+        //     dispatch({ field: 'workspaceMetadata', value: JSON.parse(workspaceMetadataStr) });
+        // }
 
         if (window.innerWidth < 640) {
             dispatch({ field: 'showChatbar', value: false });
             dispatch({ field: 'showPromptbar', value: false });
+        } else {
+            const showChatbar = localStorage.getItem('showChatbar');
+            if (showChatbar) {
+                dispatch({ field: 'showChatbar', value: showChatbar === 'true' });
+            }
+
+            const showPromptbar = localStorage.getItem('showPromptbar');
+            if (showPromptbar) {
+                dispatch({ field: 'showPromptbar', value: showPromptbar === 'true' });
+            }
         }
 
         const pluginLoc = localStorage.getItem('pluginLocation');
@@ -1045,16 +1079,7 @@ const Home = ({
             dispatch({ field: 'pluginLocation', value: JSON.parse(pluginLoc) });
         }
 
-        const showChatbar = localStorage.getItem('showChatbar');
-        if (showChatbar) {
-            dispatch({ field: 'showChatbar', value: showChatbar === 'true' });
-        }
-
-        const showPromptbar = localStorage.getItem('showPromptbar');
-        if (showPromptbar) {
-            dispatch({ field: 'showPromptbar', value: showPromptbar === 'true' });
-        }
-
+       
         const storageSelection = localStorage.getItem('storageSelection');
         if (storageSelection) {
             dispatch({field: 'storageSelection', value: storageSelection});
@@ -1420,8 +1445,8 @@ const Home = ({
                             >
                                 <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
                                 <Tab icon={<IconShare />} title="Share"><SharedItemsList /></Tab>
-                                {/* <Tab icon={<IconTournament />} title="Workspaces"><WorkspaceLegacyMessage /></Tab> */}
-                                <Tab icon={<IconTournament />} title="Workspaces"><WorkspaceList /></Tab>
+                                { workspaces && workspaces.length > 0 ? 
+                                <Tab icon={<IconTournament />} title="Workspaces"><WorkspaceLegacyMessage /></Tab> : null}
                                 <Tab icon={<IconSettings />} title="Settings"><SettingsBar /></Tab>
                             </TabSidebar>
 
@@ -1429,11 +1454,11 @@ const Home = ({
                                 {page === 'chat' && (
                                     <Chat stopConversationRef={stopConversationRef} />
                                 )}
-                                {page === 'market' && (
+                                {/* {page === 'market' && (
                                     <Market items={[
                                         // {id: "1", name: "Item 1"},
                                     ]} />
-                                )}
+                                )} */}
                                 {page === 'home' && (
                                     <MyHome />
                                 )}
@@ -1552,76 +1577,5 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
             ])),
         },
     };
-};
-
-
-
-
-interface DDProps {
-    content: string;
-}
-
-const DataDisclosure: React.FC<DDProps> = ({ content }) => {
-    return (
-    <div>
-    <MemoizedReactMarkdown
-    // className="prose dark:prose-invert flex-1" 
-    remarkPlugins={[remarkGfm, remarkMath]}
-    components={{
-        a({href, title, children, ...props}) {
-            switch (true) {
-                case href && (href.startsWith('http://') || href.startsWith('https://')):
-                    const safeHref = href ? DOMPurify.sanitize(href) : '';
-                    return (
-                        <a
-                            className="text-[#5495ff]"
-                            href={safeHref}
-                            target="_blank"
-                            rel="noopener noreferrer" // prevent tabnabbing attack
-                        >
-                            {children}
-                        </a>
-                    );
-
-                case href && href.startsWith('mailto:'):
-                    return (
-                        <a  href={href}>
-                            {children}
-                        </a>
-                    );
-                default:
-                    return <>{children}</>;
-            } 
-        },
-
-        table({children}) {
-            return (
-                <div style={{ overflowX: 'auto'}}>
-                    <table className="w-full border-collapse border border-black px-3 py-1 dark:border-white">
-                        {children}
-                    </table>
-                </div>
-            );
-        },
-        th({children}) {
-            return (
-                <th className="break-words border border-black bg-gray-500 px-3 py-1 text-white dark:border-white">
-                    {children}
-                </th>
-            );
-        },
-        td({children}) {
-
-            return (
-                <td className="break-words border border-black px-3 py-1 dark:border-white">
-                    {children}
-                </td>
-            );
-        },
-    }}
->
-    {content}
-</MemoizedReactMarkdown>
-</div>);
 };
 

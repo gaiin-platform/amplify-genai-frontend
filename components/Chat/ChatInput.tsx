@@ -94,7 +94,7 @@ export const ChatInput = ({
 
 
     const updateSize = () => {
-        const container = document.querySelector(".container");
+        const container = document.querySelector(".chatcontainer");
         if (container) {
           return `${container.getBoundingClientRect().width}px`;
         }
@@ -126,6 +126,7 @@ export const ChatInput = ({
     }, [availableModels]);
     
     const [chatContainerWidth, setChatContainerWidth] = useState(updateSize());
+    const [isFactsVisible, setIsFactsVisible] = useState(false);
     const [showProjectList, setShowProjectList] = useState(false);
     const projectListRef = useRef<HTMLDivElement | null>(null);
     const { data: session } = useSession();
@@ -133,6 +134,8 @@ export const ChatInput = ({
     const [projects, setProjects] = useState<Project[]>([]);
 
     useEffect(() => {
+        if (!featureFlags.memory) return; // Early return if feature flag is off
+
         const fetchProjects = async () => {
             if (session?.user?.email) {
                 try {
@@ -149,7 +152,7 @@ export const ChatInput = ({
             }
         };
 
-        fetchProjects();
+        if (featureFlags.memory) fetchProjects();
     }, [session?.user?.email]);
 
     useEffect(() => {
@@ -234,10 +237,13 @@ export const ChatInput = ({
 
     const handleShowAssistantSelector = () => {
         setShowAssistantSelect(!showAssistantSelect);
+        setShowProjectList(false);
+
     };
 
     const handleShowProjectSelector = () => {
-        setShowProjectList(true);
+        setShowProjectList(!showProjectList);
+        setShowAssistantSelect(false);
     };
 
     const allDocumentsDoneUploading = () => {
@@ -421,7 +427,10 @@ const onAssistantChange = (assistant: Assistant) => {
             const event = new Event( 'killArtifactRequest');
             window.dispatchEvent(event);
             timeout = 100;
-        } 
+        } else {
+            const event = new Event( 'killChatRequest');
+            window.dispatchEvent(event);
+        }
 
         setTimeout(() => {
             stopConversationRef.current = false;
@@ -556,21 +565,13 @@ const onAssistantChange = (assistant: Assistant) => {
 
     useEffect(() => {
         const handleOutsideClick = (e: MouseEvent) => {
-            if (
-                promptListRef.current &&
-                !promptListRef.current.contains(e.target as Node)
-            ) {
-                setShowPromptList(false);
-            }
+            if ( promptListRef.current &&
+                !promptListRef.current.contains(e.target as Node)) setShowPromptList(false);
 
-
-            if (dataSourceSelectorRef.current && !dataSourceSelectorRef.current.contains(e.target as Node)) {
-                setShowDataSourceSelector(false);
-            }
+            if (dataSourceSelectorRef.current && 
+                !dataSourceSelectorRef.current.contains(e.target as Node)) setShowDataSourceSelector(false);
            
-            if (assistantSelectorRef.current && !assistantSelectorRef.current.contains(e.target as Node)) {
-                setShowAssistantSelect(false);
-            }
+            if (assistantSelectorRef.current && !assistantSelectorRef.current.contains(e.target as Node)) setShowAssistantSelect(false);
         };
 
         window.addEventListener('click', handleOutsideClick);
@@ -658,43 +659,6 @@ const onAssistantChange = (assistant: Assistant) => {
         if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER ));
       }, [selectedAssistant]);
 
-    useEffect(() => {
-        const handleOutsideClick = (e: MouseEvent) => {
-            if (
-                promptListRef.current &&
-                !promptListRef.current.contains(e.target as Node)
-            ) {
-                setShowPromptList(false);
-            }
-
-            if (
-                projectListRef.current &&
-                !projectListRef.current.contains(e.target as Node)
-            ) {
-                setShowProjectList(false);
-            }
-
-            if (
-                dataSourceSelectorRef.current &&
-                !dataSourceSelectorRef.current.contains(e.target as Node)
-            ) {
-                setShowDataSourceSelector(false);
-            }
-
-            if (
-                assistantSelectorRef.current &&
-                !assistantSelectorRef.current.contains(e.target as Node)
-            ) {
-                setShowAssistantSelect(false);
-            }
-        };
-
-        window.addEventListener('click', handleOutsideClick);
-
-        return () => {
-            window.removeEventListener('click', handleOutsideClick);
-        };
-    }, []);
 
     return (
         <>
@@ -708,12 +672,10 @@ const onAssistantChange = (assistant: Assistant) => {
             </div>
             }
         <div style={{width: chatContainerWidth}}
-            className="absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2 z-15">
+            className="px-14 absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2 z-15">
             
-            
-            <div
-                className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 lg:mx-auto lg:max-w-3xl">
-                {featureFlags.memory && <MemoryPresenter></MemoryPresenter>}
+            <div className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 ">
+               
                {!showScrollDownButton && !messageIsStreaming && !artifactIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
                (selectedConversation && selectedConversation.messages?.length > 0) &&  (
                <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert  hover:text-neutral-900 dark:hover:text-neutral-100">
@@ -745,7 +707,7 @@ const onAssistantChange = (assistant: Assistant) => {
                     {(messageIsStreaming || artifactIsStreaming) &&  (
                         <>
                             <button
-                                className="mb-3 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 md:mt-2"
+                                className="mt-10 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 "
                                 onClick={handleStopConversation}
                             >
                                 <IconPlayerStop size={16}/> {t('Stop Generating')}
@@ -768,158 +730,9 @@ const onAssistantChange = (assistant: Assistant) => {
                 {/*    </button>*/}
                 {/*  )}*/}
 
-                <div className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4" >
-
-                    <div className="flex flex-row items-center">
-                        <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
-                            if(asts.length === 0){
-                                //setAssistant(DEFAULT_ASSISTANT);
-                                homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
-                            }
-                            else {
-                                //setAssistant(asts[0]);
-                                homeDispatch({field: 'selectedAssistant', value: asts[0]});
-                            }
-                        }}/>
-                        {featureFlags.memory && 
-                        <ProjectInUse
-                            project={selectedProject}
-                            projectChanged={(project) => {
-                                setSelectedProject(project);
-                                setShowProjectList(false);
-                            }}
-                        />}
-                        <FileList documents={documents}
-                                  documentStates={documentState}
-                                  onCancelUpload={onCancelUpload}
-                                  setDocuments={setDocuments}/>
-                    </div>
-
-                    <div className="flex items-center">
-
-                        {featureFlags.dataSourceSelectorOnInput && (
-                            <button
-                                className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowDataSourceSelector(!showDataSourceSelector);
-                                    setShowAssistantSelect(false);
-
-                                }}
-                                onKeyDown={(e) => {
-                                }}
-                                title="Files"
-                            >
-                                <IconFiles size={20}/>
-                            </button>
-                        )}
-
-
-                        {/*<button*/}
-                        {/*    className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"*/}
-                        {/*    onClick={() => setShowAssistantSelect(!showAssistantSelect)}*/}
-                        {/*    onKeyDown={(e) => {*/}
-                        {/*    }}*/}
-                        {/*>*/}
-                        {/*    <IconRobot size={20}/>*/}
-                        {/*</button>*/}
-
-                            {featureFlags.memory && settingRef.current.featureOptions.includeMemory && (
-                                <button
-                                    className={buttonClasses}
-                                    onClick={handleShowProjectSelector}
-                                    title="Project Memory"
-                                >
-                                    <IconDeviceSdCard size={20} />
-                                </button>
-                            )}
-
-                            {featureFlags.memory && showProjectList && session?.user?.email && (
-                                <div className="absolute left-0 bottom-14 rounded bg-white dark:bg-[#343541]">
-                                    <ProjectList
-                                        currentProject={selectedProject}
-                                        availableProjects={projects}
-                                        onKeyDown={(e: any) => {
-                                            if (e.key === 'Escape') {
-                                                e.preventDefault();
-                                                setShowProjectList(false);
-                                                textareaRef.current?.focus();
-                                            }
-                                        }}
-                                        onProjectChange={(project: Project) => {
-                                            setSelectedProject(project);
-                                            setShowProjectList(false);
-                                            if (textareaRef && textareaRef.current) {
-                                                textareaRef.current.focus();
-                                            }
-                                        }}
-                                    />
-                                </div>
-                            )}
-
-                        { featureFlags.uploadDocuments &&
-                        <AttachFile id="__attachFile"                                                     //  Mistral and gpt 3.5 do not support image files 
-                                    disallowedFileExtensions={[ ...COMMON_DISALLOWED_FILE_EXTENSIONS, ...(selectedConversation?.model?.supportsImages 
-                                                                                                          ? [] : ["jpg","png","gif", "jpeg", "webp"] ) ]} 
-                                    onAttach={addDocument}
-                                    onSetMetadata={handleSetMetadata}
-                                    onSetKey={handleSetKey}
-                                    onSetAbortController={handleDocumentAbortController}
-                                    onUploadProgress={handleDocumentState}
-                        />}
-
-                        <button
-                            className={buttonClasses + " mr-4"}
-                            onClick={ () => {
-                                handleShowAssistantSelector();
-                                setShowDataSourceSelector(false);
-                                }
-                            }
-                            onKeyDown={(e) => {
-                            }}
-                            title="Select Assistants"
-
-                        >
-                            <IconAt size={20}/>
-                        </button>
-
-                        {featureFlags.promptOptimizer && isInputInFocus && (
-                            <div className='relative mr-[-32px]'>
-                                <PromptOptimizerButton
-                                    maxPlaceholders={0}
-                                    prompt={content || ""}
-                                    onOptimized={(prompt:string, optimizedPrompt:string) => {
-                                        setContent(optimizedPrompt);
-                                        textareaRef.current?.focus();
-                                    }}
-                                />
-                            </div>
-                        )}
-
-                        {showAssistantSelect && (
-                            <div className="absolute left-0 bottom-14 rounded bg-white dark:bg-[#343541]">
-                                <AssistantSelect
-                                    assistant={selectedAssistant || DEFAULT_ASSISTANT}
-                                    availableAssistants={availableAssistants}
-                                    onKeyDown={(e: any) => {
-                                        if (e.key === 'Escape') {
-                                            e.preventDefault();
-                                            setShowAssistantSelect(false);
-                                            textareaRef.current?.focus();
-                                        }
-                                    }}
-                                    onAssistantChange={(assistant: Assistant) => {
-                                        onAssistantChange(assistant);
-                                        if (textareaRef && textareaRef.current) {
-                                            textareaRef.current.focus();
-                                        }
-                                    }}
-                                />
-                            </div>
-                        )}
-
-                        {showDataSourceSelector && (
-                            <div ref={dataSourceSelectorRef} className="absolute left-0 bottom-16 mb-6 rounded bg-white dark:bg-[#343541]">
+                {showDataSourceSelector && (
+                            <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]" 
+                                style={{transform: 'translateY(88px)'}}>
                                 <DataSourceSelector
                                     onDataSourceSelected={(d) => {
 
@@ -942,33 +755,92 @@ const onAssistantChange = (assistant: Assistant) => {
                             </div>
                         )}
 
-                        {showMessageSelectDialog && 
-                            <MessageSelectModal 
-                            setConversation={setCroppedConversation}
-                            onCancel={() => {
-                                setShowMessageSelectDialog(false);
-                            }}
-                            onSubmit={handleGetQiSummary}                      
-                        />}
-
-                        {showQiDialog && (
-                         isQiLoading ? (  <LoadingDialog open={isQiLoading} message={"Creating Summary..."}/>) :
-                            <QiModal
-                                qiSummary={qiSummary}
-                                onCancel={() => {
-                                    setShowQiDialog(false)
-                                    setQiSummary(null);
-                                    setIsQiLoading(true);
-                                }}
-                                onSubmit={() => {
-                                    setShowQiDialog(false)
-                                    setQiSummary(null);
-                                    setIsQiLoading(true);
-                                }}
-                                type={QiSummaryType.CONVERSATION}
-                                conversation={croppedConversation}
+                {featureFlags.memory && 
+                    <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]" 
+                         style={{transform: 'translateY(50px)'}}>
+                        <MemoryPresenter
+                         isFactsVisible={isFactsVisible}
+                         setIsFactsVisible={setIsFactsVisible}
                         />
+                    </div>    }
+
+                    
+                <div className="relative mx-2 flex w-full flex-grow sm:mx-4" style={{transform: 'translateY(16px)'}}>
+                    
+                    <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
+                        if(asts.length === 0){
+                            //setAssistant(DEFAULT_ASSISTANT);
+                            homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+                        }
+                        else {
+                            //setAssistant(asts[0]);
+                            homeDispatch({field: 'selectedAssistant', value: asts[0]});
+                        }
+                    }}/>
+                
+                    {featureFlags.memory &&
+                    <ProjectInUse
+                        project={selectedProject}
+                        projectChanged={(project) => {
+                            setSelectedProject(project);
+                            setShowProjectList(false);
+                        }}/>}
+
+                    <FileList documents={documents}
+                        documentStates={documentState}
+                        onCancelUpload={onCancelUpload}
+                        setDocuments={setDocuments}/>
+    
+                 </div>
+
+                <div className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4" >
+                
+
+                    <div className="px-2 flex items-center">
+
+
+                        {featureFlags.promptOptimizer && isInputInFocus && (
+                            <div className='relative mr-[-32px]'>
+                                <PromptOptimizerButton
+                                    maxPlaceholders={0}
+                                    prompt={content || ""}
+                                    onOptimized={(prompt:string, optimizedPrompt:string) => {
+                                        setContent(optimizedPrompt);
+                                        textareaRef.current?.focus();
+                                    }}
+                                />
+                            </div>
                         )}
+
+                        {featureFlags.qiSummary && <>
+                            {showMessageSelectDialog && 
+                                <MessageSelectModal 
+                                setConversation={setCroppedConversation}
+                                onCancel={() => {
+                                    setShowMessageSelectDialog(false);
+                                }}
+                                onSubmit={handleGetQiSummary}                      
+                            />}
+
+                            {showQiDialog && (
+                            isQiLoading ? (  <LoadingDialog open={isQiLoading} message={"Creating Summary..."}/>) :
+                                <QiModal
+                                    qiSummary={qiSummary}
+                                    onCancel={() => {
+                                        setShowQiDialog(false)
+                                        setQiSummary(null);
+                                        setIsQiLoading(true);
+                                    }}
+                                    onSubmit={() => {
+                                        setShowQiDialog(false)
+                                        setQiSummary(null);
+                                        setIsQiLoading(true);
+                                    }}
+                                    type={QiSummaryType.CONVERSATION}
+                                    conversation={croppedConversation}
+                            />
+                            )}
+                        </>}
 
                         <textarea
                             ref={textareaRef}
@@ -1026,8 +898,10 @@ const onAssistantChange = (assistant: Assistant) => {
                                 </button>
                             </div>
                         )}
+                    
                     </div>
-
+                    
+            
                     {showPromptList && filteredPrompts.length > 0 && (
                         <div className="absolute bottom-12 w-full">
                             <PromptList
@@ -1051,9 +925,139 @@ const onAssistantChange = (assistant: Assistant) => {
                         />
                     )}
                 </div>
+               
+                
+                <div className="h-6 w-full flex flex-row gap-2 items-center ">
+
+                {featureFlags.dataSourceSelectorOnInput && (
+                        <button
+                            className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowDataSourceSelector(!showDataSourceSelector);
+                                setIsFactsVisible(false);
+                            }}
+                            onKeyDown={(e) => {
+                            }}
+                            title="Files"
+                        >
+                            <IconFiles size={20}/>
+                        </button>
+                    )}
+
+
+
+                    { featureFlags.uploadDocuments &&
+                    <AttachFile id="__attachFile"                                                     //  Mistral and gpt 3.5 do not support image files 
+                                disallowedFileExtensions={[ ...COMMON_DISALLOWED_FILE_EXTENSIONS, ...(selectedConversation?.model?.supportsImages 
+                                                                                                        ? [] : ["jpg","png","gif", "jpeg", "webp"] ) ]} 
+                                onAttach={addDocument}
+                                onSetMetadata={handleSetMetadata}
+                                onSetKey={handleSetKey}
+                                onSetAbortController={handleDocumentAbortController}
+                                onUploadProgress={handleDocumentState}
+                    />}
+
+                    <div className='flex flex-row gap-2'>
+
+                        <button
+                            className={buttonClasses}
+                            onClick={ (e) => {
+                                e.preventDefault();
+                                handleShowAssistantSelector();
+                                setShowDataSourceSelector(false);
+                                }
+                            }
+                            onKeyDown={(e) => {
+                            }}
+                            title="Select Assistants"
+
+                        >
+                            <IconAt size={20}/>
+                        </button>
+
+                        {showAssistantSelect && (
+                            <div className="absolute rounded bg-white dark:bg-[#343541]"
+                                style={{transform: 'translateX(30px) translateY(-2px)', zIndex: 10}}>
+                                <AssistantSelect
+                                    assistant={selectedAssistant || DEFAULT_ASSISTANT}
+                                    availableAssistants={availableAssistants}
+                                    onKeyDown={(e: any) => {
+                                        if (e.key === 'Escape') {
+                                            e.preventDefault();
+                                            setShowAssistantSelect(false);
+                                            textareaRef.current?.focus();
+                                        }
+                                    }}
+                                    onAssistantChange={(assistant: Assistant) => {
+                                        onAssistantChange(assistant);
+                                        if (textareaRef && textareaRef.current) {
+                                            textareaRef.current.focus();
+                                        }
+                                    }}
+                                />
+                            </div>
+                            )}
+                        </div>
+                    <div className='flex flex-row gap-2'>
+                        {featureFlags.memory && projects.length > 0  && 
+                        // settingRef.current.featureOptions.includeMemory && 
+                        (
+                            <button
+                                className={buttonClasses}
+                                onClick={handleShowProjectSelector}
+                                title="Project Memory"
+                            >
+                                <IconDeviceSdCard size={20} />
+                            </button>
+                        )}
+
+                        {featureFlags.memory && projects.length > 0 && showProjectList && session?.user?.email && (
+                            <div className="absolute rounded bg-white dark:bg-[#343541]"
+                                 style={{transform: 'translateX(30px) translateY(-2px)', zIndex: 10}}
+
+                                >
+                                <ProjectList
+                                    currentProject={selectedProject}
+                                    availableProjects={projects}
+                                    onKeyDown={(e: any) => {
+                                        if (e.key === 'Escape') {
+                                            e.preventDefault();
+                                            setShowProjectList(false);
+                                            textareaRef.current?.focus();
+                                        }
+                                    }}
+                                    onProjectChange={(project: Project) => {
+                                        setSelectedProject(project);
+                                        setShowProjectList(false);
+                                        if (textareaRef && textareaRef.current) {
+                                            textareaRef.current.focus();
+                                        }
+                                    }}
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    
+                    {featureFlags.memory && !isFactsVisible && selectedConversation && 
+                    selectedConversation.messages?.length > 0 && extractedFacts.length > 0 &&
+                    (!messageIsStreaming && !artifactIsStreaming) &&
+                        <button className='relative ml-auto mb-2 text-[1rem] text-[#1dbff5] dark:text-[#8edffa]'
+                        onClick={() => setIsFactsVisible(true)}>
+                            {extractedFacts.length} facts detected - Click to view
+                        </button>
+                        
+                    }
+                            
+                </div>  
+
+
+
             </div>
 
-        </div>
+        </div>     
+
         </>
     );
 };

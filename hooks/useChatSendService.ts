@@ -53,7 +53,7 @@ interface Memory {
 
 export function useSendService() {
     const {
-        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts },
+        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled },
         getDefaultModel,
         postProcessingCallbacks,
         dispatch: homeDispatch,
@@ -142,7 +142,10 @@ export function useSendService() {
                         conversationId
                     } = request;
 
-                    const pluginIds: string[] = plugins?.map((plugin: Plugin) => plugin.id) ?? [];
+                    const featureOptions = getSettings(featureFlags).featureOptions;
+                    const pluginActive = featureOptions.includePluginSelector;
+                    const pluginIds: string[] | null = pluginActive ? plugins?.map((plugin: Plugin) => plugin.id) ?? [] : null;
+
                     const { content, label } = getPrefix(selectedConversation, message);
                     if (content) {
                         message.content = content + " " + message.content;
@@ -186,10 +189,12 @@ export function useSendService() {
                             messages: [...selectedConversation.messages, message],
                         };
                     }
-                    console.log("updated: ", updatedConversation.messages);
+                    // console.log("updated: ", updatedConversation.messages);
 
                     if (!updatedConversation.model) {
-                        console.log("WARNING: MODEL IS UNDEFINED SETTING TO DEFAULT: ", getDefaultModel(DefaultModels.DEFAULT));
+                        const defaultModel = getDefaultModel(DefaultModels.DEFAULT)
+                        console.log("WARNING: MODEL IS UNDEFINED SETTING TO DEFAULT: ", defaultModel);
+                        updatedConversation.model = defaultModel;
                     }
 
                     homeDispatch({
@@ -200,10 +205,13 @@ export function useSendService() {
                     homeDispatch({ field: 'loading', value: true });
                     homeDispatch({ field: 'messageIsStreaming', value: true });
 
-                    const featureOptions = getSettings(featureFlags).featureOptions;
                     const isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts &&
-                        pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER);
-                    const isSmartMessagesOn = featureOptions.includeFocusedMessages && pluginIds.includes(PluginID.SMART_MESSAGES);
+                        // we only consider whats in the plugins if we have the feature option for it on.
+                        (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER)));
+                    console.log("Artifacts on: ", isArtifactsOn)
+                    const isSmartMessagesOn = featureOptions.includeFocusedMessages && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
+                    console.log("smart on: ", isSmartMessagesOn)
+
                     const isMemoryOn = featureFlags.memory && featureOptions.includeMemory;
 
                     // if both artifact and smart messages is off then it returnes with the messages right away 
@@ -228,49 +236,57 @@ export function useSendService() {
                     // if memory is on, then extract-facts and integrate existing memories into the conversation
                     if (isMemoryOn) {
                         // extract facts from user prompt
-                        const userInput = updatedConversation.messages
-                            .filter(msg => msg.role === 'user')
-                            .pop()?.content || '';
-                        const response = await doExtractFactsOp(userInput);
-                        const extractedFacts = JSON.parse(response.body).facts;
-                        const currentFacts = extractedFacts || [];
-                        homeDispatch({
-                            field: 'extractedFacts',
-                            value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
-                                self.indexOf(fact) === index
-                            )
-                        });
+                        if (memoryExtractionEnabled) {
+                            const userInput = updatedConversation.messages
+                                .filter(msg => msg.role === 'user')
+                                .pop()?.content || '';
+                                
+                            // const response = await doExtractFactsOp(userInput);
+                            // const extractedFacts = JSON.parse(response.body).facts;
+                            // const currentFacts = extractedFacts || [];
+                            // homeDispatch({
+                            //     field: 'extractedFacts',
+                            //     value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
+                            //         self.indexOf(fact) === index
+                            //     )
+                            // });
+
+                            // extract facts without waiting
+                            const factExtractionPromise = doExtractFactsOp(userInput)
+                                .then(response => {
+                                    const extractedFacts = JSON.parse(response.body).facts;
+                                    const currentFacts = extractedFacts || [];
+                                    homeDispatch({
+                                        field: 'extractedFacts',
+                                        value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
+                                            self.indexOf(fact) === index
+                                        )
+                                    });
+                                })
+                                .catch(error => {
+                                    console.warn('Fact extraction failed:', error);
+                                    // Continue with the chat even if fact extraction fails
+                                });
+                        }
 
                         // memory fetching
-                        // After doReadMemoryOp() call:
                         const memoriesResponse = await doReadMemoryOp();
                         const allMemories = JSON.parse(memoriesResponse.body).memories || [];
 
-                        // console.log("Retrieved all memories:", allMemories);
-                        // console.log("Current projectId:", chatBody.projectId);
-
                         // Filter memories based on criteria
                         const relevantMemories = allMemories.filter((memory: any) => {
-                            // Log each memory being evaluated
-                            // console.log("Evaluating memory:", memory);
-
                             // Check for user memories
                             if (memory.memory_type === 'user') {
-                                // console.log("✅ Including user memory:", memory.content);
                                 return true;
                             }
 
                             // Check for project memories
                             if (chatBody.projectId && memory.memory_type_id === chatBody.projectId) {
-                                // console.log("✅ Including project memory:", memory.content);
                                 return true;
                             }
 
-                            // console.log("❌ Excluding memory:", memory.content);
                             return false;
                         });
-
-                        // console.log("Final relevant memories:", relevantMemories);
 
                         const memoryContext = relevantMemories.length > 0
                             ? `Consider these relevant past memories when responding: ${JSON.stringify(
@@ -280,8 +296,6 @@ export function useSendService() {
 
                         chatBody.prompt += '\n\n' + memoryContext;
                     }
-
-                    // console.log(chatBody.prompt);
 
                     if (isArtifactsOn) {
                         // account for plugin on/off features 
@@ -320,7 +334,7 @@ export function useSendService() {
 
                     //PLUGINS before options is assigned
                     //in case no plugins are defined, we want to keep the default behavior
-                    if (!featureFlags.ragEnabled || (!pluginIds.includes(PluginID.RAG) && plugins)) {
+                    if (!featureFlags.ragEnabled || (plugins && pluginActive && !pluginIds?.includes(PluginID.RAG))) {
                         options = { ...(options || {}), skipRag: true };
                     }
 
@@ -328,7 +342,7 @@ export function useSendService() {
                         //check if we need
                         options = { ...(options || {}), skipCodeInterpreter: true };
                     } else {
-                        if (pluginIds.includes(PluginID.CODE_INTERPRETER)) {
+                        if (pluginIds?.includes(PluginID.CODE_INTERPRETER)) {
                             chatBody.codeInterpreterAssistantId = updatedConversation.codeInterpreterAssistantId;
                             options = { ...(options || {}), skipRag: true, codeInterpreterOnly: true };
                             statsService.codeInterpreterInUseEvent();
@@ -393,6 +407,12 @@ export function useSendService() {
                     }
 
                     const controller = new AbortController();
+                    const handleStopGenerationEvent = () => {
+                        controller.abort();
+                        console.log("Kill chat event trigger, control signal aborted value: " , controller.signal.aborted); 
+                    }
+            
+                    window.addEventListener('killChatRequest', handleStopGenerationEvent);
                     try {
 
                         const { prefix, body, options } = parseMessageType(message.content);
@@ -660,6 +680,9 @@ export function useSendService() {
                         return;
                         //reject(error);
                         // Handle any other errors, as required.
+                    } finally {
+                        
+                        window.removeEventListener('killChatRequest', handleStopGenerationEvent);
                     }
 
                     //Reset the status display

@@ -1,47 +1,43 @@
 
+import { doRequestOp } from "./doRequestOp";
 
-const doOp = async (op:string, data:any) => {
-    try {
-        const response = await fetch('/api/integrations/op', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            signal: null,
-            body: JSON.stringify({ data, op }),
-        });
+const URL_PATH = '/integrations/oauth'; 
 
-        if (response.ok) {
-            try {
-                const result = await response.json();
-                return result;
-            } catch (e) {
-                return { success: false, message: "Error parsing response from oauth integration op." };
-            }
-        } else {
-            return { success: false, message: `Error calling oauth integration op: ${response.statusText}.` }
-        }
-    } catch (error) {
-        return { success: false, message: `Network error in oauth integration op: ${error}` };
-    }
-}
 
 // This takes the name of the integration, such as "google_sheets" which will need a corresponding
 // client configured in the back-end lambda
 export const getOauthRedirect = async (integration:string) => {
-    return await doOp('start-auth', { integration });
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/start-auth",
+        data: { integration }
+    };
+    return await doRequestOp(op);
 }
 
 export const getUserIntegrations = async (integrations:string[]) => {
-    return await doOp('user/list', { integrations });
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/user/list",
+        data: { integrations }
+    };
+    return await doRequestOp(op);
 }
 
 export const deleteUserIntegration = async (integration:string) => {
-    try{
-        return await doOp('user/delete', { integration });
-    } catch (e) {
-        console.error("Error deleting user integration: ", e);
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/user/delete",
+        data: { integration }
+    };
+    const response = await doRequestOp(op);
+    if (!response.success) {
+        console.log("Error occured with Delete User Integrations: ", response )
         alert("An error occurred. Please try again.");
     }
 
 }
+

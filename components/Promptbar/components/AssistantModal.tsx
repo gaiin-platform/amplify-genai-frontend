@@ -48,42 +48,52 @@ const dataSourceFlags = [
     {
         "label": "Include Download Links for Referenced Documents",
         "key": "includeDownloadLinks",
-        "defaultValue": false
+        "defaultValue": false,
+        "description": "Assistant can include hyperlinks to relevant downloadable documents in its responses."
     },
     {
         "label": "Include Attached Documents in RAG",
         "key": "ragAttachedDocuments",
-        "defaultValue": false
+        "defaultValue": false,
+        "description": "Allows Retrieval-Augmented Generation (RAG) to be performed on user-attached documents. Only the most relevant portions of the document will be provided to the assistant."
     },
     {
         "label": "Include Attached Documents in Prompt",
         "key": "insertAttachedDocuments",
-        "defaultValue": true
+        "defaultValue": true,
+        "description": "The assistant will receive the full content of user-attached documents for comprehensive context. (Recommended)"
+
     },
     {
         "label": "Include Conversation Documents in RAG",
         "key": "ragConversationDocuments",
-        "defaultValue": true
+        "defaultValue": true,
+        "description": "Applies Retrieval-Augmented Generation (RAG) to documents from earlier in the conversation. Only the most relevant portions will be provided to the assistant. (Recommended)"
     },
     {
         "label": "Include Conversation Documents in Prompt",
         "key": "insertConversationDocuments",
-        "defaultValue": false
+        "defaultValue": false,
+        "description": "The assistant receives the full content of documents from earlier in the conversation for comprehensive context."
     },
     {
         "label": "Include Attached Data Source Metadata in Prompt",
         "key": "insertAttachedDocumentsMetadata",
-        "defaultValue": false
+        "defaultValue": false,
+        "description": "Provides the assistant with metadata, including ID, name, type, and properties of currently attached documents for reference purposes. (NOT Recommended)"
     },
     {
         "label": "Include Conversation Data Source Metadata in Prompt",
         "key": "insertConversationDocumentsMetadata",
-        "defaultValue": false
+        "defaultValue": false,
+        "description": "Provides the assistant with metadata, including ID, name, type, and properties of documents from earlier in the conversation for reference purposes. (NOT Recommended)"
     },
     {
         "label": "Disable Data Source Insertion",
         "key": "disableDataSources",
-        "defaultValue": false
+        "defaultValue": false,
+        "description": "Ignores all user-provided documents, preventing their content from being seen by the assistant. (NOT Recommended)"
+
     },
 ];
 
@@ -229,6 +239,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             if(ops.success){
                                                 // console.log(ops.data);
                                                 setAvailableApis(ops.data);
+                                            } else {
+                                                setAvailableApis([]);
                                             }
                                         });
     }, [availableApis]);
@@ -238,7 +250,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     useEffect(() => {
         additionalGroupDataRef.current = additionalGroupData;
-        // console.log(additionalGroupData)
     }, [additionalGroupData]);
 
     const validateApiInfo = (api: any) => {
@@ -492,7 +503,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>
                             <div className="flex flex-row gap-2 ">
                                 <select
-                                    className="my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
+                                    className="my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow"
                                     value={selectTemplateId}
                                     onChange={(e) => setSelectTemplateId(e.target.value ?? '')}
                                     >
@@ -702,7 +713,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         <option value="v1">v1</option>
                                         <option value="v2">v2</option>
                                         <option value="v3">v3</option>
-                                        <option value="v4">AllAIn</option>
+                                        <option value="v4">Deep VU1</option>
                                         <option value="custom">custom</option>
                                     </select>
 
@@ -718,10 +729,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
                                         {t('Data Source Options')}
                                     </div>
-                                    {/*// Documents in past messages*/}
-                                    {/*// Documents attached to prompt*/}
-                                    {/*// Assistant documents*/}
-                                    <FlagsMap id={'dataSourceFlags'}
+                                    <ExpansionComponent
+                                        title='Manage'
+                                        content= {
+                                             <FlagsMap id={'dataSourceFlags'}
                                               flags={dataSourceFlags}
                                               state={dataSourceOptions}
                                               flagChanged={
@@ -732,6 +743,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                       });
                                                   }
                                               } />
+                                        }
+                                    />
+                                   
                                     <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
                                         {t('Message Options')}
                                     </div>
@@ -796,21 +810,22 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     </div>
 
 
-                                    {!availableApis || availableApis.length > 0 &&
-                                    <div className="flex flex-row text-sm font-bold text-black dark:text-neutral-200 mt-2 mb-2">
-                                        {t('Enabled API Capabilities')}
-                                        {availableApis && 
-                                         <div className="h-0 ml-auto" style={{transform: 'translateY(-18px)'}}>
-                                            <Search
-                                            placeholder={'Search APIs...'}
-                                            searchTerm={apiSearchTerm}
-                                            onSearch={(searchTerm: string) => setApiSearchTerm(searchTerm.toLocaleLowerCase())}
-                                            />
-                                        </div>}
-                                    </div>
-                                    }
+                                    {!availableApis && <>Loading API Capabilities...</>}
 
-                                    {availableApis && availableApis.length > 0 ?
+                                    {availableApis && availableApis.length > 0 &&
+                                        <>
+                                        <div className="flex flex-row text-sm font-bold text-black dark:text-neutral-200 mt-2 mb-2">
+                                            {t('Enabled API Capabilities')}
+                                            {availableApis && 
+                                            <div className="h-0 ml-auto" style={{transform: 'translateY(-18px)'}}>
+                                                <Search
+                                                placeholder={'Search APIs...'}
+                                                searchTerm={apiSearchTerm}
+                                                onSearch={(searchTerm: string) => setApiSearchTerm(searchTerm.toLocaleLowerCase())}
+                                                />
+                                            </div>}
+                                        </div> 
+
                                         <div className="max-h-[400px] overflow-y-auto">
                                             {availableApis.filter((api) => (apiSearchTerm ? 
                                                                    api.name.toLowerCase().includes(apiSearchTerm) : true))
@@ -822,7 +837,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 index={index}
                                                 onChange={handleUpdateApiItem} />
                                             ))}
-                                        </div> : <>Loading...</>
+                                        </div>  
+                                        </>
                                     }
 
 

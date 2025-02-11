@@ -12,7 +12,7 @@ interface Props {
 
 const FeaturePlugin = ({ plugins, setPlugins }: Props) => {
     const {
-        state: { pluginLocation }, dispatch: homeDispatch
+        state: { pluginLocation, showPromptbar, showChatbar, }, dispatch: homeDispatch
     } = useContext(HomeContext);
 
     const codeInterpreterPlugin:Plugin | undefined = PluginList.find((p:Plugin) => p.id === PluginID.CODE_INTERPRETER);
@@ -63,12 +63,12 @@ const FeaturePlugin = ({ plugins, setPlugins }: Props) => {
     
         // Call the function to ensure the plugin is within bounds
         ensureWithinBounds();
-    }, [width]); // Dependencies array
+    }, [width, showPromptbar, showChatbar,]); // Dependencies array
 
 
 
     const getBounds = () => {
-        const container = document.querySelector(".container");
+        const container = document.querySelector(".chatcontainer");
         if (container) {
             const containerRect = container.getBoundingClientRect();
         

@@ -575,7 +575,7 @@ If people need help with prompt engineering, which is how you converse effective
                         className="max-h-full overflow-x-hidden"
                     >
                         {getNav()}
-
+{/* 
                         {showMarketItemTryModal && (
                             <ImportAnythingModal
                                 title={"Try Market Item"}
@@ -600,9 +600,9 @@ If people need help with prompt engineering, which is how you converse effective
                                 importKey={""}
                                 importFetcher={importFetcher}
                                 note={marketItemDescription}/>
-                        )}
+                        )} */}
 
-                        {showMarketItemInstallModal && (
+                        {/* {showMarketItemInstallModal && (
                             <ImportAnythingModal
                                 title={"Install Market Item"}
                                 importButtonLabel={"Install"}
@@ -623,7 +623,7 @@ If people need help with prompt engineering, which is how you converse effective
                                 importKey={""}
                                 importFetcher={importFetcher}
                                 note={marketItemDescription}/>
-                        )}
+                        )} */}
 
                         {showExample  && (
                         <>

@@ -1,5 +1,6 @@
 import { Conversation } from './chat';
 import { ConversationStorage } from './conversationStorage';
+import { SharedItem } from './export';
 import { FolderInterface, SortType } from './folder';
 import { Model } from './model';
 import { PluginLocation } from './plugin';
@@ -12,11 +13,8 @@ export interface LocalStorage {
   conversationHistory: Conversation[];
   selectedConversation: Conversation;
   theme: 'light' | 'dark';
-  // added folders (3/23/23)
   folders: FolderInterface[];
-  // added prompts (3/26/23)
   prompts: Prompt[];
-  // added showChatbar and showPromptbar (3/26/23)
   showChatbar: boolean;
   showPromptbar: boolean;
   storageSelection: ConversationStorage;
@@ -27,4 +25,5 @@ export interface LocalStorage {
   hiddenGroupFolders: FolderInterface[];
   defaultModel: Model// curretly used for the on load conversation because the models do not come until after 
   mixPanelOn: boolean;
+  workspaces: SharedItem[];
 }
