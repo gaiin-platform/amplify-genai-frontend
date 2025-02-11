@@ -5,22 +5,12 @@ on:
     branches: [main, dev]
   pull_request:
     branches: [main, dev]
-  workflow_dispatch:
-    inputs:
-      path_to_dockerfile:
-        description: Path to the dockerfile (default = 'Dockerfile')
-        default: "Dockerfile"
-        type: string
-      docker_build_dir:
-        description: Docker build directory (default = '.')
-        default: "."
-        type: string
-
 
 jobs:
   docker:
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+    if: vars.ENABLE_ECR_WORKFLOW == 'true'
 
     permissions:
       id-token: write
@@ -56,11 +46,17 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           # Build the image
-          docker build "${{ github.event_name == 'workflow_dispatch' && inputs.docker_build_dir || '.' }}" \
-            -f "${{ github.event_name == 'workflow_dispatch' && inputs.path_to_dockerfile || 'Dockerfile' }}" \
+          docker build . -f Dockerfile \
             -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
             -t "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
           
           # Push both tags
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
+
+      - name: Force new deployment of ECS service
+        run: |
+          aws ecs update-service --cluster ${{ vars.ECS_CLUSTER }} \
+            --service ${{ vars.ECS_SERVICE }} \
+            --force-new-deployment \
+            --region ${{ vars.AWS_REGION }}
