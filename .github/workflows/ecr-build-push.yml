@@ -20,6 +20,7 @@ on:
 jobs:
   docker:
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
 
     permissions:
       id-token: write
@@ -37,6 +38,8 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_IAM_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
+          audience: sts.amazonaws.com
+          role-session-name: GitHubActions
 
       - name: Login to Amazon ECR
         id: login-ecr
