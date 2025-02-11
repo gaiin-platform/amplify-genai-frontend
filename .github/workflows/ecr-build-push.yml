@@ -58,17 +58,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+
       - name: Force new deployment of ECS service
-        uses: aws-actions/aws-cli@v2  # Update to v2
-        with:
-          args: >
-            ecs update-service 
-            --cluster ${{ vars.ECS_CLUSTER }}
-            --service ${{ vars.ECS_SERVICE }}
-            --force-new-deployment
+        run: |
+          aws ecs update-service \
+            --cluster ${{ vars.ECS_CLUSTER }} \
+            --service ${{ vars.ECS_SERVICE }} \
+            --force-new-deployment \
             --region ${{ vars.AWS_REGION }}
-      
-      # Optional: Add deployment verification
+
       - name: Wait for service stability
         run: |
           aws ecs wait services-stable \
