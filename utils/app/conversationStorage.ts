@@ -1,10 +1,12 @@
 import { ConversationStorage } from "@/types/conversationStorage";
 import { Conversation } from "@/types/chat";
-import { deleteMultipleRemoteConversations, deleteRemoteConversation, fetchMultipleRemoteConversations, uploadConversation } from "@/services/remoteConversationService";
+import { deleteMultipleRemoteConversations, deleteRemoteConversation, fetchMultipleRemoteConversations, fetchRemoteConversation, uploadConversation } from "@/services/remoteConversationService";
 import cloneDeep from 'lodash/cloneDeep';
 import { conversationWithCompressedMessages, conversationWithUncompressedMessages, isLocalConversation, isRemoteConversation, remoteForConversationHistory, saveConversations } from "./conversation";
 import { FolderInterface } from "@/types/folder";
-
+import { baseAgentFolder } from "./basePrompts";
+import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "./const";
+import { Model } from '@/types/model';
 
 
 //handle all local, 
@@ -155,13 +157,23 @@ export const syncCloudConversation = async (selectedConversation: Conversation, 
 }
 
 
-
+const fillInMissingData = async (conversationId: string, defaultModel: Model, folders:FolderInterface[]) => {
+    const fullConv = await fetchRemoteConversation(conversationId);
+    if (fullConv) {
+        fullConv.model = defaultModel;
+        fullConv.prompt = DEFAULT_SYSTEM_PROMPT;
+        fullConv.temperature = DEFAULT_TEMPERATURE;
+        // happens for conversation upload through the register conversation api endpoint 
+        console.log("Update missing data on remote conversation");
+        uploadConversation(fullConv, folders);
+    }
+}
 export interface remoteConvData {
     conversation: Conversation;
     folder: FolderInterface | null;
 }
 
-export const updateWithRemoteConversations = async (remoteConversations: remoteConvData[] | null, conversations: Conversation[], folders:FolderInterface[], dispatch:any ) => {
+export const updateWithRemoteConversations = async (remoteConversations: remoteConvData[] | null, conversations: Conversation[], folders:FolderInterface[], dispatch:any, defaultModel: Model) => {
     if (!remoteConversations) alert("Unable to sync local conversations with those stored in the cloud. Please refresh the page to try again...");
 
     if (remoteConversations && remoteConversations.length > 0 ) {
@@ -170,8 +182,19 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
         const currentConversationsMap = new Map();
         conversations.forEach(conv => currentConversationsMap.set(conv.id, conv));
 
+        const agentfolderId = baseAgentFolder.id;
+        const convHasAgentFolder = remoteConversations.find((cd: remoteConvData) => cd.conversation.folderId === agentfolderId);
+        if (convHasAgentFolder) {
+            const hasAgentFolder = updatedFolders.find((f:FolderInterface) => f.id === agentfolderId);
+            if (!hasAgentFolder) {
+                updatedFolders = [...updatedFolders,  baseAgentFolder];
+                newFolders.push(baseAgentFolder);
+            }
+        }
+
         remoteConversations.forEach((cd: remoteConvData)=> {
             const remoteConv = cd.conversation;
+            if (!remoteConv.model) fillInMissingData(remoteConv.id, defaultModel, updatedFolders);
             // check if there is record of this conversation in the current browser
             const existsLocally = currentConversationsMap.get(remoteConv.id);
             let folderExists = remoteConv.folderId ? updatedFolders.find((f:FolderInterface) =>  f.id === remoteConv.folderId) : null;

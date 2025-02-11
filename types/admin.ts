@@ -1,13 +1,13 @@
 // Provider Types
 
-export const providers = {
+export const modelProviders = {
     Azure: 'Azure',
     OpenAI: 'OpenAI',
     Bedrock: 'Bedrock',
   } as const;
   
   // Derive the type from the object keys
-  export type Providers = keyof typeof providers;
+  export type ModelProviders = keyof typeof modelProviders;
 
 
 // Used for updating data in the backend
@@ -25,43 +25,63 @@ export enum AdminConfigTypes {
     AMPLIFY_GROUPS = 'amplifyGroups',
     RATE_LIMIT = 'rateLimit',
     PROMPT_COST_ALERT = 'promtCostAlert',
+    INTEGRATIONS = 'integrations',
+
   }
 
   // As tabs get added please keep track of where each config data lives
-export type Admin_Tab = 'config' | 'feature_data' | 'embeddings';
+export type AdminTab = 'Configurations' | 'Feature Flags' | 'Feature Data' | 'Embeddings' | 'Supported Models' |
+                        'Application Variables' | 'OpenAi Endpoints' | 'Ops' | 'Integrations';
 
   //////////////////// Keep track of admin changes and the tabs they belong to ////////////////////
 
-export const adminDataTabMap: Record<Admin_Tab, string[]> = {
-    // Embeddings Tab
-    'embeddings': [
-      AdminConfigTypes.EMBEDDINGS,
-    ],
-  
+export const adminDataTabMap: Record<AdminTab, string[]> = {
     // Config Tab
-    'config': [
+    'Configurations': [
       AdminConfigTypes.ADMINS,
-      AdminConfigTypes.APP_VARS,
-      AdminConfigTypes.APP_SECRETS,
       AdminConfigTypes.RATE_LIMIT,
       AdminConfigTypes.PROMPT_COST_ALERT,
-      AdminConfigTypes.OPENAI_ENDPONTS,
-      AdminConfigTypes.AVAILABLE_MODELS,
+      AdminConfigTypes.AMPLIFY_GROUPS,
+    ],
+
+    'Feature Flags' : [
       AdminConfigTypes.FEATURE_FLAGS,
     ],
   
     // Feature Data Tab
-    'feature_data': [
+    'Feature Data': [
       AdminConfigTypes.AST_ADMIN_GROUPS,
-      AdminConfigTypes.OPS,
       AdminConfigTypes.PPTX_TEMPLATES,
-      AdminConfigTypes.AMPLIFY_GROUPS,
       // Direct uploads with no backend mapping
       'dataDisclosure', 
       'builtInAmplifyAssistants', 
       'apiDocumentation', 
-      'ops', 
     ],
+
+
+    // Embeddings Tab
+    'Embeddings': [
+      AdminConfigTypes.EMBEDDINGS,
+    ],
+    'Supported Models' : [
+      AdminConfigTypes.AVAILABLE_MODELS,
+    ],
+    'Application Variables' : [
+      AdminConfigTypes.APP_VARS,
+      AdminConfigTypes.APP_SECRETS,
+    ],
+    'OpenAi Endpoints' : [
+      AdminConfigTypes.OPENAI_ENDPONTS,
+    ],
+    
+    'Ops' : [
+      AdminConfigTypes.OPS,
+    ],
+
+    'Integrations' : [
+      AdminConfigTypes.INTEGRATIONS
+    ],
+  
   };
   
 

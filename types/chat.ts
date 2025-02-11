@@ -133,4 +133,5 @@ export interface Conversation {
   groupType?: string;
   artifacts?:  { [key: string]: Artifact[]};
   projectId?: string;
+  date?: string;
 }

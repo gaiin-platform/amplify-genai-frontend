@@ -9,6 +9,7 @@ import {useSession} from "next-auth/react";
 import { uncompressMessages } from "@/utils/app/messages";
 import { ApiKey } from "@/types/apikeys";
 import { Settings } from "@/types/settings";
+import { capitalize } from "@/utils/app/data";
 
 let eventServiceReady = false;
 
@@ -31,7 +32,7 @@ const useEventService = (mixPanelToken:string) => {
 
     function camelToSentenceCase(input: string): string {
         const result = input.replace(/([A-Z])/g, " $1");
-        return result.charAt(0).toUpperCase() + result.slice(1);
+        return capitalize(result);
     }
 
     function keep(mapObject: any, keysToKeep: string[]): any {

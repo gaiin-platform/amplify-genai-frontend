@@ -35,7 +35,6 @@ import { getAccounts } from "@/services/accountService";
 import { Conversation, Message, newMessage } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
 import { FolderInterface, FolderType } from '@/types/folder';
-// import { ModelID, Models, Model } from '@/types/model';
 import { Prompt } from '@/types/prompt';
 
 
@@ -61,7 +60,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { WorkflowDefinition } from "@/types/workflow";
 import { saveWorkflowDefinitions } from "@/utils/app/workflows";
 import SharedItemsList from "@/components/Share/SharedItemList";
-import { Market } from "@/components/Market/Market";
+// import { Market } from "@/components/Market/Market";
 import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
@@ -846,7 +845,7 @@ const Home = ({
         const syncConversations = async (conversations: Conversation[], folders: FolderInterface[]) => {
             try {
                 const allRemoteConvs = await fetchAllRemoteConversations();
-                if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch);
+                if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch, getDefaultModel(DefaultModels.DEFAULT));
             } catch (e) {
                 console.log("Failed to sync cloud conversations: ", e);
             }
@@ -1455,11 +1454,11 @@ const Home = ({
                                 {page === 'chat' && (
                                     <Chat stopConversationRef={stopConversationRef} />
                                 )}
-                                {page === 'market' && (
+                                {/* {page === 'market' && (
                                     <Market items={[
                                         // {id: "1", name: "Item 1"},
                                     ]} />
-                                )}
+                                )} */}
                                 {page === 'home' && (
                                     <MyHome />
                                 )}
