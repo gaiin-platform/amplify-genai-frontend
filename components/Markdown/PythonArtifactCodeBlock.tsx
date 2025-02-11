@@ -9,15 +9,17 @@ import {
   generateRandomString,
   programmingLanguages,
 } from '@/utils/app/codeblock';
-import TestButton from '@/components/Artifacts/TestButton';
-import InferSchemaButton from '@/components/Artifacts/InferSchemaButton';
+import { Artifact } from '@/types/artifacts';
+import PythonMetadataDisplay from '@/components/Artifacts/PythonMetadataDisplay';
 
 interface Props {
   language: string;
   value: string;
+  artifact: Artifact;
+  onArtifactUpdated?: (updatedArtifact: Artifact) => void;
 }
 
-export const CodeBlock: FC<Props> = memo(({ language, value }) => {
+export const PythonCodeBlock: FC<Props> = memo(({ language, value, artifact, onArtifactUpdated}) => {
   const { t } = useTranslation('markdown');
   const [isCopied, setIsCopied] = useState<Boolean>(false);
 
@@ -62,6 +64,10 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
     URL.revokeObjectURL(url);
   };
 
+  const handleArtifactUpdated = (updatedArtifact: Artifact) => {
+    // Update the artifact in the parent component
+    onArtifactUpdated?.(updatedArtifact);
+  }
 
 
   return (
@@ -84,8 +90,6 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
           >
             <IconDownload size={18} />
           </button>
-          {language === 'python' && <TestButton />}
-          {language === 'python' && <InferSchemaButton code={value} />}
         </div>
       </div>
 
@@ -96,7 +100,9 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
       >
         {value}
       </SyntaxHighlighter>
+
+      <PythonMetadataDisplay artifact={artifact} />
     </div>
   );
 });
-CodeBlock.displayName = 'CodeBlock';
+PythonCodeBlock.displayName = 'PythonCodeBlock';

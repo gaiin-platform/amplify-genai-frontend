@@ -30,6 +30,8 @@ const Search: FC<Props> = ({ placeholder, searchTerm, onSearch, disabled=false, 
         value={searchTerm}
         onChange={handleSearchChange}
         disabled={disabled}
+        autoComplete={'off'}
+        spellCheck={false}
       />
 
       {searchTerm && (
