@@ -1,5 +1,6 @@
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import ChatSource from "@/components/Chat/ChatContentBlocks/ChatSource";
+import { capitalize } from "@/utils/app/data";
 
 interface Props {
     name: string;
@@ -21,7 +22,7 @@ const ChatSourceBlock: React.FC<Props> = (
         } else {
             // split on camel case and capitalize each first letter
             return name.split(/(?=[A-Z])/).map((word) => {
-                return word.charAt(0).toUpperCase() + word.slice(1);
+                return capitalize(word);
             }).join(" ");
         }
     }
