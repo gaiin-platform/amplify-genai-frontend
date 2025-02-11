@@ -7,10 +7,20 @@ on:
     branches: [main, dev]
 
 jobs:
-  docker:
+  debug:
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
-    run: echo "ENABLE_ECR_WORKFLOW value is ${{ vars.ENABLE_ECR_WORKFLOW }}"
+    steps:
+      - name: Print Variables
+        run: |
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}"
+          echo "ENABLE_ECR_WORKFLOW: ${{ vars.ENABLE_ECR_WORKFLOW }}"
+
+  docker:
+    needs: debug
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
     if: ${{ vars.ENABLE_ECR_WORKFLOW == 'true' }}
 
     permissions:
