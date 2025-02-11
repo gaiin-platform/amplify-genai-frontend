@@ -1,4 +1,4 @@
-import { IntegrationProviders, IntegrationSecretsMap, IntegrationsMap } from "@/types/integrations";
+
 import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH = '/integrations/oauth'; 
@@ -41,25 +41,3 @@ export const deleteUserIntegration = async (integration:string) => {
 
 }
 
-
-export const checkActiveIntegrations = async (integrations: string[]) => {
-    const integrationSecrets: IntegrationSecretsMap = {};
-    const availableIntegrations: IntegrationsMap = {};
-  
-    for (const i of integrations) {
-      const op = {
-
-        method: 'GET',
-        path: "",
-        op: `/${i}/integrations`,
-      };
-      const response = await doRequestOp(op);
-      if (response.success && response.data) {
-        const data = response.data;
-        availableIntegrations[i as IntegrationProviders] = data.integrations;
-        if (data.secrets) integrationSecrets[i as IntegrationProviders] = data.secrets;
-      }
-    }
-  
-    return { integrationLists: availableIntegrations, secrets: integrationSecrets};
-};
