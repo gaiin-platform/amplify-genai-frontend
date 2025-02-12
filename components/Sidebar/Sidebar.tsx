@@ -76,6 +76,7 @@ const Sidebar = <T,>({
 
     const addAssistantButton = (
       <button
+        id="addAssistantButton"
         className="text-sidebar flex w-[205px] flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-gray-500/10"
         onClick={() => {
           handleCreateAssistantItem();

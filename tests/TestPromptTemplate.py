@@ -1,0 +1,582 @@
+import unittest
+import time
+import os
+from dotenv import load_dotenv
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
+
+class PromptTemplateTests(unittest.TestCase):
+    
+    # ----------------- Setup -----------------
+    def setUp(self, headless=False):
+        
+        # Load environment variables from .env.local
+        load_dotenv(".env.local")
+
+        # Get values from environment variables
+        base_url = os.getenv("NEXTAUTH_URL", "http://localhost:3000")
+        username = os.getenv("SELENIUM_USERNAME", "default_username")
+        password = os.getenv("SELENIUM_PASSWORD", "default_password")
+        
+        # Configure Chrome options based on headless parameter
+        options = webdriver.ChromeOptions()
+        if headless:
+            options.add_argument("--headless")  # Run browser in headless mode
+            options.add_argument("--disable-gpu")  # Disable GPU acceleration
+            options.add_argument("--window-size=1920,1080")  # Set window size
+        
+        # Initialize WebDriver with the configured options
+        self.driver = webdriver.Chrome(options=options if headless else None)
+        self.driver.get(base_url)
+        self.wait = WebDriverWait(self.driver, 10)
+        self.login(username, password)  # Perform login during setup
+
+    def tearDown(self):
+        self.driver.quit()
+
+    # ----------------- Login -----------------
+    def login(self, username, password):
+        """Helper method to perform login."""
+        try:
+            # Click the login button to reveal the login form
+            login_button = self.wait.until(EC.element_to_be_clickable(
+                (By.XPATH, "//*[@id='__next']/div/main/div/button")
+            ))
+            login_button.click()
+
+            # Wait for the username and password fields to appear
+            username_field = self.wait.until(EC.presence_of_element_located(
+                (By.XPATH, "/html/body/div[1]/div/div[2]/div[2]/div[2]/div[2]/div/div/form/div[1]/input")
+            ))
+            password_field = self.wait.until(EC.presence_of_element_located(
+                (By.XPATH, "/html/body/div[1]/div/div[2]/div[2]/div[2]/div[2]/div/div/form/div[2]/input")
+            ))
+
+            # Enter username and password
+            username_field.send_keys(username)
+            password_field.send_keys(password)
+
+            # Submit the login form
+            submit_button = self.wait.until(EC.element_to_be_clickable(
+                (By.XPATH, "/html/body/div[1]/div/div[2]/div[2]/div[2]/div[2]/div/div/form/input[3]")
+            ))
+            submit_button.click()
+            
+            # Add a short delay to wait for the loading screen
+            time.sleep(3)  # Wait for 3 seconds before proceeding
+
+            # Wait for a post-login element to ensure login was successful
+            self.wait.until(EC.presence_of_element_located(
+                (By.XPATH, "/html/body/div/div/main/div[2]/div[2]/div/div/div[1]/div/div[1]")  # "Start a new conversation." text
+            ))
+        except Exception as e:
+            self.fail(f"Login failed: {e}")
+        
+        
+
+    # ----------------- Prompt created, saved, and appeared in list -----------------
+    # This test goes through to create a prompt and ensure that it appears in the list below
+    
+    def test_add_prompt_in_dropdown(self):
+        
+        # Locate the Prompt Add button 
+        prompt_add_button = self.wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "/html/body/div/div/main/div[2]/div[3]/div[1]/div/div/button")
+        ))
+        self.assertIsNotNone(prompt_add_button, "Button should be initialized and clicked")
+        
+        # Click open Add Prompt menu
+        prompt_add_button.click()
+    
+        time.sleep(2)
+        
+        # Locate the Prompt Name input field, clear it, and type "Assistant Aiba"
+        prompt_name_input = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "promptModalName")
+        ))
+        self.assertIsNotNone(prompt_name_input, "Assistant Name input should be present")
+        prompt_name_input.clear()
+        prompt_name_input.send_keys("Prompt Kyogre")
+    
+        time.sleep(2)
+
+        # Locate and click the Save button
+        save_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "save")
+        ))
+        self.assertIsNotNone(save_button, "Save button should be initialized and clickable")
+        save_button.click()
+        
+        time.sleep(2)
+
+        # Locate all elements with ID "promptName" and find the one with text "Prompt Kyogre"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+
+        # Check if any of the elements contain "Prompt Kyogre"
+        prompt_in_list = next((el for el in prompt_name_elements if el.text == "Prompt Kyogre"), None)
+        self.assertIsNotNone(prompt_in_list, "Prompt Kyogre should be visible in the dropdown")
+        
+        
+    
+    # ----------------- Test prompt is clickable -----------------
+    # This test goes through to create a prompt and ensure that the prompt appearing below
+    # in the list below is clickable and displays the necessary prompt window
+
+    def test_prompt_is_interactable(self):
+        
+        # Locate the Prompt Add button 
+        prompt_add_button = self.wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "/html/body/div/div/main/div[2]/div[3]/div[1]/div/div/button")
+        ))
+        self.assertIsNotNone(prompt_add_button, "Button should be initialized and clicked")
+        
+        # Click open Add prompt menu
+        prompt_add_button.click()
+        
+        time.sleep(2)
+        
+        # Locate the Prompt Name input field, clear it, and type "Assistant Aiba"
+        prompt_name_input = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "promptModalName")
+        ))
+        self.assertIsNotNone(prompt_name_input, "Assistant Name input should be present")
+        prompt_name_input.clear()
+        prompt_name_input.send_keys("Prompt Groudon")
+        
+        time.sleep(2)
+
+        # Locate and click the Save button
+        save_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "save")
+        ))
+        self.assertIsNotNone(save_button, "Save button should be initialized and clickable")
+        save_button.click()
+        
+        time.sleep(2)
+
+        # Locate all elements with ID "promptName" and find the one with text "Prompt Groudon"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+
+        # Check if any of the elements contain "Prompt Groudon"
+        prompt_in_list = next((el for el in prompt_name_elements if el.text == "Prompt Groudon"), None)
+        self.assertIsNotNone(prompt_in_list, "Prompt Groudon should be visible in the dropdown")
+        
+        # Ensure the parent button's
+        prompt_button = prompt_in_list.find_element(By.XPATH, "./ancestor::button")
+        button_id = prompt_button.get_attribute("id")
+        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+
+        # Click to open window
+        prompt_button.click()
+        
+        time.sleep(2)
+        
+        # Ensure the Assistant Chat Label appears after selection
+        prompt_modal_title = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "modalTitle")
+        ))
+        self.assertIsNotNone(prompt_modal_title, "Assistant chat label should appear after selection")
+        
+        # Extract the text from the element
+        modal_text = prompt_modal_title.text
+
+        # Ensure the extracted text matches the expected value
+        self.assertEqual(modal_text, "Prompt Groudon", "Modal title should be 'Prompt Groudon'")
+        
+        
+    
+    # ----------------- Test multiple prompts in a list -----------------
+    # This test goes through to create a prompt and then creates a second prompt
+    # afterwards. Once both prompts are created, it checks to make sure both are 
+    # present.
+
+    def test_with_multiple_prompts(self):
+        
+        # Locate the Prompt Add button 
+        prompt_add_button = self.wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "/html/body/div/div/main/div[2]/div[3]/div[1]/div/div/button")
+        ))
+        self.assertIsNotNone(prompt_add_button, "Button should be initialized and clicked")
+        
+        # Click open Add prompt menu
+        prompt_add_button.click()
+        
+        time.sleep(2)
+        
+        # Locate the Prompt Name input field, clear it, and type "Assistant Aiba"
+        prompt_name_input = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "promptModalName")
+        ))
+        self.assertIsNotNone(prompt_name_input, "Assistant Name input should be present")
+        prompt_name_input.clear()
+        prompt_name_input.send_keys("Prompt Mario")
+        
+        time.sleep(2)
+
+        # Locate and click the Save button
+        save_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "save")
+        ))
+        self.assertIsNotNone(save_button, "Save button should be initialized and clickable")
+        save_button.click()
+        
+        time.sleep(2)
+        
+        # Locate the Prompt Add button for a second time 
+        prompt_add_button = self.wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "/html/body/div/div/main/div[2]/div[3]/div[1]/div/div/button")
+        ))
+        self.assertIsNotNone(prompt_add_button, "Button should be initialized and clicked")
+        
+        # Click open Add prompt menu for a second time
+        prompt_add_button.click()
+        
+        # Locate the Prompt Name input field, clear it, and type "Assistant Aiba"
+        prompt_name_input = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "promptModalName")
+        ))
+        self.assertIsNotNone(prompt_name_input, "Assistant Name input should be present")
+        prompt_name_input.clear()
+        prompt_name_input.send_keys("Prompt Luigi")
+        
+        time.sleep(2)
+
+        # Locate and click the Save button
+        save_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "save")
+        ))
+        self.assertIsNotNone(save_button, "Save button should be initialized and clickable")
+        save_button.click()
+        
+        time.sleep(2)
+        
+        # Locate all elements with ID "promptName" and find the one with text "Assistant Aiba"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+
+        # Find the correct prompt in the dropdown list
+        first_prompt_in_list = next((el for el in prompt_name_elements if el.text == "Prompt Mario"), None)
+        self.assertIsNotNone(first_prompt_in_list, "Prompt Mario should be visible in the dropdown")
+        
+        # Find the correct prompt in the dropdown list
+        second_prompt_in_list = next((el for el in prompt_name_elements if el.text == "Prompt Luigi"), None)
+        self.assertIsNotNone(second_prompt_in_list, "Prompt Luigi should be visible in the dropdown") 
+
+
+    
+    # ----------------- Test Duplicate Template Button -----------------
+    # This test goes through to create a prompt and then upon hovering over a prompt,
+    # it clicks the the "Duplicate Template" button and tests the button creates a
+    # duplicated prompt.
+
+    def test_duplicate_button(self):
+        # Locate the Prompt Add button 
+        prompt_add_button = self.wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "/html/body/div/div/main/div[2]/div[3]/div[1]/div/div/button")
+        ))
+        self.assertIsNotNone(prompt_add_button, "Button should be initialized and clicked")
+        
+        # Click open Add prompt menu
+        prompt_add_button.click()
+        
+        time.sleep(2)
+        
+        # Locate the Prompt Name input field, clear it, and type "Assistant Aiba"
+        prompt_name_input = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "promptModalName")
+        ))
+        self.assertIsNotNone(prompt_name_input, "Prompt Name input should be present")
+        prompt_name_input.clear()
+        time.sleep(2)
+        prompt_name_input.send_keys("Prompt WARIO")
+        
+        time.sleep(2)
+
+        # Locate and click the Save button
+        save_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "save")
+        ))
+        self.assertIsNotNone(save_button, "Save button should be initialized and clickable")
+        save_button.click()
+        
+        time.sleep(2)
+        
+        # Locate all elements with ID "promptName"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+        
+        # Find the correct assistant in the dropdown list
+        assistant_in_list = next((el for el in prompt_name_elements if el.text == "Prompt WARIO"), None)
+        self.assertIsNotNone(assistant_in_list, "Prompt WARIO should be visible in the dropdown")
+        
+        # Ensure the parent button's is visible
+        assistant_button = assistant_in_list.find_element(By.XPATH, "./ancestor::button")
+        button_id = assistant_button.get_attribute("id")
+        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+        
+        action = ActionChains(self.driver)
+        action.move_to_element(assistant_button).perform()
+        
+        # Locate and click the "Duplicate" button
+        duplicate_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "duplicateTemplate")
+        ))
+        self.assertIsNotNone(duplicate_button, "Duplicate button should be initialized and clicked")
+        duplicate_button.click()
+        
+        # Find the correct assistant in the dropdown list
+        assistant_in_list = next((el for el in prompt_name_elements if el.text == "Prompt WARIO (copy)"), None)
+        self.assertIsNotNone(assistant_in_list, "Prompt WARIO (copy) should be visible in the dropdown")
+        
+        
+    
+    # ----------------- Test Edit Template Button -----------------
+    # This test goes through to create an prompt and then upon hovering over an prompt,
+    # it clicks the the "Edit Template" button and tests to ensure the Edit window 
+    # pops up as intended.
+    
+    def test_edit_button(self):
+        # Locate the Prompt Add button 
+        prompt_add_button = self.wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "/html/body/div/div/main/div[2]/div[3]/div[1]/div/div/button")
+        ))
+        self.assertIsNotNone(prompt_add_button, "Button should be initialized and clicked")
+        
+        # Click open Add prompt menu
+        prompt_add_button.click()
+        
+        time.sleep(2)
+        
+        # Locate the Prompt Name input field, clear it, and type "Assistant Aiba"
+        prompt_name_input = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "promptModalName")
+        ))
+        self.assertIsNotNone(prompt_name_input, "Prompt Name input should be present")
+        prompt_name_input.clear()
+        time.sleep(2)
+        prompt_name_input.send_keys("Prompt WALUIGI")
+        
+        time.sleep(2)
+
+        # Locate and click the Save button
+        save_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "save")
+        ))
+        self.assertIsNotNone(save_button, "Save button should be initialized and clickable")
+        save_button.click()
+        
+        time.sleep(2)
+        
+        # Locate all elements with ID "promptName"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+        
+        # Find the correct assistant in the dropdown list
+        assistant_in_list = next((el for el in prompt_name_elements if el.text == "Prompt WALUIGI"), None)
+        self.assertIsNotNone(assistant_in_list, "Prompt WALUIGI should be visible in the dropdown")
+        
+        # Ensure the parent button's is visible
+        assistant_button = assistant_in_list.find_element(By.XPATH, "./ancestor::button")
+        button_id = assistant_button.get_attribute("id")
+        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+        
+        action = ActionChains(self.driver)
+        action.move_to_element(assistant_button).perform()
+        
+        # Locate and click the "Edit" button
+        edit_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "editTemplate")
+        ))
+        self.assertIsNotNone(edit_button, "Edit button should be initialized and clicked")
+        edit_button.click()
+        
+        # Verify the presence of the Window element after clicking the Edit button
+        edit_window_element = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "modalTitle")
+        ))
+        self.assertTrue(edit_window_element.is_displayed(), "Edit window element is visible")
+        
+    
+    
+    # ----------------- Test Share Template Button -----------------
+    # This test goes through to create an prompt and then upon hovering over an prompt,
+    # it clicks the the "Share Template" button and tests to ensure the share window 
+    # pops up as intended.
+
+    def test_share_button(self):
+        # Locate the Prompt Add button 
+        prompt_add_button = self.wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "/html/body/div/div/main/div[2]/div[3]/div[1]/div/div/button")
+        ))
+        self.assertIsNotNone(prompt_add_button, "Button should be initialized and clicked")
+        
+        # Click open Add prompt menu
+        prompt_add_button.click()
+        
+        time.sleep(2)
+        
+        # Locate the Prompt Name input field, clear it, and type "Assistant Aiba"
+        prompt_name_input = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "promptModalName")
+        ))
+        self.assertIsNotNone(prompt_name_input, "Prompt Name input should be present")
+        prompt_name_input.clear()
+        time.sleep(2)
+        prompt_name_input.send_keys("Prompt Yoshi")
+        
+        time.sleep(2)
+
+        # Locate and click the Save button
+        save_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "save")
+        ))
+        self.assertIsNotNone(save_button, "Save button should be initialized and clickable")
+        save_button.click()
+        
+        time.sleep(2)
+        
+        # Locate all elements with ID "promptName"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+        
+        # Find the correct assistant in the dropdown list
+        assistant_in_list = next((el for el in prompt_name_elements if el.text == "Prompt Yoshi"), None)
+        self.assertIsNotNone(assistant_in_list, "Prompt Yoshi should be visible in the dropdown")
+        
+        # Ensure the parent button's is visible
+        assistant_button = assistant_in_list.find_element(By.XPATH, "./ancestor::button")
+        button_id = assistant_button.get_attribute("id")
+        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+        
+        action = ActionChains(self.driver)
+        action.move_to_element(assistant_button).perform()
+        
+        # Locate and click the "Share" button
+        share_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "shareTemplate")
+        ))
+        self.assertIsNotNone(share_button, "Share button should be initialized and clicked")
+        share_button.click()
+        
+        # Verify the presence of the Window element after clicking the Share button
+        share_modal_element = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "shareAnythingModalHeader")
+        ))
+        self.assertTrue(share_modal_element.is_displayed(), "Share window element is visible")
+        
+        # Extract the text from the element
+        modal_text = share_modal_element.text
+
+        # Ensure the extracted text matches the expected value
+        self.assertEqual(modal_text, "Add People to Share With", "Modal title should be 'Add People to Share With'")
+    
+    
+        
+    # ----------------- Test Delete Button -----------------
+    # This test goes through to create an assistant and then upon hovering over a prompt,
+    # it clicks the the "Delete Template" button and tests the "Confirm" and "Cancel" buttons
+    # to ensure the prompts are deleted and remain visible as intended.
+
+    def test_delete_button(self):
+        # Locate the Prompt Add button 
+        prompt_add_button = self.wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "/html/body/div/div/main/div[2]/div[3]/div[1]/div/div/button")
+        ))
+        self.assertIsNotNone(prompt_add_button, "Button should be initialized and clicked")
+        
+        # Click open Add prompt menu
+        prompt_add_button.click()
+        
+        time.sleep(2)
+        
+        # Locate the Prompt Name input field, clear it, and type "Assistant Aiba"
+        prompt_name_input = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "promptModalName")
+        ))
+        self.assertIsNotNone(prompt_name_input, "Prompt Name input should be present")
+        prompt_name_input.clear()
+        time.sleep(2)
+        prompt_name_input.send_keys("Prompt Daisy")
+        
+        time.sleep(2)
+
+        # Locate and click the Save button
+        save_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "save")
+        ))
+        self.assertIsNotNone(save_button, "Save button should be initialized and clickable")
+        save_button.click()
+        
+        time.sleep(2)
+        
+        # Locate all elements with ID "promptName"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+        
+        # Find the correct assistant in the dropdown list
+        assistant_in_list = next((el for el in prompt_name_elements if el.text == "Prompt Daisy"), None)
+        self.assertIsNotNone(assistant_in_list, "Prompt Daisy should be visible in the dropdown")
+        
+        # Ensure the parent button's is visible
+        assistant_button = assistant_in_list.find_element(By.XPATH, "./ancestor::button")
+        button_id = assistant_button.get_attribute("id")
+        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+        
+        action = ActionChains(self.driver)
+        action.move_to_element(assistant_button).perform()
+        
+        # Locate and click the "Delete" button
+        delete_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "deleteTemplate")
+        ))
+        self.assertIsNotNone(delete_button, "Delete button should be initialized and clicked")
+        delete_button.click()
+        
+        # Locate and click the "Delete" button
+        cancel_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "cancel")
+        ))
+        self.assertIsNotNone(cancel_button, "Cancel button should be initialized and clicked")
+        cancel_button.click()
+
+        action = ActionChains(self.driver)
+        action.move_to_element(assistant_button).perform()
+        
+        # Locate and click the "Delete" button
+        delete_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "deleteTemplate")
+        ))
+        self.assertIsNotNone(delete_button, "Delete button should be initialized and clicked")
+        delete_button.click()
+        
+        # Locate and click the "Delete" button
+        confirm_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "confirm")
+        ))
+        self.assertIsNotNone(cancel_button, "Confirm button should be initialized and clicked")
+        confirm_button.click()
+
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
+

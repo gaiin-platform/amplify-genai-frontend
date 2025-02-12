@@ -232,6 +232,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                     }}
                     onDragStart={(e) => handleDragStart(e, prompt)}
                     title="Use Template"
+                    id="promptClick"
                 >
                     {/*<IconEdit size={18} />*/}
 
@@ -240,6 +241,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                             {getIcon(prompt)}
                         </div>
                         <div
+                            id="promptName"
                             className="overflow-hidden flex-1 text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
                             {prompt.name}
                         </div>
@@ -264,14 +266,14 @@ export const PromptComponent = ({ prompt }: Props) => {
                         className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-neutral-200 dark:bg-[#343541]/90 rounded">
 
                         {!isDeleting && !isRenaming && canCopy && (
-                            <ActionButton handleClick={handleCopy} title="Duplicate Template">
+                            <ActionButton handleClick={handleCopy} title="Duplicate Template" id="duplicateTemplate"> 
                                 <IconCopy size={18} />
                             </ActionButton>
                         )}
 
                         {(!isDeleting && !isRenaming && canEdit && !isBase) &&
                          (groupId ? !syncingPrompts && featureFlags.assistantAdminInterface : true) && (
-                            <ActionButton title="Edit Template"
+                            <ActionButton title="Edit Template" id="editTemplate"
                                 handleClick={() => {
                                     if (groupId) {
                                         //show admin on ast 
@@ -299,24 +301,24 @@ export const PromptComponent = ({ prompt }: Props) => {
                         {!isDeleting && !isRenaming && canShare && (
                             <ActionButton handleClick={() => {
                                 handleSharePrompt(prompt);
-                            }} title="Share Template">
+                            }} title="Share Template" id="shareTemplate">
                                 <IconShare size={18} />
                             </ActionButton>
                         )}
 
                         {!isDeleting && !isRenaming && !groupId && !isBase &&( //&& !isReserved 
-                            <ActionButton handleClick={handleOpenDeleteModal} title="Delete Template">
+                            <ActionButton handleClick={handleOpenDeleteModal} title="Delete Template" id="deleteTemplate">
                                 <IconTrash size={18} />
                             </ActionButton>
                         )}
 
                         {(isDeleting || isRenaming) && (
                             <>
-                                <ActionButton handleClick={handleDelete} title="Confirm">
+                                <ActionButton handleClick={handleDelete} title="Confirm" id="confirm">
                                     <IconCheck size={18} />
                                 </ActionButton>
 
-                                <ActionButton handleClick={handleCancelDelete} title="Cancel">
+                                <ActionButton handleClick={handleCancelDelete} title="Cancel" id="cancel">
                                     <IconX size={18} />
                                 </ActionButton>
                             </>
