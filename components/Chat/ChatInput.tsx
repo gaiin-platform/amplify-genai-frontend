@@ -48,9 +48,9 @@ import React from 'react';
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 import { MemoryPresenter } from "@/components/Chat/MemoryPresenter";
-import { ProjectList } from './ProjectList';
+// import { ProjectList } from './ProjectList';
 import { useSession } from 'next-auth/react';
-import { doGetProjectsOp, doReadMemoryOp, doEditMemoryOp, doRemoveMemoryOp, doEditProjectOp, doRemoveProjectOp } from '../../services/memoryService';
+import {  } from '../../services/memoryService';
 import { ProjectInUse } from './ProjectInUse';
 import { Settings } from '@/types/settings';
 
@@ -66,10 +66,10 @@ interface Props {
     setPlugins: (p: Plugin[]) => void;
 }
 
-interface Project {
-    ProjectID: string;
-    ProjectName: string;
-}
+// interface Project {
+//     ProjectID: string;
+//     ProjectName: string;
+// }
 
 export const ChatInput = ({
                               onSend,
@@ -127,33 +127,42 @@ export const ChatInput = ({
     
     const [chatContainerWidth, setChatContainerWidth] = useState(updateSize());
     const [isFactsVisible, setIsFactsVisible] = useState(false);
-    const [showProjectList, setShowProjectList] = useState(false);
-    const projectListRef = useRef<HTMLDivElement | null>(null);
+    // const [showProjectList, setShowProjectList] = useState(false);
+    // const projectListRef = useRef<HTMLDivElement | null>(null);
     const { data: session } = useSession();
-    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-    const [projects, setProjects] = useState<Project[]>([]);
+    // const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+    // const [projects, setProjects] = useState<Project[]>([]);
 
-    useEffect(() => {
-        if (!featureFlags.memory) return; // Early return if feature flag is off
+    // useEffect(() => {
+    //     if (!featureFlags.memory) return; // Early return if feature flag is off
 
-        const fetchProjects = async () => {
-            if (session?.user?.email) {
-                try {
-                    const response = await doGetProjectsOp(session.user.email);
-                    const parsedBody = JSON.parse(response.body);
-                    const projectsData = parsedBody.projects.map((p: any) => ({
-                        ProjectID: p.id,
-                        ProjectName: p.project
-                    }));
-                    setProjects(projectsData);
-                } catch (error) {
-                    console.error('Error fetching projects:', error);
-                }
-            }
-        };
+    //     const fetchProjects = async () => {
+    //         if (session?.user?.email) {
+    //             try {
+    //                 const response = await doGetProjectsOp(session.user.email);
+    //                 const parsedBody = JSON.parse(response.body);
+    //                 const projectsData = parsedBody.projects.map((p: any) => ({
+    //                     ProjectID: p.id,
+    //                     ProjectName: p.project
+    //                 }));
+    //                 setProjects(projectsData);
+    //             } catch (error) {
+    //                 console.error('Error fetching projects:', error);
+    //             }
+    //         }
+    //     };
 
-        if (featureFlags.memory) fetchProjects();
-    }, [session?.user?.email]);
+    //     if (featureFlags.memory) fetchProjects();
+    // }, [session?.user?.email]);
+
+    const shouldShowFactsNotification =
+        featureFlags.memory &&
+        !isFactsVisible &&
+        selectedConversation &&
+        selectedConversation.messages?.length > 0 &&
+        extractedFacts?.length > 0 &&
+        !messageIsStreaming &&
+        !artifactIsStreaming;
 
     useEffect(() => {
         const updateWidth = () => {
@@ -237,14 +246,14 @@ export const ChatInput = ({
 
     const handleShowAssistantSelector = () => {
         setShowAssistantSelect(!showAssistantSelect);
-        setShowProjectList(false);
+        // setShowProjectList(false);
 
     };
 
-    const handleShowProjectSelector = () => {
-        setShowProjectList(!showProjectList);
-        setShowAssistantSelect(false);
-    };
+    // const handleShowProjectSelector = () => {
+    //     setShowProjectList(!showProjectList);
+    //     setShowAssistantSelect(false);
+    // };
 
     const allDocumentsDoneUploading = () => {
         if (!documents || documents.length == 0) {
@@ -400,9 +409,9 @@ const onAssistantChange = (assistant: Assistant) => {
 
         onSend(msg, updatedDocuments || []);
 
-        if (selectedProject && selectedConversation) {
-            selectedConversation.projectId = selectedProject.ProjectID;
-        }
+        // if (selectedProject && selectedConversation) {
+        //     selectedConversation.projectId = selectedProject.ProjectID;
+        // }
 
         setContent('');
         setDocuments([]);
@@ -755,6 +764,8 @@ const onAssistantChange = (assistant: Assistant) => {
                             </div>
                         )}
 
+                {//TODO: feature flag this
+                }
                 {featureFlags.memory && 
                     <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]" 
                          style={{transform: 'translateY(50px)'}}>
@@ -777,14 +788,16 @@ const onAssistantChange = (assistant: Assistant) => {
                             homeDispatch({field: 'selectedAssistant', value: asts[0]});
                         }
                     }}/>
-                
-                    {featureFlags.memory &&
+
+                    {//TODO: feature flag this
+                    }
+                    {/* {featureFlags.memory &&
                     <ProjectInUse
                         project={selectedProject}
                         projectChanged={(project) => {
                             setSelectedProject(project);
                             setShowProjectList(false);
-                        }}/>}
+                        }}/>} */}
 
                     <FileList documents={documents}
                         documentStates={documentState}
@@ -1000,7 +1013,7 @@ const onAssistantChange = (assistant: Assistant) => {
                             )}
                         </div>
                     <div className='flex flex-row gap-2'>
-                        {featureFlags.memory && projects.length > 0  && 
+                        {/* {featureFlags.memory && projects.length > 0  && 
                         // settingRef.current.featureOptions.includeMemory && 
                         (
                             <button
@@ -1036,7 +1049,7 @@ const onAssistantChange = (assistant: Assistant) => {
                                     }}
                                 />
                             </div>
-                        )}
+                        )} */}
                     </div>
 
                     

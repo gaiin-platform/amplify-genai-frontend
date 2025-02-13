@@ -5,7 +5,6 @@ import { killRequest as killReq, MetaHandler } from '../services/chatService';
 import { ChatBody, Conversation, CustomFunction, JsonSchema, Message, newMessage } from "@/types/chat";
 import { ColumnsSpec, } from "@/utils/app/csv";
 import { Plugin, PluginID } from '@/types/plugin';
-
 import { useSession } from "next-auth/react"
 import json5 from "json5";
 import { DefaultModels, Model } from "@/types/model";
@@ -23,7 +22,12 @@ import { useChatService } from "@/hooks/useChatService";
 import { ARTIFACTS_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { uploadConversation } from "@/services/remoteConversationService";
 import { getFocusedMessages } from '@/services/prepareChatService';
-import { doExtractFactsOp, doReadMemoryOp } from '@/services/memoryService';
+import { doExtractFactsOp, doReadMemoryByTaxonomyOp } from '@/services/memoryService';
+import {
+    ExtractedFact,
+    Memory,
+    MemoryOperationResponse
+} from '@/types/memory';
 import { getSettings } from '@/utils/app/settings';
 
 
@@ -41,15 +45,6 @@ export type ChatRequest = {
     prompt?: Prompt;
     conversationId?: string;
 };
-
-interface Memory {
-    content: string;
-    user: string;
-    memory_type: string;
-    memory_type_id: string;
-    id: string;
-    timestamp: string;
-}
 
 export function useSendService() {
     const {
@@ -240,50 +235,38 @@ export function useSendService() {
                             const userInput = updatedConversation.messages
                                 .filter(msg => msg.role === 'user')
                                 .pop()?.content || '';
-                                
-                            // const response = await doExtractFactsOp(userInput);
-                            // const extractedFacts = JSON.parse(response.body).facts;
-                            // const currentFacts = extractedFacts || [];
-                            // homeDispatch({
-                            //     field: 'extractedFacts',
-                            //     value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
-                            //         self.indexOf(fact) === index
-                            //     )
-                            // });
 
-                            // extract facts without waiting
                             const factExtractionPromise = doExtractFactsOp(userInput)
-                                .then(response => {
-                                    const extractedFacts = JSON.parse(response.body).facts;
-                                    const currentFacts = extractedFacts || [];
+                                .then((response: MemoryOperationResponse) => {
+                                    const facts = JSON.parse(response.body).facts;
+                                    // console.log("Facts returned:", facts);
+                                    const currentFacts = facts || [];
+
                                     homeDispatch({
                                         field: 'extractedFacts',
-                                        value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
-                                            self.indexOf(fact) === index
+                                        value: [...currentFacts, ...facts].filter((fact, index, self) =>
+                                            self.findIndex(f => f.content === fact.content) === index
                                         )
                                     });
                                 })
                                 .catch(error => {
                                     console.warn('Fact extraction failed:', error);
-                                    // Continue with the chat even if fact extraction fails
                                 });
                         }
 
                         // memory fetching
-                        const memoriesResponse = await doReadMemoryOp();
+                        const memoriesResponse = await doReadMemoryByTaxonomyOp({});
                         const allMemories = JSON.parse(memoriesResponse.body).memories || [];
 
                         // Filter memories based on criteria
-                        const relevantMemories = allMemories.filter((memory: any) => {
-                            // Check for user memories
+                        const relevantMemories = allMemories.filter((memory: Memory) => {
                             if (memory.memory_type === 'user') {
                                 return true;
                             }
 
-                            // Check for project memories
-                            if (chatBody.projectId && memory.memory_type_id === chatBody.projectId) {
-                                return true;
-                            }
+                            // if (chatBody.projectId && memory.memory_type_id === chatBody.projectId) {
+                            //     return true;
+                            // }
 
                             return false;
                         });
@@ -409,9 +392,9 @@ export function useSendService() {
                     const controller = new AbortController();
                     const handleStopGenerationEvent = () => {
                         controller.abort();
-                        console.log("Kill chat event trigger, control signal aborted value: " , controller.signal.aborted); 
+                        console.log("Kill chat event trigger, control signal aborted value: ", controller.signal.aborted);
                     }
-            
+
                     window.addEventListener('killChatRequest', handleStopGenerationEvent);
                     try {
 
@@ -681,7 +664,6 @@ export function useSendService() {
                         //reject(error);
                         // Handle any other errors, as required.
                     } finally {
-                        
                         window.removeEventListener('killChatRequest', handleStopGenerationEvent);
                     }
 
