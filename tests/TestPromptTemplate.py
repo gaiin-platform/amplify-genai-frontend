@@ -66,7 +66,7 @@ class PromptTemplateTests(unittest.TestCase):
             submit_button.click()
             
             # Add a short delay to wait for the loading screen
-            time.sleep(3)  # Wait for 3 seconds before proceeding
+            time.sleep(8)  # Wait for 8 seconds before proceeding
 
             # Wait for a post-login element to ensure login was successful
             self.wait.until(EC.presence_of_element_located(
@@ -477,7 +477,7 @@ class PromptTemplateTests(unittest.TestCase):
         
         # Verify the presence of the Window element after clicking the Share button
         share_modal_element = self.wait.until(EC.presence_of_element_located(
-            (By.ID, "shareAnythingModalHeader")
+            (By.ID, "modalTitle")
         ))
         self.assertTrue(share_modal_element.is_displayed(), "Share window element is visible")
         

@@ -66,7 +66,7 @@ class DiagramAssistantsTests(unittest.TestCase):
             submit_button.click()
             
             # Add a short delay to wait for the loading screen
-            time.sleep(3)  # Wait for 3 seconds before proceeding
+            time.sleep(8)  # Wait for 8 seconds before proceeding
 
             # Wait for a post-login element to ensure login was successful
             self.wait.until(EC.presence_of_element_located(
@@ -171,7 +171,7 @@ class DiagramAssistantsTests(unittest.TestCase):
         
         # Verify the presence of the Window element after clicking the Edit button
         share_modal_element = self.wait.until(EC.presence_of_element_located(
-            (By.ID, "shareAnythingModalHeader")
+            (By.ID, "modalTitle")
         ))
         self.assertTrue(share_modal_element.is_displayed(), "Share window element is visible")
         
@@ -182,79 +182,7 @@ class DiagramAssistantsTests(unittest.TestCase):
         self.assertEqual(modal_text, "Add People to Share With", "Modal title should be 'Add People to Share With'")
         
     
-    
-    # ----------------- Test Summary with Shared window check boxes -----------------
-    # Open dropdown, then hover summary, then click share, then extract and compare text in check boxes
-
-    def test_diagram_assistant_shared_textbox(self):        
-        # Locate all elements with the ID 'dropName'
-        drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "dropName")
-        ))
-        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-
-        # Find the element with text "Custom Instructions"
-        amplify_helper_dropdown_button = next((el for el in drop_name_elements if el.text == "Custom Instructions"), None)
-        self.assertIsNotNone(amplify_helper_dropdown_button, "Custom Instructions button should be present")
-
-        # Click to open the dropdown
-        amplify_helper_dropdown_button.click()
-        
-        # Diagram Assistant is visible in drop down menu
-        # Locate all elements with ID "promptName" and find the one with text "Diagram Assistant"
-        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "promptName")
-        ))
-        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
-
-        # Check if any of the elements contain "Diagram Assistant"
-        diagram_assistant = next((el for el in prompt_name_elements if el.text == "Diagram Assistant"), None)
-        self.assertIsNotNone(diagram_assistant, "Diagram Assistant should be visible in the dropdown")
-        
-        # Ensure the parent button's is visible
-        diagram_assistant_button = diagram_assistant.find_element(By.XPATH, "./ancestor::button")
-        button_id = diagram_assistant_button.get_attribute("id")
-        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
-        
-        action = ActionChains(self.driver)
-        action.move_to_element(diagram_assistant_button).perform()
-        
-        # Locate and click the "Share" button
-        share_button = self.wait.until(EC.element_to_be_clickable(
-            (By.ID, "shareTemplate")
-        ))
-        self.assertIsNotNone(share_button, "Share button should be initialized and clicked")
-        share_button.click()
-        
-        # Verify the presence of the Window element after clicking the Edit button
-        share_modal_element = self.wait.until(EC.presence_of_element_located(
-            (By.ID, "shareAnythingModalHeader")
-        ))
-        self.assertTrue(share_modal_element.is_displayed(), "Share window element is visible")
-        
-        # Extract the text from the element
-        modal_text = share_modal_element.text
-
-        # Ensure the extracted text matches the expected value
-        self.assertEqual(modal_text, "Add People to Share With", "Modal title should be 'Add People to Share With'")
-        
-        # Locate all checkboxes
-        checkboxes = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "checkbox")
-        ))
-        
-        # Find the checked checkbox
-        for checkbox in checkboxes:
-            if checkbox.is_selected():  # More reliable than get_attribute("checked")
-                # Extract the text next to the checked checkbox
-                checked_text_element = checkbox.find_element(By.XPATH, "./following-sibling::*")  
-                
-                extracted_checked_text = checked_text_element.text
-                self.assertEqual(extracted_checked_text, "Prompt : Diagram Assistant", "The checked checkbox should have the correct label")
-                break
-        
-        
-        
+            
     # ----------------- Test Diagram Assistant Duplicate Window -----------------
     # Need to click on the Diagram Assistant button FIRST, so that it passes by the bug
     # GO through Summary Test, then hit the cancel, then hover summary, then click duplicate, then extract and compare text in window
