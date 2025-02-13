@@ -85,67 +85,13 @@ class CreateFolderTests(unittest.TestCase):
 
     # Folder expands and can hold Assistants, Helpers, and Instructions Created
     
-    # # ----------------- Test add Folder and that it appears -----------------
-    # # This test goes through to create a new folder and then check for the specific one
-    # # in the list of Prompts.
-    
-    # # Test Status: Passed
-
-    # def test_add_folder(self):
-    #     # Extra sleep for extra loading 
-    #     time.sleep(5)
-        
-    #     folder_add_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "createFolderButton")))
-    #     self.assertGreater(len(folder_add_buttons), 1, "Expected multiple buttons with ID 'createFolderButton'")
-
-    #     # Click the last button (assuming it's on the right)
-    #     folder_add_buttons[-1].click()
-        
-    #     try:
-    #         # Switch to the JavaScript alert
-    #         alert = self.wait.until(EC.alert_is_present())
-    #         self.assertIsNotNone(alert, "Alert prompt should be present")
-
-    #         time.sleep(3)
-
-    #         # Clear existing text and send new text
-    #         alert.send_keys("Thousand Sunny")
-            
-    #         time.sleep(3)
-
-    #         # Accept the alert (clicks the "OK" button)
-    #         alert.accept()
-
-    #     except UnexpectedAlertPresentException as e:
-    #         self.fail(f"Unexpected alert present: {str(e)}")
-        
-    #     time.sleep(2)
-            
-    #     # Locate all elements with the ID 'dropName'
-    #     drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-    #         (By.ID, "dropName")
-    #     ))
-    #     self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-        
-    #     time.sleep(2)
-
-    #     # Find the element with text "Thousand Sunny"
-    #     folder = next((el for el in drop_name_elements if el.text == "Thousand Sunny"), None)
-    #     self.assertIsNotNone(folder, "Thousand Sunny button should be present")
-
-
-
-    # ----------------- Test Pin Folder to the top -----------------
+    # ----------------- Test add Folder and that it appears -----------------
     # This test goes through to create a new folder and then check for the specific one
     # in the list of Prompts.
     
     # Test Status: Passed
-    
-    # id="pinButton"
-    # id="renameButton"
-    # id="deleteButton"
-    
-    def test_pin_folder(self):
+
+    def test_add_folder(self):
         # Extra sleep for extra loading 
         time.sleep(5)
         
@@ -163,7 +109,7 @@ class CreateFolderTests(unittest.TestCase):
             time.sleep(3)
 
             # Clear existing text and send new text
-            alert.send_keys("Going Merry")
+            alert.send_keys("Thousand Sunny")
             
             time.sleep(3)
 
@@ -183,32 +129,86 @@ class CreateFolderTests(unittest.TestCase):
         
         time.sleep(2)
 
-        # Find the element with text "Going Merry"
-        folder = next((el for el in drop_name_elements if el.text == "Going Merry"), None)
-        self.assertIsNotNone(folder, "Going Merry button should be present")
+        # Find the element with text "Thousand Sunny"
+        folder = next((el for el in drop_name_elements if el.text == "Thousand Sunny"), None)
+        self.assertIsNotNone(folder, "Thousand Sunny button should be present")
+
+
+
+    # # ----------------- Test Pin Folder to the top -----------------
+    # # This test goes through to create a new folder and then check for the specific one
+    # # in the list of Prompts.
+    
+    # # Test Status: Passed
+    
+    # # id="pinButton"
+    # # id="renameButton"
+    # # id="deleteButton"
+    
+    # def test_pin_folder(self):
+    #     # Extra sleep for extra loading 
+    #     time.sleep(5)
+        
+    #     folder_add_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "createFolderButton")))
+    #     self.assertGreater(len(folder_add_buttons), 1, "Expected multiple buttons with ID 'createFolderButton'")
+
+    #     # Click the last button (assuming it's on the right)
+    #     folder_add_buttons[-1].click()
+        
+    #     try:
+    #         # Switch to the JavaScript alert
+    #         alert = self.wait.until(EC.alert_is_present())
+    #         self.assertIsNotNone(alert, "Alert prompt should be present")
+
+    #         time.sleep(3)
+
+    #         # Clear existing text and send new text
+    #         alert.send_keys("Going Merry")
+            
+    #         time.sleep(3)
+
+    #         # Accept the alert (clicks the "OK" button)
+    #         alert.accept()
+
+    #     except UnexpectedAlertPresentException as e:
+    #         self.fail(f"Unexpected alert present: {str(e)}")
+        
+    #     time.sleep(2)
+            
+    #     # Locate all elements with the ID 'dropName'
+    #     drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+    #         (By.ID, "dropName")
+    #     ))
+    #     self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
+        
+    #     time.sleep(2)
+
+    #     # Find the element with text "Going Merry"
+    #     folder = next((el for el in drop_name_elements if el.text == "Going Merry"), None)
+    #     self.assertIsNotNone(folder, "Going Merry button should be present")
          
-        # Hover over the "Going Merry" button to make the "Pin" button visible        
-        action = ActionChains(self.driver)
-        action.move_to_element(folder).perform()
+    #     # Hover over the "Going Merry" button to make the "Pin" button visible        
+    #     action = ActionChains(self.driver)
+    #     action.move_to_element(folder).perform()
         
-        # Locate and click the "Pin" button
-        pin_button = self.wait.until(EC.element_to_be_clickable(
-            (By.ID, "pinButton")
-        ))
-        self.assertIsNotNone(pin_button, "Pin button should be initialized and clicked")
-        pin_button.click()
+    #     # Locate and click the "Pin" button
+    #     pin_button = self.wait.until(EC.element_to_be_clickable(
+    #         (By.ID, "pinButton")
+    #     ))
+    #     self.assertIsNotNone(pin_button, "Pin button should be initialized and clicked")
+    #     pin_button.click()
         
-        # Locate all elements with the ID 'dropName'
-        drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "dropName")
-        ))
-        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
+    #     # Locate all elements with the ID 'dropName'
+    #     drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+    #         (By.ID, "dropName")
+    #     ))
+    #     self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
 
-        # Extract the first element
-        first_element = drop_name_elements[0]
+    #     # Extract the first element
+    #     first_element = drop_name_elements[0]
 
-        # Get its text and compare it to "Going Merry"
-        self.assertEqual(first_element.text.strip(), "Going Merry", "First drop name element should be 'Going Merry'")
+    #     # Get its text and compare it to "Going Merry"
+    #     self.assertEqual(first_element.text.strip(), "Going Merry", "First drop name element should be 'Going Merry'")
         
         
     

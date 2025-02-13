@@ -89,11 +89,12 @@ interface Props {
                         ref={modalRef}
                         className={`inline-block transform rounded-lg border border-gray-300 dark:border-neutral-600 bg-neutral-100 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#2b2c36] sm:my-8 py-4 px-6 sm:align-middle`}
                         style={{width: `${innderWindow.width}px`, height: `${innderWindow.height}px`}}
+                        id="modal"
                         role="dialog"  
                         >
 
                         <div className='flex flex-row'>
-                        <div className="text-xl pb-4 font-bold text-black dark:text-neutral-200">
+                        <div className="text-xl pb-4 font-bold text-black dark:text-neutral-200" id="modalTitle">
                             {title && <>{title}</>}
                             </div>
                             { showClose && 

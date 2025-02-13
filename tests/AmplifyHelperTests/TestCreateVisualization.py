@@ -11,7 +11,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 class CreateVisualizationsTests(unittest.TestCase):
     
     # ----------------- Setup -----------------
-    def setUp(self, headless=False):
+    def setUp(self, headless=True):
         
         # Load environment variables from .env.local
         load_dotenv(".env.local")
