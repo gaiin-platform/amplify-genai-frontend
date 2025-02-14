@@ -239,12 +239,15 @@ export function useSendService() {
                             const factExtractionPromise = doExtractFactsOp(userInput)
                                 .then((response: MemoryOperationResponse) => {
                                     const facts = JSON.parse(response.body).facts;
-                                    // console.log("Facts returned:", facts);
-                                    const currentFacts = facts || [];
+                                    // Add conversation_id to each fact
+                                    const factsWithConversationId = facts.map((fact: ExtractedFact) => ({
+                                        ...fact,
+                                        conversation_id: conversationId || updatedConversation.id
+                                    }));
 
                                     homeDispatch({
                                         field: 'extractedFacts',
-                                        value: [...currentFacts, ...facts].filter((fact, index, self) =>
+                                        value: [...(extractedFacts || []), ...factsWithConversationId].filter((fact, index, self) =>
                                             self.findIndex(f => f.content === fact.content) === index
                                         )
                                     });

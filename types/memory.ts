@@ -1,17 +1,17 @@
-// types/memory.ts
-
 export type MemoryType = 'user';
 
 export interface BaseFact {
     content: string;
     taxonomy_path: string;
     reasoning?: string;
+    conversation_id: string;
 }
 
 export interface ExtractedFact extends BaseFact {
     content: string;
     taxonomy_path: string;
     reasoning: string;
+    conversation_id: string;
 }
 
 export interface MemoryBatchItem {
@@ -19,6 +19,7 @@ export interface MemoryBatchItem {
     taxonomy_path: string;
     memory_type?: MemoryType;
     memory_type_id?: string;
+    conversation_id?: string;
 }
 
 export interface Memory {
@@ -29,13 +30,15 @@ export interface Memory {
     memory_type: MemoryType;
     memory_type_id: string;
     taxonomy_path: string;
+    conversation_id?: string;
 }
 
-export interface Project {
-    user: string;
-    project: string;
-    id: string;
-    timestamp: string;
+export interface MemoryTreeViewProps {
+    memories: Memory[];
+    onEditMemory?: (memory: Memory) => void;
+    onDeleteMemory?: (id: string) => void;
+    onViewConversation?: (conversationId: string) => void;
+    processingMemoryId?: string | null;
 }
 
 export interface MemoryTreeNode {
@@ -46,6 +49,7 @@ export interface MemoryTreeNode {
     id?: string;
     timestamp?: string;
     isExpanded?: boolean;
+    conversation_id?: string;  // Added this field
 }
 
 // Response types for memory operations

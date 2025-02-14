@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IconPencil, IconTrash } from '@tabler/icons-react';
+import { IconPencil, IconTrash, IconEye } from '@tabler/icons-react';
 import {
     Memory,
     MemoryTreeNode,
@@ -28,6 +28,7 @@ const MemoryTreeView: React.FC<MemoryTreeViewProps> = ({
     memories,
     onEditMemory,
     onDeleteMemory,
+    onViewConversation,
     processingMemoryId
 }) => {
     const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
@@ -67,7 +68,8 @@ const MemoryTreeView: React.FC<MemoryTreeViewProps> = ({
                 type: 'memory',
                 content: memory.content,
                 id: memory.id,
-                timestamp: memory.timestamp
+                timestamp: memory.timestamp,
+                conversation_id: memory.conversation_id
             });
         });
 
@@ -141,8 +143,18 @@ const MemoryTreeView: React.FC<MemoryTreeViewProps> = ({
 
                     {node.type === 'memory' && (
                         <div className="ml-auto flex items-center space-x-2">
-                            {onEditMemory && onDeleteMemory && (
+                            {onEditMemory && onDeleteMemory && onViewConversation && (
                                 <div className="flex space-x-1">
+                                    {node.conversation_id && (
+                                        <button
+                                            onClick={() => onViewConversation(node.conversation_id!)}
+                                            className="p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded"
+                                            disabled={!!processingMemoryId}
+                                            title="View conversation"
+                                        >
+                                            <IconEye size={16} stroke={1.5} />
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => onEditMemory({
                                             id: node.id!,
@@ -154,7 +166,8 @@ const MemoryTreeView: React.FC<MemoryTreeViewProps> = ({
                                             taxonomy_path: path.split('/')
                                                 .slice(1, 3)
                                                 .map(p => p.split('-')[0])
-                                                .join('/')
+                                                .join('/'),
+                                            conversation_id: node.conversation_id
                                         })}
                                         className="p-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded"
                                         disabled={!!processingMemoryId}

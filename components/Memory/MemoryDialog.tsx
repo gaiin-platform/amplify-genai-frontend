@@ -1,5 +1,6 @@
 import { FC, useState, useEffect, useContext } from 'react';
 import { useSession } from "next-auth/react";
+import { useRouter } from 'next/router';
 import { Modal } from '../ReusableComponents/Modal';
 import { doReadMemoryByTaxonomyOp, doEditMemoryOp, doRemoveMemoryOp } from '../../services/memoryService';
 import HomeContext from '@/pages/api/home/home.context';
@@ -21,9 +22,11 @@ const LoadingSpinner = () => (
 );
 
 export const MemoryDialog: FC<MemoryDialogProps> = ({ open, onClose }) => {
+    const router = useRouter();
     const {
-        state: { memoryExtractionEnabled },
-        dispatch: homeDispatch
+        state: { memoryExtractionEnabled, conversations },
+        dispatch: homeDispatch,
+        handleSelectConversation
     } = useContext(HomeContext);
 
     const [memories, setMemories] = useState<Memory[]>([]);
@@ -39,6 +42,22 @@ export const MemoryDialog: FC<MemoryDialogProps> = ({ open, onClose }) => {
             field: 'memoryExtractionEnabled',
             value: enabled
         });
+    };
+
+    const handleViewConversation = async (conversationId: string) => {
+        // Find the conversation in the state
+        const conversation = conversations.find(conv => conv.id === conversationId);
+
+        if (conversation) {
+            // Close the memory dialog first
+            onClose();
+
+            // Use handleSelectConversation to properly load and open the conversation
+            await handleSelectConversation(conversation);
+        } else {
+            console.error('Conversation not found:', conversationId);
+            alert('Unable to find the associated conversation');
+        }
     };
 
     const loadMemories = async () => {
@@ -188,6 +207,7 @@ export const MemoryDialog: FC<MemoryDialogProps> = ({ open, onClose }) => {
                                         memories={memories}
                                         onEditMemory={handleEdit}
                                         onDeleteMemory={handleDelete}
+                                        onViewConversation={handleViewConversation}
                                         processingMemoryId={processingMemoryId}
                                     />
                                 )}

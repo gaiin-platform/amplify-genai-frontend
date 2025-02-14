@@ -4,7 +4,6 @@ import {
     MemoryType,
     MemoryBatchItem,
     MemoryOperationResponse,
-    Project,
     ExtractFactsResponse
 } from '@/types/memory';
 
@@ -37,6 +36,7 @@ export const doReadMemoryByTaxonomyOp = async (params: {
     subcategory?: string;
     memory_type?: MemoryType;
     memory_type_id?: string;
+    conversation_id?: string;
 }): Promise<MemoryOperationResponse> => {
     const op = {
         url: 'http://localhost:3015/dev/memory/read-memory-by-taxonomy',

@@ -33,7 +33,6 @@ export const MemoryPresenter: FC<Props> = ({
     } = useContext(HomeContext);
 
     let settingRef = useRef<Settings | null>(null);
-    // prevent recalling the getSettings function
     if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
 
     useEffect(() => {
@@ -43,7 +42,6 @@ export const MemoryPresenter: FC<Props> = ({
     }, []);
 
     const [factTypes, setFactTypes] = useState<{ [key: string]: MemoryType }>({});
-    // const [selectedProjects, setSelectedProjects] = useState<{ [key: string]: string }>({});
     const [loadingStates, setLoadingStates] = useState<{ [key: number]: string }>({});
 
     const { data: session } = useSession();
@@ -83,26 +81,23 @@ export const MemoryPresenter: FC<Props> = ({
                 content: fact.content,
                 taxonomy_path: fact.taxonomy_path,
                 memory_type: type as MemoryType,
-                memory_type_id: typeID
+                memory_type_id: typeID,
+                conversation_id: selectedConversation?.id
             }]);
 
-            // Rest of the function remains the same
             const updatedFacts = extractedFacts.filter((_, i) => i !== index);
             homeDispatch({ field: 'extractedFacts', value: updatedFacts });
 
-            // Clean up the fact type
             const updatedFactTypes = { ...factTypes };
             delete updatedFactTypes[index];
             setFactTypes(updatedFactTypes);
 
-            // Clear loading state on success
             setLoadingStates(prev => {
                 const newState = { ...prev };
                 delete newState[index];
                 return newState;
             });
         } catch (error) {
-            // Clear loading state on error
             setLoadingStates(prev => {
                 const newState = { ...prev };
                 delete newState[index];
@@ -116,16 +111,13 @@ export const MemoryPresenter: FC<Props> = ({
     const handleDeleteFact = (index: number) => {
         setLoadingStates(prev => ({ ...prev, [index]: 'deleting' }));
 
-        // Remove the fact without saving
         const updatedFacts = extractedFacts.filter((_, i) => i !== index);
         homeDispatch({ field: 'extractedFacts', value: updatedFacts });
 
-        // Clean up the fact type
         const updatedFactTypes = { ...factTypes };
         delete updatedFactTypes[index];
         setFactTypes(updatedFactTypes);
 
-        // Clear loading state
         setLoadingStates(prev => {
             const newState = { ...prev };
             delete newState[index];
@@ -175,7 +167,6 @@ export const MemoryPresenter: FC<Props> = ({
                                                         ) : (
                                                             <button
                                                                 onClick={() => handleSaveFact(index)}
-                                                                // disabled={factTypes[index] === 'project' && !selectedProjects[index]}
                                                                 className="hover:opacity-75 transition-opacity"
                                                             >✅</button>
                                                         )}
