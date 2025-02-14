@@ -123,7 +123,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
         
         <div className={`fixed top-0 ${side}-0 flex h-full w-[280px] flex-none ${chatSide()? 'border-r dark:border-r-[#202123]' : 'border-l dark:border-l-[#202123]'}
             flex-col space-y-0 bg-white text-black dark:text-white bg-[#f3f3f3] dark:bg-[#202123] text-[14px] sm:relative sm:top-0`} 
-            
+            id="sideBar"
             style={{
                 zIndex: '20 !important'
               }}>

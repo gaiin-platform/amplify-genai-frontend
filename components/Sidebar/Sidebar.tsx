@@ -58,7 +58,7 @@ const Sidebar = <T,>({
     e.target.style.background = 'none';
   };
 
-  const addItemButton = (width: string) => ( <button className={`text-sidebar flex ${width} flex-shrink-0 select-none items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 dark:text-white transition-colors duration-200 
+  const addItemButton = (width: string) => ( <button id="promptButton" className={`text-sidebar flex ${width} flex-shrink-0 select-none items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 dark:text-white transition-colors duration-200 
                               ${side === 'left' && messageIsStreaming ? "cursor-not-allowed" : "hover:bg-gray-500/10 cursor-pointer "}`}
                               disabled={side === 'left' && messageIsStreaming}
                               onClick={() => {

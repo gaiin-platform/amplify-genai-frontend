@@ -71,6 +71,22 @@ If this value is not set in your .env, all the tests will not be able to login a
 Furthermore: If your created .env file is not named ".env.local" The tests will fail because they will not
 correctly identify the .env file that the tests will extract the variables from.
 
+## Modifying the Test Files
+
+Specifically all test files are default set to run in headless mode. This means that you will not see the
+window open and run the test.
+
+However, if you choose to visually see the test run, you can change it to non-headless mode, which will 
+open a Google Chrome window and show off the test automatically testing and clicking buttons.
+
+To do this, all you need to do is specifically go to a test and in the setup header change the headless variable
+to 'False'
+
+```plaintext
+# ----------------- Setup -----------------
+def setUp(self, headless=False):
+```
+
 ## Running the Tests
 
 ### Navigating to the Test Directory

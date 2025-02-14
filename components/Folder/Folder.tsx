@@ -185,6 +185,7 @@ const Folder = ({
               )}
               <input
                 className="mr-12 flex-1 overflow-hidden overflow-ellipsis border-neutral-400 bg-transparent text-left text-[12.5px] leading-3 dark:text-white outline-none focus:border-neutral-100"
+                id="renameInput"
                 type="text"
                 value={renameValue}
                 onChange={(e) => setRenameValue(e.target.value)}
@@ -220,6 +221,7 @@ const Folder = ({
           {(isDeleting || isRenaming) && (
             <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
               <ActionButton
+                id = {"confirm"}
                 handleClick={(e) => {
                   e.stopPropagation();
 
@@ -236,6 +238,7 @@ const Folder = ({
                 <IconCheck size={18} />
               </ActionButton>
               <ActionButton
+                id = {"cancel"}
                 handleClick={(e) => {
                   e.stopPropagation();
                   setIsDeleting(false);

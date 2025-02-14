@@ -122,6 +122,7 @@ interface Props {
                                            .map((option: OptionButtons, index: number) => 
                             <button key={index}
                               type="button"
+                              id="confirmationButton"
                               disabled={option.isDisabled}
                               className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                               onClick={option.handleClick}
