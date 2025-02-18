@@ -1527,6 +1527,7 @@ const Home = ({
                     </h1>
                     <button
                         onClick={() => signIn('cognito')}
+                        id="loginButton"
                         style={{
                             backgroundColor: 'white',
                             color: 'black',

@@ -43,34 +43,32 @@ class CreatePowerPointTests(unittest.TestCase):
         try:
             # Click the login button to reveal the login form
             login_button = self.wait.until(EC.element_to_be_clickable(
-                (By.XPATH, "//*[@id='__next']/div/main/div/button")
+                (By.ID, "loginButton")
             ))
             login_button.click()
 
             # Wait for the username and password fields to appear
-            username_field = self.wait.until(EC.presence_of_element_located(
-                (By.XPATH, "/html/body/div[1]/div/div[2]/div[2]/div[2]/div[2]/div/div/form/div[1]/input")
+            username_field = self.wait.until(lambda d: next(
+                (e for e in d.find_elements(By.NAME, "username") if e.is_displayed()), None
             ))
-            password_field = self.wait.until(EC.presence_of_element_located(
-                (By.XPATH, "/html/body/div[1]/div/div[2]/div[2]/div[2]/div[2]/div/div/form/div[2]/input")
+            password_field = self.wait.until(lambda d: next(
+                (e for e in d.find_elements(By.NAME, "password") if e.is_displayed()), None
             ))
 
             # Enter username and password
             username_field.send_keys(username)
             password_field.send_keys(password)
 
-            # Submit the login form
-            submit_button = self.wait.until(EC.element_to_be_clickable(
-                (By.XPATH, "/html/body/div[1]/div/div[2]/div[2]/div[2]/div[2]/div/div/form/input[3]")
-            ))
-            submit_button.click()
+            # Submit the login form            
+            form = self.driver.find_element(By.TAG_NAME, "form")
+            form.submit()
             
             # Add a short delay to wait for the loading screen
             time.sleep(8)  # Wait for 8 seconds before proceeding
 
             # Wait for a post-login element to ensure login was successful
-            self.wait.until(EC.presence_of_element_located(
-                (By.XPATH, "/html/body/div/div/main/div[2]/div[2]/div/div/div[1]/div/div[1]")  # "Start a new conversation." text
+            self.wait.until(EC.visibility_of_element_located(
+                (By.ID, "messageChatInputText")  # Sidebar appears
             ))
         except Exception as e:
             self.fail(f"Login failed: {e}")   
@@ -87,6 +85,7 @@ class CreatePowerPointTests(unittest.TestCase):
         self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
 
         # Find the element with text "Amplify Helpers"
+        time.sleep(2)
         amplify_helper_dropdown_button = next((el for el in drop_name_elements if el.text == "Amplify Helpers"), None)
         self.assertIsNotNone(amplify_helper_dropdown_button, "Amplify Helpers button should be present")
 
@@ -137,6 +136,7 @@ class CreatePowerPointTests(unittest.TestCase):
         self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
 
         # Find the element with text "Amplify Helpers"
+        time.sleep(2)
         amplify_helper_dropdown_button = next((el for el in drop_name_elements if el.text == "Amplify Helpers"), None)
         self.assertIsNotNone(amplify_helper_dropdown_button, "Amplify Helpers button should be present")
 
@@ -195,6 +195,7 @@ class CreatePowerPointTests(unittest.TestCase):
         self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
 
         # Find the element with text "Amplify Helpers"
+        time.sleep(2)
         amplify_helper_dropdown_button = next((el for el in drop_name_elements if el.text == "Amplify Helpers"), None)
         self.assertIsNotNone(amplify_helper_dropdown_button, "Amplify Helpers button should be present")
 
