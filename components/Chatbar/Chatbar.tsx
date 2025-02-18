@@ -171,8 +171,6 @@ export const Chatbar = () => {
 
   useEffect(() => {
 
-    statsService.openConversationsEvent();
-
     if (searchTerm) {
 
       statsService.searchConversationsEvent(searchTerm);
