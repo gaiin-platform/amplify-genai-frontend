@@ -10,7 +10,7 @@ on:
       enable_ecr_workflow:
         description: 'Enable ECR workflow'
         type: boolean
-        default: true
+        default: false
         required: true
 
 jobs:
