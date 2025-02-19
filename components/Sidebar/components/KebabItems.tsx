@@ -66,7 +66,7 @@ export const KebabActionItem: FC<ActionProps> = ({label, type, handleAction, set
 
 
   return (
-    <div className="w-[72px] flex items-center gap-1 flex-row pr-1 pl-1 cursor-pointer border-b dark:border-white/20 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
+    <div className="min-w-[72px] flex items-center gap-1 flex-row pr-1 pl-1 cursor-pointer border-b dark:border-white/20 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
       title={`${label} ${type.includes('Folders') ? "Entire Folder" : type}`}>
     
       <div className="text-neutral-900 dark:text-neutral-100">{icon}</div>
@@ -86,12 +86,15 @@ interface MenuItemsProps {
   xShift?: number;
   children: (React.ReactElement<ItemProps> | React.ReactElement<ItemProps>[] |
              React.ReactElement<ActionProps> | React.ReactElement<ActionProps>[] |
-             React.ReactElement<MenuItemsProps> | React.ReactElement<MenuItemsProps>[]); 
+             React.ReactElement<MenuItemsProps> | React.ReactElement<MenuItemsProps>[]) | React.ReactNode; 
   minWidth?: number;
 }
 
 export const KebabMenuItems: FC<MenuItemsProps> = ({ label, xShift=220, minWidth=72, children}) => {
-  const childrenArray = React.Children.toArray(children) as React.ReactElement<ItemProps | ActionProps | MenuItemsProps>[];
+  // const childrenArray = React.Children.toArray(children) as React.ReactElement<ItemProps | ActionProps | MenuItemsProps>[];
+  const childrenArray = React.Children.toArray(children)
+                             .filter(Boolean) as React.ReactElement<ItemProps | ActionProps | MenuItemsProps>[];
+
   const [isSubMenuVisible, setIsSubMenuVisible] = useState<boolean>(false);
 
   const xShiftPercentage = `-${xShift}%`;

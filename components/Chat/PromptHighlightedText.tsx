@@ -6,7 +6,6 @@ import React, { useContext, useEffect, useRef } from "react";
 import { useState } from "react";
 import { HighlightPromptTypes, highlightSource } from "@/types/highlightTextPrompts";
 import { getSession } from "next-auth/react";
-import { ModelID, Models } from "@/types/model";
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";
 import { DEFAULT_ASSISTANT } from "@/types/assistant";
 import { deepMerge } from "@/utils/app/state";
@@ -14,6 +13,7 @@ import cloneDeep from 'lodash/cloneDeep';
 import { Artifact } from "@/types/artifacts";
 import { lzwCompress } from "@/utils/app/lzwCompression";
 import toast from "react-hot-toast";
+import { DefaultModels } from "@/types/model";
 
 
 interface CompositeButton {
@@ -99,8 +99,8 @@ const HIGHLIGHT_BACKGROUND = 'rgba(129, 192, 255, 0.4)';
 
 export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
     const {state:{statsService, selectedConversation, selectedAssistant, selectedArtifacts, messageIsStreaming, artifactIsStreaming, 
-                  chatEndpoint, currentRequestId, conversations, folders, groups, defaultModelId},  
-           dispatch:homeDispatch, handleUpdateSelectedConversation} = useContext(HomeContext);
+                  chatEndpoint, currentRequestId, conversations},  
+           dispatch:homeDispatch, handleUpdateSelectedConversation, getDefaultModel} = useContext(HomeContext);
     
     const [showComponent, setShowComponent] = useState<boolean>(false);
 
@@ -110,8 +110,11 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
 
     const [position, setPosition] = useState<any>(null);
     const positionRef = useRef(position);
+
     const [selected, setSelected] = useState<HighlightPromptTypes | string>('');
     const selectedRef = useRef<HighlightPromptTypes | string>(selected);
+    const handleInitSelection = useRef<(() => void) | null>(null);
+
     
     const sourceRef = useRef<HighlightSource | null>(null);
     const showRevertRef = useRef<boolean>(false);
@@ -130,13 +133,14 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
     const highlightSpansRef = useRef<{ wrapper: HTMLSpanElement, isFirst: boolean }[]>([]);
 
 
-  const clear = () => {
-    console.log("clear");
+  const clear = (rerender: boolean = true) => {
+    // console.log("clear");
     removeCompositeButtons();
     setSelected('');
     selectedRef.current = '';
+    handleInitSelection.current = null;
     setInputValue('');
-    triggerRerender();
+    if (rerender) triggerRerender();
 
     showRevertRef.current = false;
     compositeInsertPs.current = [];
@@ -144,7 +148,6 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
     compositeButtonsRef.current = [];
     highlightSpansRef.current = [];
     activeButtonRef.current = null;
-
 
     // originalHighlightInfo.current = null;
     sourceRef.current = null;
@@ -162,7 +165,7 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
 
 
   const movePulse = () => {
-    console.log("Move pulse");
+    // console.log("Move pulse");
     if (sourceRef.current && sourceRef.current.container) {
 
         if (highlightSpansRef.current && highlightSpansRef.current.length === 0) {
@@ -171,7 +174,7 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
           return;
         }
   
-      console.log("Create new pulse");
+      // console.log("Create new pulse");
       // Create a new pulse indicator
       const pulseSpan = document.createElement('span');
       pulseSpan.classList.add('animate-pulse', 'cursor-default', 'mt-1', 'highlight-pulse');
@@ -180,17 +183,17 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
       try {
         if (selectedRef.current === HighlightPromptTypes.FAST_EDIT) {
           console.log("FAST_EDIT mode: Remove all highlighted spans and their content.");
-          // should only be one, but just incase i ensure its labeled the first node.
           
-          const highlightedSpan = highlightSpansRef.current.find((span) => span.isFirst);
-          if (highlightedSpan) {
-            const span = highlightedSpan.wrapper;
-            const parent = span.parentNode;
+          // Now the earliest DOM node is at index 0
+          const earliestSpan = highlightSpansRef.current[0];
+          if (earliestSpan) {
+            const parent = earliestSpan.wrapper.parentNode;
             if (parent) {
-              parent.insertBefore(pulseSpan, span);
+              parent.insertBefore(pulseSpan, earliestSpan.wrapper);
             }
-            highlightedSpan.wrapper.remove();
           }
+          highlightSpansRef.current.forEach((span) => span.wrapper.remove());
+
 
         } else if (selectedRef.current === HighlightPromptTypes.COMPOSITE) {
           console.log("COMPOSITE mode: Move pulse to 'insert text here' button.");
@@ -210,8 +213,6 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
           //     parent.appendChild(pulseSpan);
           //   }
           // }
-
-
 
           const activeButton = activeButtonRef.current;
         const container = sourceRef.current.container;
@@ -248,7 +249,7 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
 
           // // After inserting the pulseSpan, remove the composite buttons
           removeCompositeButtons();
-          console.log("COMPOSITE mode COMPLETE.");
+          // console.log("COMPOSITE mode COMPLETE.");
         }
       } catch {
         console.log("Move pulse exception occured")
@@ -268,22 +269,22 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
           addCompositeButtons();
         } else {
           removeCompositeButtons();
-            if (highlightSpansRef.current && highlightSpansRef.current.length > 1) {
-            // loop through spans and remove the highlight after the first index 
-            highlightSpansRef.current.forEach((span:{wrapper: HTMLSpanElement, isFirst:boolean}) => {
-                  if (!span.isFirst) {
-                    const wrapper = span.wrapper;
-                    const parent = wrapper.parentNode;
-                
-                    while (wrapper.firstChild) { // Move all child nodes of the span before the span
-                      parent?.insertBefore(wrapper.firstChild, wrapper);
-                    }
-                    parent?.removeChild(wrapper); // Remove the now-empty span
-                } else {
-                    highlightSpansRef.current = [span];
-                }
+            if (highlightSpansRef.current && highlightSpansRef.current.find((span: { isFirst: boolean }) => !span.isFirst)) {
+              console.log("Filter out composite highlights")
+              // loop through spans and remove the highlight after the first index 
+              highlightSpansRef.current.forEach((span:{wrapper: HTMLSpanElement, isFirst:boolean}) => {
+                    if (!span.isFirst) {
+                      const wrapper = span.wrapper;
+                      const parent = wrapper.parentNode;
+                  
+                      while (wrapper.firstChild) { // Move all child nodes of the span before the span
+                        parent?.insertBefore(wrapper.firstChild, wrapper);
+                      }
+                      parent?.removeChild(wrapper); // Remove the now-empty span
+                  } 
 
-            });
+              });
+              highlightSpansRef.current = highlightSpansRef.current.filter((span: { isFirst: boolean }) => span.isFirst);
           } 
       }
     }
@@ -306,9 +307,9 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
 
   useEffect(() => {
     const handleScroll = () => {
-      console.log(position)
+      // console.log(position)
       if (position) {
-        console.log(window.scrollY)
+        // console.log(window.scrollY)
         // Calculate the new top position based on the scroll position
         const newTop = position.top - window.scrollY;
   
@@ -337,7 +338,7 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
       const selection = window.getSelection();
       // console.log(selection);
       if ( contentBlocksExist &&  selection && selection.rangeCount > 0  && selection.toString().trim()) {
-        console.log("handle selection");
+        // console.log("handle selection");
 
         // Determine the source
         let containerElement = selection.anchorNode
@@ -378,10 +379,7 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
               left: left,
             });
 
-            // isContainerValid(foundContainer.container)
-            // console.log(foundContainer);
             if (sourceRef.current && selectedRef.current === HighlightPromptTypes.COMPOSITE) {
-                console.log("********in here");
                 // const highlightData = originalHighlightInfo.current;
                 // handleHighlightSelection(highlightData.rangeType, highlightData.range, highlightData.source);
                 const rangeIsValid = inHighlightDisplayMode ? RangeType.PARAGRAPH : validateSelectionRange(foundContainer.container, range);
@@ -394,7 +392,8 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
                 const rangeIsValid = inHighlightDisplayMode ? RangeType.PARAGRAPH : validateSelectionRange(foundContainer.container, range);
                 if (rangeIsValid !== RangeType.INVALID) {
                     setShowComponent(true);
-                    handleHighlightSelection(rangeIsValid, range, foundContainer);
+                  
+                    handleInitSelection.current = () => handleHighlightSelection(rangeIsValid, range, cloneDeep(foundContainer!));
                 }  else {
                     console.log("invalid selection");
                 }
@@ -413,14 +412,14 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
       if (! sourceRef.current) {
         const textNodes = getTextNodes(foundSource.container);
 
-        console.log("TEXTNODES:", textNodes);
+        // console.log("TEXTNODES:", textNodes);
         // getCompositeButtonIndices(textNodes, foundSource.originalContent, foundSource.container);
         const { beforeText, highlightedText, afterText} = getSurroundingSelectionText(range, textNodes, foundSource.originalContent);
-        console.log("BEFORE:\n", beforeText);
-        console.log("\nHIGHLIGHT:\n ", highlightedText);
-        console.log("\nAFTER:\n", afterText);
+        // console.log("BEFORE:\n", beforeText);
+        // console.log("\nHIGHLIGHT:\n ", highlightedText);
+        // console.log("\nAFTER:\n", afterText);
 
-        console.log(" p elems: ", compositeInsertPs.current)
+        // console.log(" p elems: ", compositeInsertPs.current)
   
         // console.log("--- before add highlight list :", compositeHighlightsRef.current);
         if (!(compositeHighlightsRef.current instanceof Set)) compositeHighlightsRef.current = new Set();
@@ -437,9 +436,7 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
               highlightedText: highlight
             };
         sourceRef.current = sourceData;
-  
-        // console.log("need to add to original info: ", originalHighlightInfo.current)
-        // if (!originalHighlightInfo.current) originalHighlightInfo.current = cloneDeep({source: sourceData, range: range, rangeType: rangeType});
+
       }
       compositeHighlightsRef.current.add(range.toString());
       if (rangeType === RangeType.PARAGRAPH) {
@@ -464,7 +461,7 @@ const isContainerValid = (container: HTMLElement) => {
     return false;
   }
   for (const child of children) {
-    console.log("CONTAINER TAG: ", child.tagName);
+    // console.log("CONTAINER TAG: ", child.tagName);
 
     if (child.tagName === 'PRE') {
       // Ensure <code> exists within <pre>
@@ -478,7 +475,7 @@ const isContainerValid = (container: HTMLElement) => {
       return false;
     }
   }
-  console.log("CONTAINER VALID");
+  // console.log("CONTAINER VALID");
   // If all elements are valid, return true
   return true;
 };
@@ -511,7 +508,7 @@ const validateSelectionRange = (container: HTMLElement, range: Range): RangeType
     if (selectedRef.current !== HighlightPromptTypes.COMPOSITE && 
         !isContainerValid(container)) return  RangeType.INVALID;
 
-        console.log("**** ", getElementsInRange(range));
+        // console.log("**** ", getElementsInRange(range));
     // check if only Ps are in the selection
     if (getElementsInRange(range).every(el => 
             ([...ALLOWED_TAGS, 'CODE'].includes(el.tagName) || 
@@ -534,7 +531,7 @@ const validateSelectionRange = (container: HTMLElement, range: Range): RangeType
   
     // Check if both start and end are within the same element
     if (startClosestBlock && startClosestBlock === endClosestBlock) {
-      console.log(startClosestBlock);
+      // console.log(startClosestBlock);
       if (startClosestBlock.matches('p')) {
         return RangeType.PARAGRAPH;
       } if (startClosestBlock.matches('pre code')) {
@@ -545,10 +542,10 @@ const validateSelectionRange = (container: HTMLElement, range: Range): RangeType
       }
     }
 
-    console.log("end: ", range);
-    console.log("start: ", range.startContainer);
-    console.log("end: ", range.endContainer);
-    console.log("ELEMS IN RANGE", getElementsInRange(range))
+    // console.log("end: ", range);
+    // console.log("start: ", range.startContainer);
+    // console.log("end: ", range.endContainer);
+    // console.log("ELEMS IN RANGE", getElementsInRange(range))
 
     return RangeType.INVALID;
 }
@@ -597,7 +594,8 @@ const handleParagraphSelection = (range: Range) => {
       console.log("Multiple node selected");
       // Get all text nodes within the selection range
       const textNodes = getTextNodesInRange(range);
-      const isFirst = highlightSpansRef.current.length === 0
+      // This is to track the composite highlights. isFirst is the first highlight
+      const isFirst = highlightSpansRef.current.length === 0;
       textNodes.forEach((textNode) => {
         const intersectionRange = document.createRange();
 
@@ -614,7 +612,7 @@ const handleParagraphSelection = (range: Range) => {
         // Cleanup
         intersectionRange.detach();
       });
-
+      console.log("SPANS: ", highlightSpansRef.current)
       // Clear the selection to avoid accidental changes
       const selection = window.getSelection();
       if (selection) {
@@ -665,6 +663,13 @@ const handleParagraphSelection = (range: Range) => {
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+      // 0 => left-click, 2 => right-click
+    if (e.button === 2) {
+      clear(false);
+      return;
+    }
+
+      // if right click then clear right away
       if (containerRef.current && !containerRef.current.contains(target) ) {
 
         if (selectedRef.current === HighlightPromptTypes.COMPOSITE ) { 
@@ -683,13 +688,15 @@ const handleParagraphSelection = (range: Range) => {
 
 
     const toggleSwitch = (selection : HighlightPromptTypes ) => {
+      if (selectedRef?.current === '' && handleInitSelection.current) {
+        handleInitSelection.current();
+        handleInitSelection.current = null;
+      }
       setSelected(selection);
     };
 
 
   
-
-
     const getPlaceholder = () => {
       switch (selected) {
         case (HighlightPromptTypes.FAST_EDIT): 
@@ -865,7 +872,7 @@ const handleParagraphSelection = (range: Range) => {
                   } else {
                      afterText = originalContent.slice(originalCurrentIndex);
                   }
-                  console.log("IN HIGHLIGHT");
+                  // console.log("IN HIGHLIGHT");
                   isInHighlight = false;
                   endFound = true;
                 }
@@ -997,7 +1004,7 @@ const handleParagraphSelection = (range: Range) => {
     if (isArtifactSource) homeDispatch({field: 'artifactIsStreaming', value: true});
     try {
         const chatBody = {
-            model: selectedConversation ? selectedConversation.model : Models[defaultModelId ?? ModelID.GPT_4o_MINI],
+            model: selectedConversation?.model ?? getDefaultModel(DefaultModels.DEFAULT),
             messages: [message],
             key: accessToken,
             prompt: prompt,
@@ -1013,7 +1020,6 @@ const handleParagraphSelection = (range: Range) => {
         let updatedConversation = cloneDeep(selectedConversation);
 
         let updatedArtifacts: Artifact[] | undefined = cloneDeep(selectedArtifacts);
-        // console.log("+ ", updatedArtifacts)
         const responseData = response.body;
         const reader = responseData ? responseData.getReader() : null;
         const decoder = new TextDecoder();
@@ -1054,15 +1060,13 @@ const handleParagraphSelection = (range: Range) => {
               } else if (isArtifactSource && updatedArtifacts) {
 
                 if (source?.messageIndex !== undefined && source.messageIndex < updatedArtifacts.length) {
-                  // console.log("+++ ", updatedArtifacts);
                   updatedArtifacts[source.messageIndex].contents = lzwCompress(`${leadingText}${text}${trailingText}`);
                   homeDispatch({field: "selectedArtifacts", value: updatedArtifacts});
-                  console.log("--", updatedArtifacts)
                 }
               }
        
           }
-          console.log("FINAL REPLACEMNET: ", text);
+          // console.log("FINAL REPLACEMNET: ", text);
 
           if (updatedConversation) {
             if (isArtifactSource && source?.artifactId && updatedArtifacts) updatedConversation.artifacts = 
@@ -1087,7 +1091,7 @@ const handleParagraphSelection = (range: Range) => {
         }
 
     } catch (e) {
-        console.error("Error prompting for qi summary: ", e);
+        console.error("Error prompting for prompt highlighting: ", e);
         alert("We are unable to fulfill your request at this time, please try again later.");
     } 
     homeDispatch({field: 'messageIsStreaming', value: false}); 
@@ -1098,7 +1102,7 @@ const handleParagraphSelection = (range: Range) => {
 
 
   const revertChanges = () => {
-    console.log("handle revert");
+    // console.log("handle revert");
     const source = sourceRef.current;
     if (selectedConversation && source && source.messageIndex) {
       const updatedConversation = cloneDeep(selectedConversation);
@@ -1306,7 +1310,7 @@ const handleParagraphSelection = (range: Range) => {
     const handleMouseDown = (e: MouseEvent) => {
       e.preventDefault(); 
       e.stopPropagation();
-      console.log('Composite button clicked:', e.target);
+      // console.log('Composite button clicked:', e.target);
     };
   
     const handleClick = () => {
@@ -1427,9 +1431,9 @@ const handleParagraphSelection = (range: Range) => {
 
   const handleSend = () => {
     if (!inputValue) return;
-    console.log("handle send");
+    // console.log("handle send");
 
-    console.log(selected);
+    // console.log(selected);
     // in case we add more 
     switch (selected) {
       case (HighlightPromptTypes.FAST_EDIT): 
@@ -1453,9 +1457,9 @@ const handleParagraphSelection = (range: Range) => {
     if (sourceRef.current) {
         const beforeText = sourceRef.current.leadingText;
         const afterText = sourceRef.current.trailingText;
-        console.log("*******\n",  beforeText);
-        console.log("*******\n",  afterText);
-        console.log("*******\n");
+        // console.log("*******\n",  beforeText);
+        // console.log("*******\n",  afterText);
+        // console.log("*******\n");
         const content =  ` 
          User Query For Fast Edit Changes: ${inputValue}\n\n
          *** before text context TO BE LEFT UNCHANGED ***\n"${beforeText.length > CHAR_LIMIT ? beforeText.slice(beforeText.length - CHAR_LIMIT) : beforeText}"\n\n
@@ -1612,10 +1616,8 @@ const handleParagraphSelection = (range: Range) => {
                         e.stopPropagation();
                       }}
                       onKeyDown={(e) => {
-                        console.log("Keydown event triggered");
+                        // console.log("Keydown event triggered");
                         if (e.key === 'Enter' && !e.shiftKey && !isDisabled() ) {
-                          console.log("ENTER");
-                          console.log(isDisabled());
                           e.preventDefault(); 
                           handleSend();
                         }

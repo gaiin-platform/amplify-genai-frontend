@@ -43,7 +43,7 @@ interface Props {
         step={0.1}
         value={slider}
         onChange={handleChange}
-        />
+      />
       <ul className="w mt-2 pb-8 flex justify-between px-[24px] text-neutral-900 dark:text-neutral-100">
         {labels.map((label, index) => (
             <li className="flex justify-center" key={index}>
@@ -55,24 +55,3 @@ interface Props {
   );
 };
 
-
-
-/*
-
-
-<input
-  className="w-full h-0.5 rounded-none appearance-none cursor-pointer bg-gray-300"
-  style={{
-    outline: 'none',
-    background: 'linear-gradient(to right, #3b82f6 0%, #3b82f6 ' + (slider / max * 100) + '%, #d1d5db ' + (slider / max * 100) + '%, #d1d5db 100%)',
-  }}
-  type="range"
-  min={0.0}
-  max={max}
-  step={0.1}
-  value={slider}
-  onChange={handleChange}
-/>
-
-
-*/

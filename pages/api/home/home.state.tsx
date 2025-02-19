@@ -1,7 +1,7 @@
 import { Conversation, Message } from '@/types/chat';
 import { ErrorMessage } from '@/types/error';
 import { FolderInterface} from '@/types/folder';
-import { Model, ModelID } from '@/types/model';
+import {  Models } from '@/types/model';
 import { Prompt } from '@/types/prompt';
 import { WorkflowDefinition } from "@/types/workflow";
 import { Status } from "@/types/workflow";
@@ -15,9 +15,8 @@ import {CheckItemType} from "@/types/checkItem";
 import { PluginLocation } from '@/types/plugin';
 import { Group } from '@/types/groups';
 import { Artifact } from '@/types/artifacts';
+import { ShareItem } from '@/types/export';
 
-
-type HandleSend = (request: any) => void;
 
 export interface HomeInitialState {
   defaultAccount: Account | undefined;
@@ -29,7 +28,13 @@ export interface HomeInitialState {
   artifactIsStreaming: boolean
   modelError: ErrorMessage | null;
   status: Status[];
-  models: Model[];
+
+  // models: Model[]; // models shown to the user 
+  availableModels: Models, 
+  defaultModelId: string | undefined; // user settings will have priority over this value else come from admin settings
+  cheapestModelId: string | undefined;
+  advancedModelId: string | undefined;
+
   folders: FolderInterface[];
   conversations: Conversation[];
   artifacts: any[];
@@ -41,22 +46,20 @@ export interface HomeInitialState {
   temperature: number;
   showChatbar: boolean;
   showPromptbar: boolean;
-  workspaceDirty: boolean;
+
+  workspaceDirty: boolean; //legacy
+  workspaceMetadata: Workspace; //legacy
+  workspaces: ShareItem[] | null;
+
   currentFolder: FolderInterface | undefined;
   messageError: boolean;
   searchTerm: string;
-  defaultModelId: ModelID | undefined;
   featureFlags: { [key: string]: boolean },
-  workspaceMetadata: Workspace;
   selectedAssistant: Assistant | null;
   page: string;
-  defaultFunctionCallModel: string | null;
   statsService: StatsServices;
   currentRequestId: string | null;
-  latestDataDisclosureUrlPDF: string;
-  latestDataDisclosureHTML: string;
   inputEmail: string;
-  hasAcceptedDataDisclosure: boolean | null;
   hasScrolledToBottom: boolean;
   storageSelection: string | null;
   ops: { [key: string]: Op };
@@ -68,7 +71,11 @@ export interface HomeInitialState {
   groups: Group[];
   syncingConversations: boolean;
   syncingPrompts: boolean;
-
+  hiddenGroupFolders: FolderInterface[];
+  powerPointTemplateOptions: string[];
+  amplifyUsers: string[];
+  extractedFacts: string[];
+  memoryExtractionEnabled: boolean;
 }
 
 export const initialState: HomeInitialState = {
@@ -78,16 +85,8 @@ export const initialState: HomeInitialState = {
   loading: false,
   lightMode: 'dark',
   status: [],
+
   workspaceDirty: false,
-  messageIsStreaming: false,
-  artifactIsStreaming: false,
-  modelError: null,
-  models: [],
-  folders: [],
-  conversations: [],
-  artifacts:[], // for saved/remote artifacts
-  workflows: [],
-  ops: {},
   workspaceMetadata: {
     name: '',
     description: '',
@@ -99,6 +98,22 @@ export const initialState: HomeInitialState = {
     tags: [],
     data: {},
   },
+  workspaces: null, 
+
+  messageIsStreaming: false,
+  artifactIsStreaming: false,
+  modelError: null,
+  // models: [],
+  availableModels: {},
+  defaultModelId: undefined,
+  cheapestModelId: undefined,
+  advancedModelId: undefined,
+  folders: [],
+  conversations: [],
+  artifacts:[], // for saved/remote artifacts
+  workflows: [],
+  ops: {},
+  
   selectedConversation: undefined,
   currentMessage: undefined,
   selectedArtifacts: undefined,
@@ -109,51 +124,14 @@ export const initialState: HomeInitialState = {
   currentFolder: undefined,
   messageError: false,
   searchTerm: '',
-  defaultModelId: undefined,
   selectedAssistant: null,
   page: 'chat',
   currentRequestId: null,
 
-  featureFlags: {
-    assistantsEnabled: true,
-    promptOptimizer: true,
-    ragEnabled: true,
-    sourcesEnabled: true,
-    uploadDocuments: true,
-    assistantCreator: true,
-    assistants: true,
-    overrideUneditablePrompts: false,
-    overrideInvisiblePrompts: false,
-    extractDocumentsLocally: false,
-    enableMarket: false,
-    promptPrefixCreate: false,
-    outputTransformerCreate: false,
-    workflowRun: true,
-    workflowCreate: false,
-    rootPromptCreate: true,
-    pluginsOnInput: true, // if all plugin features are disables, then this should be disabled. ex. ragEnabled, codeInterpreterEnabled etc.
-    dataSourceSelectorOnInput: true,
-    followUpCreate: true,
-    marketItemDelete: false,
-    automation: true,
-    codeInterpreterEnabled: true,
-    dataDisclosure: false,
-    storeCloudConversations: true,
-    qiSummary: false,
-    apiKeys: true,
-    assistantAdminInterface: false,
-    artifacts: true,
-    mtdCost: true,
-    highlighter: true,
-    assistantAPIs: false
-  },
+  featureFlags: {},
 
   statsService: noOpStatsServices,
-  defaultFunctionCallModel: null,
-  latestDataDisclosureUrlPDF: '',
-  latestDataDisclosureHTML: '',
   inputEmail: '',
-  hasAcceptedDataDisclosure: null,
   hasScrolledToBottom: false,
   storageSelection: null,
   allFoldersOpenConvs: false,
@@ -163,5 +141,10 @@ export const initialState: HomeInitialState = {
   pluginLocation: {x:100, y:-250},
   groups: [],
   syncingConversations: true,
-  syncingPrompts: true
+  syncingPrompts: true,
+  hiddenGroupFolders: [],
+  powerPointTemplateOptions: [],
+  amplifyUsers: [],
+  extractedFacts: [],
+  memoryExtractionEnabled: true,
 };

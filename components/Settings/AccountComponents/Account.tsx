@@ -7,6 +7,7 @@ import { Account, noCoaAccount } from "@/types/accounts";
 import { RateLimiter } from './RateLimit';
 import { formatRateLimit, PeriodType, RateLimit, rateLimitObj, UNLIMITED } from '@/types/rateLimit';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
+import toast from 'react-hot-toast';
 
 
 interface Props {
@@ -63,9 +64,15 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
     const validateCOA = (coa: string) => {
         const isValid = isValidCOA(coa);
         if (!isValid) {
-            const message = "COA Cannot be empty";
+            const message = "Invalid COA\n\n" +
+                "This does not look like a valid COA String. If this is a COA String, please verify it is valid. If this is a poet or project number, click OK to accept.\n\n" 
+
+
+            const userChoice = confirm(message);
+
+            return userChoice;
         }
-        return isValid;
+        return true;
     }
 
     useEffect(() => {
@@ -97,7 +104,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
     }
 
     const handleSave = async () => {
-        console.log("accts saved: ", accounts)
+        // console.log("accts saved: ", accounts)
 
         if (accounts.length === 0) {
             alert("You must have at least one account.");
@@ -120,6 +127,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
             setUnsavedChanged(false);
             setHasEdits(false);
             setAddedAccounts([]);
+            toast("Account changes saved.");
         }
         setIsSaving(false);
         
@@ -278,7 +286,7 @@ interface SelectProps {
 }
 
 export const AccountSelect: FC<SelectProps> = ({accounts, defaultAccount, setDefaultAccount, showId=true}) => {
-    const cn = "mb-2 w-full rounded-lg border border-neutral-500 px-4 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]";
+    const cn = "mb-2 w-full rounded-lg border border-neutral-500 px-4 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  custom-shadow";
     return (
         <> 
         {accounts.length > 0 ? 

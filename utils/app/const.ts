@@ -14,32 +14,9 @@ export const COMMON_DISALLOWED_FILE_EXTENSIONS = [
 
 export const IMAGE_FILE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
-export const OPENAI_API_HOST =
-  process.env.OPENAI_API_HOST || 'https://api.openai.com';
+export const DEFAULT_TEMPERATURE = 1;
 
-export const AZURE_API_NAME =
-    process.env.AZURE_API_NAME || 'openai';
-
-export const DEFAULT_TEMPERATURE = 
-  parseFloat(process.env.NEXT_PUBLIC_DEFAULT_TEMPERATURE || "1");
-
-export const OPENAI_API_TYPE =
-  process.env.OPENAI_API_TYPE || 'openai';
-
-export const AVAILABLE_MODELS =
-    process.env.AVAILABLE_MODELS || '';
-
-export const OPENAI_API_VERSION =
-  process.env.OPENAI_API_VERSION || '2023-03-15-preview';
-
-export const OPENAI_ORGANIZATION =
-  process.env.OPENAI_ORGANIZATION || '';
-
-export const AZURE_DEPLOYMENT_ID =
-  process.env.AZURE_DEPLOYMENT_ID || '';
-
-
-  export const ARTIFACTS_PROMPT = `
+export const ARTIFACTS_PROMPT = `
 
 Custom Instructions for Artifact Handling
 

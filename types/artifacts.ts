@@ -7,6 +7,7 @@ export interface Artifact {
     contents: number[]; // will be encoded
     tags: string[];
     createdAt: string;
+    metadata?: {[key: string]: any};
 }
 
 //used for artifact block 

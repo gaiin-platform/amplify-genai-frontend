@@ -5,11 +5,10 @@ import { useTranslation } from 'next-i18next';
 import { useCreateReducer } from '@/hooks/useCreateReducer';
 
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
-import { saveConversations } from '@/utils/app/conversation';
+import { saveConversations, isLocalConversation, isRemoteConversation, deleteConversationCleanUp } from '@/utils/app/conversation';
 
 import { Conversation } from '@/types/chat';
 import { SupportedExportFormats } from '@/types/export';
-import { ModelID, Models, fallbackModelID } from '@/types/model';
 
 import HomeContext from '@/pages/api/home/home.context';
 
@@ -21,12 +20,13 @@ import { ChatbarInitialState, initialState } from './Chatbar.state';
 
 import { v4 as uuidv4 } from 'uuid';
 import {FolderInterface, SortType} from "@/types/folder";
-import { getIsLocalStorageSelection, isLocalConversation, isRemoteConversation } from '@/utils/app/conversationStorage';
+import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation } from '@/services/remoteConversationService';
 import { uncompressMessages } from '@/utils/app/messages';
 import { getDateName } from '@/utils/app/date';
 import React from 'react';
 import Sidebar from '../Sidebar/Sidebar';
+import { DefaultModels } from '@/types/model';
 
 
 export const Chatbar = () => {
@@ -37,12 +37,13 @@ export const Chatbar = () => {
   });
 
   const {
-    state: { conversations, showChatbar, defaultModelId, statsService, folders, storageSelection},
+    state: { conversations, showChatbar, statsService, folders, storageSelection},
     dispatch: homeDispatch,
     handleCreateFolder,
     handleNewConversation,
     handleUpdateConversation,
-    handleSelectConversation
+    handleSelectConversation,
+    getDefaultModel
   } = useContext(HomeContext);
 
   const conversationsRef = useRef(conversations);
@@ -88,8 +89,7 @@ export const Chatbar = () => {
   };
 
   const handleDeleteConversation = (conversation: Conversation) => {
-
-    if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
+    deleteConversationCleanUp(conversation);
     
     const updatedConversations = conversationsRef.current.filter(
       (c: Conversation) => c.id !== conversation.id,
@@ -99,39 +99,39 @@ export const Chatbar = () => {
 
     const updatedLength = updatedConversations.length;
     if (updatedLength > 0) {
-    let lastConversation = updatedConversations[updatedLength - 1];
-    
-
-    let selectedConversation: Conversation = {...lastConversation};
-    if (lastConversation.name !== 'New Conversation' && (conversation.name !== 'New Conversation')) { // handle if you delete this new conversation 
+      let lastConversation = updatedConversations[updatedLength - 1];
       
-      const date = getDateName();
 
-      // See if there is a folder with the same name as the date
-      let folder = foldersRef.current.find((f: FolderInterface) => f.name === date);
-      if (!folder) {
-          folder = handleCreateFolder(date, "chat");
+      let selectedConversation: Conversation = {...lastConversation};
+      if (lastConversation.name !== 'New Conversation' && (conversation.name !== 'New Conversation')) { // handle if you delete this new conversation 
+        
+        const date = getDateName();
+
+        // See if there is a folder with the same name as the date
+        let folder = foldersRef.current.find((f: FolderInterface) => f.name === date);
+        if (!folder) {
+            folder = handleCreateFolder(date, "chat");
+        }
+
+        const newConversation: Conversation = {
+          id: uuidv4(),
+          name: t('New Conversation'),
+          messages: [],
+          model: lastConversation?.model ?? getDefaultModel(DefaultModels.DEFAULT),
+          prompt: DEFAULT_SYSTEM_PROMPT,
+          temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
+          folderId: folder.id,
+          promptTemplate: null
+        };
+        updatedConversations.push(newConversation)
+        selectedConversation = {...newConversation}
+        
       }
-      
-      const newConversation: Conversation = {
-        id: uuidv4(),
-        name: t('New Conversation'),
-        messages: [],
-        model: lastConversation?.model ?? Models[defaultModelId as ModelID],
-        prompt: DEFAULT_SYSTEM_PROMPT,
-        temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
-        folderId: folder.id,
-        promptTemplate: null
-      };
-      updatedConversations.push(newConversation)
-      selectedConversation = {...newConversation}
-    }
 
-    localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
-    handleSelectConversation(selectedConversation);
+      localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
+      handleSelectConversation(selectedConversation);
 
     } else {
-      defaultModelId &&
       homeDispatch({
           field: 'selectedConversation',
           value: {
@@ -161,7 +161,7 @@ export const Chatbar = () => {
   };
 
   const handleDrop = (e: any) => {
-    if (e.dataTransfer) {
+    if (e.dataTransfer && e.dataTransfer.getData('conversation')) {
       const conversation = JSON.parse(e.dataTransfer.getData('conversation'));
       handleUpdateConversation(conversation, { key: 'folderId', value: 0 });
       chatDispatch({ field: 'searchTerm', value: '' });

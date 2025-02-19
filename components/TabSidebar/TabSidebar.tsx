@@ -1,7 +1,8 @@
 import React, { useState, useEffect, ReactNode, useContext, useRef } from 'react';
 import { CloseSidebarButton, OpenSidebarButton } from "@/components/Sidebar/components/OpenCloseButton";
 import HomeContext from '@/pages/api/home/home.context';
-import { AssistantAdminUI, CreateAdminDialog } from '../Admin/AssistantAdminUI';
+import { AssistantAdminUI } from '../Admin/AssistantAdminUI';
+import { AdminUI } from '../Admin/AdminUI';
 
 interface TabProps {
     icon: ReactNode;
@@ -15,7 +16,7 @@ export const Tab: React.FC<TabProps> = ({ icon, children }) => (
 
 interface TabSidebarProps {
     side: 'left' | 'right';
-    children: React.ReactElement<TabProps> | React.ReactElement<TabProps>[];
+    children: (React.ReactElement<TabProps> | null)[] | React.ReactElement<TabProps> | null;
     footerComponent?: ReactNode;
 }
 
@@ -26,41 +27,89 @@ const isMobileBrowser = () => {
 };
 
 export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerComponent }) => {
-    const { state: { page, syncingPrompts }, dispatch: homeDispatch } = useContext(HomeContext);
+    const { state: { featureFlags }, dispatch: homeDispatch } = useContext(HomeContext);
+    const featureFlagsRef = useRef(featureFlags);
+
+    useEffect(() => {
+        featureFlagsRef.current = featureFlags;
+        window.dispatchEvent(new Event('updateFeatureSettings'));
+    }, [featureFlags]);
+
     const [activeTab, setActiveTab] = useState(0);
     // Set the initial state based on whether the user is on a mobile browser
     const [isOpen, setIsOpen] = useState(!isMobileBrowser());
     const [showAssistantAdmin, setShowAssistantAdmin] = useState<boolean>(false);
+    const [showAdminInterface, setShowAdminInterface] = useState<boolean>(false);
+
     const [isArtifactsOpen, setIsArtifactsOpen] = useState<boolean>(false);
     const [groupModalData, setGroupModalData] = useState<any>(undefined);
 
+    const childrenArray = React.Children.toArray(children) 
+                                        .filter((child): child is React.ReactElement<TabProps> => 
+                                            React.isValidElement(child) && child !== null
+                                        ); 
+    const chatSide = () => side === 'left';
 
-    const childrenArray = React.Children.toArray(children) as React.ReactElement<TabProps>[]; // here we assert that all children are ReactElements
-    const toggleOpen = () => setIsOpen(!isOpen);
+    const toggleOpen = () => {
+        const updateIsOpen = !isOpen;
+        setIsOpen(updateIsOpen);
+        homeDispatch({ field: chatSide() ? 'showChatbar' : 'showPromptbar', 
+                       value: updateIsOpen });
+    }
 
     const isMultipleTabs = childrenArray.length > 1;
 
+    const handleAdmin = (isOpen: boolean) => {
+        if (isOpen && isArtifactsOpen) window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false }} ));
+        setIsOpen(!isOpen);
+    }
 
     useEffect(() => {
-        const handleAdminEvent = (event:any) => {
+        const handleAstAdminEvent = (event:any) => {
+            if (!featureFlagsRef.current.assistantAdminInterface) return;
             const isAdminOpen = event.detail.isOpen;
-            if (isAdminOpen && isArtifactsOpen)  window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false }} ));
+            handleAdmin(isAdminOpen);
             setGroupModalData(event.detail.data);
-
-            setIsOpen(!isAdminOpen);
             setShowAssistantAdmin(isAdminOpen);  
-
         };
+
+        const handleAdminEvent = (event:any) => {
+            if (!featureFlagsRef.current.adminInterface) return;
+            const isAdminOpen = event.detail.isOpen;
+            handleAdmin(isAdminOpen);
+            setShowAdminInterface(isAdminOpen);  
+        };
+
         const handleArtifactEvent = (event:any) => {
             const isArtifactsOpen = event.detail.isOpen;
             setIsOpen(!isArtifactsOpen);
             setIsArtifactsOpen(isArtifactsOpen);
         };
-        window.addEventListener('openAstAdminInterfaceTrigger', handleAdminEvent);
+
+        const handleTabSwitchEvent = (event:any) => {
+            if (isMultipleTabs) {
+                const eventSide = event.detail.side;
+                if (side === eventSide && !isOpen) setIsOpen(true);
+                if (eventSide === 'right' && isArtifactsOpen) setIsArtifactsOpen(false);
+                
+                const switchToIndex = childrenArray.findIndex(
+                    (child) => child.props.title === event.detail.tab
+                );
+                setActiveTab(switchToIndex);
+            }
+        };
+
+        window.addEventListener('openAstAdminInterfaceTrigger', handleAstAdminEvent);
+        window.addEventListener('openAdminInterfaceTrigger', handleAdminEvent);
         window.addEventListener('openArtifactsTrigger', handleArtifactEvent);
+        window.addEventListener('homeChatBarTabSwitch', handleTabSwitchEvent);
+
         return () => {
-            window.removeEventListener('openAstAdminInterfaceTrigger', handleAdminEvent);
+            window.removeEventListener('openAstAdminInterfaceTrigger', handleAstAdminEvent);
+            window.removeEventListener('openAdminInterfaceTrigger', handleAdminEvent);
             window.removeEventListener('openArtifactsTrigger', handleArtifactEvent);
+            window.removeEventListener('homeChatBarTabSwitch', handleTabSwitchEvent);
+
         };
     }, []);
 
@@ -69,9 +118,10 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
         if ( isOpen) setShowAssistantAdmin(false);
     }, [isOpen]);
 
+
     return isOpen ? (
         
-        <div className={`fixed top-0 ${side}-0 flex h-full w-[280px] flex-none ${side === 'left' ? 'border-r dark:border-r-[#202123]' : 'border-l dark:border-l-[#202123]'}
+        <div className={`fixed top-0 ${side}-0 flex h-full w-[280px] flex-none ${chatSide()? 'border-r dark:border-r-[#202123]' : 'border-l dark:border-l-[#202123]'}
             flex-col space-y-0 bg-white text-black dark:text-white bg-[#f3f3f3] dark:bg-[#202123] text-[14px] sm:relative sm:top-0`} 
             
             style={{
@@ -101,13 +151,22 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
     ) : (
         //if we are going to use collapse side bars, interface takes up whole page, we can list the item here 
         <>
-        {(isArtifactsOpen && side === 'left' || !isArtifactsOpen) && <OpenSidebarButton onClick={toggleOpen} side={side} isDisabled={showAssistantAdmin}/>}
+        {(isArtifactsOpen && chatSide() || !isArtifactsOpen) && <OpenSidebarButton onClick={toggleOpen} side={side} isDisabled={showAssistantAdmin || showAdminInterface}/>}
         
-        <AssistantAdminUI
-            open={showAssistantAdmin && side === 'left'}
+        {featureFlagsRef.current.assistantAdminInterface && 
+         <AssistantAdminUI
+            open={showAssistantAdmin && chatSide()}
             openToGroup={groupModalData?.group}
             openToAssistant={groupModalData?.assistant}
-        />
+        /> }
+
+        {featureFlagsRef.current.adminInterface && 
+        <AdminUI
+            open={showAdminInterface && chatSide()}
+            onClose={() => {
+                window.dispatchEvent(new CustomEvent('openAdminInterfaceTrigger', { detail: { isOpen: false }} ));
+            }  }
+        />}
         </>
         
     );

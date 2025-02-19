@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+
 ::-webkit-scrollbar-track {
   background-color: transparent;
 }
@@ -40,4 +41,31 @@ html {
 
 pre:has(div.codeblock) {
   padding: 0;
+}
+
+
+.custom-shadow {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .custom-shadow {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+}
+
+
+
+/* Light mode (default) */
+@media (prefers-color-scheme: light) {
+  .chat-button-blue-color {
+    color: #1dbff5; 
+  }
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .chat-button-blue-color {
+    color: #8edffa; 
+  }
 }

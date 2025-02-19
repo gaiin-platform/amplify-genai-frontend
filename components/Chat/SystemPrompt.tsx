@@ -54,7 +54,7 @@ export const SystemPrompt: FC<Props> = ({
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
-    const maxLength = conversation.model.maxLength;
+    const maxLength = conversation.model.inputContextWindow;
 
     if (value.length > maxLength) {
       alert(
@@ -205,7 +205,7 @@ export const SystemPrompt: FC<Props> = ({
       </label>
 
       <select
-          className="w-full rounded-lg border border-neutral-200 bg-transparent px-4 py-3 text-neutral-900 dark:border-neutral-600 dark:text-neutral-100 shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
+          className="w-full rounded-lg border border-neutral-200 bg-transparent px-4 py-3 text-neutral-900 dark:border-neutral-600 dark:text-neutral-100 custom-shadow"
         onChange={(e) => {
           setSelectedPromptId(e.target.value);
           if(e.target.value === "default") {

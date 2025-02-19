@@ -313,3 +313,21 @@ export const describeAsJsonSchema = (obj:any, id = 'root') => {
         return {};
     }
 }
+
+
+export const transformPayload = {
+    encode: (data: any): string => {
+        const str = JSON.stringify(data);
+        return Buffer.from(str).toString('base64');
+    },
+    
+    decode: (encoded: string): any => {
+        const str = Buffer.from(encoded, 'base64').toString();
+        return JSON.parse(str);
+    }
+};
+
+
+export const capitalize = (label: string) => {
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }

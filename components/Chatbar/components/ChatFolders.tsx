@@ -39,10 +39,8 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
           }) : folders;
 
 
-
-
   const handleDrop = (e: any, folder?: FolderInterface) => {
-    if (e.dataTransfer) {
+    if (e.dataTransfer && e.dataTransfer.getData('conversation')) {
       const conversation = JSON.parse(e.dataTransfer.getData('conversation'));
       handleUpdateConversation(conversation, {
         key: 'folderId',

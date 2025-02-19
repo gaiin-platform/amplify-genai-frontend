@@ -4,7 +4,6 @@ import { IconPlus, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, Icon
 import HomeContext from '@/pages/api/home/home.context';
 import ExpansionComponent from '../../Chat/ExpansionComponent';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
-import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
 import { Account, noCoaAccount } from '@/types/accounts';
 import { createApiKey, deactivateApiKey, fetchApiDoc, fetchApiKey, updateApiKeys } from '@/services/apiKeysService';
 import { ApiKey } from '@/types/apikeys';
@@ -18,17 +17,18 @@ import cloneDeep from 'lodash/cloneDeep';
 import { Prompt } from '@/types/prompt';
 import { isAssistant } from '@/utils/app/assistants';
 import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
-import { APIDownloadFile, fetchFile } from '@/components/Chat/ChatContentBlocks/APIDocBlock';
+import { APIDownloadFile } from '@/components/Chat/ChatContentBlocks/APIDocBlock';
 import { ReservedTags } from '@/types/tags';
 import toast from 'react-hot-toast';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { InfoBox } from '@/components/ReusableComponents/InfoBox';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
+import { fetchFile } from '@/utils/app/files';
 
 interface Props {
     apiKeys: ApiKey[];
     setApiKeys: (k:ApiKey[]) => void;
-    setUnsavedChanged: (b: boolean) => void;
+    setUnsavedChanges: (b: boolean) => void;
     onClose: () => void;
     accounts: Account[];
     defaultAccount: Account;
@@ -57,15 +57,15 @@ const formatAccessType = (accessType: string) => {
     return String(accessType).replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())                                                          
 }
 
-export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onClose, accounts, defaultAccount}) => {
-    const { state: {featureFlags, statsService}, dispatch: homeDispatch } = useContext(HomeContext);
+export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onClose, accounts, defaultAccount}) => {
+    const { state: {featureFlags, statsService, amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
 
     const { data: session } = useSession();
     const user = session?.user?.email;
 
 
     const { t } = useTranslation('settings');
-    const [validAccounts, setValidAccounts] = useState<any>(accounts.filter((a: Account) => a.id !== noCoaAccount.id && isValidCOA(a.id)));
+    const [validAccounts, setValidAccounts] = useState<any>(accounts.filter((a: Account) => a.id !== noCoaAccount.id));
 
     const [ownerApiKeys, setOwnerApiKeys] = useState<ApiKey[]>([]);
     const [delegateApiKeys, setDelegateApiKeys] = useState<ApiKey[]>([]);
@@ -82,7 +82,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
     const [includeExpiration, setIncludeExpiration] = useState<boolean>(false);
     const [systemUse, setSystemUse] = useState<boolean>(false);
     
-    const [selectedAccount, setSelectedAccount] = useState<Account | null>(defaultAccount.name === noCoaAccount.name || !isValidCOA(defaultAccount.id)? validAccounts[0] || null : defaultAccount);
+    const [selectedAccount, setSelectedAccount] = useState<Account | null>(defaultAccount.name === noCoaAccount.name ? validAccounts[0] || null : defaultAccount);
 
     const [editedKeys, setEditedKeys] = useState<any>({});
 
@@ -95,7 +95,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
     
     useEffect(() => {
         const handleEvent = (event: any) => {
-            setUnsavedChanged(true);
+            setUnsavedChanges(true);
             console.log("editedApiKey was triggered", event.detail);
             const apiKeyId = event.detail.id;
             const updates = event.detail.edits; 
@@ -133,8 +133,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
 
     useEffect(() => {
         const fetchEmails = async () => {
-            const emailSuggestions = await fetchEmailSuggestions("*");
-            setAllEmails(emailSuggestions.emails ? emailSuggestions.emails.filter((e: string) => e !== user) : []);
+            const emailSuggestions =  amplifyUsers;
+            setAllEmails(emailSuggestions ? emailSuggestions.filter((e: string) => e !== user) : []);
         };
         if (!allEmails) fetchEmails();
     }, []);
@@ -170,6 +170,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
 
         //done first for preloadeding keys while user handles alert 
         if (sucess) {
+            setApiKeys([]);
             statsService.createApiKeyEvent(data);
             setDelegateApiKeys([]);
             setOwnerApiKeys([]);
@@ -216,13 +217,14 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
             alert('failedKeys' in result ? `API keys: ${result.failedKeys.join(", ")} failed to update. Please try again.` : "We are unable to update your key(s) at this time...")
         } else {
             statsService.updateApiKeyEvent(Object.values(editedKeys));
+            setUnsavedChanges(false);
+            toast("API changes saved.");
         }
     };
 
     const handleSave = async () => {
         setIsSaving(true);
-        if (Object.keys(editedKeys).length !== 0) handleApplyEdits();
-        setUnsavedChanged(false);
+        if (Object.keys(editedKeys).length !== 0) await handleApplyEdits();
         setIsSaving(false);
     };
 
@@ -273,7 +275,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                 
 
             </div>
-            <div className='border p-2 border-gray-400 dark:border-gray-700 rounded shadow-[0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.3)]' >
+            <div className='border p-2 border-gray-400 dark:border-gray-700 rounded custom-shadow' >
                 <ExpansionComponent 
                     title={'Create API Key'} 
                     content={
@@ -308,7 +310,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                             />
                                         </div>
 
-                                        <div className='ml-8 mr-8 relative sm:min-w-[300px] sm:max-w-[440px]' style={{width: `${window.innerWidth * 0.35 }px` }}>
+                                        { !docsIsOpen && <div className='ml-8 mr-8 relative sm:min-w-[300px] sm:max-w-[440px]' style={{width: `${window.innerWidth * 0.35 }px` }}>
 
                                             <ExpansionComponent 
                                                 title={'Add Delegate'} 
@@ -325,7 +327,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                                 }
                                                 closedWidget= { <IconPlus size={18} />}
                                             />
-                                      </div>
+                                      </div>}
                                    </div>
 
 
@@ -348,12 +350,12 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                 <label className="text-sm mt-1 w-[48px] ml-2 " htmlFor="BillTo">Bill To</label>
                                 <AccountSelect
                                     accounts={validAccounts}
-                                    defaultAccount={defaultAccount}
+                                    defaultAccount={selectedAccount || defaultAccount}
                                     setDefaultAccount={setSelectedAccount}
                                 />
                                 </div>
                             
-                            <div className='flex flex-row justify-between mx-8 py-1'>
+                            { !docsIsOpen && <div className='flex flex-row justify-between mx-8 py-1'>
                                 <div className='flex flex-row gap-4' style={{ width: '240px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}>
                                     <label className="text-sm mt-1" htmlFor="rateLimitType">Rate Limit</label>
                                     <RateLimiter
@@ -396,7 +398,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanged, onC
                                 </div>
                                 
                                 
-                            </div>
+                            </div>}
                             <div className='flex flex-row py-1 '>
                                 <div className='py-1 w-full' title='Full Access is the default configuration.'>
                                     <ExpansionComponent 
@@ -891,7 +893,7 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
     }, [options]);
 
     return (
-         <div className='flex flex-row gap-2' >
+         <div className='flex flex-row gap-2 text-xs' >
             <input type="checkbox" checked={fullAccess} onChange={(e) => {
                     const checked = e.target.checked;
                     setFullAccess(checked);
@@ -902,9 +904,9 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
                         }, {} as Record<string, boolean>)
                     );
                 }} />
-            <label className="text-sm mr-3" htmlFor="FullAccess">Full Access</label>
+            <label className="mr-3 whitespace-nowrap" htmlFor="FullAccess">Full Access</label>
             {Object.keys(options).map((key: string) => (
-                <div key={key}>
+                <div key={key} className='whitespace-nowrap'>
                 <input type="checkbox" checked={options[key]} onChange={() => {
                     setOptions((prevOptions:any) => {
                         const newOptions = { ...prevOptions, [key]: !prevOptions[key] };
@@ -913,7 +915,7 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
                     })
                 }}/>
 
-                <label className="text-sm ml-2 mr-3" htmlFor={key}>{formatAccessType(key)}</label>
+                <label className="ml-2 mr-3 " htmlFor={key}>{formatAccessType(key)}</label>
 
                 </div>
             ))}
@@ -1079,7 +1081,10 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
 
 
             {showApiDoc && !isLoading &&  (
-                <div className="absolute inset-0 flex items-center justify-start z-60">
+                <div className="absolute inset-0 flex items-center justify-star"
+                style={{
+                    zIndex: '60 !important'
+                  }}>
                     <div className="p-3 flex flex-col items-center  border border-gray-500 bg-neutral-100 dark:bg-[#202123]"
                         style={{width: `${window.innerWidth}px`, height: `${window.innerHeight * 0.9}px`}}>
                             

@@ -24,153 +24,6 @@ interface Props {
     groupId?:string;
 }
 
-const handleAsZip = (file: File): Promise<any[]> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            if (e.target?.result) {
-                try {
-                    const zip = new JSZip();
-                    // @ts-ignore
-                    const contents = await zip.loadAsync(e.target.result);
-                    const extractedFilesPromises: any[] = [];
-
-                    contents.forEach(async (relativePath, zipEntry) => {
-
-                        console.log("zipEntry", zipEntry);
-
-                        if (!zipEntry.dir) {
-                            extractedFilesPromises.push(
-                                zipEntry.async('blob').then((blobContent) => {
-                                    if (blobContent) {
-                                        const file = new File([blobContent], relativePath);
-                                        // @ts-ignore
-                                        const handler = handlersByType[file.type] || handlersByType['*'];
-
-                                        // @ts-ignore
-                                        console.log(`${file.name}:${file.type}:${handler != null}`)
-
-                                        return handler ? handler(file) : undefined;
-                                    }
-                                })
-                            );
-                        }
-                    });
-
-                    const extractedFiles = await Promise.all(extractedFilesPromises);
-
-                    console.log("extractedFiles", extractedFiles);
-
-                    resolve(extractedFiles);
-
-                } catch (e) {
-                    reject(new Error("Failed to extract zip file."));
-                }
-            } else {
-                reject(new Error("Failed to read the file."));
-            }
-        };
-
-        reader.onerror = (e) => {
-            reject(new Error("Failed to read the file."));
-        };
-
-        reader.readAsArrayBuffer(file);
-    });
-};
-
-
-
-const handlePdf = (file:any):Promise<AttachedDocument> => {
-    return new Promise((resolve, reject) => {
-    if (file.type === "application/pdf") {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            if (typeof e.target?.result === "string") {
-                pdfjs.GlobalWorkerOptions.workerSrc =
-                    '//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.10.111/pdf.worker.min.js';
-
-                let loadingTask = getDocument(e.target.result);
-                loadingTask.promise.then(async function(pdf: { numPages: number; getPage: (arg0: number) => any; }) {
-                    // fetches data from each page
-                    let allText = "";
-                    let pages = [];
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        let text = '';
-                        let page = await pdf.getPage(i);
-                        let data = await page.getTextContent();
-                        // @ts-ignore
-                        let strings = data.items.map(item => item.str);
-                        text += strings.join(' ');
-                        pages.push(text);
-                        allText += text;
-                    }
-
-                    resolve({id:uuidv4(), name:file.name, type:file.type, raw:allText, data:pages});
-                }).catch((error: any) => {
-                    reject(error);
-                });
-            }
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    } else {
-        reject(new Error("Unsupported file type. Please upload a PDF file."));
-    }});
-}
-
-
-const handleAsDocx = (file:any) => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const arrayBuffer = event.target?.result;
-            if(arrayBuffer) {
-                // @ts-ignore
-                mammoth.extractRawText({arrayBuffer: arrayBuffer})
-                    .then(function (result) {
-                        const data = {id:uuidv4(), name:file.name, type:file.type, raw:result.value, data:result.value}
-                        resolve(data); // The raw text
-                    });
-            }
-        };
-
-        reader.readAsArrayBuffer(file);
-    });
-}
-
-
-const handleAsText = (processor:any, file: any):Promise<AttachedDocument> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            let result = (e.target?.result as string);
-            let data = (processor) ? processor(result) : result;
-
-            resolve({id:uuidv4(), name:file.name, type:file.type, raw:result, data:data});
-        };
-        reader.onerror = (e) => {
-            reject(new Error("Failed to read the file."));
-        };
-        reader.readAsText(file);
-    });
-}
-
-
-const handlersByType = {
-    "application/zip": handleAsZip,
-    "application/pdf":handlePdf,
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document":handleAsDocx,
-    "application/json":(file:any)=>{return handleAsText(JSON.parse, file)},
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":(file:any)=>{
-        console.log("Read excel");
-      return readXlsxFile(file).then((value)=>{
-         console.log("Rows:"+value.length);
-         return {name:file.name, type:file.type, raw:value, data:value};
-      });
-    },
-    "*":(file:any)=>{return handleAsText(null, file)}
-}
 
 const handleFile = async (file:any,
                           onAttach:any,
@@ -179,11 +32,16 @@ const handleFile = async (file:any,
                           onSetMetadata:any,
                           onSetAbortController:any,
                           uploadDocuments:boolean,
-                          extractDocumentsLocally:boolean,
+                        //   extractDocumentsLocally:boolean,
                         groupId:string | undefined) => {
 
     try {
         let type:string = file.type;
+        const extension = file.name.split('.').pop()?.toLowerCase();
+
+        if (!type && (extension === 'ts' || extension === 'tsx')) {
+            type = 'application/octet-stream'; // AWS S3 expects typescript files to be this type
+        }
 
         let size = file.size;
         const fileName = file.name.replace(/[_\s]+/g, '_');;
@@ -191,17 +49,17 @@ const handleFile = async (file:any,
         let document:AttachedDocument = {id:uuidv4(), name: fileName, type:file.type, raw:"", data:"", groupId:groupId};
 
 
-
-        const enforceMaxFileSize = false;
-        if(extractDocumentsLocally && (size < 524289 || !enforceMaxFileSize)){
-            // @ts-ignore
-            let handler = handlersByType[type] || handlersByType['*'];
-            document = await handler(file);
-        }
-        else if(extractDocumentsLocally && !uploadDocuments) {
-            alert("This file is too large to send in a prompt.");
-            return;
-        }
+        // not in use
+        // const enforceMaxFileSize = false;
+        // if(extractDocumentsLocally && (size < 524289 || !enforceMaxFileSize)){
+        //     // @ts-ignore
+        //     let handler = handlersByType[type] || handlersByType['*'];
+        //     document = await handler(file);
+        // }
+        // else if(extractDocumentsLocally && !uploadDocuments) {
+        //     alert("This file is too large to send in a prompt.");
+        //     return;
+        // }
 
         if (Array.isArray(document)) {
             document.forEach(
@@ -214,7 +72,7 @@ const handleFile = async (file:any,
         if(uploadDocuments) {
             try {
 
-                const {key, response, statusUrl, metadataUrl, contentUrl, abortController} = await addFile({id: uuidv4(), name: fileName, raw: "", type: file.type, data: "", groupId}, file,
+                const {key, response, statusUrl, metadataUrl, contentUrl, abortController} = await addFile({id: uuidv4(), name: fileName, raw: "", type: type, data: "", groupId}, file,
                     (progress: number) => {
                         if (onUploadProgress && progress < 95) {
                             onUploadProgress(document, progress);
@@ -286,9 +144,7 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
 
     const {state: { featureFlags, statsService } } = useContext(HomeContext);
 
-    const uploadDocuments = featureFlags.uploadDocuments
-    const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
-
+    const uploadDocuments = featureFlags.uploadDocuments;
 
     return (
         <>
@@ -334,9 +190,9 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
                   return;
                 }
     
-                statsService.attachFileEvent(file, uploadDocuments, extractDocumentsLocally);
+                statsService.attachFileEvent(file, uploadDocuments);
     
-                handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, onSetAbortController, uploadDocuments, extractDocumentsLocally, groupId);
+                handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, onSetAbortController, uploadDocuments, groupId);  //extractDocumentsLocally,
               });
     
               e.target.value = ''; // Clear the input after files are handled
@@ -359,3 +215,158 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
         </>
       );
     };
+
+
+
+
+
+// document contents are extracted in backend, this is currently not in use:
+
+
+// const handleAsZip = (file: File): Promise<any[]> => {
+//     return new Promise((resolve, reject) => {
+//         const reader = new FileReader();
+//         reader.onload = async (e) => {
+//             if (e.target?.result) {
+//                 try {
+//                     const zip = new JSZip();
+//                     // @ts-ignore
+//                     const contents = await zip.loadAsync(e.target.result);
+//                     const extractedFilesPromises: any[] = [];
+
+//                     contents.forEach(async (relativePath, zipEntry) => {
+
+//                         console.log("zipEntry", zipEntry);
+
+//                         if (!zipEntry.dir) {
+//                             extractedFilesPromises.push(
+//                                 zipEntry.async('blob').then((blobContent) => {
+//                                     if (blobContent) {
+//                                         const file = new File([blobContent], relativePath);
+//                                         // @ts-ignore
+//                                         const handler = handlersByType[file.type] || handlersByType['*'];
+
+//                                         // @ts-ignore
+//                                         console.log(`${file.name}:${file.type}:${handler != null}`)
+
+//                                         return handler ? handler(file) : undefined;
+//                                     }
+//                                 })
+//                             );
+//                         }
+//                     });
+
+//                     const extractedFiles = await Promise.all(extractedFilesPromises);
+
+//                     console.log("extractedFiles", extractedFiles);
+
+//                     resolve(extractedFiles);
+
+//                 } catch (e) {
+//                     reject(new Error("Failed to extract zip file."));
+//                 }
+//             } else {
+//                 reject(new Error("Failed to read the file."));
+//             }
+//         };
+
+//         reader.onerror = (e) => {
+//             reject(new Error("Failed to read the file."));
+//         };
+
+//         reader.readAsArrayBuffer(file);
+//     });
+// };
+
+
+
+// const handlePdf = (file:any):Promise<AttachedDocument> => {
+//     return new Promise((resolve, reject) => {
+//     if (file.type === "application/pdf") {
+//         const reader = new FileReader();
+//         reader.onload = async (e) => {
+//             if (typeof e.target?.result === "string") {
+//                 pdfjs.GlobalWorkerOptions.workerSrc =
+//                     '//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.10.111/pdf.worker.min.js';
+
+//                 let loadingTask = getDocument(e.target.result);
+//                 loadingTask.promise.then(async function(pdf: { numPages: number; getPage: (arg0: number) => any; }) {
+//                     // fetches data from each page
+//                     let allText = "";
+//                     let pages = [];
+//                     for (let i = 1; i <= pdf.numPages; i++) {
+//                         let text = '';
+//                         let page = await pdf.getPage(i);
+//                         let data = await page.getTextContent();
+//                         // @ts-ignore
+//                         let strings = data.items.map(item => item.str);
+//                         text += strings.join(' ');
+//                         pages.push(text);
+//                         allText += text;
+//                     }
+
+//                     resolve({id:uuidv4(), name:file.name, type:file.type, raw:allText, data:pages});
+//                 }).catch((error: any) => {
+//                     reject(error);
+//                 });
+//             }
+//         };
+//         reader.onerror = reject;
+//         reader.readAsDataURL(file);
+//     } else {
+//         reject(new Error("Unsupported file type. Please upload a PDF file."));
+//     }});
+// }
+
+
+// const handleAsDocx = (file:any) => {
+//     return new Promise((resolve, reject) => {
+//         const reader = new FileReader();
+//         reader.onload = function(event) {
+//             const arrayBuffer = event.target?.result;
+//             if(arrayBuffer) {
+//                 // @ts-ignore
+//                 mammoth.extractRawText({arrayBuffer: arrayBuffer})
+//                     .then(function (result) {
+//                         const data = {id:uuidv4(), name:file.name, type:file.type, raw:result.value, data:result.value}
+//                         resolve(data); // The raw text
+//                     });
+//             }
+//         };
+
+//         reader.readAsArrayBuffer(file);
+//     });
+// }
+
+
+// const handleAsText = (processor:any, file: any):Promise<AttachedDocument> => {
+//     return new Promise((resolve, reject) => {
+//         const reader = new FileReader();
+//         reader.onload = (e) => {
+//             let result = (e.target?.result as string);
+//             let data = (processor) ? processor(result) : result;
+
+//             resolve({id:uuidv4(), name:file.name, type:file.type, raw:result, data:data});
+//         };
+//         reader.onerror = (e) => {
+//             reject(new Error("Failed to read the file."));
+//         };
+//         reader.readAsText(file);
+//     });
+// }
+
+
+// const handlersByType = {
+//     "application/zip": handleAsZip,
+//     "application/pdf":handlePdf,
+//     "application/vnd.openxmlformats-officedocument.wordprocessingml.document":handleAsDocx,
+//     "application/json":(file:any)=>{return handleAsText(JSON.parse, file)},
+//     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":(file:any)=>{
+//         console.log("Read excel");
+//       return readXlsxFile(file).then((value)=>{
+//          console.log("Rows:"+value.length);
+//          return {name:file.name, type:file.type, raw:value, data:value};
+//       });
+//     },
+//     "*":(file:any)=>{return handleAsText(null, file)}
+// }

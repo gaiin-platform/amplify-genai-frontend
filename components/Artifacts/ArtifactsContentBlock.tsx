@@ -7,7 +7,7 @@ import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
 import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
 import {useArtifactPromptFinderService} from "@/hooks/usePromptFinderArtifactService";
 import {parsePartialJson} from "@/utils/app/data";
-import {useContext, useEffect, useState} from "react";
+import {useContext, useEffect, useRef, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import { Artifact } from "@/types/artifacts";
 import { lzwUncompress } from "@/utils/app/lzwCompression";
@@ -19,12 +19,13 @@ interface Props {
     selectedArtifact: Artifact;
     artifactId: string;
     versionIndex: number;
+    artifactEndRef: React.RefObject<HTMLDivElement>;
     // handleCustomLinkClick: (message:Message, href: string) => void,
 }
 
-export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artifactIsStreaming, artifactId, versionIndex}) => {
+export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artifactIsStreaming, artifactId, versionIndex, artifactEndRef}) => {
 
-    const { state: { featureFlags} } = useContext(HomeContext);
+    const { state: { featureFlags} } = useContext(HomeContext); 
 
     const {getOutputTransformers} = useArtifactPromptFinderService();
 
@@ -57,7 +58,7 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
     }, []);
     
     return (
-    <div className="artifactContentBlock w-full p-2" 
+    <div className="artifactContentBlock w-full p-2 " 
         data-artifact-id={artifactId}
         data-version-index={versionIndex}
         data-original-content={transformedMessageContent}
@@ -190,6 +191,7 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
     >
         {`${transformedMessageContent}${artifactIsStreaming && !document.querySelector('.highlight-pulse') ? '`▍`' : ''}`}
     </MemoizedReactMarkdown>
+    <div ref={artifactEndRef}> </div>
     </div>);
 
 };

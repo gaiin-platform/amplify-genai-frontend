@@ -9,6 +9,7 @@ import {useSession} from "next-auth/react";
 import { uncompressMessages } from "@/utils/app/messages";
 import { ApiKey } from "@/types/apikeys";
 import { Settings } from "@/types/settings";
+import { capitalize } from "@/utils/app/data";
 
 let eventServiceReady = false;
 
@@ -31,7 +32,7 @@ const useEventService = (mixPanelToken:string) => {
 
     function camelToSentenceCase(input: string): string {
         const result = input.replace(/([A-Z])/g, " $1");
-        return result.charAt(0).toUpperCase() + result.slice(1);
+        return capitalize(result);
     }
 
     function keep(mapObject: any, keysToKeep: string[]): any {
@@ -92,7 +93,8 @@ const useEventService = (mixPanelToken:string) => {
 
     const ifReady = (fn: any) => {
         return async (...args: any[]) => {
-            if (eventServiceReady) {
+            // console.log("is mix panel on?", localStorage.getItem('mixPanelOn'));
+            if (eventServiceReady && JSON.parse(localStorage.getItem('mixPanelOn') ?? 'false')) {
                 fn(...args);
             }
         }
@@ -365,7 +367,7 @@ const useEventService = (mixPanelToken:string) => {
             try {
                 const data = {
                     messageCount: chatBody.messages.length,
-                    modelId: chatBody.model.id,
+                    modelId: chatBody.model?.id ?? 'undefined',
                     messagesCharacters: chatBody.messages.reduce((acc, m) => acc + m.content.length, 0),
                 }
 
@@ -380,7 +382,7 @@ const useEventService = (mixPanelToken:string) => {
             try {
                 const data = {
                     messageCount: chatBody.messages.length,
-                    modelId: chatBody.model.id,
+                    modelId: chatBody.model?.id ?? 'undefined',
                     messagesCharacters: chatBody.messages.reduce((acc, m) => acc + m.content.length, 0),
                     updateIndex: updateIndex,
                 }

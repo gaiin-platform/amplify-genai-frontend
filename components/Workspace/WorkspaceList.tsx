@@ -49,11 +49,10 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
                 statsService.openWorkspacesEvent();
 
                 try {
-                    const result = await getSharedItems(user.email);
+                    const result = await getSharedItems();
 
-                    if (result.ok) {
-                        const items = await result.json();
-                        const mine = items.item.filter((item: { sharedBy: string; }) => {
+                    if (result.success) {
+                        const mine = result.items.filter((item: { sharedBy: string; }) => {
                             return item.sharedBy === user.email;
                         });
                         const grouped = groupBy('note', mine);

@@ -6,10 +6,11 @@ import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
-import { CloudConvAttr, getIsLocalStorageSelection, isRemoteConversation, pickConversationAttributes, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
+import { getIsLocalStorageSelection, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import cloneDeep from 'lodash/cloneDeep';
 import {styled} from "styled-components";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import { MemoryDialog } from '@/components/Memory/MemoryDialog';
 
 
 import {
@@ -23,17 +24,17 @@ import {
     updateConversation,
     compressAllConversationMessages,
     conversationWithUncompressedMessages,
-    conversationWithCompressedMessages,
+    isRemoteConversation,
+    deleteConversationCleanUp,
 } from '@/utils/app/conversation';
-import { saveFolders } from '@/utils/app/folders';
+import { getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
 import { getSettings, saveSettings } from '@/utils/app/settings';
 import { getAccounts } from "@/services/accountService";
 
-import { Conversation, Message } from '@/types/chat';
+import { Conversation, Message, newMessage } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
 import { FolderInterface, FolderType } from '@/types/folder';
-import { ModelID, Models, fallbackModelID, Model } from '@/types/model';
 import { Prompt } from '@/types/prompt';
 
 
@@ -47,8 +48,9 @@ import {
     IconShare,
     IconMessage,
     IconSettings,
+    IconDeviceSdCard,
+    IconLogout
 } from "@tabler/icons-react";
-import { IconLogout } from "@tabler/icons-react";
 
 import { initialState } from './home.state';
 import useEventService from "@/hooks/useEventService";
@@ -58,17 +60,15 @@ import { v4 as uuidv4 } from 'uuid';
 import { WorkflowDefinition } from "@/types/workflow";
 import { saveWorkflowDefinitions } from "@/utils/app/workflows";
 import SharedItemsList from "@/components/Share/SharedItemList";
-import { saveFeatures } from "@/utils/app/features";
-import WorkspaceList from "@/components/Workspace/WorkspaceList";
-import { Market } from "@/components/Market/Market";
+// import { Market } from "@/components/Market/Market";
 import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
-import { useHomeReducer } from "@/hooks/useHomeReducer";
+import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants } from '@/services/assistantService';
 import { getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
-import { deleteRemoteConversation, fetchAllRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
+import { fetchAllRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import {killRequest as killReq} from "@/services/chatService";
 import { DefaultUser } from 'next-auth';
 import { addDateAttribute, getDate, getDateName } from '@/utils/app/date';
@@ -76,13 +76,19 @@ import HomeContext, {  ClickContext, Processor } from './home.context';
 import { ReservedTags } from '@/types/tags';
 import { noCoaAccount } from '@/types/accounts';
 import { noRateLimit } from '@/types/rateLimit';
-import { fetchAstAdminGroups, checkInAmplifyCognitoGroups } from '@/services/groupsService';
-import { AmpCognGroups, AmplifyGroups } from '@/types/groups';
+import { fetchAstAdminGroups } from '@/services/groupsService';
 import { contructGroupData } from '@/utils/app/groups';
 import { getAllArtifacts } from '@/services/artifactsService';
-import { baseAssistantFolder, basePrompt, isBaseFolder, isOutDatedBaseFolder } from '@/utils/app/basePrompts';
+import { baseAssistantFolder, basePrompts, isBaseFolder, isOutDatedBaseFolder } from '@/utils/app/basePrompts';
 import { fetchUserSettings } from '@/services/settingsService';
 import { Settings } from '@/types/settings';
+import { getAvailableModels, getFeatureFlags, getPowerPoints } from '@/services/adminService';
+import { DefaultModels, Model } from '@/types/model';
+import { ErrorMessage } from '@/types/error';
+import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
+
+import { WorkspaceLegacyMessage } from '@/components/Workspace/WorkspaceLegacyMessage';
+import { getSharedItems } from '@/services/shareService';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -92,24 +98,19 @@ const LoadingIcon = styled(Icon3dCubeSphere)`
 
 
 interface Props {
-    defaultModelId: ModelID;
-    
-  ClientId: string | null;
+    ClientId: string | null;
     cognitoDomain: string | null;
     cognitoClientId: string | null;
     mixPanelToken: string;
     chatEndpoint: string | null;
-    availableModels: string | null;
 }
 
 
 const Home = ({
-    defaultModelId,
     cognitoClientId,
     cognitoDomain,
     mixPanelToken,
     chatEndpoint,
-    availableModels
 }: Props) => {
     const { t } = useTranslation('chat');
     const [initialRender, setInitialRender] = useState<boolean>(true);
@@ -117,6 +118,12 @@ const Home = ({
     const [loadingMessage, setLoadingMessage] = useState<string>('');
 
     const [loadingAmplify, setLoadingAmplify] = useState<boolean>(true);
+
+    const [dataDisclosure, setDataDisclosure] = useState<{url: string, html: string | null}|null>(null);
+    const [hasAcceptedDataDisclosure, sethasAcceptedDataDisclosure] = useState<boolean | null> (null);
+
+    const [isMemoryDialogOpen, setIsMemoryDialogOpen] = useState(false);
+
     const { data: session, status } = useSession();
     const [user, setUser] = useState<DefaultUser | null>(null);
 
@@ -145,16 +152,16 @@ const Home = ({
             selectedAssistant,
             page,
             statsService,
-            latestDataDisclosureUrlPDF,
-            latestDataDisclosureHTML,
             inputEmail,
-            hasAcceptedDataDisclosure,
             hasScrolledToBottom,
             featureFlags,
             storageSelection,
             groups,
-            models
-
+            defaultModelId,
+            availableModels,
+            advancedModelId,
+            cheapestModelId,
+            workspaces
         },
         dispatch,
     } = contextValue;
@@ -181,8 +188,23 @@ const Home = ({
         foldersRef.current = folders;
     }, [folders]);
 
-
     const stopConversationRef = useRef<boolean>(false);
+
+    const featureFlagsRef = useRef(featureFlags);
+
+    useEffect(() => {
+        featureFlagsRef.current = featureFlags;
+        window.dispatchEvent(new Event('updateFeatureSettings'));
+    }, [featureFlags]);
+
+    const [settings, setSettings] = useState<Settings>();
+
+    useEffect(() => {
+        const handleEvent = (event:any) => setSettings( getSettings(featureFlagsRef.current) );
+        window.addEventListener('updateFeatureSettings', handleEvent);
+        return () => window.removeEventListener('updateFeatureSettings', handleEvent)
+    }, []);
+
 
 
     // This is where tabs will be sync'd
@@ -210,34 +232,6 @@ const Home = ({
 
 
     useEffect(() => {
-        if (availableModels) {
-            const modelList = availableModels.split(",");
-
-            const models: Model[] = modelList.reduce((result: Model[], model: string) => {
-                const model_name = model;
-
-                for (const [key, value] of Object.entries(ModelID)) {
-                    if (value === model_name && modelList.includes(model_name)) {
-                        result.push({
-                            id: model_name,
-                            name: Models[value].name,
-                            maxLength: Models[value].maxLength,
-                            tokenLimit: Models[value].tokenLimit,
-                            actualTokenLimit: Models[value].actualTokenLimit,
-                            inputCost: Models[value].inputCost,
-                            outputCost: Models[value].outputCost,
-                            description: Models[value].description
-                        });
-                    }
-                }
-                return result;
-            }, []);
-
-            dispatch({ field: 'models', value: models });
-        }
-    }, [availableModels, dispatch]);
-
-    useEffect(() => {
         if (chatEndpoint) dispatch({ field: 'chatEndpoint', value: chatEndpoint });
     }, [chatEndpoint]);
 
@@ -260,7 +254,7 @@ const Home = ({
         if (isRemoteConversation(conversation)) { 
             const remoteConversation = await fetchRemoteConversation(conversation.id, conversationsRef.current, dispatch);
             if (remoteConversation) {
-                newSelectedConv = remoteConversation;
+                newSelectedConv = remoteConversation; 
             }
         } else {
             newSelectedConv = conversationWithUncompressedMessages(cloneDeep(conversation));
@@ -268,41 +262,39 @@ const Home = ({
         setLoadingMessage('');
 
         if (newSelectedConv) {
-        //add last used assistant if there was one used else should be removed
-        if (newSelectedConv.messages && newSelectedConv.messages.length > 0) {
-            const lastMessage: Message = newSelectedConv.messages[newSelectedConv.messages.length - 1];
-            if (lastMessage.data && lastMessage.data.state && lastMessage.data.state.currentAssistant) {
-                const astName = lastMessage.data.state.currentAssistant;
-                const assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt.name === astName);
-                const assistant = assistantPrompt?.data?.assistant ? assistantPrompt.data.assistant : DEFAULT_ASSISTANT;
-                dispatch({ field: 'selectedAssistant', value: assistant });
+            //add last used assistant if there was one used else should be removed
+            if (newSelectedConv.messages && newSelectedConv.messages.length > 0) {
+                const lastMessage: Message = newSelectedConv.messages[newSelectedConv.messages.length - 1];
+                if (lastMessage.data && lastMessage.data.state && lastMessage.data.state.currentAssistant) {
+                    const astName = lastMessage.data.state.currentAssistant;
+                    const assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt.name === astName);
+                    const assistant = assistantPrompt?.data?.assistant ? assistantPrompt.data.assistant : DEFAULT_ASSISTANT;
+                    dispatch({ field: 'selectedAssistant', value: assistant });
+                }
+            } else {
+                dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
             }
-        } else {
-            dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
-        }
 
-        dispatch({ field: 'page', value: 'chat' })
+            const isModelAvailable = conversation.model ? Object.keys(availableModels).includes(conversation.model.id) : false;
+            if (!isModelAvailable) { // for cases when the model used in these conversation are no longer available to the user
+                const validModel =  getDefaultModel(DefaultModels.DEFAULT);
+                newSelectedConv.model = validModel;
+                await handleUpdateConversation(conversation, {
+                    key: 'model',
+                    value: validModel,
+                })
+            }
 
-        dispatch({  field: 'selectedConversation',
-                    value: newSelectedConv
-                });
+            dispatch({ field: 'page', value: 'chat' });
+
+            dispatch({  field: 'selectedConversation',
+                        value: newSelectedConv
+                    });
+
         }
     };
 
 
-
-
-    // Feature OPERATIONS  --------------------------------------------
-
-    const handleToggleFeature = (name: string) => {
-        const features = { ...contextValue.state.featureFlags };
-        features[name] = !features[name];
-
-        dispatch({ field: 'featureFlags', value: features });
-        saveFeatures(features);
-
-        return features;
-    };
 
     // FOLDER OPERATIONS  --------------------------------------------
 
@@ -324,25 +316,6 @@ const Home = ({
         return stopConversationRef.current;
     }
 
-    const handleStopConversation = async () => {
-        stopConversationRef.current = true;
-
-        if (currentRequestId) {
-            try{
-                await killRequest(currentRequestId);
-            } catch(e) {
-                console.error("Error killing request", e);
-            }
-        }
-
-        setTimeout(() => {
-            stopConversationRef.current = false;
-
-            dispatch({field: 'loading', value: false});
-            dispatch({field: 'messageIsStreaming', value: false});
-            dispatch({field: 'status', value: []});
-        }, 1000);
-    };
 
     const handleCreateFolder = (name: string, type: FolderType):FolderInterface => {
 
@@ -371,15 +344,13 @@ const Home = ({
             const updatedConversations = conversationsRef.current.reduce((acc: Conversation[], c:Conversation) => {
                                             if (c.folderId === folderId) {
                                                 statsService.deleteConversationEvent(c);
-                                                if (isRemoteConversation(c)) deleteRemoteConversation(c.id);
+                                                deleteConversationCleanUp(c);
                                             } else {
                                                 acc.push(c);
                                             }
                                             return acc;
                                         }, [] as Conversation[]);
 
-            dispatch({ field: 'conversations', value: updatedConversations });
-            saveConversations(updatedConversations);
 
             if (updatedConversations.length > 0) {
                 const selectedNotDeleted = selectedConversation ?
@@ -395,14 +366,13 @@ const Home = ({
                 }
 
             } else {
-                defaultModelId &&
                     dispatch({
                         field: 'selectedConversation',
                         value: {
                             id: uuidv4(),
                             name: t('New Conversation'),
                             messages: [],
-                            model: Models[defaultModelId],
+                            model: getDefaultModel(DefaultModels.DEFAULT),
                             prompt: DEFAULT_SYSTEM_PROMPT,
                             temperature: DEFAULT_TEMPERATURE,
                             folderId: null,
@@ -413,7 +383,9 @@ const Home = ({
 
                 localStorage.removeItem('selectedConversation');
             }
-                break
+            dispatch({ field: 'conversations', value: updatedConversations });
+            saveConversations(updatedConversations);
+            break
             case 'prompt':
                 const updatedPrompts: Prompt[] =  promptsRef.current.map((p:Prompt) => {
                     if (p.folderId === folderId) {
@@ -438,7 +410,7 @@ const Home = ({
         
                 dispatch({ field: 'prompts', value: updatedPrompts });
                 savePrompts(updatedPrompts);
-                    break
+                break
             case 'workflow':
                 const updatedWorkflows: WorkflowDefinition[] = workflows.map((p:WorkflowDefinition) => {
                     if (p.folderId === folderId) {
@@ -455,8 +427,6 @@ const Home = ({
                 break
         }
         const updatedFolders = foldersRef.current.filter((f:FolderInterface) => (f.id !== folderId));
-        console.log("Deleting folder ", folderId, "of type: ", updatedFolders);
-
         
         dispatch({ field: 'folders', value: updatedFolders });
         saveFolders(updatedFolders);
@@ -497,12 +467,7 @@ const Home = ({
             id: uuidv4(),
             name: t('New Conversation'),
             messages: [],
-            model: lastConversation?.model || {
-                id: Models[defaultModelId].id,
-                name: Models[defaultModelId].name,
-                maxLength: Models[defaultModelId].maxLength,
-                tokenLimit: Models[defaultModelId].tokenLimit,
-            },
+            model: lastConversation?.model ?? (defaultModelId ? availableModels[defaultModelId] : Object.values(availableModels)[0]),
             prompt: DEFAULT_SYSTEM_PROMPT,
             temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
             folderId: folder.id,
@@ -524,45 +489,50 @@ const Home = ({
         dispatch({ field: 'loading', value: false });
     };
 
-    const handleUpdateSelectedConversation = (updatedConversation: Conversation) => {
-        // console.log("update selected: ", updatedConversation);
-        let updatedConversations: Conversation[] = [...conversationsRef.current];
-
-        if (selectedConversation && selectedConversation.isLocal) {
-            updatedConversations = updatedConversations.map(
-                (conversation:Conversation) => {
-                    if (conversation.id === selectedConversation.id) {
-                        return conversationWithCompressedMessages(updatedConversation);
-                    }
-                    return conversation;
-                },
-            );
-            if (updatedConversations.length === 0) updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+    const handleForkConversation = async (messageIndex: number, setAsSelected = true) => {
+            statsService.forkConversationEvent();
+            if (selectedConversation) {
+                setLoadingMessage("Forking Conversation...");
+                const newConversation = cloneDeep({...selectedConversation,  id: uuidv4(), codeInterpreterAssistantId: undefined,
+                                                   messages: selectedConversation?.messages.slice(0, messageIndex + 1)
+                                                             .map((m:Message) => {
+                                                                if ( m.data?.state?.codeInterpreter ) {
+                                                                    const {codeInterpreter, ...state} = m.data?.state;
+                                                                    return {...m, data: {...m.data, state : state}}
+                                                                }
+                                                                return m;
+                                                             })});
+                if (isRemoteConversation(newConversation)) await uploadConversation(newConversation, foldersRef.current);
+                statsService.newConversationEvent();
+    
+                const updatedConversations = [...conversations, newConversation];
+                dispatch({ field: 'conversations', value: updatedConversations });
+                saveConversations(updatedConversations);
+                setLoadingMessage("");
+                if (setAsSelected) await handleSelectConversation(newConversation);
+            }
             
-        } else {
-            uploadConversation(updatedConversation, foldersRef.current);
-            updatedConversations = updatedConversations.map(
-                (conversation:Conversation) => {
-                    if (selectedConversation && conversation.id === selectedConversation.id) {
-                        return pickConversationAttributes(cloneDeep(updatedConversation), CloudConvAttr) as Conversation;
-                    }
-                    return conversation;
-                },
-            );
-            if (updatedConversations.length === 0) updatedConversations.push( pickConversationAttributes(updatedConversation, CloudConvAttr) as Conversation );
-        }
+    };
+
+    const handleUpdateSelectedConversation = (updatedConversation: Conversation) => {
+        const { single, all } = updateConversation(
+            updatedConversation,
+            [...conversationsRef.current], 
+        );
+
+        if (isRemoteConversation(updatedConversation)) uploadConversation(single, foldersRef.current);
     
         dispatch({
             field: 'selectedConversation',
-            value: updatedConversation,
+            value: single,
         }); 
 
-        dispatch({field: 'conversations', value: updatedConversations});
-        saveConversations(updatedConversations);
+        dispatch({field: 'conversations', value: all});
     }
 
+    
 
-    const handleUpdateConversation = (
+    const handleUpdateConversation = async (
         conversation: Conversation,
         data: KeyValuePair,
     ) => {
@@ -570,27 +540,34 @@ const Home = ({
         // console.log("Previous Conversation: ", conversation)
         // console.log("Updating data: ", data)
 
-        const updatedConversation = {
-            ...conversation,
+        const completeConversation: Conversation | null | undefined = await getCompleteConversation(conversation);
+        // would only happen in cases of faiing to fetch remote conversation which already has a failed alert
+        if (!completeConversation) return; 
+       
+        const updatedConversation: Conversation = { // will be the full conversation 
+            ...completeConversation,
             [data.key]: data.value,
         };
-
-        // console.log("Updated Conversation", updatedConversation)
-
-
         const { single, all } = updateConversation(
             updatedConversation,
             conversations, 
         );
 
-        if (selectedConversation && selectedConversation.id === updatedConversation.id) {
-            dispatch({field: 'selectedConversation', value: conversationWithUncompressedMessages(single)});
-        }
-
-        if (isRemoteConversation(updatedConversation)) uploadConversation(conversationWithUncompressedMessages(single), foldersRef.current);
+        if (selectedConversation && (conversation.id === selectedConversation.id)) dispatch({field: 'selectedConversation', value: single});
+        if (isRemoteConversation(conversation)) uploadConversation(single, foldersRef.current);
        
         dispatch({ field: 'conversations', value: all });
     };
+
+    const getCompleteConversation = async (conversation: Conversation) => {
+        const isRemote = isRemoteConversation(conversation);
+        const isSelected = selectedConversation && (conversation.id === selectedConversation.id);
+
+        return isSelected ? selectedConversation :
+                 isRemote ? await fetchRemoteConversation(conversation.id) 
+                          : conversationWithUncompressedMessages(conversation);
+    }
+
 
     const clearWorkspace = async () => {
         dispatch({ field: 'conversations', value: [] });
@@ -617,43 +594,53 @@ const Home = ({
         }
     }, [conversationStateId]);
 
-    // useEffect(() => {
-    //     const getOps = async () => {
-    //         try {
-    //             const ops = await getOpsForUser();
-    //
-    //             const opMap:{[key:string]:any} = {};
-    //             ops.data.forEach((op:any) => {
-    //                 opMap[op.id] = op;
-    //             })
-    //
-    //             console.log("Ops", opMap)
-    //             dispatch({field: 'ops', value: opMap});
-    //         } catch (e) {
-    //             console.error('Error getting ops', e);
-    //         }
-    //     }
-    //     if(session?.user) {
-    //        getOps();
-    //     }
-    // }, [user]);
 
-    const handleAddMessages = async (selectedConversation: Conversation | undefined, messages: any) => {
+    const handleAddMessages = (selectedConversation: Conversation | undefined, messages: any) => {
         if (selectedConversation) {
             dispatch(
                 {
                     type: 'conversation',
                     action: {
                         type: 'addMessages',
-                        conversationId: selectedConversation.id,
+                        conversation: selectedConversation,
                         messages: messages
                     }
                 }
             )
         }
-
-
     };
+
+    
+    const handleConversationAction = async (conversationAction: ConversationAction) => {
+        // check if we have the entire conversation 
+        let conversation = conversationAction.conversation;
+
+        const completeConversation: Conversation | null | undefined = await getCompleteConversation(conversation);
+        // would only happen in cases of faiing to fetch remote conversation which already has a failed alert
+        if (!completeConversation) return; 
+
+        dispatch({
+            type: 'conversation',
+            action: conversationAction,
+          });
+        
+    }
+
+    const getDefaultModel = (defaultType: DefaultModels) => {
+        let model: Model | undefined = undefined;
+        switch (defaultType) {
+            case (DefaultModels.DEFAULT): 
+                if (defaultModelId) model = availableModels[defaultModelId];
+                break;
+            case (DefaultModels.ADVANCED): 
+                if (advancedModelId) model = availableModels[advancedModelId];
+                break;
+            case (DefaultModels.CHEAPEST): 
+                if (cheapestModelId) model = availableModels[cheapestModelId];
+                break;
+        } 
+        return model ?? (selectedConversation?.model ??  Object.values(availableModels)[0]);
+    }
 
     // EFFECTS  --------------------------------------------
 
@@ -664,11 +651,6 @@ const Home = ({
         }
     }, [selectedConversation]);
 
-    useEffect(() => {
-        defaultModelId &&
-            dispatch({ field: 'defaultModelId', value: defaultModelId });
-        
-    }, [defaultModelId]);
 
     useEffect (() => {
         if (!user && session?.user) setUser(session.user as DefaultUser);
@@ -684,10 +666,68 @@ const Home = ({
     }, [session]);
 
 
-
     // Amplify Data Calls - Happens Right After On Load--------------------------------------------
 
     useEffect(() => {
+
+        const fetchModels = async () => {      
+            console.log("Fetching Models...");
+            try {
+                const response = await getAvailableModels();
+                if (response.success && response.data) {
+                    const defaultModel = response.data.default;
+                    const models = response.data.models;
+                    // console.log(response);
+                    // for on-load for those who have no saved default, no last conversations with a valid model reference
+                    if (selectedConversation && selectedConversation?.model?.id === '') {
+                        handleUpdateSelectedConversation({...selectedConversation, model: defaultModel});
+                    }
+
+                    dispatch({ field: 'defaultModelId', value: defaultModel.id });
+                    dispatch({ field: 'cheapestModelId', value: response.data.cheapest.id });
+                    dispatch({ field: 'advancedModelId', value: response.data.advanced.id });
+                    const modelMap = models.reduce((acc:any, model:any) => ({...acc, [model.id]: model}), {});
+                    dispatch({ field: 'availableModels', value: modelMap});  
+
+                    //save default model 
+                    localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
+                    return;
+                } 
+            } catch (e) {
+                console.log("Failed to fetch models: ", e);
+            } 
+            const message = 'There was a problem retrieving the available models, please contact our support team.';
+                    dispatch({ field: 'modelError', value: {code: null, title: "Failed to Retrieve Models",
+                                                            messageLines: [message]} as ErrorMessage});  
+        };
+
+        const fetchDataDisclosureDecision = async (featureOn: boolean) => {
+            if (featureOn) {
+                try {
+                    const decision = await checkDataDisclosureDecision();
+                    const decisionBodyObject = JSON.parse(decision.body);
+                    const decisionValue = decisionBodyObject.acceptedDataDisclosure;
+                    // console.log("Decision: ", decisionValue);
+                    sethasAcceptedDataDisclosure(decisionValue);
+                    if (!decisionValue) { // Fetch the latest data disclosure only if the user has not accepted it
+                        const latestDisclosure = await getLatestDataDisclosure();
+                        // console.log(latestDisclosure);
+                        const latestDisclosureBodyObject = JSON.parse(latestDisclosure.body);
+                        const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
+                        const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
+                        setDataDisclosure({url: latestDisclosureUrlPDF, html: latestDisclosureHTML});
+
+                        checkScrollableContent();
+                    }
+                } catch (error) {
+                    console.error('Failed to check data disclosure decision:', error);
+                    sethasAcceptedDataDisclosure(false);
+                }
+            }
+
+            setLoadingAmplify(false); 
+        };
+
         const fetchAccounts = async () => {      
             console.log("Fetching Accounts...");
             try {
@@ -695,7 +735,6 @@ const Home = ({
                 if (response.success) {
                     const defaultAccount = response.data.find((account: any) => account.isDefault);
                     if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
-                    setLoadingAmplify(false); 
                     dispatch({ field: 'defaultAccount', value: defaultAccount || noCoaAccount});  
                     return;
                 } else {
@@ -704,18 +743,32 @@ const Home = ({
             } catch (e) {
                 console.log("Failed to fetch accounts: ", e);
             }
-            dispatch({ field: 'defaultAccount', value: noCoaAccount}); 
-            setLoadingAmplify(false);   
+            dispatch({ field: 'defaultAccount', value: noCoaAccount});   
+        };
+
+        const fetchAmplifyUsers = async () => {      
+            console.log("Fetching Amplify Users...");
+            try {
+                const response = await fetchEmailSuggestions("*");
+                if (response) {
+                    dispatch({ field: 'amplifyUsers', value: response.emails});  
+                    return;
+                } else {
+                    console.log("Failed to amplify Users.");
+                }
+            } catch (e) {
+                console.log("Failed to fetch amplify Users: ", e);
+            }  
         };
 
         const fetchSettings = async () => {
             console.log("Fetching Settings...");
             try {
-                // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
                 const result = await fetchUserSettings();
                 if (result.success) {
                     if (result.data) { 
                         saveSettings(result.data as Settings);
+                        window.dispatchEvent(new Event('updateFeatureSettings'));
                     }
                 } else {
                     console.log("Failed to get user settings: ", result);
@@ -724,6 +777,21 @@ const Home = ({
                 console.log("Failed to get user settings: ", e);
             }
         }
+
+        const fetchPowerPoints = async () => {   
+            console.log("Fetching PowerPoints...");
+            try {
+                const response = await getPowerPoints();
+                if (response.success) {
+                    dispatch({ field: 'powerPointTemplateOptions', value: response.data });
+                } else {
+                    console.log("Failed to fetch powerpoints.");
+                }
+            } catch (e) {
+                console.log("Failed to fetch powerpoints: ", e);
+            } 
+        };
+
 
         const fetchArtifacts = async () => {      
             console.log("Fetching Remote Artifacts...");
@@ -735,31 +803,49 @@ const Home = ({
             } 
         };
 
-        const fetchInAmpCognGroup = async () => {
-            // here you define any groups you want to check exist for the user in the cognito users table
-            const groups : AmpCognGroups = {
-                amplifyGroups: [AmplifyGroups.AST_ADMIN_INTERFACE],
-                // cognitoGroups: []
-            }
+
+        const fetchFeatureFlags = async () => {
+            console.log("Fetching Feature Flags...");
             try {
                 // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
-                const result = await checkInAmplifyCognitoGroups(groups);
+                const result = await getFeatureFlags();
                 if (result.success) {
-                    const inGroups = result.data;
-                    dispatch({ field: 'featureFlags', 
-                                value: {...featureFlags, assistantAdminInterface : !!inGroups.amplify_groups[AmplifyGroups.AST_ADMIN_INTERFACE]}});
+                    const flags: { [key:string] : boolean } = result.data;
+                    // console.log("feature flags:", flags)
+                    if (flags && Object.keys(flags).length > 0) dispatch({ field: 'featureFlags', value: flags});
+                    localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
+                    return flags;
                 } else {
-                    console.log("Failed to verify in ampifly/cognito groups: ", result);
+                    console.log("Failed to get feature flags: ", result);
                 }
             } catch (e) {
-                console.log("Failed to verify in ampifly/cognito groups: ", e);
+                console.log("Failed to get feature flagss: ", e);
             }
+            return {};
         }
+
+        const fetchWorkspaces = async (user: string) => {      
+            console.log("Fetching user workspaces...");
+            try {
+                const response = await getSharedItems();
+
+                if (response.success) {
+                    const workspaces = response.items.filter((item: { sharedBy: string; }) =>  item.sharedBy === user);
+                    dispatch({ field: 'workspaces', value: workspaces});  
+                    localStorage.setItem('workspaces', JSON.stringify(workspaces));
+                    return;
+                } else {
+                    console.log("Failed to fetch user workspaces.");
+                }
+            } catch (e) {
+                console.log("Failed to fetch user workspaces: ", e);
+            }  
+        };
 
         const syncConversations = async (conversations: Conversation[], folders: FolderInterface[]) => {
             try {
                 const allRemoteConvs = await fetchAllRemoteConversations();
-                if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch);
+                if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch, getDefaultModel(DefaultModels.DEFAULT));
             } catch (e) {
                 console.log("Failed to sync cloud conversations: ", e);
             }
@@ -788,9 +874,9 @@ const Home = ({
         const fetchPrompts = () => {
             console.log("Fetching Base Prompts...");
             const updatedFolders:FolderInterface[] = [...foldersRef.current.filter((f:FolderInterface) => !isBaseFolder(f.id) && !isOutDatedBaseFolder(f.id)),
-                                                      ...basePrompt.folders];
+                                                      ...basePrompts.folders];
             const updatedPrompts: Prompt[] =  [...promptsRef.current.filter((p: Prompt) => !p.folderId || (!isBaseFolder(p.folderId) && !isOutDatedBaseFolder(p.folderId))),
-                                               ...basePrompt.prompts]
+                                               ...basePrompts.prompts]
             
                     // currently we have no base conversations 
             return {updatedConversations: conversationsRef.current, updatedFolders, updatedPrompts};
@@ -811,7 +897,7 @@ const Home = ({
         }
 
         // On Load Data
-        const handleOnLoadData = async () => {
+        const handleOnLoadData = async (flags: { [key: string]: boolean }) => {
             // new basePrompts no remote call 
             let { updatedConversations, updatedFolders, updatedPrompts} = fetchPrompts();
 
@@ -832,18 +918,19 @@ const Home = ({
 
 
             // Handle remote conversations
-            if (featureFlags.storeCloudConversations) {
+            // console.log("storeCloudConversations", flags.storeCloudConversations )
+            if (flags.storeCloudConversations) {
                 syncConversations(updatedConversations, updatedFolders)
                     .then(cloudConversationsResult => {
                         // currently base prompts does not have conversations so we know we are done syncing at this point 
                         dispatch({field: 'syncingConversations', value: false});
+                        console.log('sync conversations complete');
                         const newCloudFolders = cloudConversationsResult.newfolders;
                         if (newCloudFolders.length > 0) {
                             const handleCloudFolderUpdate = () => {
                                 updatedFolders = [...updatedFolders, ...cloudConversationsResult.newfolders];
                                 dispatch({ field: 'folders', value: updatedFolders });
                                 saveFolders(updatedFolders);
-                                console.log('sync conversations complete');
                             };
 
                             // to avoid a race condition between this and groups folders. we need to updates folders after groups because sync conversations call will likely take longer in most cases
@@ -861,10 +948,10 @@ const Home = ({
                                 }, 100); // Check every 100 milliseconds
                             }
                         }
-                        
-                        console.log('sync conversations complete');
                     })
                     .catch(error => console.log("Error syncing conversations:", error));
+            } else {
+                dispatch({field: 'syncingConversations', value: false});
             }
 
             // Fetch assistants
@@ -886,17 +973,22 @@ const Home = ({
             // Sync groups
             syncGroups()
                 .then(groupsResult => {
+                    // filter out group folders that are hidden
+                    const hiddenFolderIds: string[] = getHiddenGroupFolders().map((f:FolderInterface) => f.id);
+                    const filteredGroupFolders:FolderInterface[] = groupsResult.groupFolders 
+                                                                               .filter((f:FolderInterface) => !hiddenFolderIds.includes(f.id));
                     updatedFolders = [...updatedFolders.filter((f:FolderInterface) => !f.isGroupFolder), 
-                                        ...groupsResult.groupFolders]
+                                      ...filteredGroupFolders]
                     dispatch({field: 'folders', value: updatedFolders});
                     saveFolders(updatedFolders);
 
                     let groupPrompts = groupsResult.groupPrompts;
-                    if (!featureFlags.apiKeys) groupPrompts = groupPrompts.filter(prompt =>{
+                    if (!flags.apiKeys) groupPrompts = groupPrompts.filter(prompt =>{
                                                     const tags = prompt.data?.tags;
                                                     return !(
                                                         tags && 
-                                                        (tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER) || tags.includes(ReservedTags.ASSISTANT_API_HELPER))
+                                                        (tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER) || 
+                                                         tags.includes(ReservedTags.ASSISTANT_API_HELPER))
                                                     );
                                                 });
                     updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ), 
@@ -914,18 +1006,31 @@ const Home = ({
 
         }
 
+        const handleFeatureDependantOnLoadData = async () => {
+            const flags = await fetchFeatureFlags();
+            fetchDataDisclosureDecision(flags.dataDisclosure);
+            if (flags.artifacts) fetchArtifacts(); // fetch artifacts 
+
+            //Conversation, prompt, folder dependent calls
+            handleOnLoadData(flags);
+        }
 
         if (user && user.email && initialRender) {
             setInitialRender(false);
-            // independent function call high priority
+            
+            // independent function calls / high priority
+            fetchSettings(); // fetch user settings
+            console.log("has workspaces" , workspaces);
+            // local storage on load should set workspaces if fetched before  
+            // saves us the extra calls   
+            if (workspaces === null) fetchWorkspaces(user.email); 
+            fetchModels();
+            handleFeatureDependantOnLoadData(); 
             fetchAccounts();  // fetch accounts for chatting charging
-            fetchSettings(); // fetch user settinsg
-            fetchInAmpCognGroup();  // updates ast admin interface featureflag
-            if (featureFlags.artifacts) fetchArtifacts(); // fetch artifacts 
-
-            //Conversation, prompt, folder dependent calls
-            handleOnLoadData();
-        }
+            fetchAmplifyUsers();
+            fetchPowerPoints();
+ 
+        } 
     
     }, [user]);
 
@@ -934,6 +1039,7 @@ const Home = ({
 
     useEffect(() => {
         const settings = getSettings(featureFlags);
+        setSettings(settings);
 
         if (settings.theme) {
             dispatch({
@@ -942,14 +1048,30 @@ const Home = ({
             });
         }
 
-        const workspaceMetadataStr = localStorage.getItem('workspaceMetadata');
-        if (workspaceMetadataStr) {
-            dispatch({ field: 'workspaceMetadata', value: JSON.parse(workspaceMetadataStr) });
+        // will save us the call if a user does not have workspaces 
+        const savedWorkspaces = localStorage.getItem('workspaces');
+        if (savedWorkspaces) {
+            dispatch({ field: 'workspaces', value: JSON.parse(savedWorkspaces) });
         }
+
+        // const workspaceMetadataStr = localStorage.getItem('workspaceMetadata');
+        // if (workspaceMetadataStr) {
+        //     dispatch({ field: 'workspaceMetadata', value: JSON.parse(workspaceMetadataStr) });
+        // }
 
         if (window.innerWidth < 640) {
             dispatch({ field: 'showChatbar', value: false });
             dispatch({ field: 'showPromptbar', value: false });
+        } else {
+            const showChatbar = localStorage.getItem('showChatbar');
+            if (showChatbar) {
+                dispatch({ field: 'showChatbar', value: showChatbar === 'true' });
+            }
+
+            const showPromptbar = localStorage.getItem('showPromptbar');
+            if (showPromptbar) {
+                dispatch({ field: 'showPromptbar', value: showPromptbar === 'true' });
+            }
         }
 
         const pluginLoc = localStorage.getItem('pluginLocation');
@@ -957,19 +1079,15 @@ const Home = ({
             dispatch({ field: 'pluginLocation', value: JSON.parse(pluginLoc) });
         }
 
-        const showChatbar = localStorage.getItem('showChatbar');
-        if (showChatbar) {
-            dispatch({ field: 'showChatbar', value: showChatbar === 'true' });
-        }
-
-        const showPromptbar = localStorage.getItem('showPromptbar');
-        if (showPromptbar) {
-            dispatch({ field: 'showPromptbar', value: showPromptbar === 'true' });
-        }
-
+       
         const storageSelection = localStorage.getItem('storageSelection');
         if (storageSelection) {
             dispatch({field: 'storageSelection', value: storageSelection});
+        }
+
+        const hiddenGroups = localStorage.getItem('hiddenGroupFolders');
+        if (hiddenGroups) {
+            dispatch({field: 'hiddenGroupFolders', value: JSON.parse(hiddenGroups) });
         }
 
         const prompts = localStorage.getItem('prompts');
@@ -983,6 +1101,8 @@ const Home = ({
             dispatch({ field: 'workflows', value: JSON.parse(workflows) });
         }
 
+        let folderIds: string[] = [];
+
         const folders = localStorage.getItem('folders');
         const foldersParsed = JSON.parse(folders ? folders : '[]')
         if (folders) {
@@ -995,16 +1115,17 @@ const Home = ({
             if (!assistantsFolder) updatedFolders.push( baseAssistantFolder );
             
             dispatch({ field: 'folders', value: updatedFolders});
+            folderIds = updatedFolders.map((f: FolderInterface) => f.id)
         }
-
 
         // Create a string for the current date like Oct-18-2021
         const dateName = getDateName();
 
         const conversationHistory = localStorage.getItem('conversationHistory');
         let conversations: Conversation[] = JSON.parse(conversationHistory ? conversationHistory : '[]');
-        //ensure all conversation messagea are compressed 
-        conversations = compressAllConversationMessages(conversations);
+        //ensure all conversation messagea are compressed and folder exists
+        conversations = compressAllConversationMessages(conversations).map((c: Conversation) => 
+                                            !c.folderId || folderIds.includes(c.folderId) ? c : {...c, folderId: null});
 
         // call fetach all conversations 
         const lastConversation: Conversation | null = (conversations.length > 0) ? conversations[conversations.length - 1] : null;
@@ -1032,12 +1153,16 @@ const Home = ({
                 saveFolders(updatedFolders);
             }
 
+            let defaultModel = localStorage.getItem('defaultModel');
+            defaultModel = defaultModel ? JSON.parse(defaultModel) : lastConversation?.model;
+            console.log("local storage default Model: ", defaultModel)
+
             //new conversation on load 
             const newConversation: Conversation = {
                 id: uuidv4(),
                 name: t('New Conversation'),
                 messages: [],
-                model: Models[defaultModelId],
+                model: (defaultModel ?? {id:'', name: '', description: '', inputContextWindow: 0, supportsImages: false}) as Model, 
                 prompt: DEFAULT_SYSTEM_PROMPT,
                 temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
                 folderId: folder.id,
@@ -1057,7 +1182,7 @@ const Home = ({
         localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
 
         if (conversationHistory) {
-            const cleanedConversationHistory = cleanConversationHistory(conversations);
+            const cleanedConversationHistory = cleanConversationHistory(conversations, getDefaultModel(DefaultModels.DEFAULT));
 
             dispatch({ field: 'conversations', value: cleanedConversationHistory });
             saveConversations(cleanedConversationHistory)
@@ -1141,58 +1266,15 @@ const Home = ({
         }
     };
 
-    useEffect(() => {
-        if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
-            const fetchDataDisclosureDecision = async () => {
-                const { hasAcceptedDataDisclosure } = contextValue.state;
-                if (user?.email && (!hasAcceptedDataDisclosure)) {
-                    try {
-                        const decision = await checkDataDisclosureDecision(user?.email);
-                        const decisionBodyObject = JSON.parse(decision.item.body);
-                        const decisionValue = decisionBodyObject.acceptedDataDisclosure;
-                        // console.log("Decision: ", decisionValue);
-                        dispatch({ field: 'hasAcceptedDataDisclosure', value: decisionValue });
-                        if (!decisionValue) { // Fetch the latest data disclosure only if the user has not accepted it
-                            const latestDisclosure = await getLatestDataDisclosure();
-                            const latestDisclosureBodyObject = JSON.parse(latestDisclosure.item.body);
-                            const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
-                            const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
-                            dispatch({ field: 'latestDataDisclosureUrlPDF', value: latestDisclosureUrlPDF });
-                            dispatch({ field: 'latestDataDisclosureHTML', value: latestDisclosureHTML });
 
-                            checkScrollableContent();
-                        }
-                    } catch (error) {
-                        console.error('Failed to check data disclosure decision:', error);
-                        dispatch({ field: 'hasAcceptedDataDisclosure', value: false });
-                    }
-                }
-            };
-
-            if (user?.email) fetchDataDisclosureDecision();
-        }
-    }, [user,
-        hasAcceptedDataDisclosure,
-        featureFlags.dataDisclosure]);
-
-    if (session) {
-        if (featureFlags.dataDisclosure && window.location.hostname !== 'localhost') {
-            if (hasAcceptedDataDisclosure === null) {
-                return (
-                    <main className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}>
-                        <div className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
-                            <Loader />
-                            <h1 className="mb-4 text-2xl font-bold">Loading...</h1>
-                        </div>
-                    </main>
-                );
-            } else if (!hasAcceptedDataDisclosure) {
+    if (session) {                          // dont want to go here if its null
+        if (featureFlags.dataDisclosure && hasAcceptedDataDisclosure === false) {// && window.location.hostname !== 'localhost'
                 return (
                     <main className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}>
                         <div className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
                             <h1 className="text-2xl font-bold dark:text-white">Amplify Data Disclosure Agreement</h1>
-                            <a href={latestDataDisclosureUrlPDF} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', marginBottom: '10px' }}>Download the data disclosure agreement</a>
-                            {latestDataDisclosureHTML ? (
+                            {dataDisclosure?.url && <a className="hover:text-blue-500" href={dataDisclosure.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', marginBottom: '10px' }}>Download the data disclosure agreement</a>}
+                            {dataDisclosure && dataDisclosure.html ? (
                                 <div
                                     className="data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black text-left"
                                     style={{
@@ -1201,11 +1283,18 @@ const Home = ({
                                         padding: '20px',
                                         marginBottom: '10px',
                                         height: '500px',
-                                        width: '30%',
+                                        width: '35%',
                                     }}
                                     onScroll={handleScroll}
-                                    dangerouslySetInnerHTML={{ __html: latestDataDisclosureHTML }}
-                                />
+                                    dangerouslySetInnerHTML={{ __html: dataDisclosure.html }}
+                                > 
+                                {/*  for when we try out markitdown in pdf to md conversion in the backend
+                                <DataDisclosure
+                                content='dataDisclosure.html'
+                                /> */}
+                                    
+                                </div>
+
                             ) : (
                                 <div className="flex flex-col items-center justify-center" style={{ height: '500px', width: '30%' }}>
                                     <Loader />
@@ -1233,7 +1322,7 @@ const Home = ({
                                             if (inputEmail.toLowerCase() === user.email.toLowerCase()) {
                                                 if (hasScrolledToBottom) {
                                                     saveDataDisclosureDecision(user.email, true);
-                                                    dispatch({ field: 'hasAcceptedDataDisclosure', value: true });
+                                                    sethasAcceptedDataDisclosure(true);
                                                 } else {
                                                     alert('You must scroll to the bottom of the disclosure before accepting.');
                                                 }
@@ -1252,7 +1341,7 @@ const Home = ({
                                         if (inputEmail.toLowerCase() === user.email.toLowerCase()) {
                                             if (hasScrolledToBottom) {
                                                 saveDataDisclosureDecision(user.email, true);
-                                                dispatch({ field: 'hasAcceptedDataDisclosure', value: true });
+                                                sethasAcceptedDataDisclosure(true);
                                             } else {
                                                 alert('You must scroll to the bottom of the disclosure before accepting.');
                                             }
@@ -1281,7 +1370,6 @@ const Home = ({
                         </div>
                     </main>
                 );
-            }
         }
 
         // @ts-ignore
@@ -1290,14 +1378,16 @@ const Home = ({
                 value={{
                     ...contextValue,
                     handleNewConversation,
-                    handleStopConversation,
                     shouldStopConversation,
+                    handleForkConversation,
                     handleCreateFolder,
                     handleDeleteFolder,
                     handleUpdateFolder,
                     handleSelectConversation,
                     handleUpdateConversation,
                     handleUpdateSelectedConversation, 
+                    handleConversationAction,
+                    getCompleteConversation,
                     preProcessingCallbacks,
                     postProcessingCallbacks,
                     addPreProcessingCallback,
@@ -1306,7 +1396,8 @@ const Home = ({
                     removePostProcessingCallback,
                     clearWorkspace,
                     handleAddMessages,
-                    setLoadingMessage
+                    setLoadingMessage,
+                    getDefaultModel
                 }}
             >
                 <Head>
@@ -1354,7 +1445,8 @@ const Home = ({
                             >
                                 <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
                                 <Tab icon={<IconShare />} title="Share"><SharedItemsList /></Tab>
-                                <Tab icon={<IconTournament />} title="Workspaces"><WorkspaceList /></Tab>
+                                { workspaces && workspaces.length > 0 ? 
+                                <Tab icon={<IconTournament />} title="Workspaces"><WorkspaceLegacyMessage /></Tab> : null}
                                 <Tab icon={<IconSettings />} title="Settings"><SettingsBar /></Tab>
                             </TabSidebar>
 
@@ -1362,11 +1454,11 @@ const Home = ({
                                 {page === 'chat' && (
                                     <Chat stopConversationRef={stopConversationRef} />
                                 )}
-                                {page === 'market' && (
+                                {/* {page === 'market' && (
                                     <Market items={[
                                         // {id: "1", name: "Item 1"},
                                     ]} />
-                                )}
+                                )} */}
                                 {page === 'home' && (
                                     <MyHome />
                                 )}
@@ -1375,6 +1467,25 @@ const Home = ({
 
                             <TabSidebar
                                 side={"right"}
+                                footerComponent={
+                                    featureFlags.memory && settings?.featureOptions.includeMemory && (
+                                        <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
+                                            <button
+                                                className="dark:text-white w-full"
+                                                onClick={() => setIsMemoryDialogOpen(true)}
+                                            >
+                                                <div className="flex items-center">
+                                                    <IconDeviceSdCard className="m-2" />
+                                                    <span>Memory</span>
+                                                </div>
+                                            </button>
+                                            <MemoryDialog
+                                                open={isMemoryDialogOpen}
+                                                onClose={() => setIsMemoryDialogOpen(false)}
+                                            />
+                                        </div>
+                                    )
+                                }
                             >
                                 <Tab icon={<Icon3dCubeSphere />}><Promptbar /></Tab>
                                 {/*<Tab icon={<IconBook2/>}><WorkflowDefinitionBar/></Tab>*/}
@@ -1382,7 +1493,7 @@ const Home = ({
 
                         </div>
                         <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
-                        {/* <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/> */}
+                        <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
 
                     </main>
                 )}
@@ -1438,23 +1549,12 @@ const Home = ({
 export default Home;
 
 export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
-    const defaultModelId =
-        (process.env.DEFAULT_MODEL &&
-            Object.values(ModelID).includes(
-                process.env.DEFAULT_MODEL as ModelID,
-            ) &&
-            process.env.DEFAULT_MODEL) ||
-        fallbackModelID;
 
     const chatEndpoint = process.env.CHAT_ENDPOINT;
     const mixPanelToken = process.env.MIXPANEL_TOKEN;
     const cognitoClientId = process.env.COGNITO_CLIENT_ID;
     const cognitoDomain = process.env.COGNITO_DOMAIN;
-    const defaultFunctionCallModel = process.env.DEFAULT_FUNCTION_CALL_MODEL;
-    const availableModels = process.env.AVAILABLE_MODELS;
-
-
-
+    
     // const googleApiKey = process.env.GOOGLE_API_KEY;
     // const googleCSEId = process.env.GOOGLE_CSE_ID;
     // if (googleApiKey && googleCSEId) {
@@ -1463,13 +1563,10 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
 
     return {
         props: {
-            availableModels,
             chatEndpoint,
-            defaultModelId,
             mixPanelToken,
             cognitoClientId,
             cognitoDomain,
-            defaultFunctionCallModel,
             ...(await serverSideTranslations(locale ?? 'en', [
                 'common',
                 'chat',
@@ -1481,3 +1578,4 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
         },
     };
 };
+

@@ -1,5 +1,6 @@
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import ChatSource from "@/components/Chat/ChatContentBlocks/ChatSource";
+import { capitalize } from "@/utils/app/data";
 
 interface Props {
     name: string;
@@ -12,27 +13,29 @@ const ChatSourceBlock: React.FC<Props> = (
 
 
     const getDisplayName = (name: string) => {
-        if(name === "rag"){
+        if (name === "rag") {
             return "Document Search Results (RAG)";
-        }
-        else if(name === "documentContext") {
+        } else if(name === "documentContext") {
             return "Attached Documents";
-        }
-        else {
+        } else if (name === "images") {
+            return "Images"
+        } else {
             // split on camel case and capitalize each first letter
             return name.split(/(?=[A-Z])/).map((word) => {
-                return word.charAt(0).toUpperCase() + word.slice(1);
+                return capitalize(word);
             }).join(" ");
         }
     }
 
     return <div>
         <ExpansionComponent title={getDisplayName(name)}
-            content={sources.map((source, index) => (
+            content={ sources && sources.length > 0 ?
+            sources.map((source, index) => (
             <div key={index}>
                 <ChatSource source={source} index={index + 1}/>
-            </div>
-        ))}/>
+            </div> )) :
+            <div className="text-gray-400 text-sm ml-1">No Sources to Display</div>
+        }/>
     </div>;
 };
 

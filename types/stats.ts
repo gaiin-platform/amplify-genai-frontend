@@ -38,7 +38,6 @@ export interface StatsServices {
     attachFileEvent: (
         file: File,
         maxFileSizeEnforced: boolean,
-        uploadDocuments: boolean
     ) => void;
 
     searchConversationsEvent: (searchTerm: string) => void;
@@ -202,8 +201,7 @@ export const noOpStatsServices:StatsServices = {
 
     attachFileEvent: (
         file: File,
-        maxFileSizeEnforced: boolean,
-        uploadDocuments: boolean
+        maxFileSizeEnforced: boolean
     ) => {},
 
     searchConversationsEvent: (searchTerm: string) => {},

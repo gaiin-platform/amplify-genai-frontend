@@ -1,5 +1,4 @@
 import { Conversation } from '@/types/chat';
-import { isRemoteConversation } from '@/utils/app/conversationStorage';
 import { ConversationComponent } from './Conversation';
 
 interface Props {

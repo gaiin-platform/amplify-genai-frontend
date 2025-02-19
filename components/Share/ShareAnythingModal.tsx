@@ -10,6 +10,10 @@ import {FiCommand} from "react-icons/fi";
 import {useSession} from "next-auth/react";
 import { EmailsList } from "../Emails/EmailsList";
 import toast from "react-hot-toast";
+import { ItemSelect } from "../ReusableComponents/ItemsSelect";
+import { baseAssistantFolder, isBaseFolder, isBasePrompt } from "@/utils/app/basePrompts";
+import { Modal } from "../ReusableComponents/Modal";
+import { IconNote } from "@tabler/icons-react";
 
 export interface SharingModalProps {
     open: boolean;
@@ -61,20 +65,6 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
       }, [prompts]);
 
 
-    const conversationsRef = useRef(conversations);
-
-    useEffect(() => {
-        conversationsRef.current = conversations;
-    }, [conversations]);
-
-
-    const foldersRef = useRef(folders);
-
-    useEffect(() => {
-        foldersRef.current = folders;
-    }, [folders]);
-
-
     const { data: session } = useSession();
     const user = session?.user;
 
@@ -85,75 +75,18 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
     const [selectedFoldersState, setSelectedFolders] = useState([...selectedFolders]);
     const [selectedPeople, setSelectedPeople] = useState<Array<string>>([]);
     const [sharingNote, setSharingNote] = useState<string>("");
-    const itemRefs = useRef<Record<string, React.RefObject<HTMLDivElement>>>({});
-    const [promptsChecked, setPromptsChecked] = useState(false);
-    const [conversationsChecked, setConversationsChecked] = useState(false);
-    const [foldersChecked, setFoldersChecked] = useState(false);
 
-    const handlePromptsCheck = (checked:boolean) => {
-        // if checked, add all prompts to selected, else remove them
-        setSelectedPrompts(checked ? promptsRef.current: []);
-        setPromptsChecked(checked);
-    };
+    const [canShare, setCanShare] = useState<boolean>(false);
 
-    const handleConversationsCheck = (checked:boolean) => {
-        setSelectedConversations(checked ? conversationsRef.current : []);
-        setConversationsChecked(checked);
-    };
 
-    const handleFoldersCheck = (checked:boolean) => {
-        setSelectedFolders(checked ? foldersRef.current: []);
-        setFoldersChecked(checked);
-    };
-
-    const handleItemSelect = (item: Prompt | Conversation | FolderInterface, itemType: string) => {
-        switch (itemType) {
-            case 'Prompt': {
-                setSelectedPrompts(prevItems => toggleItem(prevItems, item as Prompt));
-                break;
-            }
-            case 'Conversation': {
-                setSelectedConversations(prevItems => toggleItem(prevItems, item as Conversation));
-                break;
-            }
-            case 'Folder': {
-                const folder = item as FolderInterface;
-                if (selectedFoldersState.some(i => i.id === folder.id)) {
-                    // If the folder is currently selected, we are deselecting it
-                    if (folder.type === 'prompt') {
-                        setSelectedPrompts(prevPrompts => prevPrompts.filter(p => p.folderId !== folder.id));
-                    } else if (folder.type === 'chat') {
-                        setSelectedConversations(prevConversations => prevConversations.filter(c => c.folderId !== folder.id));
-                    }
-                } else {
-                    // If the folder is currently deselected, we are selecting it
-                    if (folder.type === 'prompt') {
-                        const folderPrompts = promptsRef.current.filter((prompt:Prompt) => prompt.folderId === folder.id);
-                        setSelectedPrompts(prevPrompts => [...prevPrompts, ...folderPrompts]);
-                    } else if (folder.type === 'chat') {
-                        const folderConversations = conversationsRef.current.filter((conversation:Conversation) => conversation.folderId === folder.id);
-                        setSelectedConversations(prevConversations => [...prevConversations, ...folderConversations]);
-                    }
-                }
-
-                setSelectedFolders(prevItems => toggleItem(prevItems, folder));
-
-                break;
-            }
-            default:
-                return;
-        }
+    const checkCanShare = () => {
+        return selectedPeople.length > 0 && (sharingNote && sharingNote?.length > 0) &&
+               (selectedPromptsState.length > 0 || selectedConversationsState.length > 0 || selectedFoldersState.length > 0);
     }
 
-    const toggleItem = <T, >(items: Array<T>, item: T) => {
-        return items.some(i => i === item) ? items.filter(i => i !== item) : [...items, item];
-    }
-
-    const canShare = () => {
-        return selectedPeople.length > 0
-            && (selectedPromptsState.length > 0 || selectedConversationsState.length > 0 || selectedFoldersState.length > 0)
-            && (sharingNote && sharingNote?.length > 0);
-    }
+    useEffect(() => {
+        setCanShare(!!checkCanShare());
+    }, [selectedPeople, sharingNote, selectedPromptsState, selectedConversationsState, selectedFoldersState]);
 
     const handleShare = async () => {
         //onSave(selectedItems);
@@ -175,12 +108,11 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
             .map(prompt => prompt.data?.rootPromptId)
             .map(id => promptsRef.current.find((p:Prompt) => p.id === id))
             .filter(prompt => prompt !== undefined) as Prompt[];
-
         const sharedData = await createExport(
             selectedConversationsState,
             selectedFoldersState,
             [...selectedPromptsState, ...rootPromptsToAdd], "share", false);
-
+        
         const sharedWith = selectedPeople.map(string => string.toLowerCase());
         const sharedBy = user?.email ? user.email.toLowerCase() : undefined;
 
@@ -189,7 +121,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
             try {
                 const result = await shareItems(sharedBy, sharedWith, sharingNote, sharedData);
 
-                if (result.ok) {
+                if (result.success) {
                     statsService.sharedItemEvent(sharedBy, sharedWith, sharingNote, sharedData);
 
                     setIsSharing(false);
@@ -205,75 +137,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
             }
         }
 
-        //onShare([...selectedPromptsState, ...selectedConversationsState, ...selectedFoldersState]);
     }
-
-    const isSelected = (item: { id: string; }, itemType: string) => {
-        switch (itemType) {
-            case 'Prompt':
-                return selectedPromptsState.some(selectedItem => selectedItem.id === item.id);
-            case 'Conversation':
-                return selectedConversationsState.some(selectedItem => selectedItem.id === item.id);
-            case 'Folder':
-                return selectedFoldersState.some(selectedItem => selectedItem.id === item.id);
-            default:
-                return false;
-        }
-    };
-
-    // Add necessary useEffects
-
-    const renderItem = (item: Prompt | Conversation | FolderInterface, itemType: string) => {
-
-
-        // Create a new ref for each item if it does not exist yet.
-        if (item && item.id && !itemRefs.current[item.id]) {
-            itemRefs.current[item.id] = React.createRef();
-        }
-
-        return (
-            <div className="flex items-center p-2" ref={itemRefs.current[item.id]} key={item.id}>
-                <input
-                    type="checkbox"
-                    className="form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                    checked={isSelected(item, itemType)}
-                    onChange={() => {
-                        handleItemSelect(item, itemType)
-                    }}
-                />
-                <div className="ml-2 text-black dark:text-white ">{`${itemType} : ${item.name}`}</div>
-            </div>
-        );
-    };
-
-    const renderScrollableSection = (items: Array<Prompt | Conversation | FolderInterface>, itemType: string) => {
-        return (
-            <div 
-                className= "border border-neutral-700"
-                style={{height: "140px", overflowY: "scroll"}}>
-                {items.map((item) =>
-                    renderItem(item, itemType)
-                )}
-            </div>
-        );
-    };
-
-    useEffect(() => {
-        if (open) {
-            const firstSelectedId =
-                selectedPrompts[0]?.id || selectedConversations[0]?.id || selectedFolders[0]?.id;
-
-            // @ts-ignore
-            itemRefs.current[firstSelectedId]?.current?.scrollIntoView({
-                block: 'center',
-            });
-
-            setSelectedPrompts([...selectedPrompts]);
-            setSelectedConversations([...selectedConversations]);
-            setSelectedFolders([...selectedFolders]);
-        }
-    }, [open]);
-
 
 
     if (!open) {
@@ -281,126 +145,76 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
     }
 
 
-    // ...Other Code...
-
     return (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-            <div className="fixed inset-0 z-10 overflow-hidden">
-                <div
-                    className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                    <div className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true"/>
-                    <div
-                        className=" border-neutral-400 dark:border-neutral-600 inline-block transform overflow-y-auto rounded-lg border border-gray-300 bg-white px-4 py-5 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:p-6 sm:align-middle"
-                        role="dialog" style={{width: window.innerWidth /2}}
-                    >
-                        {isSharing && (
-                            <div className="flex flex-col items-center justify-center">
-                                <LoadingIcon/>
-                                <span className="text-black dark:text-white text-xl font-bold mt-4">Sharing...</span>
-                            </div>
-                        )}
+        <Modal 
+            width={() => window.innerWidth * (!isSharing ?  0.5 : 0.3)}
+            height={() => !isSharing ? window.innerHeight * 0.9 : 280}
+            title={!isSharing ? "Add People to Share With": ""}
+            onCancel={onCancel} 
+            showCancel={!isSharing}
+            onSubmit={handleShare}
+            submitLabel={"Share"}
+            disableSubmit={!canShare}
+            showSubmit={!isSharing}
+            resizeOnVarChange={isSharing}
+            content={
+                <>
+                 {isSharing ? (
+                    <div className="flex flex-col items-center justify-center pb-2 border-b">
+                        <LoadingIcon/>
+                        <span className="text-black dark:text-white text-xl font-bold mt-4">Sharing...</span>
+                    </div>) :
 
-                        {!isSharing && (
-                            <>
-                                <h2 className="text-black dark:text-white text-xl font-bold">Add People to Share With</h2>
+                    ( <div className="overflow-y-auto">
 
-                                <div className="overflow-y-auto" style={{maxHeight: "calc(100vh - 200px)"}}>
-
-                                    <EmailsList label={"People"}
-                                              addMessage={"Email addresses of people to share with:"}
-                                              emails={selectedPeople}
-                                              setEmails={setSelectedPeople}/>
-
+                        <EmailsList label={"People"}
+                                    addMessage={"Email addresses of people to share with:"}
+                                    emails={selectedPeople}
+                                    setEmails={setSelectedPeople}/>
 
 
-                                    <h3 className="text-black dark:text-white text-lg mt-2 border-b">Note</h3>
-                                    <textarea
-                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                        style={{resize: 'none'}}
-                                        placeholder={
-                                            "Describe what you are sharing (required)."
-                                        }
-                                        value={sharingNote || ''}
-                                        onChange={(e) => setSharingNote(e.target.value)}
-                                        rows={1}
-                                    />
+                        <div className="mr-8">
+                            <h3 className="flex flex-row text-black dark:text-white text-lg mt-2 border-b ">
+                                <IconNote className="mt-1.5 mx-2" size={18}/>
+                                Note
+                            </h3>
+                            <textarea
+                                className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                style={{resize: 'none'}}
+                                placeholder={
+                                    "Describe what you are sharing (required)."
+                                }
+                                value={sharingNote || ''}
+                                onChange={(e) => setSharingNote(e.target.value)}
+                                rows={1}
+                            />
 
-                                    {includePrompts && (
-                                        <>
-                                            <div className="mt-4 flex items-center border-b">
-                                                <input
-                                                    type="checkbox"
-                                                    className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                                                    checked={promptsChecked}
-                                                    onChange={(e) => handlePromptsCheck(e.target.checked)}
-                                                />
-                                                <h3 className="ml-2 text-black dark:text-white text-lg">Prompts</h3>
-                                            </div>
-
-                                            {renderScrollableSection(promptsRef.current.filter((prompt:Prompt) => { return (!prompt?.data?.noShare) && !prompt.groupId}), 'Prompt')}
-                                        </>
-                                    )}
-
-                                    {includeConversations && (
-                                        <>
-                                            <div className="mt-4 flex items-center border-b ">
-
-                                                <input
-                                                    type="checkbox"
-                                                    className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                                                    checked={conversationsChecked}
-                                                    onChange={(e) => handleConversationsCheck(e.target.checked)}
-                                                />
-                                                <h3 className="ml-2 text-black dark:text-white text-lg">Conversations</h3>
-                                            </div>
-                                            {renderScrollableSection(conversationsRef.current, 'Conversation')}
-                                        </>
-                                    )}
-
-                                    {includeFolders && (
-                                        <>
-                                            <div className="mt-4 flex items-center border-b ">
-
-                                                <input
-                                                    type="checkbox"
-                                                    className="mx-2 form-checkbox rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                                                    checked={foldersChecked}
-                                                    onChange={(e) => handleFoldersCheck(e.target.checked)}
-                                                />
-                                                <h3 className="ml-2 text-black dark:text-white text-lg">Folders</h3>
-                                            </div>
-                                            {renderScrollableSection(foldersRef.current, 'Folder')}
-                                        </>
-                                    )}
-
-                                </div>
-                            </>
-                        )}
-
-                        <div className="pt-4 flex justify-end items-center border-t border-gray-200">
-
-                            <button
-                                type="button"
-                                className="w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                                onClick={onCancel}
-                            >
-                                Cancel
-                            </button>
-                            {!isSharing && (
-                                <button
-                                    type="button"
-                                    style={{opacity: selectedPeople.length === 0 || !canShare() ? 0.3 : 1}}
-                                    className={`ml-2 w-full px-4 py-2 mt-6 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300 ${selectedPeople.length === 0 || (selectedPromptsState.length === 0 && selectedConversationsState.length === 0 && selectedFoldersState.length === 0) ? 'cursor-not-allowed' : ''}`}
-                                    onClick={handleShare}
-                                    disabled={!canShare()}
-                                >
-                                    Share
-                                </button>
-                            )}
+                            <ItemSelect
+                                selectedPromptsState={selectedPromptsState}
+                                setSelectedPrompts={setSelectedPrompts}
+                                includePrompts={includePrompts}                                                                 
+                                promptFilter={ (p:Prompt[]) =>  p.filter((prompt:Prompt) => (!prompt?.data?.noShare) && 
+                                                                                                !prompt.groupId && !isBasePrompt(prompt.id) ) }
+                    
+                                selectedConversationsState={selectedConversationsState}
+                                setSelectedConversations={setSelectedConversations}
+                                includeConversations={includeConversations}
+                            
+                                selectedFoldersState={selectedFoldersState}
+                                setSelectedFolders={setSelectedFolders}
+                                includeFolders={includeFolders}
+                                folderFilter={(f:FolderInterface[]) => f.filter((folder:FolderInterface) => 
+                                                                        !isBaseFolder(folder.id) && !folder.isGroupFolder &&
+                                                                        folder.id!== baseAssistantFolder.id)}
+                            />
                         </div>
+
                     </div>
-                </div>
-            </div>
-        </div>
+                )}
+
+                </>
+            }
+        />
+
     );
 };

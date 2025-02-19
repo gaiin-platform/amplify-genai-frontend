@@ -6,6 +6,7 @@ import HomeContext from "@/pages/api/home/home.context";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {IconCheck, IconCircleX, IconAt} from "@tabler/icons-react";
 import {AttachedDocument} from "@/types/attacheddocument";
+import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
 
 type Props = {
     assistants: Assistant[];
@@ -15,7 +16,7 @@ type Props = {
 const AssistantsInUse: React.FC<Props> = ({assistants,assistantsChanged}) => {
 
     const {
-        state: {prompts, selectedConversation}
+        state: {prompts, selectedConversation}, handleUpdateSelectedConversation
     } = useContext(HomeContext);
 
     if(assistants.length === 0 || !assistants[0] || !assistants[0].id || assistants[0].id === DEFAULT_ASSISTANT.id){
@@ -29,13 +30,17 @@ const AssistantsInUse: React.FC<Props> = ({assistants,assistantsChanged}) => {
 
     function handleRemoveSelectedAssistant(assistant: Assistant) {
         if (selectedConversation) {
+            const updatedConversation = {...selectedConversation};
             //add prompt template
-            selectedConversation.promptTemplate = null;
+            updatedConversation.promptTemplate = null;
             //clear tags - currently only really applies to the assistant creator 
             const aTags = assistant.definition.data?.conversationTags;
-            if (selectedConversation.tags && aTags) {
-                selectedConversation.tags = selectedConversation.tags.filter((tag:string) => !aTags.includes(tag));
+            if (updatedConversation.tags && aTags) {
+                updatedConversation.tags = updatedConversation.tags.filter((tag:string) => !aTags.includes(tag));
             }
+            updatedConversation.prompt = DEFAULT_SYSTEM_PROMPT;
+            
+            handleUpdateSelectedConversation(updatedConversation);
 
         }
     }
