@@ -1,5 +1,5 @@
 import { IconCheck, IconClipboard, IconDownload } from '@tabler/icons-react';
-import { FC, memo, useState } from 'react';
+import { FC, memo, useContext, useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 
@@ -11,6 +11,7 @@ import {
 } from '@/utils/app/codeblock';
 import TestButton from '@/components/Artifacts/TestButton';
 import InferSchemaButton from '@/components/Artifacts/InferSchemaButton';
+import HomeContext from '@/pages/api/home/home.context';
 
 interface Props {
   language: string;
@@ -19,6 +20,8 @@ interface Props {
 
 export const CodeBlock: FC<Props> = memo(({ language, value }) => {
   const { t } = useTranslation('markdown');
+  const { state: { featureFlags}} = useContext(HomeContext);
+
   const [isCopied, setIsCopied] = useState<Boolean>(false);
 
   const copyToClipboard = () => {
@@ -84,8 +87,11 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
           >
             <IconDownload size={18} />
           </button>
+          { featureFlags.pythonFunction &&
+          <>
           {language === 'python' && <TestButton />}
           {language === 'python' && <InferSchemaButton code={value} />}
+          </>}
         </div>
       </div>
 
