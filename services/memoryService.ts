@@ -4,7 +4,6 @@ const URL_PATH = "/memory";
 
 export const doExtractFactsOp = async (userInput: string) => {
     const op = {
-        // url: 'https://dev-api.vanderbilt.ai/memory/extract-facts',
         method: 'POST',
         path: URL_PATH,
         op: "/extract-facts",
