@@ -42,7 +42,7 @@ export const RateLimiter: FC<RateLimitProps> = ({period, setPeriod, rate, setRat
                 value={period}
                 onChange={(e) => setPeriod(e.target.value as PeriodType)}
             >
-                {periodTypes.map(p =>  <option className="ml-6" value={p}>{p}</option>)}
+                {periodTypes.map(p =>  <option key={p} className="ml-6" value={p}>{p}</option>)}
             </select>
 
             {period !== UNLIMITED && (
