@@ -173,6 +173,7 @@ const Folder = ({
   return (
     <>
         <div className="relative flex items-center"
+            id="folderContainer"  
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >

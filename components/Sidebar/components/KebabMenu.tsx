@@ -379,7 +379,8 @@ interface Props {
                 <div className="text-xs flex flex-row gap-1">
                     {`${actionItem.actionLabel}...`} 
                     <div className="flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 rounded">
-                         <button 
+                         <button
+                                id="confirmItem" 
                                 className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100" 
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -396,6 +397,7 @@ interface Props {
                             </button>
                         
                         <button
+                            id="cancelItem"
                             className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 "
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -411,7 +413,7 @@ interface Props {
 
           <div className="relative inline-block text-left">
             { actionItem && checkIsActiveSide() ?
-                <div className={`z-10 p-0.5 ${ checkingItemType?.includes("Folder")? "": ""}`}>
+                <div id="selectAllCheck" className={`z-10 p-0.5 ${ checkingItemType?.includes("Folder")? "": ""}`}>
                     <input
                     type="checkbox"
                     checked={allItemsChecked}
@@ -420,6 +422,7 @@ interface Props {
                 </div> :
                 <button
                     disabled={isSyncing}
+                    id="promptHandler"
                     className={`outline-none focus:outline-none p-0.5 ${isMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
                     onClick={toggleDropdown}>
                     <IconDotsVertical size={20} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"/>
