@@ -11,10 +11,10 @@ const URL_PATH = "/memory";
 
 export const doExtractFactsOp = async (userInput: string): Promise<ExtractFactsResponse> => {
     const op = {
-        url: 'http://localhost:3015/dev/memory/extract-facts',
+        // url: 'http://localhost:3015/dev/memory/extract-facts',
         method: 'POST',
-        path: "",
-        op: "",
+        path: URL_PATH,
+        op: "/extract-facts",
         data: { user_input: userInput }
     };
     return await doRequestOp(op);
@@ -22,10 +22,10 @@ export const doExtractFactsOp = async (userInput: string): Promise<ExtractFactsR
 
 export const doSaveMemoryBatchOp = async (memories: MemoryBatchItem[]): Promise<MemoryOperationResponse> => {
     const op = {
-        url: 'http://localhost:3015/dev/memory/save-memory-batch',
+        // url: 'http://localhost:3015/dev/memory/save-memory-batch',
         method: 'POST',
-        path: "",
-        op: "",
+        path: URL_PATH,
+        op: "/save-memory-batch",
         data: { memories }
     };
     return await doRequestOp(op);
@@ -39,10 +39,10 @@ export const doReadMemoryByTaxonomyOp = async (params: {
     conversation_id?: string;
 }): Promise<MemoryOperationResponse> => {
     const op = {
-        url: 'http://localhost:3015/dev/memory/read-memory-by-taxonomy',
+        // url: 'http://localhost:3015/dev/memory/read-memory-by-taxonomy',
         method: 'POST',
-        path: "",
-        op: "",
+        path: URL_PATH,
+        op: "/read-memory-by-taxonomy",
         data: params
     };
     return await doRequestOp(op);
