@@ -6,10 +6,7 @@ import {
     useState,
 } from 'react';
 
-import { useTranslation } from 'next-i18next';
 import HomeContext from '@/pages/api/home/home.context';
-import { DEFAULT_ASSISTANT } from "@/types/assistant";
-import { useChatService } from "@/hooks/useChatService";
 import { getSettings } from '@/utils/app/settings';
 import { useSession } from 'next-auth/react';
 import { doSaveMemoryBatchOp } from '@/services/memoryService';
@@ -129,10 +126,55 @@ export const MemoryPresenter: FC<Props> = ({
         <>
             <div className="flex flex-col justify-center items-center stretch mx-2 flex flex-row gap-3 last:mb-2 md:mx-4 md:last:mb-6 lg:mx-auto lg:max-w-3xl">
                 {featureFlags.memory && settingRef.current?.featureOptions.includeMemory && selectedConversation && selectedConversation.messages?.length > 0 && extractedFacts.length > 0 && (
-                    <div>
-                        {isFactsVisible &&
-                            <div className="extracted-facts">
-                                <div className="w-full flex justify-between items-center mb-4 px-4">
+                    <div className="w-full">
+                        {isFactsVisible && (
+                            <div className="extracted-facts bg-white dark:bg-[#343541] rounded-lg shadow-lg flex flex-col">
+                                <div className="relative max-h-96 overflow-y-auto pt-0.5">
+                                    <table className="w-full border-collapse">
+                                        <thead>
+                                            <tr>
+                                                <th className="sticky -top-1 border border-gray-200 dark:border-gray-600 px-4 py-2 text-left bg-white dark:bg-[#343541] z-10">Fact</th>
+                                                <th className="sticky -top-1 border border-gray-200 dark:border-gray-600 px-4 py-2 text-center w-32 bg-white dark:bg-[#343541] z-10">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="px-4">
+                                            {extractedFacts.map((fact, index) => (
+                                                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                                    <td className="border border-gray-200 dark:border-gray-600 px-4 py-2">{fact.content}</td>
+                                                    <td className="border border-gray-200 dark:border-gray-600 px-4 py-2">
+                                                        <div className="flex justify-center gap-4">
+                                                            {loadingStates[index] === 'saving' ? (
+                                                                <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                                </svg>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => handleSaveFact(index)}
+                                                                    className="hover:opacity-75 transition-opacity"
+                                                                    title="Save memory"
+                                                                >✅</button>
+                                                            )}
+                                                            {loadingStates[index] === 'deleting' ? (
+                                                                <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                                </svg>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => handleDeleteFact(index)}
+                                                                    className="hover:opacity-75 transition-opacity"
+                                                                    title="Delete memory"
+                                                                >❌</button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="w-full flex justify-between items-center px-4 py-3 border-t border-gray-200 dark:border-gray-600 mt-2 bg-gray-50 dark:bg-gray-700 rounded-b-lg">
                                     <Toggle
                                         label="Auto-extract new memories"
                                         enabled={memoryExtractionEnabled}
@@ -146,52 +188,11 @@ export const MemoryPresenter: FC<Props> = ({
                                         Hide facts
                                     </button>
                                 </div>
-                                <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-                                    <thead>
-                                        <tr>
-                                            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Fact</th>
-                                            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Save to memory?</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {[...extractedFacts].map((fact, index) => (
-                                            <tr key={index}>
-                                                <td style={{ border: '1px solid #ddd', padding: '8px' }}>{fact.content}</td>
-                                                <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                                                    <div className="flex justify-center gap-4">
-                                                        {loadingStates[index] === 'saving' ? (
-                                                            <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                            </svg>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => handleSaveFact(index)}
-                                                                className="hover:opacity-75 transition-opacity"
-                                                            >✅</button>
-                                                        )}
-                                                        {loadingStates[index] === 'deleting' ? (
-                                                            <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                            </svg>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => handleDeleteFact(index)}
-                                                                className="hover:opacity-75 transition-opacity"
-                                                            >❌</button>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
                             </div>
-                        }
+                        )}
                     </div>
                 )}
             </div>
         </>
-    )
+    );
 };
