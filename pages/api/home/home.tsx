@@ -237,6 +237,7 @@ const Home = ({
 
 
     const handleSelectConversation = async (conversation: Conversation) => {
+        statsService.openConversationsEvent();
         window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false}} ));
         window.dispatchEvent(new Event('cleanupApiKeys'));
         // if we click on the conversation we are already on, then dont do anything
@@ -1268,7 +1269,7 @@ const Home = ({
 
 
     if (session) {                          // dont want to go here if its null
-        if (featureFlags.dataDisclosure && hasAcceptedDataDisclosure === false) {// && window.location.hostname !== 'localhost'
+        if (featureFlags.dataDisclosure && hasAcceptedDataDisclosure === false  && window.location.hostname !== 'localhost') {
                 return (
                     <main className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}>
                         <div className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">

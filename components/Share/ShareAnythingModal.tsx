@@ -113,7 +113,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
             selectedFoldersState,
             [...selectedPromptsState, ...rootPromptsToAdd], "share", false);
         
-        const sharedWith = selectedPeople.map(string => string.toLowerCase());
+        const sharedWith = [...selectedPeople];
         const sharedBy = user?.email ? user.email.toLowerCase() : undefined;
 
 
