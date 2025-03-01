@@ -6,7 +6,7 @@ import Head from 'next/head';
 import { getSession, useSession } from 'next-auth/react';
 import { useTranslation } from 'next-i18next';
 import { getAvailableModels } from '@/services/adminService';
-import { sendDirectAssistantMessage } from '@/services/assistantService';
+import { sendDirectAssistantMessage, lookupAssistant } from '@/services/assistantService';
 import { v4 as uuidv4 } from 'uuid';
 
 interface Props {
@@ -33,11 +33,6 @@ const AssistantPage = ({
   const [theme, setTheme] = useState('dark');
   const [defaultModel, setDefaultModel] = useState<any>(null);
 
-  // Mapping from slug to assistant ID - in a real implementation, this would come from a database or API
-  const assistantMapping: Record<string, string> = {
-    'giteval': 'astp/9d156975-b6d7-474e-8c8e-3a3601359416'
-  };
-
   // Initialize the page
   useEffect(() => {
     const setupPage = async () => {
@@ -52,16 +47,22 @@ const AssistantPage = ({
         
         // Look up assistant ID from slug
         const slugFromRoute = router.query.assistantSlug as string;
-        const assistantIdFromSlug = assistantMapping[slugFromRoute];
         
-        if (!assistantIdFromSlug) {
-          setError(`Assistant not found for slug: ${slugFromRoute}`);
+        console.log(`Looking up assistant for slug: ${slugFromRoute}`);
+        // Use the lookupAssistant service to get the assistantId from the path
+        const lookupResult = await lookupAssistant(slugFromRoute);
+        console.log('Lookup result from service:', lookupResult);
+        
+        if (!lookupResult.success || !lookupResult.assistantId) {
+          console.error('Assistant lookup failed:', lookupResult);
+          setError(`Path not found: "${slugFromRoute}". This assistant path doesn't exist or you may not have permission to access it.`);
           setLoading(false);
           return;
         }
 
         // Set the assistant info
-        setAssistantId(assistantIdFromSlug);
+        console.log(`Setting assistant ID to: ${lookupResult.assistantId}`);
+        setAssistantId(lookupResult.assistantId);
         setAssistantName(slugFromRoute.charAt(0).toUpperCase() + slugFromRoute.slice(1));
         
         // Done loading
@@ -106,6 +107,10 @@ const AssistantPage = ({
       
       // Process the streaming response
       const response = result.response;
+      if (!response || !response.body) {
+        throw new Error("Invalid response format");
+      }
+      
       const data = response.body;
       const reader = data.getReader();
       const decoder = new TextDecoder();
@@ -160,14 +165,17 @@ const AssistantPage = ({
   if (error) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-        <div className="text-center">
-          <div className="mb-4 text-2xl text-red-500">{t('Error')}</div>
-          <div className="mb-4">{error}</div>
+        <div className="text-center p-8 max-w-md bg-white dark:bg-gray-700 rounded-lg shadow-lg">
+          <div className="mb-4 text-2xl text-red-500 font-bold">{t('Error') || 'Error'}</div>
+          <div className="mb-6 text-gray-700 dark:text-gray-300">{error}</div>
+          <div className="mb-6 text-sm text-gray-500 dark:text-gray-400">
+            Please check the path in your URL and try again. If you believe this is an error, contact your administrator.
+          </div>
           <button 
-            className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+            className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 transition-colors"
             onClick={() => router.push('/')}
           >
-            {t('Go Home')}
+            {t('Go Home') || 'Go Home'}
           </button>
         </div>
       </div>
@@ -232,7 +240,7 @@ const AssistantPage = ({
             value={inputMessage}
             onChange={e => setInputMessage(e.target.value)}
             onKeyDown={handleKeyPress}
-            placeholder={t('Type your message here...')}
+            placeholder={t('Type your message here...') || 'Type your message here...'}
             className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white resize-none"
             rows={2}
             disabled={isProcessing}
@@ -246,7 +254,7 @@ const AssistantPage = ({
                 : 'hover:bg-blue-600'
             }`}
           >
-            {isProcessing ? t('Sending...') : t('Send')}
+            {isProcessing ? t('Sending...') || 'Sending...' : t('Send') || 'Send'}
           </button>
         </div>
       </div>

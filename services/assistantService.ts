@@ -4,8 +4,59 @@ import {Stopper} from "@/utils/app/tools";
 import {v4 as uuidv4} from 'uuid';
 import { doRequestOp } from "./doRequestOp";
 
-const URL_PATH =  "/assistant";
+/**
+ * Looks up an assistant by its path
+ * @param astPath The path to lookup the assistant
+ * @returns The assistantId if found, or null if not found
+ */
+export const lookupAssistant = async (astPath: string) => {
+    try {
+        const op = {
+            method: 'POST',
+            path: URL_PATH,
+            op: "/lookup",
+            data: { astPath }
+        };
+        
+        console.log(`Looking up assistant with path: ${astPath}`);
+        const result = await doRequestOp(op);
+        console.log('Lookup result:', result);
+        
+        // The API returns a nested structure where the actual data is in the body field as a JSON string
+        if (result.statusCode === 200 && result.body) {
+            // Parse the body string to get the inner response
+            const innerResponse = typeof result.body === 'string' 
+                ? JSON.parse(result.body) 
+                : result.body;
+            
+            console.log('Parsed inner response:', innerResponse);
+            
+            if (innerResponse.success && innerResponse.data?.assistantId) {
+                console.log(`Found assistant ID: ${innerResponse.data.assistantId}`);
+                return {
+                    success: true,
+                    assistantId: innerResponse.data.assistantId,
+                    isPublic: innerResponse.data.public
+                };
+            }
+        }
+        
+        // If we reach here, something went wrong
+        console.log('Assistant lookup failed');
+        return {
+            success: false,
+            message: result.body ? JSON.parse(result.body)?.message || "Assistant not found" : "Assistant not found"
+        };
+    } catch (error) {
+        console.error("Error looking up assistant:", error);
+        return {
+            success: false,
+            message: "Error looking up assistant"
+        };
+    }
+};
 
+const URL_PATH =  "/assistant";
 
 const addData = (data: { [key: string]: any }) => {
     return (m: Message) => {
