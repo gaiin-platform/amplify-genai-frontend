@@ -7,8 +7,8 @@ import {ExistingFileList, FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile} from "@/components/Chat/AttachFile";
-import {IconFiles, IconCircleX, IconArrowRight} from "@tabler/icons-react";
-import {createAssistant} from "@/services/assistantService";
+import {IconFiles, IconCircleX, IconArrowRight, IconLoader2, IconCheck} from "@tabler/icons-react";
+import {createAssistant, lookupAssistant, addAssistantPath} from "@/services/assistantService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
 import { AssistantDefinition } from '@/types/assistant';
@@ -21,7 +21,6 @@ import ApiItem from '@/components/AssistantApi/ApiItem';
 import { getSettings } from '@/utils/app/settings';
 import { API, APIComponent } from '@/components/CustomAPI/CustomAPIEditor';
 import Search from '@/components/Search';
-
 
 interface Props {
     assistant: Prompt;
@@ -137,7 +136,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                           translateY, blackoutBackground=true, additionalTemplates, autofillOn=false, embed=false, additionalGroupData, children}) => {
     const {t} = useTranslation('promptbar');
 
-    const { state: { prompts, featureFlags} , setLoadingMessage} = useContext(HomeContext);
+    const { state: { prompts, featureFlags }, setLoadingMessage} = useContext(HomeContext);
 
     const definition = getAssistant(assistant);
 
@@ -233,18 +232,25 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     const [apiInfo, setApiInfo] = useState<API[]>(initialApiCapabilities || []);
 
+    const [astPath, setAstPath] = useState<string|null>(definition.astPath || null);
+    const [pathError, setPathError] = useState<string|null>(null);
+    const [isCheckingPath, setIsCheckingPath] = useState(false);
+    const [isPathAvailable, setIsPathAvailable] = useState(false);
+
+    const [isSaving, setIsSaving] = useState(false);
+    const [astPathSaved, setAstPathSaved] = useState(false);
+    const [pathAvailability, setPathAvailability] = useState({ available: false, message: "" });
+
     useEffect(() => {
-        
         if (availableApis === null) getOpsForUser().then((ops) => {
-                                            if(ops.success){
-                                                // console.log(ops.data);
-                                                setAvailableApis(ops.data);
-                                            } else {
-                                                setAvailableApis([]);
-                                            }
-                                        });
+                                        if(ops.success){
+                                            // console.log(ops.data);
+                                            setAvailableApis(ops.data);
+                                        } else {
+                                            setAvailableApis([]);
+                                        }
+                                    });
     }, [availableApis]);
-    
 
     const additionalGroupDataRef = useRef<any>({});
 
@@ -353,7 +359,73 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     }
    
 
+    const validatePath = async (path: string): Promise<boolean> => {
+        // If the feature flag is disabled, don't validate paths
+        if (!featureFlags?.assistantPathPublishing) {
+            return false;
+        }
+        
+        // If path is empty, it's not valid
+        if (!path || path.trim() === '') {
+            setPathError('Path cannot be empty');
+            return false;
+        }
+
+        // Check if the path contains any invalid characters
+        const invalidCharsRegex = /[^a-zA-Z0-9-_/]/;
+        if (invalidCharsRegex.test(path)) {
+            setPathError('Path can only contain letters, numbers, hyphens, underscores, and forward slashes');
+            return false;
+        }
+
+        try {
+            setIsCheckingPath(true);
+            setPathError(null);
+            
+            // Look up the path
+            const result = await lookupAssistant(path.toLowerCase());
+            
+            // If lookup was successful, the path is already taken
+            if (result.success) {
+                setPathError('This path is already in use');
+                setIsPathAvailable(false);
+                return false;
+            }
+            
+            // If lookup failed with a "not found" message, the path is available
+            setIsPathAvailable(true);
+            return true;
+        } catch (error) {
+            console.error('Error validating path:', error);
+            setPathError('Error checking path availability');
+            setIsPathAvailable(false);
+            return false;
+        } finally {
+            setIsCheckingPath(false);
+        }
+    };
+
+    const handlePathBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
+        // Skip validation if the feature flag is disabled
+        if (!featureFlags?.assistantPathPublishing) {
+            return;
+        }
+        
+        const path = e.target.value.trim();
+        if (path) {
+            await validatePath(path);
+        } else {
+            setIsPathAvailable(false);
+            setPathError(null);
+        }
+    };
+
     const handleUpdateAssistant = async () => {
+        if(!name){
+            alert("Must provide a name.");
+            return;
+        }
+
         // Check if any data sources are still uploading
         const isUploading = Object.values(documentState).some((x) => x < 100);
         const isUploadingGroupDS = additionalGroupData && additionalGroupData.groupTypeData ? Object.entries(additionalGroupData.groupTypeData as AstGroupTypeData).some(([type, info]) => !allDocumentsUploaded(info.documentState)) : false;
@@ -362,120 +434,198 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             return;
         }
 
-
         setIsLoading(true);
         setLoadingMessage(loadingMessage);
 
-        let newAssistant = getAssistant(assistant);
-        newAssistant.name = name;
-        newAssistant.provider = "amplify";
-        newAssistant.data = newAssistant.data || {provider: "amplify"};
-        newAssistant.description = description;
-        newAssistant.instructions = content;
-        newAssistant.disclaimer = disclaimer;
+        try {
+            let newAssistant = getAssistant(assistant);
+            newAssistant.name = name;
+            newAssistant.provider = "amplify";
+            newAssistant.data = newAssistant.data || {provider: "amplify"};
+            newAssistant.description = description;
+            newAssistant.instructions = content;
+            newAssistant.disclaimer = disclaimer;
 
-        // TODO handle for groupTypes too 
-        if(uri && uri.trim().length > 0){
-            // Check that it is a valid uri
-            if(uri.trim().indexOf("://") === -1){
-                alert("Invalid URI, please update and try again.");
+            // Validate path if specified and feature flag is enabled
+            if (astPath && featureFlags?.assistantPathPublishing) {
+                const isPathAvailable = await validatePath(astPath);
+                if (!isPathAvailable) {
+                    setIsLoading(false);
+                    return; // Don't proceed with save if path validation fails
+                }
+                
+                // Set the lowercase version of the path
+                newAssistant.astPath = astPath.toLowerCase();
+            } else if (!featureFlags?.assistantPathPublishing) {
+                // If feature flag is disabled, ensure astPath is not set
+                delete newAssistant.astPath;
+            }
+            
+            // TODO handle for groupTypes too 
+            if(uri && uri.trim().length > 0){
+                // Check that it is a valid uri
+                if(uri.trim().indexOf("://") === -1){
+                    alert("Invalid URI, please update and try again.");
+                    setIsLoading(false);
+                    setLoadingMessage("");
+
+                    return;
+                }
+
+                newAssistant.uri = uri.trim();
+            }
+
+            console.log(dataSources.map((d: any)=> d.name));
+
+            newAssistant.dataSources = dataSources.map(ds => {
+                if (assistant.groupId) {
+                    if (!ds.key) ds.key = ds.id;
+                    if (!ds.groupId) ds.groupId = assistant.groupId;
+                    return {
+                      ...ds,
+                      id: "s3://"+ds.key
+                    }
+                }
+                if(ds.key || (ds.id && ds.id.indexOf("://") > 0)){
+                    return ds;
+                }
+                else {
+                    return {
+                        ...ds,
+                        id: "s3://"+ds.id
+                    }
+                }
+            });
+            // do the same for 
+            newAssistant.tools = selectedApis || [];
+            const tagsList = tags ? tags.split(",").map((x: string) => x.trim()) : [];
+            newAssistant.tags = tagsList
+            newAssistant.data.tags = tagsList;
+            newAssistant.data.conversationTags = conversationTags ? conversationTags.split(",").map((x: string) => x.trim()) : [];
+            
+            //if we were able to get to this assistant modal (only comes up with + assistant and edit buttons)
+            //then they must have had read/write access.
+            newAssistant.data.access = {read: true, write: true};
+
+            newAssistant.data.dataSourceOptions = dataSourceOptions;
+
+            newAssistant.data.messageOptions = messageOptions;
+
+            newAssistant.data.featureOptions = featureOptions;
+
+            newAssistant.data.opsLanguageVersion = opsLanguageVersion;
+
+            console.log("apiInfo",apiInfo);
+            console.log("selectedApis",selectedApis);
+
+            const combinedOps = [
+              ...selectedApis,
+              ...(apiInfo.map((api) => {return {type:"http", ...api}}))
+            ];
+
+            newAssistant.data = {
+                ...newAssistant.data,
+                operations: combinedOps//selectedApis
+            };
+
+            if (apiOptions.IncludeApiInstr && apiInfo.some(api => !validateApiInfo(api))) {
+                alert("Please fill out all required API fields (Request Type, URL, and Description) before saving.");
                 setIsLoading(false);
                 setLoadingMessage("");
-
                 return;
             }
 
-            newAssistant.uri = uri.trim();
-        }
-
-        console.log(dataSources.map((d: any)=> d.name));
-
-        newAssistant.dataSources = dataSources.map(ds => {
-            if (assistant.groupId) {
-                if (!ds.key) ds.key = ds.id;
-                if (!ds.groupId) ds.groupId = assistant.groupId;
-                return {
-                ...ds,
-                id: "s3://"+ds.key
-                }
+            if (assistant.groupId) newAssistant.data.groupId = assistant.groupId;
+            
+            const updatedAdditionalGroupData = prepAdditionalData();
+            newAssistant.data = {...newAssistant.data, ...updatedAdditionalGroupData};
+            
+            const {id, assistantId, provider} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant, null);
+            console.log('Assistant created with ID:', assistantId);
+            
+            if (!id) {
+                alert("Unable to save the assistant at this time, please try again later...");
+                setIsLoading(false);
+                setLoadingMessage("");
+                return;
             }
-            if(ds.key || (ds.id && ds.id.indexOf("://") > 0)){
-                return ds;
-            }
-            else {
-                return {
-                    ...ds,
-                    id: "s3://"+ds.id
-                }
-            }
-        });
-        // do the same for 
-        newAssistant.tools = selectedApis || [];
-        const tagsList = tags ? tags.split(",").map((x: string) => x.trim()) : [];
-        newAssistant.tags = tagsList
-        newAssistant.data.tags = tagsList;
-        newAssistant.data.conversationTags = conversationTags ? conversationTags.split(",").map((x: string) => x.trim()) : [];
-        
-        //if we were able to get to this assistant modal (only comes up with + assistant and edit buttons)
-        //then they must have had read/write access.
-        newAssistant.data.access = {read: true, write: true};
 
-        newAssistant.data.dataSourceOptions = dataSourceOptions;
+            newAssistant.id = id;
+            newAssistant.provider = provider;
+            newAssistant.assistantId = assistantId;
 
-        newAssistant.data.messageOptions = messageOptions;
-
-        newAssistant.data.featureOptions = featureOptions;
-
-        newAssistant.data.opsLanguageVersion = opsLanguageVersion;
-
-        console.log("apiInfo",apiInfo);
-        console.log("selectedApis",selectedApis);
-
-        const combinedOps = [
-          ...selectedApis,
-          ...(apiInfo.map((api) => {return {type:"http", ...api}}))
-        ];
-
-        newAssistant.data = {
-            ...newAssistant.data,
-            operations: combinedOps//selectedApis
-        };
-
-        if (apiOptions.IncludeApiInstr && apiInfo.some(api => !validateApiInfo(api))) {
-            alert("Please fill out all required API fields (Request Type, URL, and Description) before saving.");
-            setIsLoading(false);
-            setLoadingMessage("");
-            return;
-        }
-
-        if (assistant.groupId) newAssistant.data.groupId = assistant.groupId;
-        
-        const updatedAdditionalGroupData = prepAdditionalData();
-        newAssistant.data = {...newAssistant.data, ...updatedAdditionalGroupData};
-        
-        const {id, assistantId, provider} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant, null);
-        if (!id) {
-            alert("Unable to save the assistant at this time, please try again later...");
+            const aPrompt = createAssistantPrompt(newAssistant);
+            onUpdateAssistant(aPrompt);
+            
             setIsLoading(false);
             setLoadingMessage("");
 
-            return;
+            onSave();
+
+            // If we have an assistantId and astPath, update the path in DynamoDB (but only if feature flag is enabled)
+            if (assistantId && astPath && featureFlags?.assistantPathPublishing) {
+                try {
+                    const formattedPath = astPath.toLowerCase();
+                    console.log(`Attempting to save path "${formattedPath}" for assistant "${assistantId}" (ID type: ${typeof assistantId})`);
+                    setIsSaving(true);
+
+                    // Make sure the assistantId is a valid string
+                    if (!assistantId || typeof assistantId !== 'string' || assistantId.trim() === '') {
+                        throw new Error('Invalid assistant ID');
+                    }
+
+                    // Make sure the path is a valid string
+                    if (!formattedPath || typeof formattedPath !== 'string' || formattedPath.trim() === '') {
+                        throw new Error('Invalid path');
+                    }
+
+                    const pathResult = await addAssistantPath(assistantId, formattedPath);
+                    console.log('Path saving result:', pathResult);
+
+                    if (pathResult.success) {
+                        setAstPathSaved(true);
+                        setPathAvailability({ available: true, message: "" });
+                        setPathError(null);
+                        alert(`Assistant successfully published at: ${formattedPath}`);
+                    } else {
+                        setAstPathSaved(false);
+                        setPathError(pathResult.message || 'Failed to save assistant path');
+                        console.error('Failed to save path:', pathResult);
+                        alert(`Error saving path: ${pathResult.message || 'Failed to save assistant path. Please try again.'}`);
+                    }
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    console.error('Exception when saving path:', errorMessage);
+                    setAstPathSaved(false);
+                    setPathError(errorMessage);
+                    alert(`An error occurred while saving the path: ${errorMessage}`);
+                } finally {
+                    setIsSaving(false);
+                }
+            }
+        } catch (error) {
+            console.error('Error updating assistant:', error);
+            setIsLoading(false);
+            setLoadingMessage("");
         }
-
-        newAssistant.id = id;
-        newAssistant.provider = provider;
-        newAssistant.assistantId = assistantId;
-
-        const aPrompt = createAssistantPrompt(newAssistant);
-
-
-        onUpdateAssistant(aPrompt);
-
-        setIsLoading(false);
-        setLoadingMessage("");
-
-        onSave();
     }
+
+    // Add a useEffect to initialize path-related state based on feature flag
+    useEffect(() => {
+        // Initialize path-related state only if the feature flag is enabled
+        if (featureFlags?.assistantPathPublishing) {
+            // Initialize with existing path from the definition, if available
+            if (definition.astPath) {
+                setAstPath(definition.astPath);
+            }
+        } else {
+            // If feature flag is disabled, ensure path-related state is reset
+            setAstPath(null);
+            setIsPathAvailable(false);
+            setPathError(null);
+            setIsCheckingPath(false);
+        }
+    }, [featureFlags?.assistantPathPublishing, definition.astPath]);
 
     if (isLoading) return <></>;
     
@@ -689,171 +839,217 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 }} />
                             }
                             
-                            <ExpansionComponent title={"Advanced"} content={
-                                <div className="text-black dark:text-neutral-200">
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                        {t('URI')}
-                                    </div>
-                                    <input
-                                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                      placeholder={t('') || ''}
-                                      value={uri || ''}
-                                      onChange={(e) => setUri(e.target.value)}
-                                      disabled={disableEdit}
-                                    />
+                            <ExpansionComponent
+                                title={"Advanced"}
+                                content={
+                                    <div className="text-black dark:text-neutral-200">
+                                        <div className="mt-4">
+                                            {featureFlags?.assistantPathPublishing && (
+                                                <>
+                                                    <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
+                                                        Publish Assistant Path
+                                                    </div>
+                                                    <p className="text-xs text-black dark:text-neutral-200 mt-2 mb-1">
+                                                        Assistants will be accessible at {window.location.origin}/assistants/<span className="font-semibold">YourAssistantName</span>
+                                                    </p>
+                                                    <div className="relative">
+                                                        <input
+                                                            className={`mt-2 w-full rounded-lg border ${pathError ? 'border-red-500' : isPathAvailable ? 'border-green-500' : 'border-neutral-500'} px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100`}
+                                                            placeholder="Enter a name for the path where you want to publish your assistant"
+                                                            value={astPath || ''}
+                                                            onChange={(e) => {
+                                                                setAstPath(e.target.value);
+                                                                setPathError(null);
+                                                                setIsPathAvailable(false);
+                                                            }}
+                                                            onBlur={handlePathBlur}
+                                                            disabled={disableEdit}
+                                                        />
+                                                        {astPath && (
+                                                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                                                {isCheckingPath && (
+                                                                    <IconLoader2 className="animate-spin h-5 w-5 text-gray-400" />
+                                                                )}
+                                                                {isPathAvailable && !isCheckingPath && !pathError && (
+                                                                    <div className="flex items-center text-green-500">
+                                                                        <IconCheck className="h-5 w-5 mr-1" />
+                                                                        <span className="text-xs">Available</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {pathError && (
+                                                        <p className="text-xs text-red-500 mt-1">{pathError}</p>
+                                                    )}
+                                                </>
+                                            )}
+                                            
+                                            <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
+                                                {t('URI')}
+                                            </div>
+                                            <input
+                                              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                              placeholder={t('') || ''}
+                                              value={uri || ''}
+                                              onChange={(e) => setUri(e.target.value)}
+                                              disabled={disableEdit}
+                                            />
 
-                                    <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
-                                        Assistant Ops Language Version
-                                    </div>
-                                    <select
-                                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                      value={opsLanguageVersion}
-                                      onChange={(e) => setOpsLanguageVersion(e.target.value)}
-                                    >
-                                        <option value="v1">v1</option>
-                                        <option value="v2">v2</option>
-                                        <option value="v3">v3</option>
-                                        <option value="v4">Deep VU1</option>
-                                        <option value="custom">custom</option>
-                                    </select>
+                                            <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
+                                                Assistant Ops Language Version
+                                            </div>
+                                            <select
+                                              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                              value={opsLanguageVersion}
+                                              onChange={(e) => setOpsLanguageVersion(e.target.value)}
+                                            >
+                                                <option value="v1">v1</option>
+                                                <option value="v2">v2</option>
+                                                <option value="v3">v3</option>
+                                                <option value="v4">Deep VU1</option>
+                                                <option value="custom">custom</option>
+                                            </select>
 
-                                    <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
-                                        {t('Assistant ID')}
-                                    </div>
-                                    <input
-                                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                      value={definition.assistantId || ''}
-                                      disabled={true}
-                                    />
+                                            <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
+                                                {t('Assistant ID')}
+                                            </div>
+                                            <input
+                                              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                              value={definition.assistantId || ''}
+                                              disabled={true}
+                                            />
 
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
-                                        {t('Data Source Options')}
-                                    </div>
-                                    <ExpansionComponent
-                                        title='Manage'
-                                        content= {
-                                             <FlagsMap id={'dataSourceFlags'}
-                                              flags={dataSourceFlags}
-                                              state={dataSourceOptions}
-                                              flagChanged={
-                                                  (key, value) => {
-                                                      if (!disableEdit) setDataSourceOptions({
-                                                          ...dataSourceOptions,
-                                                          [key]: value,
-                                                      });
-                                                  }
-                                              } />
-                                        }
-                                    />
-                                   
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
-                                        {t('Message Options')}
-                                    </div>
-                                    <FlagsMap id={'messageOptionFlags'}
-                                              flags={messageOptionFlags}
-                                              state={messageOptions}
-                                              flagChanged={
-                                                  (key, value) => {
-                                                      if (!disableEdit) setMessageOptions({
-                                                          ...messageOptions,
-                                                          [key]: value,
-                                                      });
-                                                  }
-                                              } />
+                                            <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                                {t('Data Source Options')}
+                                            </div>
+                                            <ExpansionComponent
+                                                title='Manage'
+                                                content= {
+                                                     <FlagsMap id={'dataSourceFlags'}
+                                                      flags={dataSourceFlags}
+                                                      state={dataSourceOptions}
+                                                      flagChanged={
+                                                          (key, value) => {
+                                                              if (!disableEdit) setDataSourceOptions({
+                                                                  ...dataSourceOptions,
+                                                                  [key]: value,
+                                                              });
+                                                          }
+                                                      } />
+                                            }
+                                            />
+                                           
+                                            <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                                {t('Message Options')}
+                                            </div>
+                                            <FlagsMap id={'messageOptionFlags'}
+                                                      flags={messageOptionFlags}
+                                                      state={messageOptions}
+                                                      flagChanged={
+                                                          (key, value) => {
+                                                              if (!disableEdit) setMessageOptions({
+                                                                  ...messageOptions,
+                                                                  [key]: value,
+                                                              });
+                                                          }
+                                                      } />
 
-                                    {Object.keys(featureOptions).length > 0 &&
-                                      <>
-                                          <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
-                                              {t('Feature Options')}
-                                          </div>
-                                          <FlagsMap id={'astFeatureOptionFlags'}
-                                                    flags={featureOptionFlags}
-                                                    state={featureOptions}
-                                                    flagChanged={
-                                                        (key, value) => {
-                                                            if (!disableEdit) setFeatureOptions({
-                                                                ...featureOptions,
-                                                                [key]: value,
-                                                            });
-                                                        }
-                                                    } />
-                                      </>
-                                    }
-                                    <div className="mt-2 mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
-                                        <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                            {t('Tags')}
-                                        </div>
-                                        <input
-                                          className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                          placeholder={t('Tag names separated by commas.') || ''}
-                                          value={tags}
-                                          title={'Tags for conversations created with this template.'}
-                                          onChange={(e) => {
-                                              setTags(e.target.value);
-                                          }}
-                                        />
-                                    </div>
-
-                                    <div className="mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
-                                        <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                            {t('Conversation Tags')}
-                                        </div>
-                                        <input
-                                          className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                          placeholder={t('Tag names separated by commas.') || ''}
-                                          value={conversationTags}
-                                          title={'Tags for conversations created with this template.'}
-                                          onChange={(e) => {
-                                              setConversationTags(e.target.value);
-                                          }}
-                                        />
-                                    </div>
-
-
-                                    {!availableApis && <>Loading API Capabilities...</>}
-
-                                    {availableApis && availableApis.length > 0 &&
-                                        <>
-                                        <div className="flex flex-row text-sm font-bold text-black dark:text-neutral-200 mt-2 mb-2">
-                                            {t('Enabled API Capabilities')}
-                                            {availableApis && 
-                                            <div className="h-0 ml-auto" style={{transform: 'translateY(-18px)'}}>
-                                                <Search
-                                                placeholder={'Search APIs...'}
-                                                searchTerm={apiSearchTerm}
-                                                onSearch={(searchTerm: string) => setApiSearchTerm(searchTerm.toLocaleLowerCase())}
+                                            {Object.keys(featureOptions).length > 0 &&
+                                              <>
+                                                  <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                                      {t('Feature Options')}
+                                                  </div>
+                                                  <FlagsMap id={'astFeatureOptionFlags'}
+                                                            flags={featureOptionFlags}
+                                                            state={featureOptions}
+                                                            flagChanged={
+                                                                (key, value) => {
+                                                                    if (!disableEdit) setFeatureOptions({
+                                                                        ...featureOptions,
+                                                                        [key]: value,
+                                                                    });
+                                                                }
+                                                            } />
+                                              </>
+                                            }
+                                            <div className="mt-2 mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
+                                                <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                                    {t('Tags')}
+                                                </div>
+                                                <input
+                                                  className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                  placeholder={t('Tag names separated by commas.') || ''}
+                                                  value={tags}
+                                                  title={'Tags for conversations created with this template.'}
+                                                  onChange={(e) => {
+                                                      setTags(e.target.value);
+                                                  }}
                                                 />
-                                            </div>}
-                                        </div> 
+                                            </div>
 
-                                        <div className="max-h-[400px] overflow-y-auto">
-                                            {availableApis.filter((api) => (apiSearchTerm ? 
-                                                                   api.name.toLowerCase().includes(apiSearchTerm) : true))
+                                            <div className="mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
+                                                <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                                    {t('Conversation Tags')}
+                                                </div>
+                                                <input
+                                                  className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                  placeholder={t('Tag names separated by commas.') || ''}
+                                                  value={conversationTags}
+                                                  title={'Tags for conversations created with this template.'}
+                                                  onChange={(e) => {
+                                                      setConversationTags(e.target.value);
+                                                  }}
+                                                />
+                                            </div>
+
+
+                                            {!availableApis && <>Loading API Capabilities...</>}
+
+                                            {availableApis && availableApis.length > 0 &&
+                                                <>
+                                                <div className="flex flex-row text-sm font-bold text-black dark:text-neutral-200 mt-2 mb-2">
+                                                    {t('Enabled API Capabilities')}
+                                                    {availableApis && 
+                                                    <div className="h-0 ml-auto" style={{transform: 'translateY(-18px)'}}>
+                                                        <Search
+                                                        placeholder={'Search APIs...'}
+                                                        searchTerm={apiSearchTerm}
+                                                        onSearch={(searchTerm: string) => setApiSearchTerm(searchTerm.toLocaleLowerCase())}
+                                                        />
+                                                    </div>}
+                                                </div> 
+
+                                                <div className="max-h-[400px] overflow-y-auto">
+                                                    {availableApis.filter((api) => (apiSearchTerm ? 
+                                                                       api.name.toLowerCase().includes(apiSearchTerm) : true))
                                                           .map((api, index) => (
-                                                <ApiItem
-                                                selected={selectedApis.some((selectedApi) => selectedApi.id === api.id)}
-                                                key={index}
-                                                api={api}
-                                                index={index}
-                                                onChange={handleUpdateApiItem} />
-                                            ))}
-                                        </div>  
-                                        </>
-                                    }
+                                                        <ApiItem
+                                                        selected={selectedApis.some((selectedApi) => selectedApi.id === api.id)}
+                                                        key={index}
+                                                        api={api}
+                                                        index={index}
+                                                        onChange={handleUpdateApiItem} />
+                                                    ))}
+                                                </div>  
+                                                </>
+                                            }
 
 
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-8 mb-1">
-                                        {t('Custom API Capabilities')}
+                                            <div className="text-sm font-bold text-black dark:text-neutral-200 mt-8 mb-1">
+                                                {t('Custom API Capabilities')}
+                                            </div>
+
+                                            <APIComponent
+                                              apiInfo={apiInfo}
+                                              setApiInfo={setApiInfo}
+                                            />
+
+
+                                        </div>
                                     </div>
-
-                                    <APIComponent
-                                      apiInfo={apiInfo}
-                                      setApiInfo={setApiInfo}
-                                    />
-
-
-                                </div>
-                            } />
+                                }
+                            />
                         </div>
               <div className="flex flex-row items-center justify-end p-4 bg-white dark:bg-[#22232b]">
                   <button

@@ -4,6 +4,8 @@ import {Stopper} from "@/utils/app/tools";
 import {v4 as uuidv4} from 'uuid';
 import { doRequestOp } from "./doRequestOp";
 
+const URL_PATH = "/assistant";
+
 /**
  * Looks up an assistant by its path
  * @param astPath The path to lookup the assistant
@@ -55,8 +57,6 @@ export const lookupAssistant = async (astPath: string) => {
         };
     }
 };
-
-const URL_PATH =  "/assistant";
 
 const addData = (data: { [key: string]: any }) => {
     return (m: Message) => {
@@ -237,3 +237,77 @@ export const sendDirectAssistantMessage = async (
     };
   }
 }
+
+/**
+ * Adds a path to an assistant
+ * @param assistantId The ID of the assistant
+ * @param astPath The path to add to the assistant
+ * @returns Success status and the updated assistant info
+ */
+export const addAssistantPath = async (assistantId: string, astPath: string) => {
+  console.log(`Attempting to add path "${astPath}" to assistant "${assistantId}"`);
+  try {
+    // Make sure assistantId is in the correct format
+    // The backend expects an assistantId with a prefix like "astp/"
+    const formattedAssistantId = assistantId.startsWith('astp/') ? assistantId : assistantId;
+    
+    const op = {
+      method: 'POST',
+      path: URL_PATH,
+      op: "/add_path",
+      data: { 
+        assistantId: formattedAssistantId, 
+        astPath 
+      }
+    };
+    
+    console.log('Sending add_path request with payload:', op);
+    const result = await doRequestOp(op);
+    console.log('Add path API raw response:', result);
+    
+    // Check if the result is successful based on status code
+    if (result.statusCode === 200) {
+      // Handle the nested response structure
+      let innerResponse;
+      try {
+        innerResponse = typeof result.body === 'string' 
+          ? JSON.parse(result.body) 
+          : result.body;
+        
+        console.log('Parsed inner response:', innerResponse);
+        
+        if (innerResponse && innerResponse.success) {
+          return {
+            success: true,
+            message: innerResponse.message || 'Path added successfully',
+            data: innerResponse.data
+          };
+        } else {
+          console.error('Backend reported failure:', innerResponse?.message || 'Unknown error');
+          return {
+            success: false,
+            message: innerResponse?.message || 'Failed to add path to assistant'
+          };
+        }
+      } catch (parseError) {
+        console.error('Error parsing response body:', parseError, 'Raw body:', result.body);
+        return {
+          success: false,
+          message: 'Error processing server response'
+        };
+      }
+    } else {
+      console.error(`API request failed with status: ${result.statusCode}, response:`, result);
+      return {
+        success: false,
+        message: result.statusText || `Server returned error code: ${result.statusCode}`
+      };
+    }
+  } catch (error) {
+    console.error(`Error calling add_path API:`, error);
+    return { 
+      success: false, 
+      message: `Error adding path: ${error instanceof Error ? error.message : String(error)}` 
+    };
+  }
+};
