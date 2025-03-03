@@ -5,8 +5,13 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import { getSession, useSession } from 'next-auth/react';
 import { useTranslation } from 'next-i18next';
+import { IconMessage, IconSend } from '@tabler/icons-react';
 import { getAvailableModels } from '@/services/adminService';
 import { sendDirectAssistantMessage, lookupAssistant } from '@/services/assistantService';
+import { getSettings } from '@/utils/app/settings';
+import { LoadingDialog } from '@/components/Loader/LoadingDialog';
+import Spinner from '@/components/Spinner';
+import { Theme } from '@/types/settings';
 import { v4 as uuidv4 } from 'uuid';
 
 interface Props {
@@ -21,6 +26,7 @@ const AssistantPage = ({
   const { t } = useTranslation('chat');
   const router = useRouter();
   const { data: session } = useSession();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // State management
   const [loading, setLoading] = useState(true);
@@ -30,12 +36,30 @@ const AssistantPage = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [assistantId, setAssistantId] = useState('');
   const [assistantName, setAssistantName] = useState('Assistant');
-  const [theme, setTheme] = useState('dark');
+  const [lightMode, setLightMode] = useState<Theme>('dark');
   const [defaultModel, setDefaultModel] = useState<any>(null);
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load user's theme preference from settings
+  useEffect(() => {
+    try {
+      const savedSettings = getSettings({});
+      setLightMode(savedSettings.theme);
+    } catch (e) {
+      console.error('Failed to load user settings:', e);
+    }
+  }, []);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   // Initialize the page
   useEffect(() => {
     const setupPage = async () => {
+      setLoadingMessage('Initializing Assistant...');
       try {
         // Load models
         const modelsResponse = await getAvailableModels();
@@ -57,6 +81,7 @@ const AssistantPage = ({
           console.error('Assistant lookup failed:', lookupResult);
           setError(`Path not found: "${slugFromRoute}". This assistant path doesn't exist or you may not have permission to access it.`);
           setLoading(false);
+          setLoadingMessage('');
           return;
         }
 
@@ -67,10 +92,12 @@ const AssistantPage = ({
         
         // Done loading
         setLoading(false);
+        setLoadingMessage('');
       } catch (error) {
         console.error("Error setting up assistant page:", error);
         setError("Failed to initialize the assistant interface.");
         setLoading(false);
+        setLoadingMessage('');
       }
     };
 
@@ -97,8 +124,8 @@ const AssistantPage = ({
         assistantName,
         inputMessage,
         defaultModel,
-        // Filter out the last message since we're sending it separately
-        messages.filter((_, idx) => idx < messages.length - 1)
+        // Send all previous messages for context
+        messages
       );
       
       if (!result.success) {
@@ -141,7 +168,7 @@ const AssistantPage = ({
     }
   };
 
-  // Handle key press (submit on Enter)
+  // Handle key press (submit on Enter, new line on Shift+Enter)
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -149,14 +176,22 @@ const AssistantPage = ({
     }
   };
 
+  // Handle textarea auto-resize
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputMessage(e.target.value);
+    
+    // Auto-resize the textarea
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'inherit';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    }
+  };
+
   // Loading state
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-        <div className="text-center">
-          <div className="mb-4 text-4xl">Loading...</div>
-          <div className="text-gray-500 dark:text-gray-400">Please wait while we set up the assistant.</div>
-        </div>
+      <div className="flex h-screen items-center justify-center">
+        <LoadingDialog open={true} message={loadingMessage || "Setting up the assistant..."} />
       </div>
     );
   }
@@ -164,7 +199,7 @@ const AssistantPage = ({
   // Error state
   if (error) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+      <div className={`flex h-screen items-center justify-center ${lightMode}`}>
         <div className="text-center p-8 max-w-md bg-white dark:bg-gray-700 rounded-lg shadow-lg">
           <div className="mb-4 text-2xl text-red-500 font-bold">{t('Error') || 'Error'}</div>
           <div className="mb-6 text-gray-700 dark:text-gray-300">{error}</div>
@@ -183,7 +218,7 @@ const AssistantPage = ({
   }
 
   return (
-    <div className={`flex flex-col h-screen ${theme === 'dark' ? 'dark bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
+    <div className={`flex flex-col h-screen w-screen ${lightMode}`}>
       <Head>
         <title>{`Chat with ${assistantName}`}</title>
         <meta name="description" content={`Chat with ${assistantName} assistant`} />
@@ -192,70 +227,85 @@ const AssistantPage = ({
       </Head>
 
       {/* Header */}
-      <header className="p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow flex justify-between items-center">
-        <h1 className="text-xl font-bold">{assistantName}</h1>
-        <button 
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
-        >
-          {theme === 'dark' ? '🌙' : '☀️'}
-        </button>
+      <header className="border-b border-neutral-200 dark:border-neutral-600 bg-white dark:bg-[#202123] py-4 px-6 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <IconMessage className="text-neutral-500 dark:text-neutral-400" size={24} />
+          <h1 className="text-xl font-bold text-neutral-800 dark:text-neutral-100">{assistantName}</h1>
+        </div>
       </header>
 
       {/* Chat messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto py-4 px-6 bg-white dark:bg-[#343541]">
         {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-            <p>{t('Start a conversation with the assistant')}</p>
+          <div className="flex h-full items-center justify-center">
+            <div className="text-center text-neutral-500 dark:text-neutral-400">
+              <p className="mb-2">{t('Start a conversation with the assistant')}</p>
+              <p className="text-sm">{assistantName} can help answer your questions</p>
+            </div>
           </div>
         ) : (
-          messages.map((message, index) => (
-            <div 
-              key={index}
-              className={`${
-                message.role === 'user' 
-                  ? 'bg-blue-100 dark:bg-blue-900 ml-auto' 
-                  : 'bg-gray-100 dark:bg-gray-700 mr-auto'
-              } p-3 rounded-lg max-w-3/4 whitespace-pre-wrap`}
-            >
-              {message.content}
-            </div>
-          ))
-        )}
-        {isProcessing && (
-          <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg mr-auto">
-            <div className="flex space-x-2">
-              <div className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-300 animate-bounce"></div>
-              <div className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-300 animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-              <div className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-300 animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-            </div>
+          <div className="space-y-6 max-w-3xl mx-auto">
+            {messages.map((message, index) => (
+              <div 
+                key={index}
+                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div 
+                  className={`px-4 py-3 rounded-lg max-w-[85%] whitespace-pre-wrap ${
+                    message.role === 'user' 
+                      ? 'bg-blue-500 text-white' 
+                      : 'bg-neutral-100 dark:bg-[#444654] text-neutral-900 dark:text-neutral-100'
+                  }`}
+                >
+                  {message.content}
+                </div>
+              </div>
+            ))}
+            {isProcessing && (
+              <div className="flex justify-start">
+                <div className="bg-neutral-100 dark:bg-[#444654] px-4 py-3 rounded-lg flex items-center">
+                  <Spinner />
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
         )}
       </div>
 
       {/* Input area */}
-      <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800">
-        <div className="flex space-x-2">
-          <textarea
-            value={inputMessage}
-            onChange={e => setInputMessage(e.target.value)}
-            onKeyDown={handleKeyPress}
-            placeholder={t('Type your message here...') || 'Type your message here...'}
-            className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white resize-none"
-            rows={2}
-            disabled={isProcessing}
-          />
-          <button
-            onClick={handleSendMessage}
-            disabled={!inputMessage.trim() || isProcessing}
-            className={`px-4 py-2 bg-blue-500 text-white rounded-lg ${
-              !inputMessage.trim() || isProcessing 
-                ? 'opacity-50 cursor-not-allowed' 
-                : 'hover:bg-blue-600'
-            }`}
-          >
-            {isProcessing ? t('Sending...') || 'Sending...' : t('Send') || 'Send'}
-          </button>
+      <div className="border-t border-neutral-200 dark:border-neutral-600 bg-white dark:bg-[#202123] py-4 px-6">
+        <div className="max-w-3xl mx-auto">
+          <div className="relative">
+            <textarea
+              ref={textareaRef}
+              className="w-full resize-none rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#40414f] px-4 py-3 pr-12 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-500"
+              style={{
+                minHeight: '56px',
+                maxHeight: '200px',
+              }}
+              rows={1}
+              placeholder={t('Type your message here...') || 'Type your message here...'}
+              value={inputMessage}
+              onChange={handleTextareaChange}
+              onKeyDown={handleKeyPress}
+              disabled={isProcessing}
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+              <button
+                className={`text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-100 ${
+                  !inputMessage.trim() || isProcessing
+                    ? 'opacity-40 cursor-not-allowed'
+                    : 'hover:bg-neutral-200 dark:hover:bg-neutral-600'
+                } p-1.5 rounded-md`}
+                onClick={handleSendMessage}
+                disabled={!inputMessage.trim() || isProcessing}
+                aria-label="Send message"
+              >
+                <IconSend size={20} />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
