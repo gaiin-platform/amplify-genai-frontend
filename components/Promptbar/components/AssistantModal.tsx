@@ -7,7 +7,7 @@ import {ExistingFileList, FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile} from "@/components/Chat/AttachFile";
-import {IconFiles, IconCircleX, IconArrowRight, IconLoader2, IconCheck} from "@tabler/icons-react";
+import {IconFiles, IconCircleX, IconArrowRight, IconLoader2, IconCheck, IconAlertTriangle} from "@tabler/icons-react";
 import {createAssistant, lookupAssistant, addAssistantPath} from "@/services/assistantService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
@@ -377,6 +377,57 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             setPathError('Path can only contain letters, numbers, hyphens, underscores, and forward slashes');
             return false;
         }
+        
+        // Check path length
+        if (path.length < 3) {
+            setPathError('Path must be at least 3 characters long');
+            return false;
+        }
+        
+        if (path.length > 100) {
+            setPathError('Path is too long (maximum 100 characters)');
+            return false;
+        }
+        
+        // Check for leading/trailing slashes
+        if (path.startsWith('/') || path.endsWith('/')) {
+            setPathError('Path cannot start or end with a slash');
+            return false;
+        }
+        
+        // Check for consecutive slashes
+        if (path.includes('//')) {
+            setPathError('Path cannot contain consecutive slashes');
+            return false;
+        }
+        
+        // Check for common inappropriate terms
+        const inappropriateTerms = [
+            'profanity', 'offensive', 'obscene', 'adult', 'xxx', 'porn', 
+            'explicit', 'sex', 'nsfw', 'violence', 'hate', 'racist', 
+            'discriminatory', 'illegal', 'hack', 'crack', 'warez',
+            'bypass', 'pirate', 'torrent', 'steal', 'nude', 'naked'
+        ];
+        
+        const lowerPath = path.toLowerCase();
+        for (const term of inappropriateTerms) {
+            if (lowerPath.includes(term)) {
+                setPathError(`Path contains inappropriate term: ${term}`);
+                return false;
+            }
+        }
+        
+        // Check for paths pretending to be system paths
+        const systemPaths = ['admin', 'system', 'login', 'signin', 'signup', 'register', 
+                           'auth', 'authenticate', 'reset', 'password', 'billing', 'payment'];
+        
+        const pathParts = lowerPath.split('/');
+        for (const part of pathParts) {
+            if (systemPaths.includes(part)) {
+                setPathError(`Path contains restricted system term: ${part}`);
+                return false;
+            }
+        }
 
         try {
             setIsCheckingPath(true);
@@ -387,7 +438,19 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             
             // If lookup was successful, the path is already taken
             if (result.success) {
-                setPathError('This path is already in use');
+                // Get the current assistant's ID (from definition)
+                const currentAssistantId = definition.assistantId;
+                
+                // If the path is used by the same assistant we're editing, it's valid
+                if (currentAssistantId && result.assistantId === currentAssistantId) {
+                    console.log(`Path "${path}" is already assigned to this assistant`);
+                    setPathError(null);
+                    setIsPathAvailable(true);
+                    return true;
+                }
+                
+                // Otherwise, the path is used by a different assistant
+                setPathError('This path is already in use by another assistant');
                 setIsPathAvailable(false);
                 return false;
             }
@@ -413,10 +476,36 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         
         const path = e.target.value.trim();
         if (path) {
+            // If the path is the same as the current assistant's path, just set it as valid
+            // without making unnecessary API calls
+            if (definition.astPath && path.toLowerCase() === definition.astPath.toLowerCase()) {
+                console.log(`Using existing path: ${path}`);
+                setIsPathAvailable(true);
+                setPathError(null);
+                setPathAvailability({ available: true, message: "Current path" });
+                return;
+            }
+            
             await validatePath(path);
+            
+            // Update the pathAvailability state based on validation results
+            if (isPathAvailable) {
+                // If the path is already assigned to this assistant
+                if (path.toLowerCase() === definition.astPath?.toLowerCase()) {
+                    setPathAvailability({ available: true, message: "Current path" });
+                } else {
+                    setPathAvailability({ available: true, message: "Path available" });
+                }
+            } else {
+                setPathAvailability({ 
+                    available: false, 
+                    message: pathError || "Path unavailable" 
+                });
+            }
         } else {
             setIsPathAvailable(false);
             setPathError(null);
+            setPathAvailability({ available: false, message: "" });
         }
     };
 
@@ -455,10 +544,15 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 }
                 
                 // Set the lowercase version of the path
-                newAssistant.astPath = astPath.toLowerCase();
+                const formattedPath = astPath.toLowerCase();
+                newAssistant.astPath = formattedPath;
+                console.log(`Setting assistant path to "${formattedPath}" in definition`);
             } else if (!featureFlags?.assistantPathPublishing) {
                 // If feature flag is disabled, ensure astPath is not set
-                delete newAssistant.astPath;
+                if (newAssistant.astPath) {
+                    console.log(`Feature flag disabled, removing existing path "${newAssistant.astPath}" from definition`);
+                    delete newAssistant.astPath;
+                }
             }
             
             // TODO handle for groupTypes too 
@@ -586,6 +680,16 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                         setAstPathSaved(true);
                         setPathAvailability({ available: true, message: "" });
                         setPathError(null);
+                        
+                        // Update the newAssistant definition with the path
+                        newAssistant.astPath = formattedPath;
+                        
+                        // Create a new prompt with the updated assistant definition
+                        const updatedPrompt = createAssistantPrompt(newAssistant);
+                        
+                        // Update the assistant in the UI
+                        onUpdateAssistant(updatedPrompt);
+                        
                         alert(`Assistant successfully published at: ${formattedPath}`);
                     } else {
                         setAstPathSaved(false);
@@ -617,6 +721,12 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             // Initialize with existing path from the definition, if available
             if (definition.astPath) {
                 setAstPath(definition.astPath);
+                
+                // If there's an existing path, set it as available and mark it as the current path
+                setIsPathAvailable(true);
+                setPathError(null);
+                setPathAvailability({ available: true, message: "Current path" });
+                setAstPathSaved(true); // Mark as already saved
             }
         } else {
             // If feature flag is disabled, ensure path-related state is reset
@@ -624,6 +734,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             setIsPathAvailable(false);
             setPathError(null);
             setIsCheckingPath(false);
+            setPathAvailability({ available: false, message: "" });
+            setAstPathSaved(false);
         }
     }, [featureFlags?.assistantPathPublishing, definition.astPath]);
 
@@ -873,15 +985,38 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                                 {isPathAvailable && !isCheckingPath && !pathError && (
                                                                     <div className="flex items-center text-green-500">
                                                                         <IconCheck className="h-5 w-5 mr-1" />
-                                                                        <span className="text-xs">Available</span>
+                                                                        <span className="text-xs">{pathAvailability.message || "Available"}</span>
                                                                     </div>
                                                                 )}
                                                             </div>
                                                         )}
                                                     </div>
                                                     {pathError && (
-                                                        <p className="text-xs text-red-500 mt-1">{pathError}</p>
+                                                        <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md">
+                                                            <p className="text-xs text-red-600 dark:text-red-400 flex items-start">
+                                                                <IconAlertTriangle className="h-4 w-4 mr-1 flex-shrink-0 mt-0.5" />
+                                                                <span>{pathError}</span>
+                                                            </p>
+                                                            <ul className="text-xs text-red-600 dark:text-red-400 mt-1 ml-5 list-disc">
+                                                                {pathError.includes('invalid characters') && (
+                                                                    <li>Use only letters, numbers, hyphens, underscores, and forward slashes</li>
+                                                                )}
+                                                                {pathError.includes('restricted system term') && (
+                                                                    <li>Choose a different name that doesn't include system-reserved terms</li>
+                                                                )}
+                                                                {pathError.includes('inappropriate term') && (
+                                                                    <li>Choose a business-appropriate path name</li>
+                                                                )}
+                                                                {pathError.includes('already in use') && (
+                                                                    <li>This path is already assigned to a different assistant</li>
+                                                                )}
+                                                            </ul>
+                                                        </div>
                                                     )}
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                                        <span className="font-medium">Path requirements:</span> 3-100 characters, letters, numbers, hyphens, underscores, and forward slashes.
+                                                        <br />No leading/trailing slashes or consecutive slashes. No reserved or inappropriate terms.
+                                                    </p>
                                                 </>
                                             )}
                                             

@@ -261,9 +261,9 @@ export const addAssistantPath = async (assistantId: string, astPath: string) => 
       }
     };
     
-    console.log('Sending add_path request with payload:', op);
+    console.log('Sending add_path request with payload:', JSON.stringify(op));
     const result = await doRequestOp(op);
-    console.log('Add path API raw response:', result);
+    console.log('Add path API raw response:', JSON.stringify(result));
     
     // Check if the result is successful based on status code
     if (result.statusCode === 200) {
@@ -274,9 +274,10 @@ export const addAssistantPath = async (assistantId: string, astPath: string) => 
           ? JSON.parse(result.body) 
           : result.body;
         
-        console.log('Parsed inner response:', innerResponse);
+        console.log('Parsed inner response:', JSON.stringify(innerResponse));
         
         if (innerResponse && innerResponse.success) {
+          console.log('Path successfully added to assistant in backend. The astPath should now be saved to both the lookup table and the assistant definition.');
           return {
             success: true,
             message: innerResponse.message || 'Path added successfully',
@@ -297,7 +298,7 @@ export const addAssistantPath = async (assistantId: string, astPath: string) => 
         };
       }
     } else {
-      console.error(`API request failed with status: ${result.statusCode}, response:`, result);
+      console.error(`API request failed with status: ${result.statusCode}, response:`, JSON.stringify(result));
       return {
         success: false,
         message: result.statusText || `Server returned error code: ${result.statusCode}`
