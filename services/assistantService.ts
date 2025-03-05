@@ -1,21 +1,20 @@
-import {AssistantDefinition} from "@/types/assistant";
-import {Message, newMessage} from "@/types/chat";
-import {Stopper} from "@/utils/app/tools";
-import {v4 as uuidv4} from 'uuid';
+import { AssistantDefinition } from "@/types/assistant";
+import { Message } from "@/types/chat";
+import { v4 as uuidv4 } from 'uuid';
 import { doRequestOp } from "./doRequestOp";
 
-const URL_PATH =  "/assistant";
-
+const URL_PATH = "/assistant";
+const SERVICE_NAME = "assistant";
 
 const addData = (data: { [key: string]: any }) => {
     return (m: Message) => {
-        return {...m, data: {...m.data, ...data}}
+        return { ...m, data: { ...m.data, ...data } }
     };
 }
 
 const addDataToMessages = (messages: Message[], data: { [key: string]: any }) => {
     return messages.map((m) => {
-        return {...m, data: {...m.data, ...data}}
+        return { ...m, data: { ...m.data, ...data } }
     });
 }
 
@@ -25,22 +24,23 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
         method: 'POST',
         path: URL_PATH,
         op: "/create",
-        data: {...assistantDefinition}
+        data: { ...assistantDefinition },
+        service: SERVICE_NAME
     };
-    
+
     if (assistantDefinition.provider === 'openai') {
         if (assistantDefinition.dataSources) {
             assistantDefinition.fileKeys = assistantDefinition.dataSources.map((ds) => ds.id);
         }
 
-        const result =  await doRequestOp(op);
+        const result = await doRequestOp(op);
 
         const id = result.data.assistantId;
-        return {assistantId: id, id, provider: 'openai'};
+        return { assistantId: id, id, provider: 'openai' };
     } else if (assistantDefinition.provider === 'amplify') {
 
         try {
-            const result =  await doRequestOp(op);
+            const result = await doRequestOp(op);
 
             console.log("Create Assistant result:", result);
 
@@ -75,14 +75,14 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
     }
 };
 
-
 export const listAssistants = async () => {
     const op = {
         method: 'GET',
         path: URL_PATH,
         op: "/list",
+        service: SERVICE_NAME
     };
-    const result =  await doRequestOp(op);
+    const result = await doRequestOp(op);
     return result.success ? result.data : [];
 }
 
@@ -91,8 +91,9 @@ export const deleteAssistant = async (assistantId: string) => {
         method: 'POST',
         path: URL_PATH,
         op: "/delete",
-        data: {assistantId}
+        data: { assistantId },
+        service: SERVICE_NAME
     };
-    const result =  await doRequestOp(op);
+    const result = await doRequestOp(op);
     return result.success;
 }
