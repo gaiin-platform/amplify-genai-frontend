@@ -56,16 +56,65 @@ const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversation
     const [sortColumn, setSortColumn] = useState<keyof Conversation>('timestamp');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
     const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+    const [searchTerm, setSearchTerm] = useState<string>('');
+    const [filteredConversations, setFilteredConversations] = useState<Conversation[]>(conversations);
+    const [visibleColumns, setVisibleColumns] = useState<(keyof Conversation)[]>([
+        'assistantName',
+        'user',
+        'employeeType',
+        'entryPoint',
+        'numberPrompts',
+        'modelUsed',
+        'timestamp',
+        'userRating',
+        'category'
+    ]);
+
+    // Format date for better readability
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        return date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    // Handle search functionality
+    useEffect(() => {
+        if (searchTerm.trim() === '') {
+            setFilteredConversations(conversations);
+        } else {
+            const lowercaseSearchTerm = searchTerm.toLowerCase();
+            setFilteredConversations(conversations.filter(conv =>
+                conv.assistantName.toLowerCase().includes(lowercaseSearchTerm) ||
+                conv.user.toLowerCase().includes(lowercaseSearchTerm) ||
+                (conv.category && conv.category.toLowerCase().includes(lowercaseSearchTerm)) ||
+                (conv.userFeedback && conv.userFeedback.toLowerCase().includes(lowercaseSearchTerm)) ||
+                (conv.employeeType && conv.employeeType.toLowerCase().includes(lowercaseSearchTerm)) ||
+                (conv.entryPoint && conv.entryPoint.toLowerCase().includes(lowercaseSearchTerm))
+            ));
+        }
+    }, [searchTerm, conversations]);
 
     const openPopup = (conversation: Conversation) => {
         setSelectedConversation(conversation);
     };
 
     if (conversations.length === 0) {
-        return <p>No conversations available</p>;
+        return (
+            <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
+                <div className="text-center">
+                    <IconFiles size={48} className="mx-auto mb-4 opacity-40" />
+                    <p className="text-lg">No conversations available</p>
+                </div>
+            </div>
+        );
     }
 
-    const columnOrder: (keyof Conversation)[] = [
+    const allColumns: (keyof Conversation)[] = [
         'assistantName',
         'user',
         'employeeType',
@@ -81,6 +130,14 @@ const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversation
         'assistantId'
     ];
 
+    const toggleColumnVisibility = (column: keyof Conversation) => {
+        if (visibleColumns.includes(column)) {
+            setVisibleColumns(visibleColumns.filter(col => col !== column));
+        } else {
+            setVisibleColumns([...visibleColumns, column]);
+        }
+    };
+
     const handleSort = (column: keyof Conversation) => {
         if (sortColumn === column) {
             setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -90,7 +147,26 @@ const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversation
         }
     };
 
-    const sortedConversations = [...conversations].sort((a, b) => {
+    // Render star rating
+    const renderStarRating = (rating: number) => {
+        if (!rating) return <span className="text-gray-400">No rating</span>;
+
+        return (
+            <div className="flex items-center">
+                {[1, 2, 3, 4, 5].map((star) => (
+                    <span
+                        key={star}
+                        className={`${star <= rating ? 'text-yellow-500' : 'text-gray-300 dark:text-gray-600'}`}
+                    >
+                        ★
+                    </span>
+                ))}
+                <span className="ml-1 text-xs text-gray-600 dark:text-gray-400">{rating.toFixed(1)}</span>
+            </div>
+        );
+    };
+
+    const sortedConversations = [...filteredConversations].sort((a, b) => {
         if (sortColumn) {
             const aValue = a[sortColumn];
             const bValue = b[sortColumn];
@@ -108,13 +184,13 @@ const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversation
             }
 
             // Special handling for specific columns
-            if (['modelUsed', 'category'].includes(sortColumn)) {
+            if (['modelUsed', 'category', 'assistantName', 'user', 'employeeType', 'entryPoint'].includes(sortColumn)) {
                 return sortDirection === 'asc'
                     ? String(aValue).localeCompare(String(bValue))
                     : String(bValue).localeCompare(String(aValue));
             }
 
-            if (['userRating', 'systemRating'].includes(sortColumn)) {
+            if (['userRating', 'systemRating', 'numberPrompts'].includes(sortColumn)) {
                 return sortDirection === 'asc'
                     ? Number(aValue) - Number(bValue)
                     : Number(bValue) - Number(aValue);
@@ -127,45 +203,187 @@ const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversation
         return 0;
     });
 
+    // Get column display name with proper formatting
+    const getColumnDisplayName = (column: string): string => {
+        return column
+            .replace(/([A-Z])/g, ' $1') // Insert space before capital letters
+            .replace(/^./, (str) => str.toUpperCase()) // Capitalize first letter
+            .trim();
+    };
+
     return (
         <>
-            <div className="overflow-x-auto overflow-y-auto"  style={{ height: `${window.innerHeight * 0.65 }px` }}>
-                <table className="w-full border-collapse text-black dark:text-white">
-                    <thead className="sticky top-0 bg-white dark:bg-gray-800">
+            <div className="mb-4 px-4 py-3 dark:bg-gray-800 bg-white rounded-lg shadow">
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                    <div className="flex-1 w-full sm:w-auto">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                className="w-full px-4 py-2 pl-10 rounded-md border dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Search conversations..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                            <div className="absolute left-3 top-2.5 text-gray-500 dark:text-gray-400">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="11" cy="11" r="8" />
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="relative group">
+                        <button className="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center">
+                            <svg className="mr-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="4" y1="21" x2="4" y2="14" />
+                                <line x1="4" y1="10" x2="4" y2="3" />
+                                <line x1="12" y1="21" x2="12" y2="12" />
+                                <line x1="12" y1="8" x2="12" y2="3" />
+                                <line x1="20" y1="21" x2="20" y2="16" />
+                                <line x1="20" y1="12" x2="20" y2="3" />
+                                <line x1="1" y1="14" x2="7" y2="14" />
+                                <line x1="9" y1="8" x2="15" y2="8" />
+                                <line x1="17" y1="16" x2="23" y2="16" />
+                            </svg>
+                            Customize Table
+                        </button>
+                        <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-md shadow-lg border dark:border-gray-700 z-10 hidden group-hover:block">
+                            <div className="p-3 border-b dark:border-gray-700">
+                                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Visible Columns</h3>
+                            </div>
+                            <div className="p-2 max-h-60 overflow-y-auto">
+                                {allColumns.map(column => (
+                                    <div key={column} className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                                        <input
+                                            type="checkbox"
+                                            id={`column-${column}`}
+                                            checked={visibleColumns.includes(column)}
+                                            onChange={() => toggleColumnVisibility(column)}
+                                            className="rounded text-blue-500 focus:ring-blue-500 dark:bg-gray-900"
+                                        />
+                                        <label htmlFor={`column-${column}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                            {getColumnDisplayName(column as string)}
+                                        </label>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    Showing {filteredConversations.length} of {conversations.length} conversations
+                </div>
+            </div>
+
+            <div className="overflow-x-auto overflow-y-auto rounded-lg shadow border dark:border-gray-700" style={{ height: `${window.innerHeight * 0.65}px` }}>
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
                         <tr>
-                            {columnOrder.map((key) => (
+                            {visibleColumns.map((column) => (
                                 <th
-                                    key={key}
-                                    className="border px-4 py-2 cursor-pointer"
-                                    onClick={() => handleSort(key as keyof Conversation)}
+                                    key={column}
+                                    scope="col"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    onClick={() => handleSort(column)}
                                 >
-                                    {key}
-                                    {sortColumn === key && (
-                                        <span className="ml-1">
-                                            {sortDirection === 'asc' ? '▲' : '▼'}
-                                        </span>
-                                    )}
+                                    <div className="flex items-center">
+                                        {getColumnDisplayName(column as string)}
+                                        {sortColumn === column && (
+                                            <span className="ml-1">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </div>
                                 </th>
                             ))}
+                            <th scope="col" className="relative px-6 py-3">
+                                <span className="sr-only">View</span>
+                            </th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {sortedConversations.map((conv) => (
-                            <tr key={conv.conversationId} onClick={() => openPopup(conv)} className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
-                                {columnOrder.map((key) => (
-                                    <td key={key} className="border px-4 py-2">
-                                        {conv[key as keyof Conversation] !== undefined
-                                            ? typeof conv[key as keyof Conversation] === 'boolean'
-                                                ? conv[key as keyof Conversation].toString()
-                                                : conv[key as keyof Conversation]
-                                            : '-'}
-                                    </td>
-                                ))}
+                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
+                        {sortedConversations.map((conversation, index) => (
+                            <tr
+                                key={conversation.conversationId}
+                                className={`
+                                    hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150
+                                    ${index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800'}
+                                `}
+                                onClick={() => openPopup(conversation)}
+                            >
+                                {visibleColumns.map((column) => {
+                                    // Format different column types
+                                    const value = conversation[column];
+
+                                    if (column === 'timestamp') {
+                                        return (
+                                            <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                                {formatDate(value as string)}
+                                            </td>
+                                        );
+                                    }
+
+                                    if (column === 'userRating' || column === 'systemRating') {
+                                        return (
+                                            <td key={column} className="px-6 py-4 whitespace-nowrap">
+                                                {renderStarRating(value as number)}
+                                            </td>
+                                        );
+                                    }
+
+                                    if (column === 'assistantName' || column === 'category') {
+                                        return (
+                                            <td key={column} className="px-6 py-4 whitespace-nowrap">
+                                                <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                                                    {value || 'N/A'}
+                                                </span>
+                                            </td>
+                                        );
+                                    }
+
+                                    if (column === 'userFeedback') {
+                                        return (
+                                            <td key={column} className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+                                                {value || 'No feedback'}
+                                            </td>
+                                        );
+                                    }
+
+                                    if (column === 'numberPrompts') {
+                                        return (
+                                            <td key={column} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100 text-center">
+                                                <span className="px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700">{value}</span>
+                                            </td>
+                                        );
+                                    }
+
+                                    if (column === 'conversationId' || column === 'assistantId') {
+                                        return (
+                                            <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                                <span className="font-mono text-xs">{String(value).substring(0, 10)}...</span>
+                                            </td>
+                                        );
+                                    }
+
+                                    // Default display for other columns
+                                    return (
+                                        <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                            {value || 'N/A'}
+                                        </td>
+                                    );
+                                })}
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <span className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
+                                        View
+                                    </span>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
+
             {selectedConversation && (
                 <ConversationPopup
                     conversation={selectedConversation}
@@ -260,46 +478,238 @@ interface DashboardMetrics {
     averageSystemRating: number | null;
 }
 
-const Dashboard: FC<{ metrics: DashboardMetrics }> = ({ metrics }) => {
+// Define types for our data structures
+type DataPoint = {
+    name: string;
+    value: number;
+};
+
+// Simple bar chart implementation without external libraries
+const SimpleBarChart: FC<{ data: DataPoint[], color?: string }> = ({
+    data,
+    color = "#0088FE"
+}) => {
+    // Find the maximum value for scaling
+    const maxValue = Math.max(...data.map(item => item.value));
+
+    // Sort data by value in descending order for better visualization
+    const sortedData = [...data].sort((a, b) => b.value - a.value);
+
     return (
-        <div className="p-4 text-black dark:text-white">
+        <div className="w-full">
+            {sortedData.map((item, index) => (
+                <div key={index} className="mb-2">
+                    <div className="flex items-center">
+                        <div className="w-32 text-sm truncate mr-2" title={item.name}>{item.name}</div>
+                        <div className="flex-grow">
+                            <div className="relative pt-1">
+                                <div className="flex items-center justify-between">
+                                    <div className="w-full mr-2">
+                                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded">
+                                            <div
+                                                className="h-4 rounded transition-all duration-500 ease-in-out"
+                                                style={{
+                                                    width: `${Math.max((item.value / maxValue) * 100, 5)}%`,
+                                                    backgroundColor: color
+                                                }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                    <div className="ml-2 text-sm whitespace-nowrap">{item.value}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+// Simple pie chart representation without external libraries
+const SimplePieList: FC<{ data: DataPoint[] }> = ({ data }) => {
+    const total = data.reduce((sum, item) => sum + item.value, 0);
+    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#8dd1e1', '#a4de6c', '#d0ed57'];
+
+    // Sort data by value in descending order for better visualization
+    const sortedData = [...data].sort((a, b) => b.value - a.value);
+
+    return (
+        <div className="w-full">
+            {sortedData.map((item, index) => {
+                const percentage = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
+                return (
+                    <div key={index} className="mb-3 flex items-center group hover:bg-gray-100 dark:hover:bg-gray-700 p-1 rounded transition-colors duration-150">
+                        <div
+                            className="w-3 h-3 rounded-full mr-2"
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                        ></div>
+                        <div className="text-sm flex-grow truncate" title={item.name}>{item.name}</div>
+                        <div className="text-sm mr-2">{item.value}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 w-16">{percentage}%</div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+const Dashboard: FC<{ metrics: DashboardMetrics }> = ({ metrics }) => {
+    // Transform object data into array format for visualization
+    const transformDistributionData = (data: { [key: string]: number }): DataPoint[] => {
+        return Object.entries(data).map(([name, value]) => ({ name, value }));
+    };
+
+    const entryPointData = transformDistributionData(metrics.entryPointDistribution);
+    const categoryData = transformDistributionData(metrics.categoryDistribution);
+    const employeeTypeData = transformDistributionData(metrics.employeeTypeDistribution);
+
+    // Render star rating
+    const renderStarRating = (rating: number | null) => {
+        if (rating === null) return 'N/A';
+
+        return (
+            <div className="flex items-center">
+                <span className="mr-2">{rating.toFixed(2)}</span>
+                <div className="flex">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                        <svg
+                            key={star}
+                            className={`w-4 h-4 ${star <= Math.round(rating) ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`}
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                        >
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    // Progress bar component for comparison
+    const ProgressBar: FC<{ label: string, value: number, maxValue: number, color: string }> = ({
+        label, value, maxValue, color
+    }) => (
+        <div className="mb-3">
+            <div className="flex justify-between items-center mb-1">
+                <span className="text-sm">{label}</span>
+                <span className="text-sm font-semibold">{value.toFixed(2)}</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                <div
+                    className="h-2.5 rounded-full"
+                    style={{
+                        width: `${(value / maxValue) * 100}%`,
+                        backgroundColor: color
+                    }}
+                ></div>
+            </div>
+        </div>
+    );
+
+    return (
+        <div
+            className="p-4 text-black dark:text-white overflow-auto h-full"
+            style={{
+                maxHeight: `${window.innerHeight * 0.75}px`,
+                overflowY: 'auto'
+            }}
+        >
             <h2 className="text-2xl font-bold mb-4">Dashboard Metrics for {metrics.assistantName}</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                Assistant ID: {metrics.assistantId}
+            </p>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-                    <h3 className="text-lg font-semibold mb-2">General Stats</h3>
-                    <p>Number of Unique Users: {metrics.numUsers}</p>
-                    <p>Number of Conversations: {metrics.totalConversations}</p>
-                    <p>Average Number of Prompts per Conversation: {metrics.averagePromptsPerConversation.toFixed(2)}</p>
-                    <p>Average User Rating: {metrics.averageUserRating ? metrics.averageUserRating.toFixed(2) : 'N/A'}</p>
-                    <p>Average System Rating: {metrics.averageSystemRating ? metrics.averageSystemRating.toFixed(2) : 'N/A'}</p>
+                    <h3 className="text-sm uppercase text-gray-500 dark:text-gray-400 mb-2">Unique Users</h3>
+                    <p className="text-3xl font-bold">{metrics.numUsers}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+                    <h3 className="text-sm uppercase text-gray-500 dark:text-gray-400 mb-2">Total Conversations</h3>
+                    <p className="text-3xl font-bold">{metrics.totalConversations}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+                    <h3 className="text-sm uppercase text-gray-500 dark:text-gray-400 mb-2">Avg. Prompts Per Conversation</h3>
+                    <p className="text-3xl font-bold">{metrics.averagePromptsPerConversation.toFixed(2)}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+                    <h3 className="text-sm uppercase text-gray-500 dark:text-gray-400 mb-2">User Satisfaction</h3>
+                    <div className="text-xl font-bold">
+                        {renderStarRating(metrics.averageUserRating)}
+                    </div>
+                </div>
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                {/* Entry Point Distribution */}
+                <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+                    <h3 className="text-lg font-semibold mb-4">Entry Point Distribution</h3>
+                    {entryPointData.length > 0 ? (
+                        <div className="h-64 overflow-y-auto">
+                            <SimpleBarChart data={entryPointData} color="#0088FE" />
+                        </div>
+                    ) : (
+                        <p>No entry point data available</p>
+                    )}
                 </div>
 
+                {/* Category Distribution */}
                 <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-                    <h3 className="text-lg font-semibold mb-2">Entry Point Distribution</h3>
-                    <ul>
-                        {Object.entries(metrics.entryPointDistribution).map(([entryPoint, count]) => (
-                            <li key={entryPoint}>{entryPoint}: {count}</li>
-                        ))}
-                    </ul>
+                    <h3 className="text-lg font-semibold mb-4">Category Distribution</h3>
+                    {categoryData.length > 0 ? (
+                        <div className="h-64 overflow-y-auto">
+                            <SimplePieList data={categoryData} />
+                        </div>
+                    ) : (
+                        <p>No category data available</p>
+                    )}
                 </div>
 
+                {/* Group Type Distribution */}
                 <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-                    <h3 className="text-lg font-semibold mb-2">Category Distribution</h3>
-                    <ul>
-                        {Object.entries(metrics.categoryDistribution).map(([category, count]) => (
-                            <li key={category}>{category}: {count}</li>
-                        ))}
-                    </ul>
+                    <h3 className="text-lg font-semibold mb-4">Group Type Distribution</h3>
+                    {employeeTypeData.length > 0 ? (
+                        <div className="h-64 overflow-y-auto">
+                            <SimplePieList data={employeeTypeData} />
+                        </div>
+                    ) : (
+                        <p>No employee type data available</p>
+                    )}
                 </div>
 
+                {/* System Performance */}
                 <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-                    <h3 className="text-lg font-semibold mb-2">Employee Type Distribution</h3>
-                    <ul>
-                        {Object.entries(metrics.employeeTypeDistribution).map(([employeeType, count]) => (
-                            <li key={employeeType}>{employeeType}: {count}</li>
-                        ))}
-                    </ul>
+                    <h3 className="text-lg font-semibold mb-4">System Performance</h3>
+                    <div className="flex flex-col space-y-4">
+                        <div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">System Rating</p>
+                            <div className="text-xl font-bold mt-1">
+                                {renderStarRating(metrics.averageSystemRating)}
+                            </div>
+                        </div>
+
+                        <div className="mt-4">
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Ratings Comparison</p>
+                            <div className="mt-2">
+                                <ProgressBar
+                                    label="User Rating"
+                                    value={metrics.averageUserRating || 0}
+                                    maxValue={5}
+                                    color="#0088FE"
+                                />
+                                <ProgressBar
+                                    label="System Rating"
+                                    value={metrics.averageSystemRating || 0}
+                                    maxValue={5}
+                                    color="#00C49F"
+                                />
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
