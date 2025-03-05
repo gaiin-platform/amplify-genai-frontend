@@ -173,6 +173,7 @@ const Folder = ({
   return (
     <>
         <div className="relative flex items-center"
+            id="folderContainer"  
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
@@ -185,6 +186,7 @@ const Folder = ({
               )}
               <input
                 className="mr-12 flex-1 overflow-hidden overflow-ellipsis border-neutral-400 bg-transparent text-left text-[12.5px] leading-3 dark:text-white outline-none focus:border-neutral-100"
+                id="renameInput"
                 type="text"
                 value={renameValue}
                 onChange={(e) => setRenameValue(e.target.value)}
@@ -195,6 +197,7 @@ const Folder = ({
           ) : (
             <button
               className={`flex w-full cursor-pointer items-center gap-3 rounded-lg p-3 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90`}
+              id={"dropDown"}
               onClick={() => setIsOpen(!isOpen)}
               onDrop={(e) => dropHandler(e)}
               onDragOver={allowDrop}
@@ -208,7 +211,9 @@ const Folder = ({
                 <IconCaretRight size={18} />
               )}
 
-              <div className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
+              <div 
+                id={"dropName"}
+                className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
                 {currentFolder.name}
               </div>
             </button>
@@ -217,6 +222,7 @@ const Folder = ({
           {(isDeleting || isRenaming) && (
             <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
               <ActionButton
+                id = {"confirm"}
                 handleClick={(e) => {
                   e.stopPropagation();
 
@@ -233,6 +239,7 @@ const Folder = ({
                 <IconCheck size={18} />
               </ActionButton>
               <ActionButton
+                id = {"cancel"}
                 handleClick={(e) => {
                   e.stopPropagation();
                   setIsDeleting(false);
@@ -264,6 +271,7 @@ const Folder = ({
                   handlePinFolder(currentFolder.id);
                 }}
                 title="Pin Folder To The Top"
+                id="pinButton"
               >
                 { currentFolder.pinned ?
                   <IconPinFilled className={"text-blue-500"} size={18} /> :
@@ -296,6 +304,7 @@ const Folder = ({
                   handleHideGroupFolder(currentFolder);
                 }}
                 title="Hide Folder"
+                id="hideButton"
               >
                   <IconEyeOff size={18} /> 
               </ActionButton>
@@ -309,6 +318,7 @@ const Folder = ({
                   setRenameValue(currentFolder.name);
                 }}
                 title="Rename Folder"
+                id="renameButton"
               >
                 <IconPencil size={18} />
               </ActionButton>
@@ -319,6 +329,7 @@ const Folder = ({
                   setIsDeleting(true);
                 }}
                 title="Delete Folder"
+                id="deleteButton"
               >
                 <IconTrash size={18} />
               </ActionButton>

@@ -56,7 +56,7 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
         .filter((conversation) => conversation.folderId && conversation.folderId === currentFolder.id)
         .map((conversation, index) => {
             return (
-              <div key={index} className="ml-5 gap-2 border-l pl-2">
+              <div key={index} id="chat" className="ml-5 gap-2 border-l pl-2">
                 <ConversationComponent conversation={conversation}/>
               </div>
             );

@@ -111,6 +111,7 @@ const ChatContentBlock: React.FC<Props> = (
   
     return (
     <div className="chatContentBlock w-full overflow-x-auto" 
+         id="chatContentBlock"
          style={{maxWidth: windowInnerWidth}}
          data-message-index={messageIndex}
          data-original-content={transformedMessageContent}>

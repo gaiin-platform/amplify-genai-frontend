@@ -969,6 +969,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 ) : (
                     <>
                         <div
+                            id="chatScrollWindow"
                             className="chatcontainer max-h-full overflow-x-hidden" style={{height: windowInnerDims.height * 0.94}}
                             ref={chatContainerRef}
                             onScroll={handleScroll}
@@ -979,6 +980,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         className="mx-auto flex flex-col space-y-1 md:space-y-8 px-3 pt-5 md:pt-10" 
                                         style={{width: windowInnerDims.width * 0.45}}>
                                         <div
+                                            id="chatTitle"
                                             className="text-center text-3xl font-semibold text-gray-800 dark:text-gray-100">
                                             {filteredModels.length === 0 ? (
                                                 <div className='flex flex-row gap-2 text-lg justify-center items-center'>
@@ -1237,6 +1239,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 </div>
                                             }
                                             <div
+                                                id="tagListInChat"
                                                 className="border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border shadow-[0_2px_2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_2px_rgba(0,0,0,0.3)]">
                                                 <TagsList tags={selectedConversation?.tags || []} setTags={
                                                     (tags) => {

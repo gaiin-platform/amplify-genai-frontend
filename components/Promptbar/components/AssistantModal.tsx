@@ -530,6 +530,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 {t('Assistant Name')}
                             </div>
                             <input
+                                id="assistantName"
                                 className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                 placeholder={t('A name for your prompt.') || ''}
                                 value={name}
@@ -857,6 +858,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                         </div>
               <div className="flex flex-row items-center justify-end p-4 bg-white dark:bg-[#22232b]">
                   <button
+                    id="cancelButton"
                     type="button"
                     className="mr-2 w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                     onClick={() => {
@@ -866,6 +868,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 {disableEdit ? "Close" : t('Cancel')}
                             </button>
                             {!disableEdit && <button
+                                id="saveButton"
                                 type="button"
                                 className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                                 onClick={() => {

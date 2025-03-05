@@ -153,6 +153,7 @@ useEffect(() => {
                     />
                     <div
                         ref={modalRef}
+                        id="accountModal"
                         className={`dark:border-neutral-600 inline-block transform rounded-lg border border-gray-300 bg-neutral-100 px-4 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:min-h-[636px]  sm:w-full sm:p-4 sm:align-middle`}
                         style={{width: `${window.innerWidth - 560}px`, height: `${window.innerHeight * 0.9}px`}}
                         role="dialog">
