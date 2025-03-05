@@ -12,7 +12,7 @@ from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.webdriver.common.keys import Keys
 
-class CreateFolderTests(unittest.TestCase):
+class MassDeleteTests(unittest.TestCase):
     
     # ----------------- Setup -----------------
     def setUp(self, headless=True):
@@ -176,7 +176,9 @@ class CreateFolderTests(unittest.TestCase):
 
 
     # ----------------- Test Delete Mass Assistants -----------------
-    
+    """This test ensures multiple assistants can be deleted individually via the 
+       three dots handler on the Right Side Bar"""
+       
     def test_delete_mass_assistants(self):
         # Locate all elements with ID "promptName"
         prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
@@ -329,7 +331,9 @@ class CreateFolderTests(unittest.TestCase):
     
     
     # ----------------- Test Delete Mass Prompts -----------------
-
+    """This test ensures multiple prompts can be deleted individually via the 
+       three dots handler on the Rightt Side Bar"""
+       
     def test_delete_mass_prompts(self):
         
         # Click the promptHandler Button
@@ -447,6 +451,8 @@ class CreateFolderTests(unittest.TestCase):
     
     
     # ----------------- Test Delete Everything -----------------
+    """This test ensures that everything can be selected and deleted via the three dots handler
+       on the Right Side Bar"""
     
     def test_delete_everything(self):
         

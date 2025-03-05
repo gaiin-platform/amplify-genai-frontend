@@ -76,6 +76,8 @@ class DefaultInstructionsTests(unittest.TestCase):
  
             
     # ----------------- Test Default Instructions can be clicked -----------------
+    """Ensure the Default Instructions button in the Custom Instructions folder can be clicked 
+       on the Right Side Bar"""
     
     def test_default_instructions_is_interactable(self):                        
         # Locate all elements with the ID 'dropName'
@@ -125,8 +127,9 @@ class DefaultInstructionsTests(unittest.TestCase):
     
     
     
-    # ----------------- Test Summary with Shared window -----------------
-    # Open dropdown, then hover summary, then click share, then extract and compare text in window for title
+    # ----------------- Test Default Instructions with Shared window -----------------
+    """Ensure the Share button on the Default Instructions button in the Custom Instructions folder can be clicked 
+       on the Right Side Bar and that it makes the Share Modal appear"""
     
     def test_share_button(self):
         # Locate all elements with the ID 'dropName'
@@ -184,8 +187,8 @@ class DefaultInstructionsTests(unittest.TestCase):
         
         
     # ----------------- Test Default Instructions Duplicate Window -----------------
-    # Need to click on the Default Instructions button FIRST, so that it passes by the bug
-    # GO through Summary Test, then hit the cancel, then hover summary, then click duplicate, then extract and compare text in window
+    """Ensure the Duplicate Button on the Default Instructions button in the Custom Instructions folder can be clicked 
+       on the Right Side Bar and that it creates a duplicate in the prompts"""
     
     def test_default_instructions_duplicate(self):
         # Locate all elements with the ID 'dropName'

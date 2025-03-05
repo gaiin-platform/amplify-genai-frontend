@@ -12,10 +12,10 @@ from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.webdriver.common.keys import Keys
 
-class CreateFolderTests(unittest.TestCase):
+class FolderHandlerTests(unittest.TestCase):
     
     # ----------------- Setup -----------------
-    def setUp(self, headless=False):
+    def setUp(self, headless=True):
         
         # Load environment variables from .env.local
         load_dotenv(".env.local")
@@ -130,6 +130,8 @@ class CreateFolderTests(unittest.TestCase):
 
     
     # ----------------- Test Folder Sort Name -----------------
+    """Test the three button handler can sort the created folders by name"""
+    
     def test_folder_sort_name(self):
         self.create_folder("Luigi's Mansion")
         self.create_folder("Baby Park")
@@ -184,19 +186,15 @@ class CreateFolderTests(unittest.TestCase):
         self.assertEqual(drop_names, sorted(drop_names), "Drop name elements should be sorted alphabetically")
 
     
-    # id="Name"
-    # id="Date"
-    # id="Delete"
-    # id="Share"
-    # id="Clean"
-    # id="Open All"
-    # id="Close All"
-    
     
     # ----------------- Test Folder Sort Date -----------------
     # HELD OFF FOR NOW, MIGHT INCLUDE BACKEND
+
+
     
     # ----------------- Test Folder Delete -----------------
+    """Test the three button handler can delete a folder"""
+        
     def test_folder_delete(self):
         self.create_folder("Luigi's Mansion")
         self.create_folder("Baby Park")
@@ -275,6 +273,8 @@ class CreateFolderTests(unittest.TestCase):
         
         
     # ----------------- Test Folder Delete All -----------------
+    """Test the three button handler can delete all created folders"""
+    
     def test_folder_all_delete(self):
         self.create_folder("Luigi's Mansion")
         self.create_folder("Baby Park")
@@ -336,6 +336,8 @@ class CreateFolderTests(unittest.TestCase):
         
     
     # ----------------- Test Folder Share -----------------
+    """Test the three button handler can share the specified folder"""
+    
     def test_folder_share(self):
         self.create_folder("Luigi's Mansion")
         self.create_folder("Baby Park")
@@ -443,6 +445,8 @@ class CreateFolderTests(unittest.TestCase):
     
     
     # ----------------- Test Folder Share All -----------------
+    """Test the three button handler can share all folders"""
+    
     def test_folder_all_share(self):
         self.create_folder("Luigi's Mansion")
         self.create_folder("Baby Park")
@@ -585,6 +589,8 @@ class CreateFolderTests(unittest.TestCase):
         
         
     # ----------------- Test Folder Clean -----------------
+    """Test the three button handler can delete all the empty folders"""
+    
     def test_folder_clean(self):
         self.create_folder("Luigi's Mansion")
         self.create_folder("Admiral Bobbery's Ship")
@@ -655,13 +661,15 @@ class CreateFolderTests(unittest.TestCase):
         ))
         self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
 
-        # Find the element with text "Luigi's Mansion"
+        # Element with "Luigi's Mansion" is gone
         assistant_dropdown_button = next((el for el in drop_name_elements if el.text == "Luigi's Mansion"), None)
         self.assertIsNone(assistant_dropdown_button, "Luigi's Mansion button should be present")
     
 
     
     # ----------------- Test Folder Open All -----------------
+    """Test the three button handler can open all folders to see contents inside"""
+    
     def test_folder_open_all(self):
         self.create_folder("Luigi's Mansion")
         self.create_folder("Baby Park")
@@ -710,6 +718,8 @@ class CreateFolderTests(unittest.TestCase):
     
     
     # ----------------- Test Folder Close All -----------------
+    """Test the three button handler can close all folders"""
+    
     def test_folder_close_all(self):
         self.create_folder("Luigi's Mansion")
         self.create_folder("Baby Park")

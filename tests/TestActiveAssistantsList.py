@@ -76,7 +76,7 @@ class ActiveAssistantsListTests(unittest.TestCase):
         
 
     # ----------------- Test drop down for Assistant is initialized -----------------
-    # This test goes through to test that the Assistant's drop down menu is initialized and visible
+    """This test goes through to test that the Assistant's drop down menu is initialized and visible"""
     
     def test_dropdown_initially_closed(self):
         # Locate all elements with the ID 'dropName'
@@ -93,9 +93,9 @@ class ActiveAssistantsListTests(unittest.TestCase):
 
 
 
-    # # ----------------- Test drop down collapses -----------------
-    # # This test goes through to test that the Assistant's drop down menu is clickable 
-    # # and that it collapses 
+    # ----------------- Test drop down collapses -----------------
+    """This test goes through to test that the Assistant's drop down menu is clickable 
+       and that it collapses""" 
     
     def test_dropdown_opens_on_click(self):
         # Locate all elements with the ID 'dropName'
@@ -119,8 +119,8 @@ class ActiveAssistantsListTests(unittest.TestCase):
         
 
     # ----------------- Test drop down collapses and expands -----------------
-    # This test goes through to test that the Assistant's drop down menu is clickable 
-    # and that it collapses and expands.
+    """This test goes through to test that the Assistant's drop down menu is clickable 
+       and that it collapses and expands."""
     
     def test_dropdown_closes_after_selection(self):
         # Locate all elements with the ID 'dropName'
@@ -151,8 +151,8 @@ class ActiveAssistantsListTests(unittest.TestCase):
         
 
     # ----------------- Test add assistant, save assistant, and that assistant is visible in dropdown -----------------
-    # This test goes through to create an assistant and then opens the drop down to ensure that 
-    # the assistant is visible in the drop down list
+    """This test goes through to create an assistant and then opens the drop down to ensure that 
+       the assistant is visible in the drop down list"""
     
     def test_add_assistant_and_in_dropdown(self):
         # Locate and click the Add Assistant button
@@ -205,8 +205,8 @@ class ActiveAssistantsListTests(unittest.TestCase):
         
         
     # ----------------- Test after adding an assistant that it can be clicked on -----------------
-    # This test goes through to create an assistant and then ensures that created 
-    # assistant can be clicked on and that it's added to the chat window below.
+    """This test goes through to create an assistant and then ensures that created 
+       assistant can be clicked on and that it's added to the chat window below."""
         
     def test_assistant_is_interactable(self):
         # Locate and click the Add Assistant button
@@ -273,9 +273,9 @@ class ActiveAssistantsListTests(unittest.TestCase):
         
     
     # ----------------- Test assistants list updates after adding second assistant -----------------
-    # This test goes through to create an assistant and then creates a second assistant
-    # afterwards. Once both assistants are created, it checks to make sure both are 
-    # present.
+    """This test goes through to create an assistant and then creates a second assistant
+       afterwards. Once both assistants are created, it checks to make sure both are 
+       present."""
     
     def test_check_list_updates_with_multiple_assistants(self):
         # Locate and click the Add Assistant button
@@ -356,9 +356,9 @@ class ActiveAssistantsListTests(unittest.TestCase):
 
 
     # ----------------- Test Edit Button -----------------
-    # This test goes through to create an assistant and then upon hovering over an assistant,
-    # it clicks the the "Edit Template" button and tests to ensure the Edit window 
-    # pops up as intended.
+    """This test goes through to create an assistant and then upon hovering over an assistant,
+       it clicks the the "Edit Template" button and tests to ensure the Edit window 
+       pops up as intended."""
     
     def test_edit_button(self):
         # Locate and click the Add Assistant button
@@ -433,9 +433,9 @@ class ActiveAssistantsListTests(unittest.TestCase):
         
         
     # ----------------- Test Share Button -----------------
-    # This test goes through to create an assistant and then upon hovering over an assistant,
-    # it clicks the the "Share Template" button and tests to ensure the share window 
-    # pops up as intended.
+    """This test goes through to create an assistant and then upon hovering over an assistant,
+       it clicks the the "Share Template" button and tests to ensure the share window 
+       pops up as intended."""
     
     def test_share_button(self):
         # Locate and click the Add Assistant button
@@ -516,9 +516,9 @@ class ActiveAssistantsListTests(unittest.TestCase):
         
         
     # ----------------- Test Delete Button -----------------
-    # This test goes through to create an assistant and then upon hovering over an assistant,
-    # it clicks the the "Delete Template" button and tests the "Confirm" and "Cancel" buttons
-    # to ensure the assistants are deleted and remain visible as intended.
+    """This test goes through to create an assistant and then upon hovering over an assistant,
+       it clicks the the "Delete Template" button and tests the "Confirm" and "Cancel" buttons
+       to ensure the assistants are deleted and remain visible as intended."""
     
     def test_delete_button(self):
         # Locate and click the Add Assistant button

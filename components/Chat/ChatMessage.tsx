@@ -353,7 +353,7 @@ export const ChatMessage: FC<Props> = memo(({
                     {getIcon()}
                 </div>
 
-                <div className="max-w-none prose mt-[-2px] w-full dark:prose-invert mr-5">
+                <div id="chatHover" className="max-w-none prose mt-[-2px] w-full dark:prose-invert mr-5">
                     {message.role === 'user' ? (
                         <div className="flex flex-grow">
                             {isEditing ? (
@@ -370,7 +370,7 @@ export const ChatMessage: FC<Props> = memo(({
                                 <div className="flex flex-grow flex-col">
                                     <div className="flex flex-col">
                                         <div className="flex flex-row">
-                                            <div className="prose whitespace-pre-wrap dark:prose-invert flex-1  max-w-none w-full">
+                                            <div id="userMessage" className="prose whitespace-pre-wrap dark:prose-invert flex-1  max-w-none w-full">
                                                 {getAtBlock()} {message.label || message.content}
                                             </div>
                                         </div>
@@ -408,6 +408,7 @@ export const ChatMessage: FC<Props> = memo(({
                                                 className={chat_icons_cn}
                                                 onClick={copyOnClick}
                                                 title="Copy Prompt"
+                                                id="copyPrompt"
                                             >
                                                 <IconCopy size={20}/>
                                             </button>
@@ -419,6 +420,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             className={chat_icons_cn}
                                             onClick={() => setIsDownloadDialogVisible(true)}
                                             title="Download Prompt"
+                                            id="downloadPrompt"
                                         >
                                             <IconDownload size={20}/>
                                         </button>
@@ -429,6 +431,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             className={chat_icons_cn}
                                             onClick={toggleEditing}
                                             title="Edit Prompt"
+                                            id="editPrompt"
                                         >
                                             <IconEdit size={20}/>
                                         </button>
@@ -437,12 +440,14 @@ export const ChatMessage: FC<Props> = memo(({
                                         className={chat_icons_cn}
                                         onClick={() => handleForkConversation(messageIndex)}
                                         title="Branch Into New Conversation"
+                                        id="branchPrompt"
                                     >
                                         <IconArrowFork size={20}/>
                                     </button>
                                     {!isActionResult && (
                                     <div>
                                         <button
+                                            id="deletePromptChat"
                                             className={chat_icons_cn}
                                             onClick={handleDeleteMessage}
                                             title="Delete Prompt"
@@ -535,6 +540,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         className={chat_icons_cn}
                                             onClick={copyOnClick}
                                             title="Copy Response"
+                                            id="copyResponse"
                                         >
                                             <IconCopy size={20}/>
                                         </button>
@@ -544,6 +550,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         className={chat_icons_cn}
                                         onClick={() => handleCreateArtifactFromMessage(messageContent)}
                                         title="Turn Into Artifact"
+                                        id="turnIntoArtifact"
                                     >
                                         <IconLibrary size={20}/>
                                     </button>
@@ -552,12 +559,14 @@ export const ChatMessage: FC<Props> = memo(({
                                         className={chat_icons_cn}
                                         onClick={() => setIsDownloadDialogVisible(true)}
                                         title="Download Response"
+                                        id="downloadResponse"
                                     >
                                         <IconDownload size={20}/>
                                     </button>
                                     <button
                                         className={chat_icons_cn}
                                         title="Email Response"
+                                        id="emailResponse"
                                     >
                                         <a className={chat_icons_cn}
                                            href={`mailto:?body=${encodeURIComponent(messageContent)}`}>
@@ -579,6 +588,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         className={chat_icons_cn}
                                         onClick={toggleEditing}
                                         title="Edit Response"
+                                        id="editResponse"
                                     >
                                         <IconEdit size={20}/>
                                     </button>
@@ -586,6 +596,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         className={chat_icons_cn}
                                         onClick={() => handleForkConversation(messageIndex)}
                                         title="Branch Into New Conversation"
+                                        id="branchIntoNewConversation"
                                     >
                                         <IconArrowFork size={20}/>
                                     </button>

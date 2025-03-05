@@ -1426,7 +1426,7 @@ const Home = ({
                                 side={"left"}
                                 footerComponent={
                                     <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-                                        <button className="dark:text-white" title="Sign Out" onClick={() => {
+                                        <button id="logout" className="dark:text-white" title="Sign Out" onClick={() => {
                                             const goLogout = async () => {
                                                 await federatedSignOut();
                                             };

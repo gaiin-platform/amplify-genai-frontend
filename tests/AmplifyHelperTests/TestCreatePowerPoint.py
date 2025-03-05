@@ -76,6 +76,8 @@ class CreatePowerPointTests(unittest.TestCase):
 
         
     # ----------------- Test Create PowerPoint can be clicked -----------------
+    """Ensure the Create PowerPoint button in the Amplify Helpers folder can be clicked 
+       on the Right Side Bar"""
     
     def test_create_powerpoint_is_interactable(self):                        
         # Locate all elements with the ID 'dropName'
@@ -125,8 +127,9 @@ class CreatePowerPointTests(unittest.TestCase):
     
     
     
-    # ----------------- Test Summary with Shared window -----------------
-    # Open dropdown, then hover summary, then click share, then extract and compare text in window for title
+    # ----------------- Test Create PowerPoint with Shared window -----------------
+    """Ensure the Share button on the Create PowerPoint button in the Amplify Helpers folder can be clicked 
+       on the Right Side Bar and that it makes the Share Modal appear"""
     
     def test_share_button(self):
         # Locate all elements with the ID 'dropName'
@@ -184,8 +187,8 @@ class CreatePowerPointTests(unittest.TestCase):
         
         
     # ----------------- Test Create PowerPoint Duplicate Window -----------------
-    # Need to click on the Create PowerPoint button FIRST, so that it passes by the bug
-    # GO through Summary Test, then hit the cancel, then hover summary, then click duplicate, then extract and compare text in window
+    """Ensure the Duplicate Button on the Create PowerPoint button in the Amplify Helpers folder can be clicked 
+       on the Right Side Bar and that it creates a duplicate in the prompts"""
     
     def test_create_powerpoint_duplicate(self):
         # Locate all elements with the ID 'dropName'

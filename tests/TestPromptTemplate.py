@@ -74,9 +74,9 @@ class PromptTemplateTests(unittest.TestCase):
             self.fail(f"Login failed: {e}")
         
         
-    # id="promptButton"
+
     # ----------------- Prompt created, saved, and appeared in list -----------------
-    # This test goes through to create a prompt and ensure that it appears in the list below
+    """This test goes through to create a prompt and ensure that it appears in the list below."""
     
     def test_add_prompt_in_dropdown(self):
         
@@ -129,8 +129,8 @@ class PromptTemplateTests(unittest.TestCase):
         
     
     # ----------------- Test prompt is clickable -----------------
-    # This test goes through to create a prompt and ensure that the prompt appearing below
-    # in the list below is clickable and displays the necessary prompt window
+    """This test goes through to create a prompt and ensure that the prompt appearing below
+       in the list below is clickable and displays the necessary prompt window."""
 
     def test_prompt_is_interactable(self):
         
@@ -205,9 +205,9 @@ class PromptTemplateTests(unittest.TestCase):
         
     
     # ----------------- Test multiple prompts in a list -----------------
-    # This test goes through to create a prompt and then creates a second prompt
-    # afterwards. Once both prompts are created, it checks to make sure both are 
-    # present.
+    """This test goes through to create a prompt and then creates a second prompt
+       afterwards. Once both prompts are created, it checks to make sure both are 
+       present."""
 
     def test_with_multiple_prompts(self):
         
@@ -301,9 +301,9 @@ class PromptTemplateTests(unittest.TestCase):
 
     
     # ----------------- Test Duplicate Template Button -----------------
-    # This test goes through to create a prompt and then upon hovering over a prompt,
-    # it clicks the the "Duplicate Template" button and tests the button creates a
-    # duplicated prompt.
+    """This test goes through to create a prompt and then upon hovering over a prompt,
+       it clicks the the "Duplicate Template" button and tests the button creates a
+       duplicated prompt."""
 
     def test_duplicate_button(self):
         # Locate the Prompt Add button 
@@ -375,9 +375,9 @@ class PromptTemplateTests(unittest.TestCase):
         
     
     # ----------------- Test Edit Template Button -----------------
-    # This test goes through to create an prompt and then upon hovering over an prompt,
-    # it clicks the the "Edit Template" button and tests to ensure the Edit window 
-    # pops up as intended.
+    """This test goes through to create an prompt and then upon hovering over an prompt,
+       it clicks the the "Edit Template" button and tests to ensure the Edit window 
+       pops up as intended."""
     
     def test_edit_button(self):
         # Locate the Prompt Add button 
@@ -457,9 +457,9 @@ class PromptTemplateTests(unittest.TestCase):
     
     
     # ----------------- Test Share Template Button -----------------
-    # This test goes through to create an prompt and then upon hovering over an prompt,
-    # it clicks the the "Share Template" button and tests to ensure the share window 
-    # pops up as intended.
+    """This test goes through to create an prompt and then upon hovering over an prompt,
+       it clicks the the "Share Template" button and tests to ensure the share window 
+       pops up as intended."""
 
     def test_share_button(self):
         # Locate the Prompt Add button 
@@ -539,9 +539,9 @@ class PromptTemplateTests(unittest.TestCase):
     
         
     # ----------------- Test Delete Button -----------------
-    # This test goes through to create an assistant and then upon hovering over a prompt,
-    # it clicks the the "Delete Template" button and tests the "Confirm" and "Cancel" buttons
-    # to ensure the prompts are deleted and remain visible as intended.
+    """This test goes through to create an assistant and then upon hovering over a prompt,
+       it clicks the the "Delete Template" button and tests the "Confirm" and "Cancel" buttons
+       to ensure the prompts are deleted and remain visible as intended."""
 
     def test_delete_button(self):
         # Locate the Prompt Add button 

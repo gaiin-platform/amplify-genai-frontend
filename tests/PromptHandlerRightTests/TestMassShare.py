@@ -12,10 +12,10 @@ from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.webdriver.common.keys import Keys
 
-class CreateFolderTests(unittest.TestCase):
+class MassShareTests(unittest.TestCase):
     
     # ----------------- Setup -----------------
-    def setUp(self, headless=False):
+    def setUp(self, headless=True):
         
         # Load environment variables from .env.local
         load_dotenv(".env.local")
@@ -209,9 +209,8 @@ class CreateFolderTests(unittest.TestCase):
     
     
     # ----------------- Test Share Mass Assistants -----------------
-    # id="modalTitle"
-    # id="checkBoxItem"
-    # id="checkBoxName"
+    """This test ensures multiple assistants can be shared individually via the 
+    three dots handler on the Right Side Bar"""
     
     def test_share_mass_assistants(self):
     
@@ -413,6 +412,8 @@ class CreateFolderTests(unittest.TestCase):
     
     
     # ----------------- Test Share Mass Prompts -----------------
+    """This test ensures multiple prompts can be shared individually via the 
+    three dots handler on the Right Side Bar"""
     
     def test_share_mass_prompts(self):        
         # Click the promptHandler Button
@@ -576,6 +577,8 @@ class CreateFolderTests(unittest.TestCase):
         
     
     # ----------------- Test Share Everything -----------------
+    """This test ensures everything can be selected and shared via the 
+    three dots handler on the Right Side Bar"""
     
     def test_share_everything(self):
         

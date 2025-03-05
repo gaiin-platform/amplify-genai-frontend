@@ -76,8 +76,8 @@ class SummaryWithQuotationsTests(unittest.TestCase):
     
     
     # ----------------- Test drop down collapses and expands -----------------
-    # This test goes through to test that the Amplify Helper drop down menu is clickable 
-    # and that it collapses and expands.
+    """Ensure the Amplify Helpers folder can be clicked and that the folder expands
+       on the Right Side Bar"""
     
     def test_dropdown_closes_after_selection(self):
         # Locate all elements with the ID 'dropName'
@@ -109,6 +109,8 @@ class SummaryWithQuotationsTests(unittest.TestCase):
 
     
     # ----------------- Test Summary with Quotations can be clicked -----------------
+    """Ensure the Summary with Quotations button in the Amplify Helpers folder can be clicked 
+       on the Right Side Bar"""
     
     def test_summary_with_quotations_is_interactable(self):                        
         # Locate all elements with the ID 'dropName'
@@ -159,7 +161,8 @@ class SummaryWithQuotationsTests(unittest.TestCase):
     
     
     # ----------------- Test Summary with Shared window -----------------
-    # Open dropdown, then hover summary, then click share, then extract and compare text in window for title
+    """Ensure the Share button on the Summary with Quotations button in the Amplify Helpers folder can be clicked 
+       on the Right Side Bar and that it makes the Share Modal appear"""
     
     def test_share_button(self):
         # Locate all elements with the ID 'dropName'
@@ -217,8 +220,8 @@ class SummaryWithQuotationsTests(unittest.TestCase):
     
         
     # ----------------- Test Summary with Quotations Duplicate Window -----------------
-    # Need to click on the Summary with Quotations button FIRST, so that it passes by the bug
-    # GO through Summary Test, then hit the cancel, then hover summary, then click duplicate, then extract and compare text in window
+    """Ensure the Duplicate Button on the Summary with Quotations button in the Amplify Helpers folder can be clicked 
+       on the Right Side Bar and that it creates a duplicate in the prompts"""
     
     def test_summary_with_quotations_duplicate(self):
         # Locate all elements with the ID 'dropName'

@@ -53,6 +53,7 @@ export const TagsList: FC<Props> = (
             <div className="flex flex-row items-start justify-between px-1 py-1 mr-2">
                 { !isDisabled && 
                     <button
+                        id="addTag"
                         className="text-gray-400 hover:text-gray-600 transition-all"
                         onClick={(e) =>{
                             e.preventDefault();
@@ -79,12 +80,14 @@ export const TagsList: FC<Props> = (
                 {tags?.map((tag, i) => (
                     <div
                         key={i}
+                        id="tagContainer"
                         className="flex items-center justify-between bg-white dark:bg-neutral-200 rounded-md px-2 py-0 mr-2 mb-2 shadow-lg"
                         style={{ flex: 'none', backgroundColor: stringToColor(tag) }} // Prevent flex-shrink which can distort items
                     >
                         { !isDisabled && 
                             <button
                                 className="text-gray-800 transition-all color-gray-800"
+                                id="removeTag"
                                 onClick={(e) =>{
                                     e.preventDefault();
                                     e.stopPropagation();
@@ -98,7 +101,7 @@ export const TagsList: FC<Props> = (
                         }
                         {/* Tag text container, without truncation to allow wrapping */}
                         <div className="ml-1">
-                            <p className="text-gray-800 font-medium text-sm">
+                            <p id="tagName" className="text-gray-800 font-medium text-sm">
                                 {tag}
                             </p>
                         </div>

@@ -493,7 +493,7 @@ interface Props {
             <div className="flex items-center justify-center min-h-screen">
               <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px]"
               >
-                <div className="p-2 h-[60px] overflow-y-auto">
+                <div id="tagAddModal" className="p-2 h-[60px] overflow-y-auto">
                 <TagsList tags={tags} 
                     setTags={(tags) => {
                                 setTags(tags);
@@ -528,6 +528,7 @@ interface Props {
                 <div className="p-2">
                   <button
                         type="button"
+                        id="doneButton"
                         className="w-full mb-1 px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                         onClick={() => {setIsTagsDialogVisible(false);
                                         clear();

@@ -76,6 +76,8 @@ class DiagramAssistantsTests(unittest.TestCase):
     
     
     # ----------------- Test Diagram Assistant can be clicked -----------------
+    """Ensure the Diagram Assistant button in the Custom Instructions folder can be clicked 
+       on the Right Side Bar"""
     
     def test_diagram_assistant_is_interactable(self):                        
         # Locate all elements with the ID 'dropName'
@@ -125,8 +127,9 @@ class DiagramAssistantsTests(unittest.TestCase):
     
     
     
-    # ----------------- Test Summary with Shared window -----------------
-    # Open dropdown, then hover summary, then click share, then extract and compare text in window for title
+    # ----------------- Test Diagram Assistant with Shared window -----------------
+    """Ensure the Share button on the Diagram Assistant button in the Custom Instructions folder can be clicked 
+       on the Right Side Bar and that it makes the Share Modal appear"""
     
     def test_share_button(self):
         # Locate all elements with the ID 'dropName'
@@ -184,8 +187,8 @@ class DiagramAssistantsTests(unittest.TestCase):
     
             
     # ----------------- Test Diagram Assistant Duplicate Window -----------------
-    # Need to click on the Diagram Assistant button FIRST, so that it passes by the bug
-    # GO through Summary Test, then hit the cancel, then hover summary, then click duplicate, then extract and compare text in window
+    """Ensure the Duplicate Button on the Diagram Assistant button in the Custom Instructions folder can be clicked 
+       on the Right Side Bar and that it creates a duplicate in the prompts"""
     
     def test_diagram_assistant_duplicate(self):
         # Locate all elements with the ID 'dropName'

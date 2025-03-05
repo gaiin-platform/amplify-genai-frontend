@@ -24,6 +24,7 @@ const Search: FC<Props> = ({ placeholder, searchTerm, onSearch, disabled=false, 
   return (
     <div className="relative flex items-center">
       <input
+        id="SearchBar"
         className={`w-full flex-1 rounded-md border border-neutral-300 dark:border-neutral-600  bg-neutral-100 dark:bg-[#202123] px-4 ${paddingY} pr-10 text-[14px] leading-3 dark:text-white`}
         type="text"
         placeholder={t(placeholder) || ''}

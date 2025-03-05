@@ -406,7 +406,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
 
    return ( 
-   <div className={`flex-0 text-base overflow-hidden min-h-screen bg-gray-200 dark:bg-[#343541] text-black dark:text-white border-l border-black px-4`}>
+   <div id="artifactsTab" className={`flex-0 text-base overflow-hidden min-h-screen bg-gray-200 dark:bg-[#343541] text-black dark:text-white border-l border-black px-4`}>
         <div className="flex flex-col" > 
             {/* Modals */}
            
@@ -527,10 +527,11 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                 }
 
 
-            <label className="mt-4 text-[36px] text-center"> Artifacts</label>
+            <label id="artifactsLabel" className="mt-4 text-[36px] text-center"> Artifacts</label>
             <div className='absolute top-5 mr-auto ml-8 w-[26px]'> 
                 
                 <ActionButton
+                        id="closeArtifactWindow"
                         handleClick={handleCloseArtifactMode}
                         title="Close">
                         <IconArrowNarrowLeft size={34} />
@@ -591,7 +592,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                                         </div>
                                     }
                                     <div className=" ml-2 w-[550px] flex justify-center overflow-hidden">
-                                        <label className="mt-1.5 whitespace-nowrap max-w-[540px] block overflow-x-auto" title={selectArtifactList[versionIndex].createdAt}>
+                                        <label className="mt-1.5 whitespace-nowrap max-w-[540px] block overflow-x-auto" id="versionNumber" title={selectArtifactList[versionIndex].createdAt}>
                                             <span> {selectArtifactList[versionIndex].name} </span>
                                             {"  - Version: "}
                                             {selectArtifactList[versionIndex].version} 
@@ -607,6 +608,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                         {isPreviewing ?
                             <button
                             className={chat_icons_cn}
+                            id="viewCode"
                             onClick={() => {
                                 setIsPreviewing(false)}}
                             title="View Code"
@@ -616,6 +618,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                             </button> :             
                             <button
                                 className={chat_icons_cn}
+                                id="previewArtifact"
                                 onClick={() => {
                                     setIsEditing(false); 
                                     setIsPreviewing(true);
@@ -628,6 +631,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                             </button> }
                         <button
                             className={chat_icons_cn}
+                            id="saveArtifact"
                             onClick={() => {
                                 setIsSharing(false); 
                                 setIsUploading(false);
@@ -643,6 +647,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
 
                         <button
                             className={chat_icons_cn}
+                            id="uploadArtifactAFM"
                             onClick={() => {
                                 setIsSaving(false);
                                 setIsSharing(false);
@@ -658,6 +663,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
 
                         <button
                             className={chat_icons_cn}
+                            id="addVersionCopy"
                             onClick={handleCopyVersion}
                             title="Add Version Copy To Artifact List"
                             disabled={artifactIsStreaming}
@@ -673,6 +679,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                         ) : (
                             <button
                                 className={chat_icons_cn}
+                                id="copyArtifact"
                                 onClick={copyOnClick}
                                 title="Copy Artifact"
                                 disabled={artifactIsStreaming}
@@ -684,6 +691,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
 
                         <button
                             className={chat_icons_cn}
+                            id="downlaodArtifact"
                             onClick={handleDownloadArtifact}
                             title="Download Artifact"
                             disabled={artifactIsStreaming}
@@ -693,6 +701,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
 
                         <button
                             className={chat_icons_cn}
+                            id="emailArtifact"
                             title="Email Artifact"
                             disabled={artifactIsStreaming}
                             onClick={()=> statsService.mailArtifactEvent()}
@@ -706,6 +715,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
 
                         <button
                             className={chat_icons_cn}
+                            id="shareArtifact"
                             onClick={() => {
                                 setIsSaving(false);
                                 setIsUploading(false);
@@ -719,6 +729,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
 
                         <button
                             className={chat_icons_cn}
+                            id="editArtifact"
                             onClick={() => {
                                 setIsPreviewing(false); 
                                 setIsEditing(!isEditing);
@@ -732,6 +743,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
 
                         <button
                             className={chat_icons_cn}
+                            id="deleteVersion"
                             onClick={handleDeleteArtifact}
                             title="Delete Version"
                             disabled={artifactIsStreaming}
@@ -771,6 +783,7 @@ const VersionChangeButton: React.FC<ButtonProps> = ( { nextIndex, onClick, isDis
     return  <div className={`h-[32px] w-[32px] border border-neutral-300 dark:border-neutral-600 ${isDisabled ? "opacity-30": ""}`}>
                 <button
                     className={`p-1 text-neutral-500 dark:text-neutral-400 ${isDisabled ? "" :"hover:text-black dark:hover:text-neutral-100"}`}
+                    id="indexButton"
                     onClick={() => onClick(nextIndex)}
                     // title={isDisabled ? "":}
                     disabled={isDisabled}

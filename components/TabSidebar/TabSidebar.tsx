@@ -132,6 +132,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                     {childrenArray.map((child, index) => (
                         <button
                             key={index}
+                            id="tabSelection"
                             onClick={() => setActiveTab(index)}
                             title={child.props.title}
                             className={`px-3 py-2 rounded-t ${activeTab === index ? 'border-l border-t border-r dark:border-gray-500 dark:text-white shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
