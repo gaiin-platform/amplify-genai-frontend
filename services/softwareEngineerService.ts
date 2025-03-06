@@ -15,6 +15,7 @@ interface CreatePythonFunctionParams {
 
 const URL_PATH = "/se";
 const AMP_PATH = "/amp";
+const SERVICE_NAME = "softwareEngineer";
 
 export const createPythonFunction = async (params: CreatePythonFunctionParams) => {
   const op = {
@@ -22,6 +23,7 @@ export const createPythonFunction = async (params: CreatePythonFunctionParams) =
     data: params,
     path: URL_PATH,
     op: "/create-python-function",
+    service: SERVICE_NAME
   };
   return await doRequestOp(op);
 }
@@ -32,6 +34,7 @@ export const registerPythonFunction = async (functionName: string, code: string)
     data: { function_name: functionName, code },
     path: URL_PATH,
     op: "/functions/register-python-function",
+    service: SERVICE_NAME
   };
   return await doRequestOp(op);
 }
@@ -41,12 +44,13 @@ export const listUserFunctions = async () => {
     method: 'GET',
     path: URL_PATH,
     op: "/functions/list",
+    service: SERVICE_NAME
   };
   return await doRequestOp(op);
 }
 
 export const publishFunction = async (functionUuid: string, path: string,
-                                      version: string = 'v1', assistantAccessible: boolean = true, access: 'public' | 'private' = 'public') => {
+  version: string = 'v1', assistantAccessible: boolean = true, access: 'public' | 'private' = 'public') => {
   const op = {
     method: 'POST',
     data: {
@@ -58,6 +62,7 @@ export const publishFunction = async (functionUuid: string, path: string,
     },
     path: AMP_PATH,
     op: "/publish",
+    service: SERVICE_NAME
   };
   return await doRequestOp(op);
 }
@@ -68,6 +73,7 @@ export const unpublishFunction = async (path: string, version: string) => {
     data: { path, version },
     path: AMP_PATH,
     op: "/unpublish",
+    service: SERVICE_NAME
   };
   return await doRequestOp(op);
 }
@@ -77,6 +83,7 @@ export const listPublishedFunctions = async () => {
     method: 'GET',
     path: AMP_PATH,
     op: "/list",
+    service: SERVICE_NAME
   };
   return await doRequestOp(op);
 }
@@ -90,6 +97,7 @@ export const updateFunctionSchema = async (functionUuid: string, inputSchema: ob
     },
     path: URL_PATH,
     op: "/update_function_schema",
+    service: SERVICE_NAME
   };
   return await doRequestOp(op);
 }
@@ -103,6 +111,7 @@ export const updateFunctionCode = async (functionUuid: string, code: string) => 
     },
     path: URL_PATH,
     op: "/update_function_code",
+    service: SERVICE_NAME
   };
   return await doRequestOp(op);
 }
@@ -113,6 +122,7 @@ export const getFunctionCode = async (functionUuid: string) => {
     data: { function_uuid: functionUuid },
     path: URL_PATH,
     op: "/get_function_code",
+    service: SERVICE_NAME
   };
   return await doRequestOp(op);
 }
@@ -123,6 +133,7 @@ export const getFunctionMetadata = async (functionUuid: string) => {
     data: { function_uuid: functionUuid },
     path: URL_PATH,
     op: "/get_function_metadata",
+    service: SERVICE_NAME
   };
   return await doRequestOp(op);
 }

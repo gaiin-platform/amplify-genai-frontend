@@ -1,6 +1,7 @@
 import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH =  "/assistant-api";
+const SERVICE_NAME = "assistantAPI";
 
 export const executeAssistantApiCall = async (data: any) => {
     const op = {
@@ -8,7 +9,8 @@ export const executeAssistantApiCall = async (data: any) => {
         method: 'POST',
         path: URL_PATH,
         op: "/execute-custom-auto",
-        data: data
+        data: data,
+        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
@@ -24,8 +26,8 @@ export const getAsyncResult = async (data: any) => {
         method: 'POST',
         path: URL_PATH,
         op: "/get-job-result",
-        data: data
+        data: data,
+        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
-
