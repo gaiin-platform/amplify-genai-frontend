@@ -39,5 +39,7 @@ export interface Group {
   assistants: Prompt[];
   groupTypes: string[];
   supportConvAnalysis?: boolean;
+  amplifyGroups: string[];
+  systemUsers: string[];
 }
 
