@@ -3,6 +3,7 @@ import {Prompt} from "@/types/prompt";
 import {Message, MessageType} from "@/types/chat";
 import {ReservedTags} from "@/types/tags";
 import { savePrompts } from "./prompts";
+import { baseAssistantFolder } from "./basePrompts";
 
 export const isAssistantById = (promptId: string, prompts: Prompt[]) => {
     const prompt = prompts.find((p: Prompt) => p.id === promptId);
@@ -81,7 +82,7 @@ export const createAssistantPrompt = (assistant: AssistantDefinition): Prompt =>
         name: assistant.name,
         description: assistant.description,
         content: assistant.instructions,
-        folderId: "assistants",
+        folderId: baseAssistantFolder.id,
         data: {
             assistant: {id: assistant.id, definition: assistant},
             ...(assistant.data || {}),
@@ -100,7 +101,7 @@ const isSystemAssistant = (prompt: Prompt) => {
 
 }
 
-export const syncAssistants = async (assistants: AssistantDefinition[], prompts: Prompt[]) => {
+export const syncAssistants = async (assistants: AssistantDefinition[], prompts: Prompt[], folderIds: string[]) => {
     // Match assistants by name and only take the one with the highest version number for each name
     const latestAssistants = assistants.reduce((acc: { [key: string]: AssistantDefinition }, assistant: AssistantDefinition) => {
         if (!assistant.version) {
@@ -119,7 +120,17 @@ export const syncAssistants = async (assistants: AssistantDefinition[], prompts:
     const assistantNames = new Set(assistants.map(prompt => prompt.name));
 
     let assistantPrompts: Prompt[] = assistants.map(createAssistantPrompt);  
-    
+    const astFolderIdMap: {[id: string]: string} = prompts.reduce((acc: {[id: string]: string}, p:Prompt) => {
+                                                            if (isAssistant(p) && p.folderId && p.folderId !== baseAssistantFolder.id &&
+                                                                folderIds.includes(p.folderId)) acc[p.id] = p.folderId;
+                                                        return acc;
+                                                    }, {});
+    assistantPrompts = assistantPrompts.map((p: Prompt) => {
+                            if (Object.keys(astFolderIdMap).includes(p.id)) {
+                                return {...p, folderId: astFolderIdMap[p.id]}
+                            }
+                            return p; 
+                         });                   
     // keep imported Assistants
     const importedAssistants = prompts.filter(prompt =>  isAssistant(prompt) && prompt.data?.noShare && 
                                                         !assistantNames.has(prompt.name) && !prompt.groupId && !isSystemAssistant(prompt)) ;                           
