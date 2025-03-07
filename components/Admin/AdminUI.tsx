@@ -20,9 +20,9 @@ import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
 import { emptySupportedModel, SupportedModelsTab } from "./AdminComponents/SupportedModels";
 import { ConfigurationsTab } from "./AdminComponents/Configurations";
-// import { integrationProvidersList, IntegrationSecretsMap, IntegrationsMap } from "@/types/integrations";
-// import { checkActiveIntegrations } from "@/services/oauthIntegrationsService";
-// import { IntegrationsTab } from "./AdminComponents/Integrations";
+import { Integration, IntegrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap } from "@/types/integrations";
+import { checkActiveIntegrations } from "@/services/oauthIntegrationsService";
+import { IntegrationsTab } from "./AdminComponents/Integrations";
 import { EmbeddingsTab } from "./AdminComponents/Embeddings";
 import { OpsTab } from "./AdminComponents/Ops";
 import { Pptx_TEMPLATES, Ast_Group_Data, FeatureDataTab, } from "./AdminComponents/FeatureData";
@@ -69,6 +69,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const [rateLimit, setRateLimit] = useState<{period: PeriodType, rate: string}>({...noRateLimit, rate: '0'});
     const [promptCostAlert, setPromptCostAlert] = useState<PromptCostAlert>({isActive:false, alertMessage: '', cost: 0});
+    const [emailSupport, setEmailSupport] = useState<EmailSupport>({isActive:false, email:''});
 
     const [availableModels, setAvailableModels] = useState<SupportedModelsConfig>({});   
 
@@ -93,22 +94,44 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const [ampGroups, setAmpGroups] = useState<Amplify_Groups>({});
 
-    // const [integrations, setIntegrations] = useState<IntegrationsMap | null >(null);
-    // const [integrationSecrets, setIntegrationSecrets] = useState<IntegrationSecretsMap>({});
+    const [integrations, setIntegrations] = useState<IntegrationsMap | null >(null);
+    const [integrationSecrets, setIntegrationSecrets] = useState<IntegrationSecretsMap>({});
 
+    const mergeIntegrationLists = ( supported: Integration[] | undefined,
+                                    baseIntegrations: Integration[] | undefined ): Integration[] => {
+        if (!supported) return baseIntegrations || [];
+        if (!baseIntegrations) return [];
+      
+        const supportedLookup = new Map(supported.map((integration) => [integration.id, integration]));
+        const mergedIntegrations = baseIntegrations.map((i: Integration) => supportedLookup.get(i.id) ?? i );
+        return mergedIntegrations;
+      };
     
-    // const getActiveIntegrations = async (supportedIntegrations: IntegrationsMap | null) => {
-    //     const checkResponsive = supportedIntegrations ? integrationProvidersList.filter((i:string) => !Object.keys(supportedIntegrations).includes(i))
-    //                                                   : integrationProvidersList;
-    //     const integrationsResult = await checkActiveIntegrations(checkResponsive);
+    const getActiveIntegrations = async (supportedIntegrations: IntegrationsMap | null) => {
+        const integrationsResult = await checkActiveIntegrations(integrationProvidersList);
         
-    //     const integrationMap = integrationsResult.integrationLists;
-    //     console.log("MAp:\n\n", integrationMap)
-    //     if (Object.keys(integrationMap).length > 0) {
-    //         setIntegrations(integrationMap);
-    //         setIntegrationSecrets(integrationsResult.secrets)
-    //     }
-    // }
+        const integrationMap: IntegrationsMap  = integrationsResult.integrationLists;
+        if (supportedIntegrations) {
+            // update the integrations to reflect changes in the base integrations compared to the saved ones in the admin table
+           Object.keys(integrationMap).forEach((integrationKey: string) => {
+                const key = integrationKey as IntegrationProviders
+                integrationMap[key] = mergeIntegrationLists(supportedIntegrations[key], integrationMap[key]);
+            }); 
+        }
+
+        // console.log("integrations map:\n\n", integrationMap)
+        if (Object.keys(integrationMap).length > 0) {
+            setIntegrations(integrationMap);
+            setIntegrationSecrets(integrationsResult.secrets)
+        }
+    }
+    // for cases when adding the integration feature flag manually 
+    useEffect(() => {
+        if (!stillLoadingData && !integrations && Object.keys(features).includes('integrations' )) {
+            getActiveIntegrations(null);
+        }
+    }, [features])
+
   
     useEffect(() => {
        
@@ -126,13 +149,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 const featureData = data[AdminConfigTypes.FEATURE_FLAGS];
                 setFeatures(featureData || {});
                 // handle calls to integrations 
-                // if (Object.keys(featureData).includes('integrations')) getActiveIntegrations(data[AdminConfigTypes.INTEGRATIONS]); // async no need to wait
+                if (Object.keys(featureData).includes('integrations')) getActiveIntegrations(data[AdminConfigTypes.INTEGRATIONS]); // async no need to wait
 
                 setAmpGroups(data[AdminConfigTypes.AMPLIFY_GROUPS] || {})
                 setTemplates(data[AdminConfigTypes.PPTX_TEMPLATES] || []);
                 setRateLimit(data[AdminConfigTypes.RATE_LIMIT || rateLimit]);
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
-
+                setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT || emailSupport]);
                 setLoadingMessage("");
             
                 const nonlazyResult = await nonlazyReq;
@@ -189,6 +212,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return rateLimitObj(rateLimit.period, rateLimit.rate);
             case AdminConfigTypes.PROMPT_COST_ALERT:
                 return promptCostAlert;
+            case AdminConfigTypes.EMAIL_SUPPORT:
+                return emailSupport;
             case AdminConfigTypes.APP_SECRETS:
                 return appSecrets;
             case AdminConfigTypes.APP_VARS:
@@ -208,8 +233,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return ampGroups;
             case AdminConfigTypes.PPTX_TEMPLATES:
                 return templates.filter((pptx:Pptx_TEMPLATES) => changedTemplates.includes(pptx.name));
-            // case AdminConfigTypes.INTEGRATIONS:
-            //     return integrations;
+            case AdminConfigTypes.INTEGRATIONS:
+                return integrations;
             case AdminConfigTypes.OPENAI_ENDPONTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
                 const cleanedOpenAiEndpoints: OpenAIModelsConfig = {
@@ -283,10 +308,26 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                             "description": m.description ?? '',
                                                             "inputContextWindow": m.inputContextWindow,
                                                             "supportsImages": m.supportsImages,
+                                                            "supportsReasoning": m.supportsReasoning
                                                             } as Model));
         homeDispatch({ field: 'availableModels', value: availModels}); 
     }
       
+
+    const validateSavedData = () => {
+        const models = Object.values(availableModels);
+        if (models.filter((m:SupportedModel) => m.isAvailable && !m.id.includes('embedding')).length === 0) {
+            alert("No models were made available. To enable chat, update the models under the 'Supported Models' tab.");
+        } else {
+            if (!models.find((m:SupportedModel) => m.isDefault)) alert("No default model was selected. User's default model will be set to the cheapest model until configured in the 'Supported Models' tab.");
+        }
+
+        if (emailSupport.isActive && !emailSupport.email) {
+            alert("The Support Email feature cannot be activated without providing an email address. Please add an email address or disable the feature.");
+            return false;
+        }
+        return true;
+    }
       
 
     const handleSave = async () => {
@@ -295,7 +336,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             return;
         }
         const collectUpdateData =  Array.from(unsavedConfigs).map((type: AdminConfigTypes) => ({type: type, data: getConfigTypeData(type)}));
-        // console.log("Saving... ", collectUpdateData);
+        console.log("Saving... ", collectUpdateData);
+        if (!validateSavedData()) return;
         // console.log(" testing: ", testEndpointsRef.current);
         if (testEndpointsRef.current.length > 0) {
             setLoadingMessage('Testing New Endpoints...');
@@ -421,6 +463,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setRateLimit={setRateLimit}
                     promptCostAlert={promptCostAlert}
                     setPromptCostAlert={setPromptCostAlert}
+                    emailSupport={emailSupport}
+                    setEmailSupport={setEmailSupport}
                     allEmails={allEmails}
                     admin_text={admin_text}
                     updateUnsavedConfigs={updateUnsavedConfigs}
@@ -537,23 +581,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     updateUnsavedConfigs={updateUnsavedConfigs}
                 />
             },
-///////////////////////////////////////////////////////////////////////////////
-  
-            // // Integrations Tab - only included if included in the feature flags list
-            // ...(integrations ? 
-            //     [
-            //     {label: tabTitle("Integrations"),
-            //         content:
-            //         stillLoadingData ? loading :
-            //         <IntegrationsTab
-            //             integrations={integrations}
-            //             setIntegrations={setIntegrations}
-            //             integrationSecrets={integrationSecrets}
-            //             setIntegrationSecrets={setIntegrationSecrets}
-            //             updateUnsavedConfigs={updateUnsavedConfigs}
-            //         />
-            //     }
-            //     ] : []),
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -581,6 +608,24 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setRefreshingTypes={setRefreshingTypes}
                 />
             },
+
+            ///////////////////////////////////////////////////////////////////////////////
+  
+            // Integrations Tab - only included if included in the feature flags list
+            ...(integrations ? 
+                [
+                {label: tabTitle("Integrations"),
+                    content:
+                    stillLoadingData ? loading :
+                    <IntegrationsTab
+                        integrations={integrations}
+                        setIntegrations={setIntegrations}
+                        integrationSecrets={integrationSecrets}
+                        setIntegrationSecrets={setIntegrationSecrets}
+                        updateUnsavedConfigs={updateUnsavedConfigs}
+                    />
+                }
+                ] : []),
 
         ]
         }
@@ -775,4 +820,9 @@ export interface PromptCostAlert {
     isActive: boolean;
     alertMessage: string;
     cost: Number;
+}
+
+export interface EmailSupport {
+    isActive: boolean;
+    email: string;
 }

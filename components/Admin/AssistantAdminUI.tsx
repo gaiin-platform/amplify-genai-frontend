@@ -8,13 +8,13 @@ import { Group, GroupAccessType, AstGroupTypeData, GroupUpdateType, Members } fr
 import { createEmptyPrompt } from '@/utils/app/prompts';
 import { useSession } from 'next-auth/react';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
-import { createAstAdminGroup, deleteAstAdminGroup, updateGroupAssistants, updateGroupMembers, updateGroupMembersPermissions, updateGroupTypes } from '@/services/groupsService';
+import { createAstAdminGroup, deleteAstAdminGroup, updateGroupAmplifyGroups, updateGroupAssistants, updateGroupMembers, updateGroupMembersPermissions, updateGroupSystemUsers, updateGroupTypes } from '@/services/groupsService';
 import Search from '../Search';
 import { TagsList } from '../Chat/TagsList';
 import ExpansionComponent from '../Chat/ExpansionComponent';
 import { AttachFile } from '../Chat/AttachFile';
 import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
-import { AssistantDefinition } from '@/types/assistant';
+import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
 import { DataSourceSelector } from '../DataSources/DataSourceSelector';
 import { AttachedDocument } from '@/types/attacheddocument';
 import {ExistingFileList, FileList} from "@/components/Chat/FileList";
@@ -33,6 +33,10 @@ import { includeGroupInfoBox } from '../Emails/EmailsList';
 import Checkbox from '../ReusableComponents/CheckBox';
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from '@/utils/app/amplifyAssistants';
 import { Modal } from '../ReusableComponents/Modal';
+import { AmplifyGroupSelect } from './AdminUI';
+import { getUserAmplifyGroups } from '@/services/adminService';
+import { fetchAllSystemIds } from '@/services/apiKeysService';
+import { ReactElement } from 'react-markdown/lib/react-markdown';
 
 
 interface Conversation {
@@ -730,16 +734,21 @@ interface ManagementProps {
     setLoadingActionMessage: (s:string) => void;
     adminGroups: Group[];
     setAdminGroups: (groups:Group[]) => void;
+    amplifyGroups: string[];
+    systemUsers: string[];
 }
 
 
-const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, members, allEmails, setLoadingActionMessage, adminGroups, setAdminGroups}) => {
+const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, members, allEmails, setLoadingActionMessage,
+                                               adminGroups, setAdminGroups, amplifyGroups, systemUsers}) => {
     const { state: { featureFlags, groups, prompts, folders, statsService}, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
 
     const [hasAdminAccess, setHasAdminAccess] = useState<boolean>((userEmail && selectedGroup.members[userEmail] === GroupAccessType.ADMIN) || false);
     const [groupTypes, setGroupTypes] = useState<string[]>(selectedGroup.groupTypes);
+    const [groupAmpGroups, setGroupAmpGroups] = useState<string[]>(selectedGroup.amplifyGroups ?? []);
+    const [groupSystemUsers, setGroupSystemUsers] = useState<string[]>(selectedGroup.systemUsers ?? []);
 
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [isDeleting, setIsDeleting] = useState<boolean>(false);
@@ -822,6 +831,70 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
             });
         setAdminGroups(updatedAdminGroups);
         setLoadingActionMessage('');
+    }
+
+    const onUpdateAmpGroups = async () => {
+        if (!hasAdminAccess) {
+            alert("You are not authorized to update this group's Amplify Group list.");
+            return false;
+        }
+        setLoadingActionMessage('Updating Amplify Group List');
+        const updateData = {
+                        "group_id": selectedGroup.id,
+                        "amplify_groups": groupAmpGroups
+                    };
+        // statsService.updateGroupAmplifyGroupsEvent(updateData); 
+        const result = await updateGroupAmplifyGroups(updateData);
+        if (!result) {
+            alert(`Unable to update amplify group list at this time. Please try again later.`);
+            setLoadingActionMessage('');
+            return false;;
+        } else {
+            toast(`Successfully updated Amplify group list.`);
+        }
+        
+        //update groups home dispatch 
+        const updatedGroup = {...selectedGroup, amplifyGroups: groupAmpGroups};
+        setSelectedGroup(updatedGroup);
+        const updatedAdminGroups = adminGroups.map((g: Group) => {
+                if (selectedGroup?.id === g.id) return updatedGroup;
+                    return g;
+            });
+        setAdminGroups(updatedAdminGroups);
+        setLoadingActionMessage('');
+        return true;
+    }
+
+    const onUpdateSystemUsers = async () => {
+        if (!hasAdminAccess) {
+            alert("You are not authorized to update this group's system users list.");
+            return false;
+        }
+        setLoadingActionMessage('Updating System User List');
+        const updateData = {
+                        "group_id": selectedGroup.id,
+                        "system_users": systemUsers
+                    };
+        // statsService.updateGroupSystemUsersEvent(updateData); 
+        const result = await updateGroupSystemUsers(updateData);
+        if (!result) {
+            alert(`Unable to update the system users list at this time. Please try again later.`);
+            setLoadingActionMessage('');
+            return false;
+        } else {
+            toast(`Successfully updated group's system users list.`);
+        }
+        
+        //update groups home dispatch 
+        const updatedGroup = {...selectedGroup, systemUsers: systemUsers};
+        setSelectedGroup(updatedGroup);
+        const updatedAdminGroups = adminGroups.map((g: Group) => {
+                if (selectedGroup?.id === g.id) return updatedGroup;
+                    return g;
+            });
+        setAdminGroups(updatedAdminGroups);
+        setLoadingActionMessage('');
+        return true;
     }
 
 
@@ -1096,20 +1169,18 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
                 />
                
             { isAddingUsers && 
-                <div className='mx-10'>
-                     <AddMemberAccess
-                        groupMembers={newGroupMembers}
-                        setGroupMembers={setNewGroupMembers}
-                        input={input}
-                        setInput={setInput}
-                        allEmails={allGroupEmails}
-                        handleAddEmails={handleAddEmails}
-                        width='840px'
+                    <AddMemberAccess
+                    groupMembers={newGroupMembers}
+                    setGroupMembers={setNewGroupMembers}
+                    input={input}
+                    setInput={setInput}
+                    allEmails={allGroupEmails}
+                    handleAddEmails={handleAddEmails}
+                    width='840px'
 
-                    />
-                </div>
+                />
                 }
-            <label className="text-2lg font-bold">Group Members</label>
+            <label className="font-bold">Group Members</label>
             
             <div className="flex justify-between gap-6 items-center">
                 <Search
@@ -1183,7 +1254,7 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
                     />
 
                 <UsersAction
-                    condition={isEditingAccess}
+                     condition={isEditingAccess}
                      label='Updating Users Access'
                      title='Update Users access'
                      clickAction={() => {
@@ -1210,6 +1281,7 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
             { isEditingAccess && accessInfoBox}
             
             { users.length === 0 ? <div className='ml-4'> No members to display</div> :
+            <div className='overflow-y-auto max-h-[300px]'>
                 <table className="w-full border-collapse">
                     <thead>
                         <tr>
@@ -1236,7 +1308,7 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
                         </tr>
                     </thead>
                     <tbody>
-                        {users.map((user, index) => (
+                        {[...users].map((user, index) => (
                             <tr key={index}>
                                 {isDeleting &&   
                                 <td className="py-2">
@@ -1276,7 +1348,22 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
                         ))}
                     </tbody>
                 </table>
+            </div>
             }
+
+            <AmpGroupsSysUsersSelection 
+                amplifyGroups={amplifyGroups}
+                selectedAmplifyGroups={groupAmpGroups}
+                setSelectedAmplifyGroups={setGroupAmpGroups}
+                systemUsers={systemUsers}
+                selectedSystemUsers={groupSystemUsers}
+                setSelectedSystemUsers={setGroupSystemUsers}
+                onConfirmAmpGroups={onUpdateAmpGroups} 
+                onCancelAmpGroups={() => setGroupAmpGroups(selectedGroup.amplifyGroups ?? [])} 
+                onConfirmSystemUsers={onUpdateSystemUsers} 
+                onCancelSystemUsers={() => setGroupSystemUsers(selectedGroup.systemUsers ?? [])}
+            />
+            
                 { hasAdminAccess &&
                     <button
                         type="button"
@@ -1339,7 +1426,18 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     const [showCreateNewGroup, setShowCreateNewGroup] = useState<boolean>();
     const [showCreateGroupAssistant, setShowCreateGroupAssistant] = useState<string | null>(null);
 
-    const [allEmails, setAllEmails] = useState<Array<string> | null>(null);
+    const fetchEmails = () => {
+        const emailSuggestions = amplifyUsers;
+        // add groups  #groupName
+        const groupForMembers = groups.map((group:Group) => `#${group.name}`);
+        return (emailSuggestions ? [...emailSuggestions,
+                                    ...groupForMembers].filter((e: string) => e !== user) : []);
+    };
+
+    const allEmails:Array<string> = (fetchEmails());
+
+    const [amplifyGroups, setAmplifyGroups] = useState<string[] | null>(null);
+    const [systemUsers, setSystemUsers] = useState<string[] | null>(null);
 
     useEffect(() => {
         const updateInnerWindow = () => {
@@ -1353,14 +1451,22 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
       }, []);
 
     useEffect(() => {
-        const fetchEmails = async () => {
-            const emailSuggestions = amplifyUsers;
-            // add groups  #groupName
-            const groupForMembers = groups.map((group:Group) => `#${group.name}`);
-            setAllEmails(emailSuggestions ? [...emailSuggestions,
-                                             ...groupForMembers].filter((e: string) => e !== user) : []);
-        };
-        if (!allEmails) fetchEmails();
+        const fetchAmpGroups = async () => {
+            const ampGroupsResult = await getUserAmplifyGroups();
+            setAmplifyGroups(ampGroupsResult.success ? ampGroupsResult.data : []);
+            if (!ampGroupsResult.success) console.log("Failed to retrieve user amplify groups");
+        } 
+
+        if (!amplifyGroups) fetchAmpGroups();
+
+        const fetchSystemUsers = async () => {
+            const apiSysIds = await fetchAllSystemIds();
+            const sysIds: string[] = apiSysIds.map((k: any) => k.systemId).filter((k: any) => k);
+            setSystemUsers(sysIds);
+        }
+
+        if (!systemUsers) fetchSystemUsers();
+
     }, [open]);
 
     useEffect(()=>{
@@ -1513,7 +1619,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             dataSources: [],
                             version: 1,
                             fileKeys: [],
-                            provider: 'Amplify',
+                            provider: AssistantProviderID.AMPLIFY,
                             groupId: group.id
                             }
         newPrompt.id = `${group.id}_${group.assistants.length}`;
@@ -1536,7 +1642,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                 : {
                                     id: null,
                                     assistantId: null,
-                                    provider: 'amplify'
+                                    provider: AssistantProviderID.AMPLIFY
                                   };
     }
 
@@ -1736,6 +1842,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                         setLoadingActionMessage={setLoadingActionMessage}
                         adminGroups={adminGroups}
                         setAdminGroups={setAdminGroups}
+                        amplifyGroups={amplifyGroups ?? []}
+                        systemUsers={systemUsers ?? []}
                         />
                         : null;
             default:
@@ -1752,6 +1860,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                     onClose={onClose} // note clear for built in one
                     allEmails={allEmails}
                     message={adminGroups.length === 0 ? "You currently do not have admin access to any groups." : "" }
+                    amplifyGroups={amplifyGroups ?? []}
+                    systemUsers={systemUsers ?? []}
                 />  
         ):
         // User has groups 
@@ -1919,10 +2029,12 @@ interface CreateProps {
     onClose: () => void;
     allEmails: Array<string> | null;
     message: string;
+    amplifyGroups: string[];
+    systemUsers: string[];
 }
 
 
-export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEmails, message}) => {
+export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEmails, message, amplifyGroups, systemUsers}) => {
     const { state: { statsService, groups }, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
     const user = session?.user?.email;
@@ -1933,7 +2045,8 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
     const [groupMembers, setGroupMembers] = useState< Members>({});
 
     const [groupTypes, setGroupTypes] = useState<string[]>([]);
-
+    const [groupAmpGroups, setGroupAmpGroups] = useState<string[]>([]);
+    const [groupSystemUsers, setGroupSystemUsers] = useState<string[]>([]);
 
     const handleAddEmails = () => {
         const entries = input.split(',').map(email => email.trim()).filter(email => email);
@@ -1957,8 +2070,8 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
 
     return (
         <Modal 
-            width={() => window.innerWidth * 0.5}
-            height={() => window.innerHeight * 0.8}
+            width={() => window.innerWidth * 0.7}
+            height={() => window.innerHeight * 0.92}
             title={"Assistant Admin Interface "}
             onCancel={() => {
                 onClose()
@@ -1966,16 +2079,18 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
             onSubmit={() => 
                 createGroup({ group_name: groupName,
                     members: {...groupMembers, [user as string]: GroupAccessType.ADMIN},
-                    types: groupTypes
+                    types: groupTypes,
+                    amplify_groups: groupAmpGroups,
+                    system_users: groupSystemUsers
                   })
             }
             submitLabel={"Create Group"}
             content={
-                <>
+                <div className='mr-2'>
                     {"You will be able to manage assistants and view key metrics related to user engagement and conversation."}
                             <div className="text-sm mb-4 text-black dark:text-neutral-200">{message}</div>
 
-                            <div className='flex flex-col gap-2 font-bold '>
+                            <div className='flex flex-col gap-3 font-bold '>
                                 <>
                                     Group Name
 
@@ -1993,7 +2108,7 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
                                     groupTypes={groupTypes}
                                     setGroupTypes={setGroupTypes}
                                 />
-                                <div className='mt-2'>
+                                <div className='my-2'>
                                     <AddMemberAccess
                                         groupMembers={groupMembers}
                                         setGroupMembers={setGroupMembers}
@@ -2003,9 +2118,17 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
                                         handleAddEmails={handleAddEmails}
                                     /> 
                                 </div>
+                                <AmpGroupsSysUsersSelection 
+                                    amplifyGroups={amplifyGroups}
+                                    selectedAmplifyGroups={groupAmpGroups}
+                                    setSelectedAmplifyGroups={setGroupAmpGroups}
+                                    systemUsers={systemUsers}
+                                    selectedSystemUsers={groupSystemUsers}
+                                    setSelectedSystemUsers={setGroupSystemUsers}
+                                />
                             </div>
                         
-                </>
+                </div>
             }
         />
     )
@@ -2040,7 +2163,7 @@ const accessInfoBox =  <InfoBox content={
         </span>}
 />
 
-export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupMembers, input, setInput, allEmails, handleAddEmails, width='500px'}) => {
+const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupMembers, input, setInput, allEmails, handleAddEmails, width='500px'}) => {
     const [hoveredUser, setHoveredUser] = useState<string | null>(null);
 
 
@@ -2051,15 +2174,15 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
     }
 
     return <div className='flex flex-col gap-2 mb-6'>
+                <label className='font-bold'>Add Members </label>
                 {accessInfoBox}
-                Add Members 
                 <label className='text-sm font-normal'>List group members and their permission levels.</label>
                 <>{includeGroupInfoBox}</>
                 <div className='flex flex-row gap-2'>
                     <div className="flex-shrink-0 ml-[-6px] mr-2">
                         <button
                             type="button"
-                            title='Add Account'
+                            title='Add Members'
                             className="ml-2 mt-1 px-3 py-1.5 text-white rounded bg-neutral-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
                             onClick={handleAddEmails}
                         >
@@ -2077,8 +2200,6 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
                     
                 </div>
         
-                {/* <div className='overflow overflow-y-auto' style={{maxHeight:'200px'}}> */}
-               
                 {Object.keys(groupMembers).length > 0 &&
                     <div>
                      Set Member Access 
@@ -2128,10 +2249,142 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
                         </tbody>
                     </table>
                      
-
                     </div>}
-                {/* </div>  */}
             </div>
+}
+
+interface AmpSysSelectionProps {
+    amplifyGroups: string[];
+    selectedAmplifyGroups: string[];
+    setSelectedAmplifyGroups: (selectedGroups:string[]) => void;
+    systemUsers: string[];
+    selectedSystemUsers: string[];
+    setSelectedSystemUsers: (selectedGroups:string[]) => void;
+
+    onConfirmAmpGroups?: () => Promise<boolean>;
+    onCancelAmpGroups?: () => void;
+    onConfirmSystemUsers?: () =>  Promise<boolean>;
+    onCancelSystemUsers?: () => void;
+
+}
+const AmpGroupsSysUsersSelection: FC<AmpSysSelectionProps> = ({amplifyGroups, selectedAmplifyGroups, setSelectedAmplifyGroups, 
+                                                               systemUsers, selectedSystemUsers, setSelectedSystemUsers, 
+                                                               onConfirmAmpGroups, onCancelAmpGroups, 
+                                                               onConfirmSystemUsers, onCancelSystemUsers
+                                                            }) => {
+    const [isUpdatingAmpGroups, setIsUpdatingAmpGroups] = useState<boolean>(false);
+    const [isUpdatingSystemUsers, setIsUpdatingSystemUsers] = useState<boolean>(false);   
+    const manageAmpGroupChanges = (!!onConfirmAmpGroups);
+    const manageSystemUserChanges = (!!onConfirmSystemUsers);
+
+    const onAcceptAmpGroups = async () => {
+        if (onConfirmAmpGroups) {
+            const sucess = await onConfirmAmpGroups();
+            if (sucess) setIsUpdatingAmpGroups(false);
+        } 
+    }
+
+    const onAcceptSystemUsers = async () => {
+        if (onConfirmSystemUsers) {
+            const sucess = await onConfirmSystemUsers();
+            if (sucess) setIsUpdatingSystemUsers(false);
+        } 
+    }
+
+    const manageChanges = (onConfirm: () => void, onCancel: () => void) => {
+        return <div className="mr-3 mt-1.5 flex flex-row gap-1 h-[20px]">
+            <button 
+                    className="text-green-500 hover:text-green-700 cursor-pointer" 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onConfirm();
+                    }}
+                    title={"Confirm Changes"} 
+                >
+                    <IconCheck size={18} />
+                </button>
+            
+            <button
+                className="text-red-500 hover:text-red-700 cursor-pointer"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onCancel();
+                }}
+                title={"Cancel"}
+            >
+                <IconX size={18} />
+            </button> 
+        </div> 
+    }
+
+    return (
+        <div className='mb-6'>
+        {amplifyGroups.length > 0 && 
+            <ListSelection 
+                title="Amplify Group Access"
+                infoLabel="Grant read access to users who are members of the following Amplify Groups. These users will not appear under the Group Members list."
+                selection={amplifyGroups}
+                selected={selectedAmplifyGroups}
+                setSelected={(selected: string[]) => {
+                    setSelectedAmplifyGroups(selected);
+                    if (manageAmpGroupChanges) setIsUpdatingAmpGroups(true);
+                }}
+                manageButtons={manageAmpGroupChanges && isUpdatingAmpGroups ? 
+                    <div>{ manageChanges(onAcceptAmpGroups, () => {
+                                if (onCancelAmpGroups) onCancelAmpGroups();
+                                setIsUpdatingAmpGroups(false);
+                            })}
+                    </div> : <></>}
+            /> }
+        {systemUsers.length > 0 && 
+            <ListSelection 
+                title='System User Access'
+                infoLabel='Grant read access to your API created system users.'
+                selection={systemUsers}
+                selected={selectedSystemUsers}
+                setSelected={(selected: string[]) => {
+                    setSelectedSystemUsers(selected);
+                    if (manageSystemUserChanges) setIsUpdatingSystemUsers(true);
+                }}
+                manageButtons={manageSystemUserChanges && isUpdatingSystemUsers ?
+                    <div> { manageChanges(onAcceptSystemUsers, () => {
+                                if (onCancelSystemUsers) onCancelSystemUsers();
+                                setIsUpdatingSystemUsers(false);
+                            })}
+                    </div> : <></>}
+            /> }
+
+        </div>
+    );
+}
+
+interface SelectionProps {
+    title: string;
+    infoLabel: string;
+    selection: string[];
+    selected: string[];
+    setSelected: (selectedGroups:string[]) => void;
+    manageButtons?: ReactElement;
+}
+const ListSelection: FC<SelectionProps> = ({title, infoLabel, selection, selected, setSelected, manageButtons=null}) => {
+    return (
+        <div className='mb-6'>
+            <label className='mb-2 font-bold'>{title}</label>
+            <InfoBox content={
+                <>
+                    <span className="ml-1 text-xs w-full text-center"> {infoLabel} </span>
+                     <div className='ml-auto'>{manageButtons}</div>
+                     {!!manageButtons}
+                </>
+                }/>
+        
+            <AmplifyGroupSelect 
+                groups={selection}
+                selected={selected}
+                setSelected={setSelected}
+            /> 
+        </div>
+    );
 }
 
 
@@ -2140,7 +2393,7 @@ interface AccessProps {
     setAccess: (t: GroupAccessType) => void;
 }
 
-export const AccessSelect: FC<AccessProps> = ({ access, setAccess}) => {
+const AccessSelect: FC<AccessProps> = ({ access, setAccess}) => {
     
     return ( 
         <select className={"w-full text-center border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"}
@@ -2210,7 +2463,7 @@ interface ActionProps {
 export const UsersAction: FC<ActionProps> = ({condition, label, title, clickAction, onConfirm, onCancel}) => {
 
     return ( condition ? (
-        <div className="text-xs flex flex-row gap-1">
+        <div className="flex flex-row gap-1">
         <label className={`px-4 py-2 text-white  bg-gray-700`}>  {label}</label>
         <div className="flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 ">
             <button 
@@ -2378,7 +2631,7 @@ interface TypeProps {
 
 export const GroupTypesAst: FC<TypeProps> = ({groupTypes, setGroupTypes, canAddTags=true, showControlButtons=false, onConfirm, onCancel}) => {
     return <>
-        <div className="text-md pb-1 font-bold text-black dark:text-neutral-200 flex items-center">
+        <div className="text-md pb-1 font-bold text-black dark:text-white flex items-center">
                 Group Types
         </div>
         <InfoBox content={
@@ -2688,22 +2941,11 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
                                     />
                                     
                                     {showDataSourceSelector === type && (
-                                        <div className="mt-[-40px] flex flex-col justify-center overflow-x-hidden">
-                                            <div className="relative top-[306px] left-1">
-                                                <button
-                                                    type="button" style={{width: "100px"}}
-                                                    className="px-4 py-3 rounded-lg hover:text-gray-900 hover:bg-blue-100 bg-gray-100 w-full dark:hover:bg-gray-700 dark:hover:text-white bg-50 dark:bg-gray-800"
-                                                    onClick={() => {
-                                                        setShowDataSourceSelector('');
-                                                    }}
-                                                >
-                                                    Close
-                                                </button>
-                                            </div>
+                                        <div className="mt-[-30px] justify-center overflow-x-hidden">
                                             <div className="rounded bg-white dark:bg-[#343541]">
                                                 <DataSourceSelector
+                                                    onClose={() => setShowDataSourceSelector('')}
                                                     minWidth="500px"
-                                                    height='310px'
                                                     onDataSourceSelected={(d) => {
                                                         const doc = {
                                                             id: d.id,

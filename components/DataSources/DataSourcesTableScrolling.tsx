@@ -18,7 +18,7 @@ type MimeTypeMapping = {
     [mimeType: string]: string;
 };
 
-const mimeTypeToCommonName: MimeTypeMapping = {
+export const mimeTypeToCommonName: MimeTypeMapping = {
     "text/vtt": "Voice Transcript",
     "application/vnd.ms-excel": "Excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel",

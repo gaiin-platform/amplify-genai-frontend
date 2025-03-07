@@ -1,6 +1,6 @@
-import { AssistantDefinition } from "@/types/assistant";
-import { Message } from "@/types/chat";
-import { v4 as uuidv4 } from 'uuid';
+import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
+import {Message} from "@/types/chat";
+import {v4 as uuidv4} from 'uuid';
 import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH = "/assistant";
@@ -36,8 +36,8 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
         const result = await doRequestOp(op);
 
         const id = result.data.assistantId;
-        return { assistantId: id, id, provider: 'openai' };
-    } else if (assistantDefinition.provider === 'amplify') {
+        return {assistantId: id, id, provider: 'openai'};
+    } else if (assistantDefinition.provider === AssistantProviderID.AMPLIFY) {
 
         try {
             const result = await doRequestOp(op);
@@ -47,7 +47,7 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
             return {
                 id: result.data.id,
                 assistantId: result.data.assistantId,
-                provider: 'amplify',
+                provider: AssistantProviderID.AMPLIFY,
                 dataSources: assistantDefinition.fileKeys || [],
                 name: assistantDefinition.name || "Unnamed Assistant",
                 description: assistantDefinition.description || "No description provided",
@@ -59,7 +59,7 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
             return {
                 id: null,
                 assistantId: null,
-                provider: 'amplify'
+                provider: AssistantProviderID.AMPLIFY
             }
 
         }
@@ -67,7 +67,7 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
 
     return {
         assistantId: uuidv4(),
-        provider: 'amplify',
+        provider: AssistantProviderID.AMPLIFY,
         dataSources: assistantDefinition.fileKeys || [],
         name: assistantDefinition.name || "Unnamed Assistant",
         description: assistantDefinition.description || "No description provided",

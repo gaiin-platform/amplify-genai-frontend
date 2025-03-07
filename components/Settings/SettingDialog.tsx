@@ -68,7 +68,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
     const models: Model[] = Object.values(allAvailableModels);
 
     type ModelsMap = {
-      [K in ModelKey]: { id: string; name: string }[];
+      [K in ModelKey]: Model[];
     };
 
     const sortedModels = modelOptionFlags.reduce((acc, flag) => {
@@ -85,7 +85,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
         }
       );
 
-      if (matchedOption) sortedModels[matchedOption.key].push({ id: model.id, name: model.name });
+      if (matchedOption) sortedModels[matchedOption.key].push(model);
     });
 
 
@@ -133,7 +133,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
 
 
   const handleSave = async () => {
-    if (Object.values(allAvailableModels).every((model: Model) => hiddenModelIds.includes(model.id))) {
+    if (Object.values(allAvailableModels).every((model: Model) => hiddenModelIds.includes(model.id) || model.id === defaultModelId)) {
         alert("All models are currently set to be hidden. At least one model needs to remain visible, please adjust your selection.");
         return;
     }
@@ -143,7 +143,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
 
     const updatedSettings: Settings = { theme: theme, 
                                         featureOptions: featureOptions, 
-                                        hiddenModelIds: hiddenModelIds
+                                        hiddenModelIds: hiddenModelIds.filter((id: string) => id !== defaultModelId)
                                       }
     statsService.saveSettingsEvent(updatedSettings);
     // console.log(updatedSettings);
@@ -190,7 +190,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
 const modelLabel = (modelId: string, name: string) => {
   const isVisible = !hiddenModelIds.includes(modelId);
   const isDisabled = modelId === defaultModelId;
-  return <div key={modelId} className={` text-sm ${isVisible ? "text-blue-600":""}`}> 
+  return <div key={modelId} className={` text-sm ${isVisible || modelId === defaultModelId ? "text-blue-600":""}`}> 
           <button
             disabled={isDisabled}
             title={isDisabled? "Default model can't be hidden": `${isVisible ? "Hide" : "Show"} model from selection menus`}
@@ -355,7 +355,79 @@ const modelLabel = (modelId: string, name: string) => {
                         [{ label: `Legacy Workspaces`, 
                            title: hasUnsavedChanges ? " Contains Unsaved Changes  " : "",
                            content: <LegacyWorkspaces/>
-                        }] : [])
+                        }] : []),
+              ///////////////////////////////////////////////////////////////////////////////
+                              // Model Pricing 
+
+                        { label: "Model Pricing",
+                          content: 
+                          <>
+                          <div className='w-full text-lg font-bold '>Model Pricing / Million Tokens</div>
+
+                          <div className="mt-6 overflow-x-auto w-full pr-6">
+                            <table className="mt-1 mb-3 table-auto border-collapse w-full">
+                              <thead>
+                                <tr>
+                                  {["Model", "Input Tokens", "Output Tokens", "Cached Tokens"].map((title, index) => (
+                                    <th
+                                      key={index}
+                                      className="text-center py-0.5 border border-gray-500 text-black dark:text-white bg-neutral-400 dark:bg-neutral-800"
+                                      style={{ width: index === 0 ? '200px' : 'auto'}}
+                                    >
+                                      {title}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {modelOptionFlags
+                                  .filter((f: Flag) => availableModels[f.key].length > 0)
+                                  .map((f: Flag, i: number) => (
+                                    <React.Fragment key={f.key}>
+                                      {/* Section label */}
+                                      <tr>
+                                        <td colSpan={4} className="text-center font-bold py-2">
+                                          {f.label}
+                                        </td>
+                                      </tr>
+                                      {/* Models in the section */}
+                                      {availableModels[f.key].map((model: Model) => (
+                                        <tr key={model.id}>
+                                          <td
+                                            className="border border-neutral-500 py-2text-start"
+                                            style={{ width: '260px' }}
+                                          >
+                                            <label className="px-2">{model.name}</label>
+                                          </td>
+                                          {["inputTokenCost", "outputTokenCost", "cachedTokenCost"].map((s: string, idx: number) => (
+                                            <td
+                                              key={idx}
+                                              className="border border-neutral-500 py-2"
+                                              title={model.name}
+                                              style={{ width: 'auto' }}
+                                            >
+                                              <div className="text-center">
+                                                {model[s as keyof Model] !== 0 ? (
+                                                  `$${((model[s as keyof Model] as number) * 1000)
+                                                    .toFixed(2)
+                                                    .replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
+                                                ) : (
+                                                  <label className="opacity-60">N/A</label>
+                                                )}
+                                              </div>
+                                            </td>
+                                          ))}
+                                        </tr>
+                                      ))}
+                                    </React.Fragment>
+                                  ))}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          </>
+
+                        },
                     ]}
       />
       }

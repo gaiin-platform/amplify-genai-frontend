@@ -3,15 +3,13 @@ import { FC, useContext, useEffect, useRef } from 'react';
 import { DEFAULT_TEMPERATURE } from '@/utils/app/const';
 
 import HomeContext from '@/pages/api/home/home.context';
-import { Slider } from '../ReusableComponents/Slider';
+import { Slider } from '../../ReusableComponents/Slider';
 
 interface Props {
-  label: string;
   onChangeTemperature: (temperature: number) => void;
 }
 
 export const TemperatureSlider: FC<Props> = ({
-  label,
   onChangeTemperature,
 }) => {
   const {
@@ -28,7 +26,7 @@ export const TemperatureSlider: FC<Props> = ({
 
   return (
     <Slider
-      label={label}
+      label={'Temperature'}
       description={"Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic."}
       defaultState={ lastConversation?.temperature ?? DEFAULT_TEMPERATURE }
       onChange={(newValue) => onChangeTemperature(newValue)}

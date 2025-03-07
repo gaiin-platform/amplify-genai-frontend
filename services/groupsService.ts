@@ -2,6 +2,7 @@ import { AssistantDefinition } from "@/types/assistant";
 import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH = "/groups";
+const UPDATE_URL_PATH =  URL_PATH + "/update";
 const SERVICE_NAME = "groups";
 
 export const createAstAdminGroup = async (data: any) => {
@@ -19,8 +20,8 @@ export const createAstAdminGroup = async (data: any) => {
 export const updateGroupTypes = async (data: any) => {
     const op = {
         method: 'POST',
-        path: URL_PATH,
-        op: "/types/update",
+        path: UPDATE_URL_PATH,
+        op: "/types",
         data: data,
         service: SERVICE_NAME
     };
@@ -31,8 +32,8 @@ export const updateGroupTypes = async (data: any) => {
 export const updateGroupMembers = async (data: any) => {
     const op = {
         method: 'POST',
-        path: URL_PATH,
-        op: "/members/update",
+        path: UPDATE_URL_PATH,
+        op: "/members",
         data: data,
         service: SERVICE_NAME
     };
@@ -43,8 +44,8 @@ export const updateGroupMembers = async (data: any) => {
 export const updateGroupMembersPermissions = async (data: any) => {
     const op = {
         method: 'POST',
-        path: URL_PATH,
-        op: "/members/update_permissions",
+        path: UPDATE_URL_PATH,
+        op: "/members/permissions",
         data: data,
         service: SERVICE_NAME
     };
@@ -55,8 +56,30 @@ export const updateGroupMembersPermissions = async (data: any) => {
 export const updateGroupAssistants = async (data: any) => {
     const op = {
         method: 'POST',
-        path: URL_PATH,
-        op: "/assistants/update",
+        path: UPDATE_URL_PATH,
+        op: "/asistants",
+        data: data,
+        service: SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}
+
+export const updateGroupAmplifyGroups = async (data: any) => {
+    const op = {
+        method: 'POST',
+        path: UPDATE_URL_PATH,
+        op: "/amplify_groups",
+        data: data,
+        service: SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}
+
+export const updateGroupSystemUsers = async (data: any) => {
+    const op = {
+        method: 'POST',
+        path: UPDATE_URL_PATH,
+        op: "/system_users",
         data: data,
         service: SERVICE_NAME
     };

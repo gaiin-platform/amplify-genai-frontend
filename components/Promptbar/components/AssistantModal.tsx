@@ -7,20 +7,22 @@ import {ExistingFileList, FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile} from "@/components/Chat/AttachFile";
-import {IconFiles, IconCircleX, IconArrowRight} from "@tabler/icons-react";
+import {IconFiles, IconCircleX, IconArrowRight, IconTags, IconMessage} from "@tabler/icons-react";
 import {createAssistant} from "@/services/assistantService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
-import { AssistantDefinition } from '@/types/assistant';
+import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
 import { AstGroupTypeData } from '@/types/groups';
 import React from 'react';
 import { AttachedDocument } from '@/types/attacheddocument';
-import { executeAssistantApiCall } from '@/services/assistantAPIService';
 import { getOpsForUser } from '@/services/opsService';
 import ApiItem from '@/components/AssistantApi/ApiItem';
 import { getSettings } from '@/utils/app/settings';
 import { API, APIComponent } from '@/components/CustomAPI/CustomAPIEditor';
 import Search from '@/components/Search';
+import { filterSupportedIntegrationOps } from '@/utils/app/ops';
+import { opLanguageOptionsMap } from '@/types/op';
+import { opsSearchToggleButtons } from '@/components/Admin/AdminComponents/Ops';
 
 
 interface Props {
@@ -230,15 +232,21 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [availableApis, setAvailableApis] = useState<any[] | null>(null);
     const [apiSearchTerm, setApiSearchTerm] = useState<string>(''); 
     const [selectedApis, setSelectedApis] = useState<any[]>(initialSelectedApis);
-
+    const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('tag'); 
     const [apiInfo, setApiInfo] = useState<API[]>(initialApiCapabilities || []);
 
+    
     useEffect(() => {
+        const filterOps = async (data: any[]) => {
+            const filteredOps = await filterSupportedIntegrationOps(data);
+            if (filteredOps) setAvailableApis(filteredOps);
+        }
         
-        if (availableApis === null) getOpsForUser().then((ops) => {
+        if (featureFlags.integrations && availableApis === null) getOpsForUser().then((ops) => {
                                             if(ops.success){
-                                                // console.log(ops.data);
-                                                setAvailableApis(ops.data);
+                                                // console.log("ops: ", ops.data);
+                                                filterOps(ops.data);
+                                                
                                             } else {
                                                 setAvailableApis([]);
                                             }
@@ -340,8 +348,19 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 return acc;
                             }, {})
                         );
-            if (ast.tags) setTags(ast.tags ? ast.tags.join(", "): '');
+            setSelectedApis(ast.tools ?? []);
+            if (ast.tags) setTags(ast.tags.join(", "));
             if (ast.disclaimer) setDisclaimer(ast.disclaimer);
+            if (ast.data) {
+                const data = ast.data;
+                if (data.conversationTags) setConversationTags(data.conversationTags.join(", "));
+                setDataSourceOptions(data.dataSourceOptions);
+                setMessageOptions(data.messageOptions);
+                setFeatureOptions(data.featureOptions);
+                setOpsLanguageVersion(data.opsLanguageVersion);
+                if (data.operations) setApiInfo(data.operations.filter( (api:any) => api.type === "http") || []);
+            }
+            
         }
     }
 
@@ -368,8 +387,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
         let newAssistant = getAssistant(assistant);
         newAssistant.name = name;
-        newAssistant.provider = "amplify";
-        newAssistant.data = newAssistant.data || {provider: "amplify"};
+        newAssistant.provider = AssistantProviderID.AMPLIFY;
+        newAssistant.data = newAssistant.data || {provider: AssistantProviderID.AMPLIFY};
         newAssistant.description = description;
         newAssistant.instructions = content;
         newAssistant.disclaimer = disclaimer;
@@ -388,7 +407,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             newAssistant.uri = uri.trim();
         }
 
-        console.log(dataSources.map((d: any)=> d.name));
+        // console.log(dataSources.map((d: any)=> d.name));
 
         newAssistant.dataSources = dataSources.map(ds => {
             if (assistant.groupId) {
@@ -428,8 +447,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
         newAssistant.data.opsLanguageVersion = opsLanguageVersion;
 
-        console.log("apiInfo",apiInfo);
-        console.log("selectedApis",selectedApis);
+        // console.log("apiInfo",apiInfo);
+        // console.log("selectedApis",selectedApis);
 
         const combinedOps = [
           ...selectedApis,
@@ -645,22 +664,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 setDataSources([...docs, ...preexisting ]as any[]);
                             }} allowRemoval={!disableEdit}/>
                             {showDataSourceSelector && (
-                                <div className="mt-[-34px] flex flex-col justify-center overflow-hidden">
-                                    <div className="relative top-[306px] left-1">
-                                        <button
-                                            type="button" style={{width: "100px"}}
-                                            className="px-4 py-3 rounded-lg hover:text-gray-900 hover:bg-blue-100 bg-gray-100 w-full dark:hover:bg-gray-700 dark:hover:text-white bg-50 dark:bg-gray-800"
-                                            onClick={() => {
-                                                setShowDataSourceSelector(false);
-                                            }}
-                                        >
-                                            Close
-                                        </button>
-                                    </div>
+                                <div className="mt-[-16px] flex justify-center overflow-hidden">
                                     <div className="rounded bg-white dark:bg-[#343541] mb-4">
                                         <DataSourceSelector
                                             minWidth="500px"
-                                            height='310px'
+                                            // height='310px'
                                             onDataSourceSelected={(d) => {
                                                 const doc = {
                                                     id: d.id,
@@ -673,6 +681,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 setDataSources([...dataSources, doc as any]);
                                                 setDocumentState({...documentState, [d.id]: 100});
                                             }}
+                                            onClose={() =>  setShowDataSourceSelector(false)}
                                         />
                                     </div>
                                 </div>
@@ -709,12 +718,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                       className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                       value={opsLanguageVersion}
                                       onChange={(e) => setOpsLanguageVersion(e.target.value)}
-                                    >
-                                        <option value="v1">v1</option>
-                                        <option value="v2">v2</option>
-                                        <option value="v3">v3</option>
-                                        <option value="v4">Deep VU1</option>
-                                        <option value="custom">custom</option>
+                                    >   
+                                        {Object.entries(opLanguageOptionsMap).map(([val, name]) => <option key={val} value={val}>{name}</option>)}
                                     </select>
 
                                     <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
@@ -809,29 +814,22 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         />
                                     </div>
 
-
+                                    {featureFlags.integrations && <>
                                     {!availableApis && <>Loading API Capabilities...</>}
 
                                     {availableApis && availableApis.length > 0 &&
                                         <>
                                         <div className="flex flex-row text-sm font-bold text-black dark:text-neutral-200 mt-2 mb-2">
                                             {t('Enabled API Capabilities')}
-                                            {availableApis && 
-                                            <div className="h-0 ml-auto" style={{transform: 'translateY(-18px)'}}>
-                                                <Search
-                                                placeholder={'Search APIs...'}
-                                                searchTerm={apiSearchTerm}
-                                                onSearch={(searchTerm: string) => setApiSearchTerm(searchTerm.toLocaleLowerCase())}
-                                                />
-                                            </div>}
+                                            {availableApis && opsSearchToggleButtons(opSearchBy, setOpSearchBy, apiSearchTerm, setApiSearchTerm, " ml-auto mr-2", 'translateY(8px)')}
                                         </div> 
 
                                         <div className="max-h-[400px] overflow-y-auto">
-                                            {availableApis.filter((api) => (apiSearchTerm ? 
-                                                                   api.name.toLowerCase().includes(apiSearchTerm) : true))
+                                            {availableApis.filter((api) => apiSearchTerm ? (opSearchBy === 'name' ? api.name 
+                                                          : (api.tags?.join("") ?? '')).toLowerCase().includes(apiSearchTerm) : true)
                                                           .map((api, index) => (
                                                 <ApiItem
-                                                selected={selectedApis.some((selectedApi) => selectedApi.id === api.id)}
+                                                selected={!!selectedApis?.some((selectedApi) => selectedApi.id === api.id)}
                                                 key={index}
                                                 api={api}
                                                 index={index}
@@ -840,8 +838,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         </div>  
                                         </>
                                     }
+                                    </>}
 
-
+                                    {featureFlags.assistantApis && <>
                                     <div className="text-sm font-bold text-black dark:text-neutral-200 mt-8 mb-1">
                                         {t('Custom API Capabilities')}
                                     </div>
@@ -850,6 +849,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                       apiInfo={apiInfo}
                                       setApiInfo={setApiInfo}
                                     />
+                                    </>}
 
 
                                 </div>

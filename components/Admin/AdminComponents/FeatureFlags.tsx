@@ -86,15 +86,17 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
 
                 {isAddingFeature && 
                 <div className="ml-6 flex flex-row flex-shrink-0 mr-4 ">
-                <label className="mt-1.5 flex-shrink-0 border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center items-center h-[38px]"
-                >Feature Name </label>
-                <input title={"Feature names must be unique"}
-                className={`mt-1.5 w-[160px] h-[38px] ${admin_text}`}
-                placeholder={"Feature Name"}
-                onChange={(e) =>  setIsAddingFeature({...isAddingFeature, name: e.target.value})}
-                value={isAddingFeature.name}
-                />
-
+                <div title={"Feature names must be unique. Words separated by spaces will be converted to camelCase format. "}>
+                    <label className="mt-1.5 flex-shrink-0 border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center items-center h-[38px]"
+                        >Feature Name 
+                    </label>
+                    <input
+                    className={`mt-1.5 w-[160px] h-[38px] ${admin_text}`}
+                    placeholder={"Feature Name"}
+                    onChange={(e) =>  setIsAddingFeature({...isAddingFeature, name: e.target.value})}
+                    value={isAddingFeature.name}
+                    />
+                </div>
                 <label className="ml-4 mt-1.5 h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
                 >Status </label>
 
@@ -164,7 +166,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
 
                     </div>}
             
-            <div className="ml-4 mt-6">
+            <div className="ml-4 mt-6 mb-10">
                 <div className="mr-5 pr-4">
                     <InfoBox 
                     content={
@@ -198,7 +200,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                                 .map(([featureName, featureData]) => (
                             <tr key={featureName}>
                                 {/* Feature Name Column */}
-                                <td className="border border-neutral-500 px-4 py-2">
+                                <td className="border border-neutral-500 px-4 py-2" title={featureName}>
                                     <span className="text-[0.95rem]">{camelToTitleCase(featureName)}</span>
                                 </td>
 

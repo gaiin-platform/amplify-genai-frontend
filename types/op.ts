@@ -47,3 +47,12 @@ export interface Op extends OpDef {
     paramChecker: (params: any) => boolean;
     execute: (context: OpContext, params: any) => Promise<OpResult>;
 }
+
+
+export const opLanguageOptionsMap = {
+    v1 : "v1",
+    v2 : "v2",
+    v3 : "v3",
+    v4 : "Deep VU1",
+    custom : "Custom"
+}

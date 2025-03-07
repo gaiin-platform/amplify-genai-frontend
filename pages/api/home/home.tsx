@@ -49,7 +49,7 @@ import {
     IconMessage,
     IconSettings,
     IconDeviceSdCard,
-    IconLogout
+    IconLogout,
 } from "@tabler/icons-react";
 
 import { initialState } from './home.state';
@@ -82,13 +82,15 @@ import { getAllArtifacts } from '@/services/artifactsService';
 import { baseAssistantFolder, basePrompts, isBaseFolder, isOutDatedBaseFolder } from '@/utils/app/basePrompts';
 import { fetchUserSettings } from '@/services/settingsService';
 import { Settings } from '@/types/settings';
-import { getAvailableModels, getFeatureFlags, getPowerPoints } from '@/services/adminService';
+import { getAvailableModels, getEmailSupportData, getFeatureFlags, getPowerPoints } from '@/services/adminService';
 import { DefaultModels, Model } from '@/types/model';
 import { ErrorMessage } from '@/types/error';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
 
 import { WorkspaceLegacyMessage } from '@/components/Workspace/WorkspaceLegacyMessage';
 import { getSharedItems } from '@/services/shareService';
+import { lowestCostModel } from '@/utils/app/models';
+import { SidebarButton } from '@/components/Sidebar/SidebarButton';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -671,35 +673,38 @@ const Home = ({
 
     useEffect(() => {
 
-        const fetchModels = async () => {      
+        const fetchModels = async (hasAdminAccess: boolean) => {      
             console.log("Fetching Models...");
+            let message = 'There was a problem retrieving the available models, please contact our support team.';
             try {
                 const response = await getAvailableModels();
                 if (response.success && response.data) {
-                    const defaultModel = response.data.default;
-                    const models = response.data.models;
-                    // console.log(response);
-                    // for on-load for those who have no saved default, no last conversations with a valid model reference
-                    if (selectedConversation && selectedConversation?.model?.id === '') {
-                        handleUpdateSelectedConversation({...selectedConversation, model: defaultModel});
+                    if (response.data?.models.length === 0) {
+                        if (hasAdminAccess) message = "Click on the gear icon on the left sidebar, select 'Admin Interface', and navigate to the 'Supported Models' tab to enable model availability.";
+                    } else {
+                        const defaultModel = response.data.default;
+                        const models = response.data.models;
+                        // for on-load for those who have no saved default, no last conversations with a valid model reference
+                        if (selectedConversation && selectedConversation?.model?.id === '') {
+                            handleUpdateSelectedConversation({...selectedConversation, model: defaultModel ?? lowestCostModel(models)});
+                        }
+
+                        if (defaultModel) dispatch({ field: 'defaultModelId', value: defaultModel.id });
+                        if (response.data.cheapest) dispatch({ field: 'cheapestModelId', value: response.data.cheapest.id });
+                        if (response.data.advanced) dispatch({ field: 'advancedModelId', value: response.data.advanced.id });
+                        const modelMap = models.reduce((acc:any, model:any) => ({...acc, [model.id]: model}), {});
+                        dispatch({ field: 'availableModels', value: modelMap});  
+
+                        //save default model 
+                        localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
+                        return;
                     }
-
-                    dispatch({ field: 'defaultModelId', value: defaultModel.id });
-                    dispatch({ field: 'cheapestModelId', value: response.data.cheapest.id });
-                    dispatch({ field: 'advancedModelId', value: response.data.advanced.id });
-                    const modelMap = models.reduce((acc:any, model:any) => ({...acc, [model.id]: model}), {});
-                    dispatch({ field: 'availableModels', value: modelMap});  
-
-                    //save default model 
-                    localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
-                    return;
                 } 
             } catch (e) {
                 console.log("Failed to fetch models: ", e);
             } 
-            const message = 'There was a problem retrieving the available models, please contact our support team.';
-                    dispatch({ field: 'modelError', value: {code: null, title: "Failed to Retrieve Models",
-                                                            messageLines: [message]} as ErrorMessage});  
+            dispatch({ field: 'modelError', value: {code: null, title: "Failed to Retrieve Models",
+                                                    messageLines: [message]} as ErrorMessage});  
         };
 
         const fetchDataDisclosureDecision = async (featureOn: boolean) => {
@@ -751,14 +756,28 @@ const Home = ({
             console.log("Fetching Amplify Users...");
             try {
                 const response = await fetchEmailSuggestions("*");
-                if (response) {
+                if (response && response.emails) {
                     dispatch({ field: 'amplifyUsers', value: response.emails});  
-                    return;
                 } else {
-                    console.log("Failed to amplify Users.");
+                    console.log("Failed to fetch amplify users.");
                 }
             } catch (e) {
-                console.log("Failed to fetch amplify Users: ", e);
+                console.log("Failed to fetch amplify users: ", e);
+            }  
+        };
+
+        const fetchSupportEmail = async () => {      
+            console.log("Fetching Support Email Data...");
+            try {
+                const response = await getEmailSupportData();
+                if (response.success) {
+                    const data = response.data;
+                    if ( data && data.isActive && data.email) dispatch({ field: 'supportEmail', value: data.email});  
+                } else {
+                    console.log("Failed to fetch support email data.");
+                }
+            } catch (e) {
+                console.log("Failed to support email data: ", e);
             }  
         };
 
@@ -884,11 +903,11 @@ const Home = ({
         }
 
         // return list of assistants 
-        const fetchAssistants = async (promptList:Prompt[]) => {
+        const fetchAssistants = async (promptList:Prompt[], foldersList: FolderInterface[]) => {
             console.log("Fetching Assistants...");
             try {
                 const assistants = await listAssistants();
-                if (assistants) return syncAssistants(assistants, promptList);
+                if (assistants) return syncAssistants(assistants, promptList, foldersList.map(f => f.id));
             } catch (e) {
                 console.log("Failed to  list assistants: ", e);
             }
@@ -956,7 +975,7 @@ const Home = ({
             }
 
             // Fetch assistants
-            fetchAssistants(updatedPrompts)
+            fetchAssistants(updatedPrompts, updatedFolders)
                     .then(assistantsResultPrompts => {
                         // assistantsResultPrompts includes both list assistants and imported assistants
                         updatedPrompts = [...updatedPrompts.filter((p:Prompt) => !isAssistant(p) || (isAssistant(p) && p.groupId)),
@@ -1010,6 +1029,7 @@ const Home = ({
         const handleFeatureDependantOnLoadData = async () => {
             const flags = await fetchFeatureFlags();
             fetchDataDisclosureDecision(flags.dataDisclosure);
+            fetchModels(flags.adminInterface);
             if (flags.artifacts) fetchArtifacts(); // fetch artifacts 
 
             //Conversation, prompt, folder dependent calls
@@ -1025,10 +1045,10 @@ const Home = ({
             // local storage on load should set workspaces if fetched before  
             // saves us the extra calls   
             if (workspaces === null) fetchWorkspaces(user.email); 
-            fetchModels();
             handleFeatureDependantOnLoadData(); 
             fetchAccounts();  // fetch accounts for chatting charging
             fetchAmplifyUsers();
+            fetchSupportEmail();
             fetchPowerPoints();
  
         } 
@@ -1163,7 +1183,7 @@ const Home = ({
                 id: uuidv4(),
                 name: t('New Conversation'),
                 messages: [],
-                model: (defaultModel ?? {id:'', name: '', description: '', inputContextWindow: 0, supportsImages: false}) as Model, 
+                model: (defaultModel ?? {id:'', name: '', description: '', inputContextWindow: 0, supportsImages: false, supportsReasoning: false}) as Model, 
                 prompt: DEFAULT_SYSTEM_PROMPT,
                 temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
                 folderId: folder.id,
@@ -1469,23 +1489,21 @@ const Home = ({
                             <TabSidebar
                                 side={"right"}
                                 footerComponent={
-                                    featureFlags.memory && settings?.featureOptions.includeMemory && (
+                                    <>
+                                    {featureFlags.memory && settings?.featureOptions.includeMemory && (
                                         <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-                                            <button
-                                                className="dark:text-white w-full"
+                                            <SidebarButton
+                                                text={t('Memory')}
+                                                icon={<IconDeviceSdCard size={20} />}
                                                 onClick={() => setIsMemoryDialogOpen(true)}
-                                            >
-                                                <div className="flex items-center">
-                                                    <IconDeviceSdCard className="m-2" />
-                                                    <span>Memory</span>
-                                                </div>
-                                            </button>
+                                            />
                                             <MemoryDialog
                                                 open={isMemoryDialogOpen}
                                                 onClose={() => setIsMemoryDialogOpen(false)}
                                             />
                                         </div>
-                                    )
+                                    )}
+                                    </>
                                 }
                             >
                                 <Tab icon={<Icon3dCubeSphere />}><Promptbar /></Tab>

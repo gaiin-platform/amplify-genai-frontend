@@ -31,7 +31,6 @@ import {ChatLoader} from './ChatLoader';
 import {ErrorMessageDiv} from './ErrorMessageDiv';
 import {ModelSelect} from './ModelSelect';
 import {SystemPrompt} from './SystemPrompt';
-import {TemperatureSlider} from './Temperature';
 import {MemoizedChatMessage} from './MemoizedChatMessage';
 import {VariableModal} from "@/components/Chat/VariableModal";
 import {parseEditableVariables} from "@/utils/app/prompts";
@@ -45,7 +44,6 @@ import {DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE} from "@/utils/app/const";
 import {TagsList} from "@/components/Chat/TagsList";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {DownloadModal} from "@/components/Download/DownloadModal";
-import {ResponseTokensSlider} from "@/components/Chat/ResponseTokens";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
 import {ChatRequest, useSendService} from "@/hooks/useChatSendService";
 import {CloudStorage} from './CloudStorage';
@@ -66,6 +64,9 @@ import { useSession } from 'next-auth/react';
 import { ConfirmModal } from '../ReusableComponents/ConfirmModal';
 import { getActivePlugins } from '@/utils/app/plugin';
 import { Settings } from '@/types/settings';
+import { IntegrationsDialog } from '../Integrations/IntegrationsDialog';
+import { TemperatureSlider } from './Sliders/Temperature';
+import { ResponseTokensSlider } from './Sliders/ResponseTokens';
 
 
 interface Props {
@@ -136,19 +137,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
         const [filteredModels, setFilteredModels] = useState<Model[]>([]);
             
-        useEffect(() => {
-            const handleEvent = (event:any) => {
-                settingRef.current = getSettings(featureFlags);
-                if (Object.keys(availableModels).length > 0) {
-                    setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
-                }
-            };
-        
-            window.addEventListener('updateFeatureSettings', handleEvent);
-            return () => {
-                window.removeEventListener('updateFeatureSettings', handleEvent);
-            };
-        }, []);
 
         useEffect(() => {
                 settingRef.current = getSettings(featureFlags);
@@ -221,7 +209,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const [showOnEditMessagePrompt, setShowOnEditMessagePrompt] = useState< {editedMessage: Message, index: number}| null>(null);
 
-
+        const [isIntegrationsOpen, setIsIntegrationsOpen] = useState<boolean>(false);
         const [selectedConversationState, setSelectedConversationState] = useState<Conversation | undefined>(selectedConversation);
 
         useEffect(() => {
@@ -256,7 +244,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                 })
                 }
             }
-            if (selectedConversation?.messages?.length === 2 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
+            if (selectedConversation?.messages && selectedConversation.messages.length > 1 && !messageIsStreaming && selectedConversation.name === "New Conversation" && !isRenaming ) renameConversation();
         }, [selectedConversation]);
 
         
@@ -267,9 +255,22 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 setIsArtifactOpen(detail.isOpen);  
                 setArtifactIndex(detail.artifactIndex);
             };
+            const handleOpenEvent = (event:any) => setIsIntegrationsOpen(true);
+
+            const handleSettingsEvent = (event:any) => {
+                settingRef.current = getSettings(featureFlags);
+                if (Object.keys(availableModels).length > 0) {
+                    setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
+                }
+            };
+
             window.addEventListener('openArtifactsTrigger', handleEvent);
+            window.addEventListener('openIntegrationsDialog', handleOpenEvent);
+            window.addEventListener('updateFeatureSettings', handleSettingsEvent);
             return () => {
                 window.removeEventListener('openArtifactsTrigger', handleEvent);
+                window.removeEventListener('openIntegrationsDialog', handleOpenEvent)
+                window.removeEventListener('updateFeatureSettings', handleSettingsEvent);
             };
         }, []);
 
@@ -967,14 +968,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 { modelError ? (
                     <ErrorMessageDiv error={modelError}/>  
                 ) : (
-                    <>
+                    <> 
                         <div
                             className="chatcontainer max-h-full overflow-x-hidden" style={{height: windowInnerDims.height * 0.94}}
                             ref={chatContainerRef}
                             onScroll={handleScroll}
                         >
                             {selectedConversation && selectedConversation.messages?.length === 0 && filteredModels ? (
-                                <>
+                                <div className='overflow-y-auto' style={{height: windowInnerDims.height - 200}}>
                                     <div
                                         className="mx-auto flex flex-col space-y-1 md:space-y-8 px-3 pt-5 md:pt-10" 
                                         style={{width: windowInnerDims.width * 0.45}}>
@@ -999,24 +1000,20 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     <div className="flex-grow">
                                                         <ModelSelect modelId={selectedModelId} isDisabled={selectedAssistant?.definition?.data?.model}/>
                                                     </div>
-                                                    
-                                                    {featureFlags.storeCloudConversations && 
-                                                            <div className="mt-[-5px] absolute top-0 right-8 flex justify-end items-center">
-                                                                <CloudStorage iconSize={20} />
-                                                            </div>}
-                                                        
-                                                        <div className="mt-[-5px] absolute top-0 right-0 flex justify-end items-center">
-                                                            <button
-                                                                className={`ml-2 ${messageIsStreaming ? "cursor-not-allowed": "cursor-pointer"} hover:opacity-50 pr-2`}
-                                                                disabled={messageIsStreaming}
-                                                                onClick={(e) => {
-                                                                    setShowAdvancedConvSettings(!showAdvancedConvSettings);
-                                                                }}
-                                                                title={"Advanced Conversation Settings"}
-                                                                >
-                                                                { <IconSettings className="block text-neutral-500 dark:text-neutral-200" size={20} />} 
-                                                            </button>
-                                                        </div>
+                                                    <div className='mt-[-5px] absolute top-0 right-7 flex justify-end items-center'>
+                                                        {featureFlags.storeCloudConversations && <CloudStorage iconSize={20} /> }
+                                                            
+                                                        <button
+                                                            className={`ml-2 ${messageIsStreaming ? "cursor-not-allowed": "cursor-pointer"} hover:opacity-50 pr-2`}
+                                                            disabled={messageIsStreaming}
+                                                            onClick={(e) => {
+                                                                setShowAdvancedConvSettings(!showAdvancedConvSettings);
+                                                            }}
+                                                            title={"Advanced Conversation Settings"}
+                                                            >
+                                                            { <IconSettings className="block text-neutral-500 dark:text-neutral-200" size={20} />} 
+                                                        </button>
+                                                    </div>
                                                     
                                                 </div>
                                                 
@@ -1051,7 +1048,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                             }
                                                         />
                                                         <TemperatureSlider
-                                                            label={t('Temperature')}
                                                             onChangeTemperature={(temperature) =>
                                                                 handleUpdateConversation(selectedConversation, {
                                                                     key: 'temperature',
@@ -1062,7 +1058,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                                         <ResponseTokensSlider
                                                             responseSliderState={responseSliderState}
-                                                            label={t('Response Length')}
                                                             onResponseTokenRatioChange={(r) => {
                                                                 setResponseSliderState(r);
                                                                 handleResponseTokenChange(r);
@@ -1095,7 +1090,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             </div>
                                         )}
                                     </div>
-                                </>
+                                </div>
                             ) : (
                                 <>
                                     {/* eslint-disable-next-line react/jsx-no-undef */}
@@ -1128,7 +1123,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                     
                                     <AccountDialog open={isAccountDialogVisible} onClose={() => setIsAccountDialogVisible(false)} />
-                                    
+                                    {featureFlags.integrations && <IntegrationsDialog open={isIntegrationsOpen} onClose={()=>{setIsIntegrationsOpen(false)}}/>}
 
                                     <div
                                        className="items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
@@ -1161,7 +1156,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 e.stopPropagation();
                                                 handleSettings();
 
-                                                if (!showSettings && !messageIsStreaming) handleScrollUp();
+                                                if (!messageIsStreaming) handleScrollUp();
                                                 
                                             }}
                                             title="Chat Settings"
