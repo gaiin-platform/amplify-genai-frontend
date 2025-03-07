@@ -721,7 +721,8 @@ const onAssistantChange = (assistant: Assistant) => {
                     {(messageIsStreaming || artifactIsStreaming) &&  (
                         <>
                             <button
-                                className="mt-14 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 "
+                                id="stopGenerating"
+                                className="mt-10 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 "
                                 onClick={handleStopConversation}
                             >
                                 <IconPlayerStop size={16}/> {t('Stop Generating')}
@@ -864,6 +865,7 @@ const onAssistantChange = (assistant: Assistant) => {
                             ref={textareaRef}
                             onFocus={() => setIsInputInFocus(true)}
                             onBlur={() => setIsInputInFocus(false)}
+                            id="messageChatInputText"
                             className="m-0 w-full resize-none border-0 bg-transparent p-0 py-2 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-3 md:pl-10"
                             style={{
                                 resize: 'none',
@@ -889,6 +891,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
                         <button
                             // className="right-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                            id="sendMessage"
                             className={`right-2 top-2 rounded-sm p-1 text-neutral-800 mx-1 
                                 ${messageIsDisabled || !content? 'cursor-not-allowed ' : 'opacity-60 hover:bg-neutral-200 hover:text-neutral-900'} 
                                 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
