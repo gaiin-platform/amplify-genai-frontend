@@ -88,20 +88,19 @@ export const conversationWithUncompressedMessages = (conversation: Conversation)
 }
 
 export const compressAllConversationMessages = (conversations: Conversation[]) => {
-  try {
     return conversations.map((c) => {
-      if (isLocalConversation(c) && c.compressedMessages === undefined) {
-         const compressed = compressMessages(c.messages);
-         return {...c, messages: [], compressedMessages : compressed}
-      } else if (isRemoteConversation(c) && c.messages.length > 0) {
-        return remoteForConversationHistory(c);
-      }
-      return c; 
+        try {
+          if (isLocalConversation(c) && c.compressedMessages === undefined) {
+            const compressed = compressMessages(c.messages);
+            return {...c, messages: [], compressedMessages : compressed}
+          } else if (isRemoteConversation(c) && c.messages?.length > 0) {
+            return remoteForConversationHistory(c);
+          }
+        } catch {
+          console.log("Failed to compress all messages: ", c);
+        }
+        return c; 
     });
-  } catch {
-    console.log("Failed to compress all messages");
-    return conversations;
-  }
 }
 
 
