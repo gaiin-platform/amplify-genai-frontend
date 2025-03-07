@@ -5,9 +5,10 @@ interface CheckboxProps {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  bold?: boolean;
 }
 
-export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange }) => {
+export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange, bold = false }) => {
   return (
     <div className="checkbox-wrapper">
       <input
@@ -24,7 +25,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange
             <polyline points="1.5 6 4.5 9 10.5 1"></polyline>
           </svg>
         </span>
-        <span className='mt-[0.5px]'>{label}</span>
+        <span className={`mt-[1px] ${bold ? "font-bold" : ""}`}>{label}</span>
       </label>
 
       <style jsx>{`

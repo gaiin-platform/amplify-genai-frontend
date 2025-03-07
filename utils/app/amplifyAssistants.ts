@@ -1,3 +1,4 @@
+import { AssistantProviderID } from "@/types/assistant";
 
 
 export const AMPLIFY_ASSISTANTS_GROUP_NAME = 'Amplify Assistants';
@@ -6,7 +7,10 @@ export const amplifyAssistants = {
     "Assistant Creator": {
         "name": "Assistant Creator",
         "description": "Guides users through building a customized assistant by defining its name, purpose, rules, and tone.",
-        "instructions": "You are going to help me build a customized ChatGPT assistant. To do this, you will need to help me create the instructions that guide the assistant in its job. \n\nWhat we want to define is:\n1. A name and description of the assistant. \n2. What the assistant does.\n3. What are the rules about how it does its work (e.g., what questions it will or won't answer, things its way of working, etc.)\n4. It's tone of voice. Is it informal or formal in style. Does it have a persona or personality?\n\nYou will ask me questions to help determine these things. As we go, try to incrementally output values for all these things. You will write the instructions in a detailed manner that incorporates all of my feedback. Every time I give you new information that changes things, update the assistant.\n\nAt the end of every message you output, you will update the assistant in a special code block WITH THIS EXACT FORMAT:\n\n\`\`\`assistant\n{\n\"name\": \"<FILL IN NAME>\"\n\"description\": \"<FILL IN DESCRIPTION>\"\n\"instructions\": \"<FILL IN INSTRUCTIONS>\"\n}\n\`\`\`\n    ",
+        "instructions": `You are going to help me build a customized assistant. To do this, you will need to help me create the instructions that guide the assistant in its job. 
+        \n\nWhat we want to define is:\n1. A name and description of the assistant. \n2. What the assistant does.\n3. What are the rules about how it does its work (e.g., what questions it will or won't answer, things its way of working, etc.)\n4. It's tone of voice. Is it informal or formal in style. Does it have a persona or personality?\n5. Should it repeat a disclaimer message after every reply? 
+        \n\nYou will ask me questions to help determine these things. As we go, try to incrementally output values for all these things. You will write the instructions in a detailed manner that incorporates all of my feedback. Every time I give you new information that changes things, update the assistant.\n\nAt the end of every message you output, you will update the assistant in a special code block WITH THIS EXACT FORMAT:
+        \n\n\`\`\`assistant\n{\n\"name\": \"<FILL IN NAME>\"\n\"description\": \"<FILL IN DESCRIPTION>\"\n\"instructions\": \"<FILL IN INSTRUCTIONS>\"\n\"disclaimer\": \"<FILL IN DISCLAIMER>\"\n}\n\`\`\`\n    `,
         "tools": [],
         "tags": [
           "amplify:assistant-builder",
@@ -15,10 +19,10 @@ export const amplifyAssistants = {
         "dataSources": [],
         "version": 1,
         "fileKeys": [],
-        "provider": "amplify",
+        "provider": AssistantProviderID.AMPLIFY,
         "groupId": null,
         "data": {
-          "provider": "amplify",
+          "provider": AssistantProviderID.AMPLIFY,
           "tags": [
             "amplify:assistant-builder",
             "amplify:system"
@@ -110,7 +114,7 @@ export const amplifyAssistants = {
 
             Here is your API guide to help the user navigate Amplifys api:
 
-            {{ops apiDocumentation:urlFormat}}
+            {{ops apiDocumentation:urlFormat noAdd}}
 
 
             Part 2 Instructions:
@@ -134,10 +138,10 @@ export const amplifyAssistants = {
         "dataSources": [],
         "version": 1,
         "fileKeys": [],
-        "provider": "amplify",
+        "provider": AssistantProviderID.AMPLIFY,
         "groupId": null,
         "data": {
-          "provider": "amplify",
+          "provider": AssistantProviderID.AMPLIFY,
           "tags": [
             "amplify:api-doc-helper",
             "amplify:system"
@@ -380,10 +384,10 @@ Do not output more than one \`\`\`auto block in your response at a time, however
         "dataSources": [],
         "version": 1,
         "fileKeys": [],
-        "provider": "amplify",
+        "provider": AssistantProviderID.AMPLIFY,
         "groupId": null,
         "data": {
-          "provider": "amplify",
+          "provider": AssistantProviderID.AMPLIFY,
           "tags": [
             "amplify:api-key-manager",
             "amplify:system"

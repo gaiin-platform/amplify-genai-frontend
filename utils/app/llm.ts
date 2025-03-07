@@ -19,7 +19,7 @@ import cloneDeep from 'lodash/cloneDeep';
 
 
 export const promptForData = async (chatEndpoint:string, messages: Message[], model: Model, 
-                                     prompt: string, statsService: any, maxTokens: number = 4000) => {
+                                     prompt: string, statsService: any = null, maxTokens: number = 4000) => {
     const controller = new AbortController();
     
      const accessToken = await getSession().then((session) => { 
@@ -48,7 +48,7 @@ export const promptForData = async (chatEndpoint:string, messages: Message[], mo
             skipCodeInterpreter: true
         };
 
-        statsService.sendChatEvent(chatBody);
+        if (statsService) statsService.sendChatEvent(chatBody);
 
         const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, controller.signal);
 

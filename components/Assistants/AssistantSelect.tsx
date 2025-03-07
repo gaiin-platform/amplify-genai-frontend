@@ -1,7 +1,7 @@
 import { FC, useEffect, useRef } from 'react';
 
 import { useTranslation } from 'next-i18next';
-import {Assistant} from "@/types/assistant";
+import {Assistant, AssistantProviderID} from "@/types/assistant";
 
 interface Props {
     assistant: Assistant | null;
@@ -81,8 +81,8 @@ export const AssistantSelect: FC<Props> = ({
                     }}
                 >
                     <option
-                        key="amplify"
-                        value="amplify"
+                        key={AssistantProviderID.AMPLIFY}
+                        value={AssistantProviderID.AMPLIFY}
                         className="dark:bg-[#343541] dark:text-white"
                     >
                         Standard Conversation

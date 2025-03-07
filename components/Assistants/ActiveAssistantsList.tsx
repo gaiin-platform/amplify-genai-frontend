@@ -4,7 +4,7 @@ import 'react-circular-progressbar/dist/styles.css';
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import HomeContext from "@/pages/api/home/home.context";
-import {Assistant} from "@/types/assistant";
+import {Assistant, AssistantProviderID} from "@/types/assistant";
 import {DEFAULT_SYSTEM_PROMPT} from "@/utils/app/const";
 import {MessageType} from "@/types/chat";
 import { Prompt } from '@/types/prompt';
@@ -36,7 +36,7 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
         id: 'chat',
         definition:
             {
-                provider:'amplify',
+                provider: AssistantProviderID.AMPLIFY,
                 name: "Standard Conversation",
                 description: "No assistant will be used.",
                 instructions: selectedConversation?.prompt || DEFAULT_SYSTEM_PROMPT,

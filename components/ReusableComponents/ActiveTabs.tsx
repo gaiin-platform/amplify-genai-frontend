@@ -10,11 +10,12 @@ export interface tab {
 interface Props {
     tabs: tab[];
     width?: () => number;
+    initialActiveTab?: number;
 }
 
 
-export const ActiveTabs: FC<Props> = ({tabs, width}) => {
-    const [activeTab, setActiveTab] = useState<number>(0);
+export const ActiveTabs: FC<Props> = ({tabs, width, initialActiveTab}) => {
+    const [activeTab, setActiveTab] = useState<number>(initialActiveTab ?? 0);
     const tabRef = useRef<HTMLDivElement>(null); 
 
 

@@ -39,7 +39,7 @@ export const DEFAULT_ASSISTANT: Assistant = {
     id: 'chat',
     definition:
         {
-            provider:'amplify',
+            provider: AssistantProviderID.AMPLIFY,
             name: "Standard Conversation",
             description: "No assistant will be used.",
             instructions: DEFAULT_SYSTEM_PROMPT,

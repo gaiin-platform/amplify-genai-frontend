@@ -35,13 +35,14 @@ import { getAllArtifacts, saveArtifact, shareArtifact } from "@/services/artifac
 import { downloadArtifacts, uploadArtifact } from "@/utils/app/artifacts";
 import { EmailsAutoComplete } from "../Emails/EmailsAutoComplete";
 import { Group } from "@/types/groups";
-import { includeGroupInfoBox, stringToColor } from "../Emails/EmailsList";
+import { includeGroupInfoBox } from "../Emails/EmailsList";
 import { Conversation } from "@/types/chat";
 import React from "react";
 import { ArtifactPreview } from "./ArtifactPreview";
 import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codeblock";
 import ActionButton from "../ReusableComponents/ActionButton";
 import { getDateName } from "@/utils/app/date";
+import { stringToColor } from "@/utils/app/data";
 
   interface Props {
     artifactIndex: number;

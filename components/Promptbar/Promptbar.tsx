@@ -19,7 +19,7 @@ import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {FolderInterface, SortType} from "@/types/folder";
 import { AssistantModal } from '../Promptbar/components/AssistantModal';
 import { getAssistants, handleUpdateAssistantPrompt} from '@/utils/app/assistants';
-import { AssistantDefinition } from '@/types/assistant';
+import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
 import { useSession } from 'next-auth/react';
 import Sidebar from '../Sidebar/Sidebar';
 
@@ -130,7 +130,7 @@ const Promptbar = () => {
                           dataSources: [],
                           version: 1,
                           fileKeys: [],
-                          provider: 'Amplify'
+                          provider: AssistantProviderID.AMPLIFY
                         }
 
     if (!newPrompt.data) newPrompt.data = {};  

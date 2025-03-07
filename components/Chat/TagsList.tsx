@@ -1,5 +1,6 @@
 import React, {FC} from 'react';
 import { IconCircleX, IconPlus } from '@tabler/icons-react';
+import { stringToColor } from '@/utils/app/data';
 
 interface Props {
     label?: string;
@@ -12,37 +13,6 @@ interface Props {
     isDisabled?: boolean;
 
 }
-
-function stringToColor(str:string) {
-    // Array of the color options provided
-    const colors = [
-        "#fbfbfb", // snowman
-        "#979197", // gandalf
-        "#f69833", // orange
-        "#419bf9", // cornflower-blue
-        "#f7f7f7", // whitey
-        // "#554d56", // teflon
-        "#ee6723", // peach
-        "#fecf33", // yellow
-        "#c8cf2d", // green
-        "#0dcfda", // turquoise
-        "#edeced", // karl
-        "#c1bec1", // clooney
-        "#fdbd39", // light-orange
-    ];
-
-    // Hash function
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    hash = Math.abs(hash); // Ensure hash is positive
-
-    // Use the hashed value to select a color
-    const index = hash % colors.length; // Modulus operation to get a valid array index
-    return colors[index];
-}
-
 
 export const TagsList: FC<Props> = (
     { tags, setTags , maxWidth="200px", label="Tags", tagParser=(t:string)=>t.split(","), addMessage="Tag names separated by commas:", removeTag=((t:string)=>{}), isDisabled=false}) => {
