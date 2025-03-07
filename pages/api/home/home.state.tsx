@@ -76,6 +76,7 @@ export interface HomeInitialState {
   amplifyUsers: string[];
   extractedFacts: ExtractedFact[];
   memoryExtractionEnabled: boolean;
+  supportEmail: string;
 }
 
 export const initialState: HomeInitialState = {
@@ -147,4 +148,5 @@ export const initialState: HomeInitialState = {
   amplifyUsers: [],
   extractedFacts: [],
   memoryExtractionEnabled: true,
+  supportEmail: ''
 };

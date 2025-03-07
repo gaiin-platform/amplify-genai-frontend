@@ -26,9 +26,7 @@ export const ChatbarSettings = () => {
     const [isMemoryDialogOpen, setIsMemoryDialogOpen] = useState(false);
 
     const {
-        state: {
-            featureFlags
-        },
+        state: { featureFlags, supportEmail },
         dispatch: homeDispatch, setLoadingMessage
     } = useContext(HomeContext);
 
@@ -63,18 +61,6 @@ export const ChatbarSettings = () => {
                 }}
             />
 
-            {featureFlags.assistantAdminInterface && 
-                <SidebarButton
-                    text={t('Assistant Admin Interface')}
-                    icon={<IconRobot size={18} />}
-                    onClick={() => {
-                        // send trigger to close side bars and open the interface 
-                        window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: true }} ));
-                      
-                    }}
-                />
-            }
-
             {featureFlags.adminInterface &&  
                 <SidebarButton
                     text={t('Admin Interface')}
@@ -87,20 +73,7 @@ export const ChatbarSettings = () => {
                 />
             }
 
-            <Import onImport={handleImportConversations} />
 
-            {/*<ImportFromUrl onImport={handleImportConversations}/>*/}
-
-
-            <SidebarButton
-                text={t('Export Conversations')}
-                icon={<IconFileExport size={18} />}
-                onClick={() => {
-                    toast("Preparing Conversation Export...");
-                    handleExportData();
-                }}
-            />
-            
             <SidebarButton
                 text={t('Settings')}
                 icon={<IconSettings size={18} />}
@@ -109,6 +82,20 @@ export const ChatbarSettings = () => {
                     setIsSettingDialog(true)
                 }}
             />
+
+            {featureFlags.assistantAdminInterface && 
+                <SidebarButton
+                    text={t('Assistant Interface')}
+                    icon={<IconRobot size={18} />}
+                    onClick={() => {
+                        // send trigger to close side bars and open the interface 
+                        window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: true }} ));
+                      
+                    }}
+                />
+            }
+
+            
 
             {featureFlags.integrations && 
             <SidebarButton
@@ -125,11 +112,27 @@ export const ChatbarSettings = () => {
                 />
             )}
 
+
+            <Import onImport={handleImportConversations} />
+
+            {/*<ImportFromUrl onImport={handleImportConversations}/>*/}
+
+
+            <SidebarButton
+                text={t('Export Conversations')}
+                icon={<IconFileExport size={18} />}
+                onClick={() => {
+                    toast("Preparing Conversation Export...");
+                    handleExportData();
+                }}
+            />
+
+            {supportEmail &&
             <SidebarButton
                 text={t('Send Feedback')}
                 icon={<IconHelp size={18} />}
-                onClick={() => window.location.href = 'mailto:amplify@vanderbilt.edu'}
-            />
+                onClick={() => window.location.href = `mailto:${supportEmail}`}
+            />}
 
             <IntegrationsDialog open={isIntegrationsOpen} onClose={()=>{setIsIntegrationsOpen(false)}}/>
 

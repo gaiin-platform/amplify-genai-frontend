@@ -2,6 +2,8 @@ import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH = "/amplifymin";
 const SERVICE_NAME = "admin";
+const EMBEDDINGS_SERVICE_NAME = "embeddings";
+
 
 export const updateAdminConfigs = async (configs: any[]) => {
     const op = {
@@ -18,7 +20,7 @@ export const getAdminConfigs = async (lazyLoad: boolean = false) => {
     const op = {
         method: 'GET',
         path: URL_PATH,
-        op: "/configs/get",
+        op: "/configs",
         queryParams: { "lazy_load": JSON.stringify(+lazyLoad) },
         service: SERVICE_NAME
     };
@@ -29,7 +31,17 @@ export const getFeatureFlags = async () => {
     const op = {
         method: 'GET',
         path: URL_PATH,
-        op: "/feature_flags/get",
+        op: "/feature_flags",
+        service: SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}
+
+export const getEmailSupportData = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: "/support_email",
         service: SERVICE_NAME
     };
     return await doRequestOp(op);
@@ -39,7 +51,7 @@ export const getPowerPoints = async () => {
     const op = {
         method: 'GET',
         path: URL_PATH,
-        op: "/pptx_templates/get",
+        op: "/pptx_templates",
         service: SERVICE_NAME
     };
     return await doRequestOp(op);
@@ -50,7 +62,6 @@ export const getAvailableModels = async () => {
         method: 'GET',
         path: "/available_models",
         op: "",
-        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
@@ -61,7 +72,7 @@ export const terminateEmbedding = async (key: any) => {
         method: 'POST',
         path: "/embedding",
         op: '/terminate',
-        service: SERVICE_NAME
+        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
     };
     return await doRequestOp(op);
 }
@@ -71,7 +82,7 @@ export const getInFlightEmbeddings = async () => {
         method: 'GET',
         path: "/embedding",
         op: '/sqs/get',
-        service: SERVICE_NAME
+        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
     };
 
     const result = await doRequestOp(op);
@@ -150,6 +161,17 @@ export const deletePptx = async (templateName: string) => {
         path: URL_PATH,
         op: "/pptx_templates/delete",
         queryParams: { "template_name": templateName },
+        service: SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}
+
+
+export const getUserAmplifyGroups = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: "/amplify_groups/list",
         service: SERVICE_NAME
     };
     return await doRequestOp(op);
