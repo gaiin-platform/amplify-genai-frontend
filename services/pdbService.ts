@@ -1,7 +1,7 @@
 import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH =  "/personal";
-
+const SERVICE_NAME = "personal";
 
 const failureResponse = (reason: string) => {
     return {

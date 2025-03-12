@@ -1,6 +1,9 @@
 import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH = "/amplifymin";
+const SERVICE_NAME = "admin";
+const EMBEDDINGS_SERVICE_NAME = "embeddings";
+
 
 export const updateAdminConfigs = async (configs: any[]) => {
     const op = {
@@ -8,42 +11,51 @@ export const updateAdminConfigs = async (configs: any[]) => {
         data: { configurations: configs },
         path: URL_PATH,
         op: "/configs/update",
+        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
-
 
 export const getAdminConfigs = async (lazyLoad: boolean = false) => {
     const op = {
         method: 'GET',
         path: URL_PATH,
-        op: "/configs/get",
-        queryParams: {"lazy_load" : JSON.stringify(+lazyLoad)}
+        op: "/configs",
+        queryParams: { "lazy_load": JSON.stringify(+lazyLoad) },
+        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
-
 
 export const getFeatureFlags = async () => {
     const op = {
         method: 'GET',
         path: URL_PATH,
-        op: "/feature_flags/get",
+        op: "/feature_flags",
+        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
 
+export const getEmailSupportData = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: "/support_email",
+        service: SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}
 
 export const getPowerPoints = async () => {
     const op = {
         method: 'GET',
         path: URL_PATH,
-        op: "/pptx_templates/get",
+        op: "/pptx_templates",
+        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
-
-
 
 export const getAvailableModels = async () => {
     const op = {
@@ -54,28 +66,28 @@ export const getAvailableModels = async () => {
     return await doRequestOp(op);
 }
 
-
 export const terminateEmbedding = async (key: any) => {
     const op = {
-        data: {object_key: key},
+        data: { object_key: key },
         method: 'POST',
         path: "/embedding",
         op: '/terminate',
+        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
     };
     return await doRequestOp(op);
 }
-
 
 export const getInFlightEmbeddings = async () => {
     const op = {
         method: 'GET',
         path: "/embedding",
         op: '/sqs/get',
+        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
     };
 
     const result = await doRequestOp(op);
     try {
-        const resultBody = result ? JSON.parse(result.body || '{}') : {"success": false};
+        const resultBody = result ? JSON.parse(result.body || '{}') : { "success": false };
         if (resultBody.success) {
             return resultBody.messages;
         } else {
@@ -87,71 +99,80 @@ export const getInFlightEmbeddings = async () => {
     }
 }
 
-const endpointRequest = async (url:string, key: string, data: any) => {
+const endpointRequest = async (url: string, key: string, data: any) => {
     try {
         const response = await fetch('/api/admin/testEndpoint', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ url, key, body: data}),
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ url, key, body: data }),
         });
-    
+
         const result = await response.json();
         return result.success;
-      } catch (e) {
+    } catch (e) {
         console.error('Error testing endpoint: ', e);
         return false;
-      }
+    }
 }
 
-export const testEndpoint = async (url: string, key: string, model:string) => {
-    return endpointRequest(url, key, {  max_tokens: 50,
-                                        temperature: 1,
-                                        top_p: 1,
-                                        n: 1,
-                                        stream: false,
-                                        model: model,
-                                        messages: [
-                                            {
-                                                role: "user",
-                                                content: "This is a test. Say Hi!",
-                                            },
-                                        ],
-                                    });
-  };
+export const testEndpoint = async (url: string, key: string, model: string) => {
+    return endpointRequest(url, key, {
+        max_tokens: 50,
+        temperature: 1,
+        top_p: 1,
+        n: 1,
+        stream: false,
+        model: model,
+        messages: [
+            {
+                role: "user",
+                content: "This is a test. Say Hi!",
+            },
+        ],
+    });
+};
 
 
-  export const testEmbeddingEndpoint = async (url: string, key: string) => {
-    return endpointRequest( url, key, { input: "This is a smaple input" } );
-  };
-  
+export const testEmbeddingEndpoint = async (url: string, key: string) => {
+    return endpointRequest(url, key, { input: "This is a smaple input" });
+};
 
-export const uploadPptx = async (data: {fileName: string, isAvailable: boolean, 
-    amplifyGroups: string[], contentType:string, md5: any}) => {
+
+export const uploadPptx = async (data: {
+    fileName: string, isAvailable: boolean,
+    amplifyGroups: string[], contentType: string, md5: any
+}) => {
 
     const op = {
         method: 'POST',
         data: data,
         path: URL_PATH,
         op: "/pptx_templates/upload",
+        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
-
-
 
 export const deletePptx = async (templateName: string) => {
     const op = {
         method: 'DELETE',
         path: URL_PATH,
         op: "/pptx_templates/delete",
-        queryParams: {"template_name": templateName}
+        queryParams: { "template_name": templateName },
+        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
 
 
-
-
-
+export const getUserAmplifyGroups = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: "/amplify_groups/list",
+        service: SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}

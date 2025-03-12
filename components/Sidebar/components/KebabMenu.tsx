@@ -379,7 +379,8 @@ interface Props {
                 <div className="text-xs flex flex-row gap-1">
                     {`${actionItem.actionLabel}...`} 
                     <div className="flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 rounded">
-                         <button 
+                         <button
+                                id="confirmItem" 
                                 className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100" 
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -396,6 +397,7 @@ interface Props {
                             </button>
                         
                         <button
+                            id="cancelItem"
                             className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 "
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -411,7 +413,7 @@ interface Props {
 
           <div className="relative inline-block text-left">
             { actionItem && checkIsActiveSide() ?
-                <div className={`z-10 p-0.5 ${ checkingItemType?.includes("Folder")? "": ""}`}>
+                <div id="selectAllCheck" className={`z-10 p-0.5 ${ checkingItemType?.includes("Folder")? "": ""}`}>
                     <input
                     type="checkbox"
                     checked={allItemsChecked}
@@ -420,6 +422,7 @@ interface Props {
                 </div> :
                 <button
                     disabled={isSyncing}
+                    id="promptHandler"
                     className={`outline-none focus:outline-none p-0.5 ${isMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
                     onClick={toggleDropdown}>
                     <IconDotsVertical size={20} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"/>
@@ -490,7 +493,7 @@ interface Props {
             <div className="flex items-center justify-center min-h-screen">
               <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px]"
               >
-                <div className="p-2 h-[60px] overflow-y-auto">
+                <div id="tagAddModal" className="p-2 h-[60px] overflow-y-auto">
                 <TagsList tags={tags} 
                     setTags={(tags) => {
                                 setTags(tags);
@@ -525,6 +528,7 @@ interface Props {
                 <div className="p-2">
                   <button
                         type="button"
+                        id="doneButton"
                         className="w-full mb-1 px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                         onClick={() => {setIsTagsDialogVisible(false);
                                         clear();

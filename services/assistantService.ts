@@ -1,72 +1,20 @@
-import {AssistantDefinition} from "@/types/assistant";
-import {Message, newMessage} from "@/types/chat";
-import {Stopper} from "@/utils/app/tools";
+import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
+import {Message} from "@/types/chat";
 import {v4 as uuidv4} from 'uuid';
 import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH = "/assistant";
-
-/**
- * Looks up an assistant by its path
- * @param astPath The path to lookup the assistant
- * @returns The assistantId if found, or null if not found
- */
-export const lookupAssistant = async (astPath: string) => {
-    try {
-        const op = {
-            method: 'POST',
-            path: URL_PATH,
-            op: "/lookup",
-            data: { astPath }
-        };
-        
-        console.log(`Looking up assistant with path: ${astPath}`);
-        const result = await doRequestOp(op);
-        console.log('Lookup result:', result);
-        
-        // The API returns a nested structure where the actual data is in the body field as a JSON string
-        if (result.statusCode === 200 && result.body) {
-            // Parse the body string to get the inner response
-            const innerResponse = typeof result.body === 'string' 
-                ? JSON.parse(result.body) 
-                : result.body;
-            
-            console.log('Parsed inner response:', innerResponse);
-            
-            if (innerResponse.success && innerResponse.data?.assistantId) {
-                console.log(`Found assistant ID: ${innerResponse.data.assistantId}`);
-                return {
-                    success: true,
-                    assistantId: innerResponse.data.assistantId,
-                    isPublic: innerResponse.data.public
-                };
-            }
-        }
-        
-        // If we reach here, something went wrong
-        console.log('Assistant lookup failed');
-        return {
-            success: false,
-            message: result.body ? JSON.parse(result.body)?.message || "Assistant not found" : "Assistant not found"
-        };
-    } catch (error) {
-        console.error("Error looking up assistant:", error);
-        return {
-            success: false,
-            message: "Error looking up assistant"
-        };
-    }
-};
+const SERVICE_NAME = "assistant";
 
 const addData = (data: { [key: string]: any }) => {
     return (m: Message) => {
-        return {...m, data: {...m.data, ...data}}
+        return { ...m, data: { ...m.data, ...data } }
     };
 }
 
 const addDataToMessages = (messages: Message[], data: { [key: string]: any }) => {
     return messages.map((m) => {
-        return {...m, data: {...m.data, ...data}}
+        return { ...m, data: { ...m.data, ...data } }
     });
 }
 
@@ -76,29 +24,30 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
         method: 'POST',
         path: URL_PATH,
         op: "/create",
-        data: {...assistantDefinition}
+        data: { ...assistantDefinition },
+        service: SERVICE_NAME
     };
-    
+
     if (assistantDefinition.provider === 'openai') {
         if (assistantDefinition.dataSources) {
             assistantDefinition.fileKeys = assistantDefinition.dataSources.map((ds) => ds.id);
         }
 
-        const result =  await doRequestOp(op);
+        const result = await doRequestOp(op);
 
         const id = result.data.assistantId;
         return {assistantId: id, id, provider: 'openai'};
-    } else if (assistantDefinition.provider === 'amplify') {
+    } else if (assistantDefinition.provider === AssistantProviderID.AMPLIFY) {
 
         try {
-            const result =  await doRequestOp(op);
+            const result = await doRequestOp(op);
 
             console.log("Create Assistant result:", result);
 
             return {
                 id: result.data.id,
                 assistantId: result.data.assistantId,
-                provider: 'amplify',
+                provider: AssistantProviderID.AMPLIFY,
                 dataSources: assistantDefinition.fileKeys || [],
                 name: assistantDefinition.name || "Unnamed Assistant",
                 description: assistantDefinition.description || "No description provided",
@@ -110,7 +59,7 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
             return {
                 id: null,
                 assistantId: null,
-                provider: 'amplify'
+                provider: AssistantProviderID.AMPLIFY
             }
 
         }
@@ -118,7 +67,7 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
 
     return {
         assistantId: uuidv4(),
-        provider: 'amplify',
+        provider: AssistantProviderID.AMPLIFY,
         dataSources: assistantDefinition.fileKeys || [],
         name: assistantDefinition.name || "Unnamed Assistant",
         description: assistantDefinition.description || "No description provided",
@@ -126,14 +75,14 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
     }
 };
 
-
 export const listAssistants = async () => {
     const op = {
         method: 'GET',
         path: URL_PATH,
         op: "/list",
+        service: SERVICE_NAME
     };
-    const result =  await doRequestOp(op);
+    const result = await doRequestOp(op);
     return result.success ? result.data : [];
 }
 
@@ -142,9 +91,10 @@ export const deleteAssistant = async (assistantId: string) => {
         method: 'POST',
         path: URL_PATH,
         op: "/delete",
-        data: {assistantId}
+        data: { assistantId },
+        service: SERVICE_NAME
     };
-    const result =  await doRequestOp(op);
+    const result = await doRequestOp(op);
     return result.success;
 }
 

@@ -1,6 +1,8 @@
 // ApiItem.tsx
 import React from 'react';
 import { Checkbox } from '@/components/ReusableComponents/CheckBox';
+import { TagsList } from '../Chat/TagsList';
+import { camelCaseToTitle } from '@/utils/app/data';
 
 interface ApiParam {
   name: string;
@@ -32,13 +34,23 @@ const ApiItem: React.FC<ApiItemProps> = ({ api, index, selected, onChange }) => 
         borderRadius: '5px',
       }}
     >
-      <Checkbox
-        id={`api-${index}`}
-        label={api.name}
-        checked={selected || false}
-        onChange={(e) => onChange(api.id, e)}
-      />
-      <strong>{api.name}</strong>
+      <div className='flex flex-row'>
+        <Checkbox
+          id={`api-${index}`}
+          label={camelCaseToTitle(api.name)}
+          checked={selected || false}
+          onChange={(e) => onChange(api.id, e)}
+          bold={true}
+        />
+        <div className='ml-auto'>
+          <TagsList
+            tags={api.tags.filter((t:string) => !['default', 'all'].includes(t))}
+            setTags={() => {}}
+            isDisabled={true}
+          />
+        </div>
+      </div>
+      
       {api.description && <p>{api.description}</p>}
       {api.params && api.params.length > 0 && (
         <div className="mt-2">

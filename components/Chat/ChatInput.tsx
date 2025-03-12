@@ -4,7 +4,10 @@ import {
     IconAt,
     IconFiles,
     IconSend,
-    IconDeviceSdCard
+    IconDeviceSdCard,
+    IconBrain,
+    IconBulb,
+    IconScale
 } from '@tabler/icons-react';
 import {
     KeyboardEvent,
@@ -28,7 +31,7 @@ import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
 import HomeContext from '@/pages/api/home/home.context';
 import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
-import {DefaultModels, Model} from "@/types/model";
+import {DefaultModels, Model, REASONING_LEVELS, ReasoningLevels} from "@/types/model";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
@@ -53,6 +56,8 @@ import { useSession } from 'next-auth/react';
 import {  } from '../../services/memoryService';
 import { ProjectInUse } from './ProjectInUse';
 import { Settings } from '@/types/settings';
+import { ToggleOptionButtons } from '../ReusableComponents/ToggleOptionButtons';
+import { capitalize } from '@/utils/app/data';
 
 interface Props {
     onSend: (message: Message, documents: AttachedDocument[]) => void;
@@ -90,7 +95,7 @@ export const ChatInput = ({
 
     const {
         state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming, prompts,  featureFlags, currentRequestId, chatEndpoint, statsService, availableModels, extractedFacts},
-        getDefaultModel,
+        getDefaultModel, handleUpdateConversation,
         dispatch: homeDispatch
     } = useContext(HomeContext);
 
@@ -718,6 +723,7 @@ const onAssistantChange = (assistant: Assistant) => {
                     {(messageIsStreaming || artifactIsStreaming) &&  (
                         <>
                             <button
+                                id="stopGenerating"
                                 className="mt-10 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 "
                                 onClick={handleStopConversation}
                             >
@@ -743,7 +749,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
                 {showDataSourceSelector && (
                             <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]" 
-                                style={{transform: 'translateY(88px)'}}>
+                                style={{transform: 'translateY(70px)'}}>
                                 <DataSourceSelector
                                     onDataSourceSelected={(d) => {
 
@@ -861,6 +867,7 @@ const onAssistantChange = (assistant: Assistant) => {
                             ref={textareaRef}
                             onFocus={() => setIsInputInFocus(true)}
                             onBlur={() => setIsInputInFocus(false)}
+                            id="messageChatInputText"
                             className="m-0 w-full resize-none border-0 bg-transparent p-0 py-2 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-3 md:pl-10"
                             style={{
                                 resize: 'none',
@@ -886,6 +893,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
                         <button
                             // className="right-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                            id="sendMessage"
                             className={`right-2 top-2 rounded-sm p-1 text-neutral-800 mx-1 
                                 ${messageIsDisabled || !content? 'cursor-not-allowed ' : 'opacity-60 hover:bg-neutral-200 hover:text-neutral-900'} 
                                 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
@@ -1015,8 +1023,8 @@ const onAssistantChange = (assistant: Assistant) => {
                             </div>
                             )}
                         </div>
-                    <div className='flex flex-row gap-2'>
-                        {/* {featureFlags.memory && projects.length > 0  && 
+                    {/*<div className='flex flex-row gap-2'>
+                         {featureFlags.memory && projects.length > 0  && 
                         // settingRef.current.featureOptions.includeMemory && 
                         (
                             <button
@@ -1052,23 +1060,49 @@ const onAssistantChange = (assistant: Assistant) => {
                                     }}
                                 />
                             </div>
-                        )} */}
-                    </div>
-
+                        )} 
+                    </div>*/}
                     
-                    {featureFlags.memory && !isFactsVisible && selectedConversation && 
-                    selectedConversation.messages?.length > 0 && extractedFacts.length > 0 &&
-                    (!messageIsStreaming && !artifactIsStreaming) &&
-                        <button className='relative ml-auto mb-2 text-[1rem] text-[#1dbff5] dark:text-[#8edffa]'
-                        onClick={() => setIsFactsVisible(true)}>
-                            {extractedFacts.length} facts detected - Click to view
-                        </button>
+                   
+                    {(!messageIsStreaming && !artifactIsStreaming) &&
+                    <> 
+                        {featureFlags.memory && !isFactsVisible && selectedConversation && 
+                        selectedConversation.messages?.length > 0 && extractedFacts.length > 0 && 
+                            <button className='relative ml-auto mb-2 text-[1rem] text-[#1dbff5] dark:text-[#8edffa]'
+                            onClick={() => setIsFactsVisible(true)}>
+                                {extractedFacts.length} facts detected - Click to view
+                            </button>
+                        }
+
+                        {selectedConversation?.model?.supportsReasoning && 
+                        <div className='ml-auto'>
+                            <ToggleOptionButtons
+                                options={REASONING_LEVELS.map((lvl: string) => ({
+                                    id: lvl,
+                                    name: capitalize(lvl),
+                                    title: `The model will use ${{low: "average amount of", medium: "additional", high: "more"}[lvl]} output tokens when crafting a response. \n${
+                                   {low: "Optimized for quick responses to simple questions, prioritizing speed", 
+                                    medium: "Balanced approach for everyday questions, offering good accuracy without unnecessary processing time", 
+                                    high: "Provides in-depth analysis for complex problems where thoroughness and precision matter most"}[lvl]}`,
+                                    icon: ({low: IconBulb, medium: IconScale, high: IconBrain}[lvl])
+
+                                }))}
+                                selected={selectedConversation?.data?.reasoningLevel ?? 'low'}
+                                onToggle={(reasonLevel: string) => {
+                                    handleUpdateConversation(selectedConversation, {
+                                        key: 'data',
+                                        value: {...selectedConversation.data, reasoningLevel: reasonLevel as ReasoningLevels},
+                                    })
+                                }}
+                            />
+                        </div>
+                        }
                         
+                    </>
+                    
                     }
                             
                 </div>  
-
-
 
             </div>
 

@@ -10,7 +10,12 @@ import {Conversation} from "@/types/chat";
 import { createAssistantPrompt, handleUpdateAssistantPrompt} from "@/utils/app/assistants";
 import toast from "react-hot-toast";
 import React from "react";
-
+import { getOpsForUser } from "@/services/opsService";
+import { filterSupportedIntegrationOps } from "@/utils/app/ops";
+import { opLanguageOptionsMap } from "@/types/op";
+import { DefaultModels } from "@/types/model";
+import { fixJsonString } from "@/utils/app/errorHandling";
+import { camelCaseToTitle, stringToColor } from "@/utils/app/data";
 
 interface AssistantProps {
     definition: string;
@@ -18,6 +23,12 @@ interface AssistantProps {
 
 
 const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
+    const {state:{selectedConversation, statsService, messageIsStreaming, prompts, featureFlags, chatEndpoint},  
+           dispatch:homeDispatch, getDefaultModel} = useContext(HomeContext);
+    const { data: session } = useSession();
+    const user = session?.user;
+    const renderedRef = useRef<boolean>(false);
+
     const [error, setError] = useState<string | null>(null);
     const [isIncomplete, setIsIncomplete] = useState<boolean>(true);
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -26,13 +37,31 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
     const [assistantDefinition, setAssistantDefinition] = useState<AssistantDefinition|null>(null);
     const [assistantInstructions, setAssistantInstructions] = useState<string>("");
     const [assistantDescription, setAssistantDescription] = useState<string>("");
-    const [assistantTools, setAssistantTools] = useState<string[]>([]);
+    const [assistantTools, setAssistantTools] = useState<any[]>([]);
+    const [disclaimer, setDisclaimer] = useState<string>("");
     const [assistantTags, setAssistantTags] = useState<string[]>([]);
-    const [assistantDocuments, setAssistantDocuments] = useState<string[]>([]);
+    const [opsLanguageVersion, setOpsLanguageVersion] = useState<string>('');
 
-    const {state:{selectedConversation, statsService, messageIsStreaming, prompts},  dispatch:homeDispatch} = useContext(HomeContext);
-    const { data: session } = useSession();
-    const user = session?.user;
+    // dont need to make the call if its never in use, this is set upon detection of operation attributes
+    const cachedIntegrationsMap = useRef<{[url:string]: any}>({});
+    
+
+    const getIntegrations = async() => {
+        if (!featureFlags.integrations) return [];
+        const filterOps = async (data: any[]) => {
+            const filteredOps = await filterSupportedIntegrationOps(data);
+            if (filteredOps) {
+                const urlMap = filteredOps.reduce((acc, obj) => {
+                    acc[obj.url] = obj;
+                    return acc;
+                }, {});
+                return urlMap;
+            }
+            return data;
+        }
+        const ops = await getOpsForUser();
+        return ops.success ? await filterOps(ops.data) : {};
+    }
 
     const promptsRef = useRef(prompts);
 
@@ -90,7 +119,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
         return resultMap;
     }
 
-    const parseAssistant = (definitionStr: string) => {
+    const parseAssistant = async (definitionStr: string) => {
 
         try {
 
@@ -99,33 +128,32 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
                 definition = JSON.parse(definitionStr);
             }
             catch(e) {
-                definition = parsePrefixedLines(definitionStr);
+                const model = getDefaultModel(DefaultModels.ADVANCED);
+                const fixedJson: string | null = await fixJsonString(model, chatEndpoint || "", statsService, definitionStr);
+                // try to repair json
+                const parsed:any  = fixedJson ? JSON.parse(fixedJson) : null;
+                definition = parsed ?? parsePrefixedLines(definitionStr);
             }
 
-            if(definition.name){
-                definition.name = definition.name.replace(/[^a-zA-Z0-9]+/g, '').trim();
-            }
-            if(!definition.instructions && definition.description) {
+            if(definition.name) definition.name = definition.name.replace(/[^a-zA-Z0-9]+/g, '').trim();
+
+
+            if (!definition.instructions && definition.description) {
                 definition.instructions = definition.description;
-            }
-            else if(!definition.instructions) {
+            } else if (!definition.instructions) {
                 definition.instructions = definitionStr;
             }
 
-            if(typeof definition.instructions !== "string") {
-                definition.instructions = JSON.stringify(definition.instructions);
-            }
+            if (typeof definition.instructions !== "string") definition.instructions = JSON.stringify(definition.instructions);
 
             definition.provider = AssistantProviderID.AMPLIFY;
-            definition.tags = [];
-            definition.tools = [];
+
 
             const rawDS = getDocumentsInConversation(selectedConversation);
             const knowledge = rawDS.map(ds => {
-                if(ds.key || (ds.id && ds.id.indexOf("://") > 0)){
+                if (ds.key || (ds.id && ds.id.indexOf("://") > 0)) {
                     return ds;
-                }
-                else {
+                } else {
                     return {
                         ...ds,
                         id: "s3://"+ds.id
@@ -136,6 +164,32 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
             definition.dataSources = knowledge;
             definition.data = {};
             definition.data.access = {read: true, write:true};
+            
+            if (typeof definition.tags == "string") definition.tags = definition.tags.split(',').map((t: string) => t.trim());
+            if (!definition.tags) definition.tags = [];  
+            definition.data.tags = definition.tags;
+
+            if (definition.operations && featureFlags.integrations) {
+                console.log("----CONTAINS OPERATIONS----"); 
+                let integrationsMap: {[url:string]: any} = cachedIntegrationsMap.current;
+                if (Object.keys(integrationsMap).length === 0) {
+                    integrationsMap = await getIntegrations();
+                    cachedIntegrationsMap.current = integrationsMap;
+                } else {
+                    console.log("ALREADY HAVE INTEGRATIONS");
+                }
+                const mappedOps = definition.operations.filter((url: string) => 
+                                                 Object.keys(integrationsMap).includes(url))
+                                                       .map((url: string) => integrationsMap[url]);                                      
+                definition.tools = mappedOps;
+                definition.data.operations = mappedOps; 
+            }
+            delete definition.operations;
+            if (definition.opsLanguageVersion && 
+                Object.keys(opLanguageOptionsMap).includes(definition.opsLanguageVersion)) {
+                    definition.data.opsLanguageVersion = definition.opsLanguageVersion;
+                    delete definition.opsLanguageVersion;
+            }
 
             return definition;
         } catch (e) {
@@ -184,8 +238,11 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
 
 
     useEffect(() => {
-        if(!messageIsStreaming) {
-            const assistant = parseAssistant(definition) as AssistantDefinition;
+
+        const getAssistantDefintion = async () => {
+            renderedRef.current = true;
+  
+            const assistant = await parseAssistant(definition) as AssistantDefinition;
 
             if(assistant.name && assistant.description && assistant.instructions) {
                 setIsIncomplete(false);
@@ -194,50 +251,58 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
             setAssistantName(assistant.name);
             setAssistantInstructions(assistant.instructions);
             setAssistantDescription(assistant.description);
+            setAssistantTags(assistant.tags);
+            if (assistant.disclaimer) setDisclaimer(assistant.disclaimer);
+            if (assistant.tools) setAssistantTools(assistant.tools);
+            if (assistant.data?.opsLanguageVersion) setOpsLanguageVersion(assistant.data.opsLanguageVersion);
+            
             setAssistantDefinition(assistant);
             setIsLoading(false);
+
         }
+        if (!messageIsStreaming && !renderedRef.current) getAssistantDefintion();
     }, [messageIsStreaming]);
 
     let dataSources = getDocumentsInConversation(selectedConversation);
 
+    const section = (data: string, key: string) => (
+        <div style={{  wordWrap: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}
+            className="mb-2 max-h-40 overflow-y-auto text-sm text-gray-500"
+            key={key}>
+            {data}
+        </div>);
+
     // @ts-ignore
     return error ?
         <div>{error}</div> :
-        isIncomplete ? <div>We are making progress on your assistant.</div> :
-        <div style={{maxHeight: "450px"}}>
+        isIncomplete ? <div>We are making progress on your assistant...</div> :
+        <div>
             {isLoading ? (
                 <div className="flex flex-row items-center"><LoadingIcon/> <div className="ml-2">{loadingMessage}</div></div>
             ) : (
-                <>
-                    <div className="flex flex-col w-full mb-4 overflow-x-hidden gap-0.5">
+                <div className="overflow-hidden" >
+                    <div className="flex flex-col w-full mb-4 overflow-y-auto gap-0.5" style={{maxHeight: "480px"}}>
                         <div className="flex flex-row items-center justify-center">
                             <div className="mr-2"><IconRobot size={30} /></div>
                             <div className="text-2xl font-bold">{assistantName}</div>
                         </div>
 
                         <div style={{ width: '99%' }}>
-                            <ExpansionComponent title={"Description"} content={
-                                <div style={{  wordWrap: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}
-                                     className="mb-2 max-h-24 overflow-y-auto text-sm text-gray-500">
-                                        {assistantDescription}
-                                    </div>
-                                }/>
+                            <ExpansionComponent title={"Description"} 
+                                content={<>{section(assistantDescription, "description")}</>}
+                            />
                         </div>
 
                         <div style={{ width: '99%' }}>
-                            <ExpansionComponent title={"Instructions"} content={
-                                <div  style={{  wordWrap: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }} 
-                                      className="mb-2 max-h-24 overflow-y-auto text-sm text-gray-500">
-                                        {assistantInstructions}
-                                    </div>
-                                }/>
+                            <ExpansionComponent title={"Instructions"} 
+                             content={<>{section(assistantInstructions, "intructions")}</>}
+                            />
                         </div>
                         
                         {dataSources.length > 0 ?
                             <ExpansionComponent title={"Data Sources"} content={
                                 <div>
-                                    <div className="text-sm text-gray-500 max-h-24 overflow-y-auto">
+                                    <div className="text-sm text-gray-500 max-h-40 overflow-y-auto">
                                         {dataSources.map((source, index) => {
                                             return <div key={index}>{source.name}</div>
                                         })}
@@ -245,17 +310,67 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
                                 </div>
                             }/> : <div className="ml-2">No data sources attached</div>
                         }
-                        <button className="mt-4 w-full px-4 py-2 text-white bg-blue-500 rounded hover:bg-green-600"
-                                onClick={handleCreateAssistant}
-                        >
-                            Create Assistant
-                        </button>
+                        
+                        {opsLanguageVersion && 
+                            <div className="flex flex-row gap-2 " > Op Language:
+                            {section(opLanguageOptionsMap[opsLanguageVersion as keyof typeof opLanguageOptionsMap], 'language')}
+                        </div>}
+                        {disclaimer &&  <div className="ml-2">Disclaimer: {section(disclaimer, "disclaimer")}</div> }
+                        {assistantTags.length > 0 && 
+                          <div className="ml-2">Assistant Tags: {section(assistantTags.join(', '), "tags")}</div>
+                        }
+                        
+                        {assistantTools.length > 0 && 
+                        <ExpansionComponent title={"Operations"} content={
+                            <div>
+                                <div className="text-sm text-gray-500 max-h-60 overflow-y-auto flex flex-col gap-3" >
+                                    {assistantTools.map((op, index) => 
+                                        <div key={index} className="text-neutral-200 "
+                                        style={{
+                                            border: '1px solid #ccc',
+                                            padding: '10px',
+                                            // margin: '10px 0',
+                                            borderRadius: '5px',
+                                          }}
+                                        >
+                                            <div className="flex flex-row gap-2 ">
+                                                <label className="mb-2 text-bold" key={`${index}_name`} >
+                                                       {camelCaseToTitle(op.name)}
+                                                </label>
+
+                                                <div className="ml-auto mt-[-6px] flex flex-row gap-1 items-center overflow-x-auto">
+                                                    {/* Tags: */}
+                                                    {op.tags?.filter((t:string) => !['default', 'all', "integration" ].includes(t))
+                                                                .map((t : string) => 
+                                                                <div key={t} style={{ backgroundColor: stringToColor(t)}} title={t}
+                                                                className="my-0.5 p-0.5 text-center bg-white dark:bg-neutral-300 rounded-md h-[24px] min-w-[55px] shadow-lg text-gray-800 font-medium text-sm"> {t} </div>)
+                                                    }
+                                                </div>
+
+                                            </div>
+                                                {section(op.description, `${index}_description`)}
+                                                <details className="text-gray-400 hover:text-gray-500 cursor-pointer">
+                                                    <summary>Specification</summary>
+                                                    <pre>{JSON.stringify(op, null, 2)}</pre>
+                                                </details>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        }/>
+                        }
+                        
+                        
                     </div>
-                </>
+                    <button className="my-2 w-full px-4 py-2 text-white bg-blue-500 rounded hover:bg-green-600"
+                            onClick={handleCreateAssistant}
+                    >
+                        Create Assistant
+                    </button>
+                </div>
             )}
         </div>;
 };
 
 export default AssistantBlock;
-
 

@@ -3,6 +3,7 @@ import {IconCircleX, IconPlus, IconTag} from "@tabler/icons-react";
 import {listTags} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
 import {Loader} from "@mantine/core";
+import { stringToColor } from "@/utils/app/data";
 
 export type Props = {
     onTagSelected: (tag: string) => void;
@@ -12,35 +13,6 @@ export const UserTagsList: FC<Props> = ({
                                             onTagSelected
                                         }) => {
 
-    function stringToColor(str: string) {
-        // Array of the color options provided
-        const colors = [
-            "#fbfbfb", // snowman
-            "#979197", // gandalf
-            "#f69833", // orange
-            "#419bf9", // cornflower-blue
-            "#f7f7f7", // whitey
-            // "#554d56", // teflon
-            "#ee6723", // peach
-            "#fecf33", // yellow
-            "#c8cf2d", // green
-            "#0dcfda", // turquoise
-            "#edeced", // karl
-            "#c1bec1", // clooney
-            "#fdbd39", // light-orange
-        ];
-
-        // Hash function
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            hash = str.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        hash = Math.abs(hash); // Ensure hash is positive
-
-        // Use the hashed value to select a color
-        const index = hash % colors.length; // Modulus operation to get a valid array index
-        return colors[index];
-    }
 
     // Get the user tags in a useEffect
     const [tags, setTags] = useState<string[]>([]);

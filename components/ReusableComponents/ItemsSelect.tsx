@@ -252,14 +252,14 @@ export const ItemSelect: FC<Props> = (
             }
     
             return (
-                <div className="flex items-center p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-[#40414F]" ref={itemRefs.current[item.id]} key={item.id}>
+                <div id="checkBoxItem" className="flex items-center p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-[#40414F]" ref={itemRefs.current[item.id]} key={item.id}>
                     <Checkbox
                         id={item.id}
                         label={``}
                         checked={isSelected(item, itemType)}
                         onChange={(checked: boolean) => handleItemSelect(item, itemType)}
                     />
-                    <div className="ml-2 mb-1 text-black dark:text-white font-medium flex flex-row gap-2 ">
+                    <div id="checkBoxName" className="ml-2 mb-1 text-black dark:text-white font-medium flex flex-row gap-2 ">
                         {getIcon(item, itemType)} {item.name}
                     </div>
                 </div>

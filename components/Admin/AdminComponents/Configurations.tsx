@@ -1,5 +1,5 @@
 import { FC, useState } from "react";
-import {  AddEmailWithAutoComplete, Amplify_Group, Amplify_Groups, AmplifyGroupSelect, PromptCostAlert, titleLabel, UserAction } from "../AdminUI";
+import {  AddEmailWithAutoComplete, Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "../AdminUI";
 import { AdminConfigTypes} from "@/types/admin";
 import { IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
@@ -10,6 +10,7 @@ import { InfoBox } from "@/components/ReusableComponents/InfoBox";
 import Search from "@/components/Search";
 import ActionButton from "@/components/ReusableComponents/ActionButton";
 import { useSession } from "next-auth/react";
+import InputsMap from "@/components/ReusableComponents/InputMap";
 
 interface Props {
     admins: string[];
@@ -24,6 +25,9 @@ interface Props {
     promptCostAlert: PromptCostAlert;
     setPromptCostAlert: (a: PromptCostAlert) => void;
 
+    emailSupport: EmailSupport;
+    setEmailSupport: (e :EmailSupport) => void;
+
     allEmails: Array<string> | null;
 
     admin_text: string;
@@ -32,7 +36,7 @@ interface Props {
 
 export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setAmpGroups, allEmails,
                                               rateLimit, setRateLimit, promptCostAlert, setPromptCostAlert,
-                                              admin_text, updateUnsavedConfigs}) => {
+                                              emailSupport, setEmailSupport, admin_text, updateUnsavedConfigs}) => {
 
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
@@ -61,6 +65,11 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const handleUpdatePromptCostAlert = (updatedPromptCostAlert: PromptCostAlert) => {
         setPromptCostAlert(updatedPromptCostAlert);
         updateUnsavedConfigs(AdminConfigTypes.PROMPT_COST_ALERT);
+    }
+
+    const handleUpdateEmailSupport = (updatedEmailSupport: EmailSupport) => {
+        setEmailSupport(updatedEmailSupport);
+        updateUnsavedConfigs(AdminConfigTypes.EMAIL_SUPPORT);
     }
 
 
@@ -188,7 +197,30 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     </div>)}
 
             </div>
+            
+            {titleLabel('Support Email')}
+            <div className="px-6 mr-4">
+            <Checkbox
+                id="supportEmail"
+                label="Activates various communication features, such as 'Send Feedback' options, allowing users to contact the system administrator or support team directly through the application."
+                checked={emailSupport.isActive}
+                onChange={(isChecked: boolean) => {
+                    handleUpdateEmailSupport({...emailSupport, isActive: isChecked});
+                }}
+            />
+            </div>
 
+            <div className={`ml-12 flex flex-col ${emailSupport.isActive ? "" :'opacity-30'}`}>
+                <InputsMap
+                    id = {`${AdminConfigTypes.EMAIL_SUPPORT}`}
+                    inputs={[ {label: 'Email', key: 'email', placeholder: 'Contact Email', disabled:!emailSupport.isActive} ]}
+                    state ={{email : emailSupport.email ?? ''}}
+                    inputChanged = {(key:string, value:string) => {
+                        handleUpdateEmailSupport({...emailSupport, [key]: value});
+                    }}
+                />
+            </div>
+       
             <div className="flex flex-row gap-6">
             {titleLabel('Chat Rate Limit')}
                 <span className="mt-4 h-[28px] flex flex-row gap-4">
@@ -229,7 +261,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 />
                 <textarea title="Parameter Description" className={`w-full ${admin_text}`}
                 placeholder={"Alert message to display when the users prompt will cost over the threshold"}
-                value={promptCostAlert.alertMessage}
+                value={promptCostAlert.alertMessage} disabled={!promptCostAlert.isActive}
                 onChange={(e) => {
                     handleUpdatePromptCostAlert({...promptCostAlert, alertMessage: e.target.value});
                 }}
@@ -237,7 +269,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 />
                 <div className="mt-2 flex flex-row gap-3">
                 Cost Threshold
-                <input type="number"
+                <input type="number" disabled={!promptCostAlert.isActive}
                         className="text-center w-[100px] dark:bg-[#40414F] bg-gray-200"
                         min={0} step={.01} value={promptCostAlert.cost as number?? 0 }
                         onChange={(e) => {
@@ -357,7 +389,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
         }
 
 
-        <div className="ml-6 mt-6">
+        <div className="ml-6 mt-6 mb-10">
             {Object.keys(ampGroups).length > 0 ?
                     <ExpansionComponent 
                     onOpen={() => setShowAmpGroupsSearch(true)}

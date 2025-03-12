@@ -17,6 +17,7 @@ import { FolderInterface } from '@/types/folder';
 import { Prompt } from '@/types/prompt';
 import {deepMerge} from "@/utils/app/state";
 import { includeRemoteConversationData } from "@/utils/app/conversationStorage";
+import { DefaultModels } from "@/types/model";
 
 interface Props {
     conversation: Conversation;
@@ -49,14 +50,16 @@ const AutonomousBlock: React.FC<Props> = (
             advancedModelId,
             cheapestModelId,
             featureFlags,
-            workspaceMetadata
+            workspaceMetadata,
+            chatEndpoint
         },
         shouldStopConversation,
         handleCreateFolder,
         handleConversationAction,
         dispatch: homeDispatch,
         handleAddMessages,
-        getCompleteConversation
+        getCompleteConversation,
+        getDefaultModel
     } = useContext(HomeContext);
 
 
@@ -396,7 +399,7 @@ const AutonomousBlock: React.FC<Props> = (
             Local:${Object.keys(handlers)}`);
 
                 const handler =
-                    resolveServerHandler(message, url)
+                    resolveServerHandler(message, url, chatEndpoint, getDefaultModel(DefaultModels.CHEAPEST))
                     || handlers[url]
                     || handlers["/" + url];
 
@@ -513,8 +516,12 @@ const AutonomousBlock: React.FC<Props> = (
         <div
             className="rounded-xl text-neutral-600 border-2 dark:border-none dark:text-white bg-neutral-100 dark:bg-[#343541] rounded-md shadow-lg mb-2 mr-2"
         >
-            <ExpansionComponent title={"I am working on your request..."} content={action}/>
-        </div>
+            <ExpansionComponent 
+                title={"I am working on your request..."} 
+                content={<div style={{  wordWrap: 'break-word', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
+                            {action}
+                        </div>}/>
+    </div>
     </div>;
 };
 

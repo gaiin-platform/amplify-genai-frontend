@@ -1,7 +1,7 @@
 import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH =  "/optimizer";
-
+const SERVICE_NAME = "optimizer";
 
 export const optimizePrompt = async (prompt:string, maxPlaceholders:number) => {
 
@@ -13,7 +13,7 @@ export const optimizePrompt = async (prompt:string, maxPlaceholders:number) => {
         },
         path: URL_PATH,
         op: "/prompt",
+        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
-

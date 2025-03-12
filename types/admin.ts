@@ -25,6 +25,7 @@ export enum AdminConfigTypes {
     AMPLIFY_GROUPS = 'amplifyGroups',
     RATE_LIMIT = 'rateLimit',
     PROMPT_COST_ALERT = 'promtCostAlert',
+    EMAIL_SUPPORT = 'emailSupport',
     INTEGRATIONS = 'integrations',
 
   }
@@ -41,6 +42,7 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
       AdminConfigTypes.ADMINS,
       AdminConfigTypes.RATE_LIMIT,
       AdminConfigTypes.PROMPT_COST_ALERT,
+      AdminConfigTypes.EMAIL_SUPPORT,
       AdminConfigTypes.AMPLIFY_GROUPS,
     ],
 
@@ -145,6 +147,7 @@ export interface EmbeddingsConfig  {
     description: string;
     exclusiveGroupAvailability: string[];
     supportsImages: boolean;
+    supportsReasoning: boolean;
     supportsSystemPrompts: boolean;
     systemPrompt: string;
 

@@ -1,14 +1,20 @@
 import {ApiCall, OpDef, Reference} from "@/types/op";
 import JSON5 from "json5";
-import {Message} from "@/types/chat";
+import {Message, MessageType, newMessage} from "@/types/chat";
 import {execOp} from "@/services/opsService";
+import { promptForData } from "./llm";
+import { Model } from "@/types/model";
+import toast from "react-hot-toast";
+import { Integration, integrationProvidersList, IntegrationsMap } from "@/types/integrations";
+import { getAvailableIntegrations } from "@/services/oauthIntegrationsService";
 
 // Reference types
 export const DATASOURCE_TYPE = "#$"
 export const OP_TYPE = "#!"
 export const ASSISTANT_TYPE = "#@"
+const RESPONSE_THRESHOLD = 10000; 
 
-export const remoteOpHandler = (opDef:OpDef) => {
+export const remoteOpHandler = (opDef:OpDef, chatEndpoint: string, model: Model) => {
 
     console.log("Building remote op handler", opDef);
 
@@ -57,9 +63,10 @@ export const remoteOpHandler = (opDef:OpDef) => {
             try {
 
                 const response = await execOp(url, method, payload)
-
+                
                 if (response) {
-                    return response;
+                    const strResponse = JSON.stringify(response);
+                    return strResponse.length > RESPONSE_THRESHOLD ? condenseResponse(strResponse, chatEndpoint, model) : response;
                 } else {
                     return {
                         success: false,
@@ -96,7 +103,7 @@ export const getServerProvidedReferences = (message:Message): Reference[] => {
         message.data.state.references : [];
 }
 
-export const resolveServerHandler = (message:Message, id:string) => {
+export const resolveServerHandler = (message:Message, id:string, chatEndpoint: string | null, model: Model) => {
     const serverResolvedOps = getServerProvidedOps(message);
 
     if(!serverResolvedOps || serverResolvedOps.length === 0){
@@ -107,7 +114,7 @@ export const resolveServerHandler = (message:Message, id:string) => {
         (op:any) => op.id === id || op.id === "/"+id
     );
 
-    return opDef ? remoteOpHandler(opDef) : null;
+    return opDef ? remoteOpHandler(opDef, chatEndpoint ?? '', model) : null;
 }
 
 export const resolveOpDef = (message:Message, id:string) => {
@@ -233,12 +240,74 @@ export function parseApiCalls(str:string):ApiCall[] {
     return calls;
 }
 
-export function resolveOp(id:string, message:Message) {
-    const serverHandler = resolveServerHandler(message, id);
+export function resolveOp(id:string, message:Message, chatEndpoint: string | null, model: Model) {
+    const serverHandler = resolveServerHandler(message, id, chatEndpoint, model);
 
     if(serverHandler){
         return serverHandler;
     }
 
     return null;
+}
+
+const prompt = `
+You are a precise information extractor. Your task:
+
+1. Extract ONLY the most substantive information from the input
+2. Do not add, infer, or embellish ANY information
+3. Do not make assumptions
+4. Maintain the original meaning and context
+5. Remove:
+   - Redundant statements
+   - Filler words
+   - Tangential information
+6. If uncertain about any information, include it
+7. Preserve exact numbers, dates, names and specific claims
+8. The goal is to debulk some NOT everything, you should be echoing a majority of the content. 
+
+Before responding, verify that each point:
+- Your extraction only includes natural language, any encode, html, etc should be interpreted by you
+- Is explicitly stated in the original text
+- Contains no assumptions or extrapolations
+- Is necessary for core understanding
+
+Respond ONLY with the essential information, maintaining complete accuracy WITHOUT COMMENTS, PLEASANTRIES, PREAMBLES.
+`;
+
+const condenseResponse = async (response: string, chatEndpoint: string, model: Model) => {
+    console.log("Response is too large, attempting to condense...");
+    const messages: Message[] = [newMessage({role: 'user', content : `${prompt}:\n\n\n ${response}`, type: MessageType.PROMPT})];
+    setTimeout(() => {
+         toast("Still processing request... almost done");
+    }, 1800);
+   
+    const updatedResponse = await promptForData(chatEndpoint, messages, model, "Transform extensive information into an easily consumable format, NO COMMENTS, PLEASANTRIES, PREAMBLES ALLOWED", null, model.outputTokenLimit);
+    console.log("Condensed Response: ", updatedResponse);
+
+    return updatedResponse ? {success: true, data: updatedResponse}: JSON.parse(response);
+}
+
+
+// filters ops based on availibility/enabled integrations
+// if a user isnt connect, the backend assistant has instruction to notify them of the neex to reconnect/ display a button to open the integrations dialog 
+export const filterSupportedIntegrationOps = async (avilableOps: any[]) => {
+    let integrationProviders:string[] = integrationProvidersList;
+    let supportedIntegrations: string[] = [];
+
+    const integrationSupport = await getAvailableIntegrations();
+    if (integrationSupport && integrationSupport.success) {
+            const data: IntegrationsMap = integrationSupport.data;
+            supportedIntegrations = Object.values(data).flat().map((i: Integration) => i.id);
+    } else {
+        console.log("Error retrieving supported integrations: ", integrationSupport);
+    }
+
+    const filterNonSupportedOp = (tags: string[]) => {
+        if (!tags.includes('integration')) return true;
+        const filteredTags = tags.filter((t) => !['default', 'all', 'integration'].includes(t) && !t.endsWith("_read") && !t.endsWith("_write") );
+        const integrtaionId = filteredTags.find((t) => t.includes('_') && integrationProviders.includes(t.split('_')[0]));
+    return !integrtaionId || supportedIntegrations.includes(integrtaionId);
+    }
+    const validOps = avilableOps.filter((op: any) => !op.tags || filterNonSupportedOp(op.tags));
+    return validOps;
 }

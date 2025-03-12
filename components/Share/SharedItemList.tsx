@@ -172,6 +172,7 @@ const SharedItemsList: FC<{}> = () => {
             <div className="flex flex-row items-center pt-3 pl-2 pr-3">
                 <div className="mb-4 flex items-center space-x-2">
                     <button
+                        id="shareWithOtherUsers"
                         className="text-sidebar flex flex-grow flex-shrink flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
                         onClick={() => {
                             setIsModalOpen(true);
@@ -182,6 +183,7 @@ const SharedItemsList: FC<{}> = () => {
                     </button>
                     <button
                         title='Refresh'
+                        id="refreshButton"
                         disabled={isLoading}
                         className={`text-sidebar flex flex-grow flex-shrink-0 select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 ${!isLoading ? "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" : ""}`}
                         onClick={async () => {

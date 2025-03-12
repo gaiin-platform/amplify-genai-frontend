@@ -49,6 +49,7 @@ const AssistantsInUse: React.FC<Props> = ({assistants,assistantsChanged}) => {
         <div className="flex flex-row pb-2 mt-2">
             {assistants?.map((assistant, i) => (
                 <div
+                    id="assistantChatLabel"
                     key={i}
                     className={`bg-white flex flex-row items-center justify-between border bg-white rounded-md px-1 py-1 ml-1 mr-1 shadow-lg`}
                     style={{ maxWidth: '300px' }}

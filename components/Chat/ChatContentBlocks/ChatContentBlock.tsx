@@ -111,6 +111,7 @@ const ChatContentBlock: React.FC<Props> = (
   
     return (
     <div className="chatContentBlock w-full overflow-x-auto" 
+         id="chatContentBlock"
          style={{maxWidth: windowInnerWidth}}
          data-message-index={messageIndex}
          data-original-content={transformedMessageContent}>
@@ -234,7 +235,6 @@ const ChatContentBlock: React.FC<Props> = (
                         break;
                     case 'assistant':
                         return (<AssistantBlock definition={String(children)}/>);
-
                     case 'toggle':
                         return (<ExpansionComponent content={String(children)} title={"Source"}/>);
 
@@ -243,6 +243,18 @@ const ChatContentBlock: React.FC<Props> = (
 
                     case 'APIdoc':
                         return (<ApiDocBlock content={String(children)}/>);
+
+                    case 'integrationsDialog':
+                        if (featureFlags.integrations) {
+                            return (
+                                <button
+                                    onClick={() => window.dispatchEvent(new Event('openIntegrationsDialog'))}
+                                    className={`w-full px-12 py-2 text-white bg-blue-500 rounded hover:bg-green-600`}
+                                >
+                                    Click to setup service connections
+                                </button>)
+                        }
+                        break;
 
                     default:
                         if (match[1].toLowerCase() === 'vega' || match[1].toLowerCase() === 'vegalite') {

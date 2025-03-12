@@ -6,6 +6,7 @@ import { IconCheck, IconPlus, IconX, IconEdit, IconTrash } from "@tabler/icons-r
 import Search from "@/components/Search";
 import InputsMap from "@/components/ReusableComponents/InputMap";
 import ActionButton from "@/components/ReusableComponents/ActionButton";
+import toast from "react-hot-toast";
 
 
 interface Props {
@@ -241,8 +242,10 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     "Models Cached Token Cost/1k" )}
 
                             {modelActiveCheck('supportsSystemPrompts', isAddingAvailModel.model.supportsSystemPrompts, "Model Supports System Prompts" )}
-
+                            
                             {!isAddingAvailModel.model.id.includes('embed') && <>
+                            {modelActiveCheck('supportsReasoning', isAddingAvailModel.model.supportsReasoning,
+                                                "Model Supports Various Levels of Reasoning" ) } 
                             {modelActiveCheck('supportsImages', isAddingAvailModel.model.supportsImages,
                                                 "Model Supports Base-64 Encoded Images Attached to Prompts" )}
                             {modelActiveCheck('isAvailable', isAddingAvailModel.model.isAvailable, 
@@ -323,7 +326,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                     <table className="mt-4 border-collapse w-full" >
                         <thead>
                         <tr className="bg-gray-200 dark:bg-[#373844] text-sm">
-                            {['Name', 'ID',  'Provider', 'Available', 'Supports Images',
+                            {['Name', 'ID',  'Provider', 'Available', 'Supports Images', 'Supports Reasoning',
                                 'Supports System Prompts', 'Additional System Prompt',
                                 'Description', 'Input Context Window', 'Output Token Limit', 
                                 'Input Token Cost / 1k', 'Output Token Cost / 1k', 'Cached Token Cost / 1k',
@@ -367,8 +370,12 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     <div className="flex justify-center">
                                         {isAvailableCheck(availModel.isAvailable, () => {
                                             const updatedModel = {...availableModels[availModel.id], isAvailable: !availModel.isAvailable};
-                                            setAvailableModels({...availableModels, [availModel.id]: updatedModel});
+                                            const updatedModels = {...availableModels, [availModel.id]: updatedModel};
+                                            setAvailableModels(updatedModels);
                                             updateUnsavedConfigs(AdminConfigTypes.AVAILABLE_MODELS);
+                                            const firstAvailableForDefault = Object.values(updatedModels)
+                                                                                   .filter((m:SupportedModel) => m.isAvailable && !m.id.includes('embedding'));
+                                            if (firstAvailableForDefault.length === 1) toast("Double check the default model selections before saving");
                                         })}   
                                     </div>}
                                 </td>
@@ -383,14 +390,15 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     </div> }                          
                                 </td>
 
-
-                                <td className="border border-neutral-500 px-4 py-2 w-[74px]"
-                                    title="Model Support System Prompts">
-                                    <div className="flex justify-center">
-                                        {availModel.supportsSystemPrompts ? <IconCheck className= 'text-green-600' size={18} /> : 
-                                        <IconX  className='text-red-600' size={18} />}
-                                    </div>                           
-                                </td>
+                                {["supportsReasoning", "supportsSystemPrompts"].map((s:string) => 
+                                    <td className="border border-neutral-500 px-4 py-2 w-[74px]" key={s}
+                                        title={`Model ${camelToTitleCase(s)}`}>
+                                        <div className="flex justify-center">
+                                            {availModel[s as keyof SupportedModel] ? <IconCheck className= 'text-green-600' size={18} /> : 
+                                            <IconX  className='text-red-600' size={18} />}
+                                        </div>                           
+                                    </td>
+                                )}
 
                                 {["systemPrompt", "description"].map((s:string) => 
                                     <td className="border border-neutral-500 text-center" key={s}>
@@ -482,16 +490,26 @@ interface SelectProps {
 }
 
 const ModelDefaultSelect: FC<SelectProps> = ({models, selectedKey, label, description, setUpdatedModels}) => {
-
     const [selected, setSelected] = useState<SupportedModel | undefined>(models.find((model:SupportedModel) => !!model[selectedKey]));
 
+    useEffect(() => {
+        // cases where the default is no longer available 
+       if (selected && !["defaultEmbeddingsModel", "defaultQAModel"].includes(selectedKey) &&
+           !models.find((m: SupportedModel) => m.id === selected.id)?.isAvailable) {
+           // set to the first available model
+           const firstAvailable = models.find((m: SupportedModel) => m.isAvailable);
+           setSelected(firstAvailable);
+       } else if (!selected) {
+           if (models.length > 0) setSelected(models[0]);
+       }
+    }, [models])
 
     if (!models || models.length === 0) return null;
 
 
     return (
         <div className="flex flex-col gap-2 text-center">
-            {label}
+            <label className="font-bold text-[#0bb9f4]">{label}</label>
             <select className={"mb-2 text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  custom-shadow"} 
                 value={selected?.name ?? ''}
                 title={description}
@@ -538,6 +556,7 @@ export const emptySupportedModel = () => {
     description: '',
     exclusiveGroupAvailability: [],
     supportsImages: false,
+    supportsReasoning: false,
     supportsSystemPrompts: false, 
     systemPrompt: '',
 

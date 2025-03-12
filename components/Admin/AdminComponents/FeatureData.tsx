@@ -680,7 +680,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
         }
 
 
-        <div className="ml-6 mt-6">
+        <div className="ml-6 mt-6 mb-10 ">
             {templates.length > 0 ?
                     <ExpansionComponent 
                     title={'Manage PowerPoint Templates'} 

@@ -5,6 +5,7 @@ import { fetchAllSystemIds } from '@/services/apiKeysService';
 import HomeContext from '@/pages/api/home/home.context';
 import { Group } from '@/types/groups';
 import { useSession } from 'next-auth/react';
+import { stringToColor } from '@/utils/app/data';
 
 
 interface Props {
@@ -32,23 +33,6 @@ export const includeGroupInfoBox = (
         {'Use the "#" symbol to automatically include all members of the group.'}
     </div>
 )
-
-
-export function stringToColor(str: string): string {
-    const colors = [
-        "#fbfbfb", "#979197", "#f69833", "#419bf9", "#f7f7f7",
-        "#ee6723", "#fecf33", "#c8cf2d", "#0dcfda", "#edeced",
-        "#c1bec1", "#fdbd39"
-    ];
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    hash = Math.abs(hash);
-    const index = hash % colors.length;
-    return colors[index];
-}
-
 
 
 const EmailModal: FC<EmailModalProps> = ({ isOpen, onClose, onSubmit, input, setInput, message, allEmails, alreadyAddedEmails, containsSystemUsers}) => {

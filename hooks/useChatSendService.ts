@@ -259,28 +259,34 @@ export function useSendService() {
 
                         // memory fetching
                         const memoriesResponse = await doReadMemoryByTaxonomyOp({});
-                        const allMemories = JSON.parse(memoriesResponse.body).memories || [];
+                        try {
+                            const allMemories = JSON.parse(memoriesResponse.body).memories || [];
+                            // Filter memories based on criteria
+                            const relevantMemories = allMemories.filter((memory: Memory) => {
+                                if (memory.memory_type === 'user') {
+                                    return true;
+                                }
 
-                        // Filter memories based on criteria
-                        const relevantMemories = allMemories.filter((memory: Memory) => {
-                            if (memory.memory_type === 'user') {
-                                return true;
-                            }
+                                // if (chatBody.projectId && memory.memory_type_id === chatBody.projectId) {
+                                //     return true;
+                                // }
 
-                            // if (chatBody.projectId && memory.memory_type_id === chatBody.projectId) {
-                            //     return true;
-                            // }
+                                return false;
+                            });
 
-                            return false;
-                        });
+                            const memoryContext = relevantMemories.length > 0
+                                ? `Consider these relevant past memories when responding: ${JSON.stringify(
+                                    relevantMemories.map((memory: Memory) => memory.content)
+                                )}. Use this context to provide more personalized and contextually appropriate responses.`
+                                : '';
 
-                        const memoryContext = relevantMemories.length > 0
-                            ? `Consider these relevant past memories when responding: ${JSON.stringify(
-                                relevantMemories.map((memory: Memory) => memory.content)
-                            )}. Use this context to provide more personalized and contextually appropriate responses.`
-                            : '';
+                            chatBody.prompt += '\n\n' + memoryContext;
+                        } catch {
+                            console.error("Error with TaxonomyOp: ", memoriesResponse);
+                        }
+                        
 
-                        chatBody.prompt += '\n\n' + memoryContext;
+
                     }
 
                     if (isArtifactsOn) {
@@ -348,6 +354,14 @@ export function useSendService() {
                                 ragOnly: false
                             };
                         }
+                    }
+
+                    if (selectedConversation.model?.supportsReasoning) {
+                        // console.log("model supports reasoning: ", selectedConversation.data?.reasoningLevel)
+                        options = {
+                            ...(options || {}),
+                            reasoningLevel: selectedConversation.data?.reasoningLevel
+                        };
                     }
 
                     if (options) {
@@ -459,6 +473,7 @@ export function useSendService() {
                         if (!response || !response.ok) {
                             homeDispatch({ field: 'loading', value: false });
                             homeDispatch({ field: 'messageIsStreaming', value: false });
+                            console.log(response);
                             toast.error(response.statusText);
                             return;
                         }

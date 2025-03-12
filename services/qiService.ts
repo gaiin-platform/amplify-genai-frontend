@@ -1,15 +1,14 @@
-import {  Message } from "@/types/chat";
-import { Model, Models } from "@/types/model";
+import { Message } from "@/types/chat";
+import { Model } from "@/types/model";
 import { QiSummary, QiSummaryType } from "@/types/qi";
-import {getSession} from "next-auth/react"
-import {v4 as uuidv4} from 'uuid';
+import { getSession } from "next-auth/react"
 import { sendChatRequestWithDocuments } from "./chatService";
 import { doRequestOp } from "./doRequestOp";
 
-const URL_PATH =  "/qi";
+const URL_PATH = "/qi";
+const SERVICE_NAME = "qi";
 
-
-const qiConversationPrompt = 
+const qiConversationPrompt =
     `Generate a focused summary based on user and system exchanges, emphasizing the user's task: 
 
     Summary: 
@@ -26,14 +25,13 @@ const qiConversationPrompt =
     /PURPOSE_START [Purpose and use case here] /PURPOSE_END
     `
 
-
-export const createQiSummary = async (chatEndpoint:string, model: Model, data:any, type: QiSummaryType, statsService: any) => {
+export const createQiSummary = async (chatEndpoint: string, model: Model, data: any, type: QiSummaryType, statsService: any) => {
     const controller = new AbortController();
-    
-     const accessToken = await getSession().then((session) => { 
-                                // @ts-ignore
-                                return session.accessToken
-                            })
+
+    const accessToken = await getSession().then((session) => {
+        // @ts-ignore
+        return session.accessToken
+    })
 
     try {
         const chatBody = {
@@ -58,21 +56,21 @@ export const createQiSummary = async (chatEndpoint:string, model: Model, data:an
         let text = '';
         try {
             while (!done) {
-        
+
                 // @ts-ignore
-                const {value, done: doneReading} = await reader.read();
+                const { value, done: doneReading } = await reader.read();
                 done = doneReading;
                 const chunkValue = decoder.decode(value);
-        
+
                 if (done) break;
-        
+
                 text += chunkValue;
             }
 
             return parseToQiSummary(text, type);
         } finally {
             if (reader) {
-                await reader.cancel(); 
+                await reader.cancel();
                 reader.releaseLock();
             }
         }
@@ -80,13 +78,13 @@ export const createQiSummary = async (chatEndpoint:string, model: Model, data:an
     } catch (e) {
         console.error("Error prompting for qi summary: ", e);
         return createEmptyQiSummary(type);
-    } 
-    
+    }
+
 }
 
 const parseToQiSummary = (text: string, type: QiSummaryType) => {
     if (!text) return createEmptyQiSummary(type);
-    
+
     const summaryRegex = /\/SUMMARY_START\s+([\s\S]*?)\s*\/SUMMARY_END/;
     const purposeRegex = /\/PURPOSE_START\s+([\s\S]*?)\s*\/PURPOSE_END/;
 
@@ -100,30 +98,31 @@ const parseToQiSummary = (text: string, type: QiSummaryType) => {
 }
 
 //in case our call for the llm to create this for us fails 
-export const createEmptyQiSummary = (type: QiSummaryType) =>{
-    return  { type: type,
-              summary : '',
-              purpose: '',
-              includeUser: false
-            } as QiSummary;
+export const createEmptyQiSummary = (type: QiSummaryType) => {
+    return {
+        type: type,
+        summary: '',
+        purpose: '',
+        includeUser: false
+    } as QiSummary;
 }
 
 const getPrompt = (type: QiSummaryType) => {
     switch (type) {
         case QiSummaryType.CONVERSATION:
-          return qiConversationPrompt;
+            return qiConversationPrompt;
         default:
-          return "";
-      }
+            return "";
+    }
 }
 
-
-export const uploadToQiS3 = async (data:any, type: QiSummaryType) => {
+export const uploadToQiS3 = async (data: any, type: QiSummaryType) => {
     const op = {
         method: 'POST',
         path: URL_PATH,
         op: `/upload/${type}`,
-        data: data
+        data: data,
+        service: SERVICE_NAME
     };
     const result = await doRequestOp(op);
     return JSON.parse(result.body);
