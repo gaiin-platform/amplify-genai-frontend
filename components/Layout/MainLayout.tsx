@@ -53,12 +53,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      {header && (
-        <header className="border-b border-neutral-200 dark:border-neutral-600 bg-white dark:bg-[#202123] py-4 px-6 flex justify-between items-center">
-          {header}
-        </header>
-      )}
-
       <div className="flex flex-1 h-full overflow-hidden">
         {/* Left Sidebar */}
         {showLeftSidebar && (
@@ -69,6 +63,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({
 
         {/* Main Content */}
         <div className="flex flex-col flex-1 overflow-hidden">
+          {header && (
+            <header className="border-b border-neutral-200 dark:border-neutral-600 bg-white dark:bg-[#343541] py-4 px-6 flex justify-between items-center">
+              {header}
+            </header>
+          )}
           {children}
         </div>
 

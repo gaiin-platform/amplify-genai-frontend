@@ -700,27 +700,17 @@ const AssistantPage = ({
   // Content for header
   const headerContent = (
     <div className="flex items-center gap-3">
-      <div className="flex-shrink-0 bg-blue-100 dark:bg-blue-900 p-2 rounded-full">
+      <div className="flex-shrink-0 bg-blue-100 dark:bg-blue-900 p-2 rounded-full flex items-center justify-center">
         <IconMessage className="text-blue-600 dark:text-blue-300" size={22} />
       </div>
-      <div 
-        className="group relative"
-        title="Hover for assistant details"
-      >
-        <div className="mb-8">
-          <div 
-            className="relative group inline-block"
-            title="Hover for assistant details"
-          >
-            <h1 className="text-xl font-bold text-neutral-800 dark:text-neutral-100">
-              {assistantName}
-            </h1>
-            <div className="absolute left-0 top-full mt-1 hidden rounded-md bg-gray-800 p-2 text-xs text-white shadow-lg group-hover:block z-10">
-              <p>ID: {assistantId}</p>
-              <p>Description: {assistantDescription || 'Not provided'}</p>
-              <p>Role: {assistantRole || 'Not provided'}</p>
-            </div>
-          </div>
+      <div className="group relative flex items-center">
+        <h1 className="text-xl font-bold text-neutral-800 dark:text-neutral-100 leading-none py-1">
+          {assistantName}
+        </h1>
+        <div className="absolute left-0 top-full mt-1 hidden rounded-md bg-gray-800 p-2 text-xs text-white shadow-lg group-hover:block z-10">
+          <p>ID: {assistantId}</p>
+          <p>Description: {assistantDescription || 'Not provided'}</p>
+          <p>Role: {assistantRole || 'Not provided'}</p>
         </div>
       </div>
     </div>
@@ -735,7 +725,7 @@ const AssistantPage = ({
   if (loading) {
     return (
       <MainLayout
-        title="Loading Assistant | Amplify AI"
+        title="Loading Assistant"
         theme={lightMode}
         showLeftSidebar={false}
         showRightSidebar={false}
@@ -781,7 +771,7 @@ const AssistantPage = ({
 
   return (
     <MainLayout
-      title={`${assistantName} | Amplify AI Assistant`}
+      title={`${assistantName}`}
       description={`Chat with ${assistantName}`}
       theme={lightMode}
       header={headerContent}
@@ -844,7 +834,7 @@ const AssistantPage = ({
       </div>
 
       {/* Input area */}
-      <div className="border-t border-neutral-200 dark:border-neutral-600 bg-white dark:bg-[#202123] py-4 px-6">
+      <div className="border-t border-neutral-200 dark:border-neutral-600 bg-white dark:bg-[#343541] py-4 px-6">
         <div className="max-w-3xl mx-auto">
           <div className="relative">
             <textarea
