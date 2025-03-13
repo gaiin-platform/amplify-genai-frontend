@@ -28,6 +28,7 @@ export interface AssistantDefinition {
     provider:string;
     uri?:string;
     astPath?:string;
+    pathFromDefinition?:string;
     options?:{[key:string]:any};
     version?:number;
     id?:string;

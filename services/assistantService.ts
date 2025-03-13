@@ -42,8 +42,6 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
         try {
             const result = await doRequestOp(op);
 
-            console.log("Create Assistant result:", result);
-
             return {
                 id: result.data.id,
                 assistantId: result.data.assistantId,
@@ -55,7 +53,7 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
                 disclaimer: assistantDefinition.disclaimer || ""
             }
         } catch {
-            console.log("Response result failed to parse assistant for correct data");
+            console.error("Failed to parse assistant data from response");
             return {
                 id: null,
                 assistantId: null,
@@ -83,6 +81,7 @@ export const listAssistants = async () => {
         service: SERVICE_NAME
     };
     const result = await doRequestOp(op);
+    
     return result.success ? result.data : [];
 }
 
@@ -192,14 +191,17 @@ export const sendDirectAssistantMessage = async (
  * Adds a path to an assistant
  * @param assistantId The ID of the assistant
  * @param astPath The path to add to the assistant
+ * @param previousPath The previous path, if updating an existing path
  * @returns Success status and the updated assistant info
  */
-export const addAssistantPath = async (assistantId: string, astPath: string) => {
-  console.log(`Attempting to add path "${astPath}" to assistant "${assistantId}"`);
+export const addAssistantPath = async (assistantId: string, astPath: string, previousPath: string = "") => {
   try {
     // Make sure assistantId is in the correct format
     // The backend expects an assistantId with a prefix like "astp/"
     const formattedAssistantId = assistantId.startsWith('astp/') ? assistantId : assistantId;
+    
+    // Convert path to lowercase for consistency
+    const lowerCasePath = astPath.toLowerCase();
     
     const op = {
       method: 'POST',
@@ -207,51 +209,45 @@ export const addAssistantPath = async (assistantId: string, astPath: string) => 
       op: "/add_path",
       data: { 
         assistantId: formattedAssistantId, 
-        astPath 
-      }
+        astPath: lowerCasePath,
+        previousPath: previousPath 
+      },
+      service: SERVICE_NAME
     };
     
-    console.log('Sending add_path request with payload:', JSON.stringify(op));
     const result = await doRequestOp(op);
-    console.log('Add path API raw response:', JSON.stringify(result));
     
-    // Check if the result is successful based on status code
-    if (result.statusCode === 200) {
-      // Handle the nested response structure
-      let innerResponse;
+    // Check for API Gateway style response with statusCode and body
+    let parsedResult = result;
+    if (result.statusCode && result.body) {
       try {
-        innerResponse = typeof result.body === 'string' 
+        // If the body is a string, parse it
+        const parsedBody = typeof result.body === 'string' 
           ? JSON.parse(result.body) 
           : result.body;
         
-        console.log('Parsed inner response:', JSON.stringify(innerResponse));
-        
-        if (innerResponse && innerResponse.success) {
-          console.log('Path successfully added to assistant in backend. The astPath should now be saved to both the lookup table and the assistant definition.');
-          return {
-            success: true,
-            message: innerResponse.message || 'Path added successfully',
-            data: innerResponse.data
-          };
-        } else {
-          console.error('Backend reported failure:', innerResponse?.message || 'Unknown error');
-          return {
-            success: false,
-            message: innerResponse?.message || 'Failed to add path to assistant'
-          };
-        }
+        parsedResult = parsedBody;
       } catch (parseError) {
-        console.error('Error parsing response body:', parseError, 'Raw body:', result.body);
+        console.error('Error parsing response body:', parseError);
         return {
           success: false,
           message: 'Error processing server response'
         };
       }
+    }
+    
+    // Now check if the parsed result is successful
+    if (parsedResult.success) {
+      return {
+        success: true,
+        message: parsedResult.message || 'Path added successfully',
+        data: parsedResult.data
+      };
     } else {
-      console.error(`API request failed with status: ${result.statusCode}, response:`, JSON.stringify(result));
+      console.error('Backend reported failure:', parsedResult.message || 'Unknown error');
       return {
         success: false,
-        message: result.statusText || `Server returned error code: ${result.statusCode}`
+        message: parsedResult.message || 'Failed to add path to assistant'
       };
     }
   } catch (error) {
@@ -259,6 +255,76 @@ export const addAssistantPath = async (assistantId: string, astPath: string) => 
     return { 
       success: false, 
       message: `Error adding path: ${error instanceof Error ? error.message : String(error)}` 
+    };
+  }
+};
+
+/**
+ * Looks up an assistant by path
+ * @param astPath The path to look up
+ * @returns Success status and the assistant info if found
+ */
+export const lookupAssistant = async (astPath: string) => {
+  try {
+    // Convert path to lowercase for consistency
+    const lowerCasePath = astPath.toLowerCase();
+    
+    const op = {
+      method: 'POST',
+      path: URL_PATH,
+      op: "/lookup",
+      data: { astPath: lowerCasePath },
+      service: SERVICE_NAME
+    };
+    
+    const result = await doRequestOp(op);
+    
+    // Handle nested response formats - API Gateway might be wrapping the response
+    let actualResult = result;
+    
+    // Check if there's a statusCode and body - API Gateway format
+    if (result.statusCode && result.body) {
+      try {
+        // Body might be a string that needs parsing
+        const parsedBody = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
+        actualResult = parsedBody;
+      } catch (parseError) {
+        console.error('Error parsing response body:', parseError);
+      }
+    }
+    
+    // Now check success on the actual result
+    if (actualResult.success) {
+      // Get the correct path - try top level first, then data, then pathFromDefinition
+      const path = actualResult.data?.astPath || 
+                   actualResult.data?.data?.astPath ||
+                   actualResult.data?.pathFromDefinition;
+      
+      // Return all the data we have, including name and definition if available
+      return {
+        success: true,
+        message: actualResult.message || 'Assistant found',
+        assistantId: actualResult.data?.assistantId,
+        astPath: path, // Use the derived path
+        pathFromDefinition: actualResult.data?.pathFromDefinition,
+        public: actualResult.data?.public || false,
+        // Include these important fields if they exist
+        name: actualResult.data?.name,
+        definition: actualResult.data?.definition,
+        // Pass along the entire data object for completeness
+        data: actualResult.data
+      };
+    } else {
+      return {
+        success: false,
+        message: actualResult.message || 'Assistant not found at this path'
+      };
+    }
+  } catch (error) {
+    console.error(`Error looking up assistant path:`, error);
+    return { 
+      success: false, 
+      message: `Error looking up path: ${error instanceof Error ? error.message : String(error)}` 
     };
   }
 };

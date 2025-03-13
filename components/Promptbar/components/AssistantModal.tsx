@@ -453,7 +453,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             setPathError(null);
             
             // Look up the path
-            const result = await lookupAssistant(path.toLowerCase());
+            const result = await lookupAssistant(path);
             
             // If lookup was successful, the path is already taken
             if (result.success) {
@@ -465,22 +465,26 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                     console.log(`Path "${path}" is already assigned to this assistant`);
                     setPathError(null);
                     setIsPathAvailable(true);
+                    setPathAvailability({ available: true, message: "Current path" });
                     return true;
                 }
                 
                 // Otherwise, the path is used by a different assistant
                 setPathError('This path is already in use by another assistant');
                 setIsPathAvailable(false);
+                setPathAvailability({ available: false, message: "Path already in use" });
                 return false;
             }
             
             // If lookup failed with a "not found" message, the path is available
             setIsPathAvailable(true);
+            setPathAvailability({ available: true, message: "Path available" });
             return true;
         } catch (error) {
             console.error('Error validating path:', error);
-            setPathError('Error checking path availability');
+            setPathError('Error checking path availability - please try again');
             setIsPathAvailable(false);
+            setPathAvailability({ available: false, message: "Error" });
             return false;
         } finally {
             setIsCheckingPath(false);
@@ -505,22 +509,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 return;
             }
             
+            // Validate the path - this function will now set pathAvailability directly
             await validatePath(path);
             
-            // Update the pathAvailability state based on validation results
-            if (isPathAvailable) {
-                // If the path is already assigned to this assistant
-                if (path.toLowerCase() === definition.astPath?.toLowerCase()) {
-                    setPathAvailability({ available: true, message: "Current path" });
-                } else {
-                    setPathAvailability({ available: true, message: "Path available" });
-                }
-            } else {
-                setPathAvailability({ 
-                    available: false, 
-                    message: pathError || "Path unavailable" 
-                });
-            }
+            // No need to update pathAvailability here since validatePath now handles it
         } else {
             setIsPathAvailable(false);
             setPathError(null);
@@ -564,13 +556,27 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 
                 // Set the lowercase version of the path
                 const formattedPath = astPath.toLowerCase();
+                
+                // Set path at both the top level and in the data object
                 newAssistant.astPath = formattedPath;
-                console.log(`Setting assistant path to "${formattedPath}" in definition`);
+                
+                // Also ensure it's in the data object
+                if (!newAssistant.data) {
+                    newAssistant.data = {};
+                }
+                newAssistant.data.astPath = formattedPath;
+                
+                console.log(`Setting assistant path to "${formattedPath}" in both top level and data object`);
             } else if (!featureFlags?.assistantPathPublishing) {
                 // If feature flag is disabled, ensure astPath is not set
                 if (newAssistant.astPath) {
                     console.log(`Feature flag disabled, removing existing path "${newAssistant.astPath}" from definition`);
                     delete newAssistant.astPath;
+                }
+                
+                // Also remove from data object if it exists
+                if (newAssistant.data && newAssistant.data.astPath) {
+                    delete newAssistant.data.astPath;
                 }
             }
             
@@ -703,6 +709,12 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                         // Update the newAssistant definition with the path
                         newAssistant.astPath = formattedPath;
                         
+                        // Also ensure it's in the data object
+                        if (!newAssistant.data) {
+                            newAssistant.data = {};
+                        }
+                        newAssistant.data.astPath = formattedPath;
+                        
                         // Create a new prompt with the updated assistant definition
                         const updatedPrompt = createAssistantPrompt(newAssistant);
                         
@@ -738,6 +750,15 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         // Initialize path-related state only if the feature flag is enabled
         if (featureFlags?.assistantPathPublishing) {
             // Initialize with existing path from the definition, if available
+            
+            // Debug logging for path-related information
+            console.log('DEBUG - Assistant path info:', {
+                astPath: definition.astPath,
+                dataAstPath: definition.data?.astPath,
+                pathFromDefinition: definition.pathFromDefinition,
+            });
+            
+            // First check for path at the top level
             if (definition.astPath) {
                 setAstPath(definition.astPath);
                 
@@ -746,6 +767,24 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 setPathError(null);
                 setPathAvailability({ available: true, message: "Current path" });
                 setAstPathSaved(true); // Mark as already saved
+            } 
+            // Then check if it's in the data object
+            else if (definition.data?.astPath) {
+                console.log(`DEBUG - Using path from data object: ${definition.data.astPath}`);
+                setAstPath(definition.data.astPath);
+                setIsPathAvailable(true);
+                setPathError(null);
+                setPathAvailability({ available: true, message: "Current path" });
+                setAstPathSaved(true);
+            }
+            // Finally check if pathFromDefinition exists
+            else if (definition.pathFromDefinition) {
+                console.log(`DEBUG - Using pathFromDefinition ${definition.pathFromDefinition} since astPath is not available`);
+                setAstPath(definition.pathFromDefinition);
+                setIsPathAvailable(true);
+                setPathError(null);
+                setPathAvailability({ available: true, message: "Current path" });
+                setAstPathSaved(true);
             }
         } else {
             // If feature flag is disabled, ensure path-related state is reset
@@ -756,7 +795,51 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             setPathAvailability({ available: false, message: "" });
             setAstPathSaved(false);
         }
-    }, [featureFlags?.assistantPathPublishing, definition.astPath]);
+    }, [featureFlags?.assistantPathPublishing, definition.astPath, definition.data?.astPath, definition.pathFromDefinition]);
+
+    // Initialize form with existing assistant data
+    useEffect(() => {
+        if (!assistant) return;
+        if (!isAssistant(assistant)) return;
+        const definition = getAssistant(assistant);
+        
+        // Log the full assistant definition to help debug path issues
+        console.log('Loading assistant for edit:', {
+            assistantId: definition.assistantId,
+            name: definition.name,
+            astPath: definition.astPath,
+            pathFromDefinition: definition.pathFromDefinition,
+            data: definition.data,
+            completeDefinition: definition
+        });
+        
+        setName(definition.name);
+        setDescription(definition.description);
+        setContent(definition.instructions);
+        setDataSources(definition.dataSources || []);
+        setDisclaimer(definition.disclaimer || "");
+        setTags(definition.tags || []);
+        
+        if (definition.astPath) {
+            setAstPath(definition.astPath);
+        }
+        
+        // If pathFromDefinition exists but astPath doesn't, use that instead
+        if (definition.pathFromDefinition && !definition.astPath) {
+            console.log(`Using pathFromDefinition ${definition.pathFromDefinition} since astPath is not available`);
+            setAstPath(definition.pathFromDefinition);
+        }
+
+        const newFlags = { ...dataSourceOptionDefaults, ...dataSourceOptions, ...messageOptionDefaults, ...messageOptions, ...featureOptionDefaults, ...featureOptions, ...apiOptionDefaults, ...apiOptions };
+        
+        if (definition.options) {
+            Object.entries(definition.options).forEach(([key, value]) => {
+                newFlags[key] = value;
+            });
+            setFlags(newFlags);
+        }
+        
+    }, [featureFlags?.assistantPathPublishing, definition.astPath, definition.pathFromDefinition]);
 
     if (isLoading) return <></>;
     
@@ -971,9 +1054,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                     <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
                                                         Publish Assistant Path
                                                     </div>
-                                                    <p className="text-xs text-black dark:text-neutral-200 mt-2 mb-1">
-                                                        Assistants will be accessible at {window.location.origin}/assistants/<span className="font-semibold">YourAssistantName</span>
-                                                    </p>
+                                                    {astPath && (
+                                                        <p className="text-xs text-black dark:text-neutral-200 mt-2 mb-1">
+                                                            Assistants will be accessible at {window.location.origin}/assistants/{astPath.toLowerCase()}
+                                                        </p>
+                                                    )}
                                                     <div className="relative">
                                                         <input
                                                             className={`mt-2 w-full rounded-lg border ${pathError ? 'border-red-500' : isPathAvailable ? 'border-green-500' : 'border-neutral-500'} px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100`}
@@ -992,11 +1077,20 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                                 {isCheckingPath && (
                                                                     <IconLoader2 className="animate-spin h-5 w-5 text-gray-400" />
                                                                 )}
-                                                                {isPathAvailable && !isCheckingPath && !pathError && (
-                                                                    <div className="flex items-center text-green-500">
-                                                                        <IconCheck className="h-5 w-5 mr-1" />
-                                                                        <span className="text-xs">{pathAvailability.message || "Available"}</span>
-                                                                    </div>
+                                                                {!isCheckingPath && (
+                                                                    <>
+                                                                        {pathError ? (
+                                                                            <div className="flex items-center text-red-500">
+                                                                                <IconAlertTriangle className="h-5 w-5 mr-1" />
+                                                                                <span className="text-xs">Error</span>
+                                                                            </div>
+                                                                        ) : isPathAvailable ? (
+                                                                            <div className="flex items-center text-green-500">
+                                                                                <IconCheck className="h-5 w-5 mr-1" />
+                                                                                <span className="text-xs">{pathAvailability.message || "Available"}</span>
+                                                                            </div>
+                                                                        ) : null}
+                                                                    </>
                                                                 )}
                                                             </div>
                                                         )}
