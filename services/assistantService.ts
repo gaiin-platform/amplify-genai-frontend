@@ -106,8 +106,9 @@ export const sendDirectAssistantMessage = async (
   assistantId: string,
   assistantName: string,
   message: string,
-  model: any,
-  previousMessages: Array<{role: string, content: string}> = []
+  model: any, 
+  previousMessages: Array<{role: string, content: string}> = [],
+  options: any,
 ) => {
   try {
     const session = await getSession();
@@ -162,7 +163,7 @@ export const sendDirectAssistantMessage = async (
       maxTokens: model?.outputTokenLimit ? Math.round(model.outputTokenLimit / 2) : 2000,
       // Pass assistantId directly in the top level and in options
       assistantId: assistantId,
-      options: {
+      options: { ...options,
         assistantId: assistantId,
         assistantName: assistantName,
         skipRag: false,
@@ -170,7 +171,7 @@ export const sendDirectAssistantMessage = async (
         skipMemory: true // Skip memory processing
       }
     };
-
+    console.log("chatBody", chatBody);
     // @ts-ignore
     const response = await sendChatRequestWithDocuments(chatEndpoint, session.accessToken, chatBody, controller.signal);
     

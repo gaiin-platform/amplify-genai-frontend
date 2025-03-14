@@ -14,224 +14,14 @@ import { Theme } from '@/types/settings';
 import { Model as BaseModel } from '@/types/model';
 import MainLayout from '@/components/Layout/MainLayout';
 import SimpleSidebar from '@/components/Layout/SimpleSidebar';
+import { ModelSelect } from '@/components/Chat/ModelSelect';
+import { AssistantDefinition } from '@/types/assistant';
+import { GroupTypeSelector } from '@/components/Chat/GroupTypeSelector';
 
 // Extend the Model type to include isDefault property
 interface Model extends BaseModel {
   isDefault?: boolean;
 }
-
-// Custom model selector component that doesn't rely on HomeContext
-interface StandaloneModelSelectProps {
-  models: Model[];
-  modelId: string | undefined;
-  handleModelChange: (modelId: string) => void;
-  isDisabled?: boolean;
-}
-
-const StandaloneModelSelect = ({ 
-  models, 
-  modelId,
-  handleModelChange,
-  isDisabled = false,
-}: StandaloneModelSelectProps) => {
-  const { t } = useTranslation('chat');
-  const [isOpen, setIsOpen] = useState(false);
-  const [showLegend, setShowLegend] = useState(false);
-  const selectRef = useRef<HTMLDivElement>(null);
-  
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  const selectedModel = models.find((model) => model.id === modelId);
-
-  // Helper functions similar to those in the original ModelSelect component
-  const getIcons = (model: Model) => {
-    return (
-      <div className="ml-auto flex flex-row gap-2 opacity-70">
-        <div title={model.supportsImages ? "Supports Images in Prompts" : "Does Not Support Images in Prompts"}>
-          {model.supportsImages ? <IconCamera size={20}/> : <IconCameraOff size={20}/>}
-        </div>
-        {getCostIcon(model.inputTokenCost, model.outputTokenCost)}
-        {getOutputLimitIcon(model.outputTokenLimit)}
-      </div>
-    );
-  };
-
-  const getCostIcon = (inputCost: number, outputCost: number) => {
-    // Threshold logic for input cost
-    function categorizeInputCost(cost: number): "cheap" | "moderate" | "expensive" {
-      if (cost < 0.001) return "cheap";
-      if (cost <= 0.01) return "moderate";
-      return "expensive";
-    }
-
-    // Threshold logic for output cost
-    function categorizeOutputCost(cost: number): "cheap" | "moderate" | "expensive" {
-      if (cost < 0.005) return "cheap";
-      if (cost <= 0.02) return "moderate";
-      return "expensive";
-    }
-
-    const inputCategory = categorizeInputCost(inputCost);
-    const outputCategory = categorizeOutputCost(outputCost);
-
-    // Combine categories so that the 'highest' level dominates.
-    let finalCategory: "cheap" | "moderate" | "expensive" = "cheap";
-    if (inputCategory === "expensive" || outputCategory === "expensive") {
-      finalCategory = "expensive";
-    } else if (inputCategory === "moderate" || outputCategory === "moderate") {
-      finalCategory = "moderate";
-    }
-
-    let title = "";
-    let colorClass = "";
-
-    switch (finalCategory) {
-      case "cheap":
-        title = "Inexpensive";
-        colorClass = "text-green-500";
-        break;
-      case "moderate":
-        title = "Moderate Cost";
-        colorClass = "text-yellow-500";
-        break;
-      case "expensive":
-        title = "Expensive";
-        colorClass = "text-red-500";
-        break;
-    }
-    return (
-      <div title={title} className={colorClass}>
-        <IconCurrencyDollar size={22} />
-      </div>
-    );
-  };
-
-  const getOutputLimitIcon = (limit: number) => {
-    let title = "";
-    let icon: JSX.Element = <></>;
-    if (limit >= 100000) {
-      title = 'Large';
-      icon = <IconBaselineDensitySmall size={18} />
-    } else if (limit < 4096) {
-      title = 'Less than average';
-      icon = <IconBaselineDensityLarge size={18} />;
-    } else {
-      title = 'Average';
-      icon = <IconBaselineDensityMedium size={18} />
-    }
-
-    return <div className='mt-0.5' title={`${title} output token limit: ${limit}`}> {icon} </div> 
-  };
-
-  const legendItem = (icon: JSX.Element, message: string) => {
-    return (
-      <div className='flex items-center mb-2.5'>
-        <div className='mr-3 flex shrink-0'>{icon}</div>
-        <span>{message}</span>
-      </div>
-    );
-  };
-
-  const legend = () => {
-    return (
-      <div className='text-black dark:text-white absolute mt-2 w-[300px] rounded-lg border border-neutral-200 bg-white p-5 text-sm shadow-lg z-20 dark:border-neutral-600 dark:bg-[#343541]'
-          style={{transform: 'translateX(-90%)'}}>
-        <div className='mb-3 font-semibold text-lg text-neutral-700 dark:text-neutral-300'>
-          Legend
-        </div>
-        {legendItem(<IconCamera size={18} />, "Supports Images in Prompts")}
-        {legendItem(<IconCameraOff size={18} />, "No Image Support in Prompts")}
-        {legendItem(<IconCurrencyDollar size={18} className='text-green-500' />, 'Inexpensive' )}
-        {legendItem(<IconCurrencyDollar size={18} className='text-yellow-500' />, 'Moderate Cost' )}
-        {legendItem(<IconCurrencyDollar size={18} className='text-red-500' />, 'Expensive' )}
-        {legendItem(<IconBaselineDensitySmall size={18} />, 'Large Output Token Limit : ≥ 100,000 tokens')}
-        {legendItem(<IconBaselineDensityMedium size={18} />, 'Average Output Token Limit : 4,096 - 100,000 tokens' )}
-        {legendItem(<IconBaselineDensityLarge size={18} />, 'Less than Average Output Token Limit : < 4,096 tokens' )}
-        <div className='mt-3 text-sm text-gray-500 dark:text-gray-400'>
-          View the full pricing breakdown: Click on the gear icon on the left sidebar, go to <strong>Settings</strong>, and click on the <strong>Model Pricing</strong> tab.
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="flex flex-col w-full">
-      <div className='flex flex-row items-center mb-3'>
-        <label className="text-lg font-medium text-neutral-700 dark:text-neutral-300">
-          {t('Model')}
-        </label>
-        <div className='ml-auto' onMouseEnter={() => setShowLegend(true)} onMouseLeave={() => setShowLegend(false)}>
-          <IconInfoCircle size={22} className='flex-shrink-0 text-gray-600 dark:text-gray-300' />
-          {showLegend && legend()}
-        </div>
-      </div>
-      <div ref={selectRef} className="relative w-full">
-        <button
-          disabled={isDisabled}
-          onClick={() => setIsOpen(!isOpen)}
-          title={isDisabled ? 'Cannot change model while processing' : 'Select Model'}
-          className={`w-full flex items-center justify-between rounded-lg border border-neutral-200 bg-transparent p-3 pr-3 text-lg text-neutral-900 dark:border-neutral-600 dark:text-white custom-shadow ${
-            isDisabled ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-        >
-          {selectedModel ? (
-            <>
-              <span className="flex items-center">
-                {selectedModel.name}
-                {selectedModel.isDefault && (
-                  <span className="ml-2 text-sm text-blue-500 dark:text-blue-400 font-medium">
-                    (Default)
-                  </span>
-                )}
-              </span>
-              {getIcons(selectedModel)}
-            </>
-          ) : (
-            t('Select a model')
-          )}
-        </button>
-        {isOpen && (
-          <ul className="absolute z-10 mt-1 w-full overflow-auto rounded-lg border border-neutral-200 bg-white py-2 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm max-h-80">
-            {[...models]
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((model: Model) => (
-              <li
-                key={model.id}
-                onClick={() => {
-                  handleModelChange(model.id);
-                  setIsOpen(false);
-                }}
-                className="flex cursor-pointer items-center justify-between px-4 py-3 text-lg text-neutral-900 hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-600"
-                title={model.description}
-              >
-                <span>
-                  {model.name}
-                  {model.isDefault && (
-                    <span className="ml-2 text-sm text-blue-500 dark:text-blue-400 font-medium">
-                      (Default)
-                    </span>
-                  )}
-                </span>
-                {getIcons(model)}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-};
 
 interface Props {
   chatEndpoint: string | null;
@@ -256,6 +46,7 @@ const AssistantPage = ({
   const [assistantId, setAssistantId] = useState('');
   const [assistantName, setAssistantName] = useState('Assistant');
   const [assistantDescription, setAssistantDescription] = useState('');
+  const [assistantDefinition, setAssistantDefinition] = useState<AssistantDefinition | undefined>(undefined);
   const [assistantRole, setAssistantRole] = useState('Custom Assistant');
   const [lightMode, setLightMode] = useState<Theme>('dark');
   const [defaultModel, setDefaultModel] = useState<any>(null);
@@ -263,6 +54,8 @@ const AssistantPage = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [models, setModels] = useState<any[]>([]);
   const [selectedModel, setSelectedModel] = useState<any>(null);
+  const [requiredGroupType, setRequiredGroupType] = useState<boolean>(false);
+  const [groupType, setGroupType] = useState<string | undefined>(undefined);
   
   // Get the current active model (selected or default)
   const activeModel = selectedModel || defaultModel;
@@ -356,6 +149,7 @@ const AssistantPage = ({
           });
           
           setModels(modelsList);
+          console.log('Models List', modelsList);
           
           // Set default model from the list of available models
           if (modelsList.length > 0) {
@@ -396,8 +190,12 @@ const AssistantPage = ({
         const assistantResult = result as AssistantLookupResult;
         
         if (assistantResult.success) {
-          const { assistantId, astPath, pathFromDefinition, public: isPublic } = assistantResult;
-          
+          const { assistantId, astPath, pathFromDefinition, public: isPublic , definition } = assistantResult;
+          setAssistantDefinition(definition as AssistantDefinition);
+          if (Object.keys(definition?.data?.groupTypeData || {}).length > 0) {
+            setRequiredGroupType(true);
+          }
+
           if (assistantId) {
             setAssistantId(assistantId);
             
@@ -419,6 +217,7 @@ const AssistantPage = ({
             // APPROACH 3: Check if the definition object is present and has a name
             else if (!assistantNameFound && assistantResult.definition && assistantResult.definition.name) {
               const definition = assistantResult.definition;
+              
               setAssistantName(definition.name || '');
               assistantNameFound = true;
               
@@ -500,6 +299,8 @@ const AssistantPage = ({
         throw new Error("The selected model is invalid. Please select a different model.");
       }
       
+      const options = requiredGroupType ? {groupType: groupType, groupId: assistantDefinition?.data?.groupId} : {};
+
       // Send the message to the assistant with conversation history and selected model
       const result = await sendDirectAssistantMessage(
         chatEndpoint,
@@ -507,7 +308,8 @@ const AssistantPage = ({
         assistantName,
         inputMessage,
         activeModel, // Send the complete model object
-        messages
+        messages,
+        options
       );
       
       if (!result.success) {
@@ -699,11 +501,11 @@ const AssistantPage = ({
 
   // Content for header
   const headerContent = (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 w-full">
       <div className="flex-shrink-0 bg-blue-100 dark:bg-blue-900 p-2 rounded-full flex items-center justify-center">
         <IconMessage className="text-blue-600 dark:text-blue-300" size={22} />
       </div>
-      <div className="group relative flex items-center">
+      <div className="group relative flex items-center ">
         <h1 className="text-xl font-bold text-neutral-800 dark:text-neutral-100 leading-none py-1">
           {assistantName}
         </h1>
@@ -713,6 +515,7 @@ const AssistantPage = ({
           <p>Role: {assistantRole || 'Not provided'}</p>
         </div>
       </div>
+      {groupType && <div className="ml-auto text-xl font-bold text-neutral-800 dark:text-neutral-100  py-1">{groupType}</div>}
     </div>
   );
 
@@ -766,8 +569,8 @@ const AssistantPage = ({
   }
 
   // Empty sidebars - just for structure
-  const leftSidebarContent = <SimpleSidebar side="left" />;
-  const rightSidebarContent = <SimpleSidebar side="right" />;
+  const leftSidebarContent = null; //<SimpleSidebar side="left" />;
+  const rightSidebarContent = null; // <SimpleSidebar side="right" />;
 
   return (
     <MainLayout
@@ -782,13 +585,13 @@ const AssistantPage = ({
       <div className="bg-white dark:bg-[#343541] border-b border-neutral-200 dark:border-neutral-600 py-4 px-4">
         <div className="max-w-3xl mx-auto">
           <div className="flex justify-center">
-            <div className="w-full max-w-xl px-4">
-              <StandaloneModelSelect 
-                models={models}
-                modelId={activeModel?.id} 
-                handleModelChange={handleModelChange}
-                isDisabled={isProcessing}
-              />
+            <div className="w-full max-w-xl px-4 z-60">
+                  <ModelSelect modelId={assistantDefinition?.data?.model || activeModel?.id} 
+                              isDisabled={!!assistantDefinition?.data?.model}
+                              handleModelChange={handleModelChange}
+                              models={models}
+                              defaultModelId={defaultModel?.id}
+                  />
             </div>
           </div>
         </div>
@@ -797,11 +600,22 @@ const AssistantPage = ({
       {/* Chat messages */}
       <div className="flex-1 overflow-y-auto py-4 px-6 bg-white dark:bg-[#343541]">
         {messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="text-center text-neutral-500 dark:text-neutral-400">
+          <div className="flex h-full flex-col">
+            {assistantDefinition?.data && requiredGroupType && 
+            <div className="flex justify-center text-neutral-500 dark:text-neutral-400 w-full py-4">
+                <GroupTypeSelector
+                    groupOptionsData={assistantDefinition.data.groupTypeData}
+                    setSelected={setGroupType}
+                    groupUserTypeQuestion={assistantDefinition.data.groupUserTypeQuestion}
+                />
+                
+            </div> }
+ 
+              <div className="mt-20 text-center text-neutral-500 dark:text-neutral-400">
               <p className="mb-2">{t('Start a conversation with the assistant')}</p>
               <p className="text-sm">{assistantName} can help answer your questions</p>
             </div>
+            
           </div>
         ) : (
           <div className="space-y-6 max-w-3xl mx-auto">
@@ -854,12 +668,12 @@ const AssistantPage = ({
             <div className="absolute inset-y-0 right-0 flex items-center pr-3">
               <button
                 className={`text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-100 ${
-                  !inputMessage.trim() || isProcessing
+                  !inputMessage.trim() || isProcessing || (requiredGroupType && !groupType)
                     ? 'opacity-40 cursor-not-allowed'
                     : 'hover:bg-neutral-200 dark:hover:bg-neutral-600'
                 } p-1.5 rounded-md`}
                 onClick={handleSendMessage}
-                disabled={!inputMessage.trim() || isProcessing}
+                disabled={!inputMessage.trim() || isProcessing || (requiredGroupType && !groupType)}
                 aria-label="Send message"
               >
                 <IconSend size={20} />

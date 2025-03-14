@@ -69,7 +69,6 @@ interface Props {
     showScrollDownButton: boolean;
     plugins: Plugin[];
     setPlugins: (p: Plugin[]) => void;
-    isStandalone?: boolean;
 }
 
 // interface Project {
@@ -83,7 +82,6 @@ export const ChatInput = ({
                               onScrollDownClick,
                               stopConversationRef,
                               textareaRef,
-                              isStandalone = false,
                               handleUpdateModel,
                               showScrollDownButton,
                               plugins,
@@ -952,7 +950,7 @@ const onAssistantChange = (assistant: Assistant) => {
                 
                 <div className="h-6 w-full flex flex-row gap-2 items-center ">
 
-                {featureFlags.dataSourceSelectorOnInput && !isStandalone && (
+                {featureFlags.dataSourceSelectorOnInput && (
                         <button
                             className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
                             onClick={(e) => {
@@ -970,7 +968,7 @@ const onAssistantChange = (assistant: Assistant) => {
 
 
 
-                    { featureFlags.uploadDocuments && !isStandalone &&
+                    { featureFlags.uploadDocuments &&
                     <AttachFile id="__attachFile"                                                     //  Mistral and gpt 3.5 do not support image files 
                                 disallowedFileExtensions={[ ...COMMON_DISALLOWED_FILE_EXTENSIONS, ...(selectedConversation?.model?.supportsImages 
                                                                                                         ? [] : ["jpg","png","gif", "jpeg", "webp"] ) ]} 
@@ -982,8 +980,7 @@ const onAssistantChange = (assistant: Assistant) => {
                     />}
 
                     <div className='flex flex-row gap-2'>
-                        
-                        {!isStandalone && (
+
                         <button
                             className={buttonClasses}
                             onClick={ (e) => {
@@ -995,10 +992,10 @@ const onAssistantChange = (assistant: Assistant) => {
                             onKeyDown={(e) => {
                             }}
                             title="Select Assistants"
+
                         >
                             <IconAt size={20}/>
                         </button>
-                        )}
 
                         {showAssistantSelect && (
                             <div className="absolute rounded bg-white dark:bg-[#343541]"

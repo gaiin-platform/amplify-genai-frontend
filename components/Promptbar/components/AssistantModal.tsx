@@ -23,6 +23,7 @@ import Search from '@/components/Search';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import { opLanguageOptionsMap } from '@/types/op';
 import { opsSearchToggleButtons } from '@/components/Admin/AdminComponents/Ops';
+import toast from 'react-hot-toast';
 
 interface Props {
     assistant: Prompt;
@@ -533,6 +534,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             alert(t('Please wait for all data sources to finish uploading.'));
             return;
         }
+        if (isCheckingPath) {
+            alert("Please wait for assistant path to be cleared for use.");
+            return;
+        }
 
         setIsLoading(true);
         setLoadingMessage(loadingMessage);
@@ -721,7 +726,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                         // Update the assistant in the UI
                         onUpdateAssistant(updatedPrompt);
                         
-                        alert(`Assistant successfully published at: ${formattedPath}`);
+                        toast(`Assistant successfully published at: ${formattedPath}`);
                     } else {
                         setAstPathSaved(false);
                         setPathError(pathResult.message || 'Failed to save assistant path');
@@ -797,49 +802,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         }
     }, [featureFlags?.assistantPathPublishing, definition.astPath, definition.data?.astPath, definition.pathFromDefinition]);
 
-    // Initialize form with existing assistant data
-    useEffect(() => {
-        if (!assistant) return;
-        if (!isAssistant(assistant)) return;
-        const definition = getAssistant(assistant);
-        
-        // Log the full assistant definition to help debug path issues
-        console.log('Loading assistant for edit:', {
-            assistantId: definition.assistantId,
-            name: definition.name,
-            astPath: definition.astPath,
-            pathFromDefinition: definition.pathFromDefinition,
-            data: definition.data,
-            completeDefinition: definition
-        });
-        
-        setName(definition.name);
-        setDescription(definition.description);
-        setContent(definition.instructions);
-        setDataSources(definition.dataSources || []);
-        setDisclaimer(definition.disclaimer || "");
-        setTags(definition.tags || []);
-        
-        if (definition.astPath) {
-            setAstPath(definition.astPath);
-        }
-        
-        // If pathFromDefinition exists but astPath doesn't, use that instead
-        if (definition.pathFromDefinition && !definition.astPath) {
-            console.log(`Using pathFromDefinition ${definition.pathFromDefinition} since astPath is not available`);
-            setAstPath(definition.pathFromDefinition);
-        }
-
-        const newFlags = { ...dataSourceOptionDefaults, ...dataSourceOptions, ...messageOptionDefaults, ...messageOptions, ...featureOptionDefaults, ...featureOptions, ...apiOptionDefaults, ...apiOptions };
-        
-        if (definition.options) {
-            Object.entries(definition.options).forEach(([key, value]) => {
-                newFlags[key] = value;
-            });
-            setFlags(newFlags);
-        }
-        
-    }, [featureFlags?.assistantPathPublishing, definition.astPath, definition.pathFromDefinition]);
 
     if (isLoading) return <></>;
     
@@ -1099,7 +1061,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                         <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md">
                                                             <p className="text-xs text-red-600 dark:text-red-400 flex items-start">
                                                                 <IconAlertTriangle className="h-4 w-4 mr-1 flex-shrink-0 mt-0.5" />
-                                                                <span>{pathError}</span>
+                                                                <span className='mt-1'>{pathError}</span>
                                                             </p>
                                                             <ul className="text-xs text-red-600 dark:text-red-400 mt-1 ml-5 list-disc">
                                                                 {pathError.includes('invalid characters') && (

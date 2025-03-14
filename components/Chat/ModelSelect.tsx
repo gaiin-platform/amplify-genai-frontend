@@ -17,6 +17,8 @@ interface Props {
   isTitled?: boolean;
   applyModelFilter?: boolean;
   disableMessage?: string;
+  models?: Model[];
+  defaultModelId?: string;
 }
 
 export const ModelSelect: React.FC<Props> = ({
@@ -26,12 +28,18 @@ export const ModelSelect: React.FC<Props> = ({
   isTitled = true,
   applyModelFilter = true,
   disableMessage = 'Model has been predetermined and cannot be changed',
+  models: presetModels, defaultModelId: backupDefaultModelId
 }) => {
   const { t } = useTranslation('chat');
-  const {
-    state: { selectedConversation, defaultModelId, featureFlags, availableModels },
-    handleUpdateConversation,
-  } = useContext(HomeContext);
+
+  const contextValue = useContext(HomeContext);
+  
+  // Default values when context is missing
+  const selectedConversation = contextValue?.state?.selectedConversation;
+  const defaultModelId = contextValue?.state?.defaultModelId || backupDefaultModelId;
+  const featureFlags = contextValue?.state?.featureFlags || {};
+  const availableModels = contextValue?.state?.availableModels || {};
+  const handleUpdateConversation = contextValue?.handleUpdateConversation || (() => {});
 
   const [selectModel, setSelectModel] = useState<string | undefined>(modelId ?? defaultModelId);
   const [isOpen, setIsOpen] = useState(false);
@@ -39,9 +47,10 @@ export const ModelSelect: React.FC<Props> = ({
 
   const selectRef = useRef<HTMLDivElement>(null);
 
-  const models = applyModelFilter
-    ? filterModels(availableModels, getSettings(featureFlags).hiddenModelIds)
-    : Object.values(availableModels);
+  const models = presetModels ? presetModels : 
+             applyModelFilter ? filterModels(availableModels, getSettings(featureFlags).hiddenModelIds)
+                              : Object.values(availableModels);
+
 
   useEffect(() => {
     setSelectModel(modelId);

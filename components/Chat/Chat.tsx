@@ -71,11 +71,10 @@ import { ResponseTokensSlider } from './Sliders/ResponseTokens';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
-    isStandalone?: boolean;
 }
 
 
-export const Chat = memo(({stopConversationRef, isStandalone = false}: Props) => {
+export const Chat = memo(({stopConversationRef}: Props) => {
         const {t} = useTranslation('chat');
 
         const {
@@ -372,22 +371,8 @@ export const Chat = memo(({stopConversationRef, isStandalone = false}: Props) =>
 
         const handleSend = useCallback(
             async (request:ChatRequest) => {
-                console.log("[DEBUG] handleSend called with request:", { 
-                    messageType: request.message.type,
-                    endpoint: request.endpoint,
-                    options: request.options,
-                });
-                
                 return handleSendService(request, ()=>{
                     return stopConversationRef.current === true;
-                })
-                .then(result => {
-                    console.log("[DEBUG] handleSendService completed successfully");
-                    return result;
-                })
-                .catch(error => {
-                    console.error("[DEBUG] handleSendService error:", error);
-                    throw error;
                 });
             },
             [stopConversationRef, handleSendService]
@@ -575,12 +560,6 @@ export const Chat = memo(({stopConversationRef, isStandalone = false}: Props) =>
         
         
         const routeMessage = (message: Message, deleteCount: number | undefined, documents: AttachedDocument[] | null) => {
-            console.log("[DEBUG] routeMessage called with:", { 
-                messageType: message.type, 
-                content: message.content.substring(0, 50) + "...",
-                deleteCount,
-                documentsCount: documents?.length || 0
-            });
 
             if (message.type == MessageType.PROMPT
                 || message.type == MessageType.ROOT
@@ -638,24 +617,11 @@ export const Chat = memo(({stopConversationRef, isStandalone = false}: Props) =>
 
                     if(assistantInUse.uri) {
                         request.endpoint = assistantInUse.uri;
-                    } else if (!request.endpoint && chatEndpoint) {
-                        // Ensure we have an endpoint specified
-                        console.log("[DEBUG] Setting request endpoint to chatEndpoint:", chatEndpoint);
-                        request.endpoint = chatEndpoint;
                     }
 
-                    console.log("[DEBUG] Sending request:", request);
                     handleSend(request);
                 } else {
                     const request = createChatRequest(message, deleteCount, null, null, documents);
-                    
-                    if (!request.endpoint && chatEndpoint) {
-                        // Ensure we have an endpoint specified
-                        console.log("[DEBUG] Setting request endpoint to chatEndpoint:", chatEndpoint);
-                        request.endpoint = chatEndpoint;
-                    }
-                    
-                    console.log("[DEBUG] Sending request (no assistant):", request);
                     handleSend(request);
                 }
             } else {
@@ -1163,7 +1129,7 @@ export const Chat = memo(({stopConversationRef, isStandalone = false}: Props) =>
 
                                     <div
                                        className="items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
-                                        {!isStandalone && featureFlags.mtdCost && (
+                                        {featureFlags.mtdCost  && (
                                             <>
                                                 <button
                                                     className="ml-2 mr-2 cursor-pointer hover:opacity-50"
@@ -1181,136 +1147,108 @@ export const Chat = memo(({stopConversationRef, isStandalone = false}: Props) =>
                                                 </button>
                                                 |
                                             </>
-                                        )}
+                                        )}               
+                                         {/*  Removing Workspaces:    old   { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' }  */}
+                                         {/* Should be in sync with selectedModelId now:      old   selectedConversation?.model?.name || ''*/}
+                                        {` `}{selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
+                                        <button
+                                            className="ml-2 cursor-pointer hover:opacity-50"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                handleSettings();
+
+                                                if (!messageIsStreaming) handleScrollUp();
+                                                
+                                            }}
+                                            title="Chat Settings"
+                                        >
+                                            <IconSettings size={18}/>
+                                        </button>
                                         
-                                        {isStandalone ? (
-                                          <div className="text-center font-medium flex items-center justify-center">
-                                            <span>{selectedAssistant?.definition?.name || 'Assistant'}</span>
-                                            <span className="mx-2">|</span>
-                                            <span className="text-sm opacity-80">
-                                              {selectedAssistant && selectedAssistant?.definition?.data?.model 
-                                                ? selectedAssistant.definition.data.model.name 
-                                                : selectedConversation?.model?.name || ''}
-                                            </span>
+                                        <button
+                                            className="ml-2 cursor-pointer hover:opacity-50"
+                                            disabled={messageIsStreaming}
+                                            onClick={onClearAll}
+                                            title="Clear Messages"
+                                        >
+                                            <IconClearAll size={18}/>
+                                        </button>
+                                        <button
+                                            className="ml-2 cursor-pointer hover:opacity-50"
+                                            disabled={messageIsStreaming}
+                                            onClick={() => setIsShareDialogVisible(true)}
+                                            title="Share"
+                                        >
+                                            <IconShare size={18}/>
+                                        </button>
+                                        <button
+                                            className="ml-2 cursor-pointer hover:opacity-50"
+                                            disabled={messageIsStreaming}
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setIsDownloadDialogVisible(true)
+
+                                            }}
+                                            title="Download"
+                                        >
+                                            <IconDownload size={18}/>
+                                        </button>
+
+                                        {featureFlags.artifacts && 
+                                        <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
+                                        
+                                        {featureFlags.storeCloudConversations &&
+                                        <CloudStorage iconSize={18} />
+                                        }
+                                        {!isArtifactOpen  &&
+                                            <>
+                                            |
                                             <button
-                                                className="ml-2 cursor-pointer hover:opacity-50"
-                                                disabled={messageIsStreaming}
-                                                onClick={onClearAll}
-                                                title="Clear Messages"
-                                            >
-                                                <IconClearAll size={18}/>
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <>
-                                            {` `}{selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
-                                            <button
-                                                className="ml-2 cursor-pointer hover:opacity-50"
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    handleSettings();
-                                                    if (!messageIsStreaming) handleScrollUp();
-                                                }}
-                                                title="Chat Settings"
-                                            >
-                                                <IconSettings size={18}/>
-                                            </button>
-                                            
-                                            <button
-                                                className="ml-2 cursor-pointer hover:opacity-50"
-                                                disabled={messageIsStreaming}
-                                                onClick={onClearAll}
-                                                title="Clear Messages"
-                                            >
-                                                <IconClearAll size={18}/>
-                                            </button>
-                                            <button
-                                                className="ml-2 cursor-pointer hover:opacity-50"
-                                                disabled={messageIsStreaming}
-                                                onClick={() => setIsShareDialogVisible(true)}
-                                                title="Share"
-                                            >
-                                                <IconShare size={18}/>
-                                            </button>
-                                            <button
-                                                className="ml-2 cursor-pointer hover:opacity-50"
+                                                className="ml-2 mr-2 cursor-pointer hover:opacity-50"
                                                 disabled={messageIsStreaming}
                                                 onClick={(e) => {
                                                     e.preventDefault();
                                                     e.stopPropagation();
-                                                    setIsDownloadDialogVisible(true)
+                                                    homeDispatch({field: 'page', value: 'home'});
                                                 }}
-                                                title="Download"
+                                                title="Data Sources"
                                             >
-                                                <IconDownload size={18}/>
-                                            </button>
-                                            
-                                            {featureFlags.artifacts && 
-                                            <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
-                                            
-                                            {featureFlags.storeCloudConversations &&
-                                            <CloudStorage iconSize={18} />
-                                            }
-                                            
-                                            {!isArtifactOpen  &&
-                                                <>
-                                                |
-                                                <button
-                                                    className="ml-2 mr-2 cursor-pointer hover:opacity-50"
-                                                    disabled={messageIsStreaming}
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        homeDispatch({field: 'page', value: 'home'});
-                                                    }}
-                                                    title="Data Sources"
-                                                >
-                                                    <div className={`text-[0.9rem] flex flex-row items-center ${chat_button_blue_color}`}>
-                                                        <div><IconRocket size={18}/></div>
-                                                        <div className="ml-1">Data Sources </div>
-                                                    </div>
-                                                </button> 
-                                                </>
-                                            }
-                                          </>
-                                        )}
+                                                <div className={`text-[0.9rem] flex flex-row items-center ${chat_button_blue_color}`}>
+                                                    <div><IconRocket size={18}/></div>
+                                                    <div className="ml-1">Data Sources </div>
+                                                </div>
+                                            </button> 
+                                            </>
+                                        }
                                     </div>
                                     <div ref={modelSelectRef}></div>
                                     
-                                        <div className="flex flex-col md:gap-6 md:py-3 md:pt-6 lg:px-0 mx-16 ">
-                                              { showSettings && !(selectedAssistant?.definition?.data?.model) &&
-                                                  <div
-                                                      className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border custom-shadow">
-                                                      <ModelSelect modelId={selectedModelId}/>
-                                                  </div>
-                                              }
-                                              {/* When in standalone mode, show just the model selector */}
-                                              {isStandalone && !showSettings &&
-                                                  <div
-                                                      className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border custom-shadow">
-                                                      <ModelSelect modelId={selectedModelId}/>
-                                                  </div>
-                                              }
-                                              {/* Only show tags in regular mode, not standalone */}
-                                              {!isStandalone &&
+                                        <div 
+                                            className="flex flex-col md:gap-6 md:py-3 md:pt-6 lg:px-0 mx-16 ">
+                                            { showSettings && !(selectedAssistant?.definition?.data?.model) &&
                                                 <div
-                                                    id="tagListInChat"
-                                                className="border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border shadow-[0_2px_2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_2px_rgba(0,0,0,0.3)]">
-                                                    <TagsList tags={selectedConversation?.tags || []} setTags={
-                                                        (tags) => {
-                                                            if (selectedConversation) {
-                                                                handleUpdateConversation(selectedConversation, {
-                                                                    key: 'tags',
-                                                                    value: tags,
-                                                                });
-
-                                                            }
-                                                        }
-                                                    }/>
+                                                    className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border custom-shadow">
+                                                    <ModelSelect modelId={selectedModelId}/>
                                                 </div>
-                                              }
-                                          </div>
+                                            }
+                                            <div
+                                                id="tagListInChat"
+                                                className="border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border shadow-[0_2px_2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_2px_rgba(0,0,0,0.3)]">
+                                                <TagsList tags={selectedConversation?.tags || []} setTags={
+                                                    (tags) => {
+                                                        if (selectedConversation) {
+                                                            handleUpdateConversation(selectedConversation, {
+                                                                key: 'tags',
+                                                                value: tags,
+                                                            });
+
+                                                        }
+                                                    }
+                                            }/>
+                                        </div>
+                                        </div>
                                     
 
 
@@ -1404,11 +1342,6 @@ export const Chat = memo(({stopConversationRef, isStandalone = false}: Props) =>
                             stopConversationRef={stopConversationRef}
                             textareaRef={textareaRef}
                             onSend={(message, documents: AttachedDocument[] | null) => {
-                                console.log("[DEBUG] ChatInput onSend triggered with:", { 
-                                    messageContent: message.content.substring(0, 50) + "...", 
-                                    messageType: message.type,
-                                    documentCount: documents?.length || 0
-                                });
                                 setCurrentMessage(message);
                                 //handleSend(message, 0, plugin);
                                 routeMessage(message, 0, documents);
@@ -1423,7 +1356,6 @@ export const Chat = memo(({stopConversationRef, isStandalone = false}: Props) =>
                             showScrollDownButton={showScrollDownButton}
                             plugins={plugins ?? []}
                             setPlugins={setPlugins}
-                            isStandalone={isStandalone}
                         />}
                     </>
                 )}
