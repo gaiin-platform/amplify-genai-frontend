@@ -622,10 +622,19 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             });
             // do the same for 
             newAssistant.tools = selectedApis || [];
-            const tagsList = tags ? tags.split(",").map((x: string) => x.trim()) : [];
-            newAssistant.tags = tagsList
+            
+            // Handle tags whether it's a string or array
+            const tagsList = Array.isArray(tags) 
+                ? tags 
+                : (tags ? tags.split(",").map((x: string) => x.trim()) : []);
+            
+            newAssistant.tags = tagsList;
             newAssistant.data.tags = tagsList;
-            newAssistant.data.conversationTags = conversationTags ? conversationTags.split(",").map((x: string) => x.trim()) : [];
+            
+            // Handle conversationTags in the same way
+            newAssistant.data.conversationTags = Array.isArray(conversationTags)
+                ? conversationTags
+                : (conversationTags ? conversationTags.split(",").map((x: string) => x.trim()) : []);
             
             //if we were able to get to this assistant modal (only comes up with + assistant and edit buttons)
             //then they must have had read/write access.
@@ -750,12 +759,59 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         }
     }
 
-    // Add a useEffect to initialize path-related state based on feature flag
+    // Initialize form with existing assistant data
     useEffect(() => {
-        // Initialize path-related state only if the feature flag is enabled
+        if (!assistant) return;
+        if (!isAssistant(assistant)) return;
+        const definition = getAssistant(assistant);
+        
+        // Log the full assistant definition to help debug path issues
+        console.log('Loading assistant for edit:', {
+            assistantId: definition.assistantId,
+            name: definition.name,
+            astPath: definition.astPath,
+            pathFromDefinition: definition.pathFromDefinition,
+            data: definition.data,
+            completeDefinition: definition
+        });
+        
+        // Initialize basic form fields
+        setName(definition.name);
+        setDescription(definition.description);
+        setContent(definition.instructions);
+        setDisclaimer(definition.disclaimer || "");
+        
+        // Format data sources properly to avoid type issues
+        if (definition.dataSources) {
+            const formattedDataSources = definition.dataSources.map(ds => ({
+                key: ds.key || ds.id || '',  // Ensure key is always a string
+                id: ds.id || '',
+                name: ds.name || '',
+                raw: ds.raw || null,
+                type: ds.type || '',
+                data: ds.data || null,
+                metadata: ds.metadata,
+                groupId: ds.groupId
+            }));
+            setDataSources(formattedDataSources);
+        } else {
+            setDataSources([]);
+        }
+        
+        // Handle tags array properly
+        if (definition.tags) {
+            // Convert to string if it's an array
+            if (Array.isArray(definition.tags)) {
+                setTags(definition.tags.join(','));
+            } else {
+                setTags(definition.tags);
+            }
+        } else {
+            setTags('');
+        }
+        
+        // Initialize path-related state based on feature flag
         if (featureFlags?.assistantPathPublishing) {
-            // Initialize with existing path from the definition, if available
-            
             // Debug logging for path-related information
             console.log('DEBUG - Assistant path info:', {
                 astPath: definition.astPath,
@@ -763,17 +819,14 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 pathFromDefinition: definition.pathFromDefinition,
             });
             
-            // First check for path at the top level
+            // Determine which path value to use (in priority order)
             if (definition.astPath) {
                 setAstPath(definition.astPath);
-                
-                // If there's an existing path, set it as available and mark it as the current path
                 setIsPathAvailable(true);
                 setPathError(null);
                 setPathAvailability({ available: true, message: "Current path" });
                 setAstPathSaved(true); // Mark as already saved
             } 
-            // Then check if it's in the data object
             else if (definition.data?.astPath) {
                 console.log(`DEBUG - Using path from data object: ${definition.data.astPath}`);
                 setAstPath(definition.data.astPath);
@@ -782,7 +835,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 setPathAvailability({ available: true, message: "Current path" });
                 setAstPathSaved(true);
             }
-            // Finally check if pathFromDefinition exists
             else if (definition.pathFromDefinition) {
                 console.log(`DEBUG - Using pathFromDefinition ${definition.pathFromDefinition} since astPath is not available`);
                 setAstPath(definition.pathFromDefinition);
@@ -800,8 +852,32 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             setPathAvailability({ available: false, message: "" });
             setAstPathSaved(false);
         }
-    }, [featureFlags?.assistantPathPublishing, definition.astPath, definition.data?.astPath, definition.pathFromDefinition]);
 
+        // Handle options/flags
+        const newFlags = { 
+            ...dataSourceOptionDefaults, 
+            ...dataSourceOptions, 
+            ...messageOptionDefaults, 
+            ...messageOptions, 
+            ...featureOptionDefaults, 
+            ...featureOptions, 
+            ...apiOptionDefaults, 
+            ...apiOptions 
+        };
+        
+        if (definition.options) {
+            Object.entries(definition.options).forEach(([key, value]) => {
+                newFlags[key] = value;
+            });
+            
+            // Update all options states
+            setDataSourceOptions((prevOptions: { [key: string]: boolean }) => ({ ...prevOptions, ...newFlags }));
+            setMessageOptions((prevOptions: { [key: string]: boolean }) => ({ ...prevOptions, ...newFlags }));
+            setFeatureOptions((prevOptions: { [key: string]: boolean }) => ({ ...prevOptions, ...newFlags }));
+            setAPIOptions((prevOptions: { [key: string]: boolean }) => ({ ...prevOptions, ...newFlags }));
+        }
+        
+    }, [assistant, featureFlags?.assistantPathPublishing]);
 
     if (isLoading) return <></>;
     
