@@ -24,6 +24,7 @@ import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import { opLanguageOptionsMap } from '@/types/op';
 import { opsSearchToggleButtons } from '@/components/Admin/AdminComponents/Ops';
 import toast from 'react-hot-toast';
+import AssistantPathEditor from './AssistantPathEditor';
 
 interface Props {
     assistant: Prompt;
@@ -235,14 +236,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('tag'); 
     const [apiInfo, setApiInfo] = useState<API[]>(initialApiCapabilities || []);
 
+    // Path-related state
     const [astPath, setAstPath] = useState<string|null>(definition.astPath || null);
-    const [pathError, setPathError] = useState<string|null>(null);
-    const [isCheckingPath, setIsCheckingPath] = useState(false);
-    const [isPathAvailable, setIsPathAvailable] = useState(false);
-
     const [isSaving, setIsSaving] = useState(false);
     const [astPathSaved, setAstPathSaved] = useState(false);
-    const [pathAvailability, setPathAvailability] = useState({ available: false, message: "" });
+    const [isPathAvailable, setIsPathAvailable] = useState(false);
 
     useEffect(() => {
         const filterOps = async (data: any[]) => {
@@ -267,15 +265,130 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         additionalGroupDataRef.current = additionalGroupData;
     }, [additionalGroupData]);
 
+    // Initialize form with existing assistant data
+    useEffect(() => {
+        if (!assistant) return;
+        if (!isAssistant(assistant)) return;
+        const definition = getAssistant(assistant);
+        
+        // Log the full assistant definition to help debug path issues
+        console.log('Loading assistant for edit:', {
+            assistantId: definition.assistantId,
+            name: definition.name,
+            astPath: definition.astPath,
+            pathFromDefinition: definition.pathFromDefinition,
+            data: definition.data,
+            completeDefinition: definition
+        });
+        
+        // Initialize basic form fields
+        setName(definition.name);
+        setDescription(definition.description);
+        setContent(definition.instructions);
+        setDisclaimer(definition.disclaimer || "");
+        
+        // Format data sources properly to avoid type issues
+        if (definition.dataSources) {
+            const formattedDataSources = definition.dataSources.map(ds => ({
+                key: ds.key || ds.id || '',  // Ensure key is always a string
+                id: ds.id || '',
+                name: ds.name || '',
+                raw: ds.raw || null,
+                type: ds.type || '',
+                data: ds.data || null,
+                metadata: ds.metadata,
+                groupId: ds.groupId
+            }));
+            setDataSources(formattedDataSources);
+        } else {
+            setDataSources([]);
+        }
+        
+        // Handle tags array properly
+        if (definition.tags) {
+            // Convert to string if it's an array
+            if (Array.isArray(definition.tags)) {
+                setTags(definition.tags.join(','));
+            } else {
+                setTags(definition.tags);
+            }
+        } else {
+            setTags('');
+        }
+        
+        // Initialize path-related state based on feature flag
+        if (featureFlags?.assistantPathPublishing) {
+            // Debug logging for path-related information
+            console.log('DEBUG - Assistant path info:', {
+                astPath: definition.astPath,
+                dataAstPath: definition.data?.astPath,
+                pathFromDefinition: definition.pathFromDefinition,
+            });
+            
+            // Determine which path value to use (in priority order)
+            if (definition.astPath) {
+                setAstPath(definition.astPath);
+                setIsPathAvailable(true);
+                setAstPathSaved(true); // Mark as already saved
+            } 
+            else if (definition.data?.astPath) {
+                console.log(`DEBUG - Using path from data object: ${definition.data.astPath}`);
+                setAstPath(definition.data.astPath);
+                setIsPathAvailable(true);
+                setAstPathSaved(true);
+            }
+            else if (definition.pathFromDefinition) {
+                console.log(`DEBUG - Using pathFromDefinition ${definition.pathFromDefinition} since astPath is not available`);
+                setAstPath(definition.pathFromDefinition);
+                setIsPathAvailable(true);
+                setAstPathSaved(true);
+            }
+        } else {
+            // If feature flag is disabled, ensure path-related state is reset
+            setAstPath(null);
+            setIsPathAvailable(false);
+            setAstPathSaved(false);
+        }
+
+        // Handle options/flags
+        const newFlags = { 
+            ...dataSourceOptionDefaults, 
+            ...dataSourceOptions, 
+            ...messageOptionDefaults, 
+            ...messageOptions, 
+            ...featureOptionDefaults, 
+            ...featureOptions, 
+            ...apiOptionDefaults, 
+            ...apiOptions 
+        };
+        
+        if (definition.options) {
+            Object.entries(definition.options).forEach(([key, value]) => {
+                newFlags[key] = value;
+            });
+            
+            // Update all options states
+            setDataSourceOptions((prevOptions: { [key: string]: boolean }) => ({ ...prevOptions, ...newFlags }));
+            setMessageOptions((prevOptions: { [key: string]: boolean }) => ({ ...prevOptions, ...newFlags }));
+            setFeatureOptions((prevOptions: { [key: string]: boolean }) => ({ ...prevOptions, ...newFlags }));
+            setAPIOptions((prevOptions: { [key: string]: boolean }) => ({ ...prevOptions, ...newFlags }));
+        }
+        
+    }, [assistant, featureFlags?.assistantPathPublishing]);
+
     const validateApiInfo = (api: any) => {
         return api.RequestType && api.URL && api.Description;
+    };
+
+    // Handle path validation callback from the AssistantPathEditor
+    const handlePathValidated = (isValid: boolean, path: string | null, error: string | null) => {
+        setIsPathAvailable(isValid);
     };
 
     let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
     const [tags, setTags] = useState((assistant.data && assistant.data.tags) ? assistant.data.tags.join(",") : "");
     const [conversationTags, setConversationTags] = useState(cTags);
 
-   
     const getTemplates = () => {
         let templates = prompts.filter((p:Prompt) => isAssistant(p) && (!p.groupId));
         if (additionalTemplates) templates = [...templates, ...additionalTemplates];
@@ -379,148 +492,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     }
    
 
-    const validatePath = async (path: string): Promise<boolean> => {
-        // If the feature flag is disabled, don't validate paths
-        if (!featureFlags?.assistantPathPublishing) {
-            return false;
-        }
-        
-        // If path is empty, it's not valid
-        if (!path || path.trim() === '') {
-            setPathError('Path cannot be empty');
-            return false;
-        }
-
-        // Check if the path contains any invalid characters
-        const invalidCharsRegex = /[^a-zA-Z0-9-_/]/;
-        if (invalidCharsRegex.test(path)) {
-            setPathError('Path can only contain letters, numbers, hyphens, underscores, and forward slashes');
-            return false;
-        }
-        
-        // Check path length
-        if (path.length < 3) {
-            setPathError('Path must be at least 3 characters long');
-            return false;
-        }
-        
-        if (path.length > 100) {
-            setPathError('Path is too long (maximum 100 characters)');
-            return false;
-        }
-        
-        // Check for leading/trailing slashes
-        if (path.startsWith('/') || path.endsWith('/')) {
-            setPathError('Path cannot start or end with a slash');
-            return false;
-        }
-        
-        // Check for consecutive slashes
-        if (path.includes('//')) {
-            setPathError('Path cannot contain consecutive slashes');
-            return false;
-        }
-        
-        // Check for common inappropriate terms
-        const inappropriateTerms = [
-            'profanity', 'offensive', 'obscene', 'adult', 'xxx', 'porn', 
-            'explicit', 'sex', 'nsfw', 'violence', 'hate', 'racist', 
-            'discriminatory', 'illegal', 'hack', 'crack', 'warez',
-            'bypass', 'pirate', 'torrent', 'steal', 'nude', 'naked'
-        ];
-        
-        const lowerPath = path.toLowerCase();
-        for (const term of inappropriateTerms) {
-            if (lowerPath.includes(term)) {
-                setPathError(`Path contains inappropriate term: ${term}`);
-                return false;
-            }
-        }
-        
-        // Check for paths pretending to be system paths
-        const systemPaths = ['admin', 'system', 'login', 'signin', 'signup', 'register', 
-                           'auth', 'authenticate', 'reset', 'password', 'billing', 'payment'];
-        
-        const pathParts = lowerPath.split('/');
-        for (const part of pathParts) {
-            if (systemPaths.includes(part)) {
-                setPathError(`Path contains restricted system term: ${part}`);
-                return false;
-            }
-        }
-
-        try {
-            setIsCheckingPath(true);
-            setPathError(null);
-            
-            // Look up the path
-            const result = await lookupAssistant(path);
-            
-            // If lookup was successful, the path is already taken
-            if (result.success) {
-                // Get the current assistant's ID (from definition)
-                const currentAssistantId = definition.assistantId;
-                
-                // If the path is used by the same assistant we're editing, it's valid
-                if (currentAssistantId && result.assistantId === currentAssistantId) {
-                    console.log(`Path "${path}" is already assigned to this assistant`);
-                    setPathError(null);
-                    setIsPathAvailable(true);
-                    setPathAvailability({ available: true, message: "Current path" });
-                    return true;
-                }
-                
-                // Otherwise, the path is used by a different assistant
-                setPathError('This path is already in use by another assistant');
-                setIsPathAvailable(false);
-                setPathAvailability({ available: false, message: "Path already in use" });
-                return false;
-            }
-            
-            // If lookup failed with a "not found" message, the path is available
-            setIsPathAvailable(true);
-            setPathAvailability({ available: true, message: "Path available" });
-            return true;
-        } catch (error) {
-            console.error('Error validating path:', error);
-            setPathError('Error checking path availability - please try again');
-            setIsPathAvailable(false);
-            setPathAvailability({ available: false, message: "Error" });
-            return false;
-        } finally {
-            setIsCheckingPath(false);
-        }
-    };
-
-    const handlePathBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
-        // Skip validation if the feature flag is disabled
-        if (!featureFlags?.assistantPathPublishing) {
-            return;
-        }
-        
-        const path = e.target.value.trim();
-        if (path) {
-            // If the path is the same as the current assistant's path, just set it as valid
-            // without making unnecessary API calls
-            if (definition.astPath && path.toLowerCase() === definition.astPath.toLowerCase()) {
-                console.log(`Using existing path: ${path}`);
-                setIsPathAvailable(true);
-                setPathError(null);
-                setPathAvailability({ available: true, message: "Current path" });
-                return;
-            }
-            
-            // Validate the path - this function will now set pathAvailability directly
-            await validatePath(path);
-            
-            // No need to update pathAvailability here since validatePath now handles it
-        } else {
-            setIsPathAvailable(false);
-            setPathError(null);
-            setPathAvailability({ available: false, message: "" });
-        }
-    };
-
     const handleUpdateAssistant = async () => {
         if(!name){
             alert("Must provide a name.");
@@ -532,10 +503,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         const isUploadingGroupDS = additionalGroupData && additionalGroupData.groupTypeData ? Object.entries(additionalGroupData.groupTypeData as AstGroupTypeData).some(([type, info]) => !allDocumentsUploaded(info.documentState)) : false;
         if (isUploading || isUploadingGroupDS) {
             alert(t('Please wait for all data sources to finish uploading.'));
-            return;
-        }
-        if (isCheckingPath) {
-            alert("Please wait for assistant path to be cleared for use.");
             return;
         }
 
@@ -551,14 +518,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             newAssistant.instructions = content;
             newAssistant.disclaimer = disclaimer;
 
-            // Validate path if specified and feature flag is enabled
+            // Handle path if feature flag is enabled
             if (astPath && featureFlags?.assistantPathPublishing) {
-                const isPathAvailable = await validatePath(astPath);
-                if (!isPathAvailable) {
-                    setIsLoading(false);
-                    return; // Don't proceed with save if path validation fails
-                }
-                
                 // Set the lowercase version of the path
                 const formattedPath = astPath.toLowerCase();
                 
@@ -717,8 +678,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
                     if (pathResult.success) {
                         setAstPathSaved(true);
-                        setPathAvailability({ available: true, message: "" });
-                        setPathError(null);
                         
                         // Update the newAssistant definition with the path
                         newAssistant.astPath = formattedPath;
@@ -738,7 +697,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                         toast(`Assistant successfully published at: ${formattedPath}`);
                     } else {
                         setAstPathSaved(false);
-                        setPathError(pathResult.message || 'Failed to save assistant path');
                         console.error('Failed to save path:', pathResult);
                         alert(`Error saving path: ${pathResult.message || 'Failed to save assistant path. Please try again.'}`);
                     }
@@ -746,7 +704,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                     const errorMessage = error instanceof Error ? error.message : String(error);
                     console.error('Exception when saving path:', errorMessage);
                     setAstPathSaved(false);
-                    setPathError(errorMessage);
                     alert(`An error occurred while saving the path: ${errorMessage}`);
                 } finally {
                     setIsSaving(false);
@@ -758,126 +715,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             setLoadingMessage("");
         }
     }
-
-    // Initialize form with existing assistant data
-    useEffect(() => {
-        if (!assistant) return;
-        if (!isAssistant(assistant)) return;
-        const definition = getAssistant(assistant);
-        
-        // Log the full assistant definition to help debug path issues
-        console.log('Loading assistant for edit:', {
-            assistantId: definition.assistantId,
-            name: definition.name,
-            astPath: definition.astPath,
-            pathFromDefinition: definition.pathFromDefinition,
-            data: definition.data,
-            completeDefinition: definition
-        });
-        
-        // Initialize basic form fields
-        setName(definition.name);
-        setDescription(definition.description);
-        setContent(definition.instructions);
-        setDisclaimer(definition.disclaimer || "");
-        
-        // Format data sources properly to avoid type issues
-        if (definition.dataSources) {
-            const formattedDataSources = definition.dataSources.map(ds => ({
-                key: ds.key || ds.id || '',  // Ensure key is always a string
-                id: ds.id || '',
-                name: ds.name || '',
-                raw: ds.raw || null,
-                type: ds.type || '',
-                data: ds.data || null,
-                metadata: ds.metadata,
-                groupId: ds.groupId
-            }));
-            setDataSources(formattedDataSources);
-        } else {
-            setDataSources([]);
-        }
-        
-        // Handle tags array properly
-        if (definition.tags) {
-            // Convert to string if it's an array
-            if (Array.isArray(definition.tags)) {
-                setTags(definition.tags.join(','));
-            } else {
-                setTags(definition.tags);
-            }
-        } else {
-            setTags('');
-        }
-        
-        // Initialize path-related state based on feature flag
-        if (featureFlags?.assistantPathPublishing) {
-            // Debug logging for path-related information
-            console.log('DEBUG - Assistant path info:', {
-                astPath: definition.astPath,
-                dataAstPath: definition.data?.astPath,
-                pathFromDefinition: definition.pathFromDefinition,
-            });
-            
-            // Determine which path value to use (in priority order)
-            if (definition.astPath) {
-                setAstPath(definition.astPath);
-                setIsPathAvailable(true);
-                setPathError(null);
-                setPathAvailability({ available: true, message: "Current path" });
-                setAstPathSaved(true); // Mark as already saved
-            } 
-            else if (definition.data?.astPath) {
-                console.log(`DEBUG - Using path from data object: ${definition.data.astPath}`);
-                setAstPath(definition.data.astPath);
-                setIsPathAvailable(true);
-                setPathError(null);
-                setPathAvailability({ available: true, message: "Current path" });
-                setAstPathSaved(true);
-            }
-            else if (definition.pathFromDefinition) {
-                console.log(`DEBUG - Using pathFromDefinition ${definition.pathFromDefinition} since astPath is not available`);
-                setAstPath(definition.pathFromDefinition);
-                setIsPathAvailable(true);
-                setPathError(null);
-                setPathAvailability({ available: true, message: "Current path" });
-                setAstPathSaved(true);
-            }
-        } else {
-            // If feature flag is disabled, ensure path-related state is reset
-            setAstPath(null);
-            setIsPathAvailable(false);
-            setPathError(null);
-            setIsCheckingPath(false);
-            setPathAvailability({ available: false, message: "" });
-            setAstPathSaved(false);
-        }
-
-        // Handle options/flags
-        const newFlags = { 
-            ...dataSourceOptionDefaults, 
-            ...dataSourceOptions, 
-            ...messageOptionDefaults, 
-            ...messageOptions, 
-            ...featureOptionDefaults, 
-            ...featureOptions, 
-            ...apiOptionDefaults, 
-            ...apiOptions 
-        };
-        
-        if (definition.options) {
-            Object.entries(definition.options).forEach(([key, value]) => {
-                newFlags[key] = value;
-            });
-            
-            // Update all options states
-            setDataSourceOptions((prevOptions: { [key: string]: boolean }) => ({ ...prevOptions, ...newFlags }));
-            setMessageOptions((prevOptions: { [key: string]: boolean }) => ({ ...prevOptions, ...newFlags }));
-            setFeatureOptions((prevOptions: { [key: string]: boolean }) => ({ ...prevOptions, ...newFlags }));
-            setAPIOptions((prevOptions: { [key: string]: boolean }) => ({ ...prevOptions, ...newFlags }));
-        }
-        
-    }, [assistant, featureFlags?.assistantPathPublishing]);
 
     if (isLoading) return <></>;
     
@@ -1088,78 +925,14 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     <div className="text-black dark:text-neutral-200">
                                         <div className="mt-4">
                                             {featureFlags?.assistantPathPublishing && (
-                                                <>
-                                                    <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
-                                                        Publish Assistant Path
-                                                    </div>
-                                                    {astPath && (
-                                                        <p className="text-xs text-black dark:text-neutral-200 mt-2 mb-1">
-                                                            Assistants will be accessible at {window.location.origin}/assistants/{astPath.toLowerCase()}
-                                                        </p>
-                                                    )}
-                                                    <div className="relative">
-                                                        <input
-                                                            className={`mt-2 w-full rounded-lg border ${pathError ? 'border-red-500' : isPathAvailable ? 'border-green-500' : 'border-neutral-500'} px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100`}
-                                                            placeholder="Enter a name for the path where you want to publish your assistant"
-                                                            value={astPath || ''}
-                                                            onChange={(e) => {
-                                                                setAstPath(e.target.value);
-                                                                setPathError(null);
-                                                                setIsPathAvailable(false);
-                                                            }}
-                                                            onBlur={handlePathBlur}
-                                                            disabled={disableEdit}
-                                                        />
-                                                        {astPath && (
-                                                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                                                {isCheckingPath && (
-                                                                    <IconLoader2 className="animate-spin h-5 w-5 text-gray-400" />
-                                                                )}
-                                                                {!isCheckingPath && (
-                                                                    <>
-                                                                        {pathError ? (
-                                                                            <div className="flex items-center text-red-500">
-                                                                                <IconAlertTriangle className="h-5 w-5 mr-1" />
-                                                                                <span className="text-xs">Error</span>
-                                                                            </div>
-                                                                        ) : isPathAvailable ? (
-                                                                            <div className="flex items-center text-green-500">
-                                                                                <IconCheck className="h-5 w-5 mr-1" />
-                                                                                <span className="text-xs">{pathAvailability.message || "Available"}</span>
-                                                                            </div>
-                                                                        ) : null}
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {pathError && (
-                                                        <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md">
-                                                            <p className="text-xs text-red-600 dark:text-red-400 flex items-start">
-                                                                <IconAlertTriangle className="h-4 w-4 mr-1 flex-shrink-0 mt-0.5" />
-                                                                <span className='mt-1'>{pathError}</span>
-                                                            </p>
-                                                            <ul className="text-xs text-red-600 dark:text-red-400 mt-1 ml-5 list-disc">
-                                                                {pathError.includes('invalid characters') && (
-                                                                    <li>Use only letters, numbers, hyphens, underscores, and forward slashes</li>
-                                                                )}
-                                                                {pathError.includes('restricted system term') && (
-                                                                    <li>Choose a different name that doesn't include system-reserved terms</li>
-                                                                )}
-                                                                {pathError.includes('inappropriate term') && (
-                                                                    <li>Choose a business-appropriate path name</li>
-                                                                )}
-                                                                {pathError.includes('already in use') && (
-                                                                    <li>This path is already assigned to a different assistant</li>
-                                                                )}
-                                                            </ul>
-                                                        </div>
-                                                    )}
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                                        <span className="font-medium">Path requirements:</span> 3-100 characters, letters, numbers, hyphens, underscores, and forward slashes.
-                                                        <br />No leading/trailing slashes or consecutive slashes. No reserved or inappropriate terms.
-                                                    </p>
-                                                </>
+                                                <AssistantPathEditor
+                                                    astPath={astPath}
+                                                    setAstPath={setAstPath}
+                                                    assistantId={definition.assistantId}
+                                                    featureEnabled={!!featureFlags?.assistantPathPublishing}
+                                                    onPathValidated={handlePathValidated}
+                                                    disableEdit={disableEdit}
+                                                />
                                             )}
                                             
                                             <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
