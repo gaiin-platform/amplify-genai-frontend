@@ -121,7 +121,7 @@ const ChatSourceBlock: React.FC<Props> = (
 
     
 
-    return  <div>
+    return  <div key={index}>
         <div
             className="rounded-xl text-neutral-600 border-2 dark:border-none dark:text-white bg-neutral-100 dark:bg-[#343541] rounded-md shadow-lg mb-2 mr-2"
         >

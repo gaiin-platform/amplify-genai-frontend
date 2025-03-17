@@ -57,7 +57,7 @@ export const updateGroupAssistants = async (data: any) => {
     const op = {
         method: 'POST',
         path: UPDATE_URL_PATH,
-        op: "/asistants",
+        op: "/assistants",
         data: data,
         service: SERVICE_NAME
     };

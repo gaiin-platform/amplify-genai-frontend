@@ -192,7 +192,7 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
               parent.insertBefore(pulseSpan, earliestSpan.wrapper);
             }
           }
-          highlightSpansRef.current.forEach((span) => span.wrapper.remove());
+          highlightSpansRef.current.forEach((span:any) => span.wrapper.remove());
 
 
         } else if (selectedRef.current === HighlightPromptTypes.COMPOSITE) {
@@ -220,7 +220,7 @@ export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
         if (container && activeButton) {
           // Find the button data
           const buttonData = compositeButtonsRef.current.find(
-            (item) => item.button === activeButton
+            (item: any) => item.button === activeButton
           );
 
           if (buttonData) {

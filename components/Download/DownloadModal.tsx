@@ -235,7 +235,8 @@ export const DownloadModal: FC<DownloadModalProps> = (
     return (
         <Modal 
             width={() => window.innerWidth * (preDownload() ?  0.5 : 0.3)}
-            height={() => preDownload() && includeConversations ? window.innerHeight *  0.78 : 280}
+            height={() => preDownload() && includeConversations ? window.innerHeight *  0.6 : 280}
+            transform={includeConversations ? "translateY(200px) !important" : ""}
             title={preDownload() ? "Download": ""}
             onCancel={onClose} 
             // showCancel={!isDownloading}
@@ -429,6 +430,5 @@ export const DownloadModal: FC<DownloadModalProps> = (
                     
                     } 
         />
- 
     );
 };

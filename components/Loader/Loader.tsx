@@ -17,7 +17,7 @@ export default function Loader({ color, size = '160', type = 'quantum' }: Loader
     }
 
     const isDarkMode = lightMode === 'dark';
-    const lightAdjustedColor = color ? color : isDarkMode ? '#FEEEB6' : '#CCB88D';
+    const lightAdjustedColor = color ? color : isDarkMode ? '#FEEEB6' : '#fde58f';
 
     useEffect(() => {
         async function getLoader() {
