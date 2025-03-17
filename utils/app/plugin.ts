@@ -12,6 +12,9 @@ const getPluginDefaults = (settings: Settings) => {
           case (PluginID.SMART_MESSAGES):
             defaultVal = settings.featureOptions.includeFocusedMessages;
             break;
+          case (PluginID.MEMORY):
+            defaultVal = settings.featureOptions.includeMemory;
+            break;
           default:
             defaultVal = false;
         }
