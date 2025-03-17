@@ -25,7 +25,7 @@ interface Props {
 }
 
 
-const handleFile = async (file:any,
+export const handleFile = async (file:any,
                           onAttach:any,
                           onUploadProgress:any,
                           onSetKey:any,

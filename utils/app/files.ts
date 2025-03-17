@@ -51,9 +51,20 @@ async function downloadImageFromPresignedUrl(presignedUrl: string, filename: str
       console.error('Failed to download image:', error);
     }
   }
-  
 
-  export async function fetchFile(presignedUrl: string) {
+export function downloadFileFromPresignedUrl(presignedUrl: string | null, fileName: string) {
+    if (!presignedUrl) return false;
+    
+    const link = document.createElement('a');
+    link.href = presignedUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return true;
+}
+
+export async function fetchFile(presignedUrl: string) {
     if (!presignedUrl) return null;
     try {
       const response = await fetch(presignedUrl);

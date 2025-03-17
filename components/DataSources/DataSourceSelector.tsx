@@ -8,28 +8,31 @@ import {UserTagsList} from "@/components/UserTags/UserTagsList";
 import { getConnectedIntegrations } from '@/services/oauthIntegrationsService';
 import HomeContext from '@/pages/api/home/home.context';
 import { capitalize } from '@/utils/app/data';
-// import DataSourcesTableScrollingIntegrations from './DataSourcesTableScrollingIntegrations';
+import DataSourcesTableScrollingIntegrations from './DataSourcesTableScrollingIntegrations';
 
 interface Props {
     onDataSourceSelected: (dataSource: DataSource) => void;
     minWidth?: string;
     height?: string;
     onClose?: () => void;
+    disallowedFileExtensions?: string[];
+    onIntegrationDataSourceSelected?: (file: File) => void;
 }
 
 export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                                                   minWidth = "620px",
                                                   height,
-                                                  onClose
+                                                  onClose,
+                                                  disallowedFileExtensions,
+                                                  onIntegrationDataSourceSelected
                                               }) => {
     const {t} = useTranslation('chat');
-
     const { state: { featureFlags } } = useContext(HomeContext);
 
     const selectRef = useRef<HTMLSelectElement>(null);
 
     const [selectedPage, setSelectedPage] = useState<string>("files");
-    const [loading, setLoading] = useState<boolean>(false);//(true);
+    const [loading, setLoading] = useState<boolean>(true);
     const [userIntegrations, setUserIntegrations] = useState<string[] | null>(null);
 
     useEffect(() => {
@@ -46,7 +49,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
          }
     
          
-        // if (loading) setupIntegrationFiles();
+        if (loading) setupIntegrationFiles();
         
     }, [loading]);
 
@@ -248,12 +251,12 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                  userIntegrations.map((key) =>
                     selectedPage === key ? 
                     <div key={key}>
-                     {/* <DataSourcesTableScrollingIntegrations
-                        id={key}
+                     <DataSourcesTableScrollingIntegrations
+                        onDataSourceSelected={onIntegrationDataSourceSelected}
+                        disallowedFileExtensions={disallowedFileExtensions}
+                        driveId={key}
                         height={height}
-                        visibleColumns={["name", "commonType", "size"]}
-                        // onDataSourceSelected={onDataSourceSelected}
-                        onDataSourceSelected={()  => {}}
+                        visibleColumns={["name", "mimeType", "size"]}
                         tableParams={{
                             enableGlobalFilter: false,
                             //enableColumnActions:false,
@@ -264,7 +267,8 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                             enableEditing: false,
                             enableHiding: false,
                         }}
-                    />  */}
+                        enableDownload={onClose ? false : true}
+                    /> 
                     </div> : null )
                 }
             

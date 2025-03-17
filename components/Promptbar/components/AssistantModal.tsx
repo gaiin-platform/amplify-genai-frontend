@@ -6,7 +6,7 @@ import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {ExistingFileList, FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
-import {AttachFile} from "@/components/Chat/AttachFile";
+import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
 import {IconFiles, IconCircleX, IconArrowRight, IconTags, IconMessage} from "@tabler/icons-react";
 import {createAssistant} from "@/services/assistantService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -496,6 +496,37 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         onSave();
     }
 
+        // handle file upload functions //
+        const onAttach = (doc: AttachedDocument) => {
+            setDataSources((prev) => {
+                prev.push(doc as any);
+                return prev;
+            });
+        }
+        const onSetMetadata = (doc: AttachedDocument, metadata: any) => {
+            setDataSources((prev)=>{
+                return prev.map(x => x.id === doc.id ? {
+                    ...x,
+                    metadata
+                } : x)
+            });
+        }
+        const onSetKey = (doc: AttachedDocument, key: string) => {
+            setDataSources((prev)=>{
+                return prev.map(x => x.id === doc.id ? {
+                    ...x,
+                    key
+                } : x)
+            });
+        }
+    
+        const onUploadProgress = (doc: AttachedDocument, progress: number) => {
+            setDocumentState((prev)=>{
+                 prev[doc.id] = progress;
+                 return prev;
+            });
+        }
+
     if (isLoading) return <></>;
     
 
@@ -627,36 +658,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 <AttachFile id={"__attachFile_assistant_" + loc}
                                             groupId={assistant.groupId}
                                             disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
-                                            onAttach={(doc) => {
-                                                setDataSources((prev) => {
-                                                    prev.push(doc as any);
-                                                    return prev;
-                                                });
-                                            }}
-                                            onSetMetadata={(doc, metadata) => {
-                                                setDataSources((prev)=>{
-                                                    return prev.map(x => x.id === doc.id ? {
-                                                        ...x,
-                                                        metadata
-                                                    } : x)
-                                                });
-                                            }}
-                                            onSetKey={(doc, key) => {
-                                                setDataSources((prev)=>{
-                                                    return prev.map(x => x.id === doc.id ? {
-                                                        ...x,
-                                                        key
-                                                    } : x)
-                                                });
-                                            }}
-                                            onSetAbortController={() => {
-                                            }}
-                                            onUploadProgress={(doc, progress) => {
-                                                setDocumentState((prev)=>{
-                                                     prev[doc.id] = progress;
-                                                     return prev;
-                                                });
-                                            }}
+                                            onAttach={onAttach}
+                                            onSetMetadata={onSetMetadata}
+                                            onSetKey={onSetKey}
+                                            onSetAbortController={() => {}}
+                                            onUploadProgress={onUploadProgress}
                                 />
                             </div>}
                             <FileList documents={dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)))} documentStates={documentState}
@@ -665,9 +671,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 setDataSources([...docs, ...preexisting ]as any[]);
                             }} allowRemoval={!disableEdit}/>
                             {showDataSourceSelector && (
-                                <div className="mt-[-16px] flex justify-center overflow-hidden">
+                                <div className="mt-[-8px] flex justify-center overflow-hidden">
                                     <div className="rounded bg-white dark:bg-[#343541] mb-4">
-                                        <DataSourceSelector
+                                    <DataSourceSelector
+                                            disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                             minWidth="500px"
                                             // height='310px'
                                             onDataSourceSelected={(d) => {
@@ -683,6 +690,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 setDocumentState({...documentState, [d.id]: 100});
                                             }}
                                             onClose={() =>  setShowDataSourceSelector(false)}
+                                            onIntegrationDataSourceSelected={featureFlags.integrations ? 
+                                                (file: File) => { handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, 
+                                                                  () => {}, featureFlags.uploadDocuments, assistant.groupId)} 
+                                                : undefined
+                                            }
                                         />
                                     </div>
                                 </div>

@@ -12,7 +12,7 @@ import { createAstAdminGroup, deleteAstAdminGroup, updateGroupAmplifyGroups, upd
 import Search from '../Search';
 import { TagsList } from '../Chat/TagsList';
 import ExpansionComponent from '../Chat/ExpansionComponent';
-import { AttachFile } from '../Chat/AttachFile';
+import { AttachFile, handleFile } from '../Chat/AttachFile';
 import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
 import { DataSourceSelector } from '../DataSources/DataSourceSelector';
@@ -1866,7 +1866,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         ):
         // User has groups 
         (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-20">
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-20" key={"ast_admin_ui"}>
             <div className="fixed inset-0 z-10 overflow-hidden">
                 <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                     <div className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true" />
@@ -1904,7 +1904,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                 astprompt.folderId = selectedGroup.id;
                                                 astprompt.data = {...astprompt?.data, noEdit: false}; 
                                                 setSelectedAssistant(astprompt);
-                                                const updatedGroup =  {...selectedGroup, assistants: [...selectedGroup.assistants, astprompt]};
+                                                const updatedGroup =  {...selectedGroup, assistants: [...selectedGroup.assistants ?? [], astprompt]};
                                                 const updatedGroups = adminGroups.map((g:Group) => {
                                                                                         if (astprompt?.groupId === g.id) return updatedGroup;
                                                                                         return g;
@@ -2697,6 +2697,7 @@ interface TypeAstProps {
 }
 
 export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assistantGroupData, additionalGroupData, setAdditionalGroupData, groupUserTypeQuestion, groupTypes}) => {
+    const { state: { featureFlags } } = useContext(HomeContext);
     const preexistingDSids: {[key:string]:string[]} = {};
 
     const initialDs = (dataSources: any) => {
@@ -2795,6 +2796,27 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
         }));
     };
 
+    const createDataSourceHandlers = (type: string) => {
+        return {
+            onAttach: (doc: AttachedDocument) => {
+                updateGroupType(type, 'dataSources', [...groupTypeDataRef.current[type].dataSources, doc]);
+            },
+            onSetMetadata: (doc: AttachedDocument, metadata: any) => {
+                updateGroupType(type, 'dataSources', groupTypeDataRef.current[type].dataSources.map(x =>
+                    x.id === doc.id ? { ...x, metadata } : x
+                ));
+            },
+            onSetKey: (doc: AttachedDocument, key: string) => {
+                updateGroupType(type, 'dataSources', groupTypeDataRef.current[type].dataSources.map(x =>
+                    x.id === doc.id ? { ...x, key } : x
+                ));
+            },
+            onUploadProgress: (doc: AttachedDocument, progress: number) => {
+                updateDocumentState(type, doc.id, progress);
+            }
+        };
+    };
+
     //on save we will only save the grouptype data that is in the selected types
     if (groupTypes.length === 0) return <></>
 
@@ -2843,8 +2865,9 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
                 content={
                 Object.entries(groupTypeData)
                         .filter(([type]) => selectedTypes.includes(type))
-                        .map(([type, data]) => (
-                            <ExpansionComponent 
+                        .map(([type, data]) => {
+                            const handlers = createDataSourceHandlers(type);
+                            return <ExpansionComponent 
                             key={type}
                             isOpened={true}
                             title={type}
@@ -2913,24 +2936,10 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
                                         <AttachFile id={`__attachFile_admin_${type}_${groupId}_${astPromptId}`}
                                                     groupId={groupId}
                                                     disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
-                                                    onAttach={(doc) => { 
-                                                        console.log("onAttach")
-
-                                                        updateGroupType(type, 'dataSources', [...groupTypeDataRef.current[type].dataSources, doc]);
-                                                    }}
-                                                    onSetMetadata={(doc, metadata) => {
-                                                        updateGroupType(type, 'dataSources', groupTypeDataRef.current[type].dataSources.map(x =>
-                                                            x.id === doc.id ? { ...x, metadata } : x
-                                                        ));
-                                                    }}
-                                                    onSetKey={(doc, key) => {
-                                                        updateGroupType(type, 'dataSources', groupTypeDataRef.current[type].dataSources.map(x =>
-                                                            x.id === doc.id ? { ...x, key } : x
-                                                        ));
-                                                    }}
-                                                    onUploadProgress={(doc, progress) => {
-                                                        updateDocumentState(type, doc.id, progress);
-                                                    }}
+                                                    onAttach={handlers.onAttach}
+                                                    onSetMetadata={handlers.onSetMetadata}
+                                                    onSetKey={handlers.onSetKey}
+                                                    onUploadProgress={handlers.onUploadProgress}
                                         />
                                     </div>
 
@@ -2941,9 +2950,10 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
                                     />
                                     
                                     {showDataSourceSelector === type && (
-                                        <div className="mt-[-30px] justify-center overflow-x-hidden">
+                                        <div className="mt-[-10px] justify-center overflow-x-hidden">
                                             <div className="rounded bg-white dark:bg-[#343541]">
                                                 <DataSourceSelector
+                                                    disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                                     onClose={() => setShowDataSourceSelector('')}
                                                     minWidth="500px"
                                                     onDataSourceSelected={(d) => {
@@ -2958,6 +2968,11 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
                                                         updateGroupType(type, 'dataSources', [...groupTypeData[type].dataSources, doc]);
                                                         updateDocumentState(type, doc.id, 100);
                                                     }}
+                                                    onIntegrationDataSourceSelected={featureFlags.integrations ? 
+                                                        (file: File) => { handleFile(file, handlers.onAttach, handlers.onUploadProgress, handlers.onSetKey, 
+                                                                          handlers.onSetMetadata, () => {}, featureFlags.uploadDocuments, groupId)} 
+                                                        : undefined
+                                                    }
                                                 />
                                             </div>
                                         </div>
@@ -2974,7 +2989,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
 
                                 </div>
                             } />
-                    ))
+                })
                 }
             />
             </div>
