@@ -124,6 +124,18 @@ pre:has(div.codeblock) {
   color: white;
 }
 
+.amplify-assistant-message {
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0.75rem 1rem;
+}
+
+.assistantContentBlock pre, 
+.assistantContentBlock table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .dark .amplify-assistant-message {
   background-color: #444654;
   color: #f3f4f6;
@@ -132,4 +144,41 @@ pre:has(div.codeblock) {
 .light .amplify-assistant-message {
   background-color: #f3f4f6;
   color: #1f2937;
+}
+
+/* Special handling for tables and code blocks in assistant messages */
+.amplify-assistant-message table,
+.amplify-assistant-message pre,
+.amplify-assistant-message .overflow-x-auto {
+  max-width: 100%;
+  width: fit-content;
+  min-width: 100%;
+}
+
+/* Specific styling for code blocks in assistant messages */
+.assistantContentBlock pre {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.assistantContentBlock .codeblock {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Full-width assistant message styles */
+.amplify-assistant-message.w-full {
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 1rem 1.25rem;
+}
+
+/* Animation for hover elements */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-in-out;
 }

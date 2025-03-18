@@ -1522,12 +1522,12 @@ const Home = ({
     } else if (isLoading) {
         return (
             <main
-                className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
+                className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`}
             >
                 <div
-                    className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                    className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
                     <Loader />
-                    <h1 className="mb-4 text-2xl font-bold">
+                    <h1 className="mt-6 mb-4 text-2xl font-bold">
                         Loading...
                     </h1>
 
@@ -1537,18 +1537,20 @@ const Home = ({
     } else {
         return (
             <main
-                className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
+                className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`}
             >
                 <div
-                    className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                    className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
                     <h1 className="mb-4 text-2xl font-bold">
                         <LoadingIcon />
                     </h1>
                     <button
                         onClick={() => signIn('cognito')}
                         id="loginButton"
+                        className="shadow-md"
                         style={{
                             backgroundColor: 'white',
+                            border: '2px solid #ccc',
                             color: 'black',
                             fontWeight: 'bold',
                             padding: '10px 20px',

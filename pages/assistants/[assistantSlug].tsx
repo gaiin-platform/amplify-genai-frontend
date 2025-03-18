@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getSession, useSession } from 'next-auth/react';
 import { useTranslation } from 'next-i18next';
-import { IconMessage, IconSend, IconInfoCircle, IconCamera, IconCameraOff, IconCurrencyDollar, IconBaselineDensitySmall, IconBaselineDensityMedium, IconBaselineDensityLarge } from '@tabler/icons-react';
+import { IconMessage, IconSend, IconInfoCircle, IconCamera, IconCameraOff, IconCurrencyDollar, IconBaselineDensitySmall, IconBaselineDensityMedium, IconBaselineDensityLarge, IconChevronUp, IconChevronDown } from '@tabler/icons-react';
 import { getAvailableModels } from '@/services/adminService';
 import { sendDirectAssistantMessage, lookupAssistant } from '@/services/assistantService';
 import { getSettings } from '@/utils/app/settings';
@@ -17,11 +17,8 @@ import SimpleSidebar from '@/components/Layout/SimpleSidebar';
 import { ModelSelect } from '@/components/Chat/ModelSelect';
 import { AssistantDefinition } from '@/types/assistant';
 import { GroupTypeSelector } from '@/components/Chat/GroupTypeSelector';
-import AssistantContentBlock from '@/components/Assistant/AssistantContentBlock';
-import AssistantArtifactsBlock from '@/components/Assistant/AssistantArtifactsBlock';
-import AssistantAutoArtifactBlock from '@/components/Assistant/AssistantAutoArtifactBlock';
-import AssistantArtifactViewerProvider from '@/components/Assistant/AssistantArtifactViewerProvider';
-import { Artifact, ArtifactBlockDetail, ArtifactMessageStatus } from '@/types/artifacts';
+import AssistantContentBlock from '@/components/StandAloneAssistant/AssistantContentBlock';
+import { isMemberOfAstAdminGroup } from '@/services/groupsService';
 
 // Extend the Model type to include isDefault property
 interface Model extends BaseModel {
@@ -61,11 +58,11 @@ const AssistantPage = ({
   const [selectedModel, setSelectedModel] = useState<any>(null);
   const [requiredGroupType, setRequiredGroupType] = useState<boolean>(false);
   const [groupType, setGroupType] = useState<string | undefined>(undefined);
+  const messageEndRef = useRef<HTMLDivElement>(null);
+  const [showSettings, setShowSettings] = useState(true);
+  const [isHoveringSettings, setIsHoveringSettings] = useState(false);
   
-  // Add state for artifacts
-  const [artifacts, setArtifacts] = useState<{[key: string]: Artifact[]}>({});
-  const [messageArtifacts, setMessageArtifacts] = useState<{[key: number]: ArtifactBlockDetail[]}>({});
-  
+
   // Get the current active model (selected or default)
   const activeModel = selectedModel || defaultModel;
 
@@ -137,7 +134,6 @@ const AssistantPage = ({
     const initializePage = async () => {
       if (!chatEndpoint) {
         setError('Chat endpoint is not configured');
-        setLoading(false);
         return;
       }
 
@@ -158,7 +154,6 @@ const AssistantPage = ({
           });
           
           setModels(modelsList);
-          console.log('Models List', modelsList);
           
           // Set default model from the list of available models
           if (modelsList.length > 0) {
@@ -201,9 +196,21 @@ const AssistantPage = ({
         if (assistantResult.success) {
           const { assistantId, astPath, pathFromDefinition, public: isPublic , definition } = assistantResult;
           setAssistantDefinition(definition as AssistantDefinition);
+
           if (Object.keys(definition?.data?.groupTypeData || {}).length > 0) {
             setRequiredGroupType(true);
           }
+          
+          if (definition?.data?.groupId) {
+            setLoadingMessage('Verifying access to assistant...');
+            const result = await isMemberOfAstAdminGroup(definition?.data?.groupId);
+
+            if (!result.success || !result.isMember) {
+              setError('You are not authorized to access this assistant');
+              return;
+            }
+          }
+          setLoadingMessage('Finalizing assistant...');
 
           if (assistantId) {
             setAssistantId(assistantId);
@@ -269,22 +276,25 @@ const AssistantPage = ({
           } else {
             console.error('Assistant ID not found in lookup result');
             setError('Could not find the assistant');
-            setLoading(false);
           }
         } else {
           console.error('Assistant lookup failed:', assistantResult.message);
           setError(`Assistant not found at path "${assistantSlug}"`);
-          setLoading(false);
         }
       } catch (error) {
         console.error('Failed to initialize page:', error);
         setError('Failed to load assistant: ' + (error instanceof Error ? error.message : 'Unknown error'));
-        setLoading(false);
       }
     };
 
     initializePage();
   }, [chatEndpoint, assistantSlug]);
+
+  useEffect(() => {
+    if (!error) {
+      setLoading(false);
+    }
+  }, [error]);
 
   // Handle sending a message
   const handleSendMessage = async () => {
@@ -533,76 +543,8 @@ const AssistantPage = ({
     // Removed debug logging
   }, [assistantName]);
 
-  // Function to process messages for code blocks or artifacts
-  const processMessageForArtifacts = (content: string, messageIndex: number) => {
-    // Check if content contains autoartifacts code block
-    const autoArtifactsMatch = content.match(/```autoArtifacts\s*([\s\S]*?)```/);
-    
-    if (autoArtifactsMatch && autoArtifactsMatch[1]) {
-      // Create a copy of the messages
-      const newMessages = [...messages];
-      
-      // Remove the autoArtifacts code block from the content
-      newMessages[messageIndex].content = content.replace(/```autoArtifacts\s*([\s\S]*?)```/, '');
-      
-      // Update messages state
-      setMessages(newMessages);
-      
-      // Return the autoArtifacts JSON for processing
-      return autoArtifactsMatch[1];
-    }
-    
-    return null;
-  };
+ 
 
-  // Function to handle opening an artifact
-  const handleOpenArtifact = (artifact: ArtifactBlockDetail) => {
-    // Find the artifact in the artifacts state
-    const artifactsList = artifacts[artifact.artifactId];
-    
-    if (artifactsList && artifactsList.length > 0) {
-      // Find the correct version
-      let versionIndex = artifactsList.length - 1; // Default to latest
-      
-      if (artifact.version) {
-        const foundIndex = artifactsList.findIndex((a) => a.version === artifact.version);
-        if (foundIndex !== -1) {
-          versionIndex = foundIndex;
-        }
-      }
-      
-      // Open the artifact viewer (dispatch a custom event)
-      window.dispatchEvent(new CustomEvent('openAssistantArtifactTrigger', { 
-        detail: { 
-          artifact: artifactsList[versionIndex],
-          isOpen: true 
-        }
-      }));
-    }
-  };
-
-  // Function to handle removing an artifact
-  const handleRemoveArtifact = (artifact: ArtifactBlockDetail, messageIndex: number) => {
-    // Update message artifacts
-    const updatedMessageArtifacts = { ...messageArtifacts };
-    updatedMessageArtifacts[messageIndex] = updatedMessageArtifacts[messageIndex].filter(
-      (a) => a.artifactId !== artifact.artifactId
-    );
-    
-    setMessageArtifacts(updatedMessageArtifacts);
-  };
-
-  // Function to handle artifact creation
-  const handleArtifactCreated = (artifact: ArtifactBlockDetail, messageIndex: number) => {
-    // Update message artifacts
-    const updatedMessageArtifacts = { ...messageArtifacts };
-    if (!updatedMessageArtifacts[messageIndex]) {
-      updatedMessageArtifacts[messageIndex] = [];
-    }
-    updatedMessageArtifacts[messageIndex].push(artifact);
-    
-    setMessageArtifacts(updatedMessageArtifacts);
-  };
 
   // Loading state
   if (loading) {
@@ -664,18 +606,42 @@ const AssistantPage = ({
       header={headerContent}
     >
       {/* Model selector above messages */}
-      <div className="bg-white dark:bg-[#343541] border-b border-neutral-200 dark:border-neutral-600 py-4 px-4">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex justify-center">
-            <div className="w-full max-w-xl px-4 z-60">
+      <div className="bg-white dark:bg-[#343541] border-b border-neutral-200 dark:border-neutral-600 py-4 px-4 relative">
+        <div className="w-full px-40">
+          {showSettings && (
+            <div className="flex justify-center">
+              <div className="w-full z-60">
                   <ModelSelect modelId={assistantDefinition?.data?.model || activeModel?.id} 
                               isDisabled={!!assistantDefinition?.data?.model}
                               handleModelChange={handleModelChange}
                               models={models}
                               defaultModelId={defaultModel?.id}
                   />
+              </div>
             </div>
-          </div>
+          )}
+        </div>
+        
+        <div className="absolute bottom-2 left-4 flex items-center group"
+             onMouseEnter={() => setIsHoveringSettings(true)}
+             onMouseLeave={() => setIsHoveringSettings(false)}>
+          <button 
+            title={showSettings ? 'Hide Settings' : 'Show Settings'}
+            onClick={() => {
+              setShowSettings(!showSettings);
+              setTimeout(() => {
+                setIsHoveringSettings(false);
+              }, 1000);
+            }}
+            className="flex items-center justify-center text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-100 transition-colors"
+          >
+            {showSettings ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+          </button>
+          {isHoveringSettings && (
+            <span className="ml-2 text-xs text-neutral-500 dark:text-neutral-400 animate-fade-in">
+              {showSettings ? 'Hide Settings' : 'Show Settings'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -700,53 +666,28 @@ const AssistantPage = ({
             
           </div>
         ) : (
-          <div className="space-y-6 max-w-3xl mx-auto">
+          <div className="space-y-6 w-full px-20">
             {messages.map((message, index) => {
-              // Check if there's autoArtifacts code in the message
-              const autoArtifactsContent = processMessageForArtifacts(message.content, index);
               
               return (
-                <div key={index}>
-                  <div 
-                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div 
-                      className={`amplify-message-container ${
-                        message.role === 'user' 
-                          ? 'amplify-user-message' 
-                          : 'amplify-assistant-message'
-                      }`}
-                    >
-                      <AssistantContentBlock
-                        message={message}
-                        messageIndex={index}
-                        messageIsStreaming={isProcessing && index === messages.length - 1}
-                        totalMessages={messages.length}
-                      />
+                <div key={index} className="w-full">
+                  {message.role === 'user' ? (
+                    <div className="flex justify-end">
+                      <div className="amplify-user-message amplify-message-container">
+                        {message.content}
+                      </div>
                     </div>
-                  </div>
-                  
-                  {/* Display any created artifacts for this message */}
-                  {messageArtifacts[index] && messageArtifacts[index].length > 0 && (
-                    <div className="mt-2">
-                      <AssistantArtifactsBlock
-                        artifacts={messageArtifacts[index]}
-                        onOpenArtifact={handleOpenArtifact}
-                        onRemoveArtifact={(artifact) => handleRemoveArtifact(artifact, index)}
-                        isProcessing={isProcessing}
-                      />
-                    </div>
-                  )}
-                  
-                  {/* If there's autoArtifacts content, render the AutoArtifactBlock */}
-                  {autoArtifactsContent && index === messages.length - 1 && (
-                    <div className="mt-2">
-                      <AssistantAutoArtifactBlock
-                        content={autoArtifactsContent}
-                        ready={!isProcessing}
-                        onArtifactCreated={(artifact) => handleArtifactCreated(artifact, index)}
-                        setIsProcessing={setIsProcessing}
-                      />
+                  ) : (
+                    <div className="w-full">
+                      <div className="amplify-assistant-message rounded-lg inline-block">
+                        <AssistantContentBlock
+                          message={message}
+                          messageIndex={index}
+                          messageIsStreaming={isProcessing && index === messages.length - 1}
+                          totalMessages={messages.length}
+                          messageEndRef={messageEndRef}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -766,7 +707,7 @@ const AssistantPage = ({
 
       {/* Input area */}
       <div className="border-t border-neutral-200 dark:border-neutral-600 bg-white dark:bg-[#343541] py-4 px-6">
-        <div className="max-w-3xl mx-auto">
+        <div className="w-full px-10">
           <div className="relative">
             <textarea
               ref={textareaRef}
@@ -800,8 +741,7 @@ const AssistantPage = ({
         </div>
       </div>
 
-      {/* Add the artifact viewer provider */}
-      <AssistantArtifactViewerProvider />
+   
     </MainLayout>
   );
 };

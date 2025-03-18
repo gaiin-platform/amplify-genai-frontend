@@ -195,69 +195,42 @@ export const sendDirectAssistantMessage = async (
  * @param previousPath The previous path, if updating an existing path
  * @returns Success status and the updated assistant info
  */
-export const addAssistantPath = async (assistantId: string, astPath: string, previousPath: string = "") => {
-  try {
-    // Make sure assistantId is in the correct format
-    // The backend expects an assistantId with a prefix like "astp/"
-    const formattedAssistantId = assistantId.startsWith('astp/') ? assistantId : assistantId;
-    
+export const addAssistantPath = async (assistantId: string, astPath: string, previousPath: string = "", groupId?: string) => {
     // Convert path to lowercase for consistency
+    let op = null;
     const lowerCasePath = astPath.toLowerCase();
-    
-    const op = {
-      method: 'POST',
-      path: URL_PATH,
-      op: "/add_path",
-      data: { 
-        assistantId: formattedAssistantId, 
-        astPath: lowerCasePath,
-        previousPath: previousPath 
-      },
-      service: SERVICE_NAME
-    };
-    
-    const result = await doRequestOp(op);
-    
-    // Check for API Gateway style response with statusCode and body
-    let parsedResult = result;
-    if (result.statusCode && result.body) {
-      try {
-        // If the body is a string, parse it
-        const parsedBody = typeof result.body === 'string' 
-          ? JSON.parse(result.body) 
-          : result.body;
-        
-        parsedResult = parsedBody;
-      } catch (parseError) {
-        console.error('Error parsing response body:', parseError);
-        return {
-          success: false,
-          message: 'Error processing server response'
+    if (groupId) {
+        console.log("Adding path to group assistant: ", groupId);
+        previousPath = previousPath.toLowerCase();
+        op = {
+          method: 'POST',
+          path: "/groups",
+          op: URL_PATH + "/add_path",
+          data: { 
+            group_id: groupId,
+            path_data: {
+                  assistantId: assistantId, 
+                  astPath: lowerCasePath,
+                  previousPath: previousPath 
+                }
+          },
+          service: "groups"
         };
-      }
-    }
-    
-    // Now check if the parsed result is successful
-    if (parsedResult.success) {
-      return {
-        success: true,
-        message: parsedResult.message || 'Path added successfully',
-        data: parsedResult.data
-      };
     } else {
-      console.error('Backend reported failure:', parsedResult.message || 'Unknown error');
-      return {
-        success: false,
-        message: parsedResult.message || 'Failed to add path to assistant'
-      };
+      op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/add_path",
+        data: { 
+          assistantId: assistantId, 
+          astPath: lowerCasePath,
+          previousPath: previousPath 
+        },
+        service: SERVICE_NAME
+      }; 
     }
-  } catch (error) {
-    console.error(`Error calling add_path API:`, error);
-    return { 
-      success: false, 
-      message: `Error adding path: ${error instanceof Error ? error.message : String(error)}` 
-    };
-  }
+    return await doRequestOp(op);
+    
 };
 
 /**

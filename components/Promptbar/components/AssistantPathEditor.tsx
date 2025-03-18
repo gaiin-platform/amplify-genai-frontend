@@ -1,28 +1,38 @@
-import React, { useState } from 'react';
+import React, { useContext, useRef, useState } from 'react';
 import { IconLoader2, IconCheck, IconAlertTriangle } from '@tabler/icons-react';
 import { lookupAssistant } from '@/services/assistantService';
+import HomeContext from '@/pages/api/home/home.context';
 
 interface AssistantPathEditorProps {
+    savedAstPath: string | undefined;
     astPath: string | null;
     setAstPath: (path: string | null) => void;
     assistantId?: string;
-    featureEnabled: boolean;
     onPathValidated?: (isValid: boolean, path: string | null, error: string | null) => void;
     disableEdit?: boolean;
+    isCheckingPath: boolean;
+    setIsCheckingPath: (isChecking: boolean) => void;
 }
 
 export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
+    savedAstPath,
     astPath,
     setAstPath,
     assistantId,
-    featureEnabled,
     onPathValidated,
+    isCheckingPath,
+    setIsCheckingPath,
     disableEdit = false,
 }) => {
+    const { state: { featureFlags }} = useContext(HomeContext);
     const [pathError, setPathError] = useState<string | null>(null);
-    const [isCheckingPath, setIsCheckingPath] = useState(false);
     const [isPathAvailable, setIsPathAvailable] = useState(false);
     const [pathAvailability, setPathAvailability] = useState({ available: false, message: "" });
+    const featureEnabled = !!featureFlags?.assistantPathPublishing;
+    const validatedPathCacheRef = useRef<string[] | undefined>(undefined);
+    if (!validatedPathCacheRef.current) {
+        validatedPathCacheRef.current = savedAstPath ? [savedAstPath.toLowerCase()] : []
+    }
 
     const validatePath = async (path: string): Promise<boolean> => {
         // If the feature flag is disabled, don't validate paths
@@ -100,7 +110,6 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
             
             // Look up the path
             const result = await lookupAssistant(path);
-            
             // If lookup was successful, the path is already taken
             if (result.success) {
                 // Get the current assistant's ID (from definition)
@@ -122,6 +131,9 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                 if (onPathValidated) onPathValidated(false, path, 'This path is already in use by another assistant');
                 return false;
             }
+
+
+            validatedPathCacheRef?.current?.push(path.toLowerCase());
             
             // If lookup failed with a "not found" message, the path is available
             setIsPathAvailable(true);
@@ -150,8 +162,8 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
         if (path) {
             // If the path is the same as the current assistant's path, just set it as valid
             // without making unnecessary API calls
-            if (assistantId && astPath && path.toLowerCase() === astPath.toLowerCase()) {
-                console.log(`Using existing path: ${path}`);
+            if (assistantId && validatedPathCacheRef?.current?.includes(path.toLowerCase())) {
+                console.log(`Path found in cache, using existing path: ${path}`);
                 setIsPathAvailable(true);
                 setPathError(null);
                 setPathAvailability({ available: true, message: "Current path" });
@@ -199,25 +211,23 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                     disabled={disableEdit}
                 />
                 {astPath && (
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                        {isCheckingPath && (
+                    <div className="absolute right-3 mt-1 top-1/2 transform -translate-y-1/2">
+                        {isCheckingPath ? (
                             <IconLoader2 className="animate-spin h-5 w-5 text-gray-400" />
-                        )}
-                        {!isCheckingPath && (
-                            <>
-                                {pathError ? (
-                                    <div className="flex items-center text-red-500">
-                                        <IconAlertTriangle className="h-5 w-5 mr-1" />
-                                        <span className="text-xs">Error</span>
-                                    </div>
-                                ) : isPathAvailable ? (
-                                    <div className="flex items-center text-green-500">
-                                        <IconCheck className="h-5 w-5 mr-1" />
-                                        <span className="text-xs">{pathAvailability.message || "Available"}</span>
-                                    </div>
-                                ) : null}
-                            </>
-                        )}
+                        ) : (<>
+                            {pathError ? (
+                                <div className="flex items-center text-red-500">
+                                    <IconAlertTriangle className="h-5 w-5 mr-1" />
+                                    <span className="text-xs">Error</span>
+                                </div>
+                            ) : isPathAvailable ? (
+                                <div className="flex items-center text-green-500">
+                                    <IconCheck className="h-5 w-5 mr-1" />
+                                    <span className="text-xs">{pathAvailability.message || "Available"}</span>
+                                </div>
+                            ) : null}
+                            </>)}
+                        
                     </div>
                 )}
             </div>

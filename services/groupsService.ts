@@ -130,3 +130,15 @@ export const createAmplifyAssistants = async (astDefs: AssistantDefinition[], ad
     };
     return await doRequestOp(op);
 }
+
+
+export const isMemberOfAstAdminGroup = async (groupId: string) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/verify_ast_group_member",
+        data: { groupId },
+        service: SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}

@@ -19,7 +19,7 @@ interface AssistantContentBlockProps {
   messageIndex: number;
   messageIsStreaming: boolean;
   totalMessages: number;
-  artifactEndRef?: React.RefObject<HTMLDivElement>;
+  messageEndRef?: React.RefObject<HTMLDivElement>;
 }
 
 const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
@@ -27,7 +27,7 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
   messageIndex,
   messageIsStreaming,
   totalMessages,
-  artifactEndRef
+  messageEndRef
 }) => {
   // State to trigger re-renders when needed
   const [renderKey, setRenderKey] = useState(0);
@@ -38,25 +38,27 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
       setRenderKey(prev => prev + 1);
     };
 
-    // Listen for the custom event 'triggerAssistantReRender'
-    window.addEventListener('triggerAssistantReRender', handleReRenderEvent);
-    return () => {
-      window.removeEventListener('triggerAssistantReRender', handleReRenderEvent);
-    };
+    // // Listen for the custom event 'triggerAssistantReRender'
+    // window.addEventListener('', handleReRenderEvent);
+    // return () => {
+    //   window.removeEventListener('', handleReRenderEvent);
+    // };
+    
   }, []);
 
   // Check if this is the last message
   const isLastMessage = messageIndex === totalMessages - 1;
 
+
   return (
     <div 
-      className="assistantContentBlock w-full overflow-x-auto" 
+      className={`assistantContentBlock overflow-x-auto px-4 max-w-full`}
       data-message-index={messageIndex}
       data-original-content={message.content}
     >
       <MemoizedReactMarkdown
         key={renderKey}
-        className="prose dark:prose-invert flex-1 max-w-none w-full"
+        className="prose dark:prose-invert flex-1 max-w-full"
         remarkPlugins={[remarkGfm, remarkMath]}
         components={{
           // @ts-ignore
@@ -132,12 +134,12 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
             }
 
             return !inline ? (
-              <CodeBlock
-                key={Math.random()}
-                language={(match && match[1]) || ''}
-                value={String(children).replace(/\n$/, '')}
-                {...props}
-              />
+                <CodeBlock
+                  key={Math.random()}
+                  language={(match && match[1]) || ''}
+                  value={String(children).replace(/\n$/, '')}
+                  {...props}
+                />
             ) : (
               <code className={className} {...props}>
                 {children}
@@ -180,7 +182,7 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
           messageIsStreaming && isLastMessage ? '`▍`' : ''
         }`}
       </MemoizedReactMarkdown>
-      {artifactEndRef && <div ref={artifactEndRef}></div>}
+      {messageEndRef && <div ref={messageEndRef}></div>}
     </div>
   );
 };
