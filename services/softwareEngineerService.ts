@@ -13,6 +13,11 @@ interface CreatePythonFunctionParams {
   notes?: string;
 }
 
+interface ExecPythonFunctionParams {
+  function_uuid: string;
+  payload: any;
+}
+
 const URL_PATH = "/se";
 const AMP_PATH = "/amp";
 const SERVICE_NAME = "softwareEngineer";
@@ -28,10 +33,21 @@ export const createPythonFunction = async (params: CreatePythonFunctionParams) =
   return await doRequestOp(op);
 }
 
-export const registerPythonFunction = async (functionName: string, code: string) => {
+export const executePythonFunction = async (params: ExecPythonFunctionParams) => {
   const op = {
     method: 'POST',
-    data: { function_name: functionName, code },
+    data: params,
+    path: URL_PATH,
+    op: "/exec",
+    service: SERVICE_NAME
+  };
+  return await doRequestOp(op);
+}
+
+export const registerPythonFunction = async (functionName: string, code: string, autoGenerate: boolean = false) => {
+  const op = {
+    method: 'POST',
+    data: { function_name: functionName, code , autoGenerate},
     path: URL_PATH,
     op: "/functions/register-python-function",
     service: SERVICE_NAME
@@ -39,9 +55,57 @@ export const registerPythonFunction = async (functionName: string, code: string)
   return await doRequestOp(op);
 }
 
+export const savePythonFunction = async ({
+  functionName,
+  functionUuid,
+  code,
+  description,
+  inputSchema,
+  outputSchema,
+  params,
+  tags = [],
+  testCases = []
+}: {
+  functionName: string;
+  functionUuid?: string;
+  code: string;
+  description: string;
+  inputSchema: object;
+  outputSchema: object;
+  params: Array<{ name: string; description: string }>;
+  tags?: string[];
+  testCases?: Array<{
+    name: string;
+    description?: string;
+    inputJson: object;
+    expectedOutput: string;
+    matchType: "exact" | "llm";
+  }>;
+}) => {
+  const op = {
+    method: 'POST',
+    data: {
+      function_name: functionName,
+      function_uuid: functionUuid,
+      code,
+      description,
+      input_schema: inputSchema,
+      output_schema: outputSchema,
+      params,
+      tags,
+      test_cases: testCases
+    },
+    path: URL_PATH,
+    op: "/save-python-function",
+    service: SERVICE_NAME
+  };
+  return await doRequestOp(op);
+}
+
 export const listUserFunctions = async () => {
   const op = {
-    method: 'GET',
+    method: 'POST',
+    data: {},
     path: URL_PATH,
     op: "/functions/list",
     service: SERVICE_NAME

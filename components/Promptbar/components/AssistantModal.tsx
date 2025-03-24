@@ -23,6 +23,7 @@ import Search from '@/components/Search';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import { opLanguageOptionsMap } from '@/types/op';
 import { opsSearchToggleButtons } from '@/components/Admin/AdminComponents/Ops';
+import {PythonFunctionModal} from "@/components/Operations/PythonFunctionModal";
 
 
 interface Props {
@@ -234,7 +235,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [selectedApis, setSelectedApis] = useState<any[]>(initialSelectedApis);
     const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('tag'); 
     const [apiInfo, setApiInfo] = useState<API[]>(initialApiCapabilities || []);
-
+    const [addFunctionOpen, setAddFunctionOpen] = useState(false);
     
     useEffect(() => {
         const filterOps = async (data: any[]) => {
@@ -830,6 +831,15 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     {featureFlags.integrations && <>
                                     {!availableApis && <>Loading API Capabilities...</>}
 
+                                    <>
+                                        <button onClick={()=>{
+                                            setAddFunctionOpen(!addFunctionOpen);}
+                                        }>Manage Custom APIs</button>
+                                        {addFunctionOpen && <PythonFunctionModal
+                                            onCancel={()=>{setAddFunctionOpen(false);}}
+                                            onSave={()=>{}}
+                                        />}
+                                    </>
                                     {availableApis && availableApis.length > 0 &&
                                         <>
                                         <div className="flex flex-row text-sm font-bold text-black dark:text-neutral-200 mt-2 mb-2">
