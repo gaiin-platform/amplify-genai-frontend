@@ -11,47 +11,7 @@ import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownload
 import {TagsList} from "@/components/Chat/TagsList";
 import { downloadDataSourceFile } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
-
-
-type MimeTypeMapping = {
-    [mimeType: string]: string;
-};
-
-const mimeTypeToCommonName: MimeTypeMapping = {
-    "text/vtt": "Voice Transcript",
-    "application/vnd.ms-excel": "Excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel",
-    "application/vnd.ms-powerpoint": "PowerPoint",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "PowerPoint",
-    "application/msword": "Word",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word",
-    "text/plain": "Text",
-    "application/pdf": "PDF",
-    "application/rtf": "Rich Text Format",
-    "application/vnd.oasis.opendocument.text": "OpenDocument Text",
-    "application/vnd.oasis.opendocument.spreadsheet": "OpenDocument Spreadsheet",
-    "application/vnd.oasis.opendocument.presentation": "OpenDocument Presentation",
-    "text/csv": "CSV",
-    "application/vnd.google-apps.document": "Google Docs",
-    "application/vnd.google-apps.spreadsheet": "Google Sheets",
-    "application/vnd.google-apps.presentation": "Google Slides",
-    "text/html": "HTML",
-    "application/xhtml+xml": "XHTML",
-    "application/xml": "XML",
-    "application/json": "JSON",
-    "application/x-latex": "LaTeX",
-    "application/vnd.ms-project": "Microsoft Project",
-    "text/markdown": "Markdown",
-    "application/vnd.ms-outlook": "Outlook Email",
-    "application/x-tex": "TeX",
-    "text/x-vcard": "vCard",
-    "application/x-vnd.ls-xpix": "Lotus Spreadsheet",
-    "application/vnd.visio": "Visio",
-    "application/x-mspublisher": "Publisher",
-    "text/tab-separated-values": "Tab Separated Values",
-    "application/x-mswrite": "Write",
-    "application/vnd.ms-works": "Microsoft Works",
-};
+import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
 
 
 const DataSourcesTable = () => {
