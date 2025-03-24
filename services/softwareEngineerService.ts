@@ -64,7 +64,8 @@ export const savePythonFunction = async ({
   outputSchema,
   params,
   tags = [],
-  testCases = []
+  testCases = [],
+    metadata={},
 }: {
   functionName: string;
   functionUuid?: string;
@@ -74,6 +75,7 @@ export const savePythonFunction = async ({
   outputSchema: object;
   params: Array<{ name: string; description: string }>;
   tags?: string[];
+  metadata?: object;
   testCases?: Array<{
     name: string;
     description?: string;
@@ -93,7 +95,8 @@ export const savePythonFunction = async ({
       output_schema: outputSchema,
       params,
       tags,
-      test_cases: testCases
+      test_cases: testCases,
+      metadata
     },
     path: URL_PATH,
     op: "/save-python-function",

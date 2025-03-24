@@ -231,6 +231,11 @@ if __name__ == "__main__":
     const [inputPromptText, setInputPromptText] = useState('');
 
     const [testCases, setTestCases] = useState<any[]>([]);
+    const getIntegrations = () => {
+        return ['Google Drive', 'Slack', 'Salesforce'];
+    };
+
+    const [envVars, setEnvVars] = useState([{ type: 'Variable', key: '', value: '' }]);
 
     const getUserInput = (message: string): Promise<string | null> => {
         return new Promise((resolve) => {
@@ -275,6 +280,7 @@ if __name__ == "__main__":
         setTestCases(fn.testCases || []);
 
         try {
+
             const codeRes = await getFunctionCode(fn.uuid);
             if (codeRes.success && codeRes.data?.code !== undefined) {
                 setCode(codeRes.data.code);
@@ -285,6 +291,27 @@ if __name__ == "__main__":
         } catch (err) {
             setCode('// Error: Failed to fetch code.');
         }
+
+        const envVarsFromMetadata: { type: string, key: string, value: string }[] = [];
+
+        const envMeta = fn.metadata?.environment ?? {};
+        const secrets = envMeta.secrets ?? {};
+        const oauth = envMeta.oauth ?? {};
+        const variables = envMeta.variables ?? {};
+
+        for (const key in secrets) {
+            if (key.startsWith('s_')) {
+                envVarsFromMetadata.push({ type: 'Secret', key: key.slice(2), value: '' });
+            }
+        }
+        for (const key in oauth) {
+            envVarsFromMetadata.push({ type: 'OAuth Token', key, value: oauth[key] });
+        }
+        for (const key in variables) {
+            envVarsFromMetadata.push({ type: 'Variable', key, value: variables[key] });
+        }
+
+        setEnvVars(envVarsFromMetadata.length > 0 ? envVarsFromMetadata : [{ type: 'Variable', key: '', value: '' }]);
     };
 
 
@@ -313,6 +340,32 @@ if __name__ == "__main__":
                 };
             });
 
+            type EnvStructure = {
+                secrets: Record<string, string>;
+                oauth: Record<string, string>;
+                variables: Record<string, string>;
+            };
+
+            const env: EnvStructure = {
+                secrets: {},
+                oauth: {},
+                variables: {}
+            };
+            envVars.forEach(({ type, key, value }) => {
+                if (!key) return;
+                if (type === 'Secret') {
+                    env.secrets[`s_${key}`] = value;
+                } else if (type === 'OAuth Integration') {
+                    env.oauth[key] = value;
+                } else {
+                    env.variables[key] = value;
+                }
+            });
+
+            const metadata = {
+                environment: env
+            };
+
             const res = await savePythonFunction({
                 functionName: name,
                 functionUuid: selectedFnId || undefined,
@@ -322,7 +375,8 @@ if __name__ == "__main__":
                 outputSchema: {},
                 params: [],
                 tags,
-                testCases: parsedTestCases
+                testCases: parsedTestCases,
+                metadata
             });
 
             if (!res.success) throw new Error(res.error || 'Failed to save function.');
@@ -479,11 +533,11 @@ ${whatToDo}
 Output only a markdown code block like this:
 \`\`\`json
 {
-  "name": "summarize-text",
+  "name": "<camel case name like 'summarizeText'>",
   "description": "This function summarizes text into 3 bullet points.",
   "code": "<the full Python function code using the rules described above>",
   "schema": { "type": "object", "properties": { ... } },
-  "tags": ["text", "summary"]
+  "tags": ["text_manipulation","nlp","knowledge_extraction"]
 }
 \`\`\`
 `;
@@ -630,6 +684,91 @@ Output only a markdown code block like this:
                                 />
 
 
+                                <div className="mt-6">
+                                    <div className="text-sm font-bold mb-2">Environment Variables</div>
+                                    {envVars.map((env, index) => (
+                                        <div key={index} className="grid grid-cols-3 gap-2 mb-2 items-center">
+                                            <select
+                                                className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                                value={env.type}
+                                                onChange={(e) => {
+                                                    const newVars = [...envVars];
+                                                    newVars[index].type = e.target.value;
+                                                    newVars[index].value = ''; // reset value on type change
+                                                    setEnvVars(newVars);
+                                                    setHasUnsavedChanges(true);
+                                                }}
+                                            >
+                                                <option value="OAuth Token">OAuth Integration</option>
+                                                <option value="Secret">Secret</option>
+                                                <option value="Variable">Variable</option>
+                                            </select>
+                                            <input
+                                                className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                                placeholder="Key"
+                                                value={env.key}
+                                                onChange={(e) => {
+                                                    const newVars = [...envVars];
+                                                    newVars[index].key = e.target.value;
+                                                    setEnvVars(newVars);
+                                                    setHasUnsavedChanges(true);
+                                                }}
+                                            />
+                                            {env.type === 'OAuth Integration' ? (
+                                                <select
+                                                    className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                                    value={env.value}
+                                                    onChange={(e) => {
+                                                        const newVars = [...envVars];
+                                                        newVars[index].value = e.target.value;
+                                                        setEnvVars(newVars);
+                                                        setHasUnsavedChanges(true);
+                                                    }}
+                                                >
+                                                    <option value="">Select Integration</option>
+                                                    {getIntegrations().map((intg, i) => (
+                                                        <option key={i} value={intg}>{intg}</option>
+                                                    ))}
+                                                </select>
+                                            ) : env.type === 'Secret' ? (
+                                                <input
+                                                    type="password"
+                                                    className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                                    placeholder="Secret value"
+                                                    value={env.value}
+                                                    onChange={(e) => {
+                                                        const newVars = [...envVars];
+                                                        newVars[index].value = e.target.value;
+                                                        setEnvVars(newVars);
+                                                        setHasUnsavedChanges(true);
+                                                    }}
+                                                />
+                                            ) : (
+                                                <input
+                                                    type="text"
+                                                    className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                                    placeholder="Value"
+                                                    value={env.value}
+                                                    onChange={(e) => {
+                                                        const newVars = [...envVars];
+                                                        newVars[index].value = e.target.value;
+                                                        setEnvVars(newVars);
+                                                        setHasUnsavedChanges(true);
+                                                    }}
+                                                />
+                                            )}
+                                        </div>
+                                    ))}
+                                    <button
+                                        className="mt-1 text-sm text-blue-600 hover:underline"
+                                        onClick={() => {
+                                            setEnvVars([...envVars, { type: 'Variable', key: '', value: '' }]);
+                                            setHasUnsavedChanges(true);
+                                        }}
+                                    >
+                                        + Add Environment Variable
+                                    </button>
+                                </div>
                                 <div className="mt-6 text-sm font-bold">Test Case</div>
                                 <div className="mt-2 grid grid-cols-2 gap-4">
                                     <input
