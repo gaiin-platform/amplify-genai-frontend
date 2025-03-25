@@ -1,29 +1,33 @@
-import {FC, useState, useRef, useEffect, useContext} from 'react';
-import {
-    IconCircleCheck,
-    IconCircleX,
-    IconCode,
-    IconUpload,
-    IconPlaystationCircle,
-    IconPlus,
-    IconTrash,
-    IconLoader2
-} from '@tabler/icons-react';
-import {
-    listUserFunctions,
-    getFunctionCode,
-    getFunctionMetadata,
-    savePythonFunction,
-    executePythonFunction
-} from '@/services/softwareEngineerService';
+import { IconCircleCheck, IconCircleX, IconCode, IconLoader2, IconPlaystationCircle, IconPlus, IconTrash, IconUpload } from '@tabler/icons-react';
+import { FC, useContext, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import PromptTextArea from "@/components/PromptTextArea/PromptTextArea";
-import {ChatBody, Message, newMessage} from "@/types/chat";
-import {Model} from "@/types/model";
-import {useChatService} from "@/hooks/useChatService";
+
+
+
+import { useChatService } from "@/hooks/useChatService";
+
+
+
+import { getAvailableIntegrations } from "@/services/oauthIntegrationsService";
+import { deletePythonFunction, executePythonFunction, getFunctionCode, getFunctionMetadata, listUserFunctions, savePythonFunction } from '@/services/softwareEngineerService';
+
+
+
+import { filterModels } from "@/utils/app/models";
+import { getSettings } from "@/utils/app/settings";
+
+
+
+import { ChatBody, Message, newMessage } from "@/types/chat";
+import { Model } from "@/types/model";
+
+
+
 import HomeContext from "@/pages/api/home/home.context";
-import {filterModels} from "@/utils/app/models";
-import {getSettings} from "@/utils/app/settings";
+
+
+
+import PromptTextArea from "@/components/PromptTextArea/PromptTextArea";
 
 
 interface Props {
@@ -52,6 +56,44 @@ ${notes}
 Output your description below in a \`\`\`json markdown block using the same format as the
 other test cases. Make sure your description is detailed and at least 3 sentences. Also,
 try to build a new test case that doesn't overlap with the prior ones. 
+
+Your test case must follow this schema:
+
+\`\`\`json
+{
+  "name": "Test Case Name",
+  "description": "A detailed description of the test case.",
+  "inputJson": {},
+  "expectedOutput": {},
+  "matchType": "exact"
+}
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TestCase",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "inputJson": {
+      "type": "object"
+    },
+    "expectedOutput": {
+      "type": "object"
+    },
+    "matchType": {
+      "type": "string",
+      "enum": ["exact"]
+    }
+  },
+  "required": ["name", "description", "inputJson", "expectedOutput", "matchType"],
+  "additionalProperties": false
+}
+\`\`\`
+
         `;
 
     return await doPrompt([newMessage({content: prompt})]);
@@ -214,6 +256,7 @@ if __name__ == "__main__":
     const [userFunctions, setUserFunctions] = useState<any[]>([]);
     const [loadingFunctions, setLoadingFunctions] = useState(true);
     const [selectedFnId, setSelectedFnId] = useState<string | null>(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -229,11 +272,28 @@ if __name__ == "__main__":
     const [inputPromptMessage, setInputPromptMessage] = useState('');
     const [inputPromptResolve, setInputPromptResolve] = useState<((v: string|null) => void) | null>(null);
     const [inputPromptText, setInputPromptText] = useState('');
+    const [availableIntegrations, setAvailableIntegrations] = useState<any[]>([]);
 
     const [testCases, setTestCases] = useState<any[]>([]);
-    const getIntegrations = () => {
-        return ['Google Drive', 'Slack', 'Salesforce'];
-    };
+
+    const refreshUserIntegrations = async () => {
+        const integrationSupport = await getAvailableIntegrations();
+        if (integrationSupport && integrationSupport.success && integrationSupport.data) {
+
+            const flatIntegrations = Object.entries(integrationSupport.data).flatMap(([provider, list]) =>
+                // @ts-ignore
+                list.map((item: any) => `${provider}/${item.name}`)
+            );
+
+            setAvailableIntegrations(flatIntegrations);
+        }  else {
+            alert("Unable to retrieve available integrations at this time. Please try again later.");
+        }
+    }
+
+    useEffect(() => {
+       refreshUserIntegrations();
+    }, []);
 
     const [envVars, setEnvVars] = useState([{ type: 'Variable', key: '', value: '' }]);
 
@@ -263,11 +323,13 @@ if __name__ == "__main__":
     useEffect(() => {
         listUserFunctions().then((response) => {
             if (response.success){
-                setUserFunctions(response.data);
+                const initialized = response.data.map((f: any) => ({ ...f, deleting: false }));
+                setUserFunctions(initialized);
             }
             setLoadingFunctions(false);
         });
     }, []);
+
 
     const modalRef = useRef<HTMLDivElement>(null);
 
@@ -355,7 +417,7 @@ if __name__ == "__main__":
                 if (!key) return;
                 if (type === 'Secret') {
                     env.secrets[`s_${key}`] = value;
-                } else if (type === 'OAuth Integration') {
+                } else if (type === 'OAuth Token') {
                     env.oauth[key] = value;
                 } else {
                     env.variables[key] = value;
@@ -368,7 +430,7 @@ if __name__ == "__main__":
 
             const res = await savePythonFunction({
                 functionName: name,
-                functionUuid: selectedFnId || undefined,
+                functionUuid: selectedFnId?.startsWith('new-') ? undefined : selectedFnId,
                 code,
                 description,
                 inputSchema: parsedSchema,
@@ -381,8 +443,8 @@ if __name__ == "__main__":
 
             if (!res.success) throw new Error(res.error || 'Failed to save function.');
             setHasUnsavedChanges(false);
-            const fnUuid = res.uuid || selectedFnId;
-            const index = userFunctions.findIndex(f => f.uuid === fnUuid);
+            const fnUuid = res.uuid;
+            const index = userFunctions.findIndex(f => f.uuid === selectedFnId);
             if (index !== -1) {
                 const newFunctions = [...userFunctions];
                 newFunctions[index] = {
@@ -394,6 +456,16 @@ if __name__ == "__main__":
                     tags
                 };
                 setUserFunctions(newFunctions);
+            } else {
+                setUserFunctions(prev => prev.map(f => {
+                    if (f.uuid === selectedFnId) {
+                        return {
+                            ...f,
+                            uuid: fnUuid
+                        };
+                    }
+                    return f;
+                }));
             }
             onSave({ name, code, schema, testJson });
         } catch (err: any) {
@@ -404,13 +476,28 @@ if __name__ == "__main__":
     };
 
     const handleNew = () => {
-        setSelectedFnId(null);
-        setName('');
+    const tempId = `new-${Date.now()}`;
+    setSelectedFnId(tempId);
+    const newFunction = {
+        name: 'untitledFunction',
+        description: '',
+        inputSchema: {},
+        testCases: [],
+        tags: [],
+        deleting: false,
+        uuid: tempId
+    };
+    setUserFunctions(prev => [...prev, newFunction]);
+        setName('untitledFunction');
+        setDescription('');
         setCode('');
-        setSchema('');
-        setTestJson('');
+        setSchema('{"type":"object","properties":{}}');
+        setTestCases([]);
+        setTags([]);
+        setTestJson('{}');
         setValidated(null);
         setErrorMsg(null);
+        setHasUnsavedChanges(true);
     };
 
     return (
@@ -445,29 +532,91 @@ if __name__ == "__main__":
                                 {loadingFunctions ? (
                                     <div className="text-sm text-gray-500 dark:text-neutral-400">Loading...</div>
                                 ) : (
-                                    userFunctions.map((fn, i) => (
+                                userFunctions.map((fn, i) => (
                                         <div
                                             key={i}
-                                            className={`p-2 rounded cursor-pointer text-sm ${selectedFnId === fn.uuid ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                                            onClick={() => {
-                                                if (hasUnsavedChanges) {
-                                                    setPendingFnToLoad(fn);
-                                                } else {
-                                                    loadFunctionDetails(fn);
-                                                }
-                                            }}
+                                            className={`p-2 rounded cursor-pointer text-sm relative ${selectedFnId === fn.uuid ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                                         >
-                                            <div className="font-semibold">{fn.name}</div>
-                                            <div className="text-xs text-gray-600 dark:text-gray-400">{fn.description}</div>
-                                            {fn.params && fn.params.length > 0 && (
-                                                <ul className="mt-1 ml-2 text-xs list-disc text-gray-500 dark:text-gray-400">
-                                                    {fn.params.map((p: any, idx: number) => (
-                                                        <li key={idx}><b>{p.name}</b>: {p.description}</li>
-                                                    ))}
-                                                </ul>
+                                            <div
+                                                onClick={() => {
+                                                    if (hasUnsavedChanges) {
+                                                        setPendingFnToLoad(fn);
+                                                    } else {
+                                                        loadFunctionDetails(fn);
+                                                    }
+                                                }}
+                                            >
+                                                <div className="font-semibold">{fn.name}</div>
+                                                <div className="text-xs text-gray-600 dark:text-gray-400">{fn.description}</div>
+                                                {fn.params && fn.params.length > 0 && (
+                                                    <ul className="mt-1 ml-2 text-xs list-disc text-gray-500 dark:text-gray-400">
+                                                        {fn.params.map((p: any, idx: number) => (
+                                                            <li key={idx}><b>{p.name}</b>: {p.description}</li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </div>
+                                            {confirmDeleteId === fn.uuid ? (
+                                              <div className="absolute top-1 right-1 flex gap-1">
+                                                <button
+                                                  className="text-green-600 hover:text-green-800"
+                                                onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    setUserFunctions(prev =>
+                                                        prev.map(f =>
+                                                            f.uuid === fn.uuid ? { ...f, deleting: true } : f
+                                                        )
+                                                    );
+                                                    setConfirmDeleteId(null);
+                                                    try {
+                                                    const res = await deletePythonFunction(fn.uuid);
+                                                    if (res.success) {
+                                                      setUserFunctions((prev) => prev.filter(f => f.uuid !== fn.uuid));
+                                                      if (selectedFnId === fn.uuid) handleNew();
+                                                    } else {
+                                                        alert(res.error || 'Failed to delete function.');
+                                                      }
+                                                    } catch (err) {
+                                                      alert('Error occurred while deleting.');
+                                                    } finally {
+                                                      setUserFunctions(prev =>
+                                                          prev.map(f =>
+                                                              f.uuid === fn.uuid ? { ...f, deleting: false } : f
+                                                          )
+                                                      );
+                                                    }
+                                                  }}
+                                                >
+                                                  <IconCircleCheck size={18} />
+                                                </button>
+                                                <button
+                                                  className="text-red-600 hover:text-red-800"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setConfirmDeleteId(null);
+                                                  }}
+                                                >
+                                                  <IconCircleX size={18} />
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <button
+                                                className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                                                title="Delete function"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setConfirmDeleteId(fn.uuid);
+                                                }}
+                                              >
+                                                {fn.deleting ? (
+                                                  <IconLoader2 size={16} className="animate-spin" />
+                                                ) : (
+                                                  <IconTrash size={16} />
+                                                )}
+                                              </button>
                                             )}
                                         </div>
-                                    ))
+                                ))
                                 )}
                             </div>
                             <div className="w-2/3 p-4 overflow-y-auto">
@@ -489,21 +638,26 @@ if __name__ == "__main__":
                                       const prompt = `
 You're helping a developer create a Python function using this workflow UI.
 Generate the following fields in a markdown code block in JSON format:
-- name: short lowercase-with-dashes identifier
-- description: a one-sentence summary of the function
+- name: short camel case identifier
+- description: a 3-5 sentence summary of the function with key details listed
 - code: a full Python function following the standard described below
 - schema: a JSON schema matching the expected input for the function
 - tags: array of keywords
+- environment: a JSON object with secrets, oauth, and variables as keys. Each one is a dict with key-value pairs. The keys are the names of the variables. Any secrets that you need should go into the secrets object. Any oauth tokens you will need should go into the oauth object. Any other variables should go into the oauth. If the user specifies things like a queue name, etc. that might change but aren't input, they should go into variables. Only fill in the values for variables.
 
 For the code, write a Python script that follows this exact pattern:
 \t•\tIt must define a main(event: dict) -> dict function. This function contains the core logic and returns a dictionary.
 \t•\tThe script must accept a JSON string as a command-line argument, parse it into a Python dictionary called event, and pass it to the main function.
-\t•\tIt must redirect sys.stdout to an in-memory buffer using io.StringIO() before calling main.
-\t•\tAny output printed inside main() (e.g., for logging/debugging) should be captured.
-\t•\tAfter calling main, the script must:
+\t•\tIt must read any needed secrets, variables, or oauth tokens from os.environ['name_of_key'].
+
+The harness that invokes the code will do this, so be aware of it:
+\t•\tIt will redirect sys.stdout to an in-memory buffer using io.StringIO() before calling main.
+\t•\tAny output printed inside main() (e.g., for logging/debugging) will be captured.
+\t•\tAfter calling main, the script will:
 \t1.\tAdd a new key "stdout" to the result dictionary, whose value is the captured printed output (stripped of trailing whitespace).
 \t2.\tPrint the final dictionary as a JSON string to standard output.
-\t•\tFinally, sys.stdout must be restored to its original state.
+\t•\tFinally, sys.stdout will be restored to its original state.
+
 
 The structure or the code must look exactly like this:
 
@@ -512,8 +666,11 @@ The structure or the code must look exactly like this:
 import json
 import sys
 import io
+import os
 
 def main(event: dict) -> dict:
+    # get any needed secrets / variables / oauth tokens from 
+    # some_secret = os.environ['some_secret_key']
     # main logic here
     print("...log stuff to stdout inside of the main logic...")
     ...
@@ -560,6 +717,41 @@ Output only a markdown code block like this:
                                         setSchema(JSON.stringify(parsed.schema ?? {}, null, 2));
                                         setTags(Array.isArray(parsed.tags) ? parsed.tags : []);
                                         setHasUnsavedChanges(true);
+
+                                        const environment = parsed.environment;
+                                        const envVarsFromGenerated:
+                                          | ((
+                                              prevState: {
+                                                type: string;
+                                                key: string;
+                                                value: string;
+                                              }[],
+                                            ) => {
+                                              type: string;
+                                              key: string;
+                                              value: string;
+                                            }[])
+                                          | {
+                                              type: string;
+                                              key: string;
+                                              value: any;
+                                            }[] = [];
+                                      
+                                        Object.entries(environment.secrets || {}).forEach(([key]) => {
+                                          envVarsFromGenerated.push({ type: 'Secret', key, value: environment.secrets[key] });
+                                        });
+
+                                        Object.entries(environment.oauth || {}).forEach(([key]) => {
+                                          envVarsFromGenerated.push({ type: 'OAuth Token', key, value: environment.oauth[key] });
+                                        });
+
+                                        Object.entries(environment.variables || {}).forEach(([key]) => {
+                                          envVarsFromGenerated.push({ type: 'Variable', key, value: environment.variables[key] });
+                                        });
+
+                                        setEnvVars(envVarsFromGenerated.length > 0 ? envVarsFromGenerated : [{ type: 'Variable', key: '', value: '' }]);
+                                        setHasUnsavedChanges(true);
+
                                       } catch (e) {
                                         alert("Failed to parse response.");
                                       }
@@ -699,7 +891,7 @@ Output only a markdown code block like this:
                                                     setHasUnsavedChanges(true);
                                                 }}
                                             >
-                                                <option value="OAuth Token">OAuth Integration</option>
+                                                <option value="OAuth Token">OAuth Token</option>
                                                 <option value="Secret">Secret</option>
                                                 <option value="Variable">Variable</option>
                                             </select>
@@ -714,7 +906,7 @@ Output only a markdown code block like this:
                                                     setHasUnsavedChanges(true);
                                                 }}
                                             />
-                                            {env.type === 'OAuth Integration' ? (
+                                            {env.type === 'OAuth Token' ? (
                                                 <select
                                                     className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
                                                     value={env.value}
@@ -726,7 +918,7 @@ Output only a markdown code block like this:
                                                     }}
                                                 >
                                                     <option value="">Select Integration</option>
-                                                    {getIntegrations().map((intg, i) => (
+                                                    {availableIntegrations.map((intg, i) => (
                                                         <option key={i} value={intg}>{intg}</option>
                                                     ))}
                                                 </select>
@@ -940,6 +1132,9 @@ Output only a markdown code block like this:
 
                                                     try {
                                                         const parsed = JSON.parse(match[1]);
+
+                                                        alert(JSON.stringify(parsed))
+
                                                         setNewTestCase({
                                                             name: parsed.name || '',
                                                             description: parsed.description || '',
@@ -1083,7 +1278,7 @@ Output only a markdown code block like this:
                                                                         </button>
                                                                       )}
                                                                     </div>
-                                                                    <pre className="bg-neutral-100 dark:bg-neutral-800 p-2 rounded">
+                                                                    <pre className="bg-neutral-100 dark:bg-neutral-800 p-2 rounded whitespace-pre-wrap break-words">
             {JSON.stringify(testResults[idx].result.data?.result ?? testResults[idx].result, null, 2)}
         </pre>
                                                                 </>

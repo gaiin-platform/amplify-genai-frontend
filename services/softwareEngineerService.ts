@@ -204,3 +204,13 @@ export const getFunctionMetadata = async (functionUuid: string) => {
   };
   return await doRequestOp(op);
 }
+export const deletePythonFunction = async (functionUuid: string) => {
+  const op = {
+    method: 'POST',
+    data: { function_uuid: functionUuid },
+    path: URL_PATH,
+    op: "/functions/delete",
+    service: SERVICE_NAME
+  };
+  return await doRequestOp(op);
+}
