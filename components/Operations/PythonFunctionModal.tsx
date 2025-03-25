@@ -426,6 +426,8 @@ if __name__ == "__main__":
                     env.secrets[`s_${key}`] = value;
                 } else if (type === 'OAuth Token') {
                     env.oauth[key] = value;
+                } else if (type === 'Amplify Variable') {
+                    env.variables[key] = value;
                 } else {
                     env.variables[key] = value;
                 }
@@ -934,6 +936,7 @@ Output only a markdown code block like this:
                                                 <option value="OAuth Token">OAuth Token</option>
                                                 <option value="Secret">Secret</option>
                                                 <option value="Variable">Variable</option>
+                                                <option value="Amplify Variable">Amplify Variable</option>
                                             </select>
                                             <input
                                                 className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
@@ -946,49 +949,67 @@ Output only a markdown code block like this:
                                                     setHasUnsavedChanges(true);
                                                 }}
                                             />
-                                            {env.type === 'OAuth Token' ? (
-                                                <select
-                                                    className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
-                                                    value={env.value}
-                                                    onChange={(e) => {
-                                                        const newVars = [...envVars];
-                                                        newVars[index].value = e.target.value;
-                                                        setEnvVars(newVars);
-                                                        setHasUnsavedChanges(true);
-                                                    }}
-                                                >
-                                                    <option value="">Select Integration</option>
-                                                    {availableIntegrations.map((intg, i) => (
-                                                        <option key={i} value={intg}>{intg}</option>
-                                                    ))}
-                                                </select>
-                                            ) : env.type === 'Secret' ? (
-                                                <input
-                                                    type="password"
-                                                    className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
-                                                    placeholder="Secret value"
-                                                    value={env.value}
-                                                    onChange={(e) => {
-                                                        const newVars = [...envVars];
-                                                        newVars[index].value = e.target.value;
-                                                        setEnvVars(newVars);
-                                                        setHasUnsavedChanges(true);
-                                                    }}
-                                                />
-                                            ) : (
-                                                <input
-                                                    type="text"
-                                                    className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
-                                                    placeholder="Value"
-                                                    value={env.value}
-                                                    onChange={(e) => {
-                                                        const newVars = [...envVars];
-                                                        newVars[index].value = e.target.value;
-                                                        setEnvVars(newVars);
-                                                        setHasUnsavedChanges(true);
-                                                    }}
-                                                />
-                                            )}
+                                    {env.type === 'OAuth Token' ? (
+                                      <select
+                                        className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                        value={env.value}
+                                        onChange={(e) => {
+                                          const newVars = [...envVars];
+                                          newVars[index].value = e.target.value;
+                                          setEnvVars(newVars);
+                                          setHasUnsavedChanges(true);
+                                        }}
+                                      >
+                                        <option value="">Select Integration</option>
+                                        {availableIntegrations.map((intg, i) => (
+                                          <option key={i} value={intg}>{intg}</option>
+                                        ))}
+                                      </select>
+                                    ) : env.type === 'Amplify Variable' ? (
+                                      <select
+                                        className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                        value={env.value}
+                                        onChange={(e) => {
+                                          const newVars = [...envVars];
+                                          newVars[index].value = e.target.value;
+                                          setEnvVars(newVars);
+                                          setHasUnsavedChanges(true);
+                                        }}
+                                      >
+                                        <option value="">Select Amplify Variable</option>
+                                        <option value="@amp_current_user">Current User</option>
+                                        <option value="@amp_access_token">Amplify Token</option>
+                                        <option value="@amp_session_id">Session ID</option>
+                                        <option value="@amp_conversation_id">Conversation ID</option>
+                                        <option value="@amp_assistant_id">Assistant ID</option>
+                                      </select>
+                                    ) : env.type === 'Secret' ? (
+                                      <input
+                                        type="password"
+                                        className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                        placeholder="Secret value"
+                                        value={env.value}
+                                        onChange={(e) => {
+                                          const newVars = [...envVars];
+                                          newVars[index].value = e.target.value;
+                                          setEnvVars(newVars);
+                                          setHasUnsavedChanges(true);
+                                        }}
+                                      />
+                                    ) : (
+                                      <input
+                                        type="text"
+                                        className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                        placeholder="Value"
+                                        value={env.value}
+                                        onChange={(e) => {
+                                          const newVars = [...envVars];
+                                          newVars[index].value = e.target.value;
+                                          setEnvVars(newVars);
+                                          setHasUnsavedChanges(true);
+                                        }}
+                                      />
+                                    )}
                                         </div>
                                     ))}
                                     <button
