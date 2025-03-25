@@ -321,14 +321,21 @@ if __name__ == "__main__":
     }
 
     useEffect(() => {
-        listUserFunctions().then((response) => {
-            if (response.success){
-                const initialized = response.data.map((f: any) => ({ ...f, deleting: false }));
+        const loadFuncs = async () => {
+            const response = await listUserFunctions();
+            if (response.success) {
+                const initialized = response.data.map((f: any) => ({...f, deleting: false}));
                 setUserFunctions(initialized);
+                if (initialized.length > 0) {
+                   await loadFunctionDetails(initialized[0]);
+                }
             }
             setLoadingFunctions(false);
-        });
+        }
+
+        loadFuncs();
     }, []);
+
 
 
     const modalRef = useRef<HTMLDivElement>(null);
@@ -428,6 +435,8 @@ if __name__ == "__main__":
                 environment: env
             };
 
+            const oldFnId = selectedFnId;
+
             const res = await savePythonFunction({
                 functionName: name,
                 functionUuid: selectedFnId?.startsWith('new-') ? undefined : selectedFnId ?? undefined,
@@ -443,30 +452,21 @@ if __name__ == "__main__":
 
             if (!res.success) throw new Error(res.error || 'Failed to save function.');
             setHasUnsavedChanges(false);
-            const fnUuid = res.uuid;
-            const index = userFunctions.findIndex(f => f.uuid === selectedFnId);
-            if (index !== -1) {
-                const newFunctions = [...userFunctions];
-                newFunctions[index] = {
-                    ...userFunctions[index],
-                    name,
-                    description,
-                    inputSchema: JSON.parse(schema),
-                    testCases: parsedTestCases,
-                    tags
-                };
-                setUserFunctions(newFunctions);
-            } else {
-                setUserFunctions(prev => prev.map(f => {
-                    if (f.uuid === selectedFnId) {
-                        return {
-                            ...f,
-                            uuid: fnUuid
-                        };
-                    }
-                    return f;
-                }));
-            }
+
+            const fnUuid = res.data.uuid;
+
+            setUserFunctions(prev => prev.map(f => {
+                if (f.uuid === oldFnId) {
+                    return {
+                        ...f,
+                        uuid: fnUuid
+                    };
+                }
+                return f;
+            }));
+
+            setSelectedFnId(fnUuid);
+
             onSave({ name, code, schema, testJson });
         } catch (err: any) {
             setErrorMsg(err.message || 'An unknown error occurred while saving.');
@@ -562,28 +562,63 @@ if __name__ == "__main__":
                                                   className="text-green-600 hover:text-green-800"
                                                 onClick={async (e) => {
                                                     e.stopPropagation();
-                                                    setUserFunctions(prev =>
-                                                        prev.map(f =>
-                                                            f.uuid === fn.uuid ? { ...f, deleting: true } : f
-                                                        )
-                                                    );
-                                                    setConfirmDeleteId(null);
-                                                    try {
-                                                    const res = await deletePythonFunction(fn.uuid);
-                                                    if (res.success) {
-                                                      setUserFunctions((prev) => prev.filter(f => f.uuid !== fn.uuid));
-                                                      if (selectedFnId === fn.uuid) handleNew();
-                                                    } else {
-                                                        alert(res.error || 'Failed to delete function.');
-                                                      }
-                                                    } catch (err) {
-                                                      alert('Error occurred while deleting.');
-                                                    } finally {
-                                                      setUserFunctions(prev =>
-                                                          prev.map(f =>
-                                                              f.uuid === fn.uuid ? { ...f, deleting: false } : f
-                                                          )
-                                                      );
+
+                                                    setHasUnsavedChanges(false);
+
+                                                    if(fn.uuid && fn.uuid.startsWith("new-")) {
+                                                        // No need to go to the server as it was never saved
+                                                        if (selectedFnId === fn.uuid) {
+                                                            if (userFunctions.length > 1) {
+                                                                await loadFunctionDetails(userFunctions[0]);
+                                                            } else {
+                                                                setSelectedFnId(null);
+                                                                setDescription("")
+                                                                setName("")
+                                                                setEnvVars([])
+                                                                setCode("")
+                                                                setTestCases([])
+                                                            }
+                                                        }
+                                                        setUserFunctions(prev =>
+                                                            prev.filter(f =>
+                                                                f.uuid !== fn.uuid
+                                                            )
+                                                        );
+                                                    }
+                                                    else {
+                                                        setUserFunctions(prev =>
+                                                            prev.map(f =>
+                                                                f.uuid === fn.uuid ? {...f, deleting: true} : f
+                                                            )
+                                                        );
+                                                        setConfirmDeleteId(null);
+                                                        try {
+                                                            const res = await deletePythonFunction(fn.uuid);
+                                                            if (res.success) {
+                                                                if (selectedFnId === fn.uuid) {
+                                                                    if (userFunctions.length > 1) {
+                                                                        await loadFunctionDetails(userFunctions[0]);
+                                                                    } else {
+                                                                        setSelectedFnId(null);
+                                                                        setDescription("")
+                                                                        setName("")
+                                                                        setEnvVars([])
+                                                                        setCode("")
+                                                                        setTestCases([])
+                                                                    }
+                                                                }
+                                                                setUserFunctions((prev) => prev.filter(f => f.uuid !== fn.uuid));
+                                                            } else {
+                                                                alert(res.error || 'Failed to delete function.');
+                                                            }
+                                                        } catch (err) {
+                                                            alert('Error occurred while deleting.');
+                                                            setUserFunctions(prev =>
+                                                                prev.map(f =>
+                                                                    f.uuid === fn.uuid ? {...f, deleting: false} : f
+                                                                )
+                                                            );
+                                                        }
                                                     }
                                                   }}
                                                 >
@@ -773,6 +808,11 @@ Output only a markdown code block like this:
                                     }}
                                     disabled={saving}
                                 />
+                            {selectedFnId && (
+                              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Function ID: {selectedFnId}
+                              </div>
+                            )}
                                 <div className="mt-4">
                                     <div className="text-sm font-bold mb-1">Tags</div>
                                     <div className="flex items-center gap-2">
