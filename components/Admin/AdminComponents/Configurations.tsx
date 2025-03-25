@@ -210,7 +210,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
             />
             </div>
 
-            <div className={`ml-12 flex flex-col ${emailSupport.isActive ? "" :'opacity-30'}`}>
+            <div className={`mx-12 ${emailSupport.isActive ? "" :'opacity-30'}`}>
                 <InputsMap
                     id = {`${AdminConfigTypes.EMAIL_SUPPORT}`}
                     inputs={[ {label: 'Email', key: 'email', placeholder: 'Contact Email', disabled:!emailSupport.isActive} ]}
@@ -234,7 +234,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
             </div>
 
             {titleLabel('Prompt Cost Alert')}
-            <div className="px-6 mr-4">
+            <div className="px-6 mr-6">
             <Checkbox
                 id="promptCostAlert"
                 label="Alert the user when the cost of their prompt exceeds the set threshold"

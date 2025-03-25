@@ -155,7 +155,11 @@ const ChatSourceBlock: React.FC<Props> = (
                 )}
                 {source.locations && Array.isArray(source.locations) && (
                     <div>
-                        {groupArrayValuesByKeys(source.locations)}
+                        {groupArrayValuesByKeys(source.locations).map((element, elementIndex) => (
+                            <React.Fragment key={`location-${index}-${elementIndex}`}>
+                                {element}
+                            </React.Fragment>
+                        ))}
                     </div>
                 )}
             </div>

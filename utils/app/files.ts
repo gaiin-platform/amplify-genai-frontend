@@ -11,17 +11,12 @@ export const downloadDataSourceFile = async (dataSource: DataSource, groupId: st
     if (dataSource.type && IMAGE_FILE_TYPES.includes(dataSource.type)) {
         downloadImageFromPresignedUrl(response.downloadUrl, dataSource.name || 'image', dataSource.type || '');
     } else {
-        const link = document.createElement('a');
-        link.href = response.downloadUrl;
-        link.download = dataSource.name || 'File';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        downloadFileFromPresignedUrl(response.downloadUrl, dataSource.name || 'File');
     }
 }
 
 
-async function downloadImageFromPresignedUrl(presignedUrl: string, filename: string, fileType: string): Promise<void> {
+export async function fetchImageFromPresignedUrl(presignedUrl: string, fileType: string) {
     try {
       const response = await fetch(presignedUrl);
       if (!response.ok) throw new Error('Network response was not ok');
@@ -34,8 +29,18 @@ async function downloadImageFromPresignedUrl(presignedUrl: string, filename: str
         byteNumbers[i] = byteCharacters.charCodeAt(i);
       }
       const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: fileType }); 
-  
+      return new Blob([byteArray], { type: fileType }); 
+    } catch (error) {
+      console.error('Failed to fetch image:', error);
+      alert("Error downloading file. Please try again later.");
+      return null;
+    }
+}
+
+async function downloadImageFromPresignedUrl(presignedUrl: string, filename: string, fileType: string): Promise<void> {
+    try {
+      const blob = await fetchImageFromPresignedUrl(presignedUrl, fileType);
+      if (!blob) return;
       // Trigger the download
       const blobUrl = URL.createObjectURL(blob);
       const downloadLink = document.createElement('a');
