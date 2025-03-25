@@ -414,6 +414,8 @@ const onAssistantChange = (assistant: Assistant) => {
             return d;
         });
 
+        statsService.userSendChatEvent(msg as Message, selectedConversation?.model?.id ?? '');
+
         onSend(msg, updatedDocuments || []);
 
         // if (selectedProject && selectedConversation) {

@@ -815,10 +815,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         useEffect(() => {
             throttledScrollDown();
-            selectedConversation &&
-            setCurrentMessage(
-                selectedConversation.messages[selectedConversation.messages?.length - 2],
-            );
+            if (selectedConversation && selectedConversation.messages) {
+                 setCurrentMessage(
+                    selectedConversation.messages[selectedConversation.messages.length - 2],
+                );
+            }
+             
         }, [selectedConversation, throttledScrollDown]);
 
         const handleDeleteConversation = (conversation: Conversation) => {
