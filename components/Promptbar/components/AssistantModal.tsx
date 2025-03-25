@@ -7,7 +7,7 @@ import {ExistingFileList, FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
-import {IconFiles, IconCircleX, IconArrowRight, IconTags, IconMessage} from "@tabler/icons-react";
+import {IconFiles, IconTools, IconCircleX, IconArrowRight, IconTags, IconMessage} from "@tabler/icons-react";
 import {createAssistant} from "@/services/assistantService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
@@ -832,9 +832,14 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     {!availableApis && <>Loading API Capabilities...</>}
 
                                     <>
-                                        <button onClick={()=>{
-                                            setAddFunctionOpen(!addFunctionOpen);}
-                                        }>Manage Custom APIs</button>
+                                        <button
+                                            className="mt-2 mb-4 flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-sm text-neutral-800 hover:bg-neutral-200 dark:border-neutral-700 dark:text-neutral-100 dark:hover:bg-neutral-700"
+                                            onClick={() => setAddFunctionOpen(!addFunctionOpen)}
+                                        >
+                                            <IconTools size={18} />
+                                            Manage Custom APIs
+                                        </button>
+
                                         {addFunctionOpen && <PythonFunctionModal
                                             onCancel={()=>{setAddFunctionOpen(false);}}
                                             onSave={()=>{}}
