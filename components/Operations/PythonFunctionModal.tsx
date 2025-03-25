@@ -430,7 +430,7 @@ if __name__ == "__main__":
 
             const res = await savePythonFunction({
                 functionName: name,
-                functionUuid: selectedFnId?.startsWith('new-') ? undefined : selectedFnId,
+                functionUuid: selectedFnId?.startsWith('new-') ? undefined : selectedFnId ?? undefined,
                 code,
                 description,
                 inputSchema: parsedSchema,
