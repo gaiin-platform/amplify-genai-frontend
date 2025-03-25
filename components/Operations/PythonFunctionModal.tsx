@@ -9,7 +9,15 @@ import { useChatService } from "@/hooks/useChatService";
 
 
 import { getAvailableIntegrations } from "@/services/oauthIntegrationsService";
-import { deletePythonFunction, executePythonFunction, getFunctionCode, getFunctionMetadata, listUserFunctions, savePythonFunction } from '@/services/softwareEngineerService';
+import {
+    deletePythonFunction,
+    executePythonFunction,
+    getFunctionCode,
+    getFunctionMetadata,
+    listUserFunctions,
+    publishFunction,
+    savePythonFunction
+} from '@/services/softwareEngineerService';
 
 
 
@@ -247,10 +255,19 @@ if __name__ == "__main__":
         return `${s.trim()}\n\n${mainBlock.trim()}\n`;
     };
 
+    const notPublished = {
+        "published": false,
+        "function_version": "",
+        "function_name": "",
+        "path": "",
+        "uri": ""
+    };
+
     const [name, setName] = useState('');
     const [code, setCode] = useState('');
     const [description, setDescription] = useState('');
     const [schema, setSchema] = useState('');
+    const [publicationData, setPublicationData] = useState(notPublished);
     const [testJson, setTestJson] = useState('');
     const [validated, setValidated] = useState<boolean | null>(null);
     const [userFunctions, setUserFunctions] = useState<any[]>([]);
@@ -273,6 +290,11 @@ if __name__ == "__main__":
     const [inputPromptResolve, setInputPromptResolve] = useState<((v: string|null) => void) | null>(null);
     const [inputPromptText, setInputPromptText] = useState('');
     const [availableIntegrations, setAvailableIntegrations] = useState<any[]>([]);
+    const [publishPath, setPublishPath] = useState('');
+    const [publishVersion, setPublishVersion] = useState('v1');
+    const [assistantAccessible, setAssistantAccessible] = useState(true);
+    const [access, setAccess] = useState<'public' | 'private'>('public');
+    const [isPublishing, setIsPublishing] = useState(false);
 
     const [testCases, setTestCases] = useState<any[]>([]);
 
@@ -347,6 +369,28 @@ if __name__ == "__main__":
         setDescription(fn.description)
         setSchema(JSON.stringify(fn.inputSchema ?? {}, null, 2));
         setTestCases(fn.testCases || []);
+
+        if(fn.metadata && fn.metadata.published){
+            setPublicationData(fn.metadata.published);
+
+            // version
+            const apiPrefix = "/amp/api";
+            const fullPath = fn.metadata.published.path || "";
+            let path = fullPath;
+            let version = "v1"
+            if(fullPath && fullPath.indexOf(apiPrefix) > -1){
+                const start = fullPath.indexOf(apiPrefix) + apiPrefix.length;
+                const splitPath = fullPath.indexOf("/", start)
+                const splitPath2 = fullPath.indexOf("/", splitPath + 1)
+                version = fullPath.substring(splitPath, splitPath2);
+                path = fullPath.substring(splitPath2);
+            }
+
+            setPublishPath(path);
+            setPublishVersion(version);
+        } else {
+            setPublicationData(notPublished);
+        }
 
         try {
 
@@ -434,7 +478,8 @@ if __name__ == "__main__":
             });
 
             const metadata = {
-                environment: env
+                environment: env,
+                published: publicationData
             };
 
             const oldFnId = selectedFnId;
@@ -815,6 +860,11 @@ Output only a markdown code block like this:
                                 Function ID: {selectedFnId}
                               </div>
                             )}
+                                {publicationData && publicationData.published && (
+                                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        Published API: {publicationData.uri}
+                                    </div>
+                                )}
                                 <div className="mt-4">
                                     <div className="text-sm font-bold mb-1">Tags</div>
                                     <div className="flex items-center gap-2">
@@ -1444,8 +1494,86 @@ Output only a markdown code block like this:
                                         ))}
                                     </div>
                                 )}
+                                <h2 className="text-md font-semibold mt-4 mb-2">Publish Function</h2>
+                                <div className="border rounded p-4 space-y-3">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Path</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                            placeholder="e.g. cars/list"
+                                            value={publishPath}
+                                            onChange={(e) => setPublishPath(e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Version</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                            value={publishVersion}
+                                            onChange={(e) => setPublishVersion(e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={assistantAccessible}
+                                            onChange={(e) => setAssistantAccessible(e.target.checked)}
+                                        />
+                                        <label className="text-sm">Assistant Accessible</label>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Access</label>
+                                        <select
+                                            className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                            value={access}
+                                            //@ts-ignore
+                                            onChange={(e) => setAccess(e.target.value)}
+                                        >
+                                            <option value="public">Public</option>
+                                            <option value="private">Private</option>
+                                        </select>
+                                    </div>
+
+                                    <button
+                                        className="mt-2 px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                                        disabled={isPublishing}
+                                        onClick={async () => {
+                                            if (!selectedFnId || !publishPath) {
+                                                alert("Please enter a path and ensure the function is selected.");
+                                                return;
+                                            }
+                                            setIsPublishing(true);
+                                            try {
+                                                const pubinfo = await publishFunction(selectedFnId, publishPath, publishVersion, assistantAccessible, access);
+                                                if(pubinfo.success) {
+                                                    setPublicationData({...pubinfo.data, published: true})
+
+                                                    await handleSave();
+
+                                                    alert("Function published successfully.");
+                                                }
+                                                else {
+                                                    alert("Failed to publish function: "+ pubinfo.message);
+                                                }
+                                            } catch (err) {
+                                                //@ts-ignore
+                                                alert("Failed to publish: " + (err?.message || err.toString()));
+                                            } finally {
+                                                setIsPublishing(false);
+                                            }
+                                        }}
+                                    >
+                                        {isPublishing ? "Publishing..." : "Publish Function"}
+                                    </button>
+                                </div>
                             </div>
                         </div>
+
                         <div className="flex flex-row items-center justify-end p-4 bg-white dark:bg-[#22232b]">
                             <button
                                 className="px-4 py-2 border rounded-lg shadow text-neutral-900 hover:bg-neutral-100 dark:bg-white dark:text-black dark:hover:bg-neutral-300 disabled:opacity-50 flex items-center gap-2"
