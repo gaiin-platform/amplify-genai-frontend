@@ -235,6 +235,7 @@ if __name__ == "__main__":
         event = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {}
         output = main(event)
     except Exception as e:
+        import traceback
         output = {
             "error": True,
             "traceback": traceback.format_exc(),
@@ -384,6 +385,15 @@ if __name__ == "__main__":
                 const splitPath2 = fullPath.indexOf("/", splitPath + 1)
                 version = fullPath.substring(splitPath, splitPath2);
                 path = fullPath.substring(splitPath2);
+
+                if(path.startsWith("/")){
+                    path = path.substring(1);
+                }
+                if(version.startsWith("/")){
+                    version = version.substring(1);
+                }
+
+                //alert("Version: " + version + " Path: " + path)
             }
 
             setPublishPath(path);
@@ -413,9 +423,7 @@ if __name__ == "__main__":
         const variables = envMeta.variables ?? {};
 
         for (const key in secrets) {
-            if (key.startsWith('s_')) {
-                envVarsFromMetadata.push({ type: 'Secret', key: key.slice(2), value: '' });
-            }
+            envVarsFromMetadata.push({ type: 'Secret', key: key, value: secrets[key] });
         }
         for (const key in oauth) {
             envVarsFromMetadata.push({ type: 'OAuth Token', key, value: oauth[key] });
@@ -467,7 +475,7 @@ if __name__ == "__main__":
             envVars.forEach(({ type, key, value }) => {
                 if (!key) return;
                 if (type === 'Secret') {
-                    env.secrets[`s_${key}`] = value;
+                    env.secrets[key] = value;
                 } else if (type === 'OAuth Token') {
                     env.oauth[key] = value;
                 } else if (type === 'Amplify Variable') {
@@ -1549,7 +1557,15 @@ Output only a markdown code block like this:
                                             }
                                             setIsPublishing(true);
                                             try {
-                                                const pubinfo = await publishFunction(selectedFnId, publishPath, publishVersion, assistantAccessible, access);
+
+                                                let fpath = publishPath.replace(/[^a-zA-Z0-9\/\-_]/g, '');
+                                                if(publishPath.startsWith("/")){
+                                                    fpath = publishPath.substring(1)
+                                                }
+                                                // Remove all non alphanumeric characters
+                                                let fv = publishVersion.replace(/[^a-zA-Z0-9]/g, '');
+
+                                                const pubinfo = await publishFunction(selectedFnId, fpath, fv, assistantAccessible, access);
                                                 if(pubinfo.success) {
                                                     setPublicationData({...pubinfo.data, published: true})
 
