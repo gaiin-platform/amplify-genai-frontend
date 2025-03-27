@@ -36,6 +36,7 @@ import HomeContext from "@/pages/api/home/home.context";
 
 
 import PromptTextArea from "@/components/PromptTextArea/PromptTextArea";
+import {getSession} from "next-auth/react";
 
 
 interface Props {
@@ -298,6 +299,14 @@ if __name__ == "__main__":
     const [isPublishing, setIsPublishing] = useState(false);
 
     const [testCases, setTestCases] = useState<any[]>([]);
+    const [accessToken, setAccessToken] = useState<string | null>(null);
+
+    useEffect(() => {
+        getSession().then((session) => {
+            // @ts-ignore
+            setAccessToken(session.accessToken || null);
+        });
+    }, []);
 
     const refreshUserIntegrations = async () => {
         const integrationSupport = await getAvailableIntegrations();
@@ -1476,6 +1485,30 @@ Output only a markdown code block like this:
                                                     >
                                                         Run
                                                     </button>
+                                                    {publicationData && publicationData.published && (
+                                                        <button
+                                                            className="text-xs text-blue-600 hover:underline ml-2"
+                                                    onClick={() => {
+                                                        if (!accessToken) {
+                                                            alert("Access token not available.");
+                                                            return;
+                                                        }
+                                                        const input = typeof tc.inputJson === 'string' ? JSON.parse(tc.inputJson) : tc.inputJson;
+                                                        const curlCommand = `curl -X POST '${publicationData.uri}' \\
+ -H 'Authorization: Bearer ${accessToken}' \\
+ -H 'Content-Type: application/json' \\
+ -d '${JSON.stringify({ data: input }, null, 2)}'`;
+                                                        navigator.clipboard.writeText(curlCommand)
+                                                            .then(() => alert("cURL command copied to clipboard!"))
+                                                            .catch((err) => {
+                                                                alert("Failed to copy cURL command.");
+                                                                console.error(err);
+                                                            });
+                                                    }}
+                                                                >
+                                                                Copy cURL
+                                                        </button>
+                                                                )}
                                                     <button
                                                         className="text-xs text-blue-600 hover:underline"
                                                     onClick={() => {
