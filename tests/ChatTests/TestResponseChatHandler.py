@@ -12,13 +12,31 @@ from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.webdriver.common.keys import Keys
 
+def load_env():
+    # List of possible locations for .env.local
+    possible_locations = [
+        os.getenv('ENV_FILE'),  # From bash script
+        os.path.join(os.path.dirname(__file__), '..', '..', '.env.local'),  # Two levels up
+        os.path.join(os.path.dirname(__file__), '..', '.env.local'),  # One level up
+        os.path.join(os.path.dirname(__file__), '.env.local'),  # Same directory
+    ]
+
+    for location in possible_locations:
+        if location and os.path.isfile(location):
+            load_dotenv(location)
+            # print(f"Loaded environment from: {location}")
+            return True
+    
+    print("Warning: .env.local file not found")
+    return False
+
 class ResponseChatHandlerTests(unittest.TestCase):
     
     # ----------------- Setup -----------------
     def setUp(self, headless=True):
         
         # Load environment variables from .env.local
-        load_dotenv(".env.local")
+        load_env()
 
         # Get values from environment variables
         base_url = os.getenv("NEXTAUTH_URL", "http://localhost:3000")
@@ -536,6 +554,10 @@ class ResponseChatHandlerTests(unittest.TestCase):
         # Scroll the chatScrollWindow to the top
         chat_scroll_window = self.wait.until(EC.presence_of_element_located((By.ID, "chatScrollWindow")))
         self.driver.execute_script("arguments[0].scrollTop = 0;", chat_scroll_window)
+        
+        for _ in range(10):  # Adjust the number of times to ensure it reaches the bottom
+            chat_scroll_window.send_keys(Keys.PAGE_DOWN)
+            time.sleep(0.5)
         
         # Hover the chat response
         chat_hover = self.wait.until(EC.presence_of_all_elements_located(

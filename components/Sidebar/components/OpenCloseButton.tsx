@@ -18,6 +18,7 @@ export const CloseSidebarButton = ({ onClick, side, isDisabled}: Props) => {
         } sm:h-8 sm:w-8 sm:text-neutral-700`}
         onClick={onClick}
         title="Collapse Sidebar"
+        id="collapseSidebar"
       >
         {side === 'right' ? <IconArrowBarRight /> : <IconArrowBarLeft />}
       </button>

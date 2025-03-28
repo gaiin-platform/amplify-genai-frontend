@@ -33,6 +33,7 @@ interface Props {
       </span>
       <input
         className="w-full h-[3px] rounded-none appearance-none cursor-pointer bg-gray-300"
+        id="slider"
         style={{
             outline: 'none',
             background: 'linear-gradient(to right, #3b82f6 0%, #3b82f6 ' + (slider / max * 100) + '%, #d1d5db ' + (slider / max * 100) + '%, #d1d5db 100%)',

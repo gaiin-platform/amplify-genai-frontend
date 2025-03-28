@@ -31,9 +31,10 @@ export const MyHome: FC<MyHomeProps> = ({
                         <div>
                             <IconFiles size={36}/>
                         </div>
-                        <div className="ml-2">Your Files</div>
+                        <div id="Your Files" className="ml-2">Your Files</div>
                         <button 
                             onClick={() => homeDispatch({field: 'page', value: 'chat'})}
+                            id="Close"
                             className="ml-auto flex items-center text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white"
                             title="Close">
                             <IconX size={22} /> 

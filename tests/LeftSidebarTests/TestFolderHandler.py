@@ -12,13 +12,31 @@ from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.webdriver.common.keys import Keys
 
+def load_env():
+    # List of possible locations for .env.local
+    possible_locations = [
+        os.getenv('ENV_FILE'),  # From bash script
+        os.path.join(os.path.dirname(__file__), '..', '..', '.env.local'),  # Two levels up
+        os.path.join(os.path.dirname(__file__), '..', '.env.local'),  # One level up
+        os.path.join(os.path.dirname(__file__), '.env.local'),  # Same directory
+    ]
+
+    for location in possible_locations:
+        if location and os.path.isfile(location):
+            load_dotenv(location)
+            # print(f"Loaded environment from: {location}")
+            return True
+    
+    print("Warning: .env.local file not found")
+    return False
+
 class FolderHandlerLeftTests(unittest.TestCase):
     
     # ----------------- Setup -----------------
     def setUp(self, headless=True):
         
         # Load environment variables from .env.local
-        load_dotenv(".env.local")
+        load_env()
 
         # Get values from environment variables
         base_url = os.getenv("NEXTAUTH_URL", "http://localhost:3000")
@@ -1168,7 +1186,7 @@ class FolderHandlerLeftTests(unittest.TestCase):
         
         # Extract and print all title attributes for debugging
         titles = [element.get_attribute("title") for element in drop_name_elements]
-        print("Extracted Titles:", titles)  # Debugging output
+        # print("Extracted Titles:", titles)  # Debugging output
         
         # Extract and verify that all elements have the title "Collapse Folder"
         expected_title = "Collapse folder"
@@ -1225,7 +1243,7 @@ class FolderHandlerLeftTests(unittest.TestCase):
         
         # Extract and print all title attributes for debugging
         titles = [element.get_attribute("title") for element in drop_name_elements]
-        print("Extracted Titles:", titles)  # Debugging output
+        # print("Extracted Titles:", titles)  # Debugging output
         
         # Extract and verify that all elements have the title "Expand Folder"
         expected_title = "Expand folder"

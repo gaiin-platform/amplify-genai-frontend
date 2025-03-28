@@ -12,13 +12,31 @@ from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.webdriver.common.keys import Keys
 
-class MassShareTests(unittest.TestCase):
+def load_env():
+    # List of possible locations for .env.local
+    possible_locations = [
+        os.getenv('ENV_FILE'),  # From bash script
+        os.path.join(os.path.dirname(__file__), '..', '..', '.env.local'),  # Two levels up
+        os.path.join(os.path.dirname(__file__), '..', '.env.local'),  # One level up
+        os.path.join(os.path.dirname(__file__), '.env.local'),  # Same directory
+    ]
+
+    for location in possible_locations:
+        if location and os.path.isfile(location):
+            load_dotenv(location)
+            # print(f"Loaded environment from: {location}")
+            return True
+    
+    print("Warning: .env.local file not found")
+    return False
+
+class MassDeleteTests(unittest.TestCase):
     
     # ----------------- Setup -----------------
     def setUp(self, headless=True):
         
         # Load environment variables from .env.local
-        load_dotenv(".env.local")
+        load_env()
 
         # Get values from environment variables
         base_url = os.getenv("NEXTAUTH_URL", "http://localhost:3000")
@@ -37,13 +55,10 @@ class MassShareTests(unittest.TestCase):
         self.driver.get(base_url)
         self.wait = WebDriverWait(self.driver, 10)
         self.login(username, password)  # Perform login during setup
-        self.delete_everything()
-        
-        # Create Setup Test Variables 
-        self.setup_test_data(num_assistants=2, num_prompts=2)
+
 
     def tearDown(self):
-        self.driver.quit()  # Always quit the browser
+        self.driver.quit()
         
     # ----------------- Login -----------------
     def login(self, username, password):
@@ -83,16 +98,6 @@ class MassShareTests(unittest.TestCase):
             
 
     # ----------------- Setup Test Data ------------------
-    
-    def setup_test_data(self, num_assistants=2, num_prompts=2):
-        """Creates a folder, a specified number of assistants, and prompts."""
-        for i in range(1, num_assistants + 1):
-            self.create_assistant(f"Goomba {i}")
-        
-        for i in range(1, num_prompts + 1):
-            self.create_prompt(f"Boo {i}")
-            
-        self.create_folder("Mario Party")
 
     def create_folder(self, folder_name):
         time.sleep(5)
@@ -173,47 +178,20 @@ class MassShareTests(unittest.TestCase):
         self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
         prompt_in_list = next((el for el in prompt_name_elements if el.text == prompt_name), None)
         self.assertIsNotNone(prompt_in_list, f"{prompt_name} should be visible in the dropdown")
+
+
+
+    # ----------------- Test Delete Mass Assistants -----------------
+    """This test ensures multiple assistants can be deleted individually via the 
+       three dots handler on the Right Side Bar"""
+       
+    def test_delete_mass_assistants(self):
         
-    def delete_everything(self):
-        prompt_handler_buttons_plural = self.wait.until(EC.presence_of_all_elements_located((By.ID, "promptHandler")))
-        self.assertGreater(len(prompt_handler_buttons_plural), 1, "Expected multiple buttons with ID 'createFolderButton'")
-        prompt_handler_buttons_plural[-1].click()
+        self.create_assistant("Shy Guy 1")
+        self.create_assistant("Shy Guy 2")
+        self.create_assistant("Shy Guy 3")
+        self.create_folder("Mario Party")
         
-        delete_button = self.wait.until(EC.element_to_be_clickable((By.ID, "Delete")))
-        self.assertTrue(delete_button, "Delete Button should be initialized")
-        delete_button.click()
-        
-        drop_name_elements = self.wait.until(EC.presence_of_all_elements_located((By.ID, "dropName")))
-        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-        amplify_helper_dropdown_button = next((el for el in drop_name_elements if el.text == "Amplify Helpers"), None)
-        self.assertIsNotNone(amplify_helper_dropdown_button, "Amplify Helpers button should be present")
-        amplify_helper_dropdown_button.click()
-        
-        drop_name_elements = self.wait.until(EC.presence_of_all_elements_located((By.ID, "dropName")))
-        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-        custom_instructions_dropdown_button = next((el for el in drop_name_elements if el.text == "Custom Instructions"), None)
-        self.assertIsNotNone(custom_instructions_dropdown_button, "Custom Instructions button should be present")
-        custom_instructions_dropdown_button.click()
-        
-        select_all_check = self.wait.until(EC.presence_of_element_located((By.ID, "selectAllCheck")))
-        checkbox = select_all_check.find_element(By.XPATH, ".//input[@type='checkbox']")
-        self.assertIsNotNone(checkbox, f'Checkbox for prompt All should be present')
-        checkbox.click()
-        
-        confirm_delete_button = self.wait.until(EC.element_to_be_clickable((By.ID, "confirmItem")))
-        self.assertTrue(confirm_delete_button, "Delete Button should be initialized")
-        confirm_delete_button.click()
-        
-        time.sleep(2)
-            
-    
-    
-    # ----------------- Test Share Mass Assistants -----------------
-    """This test ensures multiple assistants can be shared individually via the 
-    three dots handler on the Right Side Bar"""
-    
-    def test_share_mass_assistants(self):
-    
         # Locate all elements with ID "promptName"
         prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
             (By.ID, "promptName")
@@ -221,8 +199,8 @@ class MassShareTests(unittest.TestCase):
         self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
         
         # Find the correct assistant in the dropdown list
-        assistant_in_list = next((el for el in prompt_name_elements if el.text == "Goomba 1"), None)
-        self.assertIsNotNone(assistant_in_list, "Goomba 1 should be visible in the dropdown")
+        assistant_in_list = next((el for el in prompt_name_elements if el.text == "Shy Guy 1"), None)
+        self.assertIsNotNone(assistant_in_list, "Shy Guy 1 should be visible in the dropdown")
         
         # Ensure the parent button's is visible
         # This is draggable
@@ -261,11 +239,11 @@ class MassShareTests(unittest.TestCase):
         
         time.sleep(3)
         
-        # Click the Share Button
+        # Click the Delete Button
         delete_button = self.wait.until(EC.element_to_be_clickable(
-            (By.ID, "Share")
+            (By.ID, "Delete")
         ))
-        self.assertTrue(delete_button, "Share Button should be initialized")
+        self.assertTrue(delete_button, "Delete Button should be initialized")
         delete_button.click()
         
         time.sleep(3)
@@ -306,116 +284,77 @@ class MassShareTests(unittest.TestCase):
         ))
         self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
 
-        # Check if any of the elements contain "Goomba 1"
-        prompt_in_list = next((el for el in prompt_name_elements if el.text == "Goomba 1"), None)
-        self.assertIsNotNone(prompt_in_list, "Goomba 1 should be visible in the dropdown")
+        # Check if any of the elements contain "Shy Guy 1"
+        prompt_in_list = next((el for el in prompt_name_elements if el.text == "Shy Guy 1"), None)
+        self.assertIsNotNone(prompt_in_list, "Shy Guy 1 should be visible in the dropdown")
         
         # Navigate up to the parent container
         parent_container = prompt_in_list.find_element(By.XPATH, "./ancestor::div[@id='promptEncompass']")
         
         # Locate the checkbox within the parent container
         checkbox = parent_container.find_element(By.XPATH, ".//input[@type='checkbox']")
-        self.assertIsNotNone(checkbox, f'Checkbox for prompt Goomba 1 should be present')
+        self.assertIsNotNone(checkbox, f'Checkbox for prompt Shy Guy 1 should be present')
 
         # Click the checkbox
         checkbox.click()
         
-        # Locate all elements with ID "promptName" and find the one with text "Goomba 1"
+        # Locate all elements with ID "promptName" and find the one with text "Shy Guy 1"
         prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
             (By.ID, "promptName")
         ))
         self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
 
-        # Check if any of the elements contain "Goomba 2"
-        prompt_in_list = next((el for el in prompt_name_elements if el.text == "Goomba 2"), None)
-        self.assertIsNotNone(prompt_in_list, "Goomba 2 should be visible in the dropdown")
+        # Check if any of the elements contain "Shy Guy 2"
+        prompt_in_list = next((el for el in prompt_name_elements if el.text == "Shy Guy 2"), None)
+        self.assertIsNotNone(prompt_in_list, "Shy Guy 2 should be visible in the dropdown")
         
         # Navigate up to the parent container
         parent_container = prompt_in_list.find_element(By.XPATH, "./ancestor::div[@id='promptEncompass']")
         
         # Locate the checkbox within the parent container
         checkbox = parent_container.find_element(By.XPATH, ".//input[@type='checkbox']")
-        self.assertIsNotNone(checkbox, f'Checkbox for prompt Goomba 2 should be present')
+        self.assertIsNotNone(checkbox, f'Checkbox for prompt Shy Guy 2 should be present')
 
         # Click the checkbox
         checkbox.click()
         
         time.sleep(3)
         
-        # Click the Share Button
-        confirm_share_button = self.wait.until(EC.element_to_be_clickable(
+        # Click the Delete Button
+        confirm_delete_button = self.wait.until(EC.element_to_be_clickable(
             (By.ID, "confirmItem")
         ))
-        self.assertTrue(confirm_share_button, "Share Button should be initialized")
-        confirm_share_button.click()
+        self.assertTrue(confirm_delete_button, "Delete Button should be initialized")
+        confirm_delete_button.click()
         
-        # Verify the presence of the Window element after clicking the Edit button
-        share_modal_element = self.wait.until(EC.presence_of_element_located(
-            (By.ID, "modalTitle")
+        time.sleep(2)
+        
+        # Locate all elements with ID "promptName" and find the one with text "Shy Guy 1"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
         ))
-        self.assertTrue(share_modal_element.is_displayed(), "Share window element is visible")
-        
-        time.sleep(3)
-        
-        # Extract the text from the element
-        modal_text = share_modal_element.text
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
 
-        # Ensure the extracted text matches the expected value
-        self.assertEqual(modal_text, "Add People to Share With", "Modal title should be 'Add People to Share With'")
+        # Check if any of the elements do not contain "Shy Guy 1"
+        prompt_in_list = next((el for el in prompt_name_elements if el.text == "Shy Guy 1"), None)
+        self.assertIsNone(prompt_in_list, "Shy Guy 1 should be visible in the dropdown")
         
-        # Locate all elements with ID "checkBoxName" and find the one with text
-        checkbox_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "checkBoxName")
-        ))
-        self.assertTrue(checkbox_name_elements, "Checkbox name elements should be initialized")
-
-        # Check if any of the elements contain "Goomba 1"
-        checkbox_name_in_list = next((el for el in checkbox_name_elements if el.text == "Goomba 1"), None)
-        self.assertIsNotNone(checkbox_name_in_list, "Goomba 1 should be visible in the dropdown")
-        
-        time.sleep(3)
-        
-        # Navigate up to the parent container
-        parent_container = checkbox_name_in_list.find_element(By.XPATH, "./ancestor::div[@id='checkBoxItem']")
-        
-        # Locate the checkbox within the parent container
-        checkbox = parent_container.find_element(By.XPATH, ".//input[@type='checkbox']")
-        self.assertIsNotNone(checkbox, f'Checkbox for prompt Goomba 1 should be present')
-        
-        # Verify if the checkbox is checked
-        is_checked = checkbox.get_attribute("checked") is not None
-        self.assertTrue(is_checked, "Checkbox should be checked")
-        
-        time.sleep(3)
-        
-        # Locate all elements with ID "checkBoxName" and find the one with text
-        checkbox_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "checkBoxName")
-        ))
-        self.assertTrue(checkbox_name_elements, "Checkbox name elements should be initialized")
-
-        # Check if any of the elements contain "Goomba 2"
-        checkbox_name_in_list = next((el for el in checkbox_name_elements if el.text == "Goomba 2"), None)
-        self.assertIsNotNone(prompt_in_list, "Goomba 2 should be visible in the dropdown")
-        
-        # Navigate up to the parent container
-        parent_container = checkbox_name_in_list.find_element(By.XPATH, "./ancestor::div[@id='checkBoxItem']")
-        
-        # Locate the checkbox within the parent container
-        checkbox = parent_container.find_element(By.XPATH, ".//input[@type='checkbox']")
-        self.assertIsNotNone(checkbox, f'Checkbox for prompt Goomba 2 should be present')
-        
-        # Verify if the checkbox is checked
-        is_checked = checkbox.get_attribute("checked") is not None
-        self.assertTrue(is_checked, "Checkbox should be checked")
+        # Check if any of the elements do not contain "Shy Guy 1"
+        prompt_in_list = next((el for el in prompt_name_elements if el.text == "Shy Guy 2"), None)
+        self.assertIsNone(prompt_in_list, "Shy Guy 1 should be visible in the dropdown")
         
     
     
-    # ----------------- Test Share Mass Prompts -----------------
-    """This test ensures multiple prompts can be shared individually via the 
-    three dots handler on the Right Side Bar"""
-    
-    def test_share_mass_prompts(self):        
+    # ----------------- Test Delete Mass Prompts -----------------
+    """This test ensures multiple prompts can be deleted individually via the 
+       three dots handler on the Rightt Side Bar"""
+       
+    def test_delete_mass_prompts(self):
+        
+        self.create_prompt("Toad 1")
+        self.create_prompt("Toad 2")
+        self.create_prompt("Toad 3")
+        
         # Click the promptHandler Button
         prompt_handler_buttons_plural = self.wait.until(EC.presence_of_all_elements_located(
             (By.ID, "promptHandler")
@@ -426,11 +365,11 @@ class MassShareTests(unittest.TestCase):
         
         time.sleep(3)
         
-        # Click the Share Button
+        # Click the Delete Button
         delete_button = self.wait.until(EC.element_to_be_clickable(
-            (By.ID, "Share")
+            (By.ID, "Delete")
         ))
-        self.assertTrue(delete_button, "Share Button should be initialized")
+        self.assertTrue(delete_button, "Delete Button should be initialized")
         delete_button.click()
         
         time.sleep(3)
@@ -465,122 +404,82 @@ class MassShareTests(unittest.TestCase):
         
         # Find Prompt name and try to find the checkbox?
         time.sleep(2)
+        # Locate all elements with ID "promptName" and find the one with text "Toad 1"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+
+        # Check if any of the elements contain "Toad 1"
+        prompt_in_list = next((el for el in prompt_name_elements if el.text == "Toad 1"), None)
+        self.assertIsNotNone(prompt_in_list, "Toad 1 should be visible in the dropdown")
+        
+        # Navigate up to the parent container
+        parent_container = prompt_in_list.find_element(By.XPATH, "./ancestor::div[@id='promptEncompass']")
+        
+        # Locate the checkbox within the parent container
+        checkbox = parent_container.find_element(By.XPATH, ".//input[@type='checkbox']")
+        self.assertIsNotNone(checkbox, f'Checkbox for prompt Toad 1 should be present')
+
+        # Click the checkbox
+        checkbox.click()
+        
+        # Locate all elements with ID "promptName" and find the one with text "Toad 2"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+
+        # Check if any of the elements contain "Toad 2"
+        prompt_in_list = next((el for el in prompt_name_elements if el.text == "Toad 2"), None)
+        self.assertIsNotNone(prompt_in_list, "Toad 2 should be visible in the dropdown")
+        
+        # Navigate up to the parent container
+        parent_container = prompt_in_list.find_element(By.XPATH, "./ancestor::div[@id='promptEncompass']")
+        
+        # Locate the checkbox within the parent container
+        checkbox = parent_container.find_element(By.XPATH, ".//input[@type='checkbox']")
+        self.assertIsNotNone(checkbox, f'Checkbox for prompt Toad 2 should be present')
+
+        # Click the checkbox
+        checkbox.click()
+        
+        time.sleep(3)
+        
+        # Click the Delete Button
+        confirm_delete_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "confirmItem")
+        ))
+        self.assertTrue(confirm_delete_button, "Delete Button should be initialized")
+        confirm_delete_button.click()
+        
+        time.sleep(2)
+        
         # Locate all elements with ID "promptName" and find the one with text "Shy Guy 1"
         prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
             (By.ID, "promptName")
         ))
         self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
 
-        # Check if any of the elements contain "Boo 1"
-        prompt_in_list = next((el for el in prompt_name_elements if el.text == "Boo 1"), None)
-        self.assertIsNotNone(prompt_in_list, "Boo 1 should be visible in the dropdown")
+        # Check if any of the elements do not contain "Toad 1"
+        prompt_in_list = next((el for el in prompt_name_elements if el.text == "Toad 1"), None)
+        self.assertIsNone(prompt_in_list, "Toad 1 should be visible in the dropdown")
         
-        # Navigate up to the parent container
-        parent_container = prompt_in_list.find_element(By.XPATH, "./ancestor::div[@id='promptEncompass']")
-        
-        # Locate the checkbox within the parent container
-        checkbox = parent_container.find_element(By.XPATH, ".//input[@type='checkbox']")
-        self.assertIsNotNone(checkbox, f'Checkbox for prompt Boo 1 should be present')
-
-        # Click the checkbox
-        checkbox.click()
-        
-        # Locate all elements with ID "promptName" and find the one with text "Goomba 1"
-        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "promptName")
-        ))
-        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
-
-        # Check if any of the elements contain "Boo 2"
-        prompt_in_list = next((el for el in prompt_name_elements if el.text == "Boo 2"), None)
-        self.assertIsNotNone(prompt_in_list, "Boo 2 should be visible in the dropdown")
-        
-        # Navigate up to the parent container
-        parent_container = prompt_in_list.find_element(By.XPATH, "./ancestor::div[@id='promptEncompass']")
-        
-        # Locate the checkbox within the parent container
-        checkbox = parent_container.find_element(By.XPATH, ".//input[@type='checkbox']")
-        self.assertIsNotNone(checkbox, f'Checkbox for prompt Boo 2 should be present')
-
-        # Click the checkbox
-        checkbox.click()
-        
-        time.sleep(3)
-        
-        # Click the Share Button
-        confirm_share_button = self.wait.until(EC.element_to_be_clickable(
-            (By.ID, "confirmItem")
-        ))
-        self.assertTrue(confirm_share_button, "Share Button should be initialized")
-        confirm_share_button.click()
-        
-        # Verify the presence of the Window element after clicking the Edit button
-        share_modal_element = self.wait.until(EC.presence_of_element_located(
-            (By.ID, "modalTitle")
-        ))
-        self.assertTrue(share_modal_element.is_displayed(), "Share window element is visible")
-        
-        time.sleep(3)
-        
-        # Extract the text from the element
-        modal_text = share_modal_element.text
-
-        # Ensure the extracted text matches the expected value
-        self.assertEqual(modal_text, "Add People to Share With", "Modal title should be 'Add People to Share With'")
-        
-        # Locate all elements with ID "checkBoxName" and find the one with text
-        checkbox_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "checkBoxName")
-        ))
-        self.assertTrue(checkbox_name_elements, "Checkbox name elements should be initialized")
-
-        # Check if any of the elements contain "Boo 1"
-        checkbox_name_in_list = next((el for el in checkbox_name_elements if el.text == "Boo 1"), None)
-        self.assertIsNotNone(checkbox_name_in_list, "Boo 1 should be visible in the dropdown")
-        
-        time.sleep(3)
-        
-        # Navigate up to the parent container
-        parent_container = checkbox_name_in_list.find_element(By.XPATH, "./ancestor::div[@id='checkBoxItem']")
-        
-        # Locate the checkbox within the parent container
-        checkbox = parent_container.find_element(By.XPATH, ".//input[@type='checkbox']")
-        self.assertIsNotNone(checkbox, f'Checkbox for prompt Boo 1 should be present')
-        
-        # Verify if the checkbox is checked
-        is_checked = checkbox.get_attribute("checked") is not None
-        self.assertTrue(is_checked, "Checkbox should be checked")
-        
-        time.sleep(3)
-        
-        # Locate all elements with ID "checkBoxName" and find the one with text
-        checkbox_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "checkBoxName")
-        ))
-        self.assertTrue(checkbox_name_elements, "Checkbox name elements should be initialized")
-
-        # Check if any of the elements contain "Boo 2"
-        checkbox_name_in_list = next((el for el in checkbox_name_elements if el.text == "Boo 2"), None)
-        self.assertIsNotNone(checkbox_name_in_list, "Boo 2 should be visible in the dropdown")
-        
-        # Navigate up to the parent container
-        parent_container = checkbox_name_in_list.find_element(By.XPATH, "./ancestor::div[@id='checkBoxItem']")
-        
-        # Locate the checkbox within the parent container
-        checkbox = parent_container.find_element(By.XPATH, ".//input[@type='checkbox']")
-        self.assertIsNotNone(checkbox, f'Checkbox for prompt Boo 2 should be present')
-        
-        # Verify if the checkbox is checked
-        is_checked = checkbox.get_attribute("checked") is not None
-        self.assertTrue(is_checked, "Checkbox should be checked")
-        
+        # Check if any of the elements do not contain "Toad 1"
+        prompt_in_list = next((el for el in prompt_name_elements if el.text == "Toad 2"), None)
+        self.assertIsNone(prompt_in_list, "Toad 2 should be visible in the dropdown")
         
     
-    # ----------------- Test Share Everything -----------------
-    """This test ensures everything can be selected and shared via the 
-    three dots handler on the Right Side Bar"""
     
-    def test_share_everything(self):
+    # ----------------- Test Delete Everything -----------------
+    """This test ensures that everything can be selected and deleted via the three dots handler
+       on the Right Side Bar"""
+    
+    def test_delete_everything(self):
+        
+        self.create_assistant("Shy Guy")
+        self.create_prompt("Toad")
+        self.create_folder("Mario Party")
         
         # Click the promptHandler Button
         prompt_handler_buttons_plural = self.wait.until(EC.presence_of_all_elements_located(
@@ -592,11 +491,11 @@ class MassShareTests(unittest.TestCase):
         
         time.sleep(3)
         
-        # Click the Share Button
+        # Click the Delete Button
         delete_button = self.wait.until(EC.element_to_be_clickable(
-            (By.ID, "Share")
+            (By.ID, "Delete")
         ))
-        self.assertTrue(delete_button, "Share Button should be initialized")
+        self.assertTrue(delete_button, "Delete Button should be initialized")
         delete_button.click()
         
         time.sleep(3)
@@ -642,118 +541,23 @@ class MassShareTests(unittest.TestCase):
         
         time.sleep(3)
         
-        # Click the Share ALL Button
+        # Click the Delete Button
         confirm_delete_button = self.wait.until(EC.element_to_be_clickable(
             (By.ID, "confirmItem")
         ))
-        self.assertTrue(confirm_delete_button, "Share All Button should be initialized")
+        self.assertTrue(confirm_delete_button, "Delete Button should be initialized")
         confirm_delete_button.click()
         
         time.sleep(3)
         
-        # Verify the presence of the Window element after clicking the Edit button
-        share_modal_element = self.wait.until(EC.presence_of_element_located(
-            (By.ID, "modalTitle")
-        ))
-        self.assertTrue(share_modal_element.is_displayed(), "Share window element is visible")
-        
-        time.sleep(3)
-        
-        # Extract the text from the element
-        modal_text = share_modal_element.text
-
-        # Ensure the extracted text matches the expected value
-        self.assertEqual(modal_text, "Add People to Share With", "Modal title should be 'Add People to Share With'")
-        
-        # Locate all elements with ID "checkBoxName" and find the one with text
-        checkbox_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "checkBoxName")
-        ))
-        self.assertTrue(checkbox_name_elements, "Checkbox name elements should be initialized")
-
-        # Check if any of the elements contain "Boo 1"
-        checkbox_name_in_list = next((el for el in checkbox_name_elements if el.text == "Boo 1"), None)
-        self.assertIsNotNone(checkbox_name_in_list, "Boo 1 should be visible in the dropdown")
-        
-        time.sleep(3)
-        
-        # Navigate up to the parent container
-        parent_container = checkbox_name_in_list.find_element(By.XPATH, "./ancestor::div[@id='checkBoxItem']")
-        
-        # Locate the checkbox within the parent container
-        checkbox = parent_container.find_element(By.XPATH, ".//input[@type='checkbox']")
-        self.assertIsNotNone(checkbox, f'Checkbox for prompt Boo 1 should be present')
-        
-        # Verify if the checkbox is checked
-        is_checked = checkbox.get_attribute("checked") is not None
-        self.assertTrue(is_checked, "Checkbox should be checked")
-        
-        # Locate all elements with ID "checkBoxName" and find the one with text
-        checkbox_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "checkBoxName")
-        ))
-        self.assertTrue(checkbox_name_elements, "Checkbox name elements should be initialized")
-
-        # Check if any of the elements contain "Boo 2"
-        checkbox_name_in_list = next((el for el in checkbox_name_elements if el.text == "Boo 2"), None)
-        self.assertIsNotNone(checkbox_name_in_list, "Boo 2 should be visible in the dropdown")
-        
-        # Navigate up to the parent container
-        parent_container = checkbox_name_in_list.find_element(By.XPATH, "./ancestor::div[@id='checkBoxItem']")
-        
-        # Locate the checkbox within the parent container
-        checkbox = parent_container.find_element(By.XPATH, ".//input[@type='checkbox']")
-        self.assertIsNotNone(checkbox, f'Checkbox for prompt Boo 2 should be present')
-        
-        # Verify if the checkbox is checked
-        is_checked = checkbox.get_attribute("checked") is not None
-        self.assertTrue(is_checked, "Checkbox should be checked")
-        
-        # Locate all elements with ID "checkBoxName" and find the one with text
-        checkbox_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "checkBoxName")
-        ))
-        self.assertTrue(checkbox_name_elements, "Checkbox name elements should be initialized")
-
-        # Check if any of the elements contain "Goomba 1"
-        checkbox_name_in_list = next((el for el in checkbox_name_elements if el.text == "Goomba 1"), None)
-        self.assertIsNotNone(checkbox_name_in_list, "Goomba 1 should be visible in the dropdown")
-        
-        # Navigate up to the parent container
-        parent_container = checkbox_name_in_list.find_element(By.XPATH, "./ancestor::div[@id='checkBoxItem']")
-        
-        # Locate the checkbox within the parent container
-        checkbox = parent_container.find_element(By.XPATH, ".//input[@type='checkbox']")
-        self.assertIsNotNone(checkbox, f'Checkbox for prompt Goomba 1 should be present')
-        
-        # Verify if the checkbox is checked
-        is_checked = checkbox.get_attribute("checked") is not None
-        self.assertTrue(is_checked, "Checkbox should be checked")
-        
-        # Locate all elements with ID "checkBoxName" and find the one with text
-        checkbox_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "checkBoxName")
-        ))
-        self.assertTrue(checkbox_name_elements, "Checkbox name elements should be initialized")
-
-        # Check if any of the elements contain "Goomba 2"
-        checkbox_name_in_list = next((el for el in checkbox_name_elements if el.text == "Goomba 2"), None)
-        self.assertIsNotNone(checkbox_name_in_list, "Goomba 2 should be visible in the dropdown")
-        
-        # Navigate up to the parent container
-        parent_container = checkbox_name_in_list.find_element(By.XPATH, "./ancestor::div[@id='checkBoxItem']")
-        
-        # Locate the checkbox within the parent container
-        checkbox = parent_container.find_element(By.XPATH, ".//input[@type='checkbox']")
-        self.assertIsNotNone(checkbox, f'Checkbox for prompt Goomba 2 should be present')
-        
-        # Verify if the checkbox is checked
-        is_checked = checkbox.get_attribute("checked") is not None
-        self.assertTrue(is_checked, "Checkbox should be checked")
+        # Ensure no promptName elements are present
+        self.assertTrue(
+            self.wait.until(EC.invisibility_of_element_located((By.ID, "promptName"))),
+            "Prompt name elements should NOT be present"
+        )
 
     
     
 if __name__ == "__main__":
     unittest.main(verbosity=2)
-    
     

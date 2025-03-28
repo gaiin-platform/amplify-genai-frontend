@@ -201,6 +201,7 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
     
           <button
             className="left-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+            id="uploadFile"
             onClick={() => {
               const importFile = document.querySelector('#' + id) as HTMLInputElement;
               if (importFile) {

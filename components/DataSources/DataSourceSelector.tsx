@@ -72,10 +72,11 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
     }
 
     return (
-        <div className="md:flex rounded-t-xl border dark:border-[#454652] bg-[#e5e7eb] dark:bg-[#343541]">
+        <div id="viewFilesMenu" className="md:flex rounded-t-xl border dark:border-[#454652] bg-[#e5e7eb] dark:bg-[#343541]">
             <ul className="w-[160px] p-1 flex-column space-y space-y-4 text-sm font-medium text-gray-500 dark:text-gray-400 md:me-4 mb-4 md:mb-0">
                 <li>
                     <a href="#"
+                       id="fileSection"
                        className={pageClasses("files")}
                        aria-current="page">
                         <div className="flex flex-row items-center pointer"
@@ -92,6 +93,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                 </li>
                 <li>
                     <a href="#"
+                       id="tagSection"
                        className={pageClasses("tags")}
                        onClick={swapPage("tags")}
                     >
@@ -105,6 +107,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                 </li>
                 <li>
                     <a href="#"
+                       id="docsSection"
                        className={pageClasses("docs")}
                        onClick={swapPage("docs")}
                     >
@@ -118,6 +121,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                 </li>
                 <li>
                     <a href="#"
+                       id="slideSection"
                        className={pageClasses("slides")}
                        onClick={swapPage("slides")}
                     >

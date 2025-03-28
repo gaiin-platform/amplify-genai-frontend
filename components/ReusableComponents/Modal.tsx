@@ -108,7 +108,7 @@ interface Props {
                             </div> }  
                         </div>
 
-                        <div className="overflow-y-auto" style={{ maxHeight: `${innderWindow.height * 0.8}px` }}>
+                        <div id="modalScroll" className="overflow-y-auto" style={{ maxHeight: `${innderWindow.height * 0.8}px` }}>
                             {content}
                             <br className='mt-[40px]'></br>
                         </div>

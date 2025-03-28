@@ -232,6 +232,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               {t('Description')}
             </div>
             <textarea
+              id="promptDescription"
               className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
               style={{ resize: 'none' }}
               placeholder={t('A description for your prompt.') || ''}
@@ -247,6 +248,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                   {t('Custom Instructions')}
                 </div>
               <select
+              id="customInstructions"
               className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 "
               value={rootPrompt.id}
               onChange={(e) => handleUpdateRootPrompt(e.target.value)}
@@ -264,6 +266,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               {t('Prompt')}
             </div>
             <textarea
+              id="promptContent"
               className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
               style={{ resize: 'none' }}
               placeholder={
@@ -294,7 +297,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                 </div>
             )}
             { variableOptions.map((variableOption,index) => (
-              <div key={index} className="mt-2 mb-6 text-sm font-bold text-black dark:text-neutral-200">
+              <div key={index} id="variables" className="mt-2 mb-6 text-sm font-bold text-black dark:text-neutral-200">
 
                   <ExpansionComponent key={variableOption.variable} title={variableOption.label + ":" + variableOption.type}
                       // @ts-ignore
@@ -335,7 +338,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             ))}
 
             {selectedTemplate !== MessageType.PREFIX_PROMPT && (
-            <div className="mt-6">
+            <div id="conversationTags" className="mt-6">
             <ExpansionComponent title={"Conversation Tags"} content={
                 <div className="mt-2 mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
                   <input
@@ -344,6 +347,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                       placeholder={t('Tag names separated by commas.') || ''}
                       value={conversationTags}
                       title={"Tags for conversations created with this template."}
+                      id="tagNamesInput"
                       onChange={(e) => {
                         setConversationTags(e.target.value);
                       }}
@@ -380,6 +384,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
               <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100 mr-8">
                 <input
                     type="radio"
+                    id="promptTemplateCheck"
                     name="template"
                     className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
                     value={MessageType.PROMPT}
@@ -395,6 +400,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                     <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
                       <input
                           type="radio"
+                          id="customInstructionsCheck"
                           name="template"
                           className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
                           value={MessageType.ROOT}
@@ -412,6 +418,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                       <input
                           type="radio"
                           name="template"
+                          id="promptPrefixCheck"
                           className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
                           value={MessageType.PREFIX_PROMPT}
                           checked={selectedTemplate === MessageType.PREFIX_PROMPT}
@@ -428,6 +435,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                       <input
                           type="radio"
                           name="template"
+                          id="outputTransformerCheck"
                           className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
                           value={MessageType.OUTPUT_TRANSFORMER}
                           checked={selectedTemplate === MessageType.OUTPUT_TRANSFORMER}
@@ -444,6 +452,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                       <input
                           type="radio"
                           name="template"
+                          id="followUpButtonCheck"
                           className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
                           value={MessageType.FOLLOW_UP}
                           checked={selectedTemplate === MessageType.FOLLOW_UP}
@@ -460,6 +469,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                 <input
                     type="radio"
                     name="template"
+                    id="automationTemplateCheck"
                     className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
                     value={MessageType.AUTOMATION}
                     checked={selectedTemplate === MessageType.AUTOMATION}
