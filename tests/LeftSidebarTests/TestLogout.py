@@ -12,13 +12,31 @@ from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.webdriver.common.keys import Keys
 
-class ShareTabTests(unittest.TestCase):
+def load_env():
+    # List of possible locations for .env.local
+    possible_locations = [
+        os.getenv('ENV_FILE'),  # From bash script
+        os.path.join(os.path.dirname(__file__), '..', '..', '.env.local'),  # Two levels up
+        os.path.join(os.path.dirname(__file__), '..', '.env.local'),  # One level up
+        os.path.join(os.path.dirname(__file__), '.env.local'),  # Same directory
+    ]
+
+    for location in possible_locations:
+        if location and os.path.isfile(location):
+            load_dotenv(location)
+            # print(f"Loaded environment from: {location}")
+            return True
+    
+    print("Warning: .env.local file not found")
+    return False
+
+class LogoutTests(unittest.TestCase):
     
     # ----------------- Setup -----------------
     def setUp(self, headless=True):
         
         # Load environment variables from .env.local
-        load_dotenv(".env.local")
+        load_env()
 
         # Get values from environment variables
         base_url = os.getenv("NEXTAUTH_URL", "http://localhost:3000")
@@ -39,7 +57,7 @@ class ShareTabTests(unittest.TestCase):
         self.login(username, password)  # Perform login during setup
 
     def tearDown(self):
-        self.driver.quit()  # Always quit the browser
+        self.driver.quit()
         
     # ----------------- Login -----------------
     def login(self, username, password):
@@ -75,87 +93,34 @@ class ShareTabTests(unittest.TestCase):
                 (By.ID, "messageChatInputText")  # Sidebar appears
             ))
         except Exception as e:
-            self.fail(f"Login failed: {e}") 
+            self.fail(f"Login failed: {e}")   
             
-    
-
-    # ----------------- Test Share with other users button -----------------
-    """Test the 'Share with Other Users' button in the Share tab on the 
-       Left Side Bar to ensure that the share modal appears"""
-    
-    def test_share_tab_button(self):
-        # Extra sleep for extra loading 
-        time.sleep(5)
-        
-        # Find the Share tab
-        tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
-        self.assertGreater(len(tabs), 1, "Expected multiple buttons with ID 'tabSelection'")
-
-        # Find the tab with title="Share"
-        share_tab = next((tab for tab in tabs if tab.get_attribute("title") == "Share"), None)
-        self.assertIsNotNone(share_tab, "The 'Share' tab should be present")
-
-        # Click the 'Share' tab
-        share_tab.click()
-        
-        time.sleep(2)
-        
-        # id="shareWithOtherUsers"
-        # Click the Share Button
-        share_button = self.wait.until(EC.element_to_be_clickable(
-            (By.ID, "shareWithOtherUsers")
-        ))
-        self.assertTrue(share_button, "Share Button should be initialized")
-        share_button.click()
-        
-        # Verify the presence of the Window element after clicking the Edit button
-        share_modal_element = self.wait.until(EC.presence_of_element_located(
-            (By.ID, "modalTitle")
-        ))
-        self.assertTrue(share_modal_element.is_displayed(), "Share window element is visible")
-        
-        time.sleep(3)
-        
-        # Extract the text from the element
-        modal_text = share_modal_element.text
-
-        # Ensure the extracted text matches the expected value
-        self.assertEqual(modal_text, "Add People to Share With", "Modal title should be 'Add People to Share With'")
-        
-
-    
-    # ----------------- Test Refresh Button -----------------
-    """Test the 'Refresh' button in the Share tab on the Left Side Bar
-       to ensure the 'Shared with you' results refresh"""
-    
-    def test_share_tab_refresh(self):
-        # Extra sleep for extra loading 
-        time.sleep(5)
-        
-        # Find the Share tab
-        tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
-        self.assertGreater(len(tabs), 1, "Expected multiple buttons with ID 'tabSelection'")
-
-        # Find the tab with title="Share"
-        share_tab = next((tab for tab in tabs if tab.get_attribute("title") == "Share"), None)
-        self.assertIsNotNone(share_tab, "The 'Share' tab should be present")
-
-        # Click the 'Share' tab
-        share_tab.click()
-        
-        time.sleep(2)
-        
-        # id="refreshButton"
-        # Click the Refresh Button
-        refresh_button = self.wait.until(EC.element_to_be_clickable(
-            (By.ID, "refreshButton")
-        ))
-        self.assertTrue(refresh_button, "Refresh Button should be initialized")
-    
-    
-    
             
+            
+    # ----------------- Test Logout Button ------------------
+    """This will test the logout button and ensure the user is logged out"""
+    
+    def test_logout(self):
+        time.sleep(3) # Time to load 
+        
+        # Click the Logout Button
+        logout_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "logout")
+        ))
+        self.assertTrue(logout_button, "Logout Button should be initialized")
+        
+        logout_button.click()
+        
+        time.sleep(5) # Time to load Logout area
+        
+        # Ensure login button is visible
+        login_button = self.wait.until(EC.element_to_be_clickable(
+            (By.ID, "loginButton")
+        ))
+        self.assertTrue(login_button, "Login Button should be initialized")
+    
+    
+    
 if __name__ == "__main__":
     unittest.main(verbosity=2)
-    
     

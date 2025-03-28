@@ -105,6 +105,7 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
                 disabled={artifactIsStreaming || messageIsStreaming}
                 className="bg-yellow-400 dark:bg-[#B0BEC5] rounded-xl shadow-lg h-12 my-1.5 "
                 key={i}
+                id="artifactsButtonBlock"
             >
                 <div className="flex flex-row text-black">
                     <div
@@ -129,6 +130,7 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
                             </div>
 
                             <div className="mr-4 mt-3.5 text-gray-500 hover:text-neutral-900"
+                                id="removeArtifactFromConversation"
                                 onClick={(e) => {
                                     e.stopPropagation(); 
                                     handleRemoveArtifact(artifact)}}
