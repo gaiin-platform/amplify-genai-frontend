@@ -24,12 +24,12 @@ interface Props {
   disableSubmit?: boolean;
   additionalButtonOptions?: OptionButtons[];
   resizeOnVarChange?: any;
+  transform?: string;
 }
 
   export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{}, 
                                     showClose=true, showCancel=true, showSubmit=true, cancelLabel= "Cancel", submitLabel="Submit",
-                                    additionalButtonOptions=[], disableSubmit=false, resizeOnVarChange}) => {
-
+                                    additionalButtonOptions=[], disableSubmit=false, resizeOnVarChange, transform=""}) => {
 
  const modalRef = useRef<HTMLDivElement>(null);
 
@@ -88,7 +88,7 @@ interface Props {
                         <div
                         ref={modalRef}
                         className={`inline-block transform rounded-lg border border-gray-300 dark:border-neutral-600 bg-neutral-100 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#2b2c36] sm:my-8 py-4 px-6 sm:align-middle`}
-                        style={{width: `${innderWindow.width}px`, height: `${innderWindow.height}px`}}
+                        style={{width: `${innderWindow.width}px`, height: `${innderWindow.height}px`, transform: transform || undefined}}
                         id="modal"
                         role="dialog"  
                         >

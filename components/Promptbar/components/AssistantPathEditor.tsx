@@ -242,7 +242,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                             <li>Use only letters, numbers, hyphens, underscores, and forward slashes</li>
                         )}
                         {pathError.includes('restricted system term') && (
-                            <li>Choose a different name that doesn't include system-reserved terms</li>
+                            <li>Choose a different name that doesn&apos;t include system-reserved terms</li>
                         )}
                         {pathError.includes('inappropriate term') && (
                             <li>Choose a business-appropriate path name</li>

@@ -205,15 +205,16 @@ export function useSendService() {
                         (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER)));
                     console.log("Artifacts on: ", isArtifactsOn)
                     const isSmartMessagesOn = featureOptions.includeFocusedMessages && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
-                    console.log("smart on: ", isSmartMessagesOn)
+                    console.log("Smart Messageson: ", isSmartMessagesOn)
 
-                    const isMemoryOn = featureFlags.memory && featureOptions.includeMemory;
+                    const isMemoryOn = featureFlags.memory && featureOptions.includeMemory && (!pluginIds || (pluginIds.includes(PluginID.MEMORY)));
+                    console.log("Memory on: ", isMemoryOn)
 
                     // if both artifact and smart messages is off then it returnes with the messages right away 
                     const prepareMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService,
                         isArtifactsOn, isSmartMessagesOn, homeDispatch,
                         getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST));
-                    console.log("tokens: ", updatedConversation.maxTokens);
+                    console.log("Conversation tokens: ", updatedConversation.maxTokens);
                     const chatBody: ChatBody = {
                         model: updatedConversation.model,
                         messages: prepareMessages, //updatedConversation.messages,
@@ -327,8 +328,11 @@ export function useSendService() {
                     //PLUGINS before options is assigned
                     //in case no plugins are defined, we want to keep the default behavior
                     if (!featureFlags.ragEnabled || (plugins && pluginActive && !pluginIds?.includes(PluginID.RAG))) {
-                        options = { ...(options || {}), skipRag: true };
+                        options = { ...(options || {}), skipRag: true, ragEvaluation: false};
+                    } else if (featureFlags.ragEnabled && featureFlags.ragEvaluation && (pluginIds?.includes(PluginID.RAG) &&  pluginIds?.includes(PluginID.RAG_EVAL))) {
+                        options = { ...(options || {}), ragEvaluation: true};
                     }
+
 
                     if (!featureFlags.codeInterpreterEnabled) {
                         //check if we need

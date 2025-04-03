@@ -22,7 +22,7 @@ export const ConfirmModal: FC<Props> = ({title="", message, height=240, width=45
 
     return <Modal
         title={title}
-        content={<div> {message} </div>}
+        content={<span className="text-black dark:text-white"> {message} </span>}
         width={() => width}
         height={() => height}
         showClose={false}

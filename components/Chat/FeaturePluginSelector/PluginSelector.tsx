@@ -1,5 +1,5 @@
 import { FC, useState, useEffect, useRef, useContext } from 'react';
-import { Plugin, PluginID, PluginList } from '@/types/plugin';
+import { Plugin, PluginID, PluginList, Plugins } from '@/types/plugin';
 import { IconGripVertical, IconSparkles, IconX } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { getSettings } from '@/utils/app/settings';
@@ -32,9 +32,11 @@ export const PluginSelector: FC<Props> = ({
     return PluginList.filter(plugin => {
              // Do not include the plugin in the list if ragEnabled is false
               if (plugin.id === PluginID.RAG && !featureFlags.ragEnabled) return false; 
+              if (plugin.id === PluginID.RAG_EVAL && (!featureFlags.ragEnabled || !featureFlags.ragEvaluation)) return false; 
               if (plugin.id === PluginID.CODE_INTERPRETER && !featureFlags.codeInterpreterEnabled) return false;
               if (plugin.id === PluginID.ARTIFACTS && (!featureFlags.artifacts || !settingRef.current?.featureOptions.includeArtifacts)) return false;
               if (plugin.id === PluginID.SMART_MESSAGES && !settingRef.current?.featureOptions.includeFocusedMessages) return false;
+              if (plugin.id === PluginID.MEMORY && (!featureFlags.memory || !settingRef.current?.featureOptions.includeMemory)) return false;
               return true; // Include the plugin in the list if no flags block it
           });
   }
@@ -115,10 +117,20 @@ export const PluginSelector: FC<Props> = ({
         return;
     } 
 
-    if (isActivePlugin(plugin)) {
-        onPluginChange(plugins.filter((p:Plugin) => p.id !== plugin?.id));
-    } else {
-        onPluginChange([...plugins, plugin]);
+    if (isActivePlugin(plugin)) { // turn off
+        // turning off RAG means RAG_EVAL needs to be off as well 
+        let updatedPlugins = plugins.filter((p:Plugin) => p.id !== plugin?.id &&
+                                            (plugin?.id === PluginID.RAG ? 
+                                                   p.id !== PluginID.RAG_EVAL : true));
+        onPluginChange(updatedPlugins);
+    } else { // turn on
+        // turning on RAG_EVAL means RAG is required to be on as well
+        const updatedPlugins = [...plugins, plugin];
+        if (plugin.id === PluginID.RAG_EVAL && !isActivePlugin(Plugins[PluginID.RAG])) {
+          updatedPlugins.push(Plugins[PluginID.RAG]);
+        }
+
+        onPluginChange(updatedPlugins);
     }
 
     const index = validPlugins.findIndex((p:Plugin) => p.id === plugin.id);

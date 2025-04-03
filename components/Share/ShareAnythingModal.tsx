@@ -70,14 +70,21 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
     // Individual states for selected prompts, conversations, and folders
     const [isSharing, setIsSharing] = useState(false);
-    const [selectedPromptsState, setSelectedPrompts] = useState([...selectedPrompts]);
-    const [selectedConversationsState, setSelectedConversations] = useState([...selectedConversations]);
-    const [selectedFoldersState, setSelectedFolders] = useState([...selectedFolders]);
+    const [selectedPromptsState, setSelectedPrompts] = useState<Prompt[]>([]);
+    const [selectedConversationsState, setSelectedConversations] = useState<Conversation[]>([]);
+    const [selectedFoldersState, setSelectedFolders] = useState<FolderInterface[]>([]);
     const [selectedPeople, setSelectedPeople] = useState<Array<string>>([]);
     const [sharingNote, setSharingNote] = useState<string>("");
 
     const [canShare, setCanShare] = useState<boolean>(false);
 
+    useEffect(() => {
+        if (open) {
+            setSelectedPrompts([...selectedPrompts]);
+            setSelectedConversations([...selectedConversations]);
+            setSelectedFolders([...selectedFolders]);
+        }
+    }, [open]);
 
     const checkCanShare = () => {
         return selectedPeople.length > 0 && (sharingNote && sharingNote?.length > 0) &&
@@ -190,6 +197,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                             />
 
                             <ItemSelect
+                                scrollToFirstSelected={(+includePrompts + +includeConversations + +includeFolders) === 1}
                                 selectedPromptsState={selectedPromptsState}
                                 setSelectedPrompts={setSelectedPrompts}
                                 includePrompts={includePrompts}                                                                 

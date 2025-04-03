@@ -1,5 +1,5 @@
 import React, {useContext, useEffect, useMemo, useState} from 'react';
-import {IconDownload} from "@tabler/icons-react";
+import {IconDownload, IconTrash, IconRefresh} from "@tabler/icons-react";
 import {
     MantineReactTable,
     useMantineReactTable,
@@ -9,49 +9,9 @@ import {MantineProvider} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
 import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
-import { downloadDataSourceFile } from '@/utils/app/files';
+import { downloadDataSourceFile, deleteDatasourceFile } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
-
-
-type MimeTypeMapping = {
-    [mimeType: string]: string;
-};
-
-const mimeTypeToCommonName: MimeTypeMapping = {
-    "text/vtt": "Voice Transcript",
-    "application/vnd.ms-excel": "Excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel",
-    "application/vnd.ms-powerpoint": "PowerPoint",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "PowerPoint",
-    "application/msword": "Word",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word",
-    "text/plain": "Text",
-    "application/pdf": "PDF",
-    "application/rtf": "Rich Text Format",
-    "application/vnd.oasis.opendocument.text": "OpenDocument Text",
-    "application/vnd.oasis.opendocument.spreadsheet": "OpenDocument Spreadsheet",
-    "application/vnd.oasis.opendocument.presentation": "OpenDocument Presentation",
-    "text/csv": "CSV",
-    "application/vnd.google-apps.document": "Google Docs",
-    "application/vnd.google-apps.spreadsheet": "Google Sheets",
-    "application/vnd.google-apps.presentation": "Google Slides",
-    "text/html": "HTML",
-    "application/xhtml+xml": "XHTML",
-    "application/xml": "XML",
-    "application/json": "JSON",
-    "application/x-latex": "LaTeX",
-    "application/vnd.ms-project": "Microsoft Project",
-    "text/markdown": "Markdown",
-    "application/vnd.ms-outlook": "Outlook Email",
-    "application/x-tex": "TeX",
-    "text/x-vcard": "vCard",
-    "application/x-vnd.ls-xpix": "Lotus Spreadsheet",
-    "application/vnd.visio": "Visio",
-    "application/x-mspublisher": "Publisher",
-    "text/tab-separated-values": "Tab Separated Values",
-    "application/x-mswrite": "Write",
-    "application/vnd.ms-works": "Microsoft Works",
-};
+import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
 
 
 const DataSourcesTable = () => {
@@ -87,6 +47,12 @@ const DataSourcesTable = () => {
     const [currentMaxItems, setCurrentMaxItems] = useState(100);
     const [currentMaxPageIndex, setCurrentMaxPageIndex] = useState(0);
     const [prevSorting, setPrevSorting] = useState<MRT_SortingState>([]);
+
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    const handleRefresh = () => {
+        setRefreshKey(prevKey => prevKey + 1); // Triggers re-fetch
+    };
 
     const getTypeFromCommonName = (commonName: string) => {
         const foundType = Object.entries(mimeTypeToCommonName)
@@ -235,6 +201,7 @@ const DataSourcesTable = () => {
         pagination.pageIndex, //refetch when page index changes
         pagination.pageSize, //refetch when page size changes
         sorting, //refetch when sorting changes
+        refreshKey,
     ]);
 
 
@@ -263,6 +230,15 @@ const DataSourcesTable = () => {
             setLoadingMessage("");
 
 
+        }
+    }
+
+    const deleteFile = async (key: string) => {
+        setLoadingMessage("Deleting File.");
+        try {
+            await deleteDatasourceFile({id: key});
+        } finally {
+            setLoadingMessage("");
         }
     }
 
@@ -352,6 +328,27 @@ const DataSourcesTable = () => {
                 maxSize: 100,
                 Edit: ({cell, column, table}) => <>{cell.getValue<string>()}</>,
             },
+            {
+                accessorKey: 'delete',
+                header: '',
+                width: 20,
+                size: 20,
+                maxSize: 20,
+                enableSorting: false,
+                enableColumnActions: false,
+                enableColumnFilter: false,
+                Cell: ({cell}) => (
+                    <ActionButton
+                        title='Delete File'
+                        handleClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            deleteFile(cell.row.original.id);
+                        }}> 
+                        <IconTrash/>
+                    </ActionButton>
+                ),   
+            },
         ],
         [],
     );
@@ -389,6 +386,16 @@ const DataSourcesTable = () => {
         onSortingChange: setSorting,
         enableStickyHeader: true,
         enableBottomToolbar: true,
+        renderBottomToolbar: () => (
+            <div style={{ padding: '10px 20px'}}>
+                <ActionButton
+                    title="Refresh Data"
+                    handleClick={handleRefresh}
+                >
+                    <IconRefresh />
+                </ActionButton>
+            </div>
+        ),
         state: {
             columnFilters,
             globalFilter,

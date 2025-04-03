@@ -41,6 +41,7 @@ import { Artifact } from '@/types/artifacts';
 import { getDateName } from '@/utils/app/date';
 import AgentLogBlock from '@/components/Chat/ChatContentBlocks/AgentLogBlock';
 import { Settings } from '@/types/settings';
+import RagEvaluationBlock from './ChatContentBlocks/RagEvaluationBlock';
 
 export interface Props {
     message: Message;
@@ -504,16 +505,22 @@ export const ChatMessage: FC<Props> = memo(({
                                               messageIndex={messageIndex}
                                             />}
 
-                                          <ChatCodeInterpreterFileBlock
-                                            messageIsStreaming={messageIsStreaming}
-                                            message={message}
-                                            selectedConversation={selectedConversation}
-                                            updateConversation={handleUpdateSelectedConversation}
-                                          />
+                                          {featureFlags.codeInterpreterEnabled &&
+                                            <ChatCodeInterpreterFileBlock
+                                                messageIsStreaming={messageIsStreaming}
+                                                message={message}
+                                                selectedConversation={selectedConversation}
+                                                updateConversation={handleUpdateSelectedConversation}
+                                            />}
                                           <ChatSourceBlock
                                             messageIsStreaming={messageIsStreaming}
                                             message={message}
                                           />
+                                          {featureFlags.ragEvaluation && 
+                                          <RagEvaluationBlock
+                                            messageIsStreaming={messageIsStreaming}
+                                            message={message}
+                                          />}
                                       </>
                                     )}
 

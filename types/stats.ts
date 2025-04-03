@@ -78,6 +78,8 @@ export interface StatsServices {
 
     sendChatEvent: (chatBody: ChatBody) => void;
 
+    userSendChatEvent: (message: Message, modelId: string) => void;
+
     sendChatRewriteEvent: (chatBody: ChatBody, updateIndex: number) => void;
 
     runPromptEvent: (prompt: Prompt) => void;
@@ -237,6 +239,8 @@ export const noOpStatsServices:StatsServices = {
     moveConversationFromRemoteEvent: (conversation: Conversation) => {},
 
     sendChatEvent: (chatBody: ChatBody) => {},
+
+    userSendChatEvent: (message: Message, modelId: string) => {},
 
     sendChatRewriteEvent: (chatBody: ChatBody, updateIndex: number) => {},
 

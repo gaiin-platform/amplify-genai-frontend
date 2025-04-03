@@ -22,9 +22,9 @@ import {
 import {useTranslation} from 'next-i18next';
 import {parsePromptVariables} from "@/utils/app/prompts";
 import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
-import {Plugin, PluginID} from '@/types/plugin';
+import {Plugin, PluginID, PluginList, Plugins} from '@/types/plugin';
 import {Prompt} from '@/types/prompt';
-import {AttachFile} from "@/components/Chat/AttachFile";
+import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
 import {FileList} from "@/components/Chat/FileList";
 import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
@@ -92,7 +92,9 @@ export const ChatInput = ({
     const {killRequest} = useChatService();
 
     const {
-        state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming, prompts,  featureFlags, currentRequestId, chatEndpoint, statsService, availableModels, extractedFacts},
+        state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming, 
+                prompts,  featureFlags, currentRequestId, chatEndpoint, statsService, availableModels, 
+                extractedFacts, memoryExtractionEnabled},
         getDefaultModel, handleUpdateConversation,
         dispatch: homeDispatch
     } = useContext(HomeContext);
@@ -412,6 +414,8 @@ const onAssistantChange = (assistant: Assistant) => {
             return d;
         });
 
+        statsService.userSendChatEvent(msg as Message, selectedConversation?.model?.id ?? '');
+
         onSend(msg, updatedDocuments || []);
 
         // if (selectedProject && selectedConversation) {
@@ -664,14 +668,66 @@ const onAssistantChange = (assistant: Assistant) => {
         setIsQiLoading(false); 
     }
 
-    useEffect(() => {
+    const getDisallowedFileExtensions = () => {
+        return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS, 
+                 ...(selectedConversation?.model?.supportsImages 
+                     ? [] : ["jpg","png","gif", "jpeg", "webp"] ) ]
+    }
+
+    ////// Plugin Dependencies ////// 
+
+    // PluginID.CODE_INTERPRETER is not compatible with Selected Assistants for now
+    useEffect(() => { // if code interpreter is toggled in plugin selector, set the selected assistant to the default assistant
         const containsCodeInterpreter = plugins.map((p: Plugin) => p.id).includes(PluginID.CODE_INTERPRETER);
         if (containsCodeInterpreter) homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
-      }, [plugins]);
+    }, [plugins]);
 
-      useEffect(() => {
+    useEffect(() => { // if selected assistant change is not the default assistant, remove code interpreter from plugins
         if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER ));
-      }, [selectedAssistant]);
+    }, [selectedAssistant]);
+
+
+    // memoryExtractionEnabled is tied to PluginID.MEMORY
+    useEffect(() => { // if memory extraction is toggled in memory dialog, ensure memory plugin is in sync
+
+        // ensure we dont alter the plugin when memory feature is disabled
+        if (featureFlags.memory && settingRef?.current?.featureOptions.includeMemory) {
+            const containsMemory = plugins.map((p: Plugin) => p.id).includes(PluginID.MEMORY);
+            if (memoryExtractionEnabled && !containsMemory) {
+                setPlugins([...plugins, Plugins[PluginID.MEMORY]]);
+            } else if (!memoryExtractionEnabled && containsMemory) {
+                setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.MEMORY));
+            }
+        }
+
+    }, [memoryExtractionEnabled]);
+
+    useEffect(() => { // if memory is toggled in plugin selector, ensure memoryExtractionEnabled is in sync
+        const containsMemory = plugins.map((p: Plugin) => p.id).includes(PluginID.MEMORY);
+
+        if ((containsMemory && !memoryExtractionEnabled) || 
+            (!containsMemory && memoryExtractionEnabled)) {
+            // considering the condition: memory feature flag is off or turned off in settings, 
+            // the memoryExtractionEnabled strictly depends on that condition throughout the codebase
+            // so its fine to keep this in sync especially because the plugin selector already accounts for that condition when rendering plus the default value of memoryExtractionEnabled is true
+            // therefore the plugins will never containMemory when the condition is off, effectively keeping memoryExtractionEnabled off/synced via !containsMemory && memoryExtractionEnabled
+            homeDispatch({
+                field: 'memoryExtractionEnabled',
+                value: containsMemory
+            });
+        } 
+    }, [plugins]);
+
+
+    // RAG EVAL is dependent on RAG
+    useEffect(() => { // ensure rag being off and eval being on is not possible
+        const pluginIds = plugins.map((p: Plugin) => p.id);
+        const containsRag = pluginIds.includes(PluginID.RAG);
+        const containsRagEval = pluginIds.includes(PluginID.RAG_EVAL);
+        if (!containsRag && containsRagEval) {
+            setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.RAG_EVAL));
+        } 
+    }, [plugins]);
 
 
     return (
@@ -749,8 +805,8 @@ const onAssistantChange = (assistant: Assistant) => {
                             <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]" 
                                 style={{transform: 'translateY(70px)'}}>
                                 <DataSourceSelector
+                                    disallowedFileExtensions={getDisallowedFileExtensions()} 
                                     onDataSourceSelected={(d) => {
-
                                         const doc = {
                                             id: d.id,
                                             name: d.name || "",
@@ -766,6 +822,10 @@ const onAssistantChange = (assistant: Assistant) => {
                                         handleSetMetadata(doc, d.metadata);
                                         handleDocumentState(doc, 100);
                                     }}
+                                    onIntegrationDataSourceSelected={featureFlags.integrations ? 
+                                        (file: File) => { handleFile(file, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments, undefined)} 
+                                        : undefined
+                                    }
                                 />
                             </div>
                         )}
@@ -969,9 +1029,8 @@ const onAssistantChange = (assistant: Assistant) => {
 
 
                     { featureFlags.uploadDocuments &&
-                    <AttachFile id="__attachFile"                                                     //  Mistral and gpt 3.5 do not support image files 
-                                disallowedFileExtensions={[ ...COMMON_DISALLOWED_FILE_EXTENSIONS, ...(selectedConversation?.model?.supportsImages 
-                                                                                                        ? [] : ["jpg","png","gif", "jpeg", "webp"] ) ]} 
+                    <AttachFile id="__attachFile"                                                    
+                                disallowedFileExtensions={getDisallowedFileExtensions()} 
                                 onAttach={addDocument}
                                 onSetMetadata={handleSetMetadata}
                                 onSetKey={handleSetKey}

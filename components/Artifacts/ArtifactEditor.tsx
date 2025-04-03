@@ -1,5 +1,5 @@
 import HomeContext from "@/pages/api/home/home.context";
-import { CodeBlockDetails, getFileExtensionFromLanguage } from "@/utils/app/codeblock";
+import { CodeBlockDetails } from "@/utils/app/codeblock";
 import { getSettings } from "@/utils/app/settings";
 import {
   SandpackCodeEditor,

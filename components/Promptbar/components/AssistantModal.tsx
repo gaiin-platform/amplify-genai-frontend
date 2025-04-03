@@ -6,8 +6,8 @@ import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {ExistingFileList, FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
-import {AttachFile} from "@/components/Chat/AttachFile";
-import {IconFiles, IconArrowRight} from "@tabler/icons-react";
+import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
+import {IconFiles, IconTools, IconArrowRight} from "@tabler/icons-react";
 import {createAssistant, addAssistantPath} from "@/services/assistantService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
@@ -24,7 +24,8 @@ import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import { opLanguageOptionsMap } from '@/types/op';
 import { opsSearchToggleButtons } from '@/components/Admin/AdminComponents/Ops';
 import toast from 'react-hot-toast';
-import AssistantPathEditor from './AssistantPathEditor';
+import AssistantPathEditor from './AssistantPathEditor';import {PythonFunctionModal} from "@/components/Operations/PythonFunctionModal";
+
 
 interface Props {
     assistant: Prompt;
@@ -235,7 +236,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [selectedApis, setSelectedApis] = useState<any[]>(initialSelectedApis);
     const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('tag'); 
     const [apiInfo, setApiInfo] = useState<API[]>(initialApiCapabilities || []);
-
+    const [addFunctionOpen, setAddFunctionOpen] = useState(false);
     // Path-related state
     const [astPath, setAstPath] = useState<string|null>(definition.astPath || null);
     const [isCheckingPath, setIsCheckingPath] = useState(false);
@@ -494,7 +495,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 newAssistant.uri = uri.trim();
             }
 
-        // console.log(dataSources.map((d: any)=> d.name));
+          // console.log(dataSources.map((d: any)=> d.name));
 
             newAssistant.dataSources = dataSources.map(ds => {
                 if (assistant.groupId) {
@@ -543,8 +544,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
             newAssistant.data.opsLanguageVersion = opsLanguageVersion;
 
-        // console.log("apiInfo",apiInfo);
-        // console.log("selectedApis",selectedApis);
+            // console.log("apiInfo",apiInfo);
+            // console.log("selectedApis",selectedApis);
 
             const combinedOps = [
               ...selectedApis,
@@ -620,6 +621,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                         console.error('Failed to save path:', pathResult);
                         alert(`Error saving path: ${pathResult.message || 'Failed to save assistant path. Please try again.'}`);
                     }
+
                 } catch (error) {
                     const errorMessage = error instanceof Error ? error.message : String(error);
                     console.error('Exception when saving path:', errorMessage);
@@ -630,17 +632,45 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             const aPrompt = createAssistantPrompt(newAssistant);
             onUpdateAssistant(aPrompt);
 
-            onSave();
 
-            setIsLoading(false);
-            setLoadingMessage("");
+            onSave();
         } catch (error) {
             console.error('Error updating assistant:', error);
-            setIsLoading(false);
-            setLoadingMessage("");
         }
+        setIsLoading(false);
+        setLoadingMessage("");
     }
 
+            // handle file upload functions //
+        const onAttach = (doc: AttachedDocument) => {
+            setDataSources((prev) => {
+                prev.push(doc as any);
+                return prev;
+            });
+        }
+        const onSetMetadata = (doc: AttachedDocument, metadata: any) => {
+            setDataSources((prev)=>{
+                return prev.map(x => x.id === doc.id ? {
+                    ...x,
+                    metadata
+                } : x)
+            });
+        }
+        const onSetKey = (doc: AttachedDocument, key: string) => {
+            setDataSources((prev)=>{
+                return prev.map(x => x.id === doc.id ? {
+                    ...x,
+                    key
+                } : x)
+            });
+        }
+    
+        const onUploadProgress = (doc: AttachedDocument, progress: number) => {
+            setDocumentState((prev)=>{
+                 prev[doc.id] = progress;
+                 return prev;
+            });
+        }
     if (isLoading) return <></>;
     
 
@@ -772,36 +802,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 <AttachFile id={"__attachFile_assistant_" + loc}
                                             groupId={assistant.groupId}
                                             disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
-                                            onAttach={(doc) => {
-                                                setDataSources((prev) => {
-                                                    prev.push(doc as any);
-                                                    return prev;
-                                                });
-                                            }}
-                                            onSetMetadata={(doc, metadata) => {
-                                                setDataSources((prev)=>{
-                                                    return prev.map(x => x.id === doc.id ? {
-                                                        ...x,
-                                                        metadata
-                                                    } : x)
-                                                });
-                                            }}
-                                            onSetKey={(doc, key) => {
-                                                setDataSources((prev)=>{
-                                                    return prev.map(x => x.id === doc.id ? {
-                                                        ...x,
-                                                        key
-                                                    } : x)
-                                                });
-                                            }}
-                                            onSetAbortController={() => {
-                                            }}
-                                            onUploadProgress={(doc, progress) => {
-                                                setDocumentState((prev)=>{
-                                                     prev[doc.id] = progress;
-                                                     return prev;
-                                                });
-                                            }}
+                                            onAttach={onAttach}
+                                            onSetMetadata={onSetMetadata}
+                                            onSetKey={onSetKey}
+                                            onSetAbortController={() => {}}
+                                            onUploadProgress={onUploadProgress}
                                 />
                             </div>}
                             <FileList documents={dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)))} documentStates={documentState}
@@ -810,9 +815,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 setDataSources([...docs, ...preexisting ]as any[]);
                             }} allowRemoval={!disableEdit}/>
                             {showDataSourceSelector && (
-                                <div className="mt-[-16px] flex justify-center overflow-hidden">
+                                <div className="mt-[-8px] flex justify-center overflow-hidden">
                                     <div className="rounded bg-white dark:bg-[#343541] mb-4">
-                                        <DataSourceSelector
+                                    <DataSourceSelector
+                                            disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                             minWidth="500px"
                                             // height='310px'
                                             onDataSourceSelected={(d) => {
@@ -828,6 +834,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 setDocumentState({...documentState, [d.id]: 100});
                                             }}
                                             onClose={() =>  setShowDataSourceSelector(false)}
+                                            onIntegrationDataSourceSelected={featureFlags.integrations ? 
+                                                (file: File) => { handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, 
+                                                                  () => {}, featureFlags.uploadDocuments, assistant.groupId)} 
+                                                : undefined
+                                            }
                                         />
                                     </div>
                                 </div>
@@ -979,6 +990,20 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     {featureFlags.integrations && <>
                                             {!availableApis && <>Loading API Capabilities...</>}
 
+                                    <>
+                                        <button
+                                            className="mt-2 mb-4 flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-sm text-neutral-800 hover:bg-neutral-200 dark:border-neutral-700 dark:text-neutral-100 dark:hover:bg-neutral-700"
+                                            onClick={() => setAddFunctionOpen(!addFunctionOpen)}
+                                        >
+                                            <IconTools size={18} />
+                                            Manage Custom APIs
+                                        </button>
+
+                                        {addFunctionOpen && <PythonFunctionModal
+                                            onCancel={()=>{setAddFunctionOpen(false);}}
+                                            onSave={()=>{}}
+                                        />}
+                                    </>
                                     {availableApis && availableApis.length > 0 &&
                                         <>
                                         <div className="flex flex-row text-sm font-bold text-black dark:text-neutral-200 mt-2 mb-2">

@@ -634,19 +634,15 @@ export const VariableModal: FC<Props> = ({
                 ))}
 
                 {showModelSelector && models && (
-                    <>
-                    <div className="mb-2 text-sm font-bold text-neutral-200">
-                        Model
-                    </div>
-
+                    <div className="relative h-[100px]">
                     <ModelSelect
-                        isTitled={false}
+                        isTitled={true}
                         modelId={selectedModel.id}
                         handleModelChange={(modelId:string) => {
                             handleModelChange(modelId)
                         }}
                     />
-                    </>
+                    </div>
                 )}
                 <div className="mb-2 mt-6 text-sm font-bold text-neutral-200">
                     Required fields are marked with *

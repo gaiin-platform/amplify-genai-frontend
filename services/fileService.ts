@@ -269,3 +269,21 @@ export const queryUserFiles = async (query: FileQuery, abortSignal: AbortSignal 
     };
     return await doRequestOp(op);
 }
+
+export const deleteFile = async (key: string) => {
+    console.log("Delete File function, Service Name:", SERVICE_NAME);
+    const op = {
+        // service: SERVICE_NAME,
+        method: 'POST',
+        path: URL_PATH,
+        op: "/delete",
+        data: {
+            key: key,
+        }
+    };
+    const result = await doRequestOp(op);
+    const isSuccess = result.statusCode === 200;  // Check statusCode instead of success
+
+    return { success: isSuccess, key: key };
+}
+
