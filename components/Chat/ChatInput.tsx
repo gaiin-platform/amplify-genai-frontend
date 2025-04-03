@@ -689,7 +689,6 @@ const onAssistantChange = (assistant: Assistant) => {
 
     // memoryExtractionEnabled is tied to PluginID.MEMORY
     useEffect(() => { // if memory extraction is toggled in memory dialog, ensure memory plugin is in sync
-
         // ensure we dont alter the plugin when memory feature is disabled
         if (featureFlags.memory && settingRef?.current?.featureOptions.includeMemory) {
             const containsMemory = plugins.map((p: Plugin) => p.id).includes(PluginID.MEMORY);
@@ -703,19 +702,22 @@ const onAssistantChange = (assistant: Assistant) => {
     }, [memoryExtractionEnabled]);
 
     useEffect(() => { // if memory is toggled in plugin selector, ensure memoryExtractionEnabled is in sync
-        const containsMemory = plugins.map((p: Plugin) => p.id).includes(PluginID.MEMORY);
+        setTimeout(() => { // offset useEffect triggers to ensure memoryExtractionEnabled is up to date
+            const containsMemory = plugins.map((p: Plugin) => p.id).includes(PluginID.MEMORY);
 
-        if ((containsMemory && !memoryExtractionEnabled) || 
-            (!containsMemory && memoryExtractionEnabled)) {
-            // considering the condition: memory feature flag is off or turned off in settings, 
-            // the memoryExtractionEnabled strictly depends on that condition throughout the codebase
-            // so its fine to keep this in sync especially because the plugin selector already accounts for that condition when rendering plus the default value of memoryExtractionEnabled is true
-            // therefore the plugins will never containMemory when the condition is off, effectively keeping memoryExtractionEnabled off/synced via !containsMemory && memoryExtractionEnabled
-            homeDispatch({
-                field: 'memoryExtractionEnabled',
-                value: containsMemory
-            });
-        } 
+            if ((containsMemory && !memoryExtractionEnabled) || 
+                (!containsMemory && memoryExtractionEnabled)) {
+                // considering the condition: memory feature flag is off or turned off in settings, 
+                // the memoryExtractionEnabled strictly depends on that condition throughout the codebase
+                // so its fine to keep this in sync especially because the plugin selector already accounts for that condition when rendering plus the default value of memoryExtractionEnabled is true
+                // therefore the plugins will never containMemory when the condition is off, effectively keeping memoryExtractionEnabled off/synced via !containsMemory && memoryExtractionEnabled
+                homeDispatch({
+                    field: 'memoryExtractionEnabled',
+                    value: containsMemory
+                });
+            } 
+        }, 3000);
+
     }, [plugins]);
 
 
