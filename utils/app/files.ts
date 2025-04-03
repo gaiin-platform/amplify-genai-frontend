@@ -1,4 +1,4 @@
-import { getFileDownloadUrl } from "@/services/fileService";
+import { getFileDownloadUrl, deleteFile } from "@/services/fileService";
 import { DataSource } from "@/types/chat";
 import { IMAGE_FILE_TYPES } from "./const";
 
@@ -15,6 +15,23 @@ export const downloadDataSourceFile = async (dataSource: DataSource, groupId: st
     }
 }
 
+export const deleteDatasourceFile = async (dataSource: DataSource) => {
+  try {
+      const response = await deleteFile(dataSource.id || 'none');
+      if (!response.success) {  // Now correctly checking success
+          console.error(`Failed to delete file: ${dataSource.id}`, response);
+          alert(`Error deleting file "${dataSource.id}". Please try again.`);
+          return false;
+      }
+      alert(`File deleted successfully`);
+      console.log(`File deleted successfully: ${dataSource.id}`);
+      return true;
+  } catch (error) {
+      console.error(`Error while deleting file: ${dataSource.id}`, error);
+      alert(`An unexpected error occurred while deleting "${dataSource.id}". Please try again later.`);
+      return false;
+  }
+};
 
 export async function fetchImageFromPresignedUrl(presignedUrl: string, fileType: string) {
     try {
