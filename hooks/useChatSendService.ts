@@ -22,14 +22,19 @@ import { useChatService } from "@/hooks/useChatService";
 import { ARTIFACTS_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { uploadConversation } from "@/services/remoteConversationService";
 import { getFocusedMessages } from '@/services/prepareChatService';
-import { doExtractFactsOp, doReadMemoryByTaxonomyOp } from '@/services/memoryService';
+import { doReadMemoryOp } from '@/services/memoryService';
 import {
     ExtractedFact,
     Memory,
     MemoryOperationResponse
 } from '@/types/memory';
 import { getSettings } from '@/utils/app/settings';
-
+import { promptForData } from '@/utils/app/llm';
+import {
+    buildExtractFactsPrompt,
+    getRelevantMemories,
+    buildMemoryContextPrompt
+} from '@/utils/app/memory';
 
 export type ChatRequest = {
     message: Message;
@@ -229,65 +234,110 @@ export function useSendService() {
                         chatBody.projectId = selectedConversation.projectId;
                     }
 
-                    // if memory is on, then extract-facts and integrate existing memories into the conversation
+                    // Handle memory operations in parallel with the main request flow
                     if (isMemoryOn) {
-                        // extract facts from user prompt
+                        // Fire off fact extraction in the background, don't wait for it
                         if (memoryExtractionEnabled) {
-                            const userInput = updatedConversation.messages
-                                .filter(msg => msg.role === 'user')
-                                .pop()?.content || '';
+                            // This runs completely independently and doesn't affect the main response flow
+                            (async () => {
+                                try {
+                                    const userInput = updatedConversation.messages
+                                        .filter(msg => msg.role === 'user')
+                                        .pop()?.content || '';
 
-                            const factExtractionPromise = doExtractFactsOp(userInput)
-                                .then((response: MemoryOperationResponse) => {
-                                    const facts = JSON.parse(response.body).facts;
-                                    // Add conversation_id to each fact
-                                    const factsWithConversationId = facts.map((fact: ExtractedFact) => ({
-                                        ...fact,
-                                        conversation_id: conversationId || updatedConversation.id
-                                    }));
+                                    // Fetch existing memories for fact extraction
+                                    const memoriesResponse = await doReadMemoryOp({});
+                                    let existingMemories: Memory[] = [];
 
+                                    try {
+                                        const allMemories = JSON.parse(memoriesResponse.body).memories || [];
+                                        existingMemories = getRelevantMemories(allMemories);
+                                    } catch (error) {
+                                        console.error("Error fetching existing memories for fact extraction:", error);
+                                    }
+
+                                    // Build and send fact extraction prompt
+                                    const extractFactsPrompt = buildExtractFactsPrompt(userInput, existingMemories);
+                                    const extractFactsResult = await promptForData(
+                                        chatEndpoint || '',
+                                        updatedConversation.messages,
+                                        getDefaultModel(DefaultModels.CHEAPEST),
+                                        extractFactsPrompt,
+                                        statsService
+                                    );
+
+                                    if (!extractFactsResult) {
+                                        console.warn('Fact extraction returned null response');
+                                        return;
+                                    }
+
+                                    // Parse the response to extract facts
+                                    const facts: ExtractedFact[] = [];
+                                    const factBlocks = extractFactsResult.split('\n\n');
+
+                                    for (const block of factBlocks) {
+                                        if (!block.trim()) continue;
+
+                                        const contentMatch = block.match(/FACT: (.*?)(?:\n|$)/);
+                                        const taxonomyMatch = block.match(/TAXONOMY: (.*?)(?:\n|$)/);
+                                        const reasoningMatch = block.match(/REASONING: ([\s\S]*?)(?:\n\n|$)/);
+
+                                        if (contentMatch && taxonomyMatch) {
+                                            facts.push({
+                                                content: contentMatch[1].trim(),
+                                                taxonomy_path: taxonomyMatch[1].trim(),
+                                                reasoning: reasoningMatch ? reasoningMatch[1].trim() : "",
+                                                conversation_id: conversationId || updatedConversation.id
+                                            });
+                                        }
+                                    }
+
+                                    // Filter out duplicates
+                                    const existingContents = new Set(
+                                        existingMemories.map((memory: Memory) => memory.content.toLowerCase().trim())
+                                    );
+                                    const uniqueFacts = facts.filter(fact =>
+                                        !existingContents.has(fact.content.toLowerCase().trim())
+                                    );
+
+                                    // Update state with new facts
                                     homeDispatch({
                                         field: 'extractedFacts',
-                                        value: [...(extractedFacts || []), ...factsWithConversationId].filter((fact, index, self) =>
-                                            self.findIndex(f => f.content === fact.content) === index
+                                        value: [...(extractedFacts || []), ...uniqueFacts].filter(
+                                            (fact, index, self) =>
+                                                self.findIndex(f => f.content === fact.content) === index
                                         )
                                     });
-                                })
-                                .catch(error => {
-                                    console.warn('Fact extraction failed:', error);
-                                });
-                        }
-
-                        // memory fetching
-                        const memoriesResponse = await doReadMemoryByTaxonomyOp({});
-                        try {
-                            const allMemories = JSON.parse(memoriesResponse.body).memories || [];
-                            // Filter memories based on criteria
-                            const relevantMemories = allMemories.filter((memory: Memory) => {
-                                if (memory.memory_type === 'user') {
-                                    return true;
+                                } catch (error) {
+                                    console.warn('Fact extraction process failed:', error);
                                 }
-
-                                // if (chatBody.projectId && memory.memory_type_id === chatBody.projectId) {
-                                //     return true;
-                                // }
-
-                                return false;
-                            });
-
-                            const memoryContext = relevantMemories.length > 0
-                                ? `Consider these relevant past memories when responding: ${JSON.stringify(
-                                    relevantMemories.map((memory: Memory) => memory.content)
-                                )}. Use this context to provide more personalized and contextually appropriate responses.`
-                                : '';
-
-                            chatBody.prompt += '\n\n' + memoryContext;
-                        } catch {
-                            console.error("Error with TaxonomyOp: ", memoriesResponse);
+                            })();
+                            // The fact extraction now runs in a fire-and-forget mode
                         }
-                        
 
+                        // For memory context, use a short timeout to keep the request moving
+                        // if memory retrieval takes too long
+                        try {
+                            // Create a promise with a timeout
+                            const memoriesPromise = Promise.race([
+                                doReadMemoryOp({}),
+                                new Promise<any>((_, reject) =>
+                                    setTimeout(() => reject(new Error('Memory fetch timeout')), 300) // 300ms timeout
+                                )
+                            ]);
 
+                            const memoriesResponse = await memoriesPromise;
+                            const allMemories = JSON.parse(memoriesResponse.body).memories || [];
+                            const relevantMemories = getRelevantMemories(allMemories);
+                            const memoryContext = buildMemoryContextPrompt(relevantMemories);
+
+                            if (memoryContext) {
+                                chatBody.prompt += '\n\n' + memoryContext;
+                            }
+                        } catch (error) {
+                            // If memory fetching times out or fails, just proceed without it
+                            console.log("Skipping memory context due to timeout or error:", error);
+                        }
                     }
 
                     if (isArtifactsOn) {
@@ -328,9 +378,9 @@ export function useSendService() {
                     //PLUGINS before options is assigned
                     //in case no plugins are defined, we want to keep the default behavior
                     if (!featureFlags.ragEnabled || (plugins && pluginActive && !pluginIds?.includes(PluginID.RAG))) {
-                        options = { ...(options || {}), skipRag: true, ragEvaluation: false};
-                    } else if (featureFlags.ragEnabled && featureFlags.ragEvaluation && (pluginIds?.includes(PluginID.RAG) &&  pluginIds?.includes(PluginID.RAG_EVAL))) {
-                        options = { ...(options || {}), ragEvaluation: true};
+                        options = { ...(options || {}), skipRag: true, ragEvaluation: false };
+                    } else if (featureFlags.ragEnabled && featureFlags.ragEvaluation && (pluginIds?.includes(PluginID.RAG) && pluginIds?.includes(PluginID.RAG_EVAL))) {
+                        options = { ...(options || {}), ragEvaluation: true };
                     }
 
 

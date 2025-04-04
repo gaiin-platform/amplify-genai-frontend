@@ -210,13 +210,13 @@ const MemoryTreeView: React.FC<MemoryTreeViewProps> = ({
             <div className="mb-4 flex space-x-2">
                 <button
                     onClick={handleExpandAll}
-                    className="px-3 py-1 text-sm bg-blue-50 hover:bg-blue-100 text-blue-600 rounded border border-blue-200"
+                    className="px-3 py-1 text-sm bg-gray-50 hover:bg-blue-100 text-gray-600 rounded border border-gray-200"
                 >
                     Expand All
                 </button>
                 <button
                     onClick={handleCollapseAll}
-                    className="px-3 py-1 text-sm bg-gray-50 hover:bg-gray-100 text-gray-600 rounded border border-gray-200"
+                    className="px-3 py-1 text-sm bg-gray-50 hover:bg-blue-100 text-gray-600 rounded border border-gray-200"
                 >
                     Collapse All
                 </button>

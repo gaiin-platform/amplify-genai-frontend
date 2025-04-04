@@ -14,7 +14,7 @@ export interface ExtractedFact extends BaseFact {
     conversation_id: string;
 }
 
-export interface MemoryBatchItem {
+export interface MemoryItem {
     content: string;
     taxonomy_path: string;
     memory_type?: MemoryType;

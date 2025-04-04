@@ -9,7 +9,7 @@ import {
 import HomeContext from '@/pages/api/home/home.context';
 import { getSettings } from '@/utils/app/settings';
 import { useSession } from 'next-auth/react';
-import { doSaveMemoryBatchOp } from '@/services/memoryService';
+import { doSaveMemoryOp } from '@/services/memoryService';
 import { Settings } from '@/types/settings';
 import { Toggle } from '@/components/ReusableComponents/Toggle';
 import {
@@ -74,7 +74,7 @@ export const MemoryPresenter: FC<Props> = ({
         }
 
         try {
-            await doSaveMemoryBatchOp([{
+            await doSaveMemoryOp([{
                 content: fact.content,
                 taxonomy_path: fact.taxonomy_path,
                 memory_type: type as MemoryType,

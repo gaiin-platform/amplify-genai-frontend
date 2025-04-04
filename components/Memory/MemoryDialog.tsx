@@ -2,7 +2,7 @@ import { FC, useState, useEffect, useContext } from 'react';
 import { useSession } from "next-auth/react";
 import { useRouter } from 'next/router';
 import { Modal } from '../ReusableComponents/Modal';
-import { doReadMemoryByTaxonomyOp, doEditMemoryOp, doRemoveMemoryOp } from '../../services/memoryService';
+import { doReadMemoryOp, doEditMemoryOp, doRemoveMemoryOp } from '../../services/memoryService';
 import HomeContext from '@/pages/api/home/home.context';
 import { Toggle } from '@/components/ReusableComponents/Toggle';
 import MemoryTreeView from './MemoryTreeView';
@@ -65,7 +65,7 @@ export const MemoryDialog: FC<MemoryDialogProps> = ({ open, onClose }) => {
 
         setIsMemoriesLoading(true);
         try {
-            const userResponse = await doReadMemoryByTaxonomyOp({});
+            const userResponse = await doReadMemoryOp({});
             if (userResponse.statusCode === 200) {
                 const body = JSON.parse(userResponse.body);
                 const userMemories = body.memories.filter(
