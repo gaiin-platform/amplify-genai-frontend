@@ -815,12 +815,16 @@ const Home = ({
 
         const fetchArtifacts = async () => {      
             console.log("Fetching Remote Artifacts...");
-            const response = await getAllArtifacts();
-            if (response.success) { 
-                if (response.data) dispatch({ field: 'artifacts', value: response.data});  
-            } else {
-                console.log("Failed to fetch remote Artifacts.");
-            } 
+            try {
+                const response = await getAllArtifacts();
+                if (response.success) { 
+                    if (response.data) dispatch({ field: 'artifacts', value: response.data});  
+                } else {
+                    console.log("Failed to fetch remote Artifacts.");
+                } 
+            } catch (e) {
+                console.log("Failed to fetch remote Artifacts: ", e);
+            }
         };
 
 

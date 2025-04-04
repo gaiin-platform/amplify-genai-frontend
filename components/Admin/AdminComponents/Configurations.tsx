@@ -1,5 +1,5 @@
 import { FC, useState } from "react";
-import {  AddEmailWithAutoComplete, Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "../AdminUI";
+import { Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "../AdminUI";
 import { AdminConfigTypes} from "@/types/admin";
 import { IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
@@ -11,6 +11,7 @@ import Search from "@/components/Search";
 import ActionButton from "@/components/ReusableComponents/ActionButton";
 import { useSession } from "next-auth/react";
 import InputsMap from "@/components/ReusableComponents/InputMap";
+import { AddEmailWithAutoComplete } from "@/components/Emails/AddEmailsAutoComplete";
 
 interface Props {
     admins: string[];
@@ -133,7 +134,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                             title={'Add Admins'} 
                             content={ 
                                 <AddEmailWithAutoComplete
-                                key={String(AdminConfigTypes.ADMINS)}
+                                id={String(AdminConfigTypes.ADMINS)}
                                 emails={admins}
                                 allEmails={allEmails ?? []}
                                 handleUpdateEmails={(updatedAdmins: Array<string>) => handleUpdateAdmins(updatedAdmins)}
@@ -343,12 +344,12 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 />
                 <div className="ml-4 flex-grow flex flex-col mt-[-32px] max-w-[40%]">
                     <AddEmailWithAutoComplete
-                                    key={`${String(AdminConfigTypes.AMPLIFY_GROUPS)}_ADD`}
-                                    emails={isAddingAmpGroups.members}
-                                    allEmails={allEmails ?? []}
-                                    handleUpdateEmails={(updatedEmails: Array<string>) => 
-                                        setIsAddingAmpGroups({...isAddingAmpGroups, members : updatedEmails})
-                                    }
+                        id={`${String(AdminConfigTypes.AMPLIFY_GROUPS)}_ADD`}
+                        emails={isAddingAmpGroups.members}
+                        allEmails={allEmails ?? []}
+                        handleUpdateEmails={(updatedEmails: Array<string>) => 
+                            setIsAddingAmpGroups({...isAddingAmpGroups, members : updatedEmails})
+                        }
                     />
                     <div className="h-[40px] rounded-r border border-neutral-500 pl-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 overflow-x-auto">
                     {isAddingAmpGroups.members.map((user, idx) => (
@@ -471,7 +472,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                         </ActionButton>
                                         
                                         <div className=""> <AddEmailWithAutoComplete
-                                            key={`${String(AdminConfigTypes.AMPLIFY_GROUPS)}_EDIT`}
+                                            id={`${String(AdminConfigTypes.AMPLIFY_GROUPS)}_EDIT`}
                                             emails={group.members ?? []}
                                             allEmails={allEmails ?? []}
                                             handleUpdateEmails={(updatedMembers: Array<string>) => {
