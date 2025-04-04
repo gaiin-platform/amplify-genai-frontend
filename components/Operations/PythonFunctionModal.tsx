@@ -379,6 +379,7 @@ if __name__ == "__main__":
         setDescription(fn.description)
         setSchema(JSON.stringify(fn.inputSchema ?? {}, null, 2));
         setTestCases(fn.testCases || []);
+        setTags(fn.tags || [])
 
         if(fn.metadata && fn.metadata.published){
             setPublicationData(fn.metadata.published);
