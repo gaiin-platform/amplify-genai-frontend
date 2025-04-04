@@ -53,7 +53,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange
           height: 15px; 
           border-radius: 4px;
           transform: scale(1);
-          border: 1px solid #cccfdb;
+          border: 1px solid rgb(164, 166, 174);
           transition: all 0.2s ease;
           box-shadow: 0 1px 1px rgba(0, 16, 75, 0.05);
         }

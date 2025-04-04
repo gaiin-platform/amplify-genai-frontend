@@ -1,10 +1,11 @@
 import { FC, useState } from "react";
-import {  AddEmailWithAutoComplete, Amplify_Groups, AmplifyGroupSelect, camelToTitleCase, titleLabel, UserAction } from "../AdminUI";
+import { Amplify_Groups, AmplifyGroupSelect, camelToTitleCase, titleLabel, UserAction } from "../AdminUI";
 import { AdminConfigTypes, FeatureFlag, FeatureFlagConfig} from "@/types/admin";
 import { IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import ActionButton from "@/components/ReusableComponents/ActionButton";
 import { InfoBox } from "@/components/ReusableComponents/InfoBox";
 import Search from "@/components/Search";
+import { AddEmailWithAutoComplete } from "@/components/Emails/AddEmailsAutoComplete";
 
 interface Props {
     features: FeatureFlagConfig;
@@ -115,14 +116,13 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
 
                 <div className="ml-4 flex-grow flex flex-col mt-[-32px] max-w-[40%]">
                     <AddEmailWithAutoComplete
-                                    key={`${String(AdminConfigTypes.FEATURE_FLAGS)}_ADD`}
-                                    emails={isAddingFeature.featureData.userExceptions ?? []}
-                                    allEmails={allEmails ?? []}
-                                    handleUpdateEmails={(updatedEmails: Array<string>) => {
-                                        const updatedData = {...isAddingFeature.featureData, userExceptions: updatedEmails};
-                                        setIsAddingFeature({...isAddingFeature, featureData: updatedData});
-                                    }
-                                    }
+                        id={`${String(AdminConfigTypes.FEATURE_FLAGS)}_ADD`}
+                        emails={isAddingFeature.featureData.userExceptions ?? []}
+                        allEmails={allEmails ?? []}
+                        handleUpdateEmails={(updatedEmails: Array<string>) => {
+                            const updatedData = {...isAddingFeature.featureData, userExceptions: updatedEmails};
+                            setIsAddingFeature({...isAddingFeature, featureData: updatedData});
+                        }}
                     />
                         <div className="h-[40px] rounded-r border border-neutral-500 pl-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 overflow-x-auto">
                     {isAddingFeature.featureData.userExceptions?.map((user, idx) => (
@@ -274,7 +274,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                                         </ActionButton>
                                         
                                         <div className="flex-grow"> <AddEmailWithAutoComplete
-                                            key={String(AdminConfigTypes.FEATURE_FLAGS)}
+                                            id={String(AdminConfigTypes.FEATURE_FLAGS)}
                                             emails={featureData.userExceptions ?? []}
                                             allEmails={allEmails ?? []}
                                             handleUpdateEmails={(updatedExceptions: Array<string>) => {

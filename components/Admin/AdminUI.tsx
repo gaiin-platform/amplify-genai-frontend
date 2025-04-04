@@ -6,7 +6,6 @@ import InputsMap from "../ReusableComponents/InputMap";
 import {  getAdminConfigs, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs } from "@/services/adminService";
 import { AdminConfigTypes, Endpoint, FeatureFlagConfig, OpenAIModelsConfig, SupportedModel, SupportedModelsConfig, AdminTab } from "@/types/admin";
 import { IconCheck, IconPlus, IconRefresh, IconX} from "@tabler/icons-react";
-import { EmailsAutoComplete } from "../Emails/EmailsAutoComplete";
 import { LoadingIcon } from "../Loader/LoadingIcon";
 import toast from "react-hot-toast";
 import React from "react";
@@ -680,51 +679,6 @@ export const UserAction: FC<actionProps> = ({ label, onConfirm, onCancel, top, c
     )
 }
 
-
-
-interface AddEmailsProps {
-    key: String;
-    emails: string[];
-    allEmails: string[]
-    handleUpdateEmails: (e: Array<string>) => void;
-}
-
-export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ key, emails, allEmails, handleUpdateEmails}) => {
-    const [input, setInput] = useState<string>('');
-
-    const handleAddEmails = () => {
-        const entries = input.split(',').map(email => email.trim()).filter(email => email);
-
-        const newEmails = entries.filter(email => /^\S+@\S+\.\S+$/.test(email) && !emails.includes(email));
-        if (newEmails.length > 0) handleUpdateEmails([...emails, ...newEmails]);
-        setInput('');
-    };
-
-    return ( 
-    <div className='flex flex-row gap-2' key={JSON.stringify(key)}>
-        <div className='w-full relative'>
-            <EmailsAutoComplete
-                input = {input}
-                setInput =  {setInput}
-                allEmails = {allEmails.filter((e:string) => !emails.includes(e))}
-                alreadyAddedEmails = {emails}
-            /> 
-        </div>
-        <div className="flex-shrink-0 ml-[-6px]">
-            <button
-                type="button"
-                title='Add User'
-                className="ml-2 mt-0.5 px-2 py-2 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10 "
-                 
-                onClick={handleAddEmails}
-            >
-                <IconPlus size={18} />
-            </button>
-        </div>
-    
-    </div>
-    )
-}
 
 
 
