@@ -20,16 +20,49 @@ interface ServicePortMap {
     [key: string]: string;
 }
 
-export const doRequestOp = async (opData: opData, abortSignal = null) => {
-    if (typeof opData.service === 'string' && (process.env.NEXT_PUBLIC_LOCAL_SERVICES ?? '').split(',').map(s => s.trim()).includes(opData.service)) {
-        // Get the service-specific port or fall back to the default port
-        const servicePorts: ServicePortMap = parseServicePorts(process.env.NEXT_PUBLIC_SERVICE_PORTS || '');
-        const port = servicePorts[opData.service] || process.env.NEXT_PUBLIC_LOCAL_SERVICES_PORT || '3000';
-        const stage = process.env.NEXT_PUBLIC_LOCAL_SERVICES_STAGE || '';
+function parseServiceConfig(serviceConfigStr: string): {
+    services: string[];
+    servicePorts: ServicePortMap;
+    serviceStages: { [key: string]: string };
+} {
+    const services: string[] = [];
+    const servicePorts: ServicePortMap = {};
+    const serviceStages: { [key: string]: string } = {};
 
-        opData.url = `http://localhost:${port}/${stage}${opData.path}${opData.op}`;
-        opData.path = "";
-        opData.op = "";
+    if (!serviceConfigStr) return { services, servicePorts, serviceStages };
+
+    const serviceConfigs = serviceConfigStr.split(',').map(s => s.trim());
+
+    for (const config of serviceConfigs) {
+        if (!config) continue;
+
+        const [service, port, stage] = config.split(':');
+        if (service) {
+            services.push(service);
+            if (port) servicePorts[service] = port;
+            if (stage) serviceStages[service] = stage;
+        }
+    }
+
+    return { services, servicePorts, serviceStages };
+}
+
+export const doRequestOp = async (opData: opData, abortSignal = null) => {
+    const { service } = opData;
+
+    if (typeof service === 'string') {
+        const serviceConfigStr = process.env.NEXT_PUBLIC_LOCAL_SERVICES || '';
+        const { services, servicePorts, serviceStages } = parseServiceConfig(serviceConfigStr);
+
+        if (services.includes(service)) {
+            const port = servicePorts[service] || '3015';
+            const stage = serviceStages[service] || 'dev';
+
+            opData.url = `http://localhost:${port}/${stage}${opData.path}${opData.op}`;
+            console.log("Function running locally at:", opData.url);
+            opData.path = "";
+            opData.op = "";
+        }
     }
 
     const request = `${opData.method} - ${opData.path + opData.op}`;
