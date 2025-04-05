@@ -1,38 +1,25 @@
 import { doRequestOp } from "./doRequestOp";
 import {
-    Memory,
     MemoryType,
-    MemoryBatchItem,
+    MemoryItem,
     MemoryOperationResponse,
-    ExtractFactsResponse
 } from '@/types/memory';
 
 const URL_PATH = "/memory";
 const SERVICE_NAME = "memory";
 
-export const doExtractFactsOp = async (userInput: string): Promise<ExtractFactsResponse> => {
+export const doSaveMemoryOp = async (memories: MemoryItem[]): Promise<MemoryOperationResponse> => {
     const op = {
         method: 'POST',
         path: URL_PATH,
-        op: "/extract-facts",
-        data: { user_input: userInput },
-        service: SERVICE_NAME
-    };
-    return await doRequestOp(op);
-}
-
-export const doSaveMemoryBatchOp = async (memories: MemoryBatchItem[]): Promise<MemoryOperationResponse> => {
-    const op = {
-        method: 'POST',
-        path: URL_PATH,
-        op: "/save-memory-batch",
+        op: "/save-memory",
         data: { memories },
         service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
 
-export const doReadMemoryByTaxonomyOp = async (params: {
+export const doReadMemoryOp = async (params: {
     category?: string;
     subcategory?: string;
     memory_type?: MemoryType;
@@ -42,7 +29,7 @@ export const doReadMemoryByTaxonomyOp = async (params: {
     const op = {
         method: 'POST',
         path: URL_PATH,
-        op: "/read-memory-by-taxonomy",
+        op: "/read-memory",
         data: params,
         service: SERVICE_NAME
     };
