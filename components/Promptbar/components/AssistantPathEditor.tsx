@@ -1,185 +1,193 @@
-import React, { useContext, useRef, useState } from 'react';
-import { IconLoader2, IconCheck, IconAlertTriangle } from '@tabler/icons-react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { IconLoader2, IconCheck, IconAlertTriangle, IconLock } from '@tabler/icons-react';
 import { lookupAssistant } from '@/services/assistantService';
 import HomeContext from '@/pages/api/home/home.context';
+import { promptForData } from '@/utils/app/llm';
+import { DefaultModels } from '@/types/model';
+import { MessageType, newMessage } from '@/types/chat';
+import { Filter } from 'bad-words';
+import Checkbox from '@/components/ReusableComponents/CheckBox';
+import ExpansionComponent from '@/components/Chat/ExpansionComponent';
+import { AddEmailWithAutoComplete } from '@/components/Emails/AddEmailsAutoComplete';
+import { useSession } from 'next-auth/react';
+import { AmplifyGroupSelect } from '@/components/Admin/AdminUI';
+import { getUserAmplifyGroups } from '@/services/adminService';
 
+export interface AstPathData {
+    isPublic: boolean;
+    accessTo: {amplifyGroups: string[], users: string[]};
+}
+
+export const emptyAstPathData: AstPathData = {isPublic: true, accessTo: {amplifyGroups: [], users: []}};
 interface AssistantPathEditorProps {
+    assistantId?: string;
     savedAstPath: string | undefined;
     astPath: string | null;
     setAstPath: (path: string | null) => void;
-    assistantId?: string;
-    onPathValidated?: (isValid: boolean, path: string | null, error: string | null) => void;
-    disableEdit?: boolean;
+
+    isPathAvailable: boolean;
+    setIsPathAvailable: (isAvailable: boolean) => void;
+
     isCheckingPath: boolean;
     setIsCheckingPath: (isChecking: boolean) => void;
+
+    astPathData: AstPathData | null, 
+    setAstPathData: (astPathData: AstPathData) => void;
+
+    disableEdit?: boolean;
+    
 }
 
 export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
-    savedAstPath,
-    astPath,
-    setAstPath,
-    assistantId,
-    onPathValidated,
-    isCheckingPath,
-    setIsCheckingPath,
+    assistantId, savedAstPath, astPath, setAstPath,
+    isPathAvailable, setIsPathAvailable, isCheckingPath, setIsCheckingPath,
+    astPathData, setAstPathData,
     disableEdit = false,
 }) => {
-    const { state: { featureFlags }} = useContext(HomeContext);
+    const { state: { featureFlags, chatEndpoint, statsService, amplifyUsers }, getDefaultModel} = useContext(HomeContext);
+    const { data: session } = useSession();
+    const userEmail = session?.user?.email;
+    
     const [pathError, setPathError] = useState<string | null>(null);
-    const [isPathAvailable, setIsPathAvailable] = useState(false);
-    const [pathAvailability, setPathAvailability] = useState({ available: false, message: "" });
     const featureEnabled = !!featureFlags?.assistantPathPublishing;
-    const validatedPathCacheRef = useRef<string[] | undefined>(undefined);
+    const validatedPathCacheRef = useRef<any | undefined>(undefined);
+    const [amplifyGroups, setAmplifyGroups] = useState<string[] | null>(null);
+    
     if (!validatedPathCacheRef.current) {
-        validatedPathCacheRef.current = savedAstPath ? [savedAstPath.toLowerCase()] : []
+        validatedPathCacheRef.current = { valid: savedAstPath ? {[savedAstPath.toLowerCase()] : "Current Path"} : {}, 
+                                          invalid: {} }    
     }
 
-    const validatePath = async (path: string): Promise<boolean> => {
-        // If the feature flag is disabled, don't validate paths
-        if (!featureEnabled) {
-            return false;
+    useEffect(() => {
+        const fetchAmpGroups = async () => {
+            const ampGroupsResult = await getUserAmplifyGroups();
+            setAmplifyGroups(ampGroupsResult.success ? ampGroupsResult.data : []);
+            if (!ampGroupsResult.success) console.log("Failed to retrieve user amplify groups");
+        } 
+
+        if (!amplifyGroups) fetchAmpGroups();
+    }, []);
+
+    const checkPathIsAppropriate = async (path: string) => {
+        const prompt = "Analyze if the provided url path contains any inappropriate words, phrases, or characters. The standard of appropriateness is the same as the content of a PG-13 movie. Your response should be only YES or NO in all caps.";
+        const messages = [newMessage({role: 'user', content : `Is the following path appropriate for a public assistant path: ${path} \n Respond with either YES or NO in all caps`, type: MessageType.PROMPT})];
+        const updatedResponse = await promptForData(chatEndpoint ?? '', messages, getDefaultModel(DefaultModels.CHEAPEST), prompt, statsService, 20);
+        console.log("updatedResponse", updatedResponse);
+        if (!updatedResponse) {
+            console.log("Fallback to built in filter");
+            const filter = new Filter();
+            return filter.isProfane(path);
+        } else {
+            return !updatedResponse || (updatedResponse.includes("YES") || !updatedResponse.includes("NO"));
         }
+    }
+
+    const validatePath = async (path: string): Promise<{valid: boolean | null, error?: string}> => {
+        // If the feature flag is disabled, don't validate paths
+        if (!featureEnabled) return {valid: null};
+        // start he async call
+        const isAppropriateResult = checkPathIsAppropriate(path);
         
         // If path is empty, it's not valid
-        if (!path || path.trim() === '') {
-            setPathError('Path cannot be empty');
-            return false;
-        }
+        if (!path || path.trim() === '') return {valid: false, error: 'Path cannot be empty'};
 
         // Check if the path contains any invalid characters
         const invalidCharsRegex = /[^a-zA-Z0-9-_/]/;
-        if (invalidCharsRegex.test(path)) {
-            setPathError('Path can only contain letters, numbers, hyphens, underscores, and forward slashes');
-            return false;
-        }
+        if (invalidCharsRegex.test(path)) return {valid: false, error: 'Path can only contain letters, numbers, hyphens, underscores, and forward slashes'};
         
         // Check path length
-        if (path.length < 3) {
-            setPathError('Path must be at least 3 characters long');
-            return false;
-        }
+        if (path.length < 3) return {valid: false, error: 'Path must be at least 3 characters long'};
         
-        if (path.length > 12) {
-            setPathError('Path is too long (maximum 12 characters)');
-            return false;
-        }
+        if (path.length > 12) return {valid: false, error: 'Path is too long (maximum 12 characters)'};
         
         // Check for leading/trailing slashes
-        if (path.startsWith('/') || path.endsWith('/')) {
-            setPathError('Path cannot start or end with a slash');
-            return false;
-        }
+        if (path.startsWith('/') || path.endsWith('/')) return {valid: false, error: 'Path cannot start or end with a slash'};
         
         // Check for consecutive slashes
-        if (path.includes('//')) {
-            setPathError('Path cannot contain consecutive slashes');
-            return false;
-        }
-        
-        // Check for common inappropriate terms
-        const inappropriateTerms = [
-            'profanity', 'offensive', 'obscene', 'adult', 'xxx', 'porn', 
-            'explicit', 'sex', 'nsfw', 'violence', 'hate', 'racist', 
-            'discriminatory', 'illegal', 'hack', 'crack', 'warez',
-            'bypass', 'pirate', 'torrent', 'steal', 'nude', 'naked'
-        ];
-        
+        if (path.includes('//')) return {valid: false, error: 'Path cannot contain consecutive slashes'};
+
         const lowerPath = path.toLowerCase();
-        for (const term of inappropriateTerms) {
-            if (lowerPath.includes(term)) {
-                setPathError(`Path contains inappropriate term: ${term}`);
-                return false;
-            }
-        }
-        
+
         // Check for paths pretending to be system paths
         const systemPaths = ['admin', 'system', 'login', 'signin', 'signup', 'register', 
                            'auth', 'authenticate', 'reset', 'password', 'billing', 'payment'];
         
         const pathParts = lowerPath.split('/');
         for (const part of pathParts) {
-            if (systemPaths.includes(part)) {
-                setPathError(`Path contains restricted system term: ${part}`);
-                return false;
-            }
+            if (systemPaths.includes(part)) return {valid: false, error: `Path contains restricted system term: ${part}`};
         }
+        const isAppropriate = await isAppropriateResult;
+        if (!isAppropriate) return {valid: false, error: 'Path contains inappropriate term. Please choose a different path.'};
+        
 
         try {
-            setIsCheckingPath(true);
             setPathError(null);
             
             // Look up the path
             const result = await lookupAssistant(path);
             // If lookup was successful, the path is already taken
             if (result.success) {
-                // Get the current assistant's ID (from definition)
-                
                 // If the path is used by the same assistant we're editing, it's valid
                 if (assistantId && result.assistantId === assistantId) {
                     console.log(`Path "${path}" is already assigned to this assistant`);
-                    setPathError(null);
                     setIsPathAvailable(true);
-                    setPathAvailability({ available: true, message: "Current path" });
-                    if (onPathValidated) onPathValidated(true, path, null);
-                    return true;
+                    if (validatedPathCacheRef?.current?.valid) validatedPathCacheRef.current.valid[lowerPath] = "Current Path";
+                    const accessTo = result.data.accessTo;
+                    setAstPathData({isPublic: result.data.public ?? true, 
+                                    accessTo: {amplifyGroups: accessTo.amplifyGroups ?? [], 
+                                                users: accessTo.users ?? []}});
+                    return {valid: true};
                 }
                 
                 // Otherwise, the path is used by a different assistant
-                setPathError('This path is already in use by another assistant');
                 setIsPathAvailable(false);
-                setPathAvailability({ available: false, message: "Path already in use" });
-                if (onPathValidated) onPathValidated(false, path, 'This path is already in use by another assistant');
-                return false;
+                return {valid: false, error: 'Path is already in use by another assistant'};
             }
 
-
-            validatedPathCacheRef?.current?.push(path.toLowerCase());
+            if (validatedPathCacheRef?.current?.valid) validatedPathCacheRef.current.valid[lowerPath] = "Path available";
             
             // If lookup failed with a "not found" message, the path is available
             setIsPathAvailable(true);
-            setPathAvailability({ available: true, message: "Path available" });
-            if (onPathValidated) onPathValidated(true, path, null);
-            return true;
+            return {valid: true};
         } catch (error) {
             console.error('Error validating path:', error);
-            setPathError('Error checking path availability - please try again');
             setIsPathAvailable(false);
-            setPathAvailability({ available: false, message: "Error" });
-            if (onPathValidated) onPathValidated(false, path, 'Error checking path availability - please try again');
-            return false;
-        } finally {
-            setIsCheckingPath(false);
-        }
+            return {valid: null, error: 'Error checking path availability - please try again', };
+        } 
     };
 
     const handlePathBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
         // Skip validation if the feature flag is disabled
-        if (!featureEnabled) {
-            return;
-        }
+        if (!featureEnabled) return;
+        setAstPathData(emptyAstPathData);
         
         const path = e.target.value.trim();
         if (path) {
             // If the path is the same as the current assistant's path, just set it as valid
             // without making unnecessary API calls
-            if (assistantId && validatedPathCacheRef?.current?.includes(path.toLowerCase())) {
+            const pathLower = path.toLowerCase();
+            if (assistantId && pathLower in Object.keys(validatedPathCacheRef?.current?.valid ?? {})) {
                 console.log(`Path found in cache, using existing path: ${path}`);
                 setIsPathAvailable(true);
                 setPathError(null);
-                setPathAvailability({ available: true, message: "Current path" });
-                if (onPathValidated) onPathValidated(true, path, null);
+                return;
+            } 
+            // check cache
+            if (pathLower in Object.keys(validatedPathCacheRef?.current?.invalid ?? {})) {
+                const error = validatedPathCacheRef?.current?.invalid[pathLower];
+                if (error) setPathError(error);
                 return;
             }
-            
-            // Validate the path - this function will now set pathAvailability directly
-            await validatePath(path);
-            
-            // No need to update pathAvailability here since validatePath now handles it
+            setIsCheckingPath(true);
+            const result = await validatePath(path);
+            setIsCheckingPath(false);
+            // if path is null, we werent able to check properly
+            if (result.valid === false && validatedPathCacheRef?.current?.invalid) validatedPathCacheRef.current.invalid[pathLower] = result?.error;
+            if (result.error) setPathError(result.error);
+
         } else {
             setIsPathAvailable(false);
             setPathError(null);
-            setPathAvailability({ available: false, message: "" });
-            if (onPathValidated) onPathValidated(false, null, null);
         }
     };
 
@@ -189,8 +197,27 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
 
     return (
         <>
-            <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
-                Publish Assistant Path
+            <div className="flex flex-row">
+                <div className="text-sm font-bold text-black dark:text-neutral-200">
+                    Publish Assistant Path
+                </div>
+                {!isCheckingPath && astPathData &&
+                <div className="ml-auto mr-4 ">
+                    { !disableEdit ?
+                        <Checkbox
+                            id="publish-to-all-users"
+                            label="Publish to all users"
+                            checked={astPathData.isPublic ?? true}
+                            onChange={(checked) => {
+                                const newAstPathData = {...astPathData, isPublic: checked};
+                                setAstPathData(newAstPathData);
+                            }}
+                    />  : <label className={"mt-5 text-xs text-blue-500"}>
+                        {astPathData.isPublic ? "Public Access" : "Restricted Access"}
+                        </label>
+                    }
+                </div> }
+                
             </div>
             {astPath && (
                 <p className="text-xs text-black dark:text-neutral-200 mt-2 mb-1">
@@ -223,7 +250,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                             ) : isPathAvailable ? (
                                 <div className="flex items-center text-green-500">
                                     <IconCheck className="h-5 w-5 mr-1" />
-                                    <span className="text-xs">{pathAvailability.message || "Available"}</span>
+                                    <span className="text-xs">{(validatedPathCacheRef?.current?.valid ?? {})[astPath?.toLowerCase() ?? ''] || "Available"}</span>
                                 </div>
                             ) : null}
                             </>)}
@@ -257,8 +284,75 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                 <span className="font-medium">Path requirements:</span> 3-100 characters, letters, numbers, hyphens, underscores, and forward slashes.
                 <br />No leading/trailing slashes or consecutive slashes. No reserved or inappropriate terms.
             </p>
+
+            {!isCheckingPath && astPathData && !astPathData.isPublic && 
+             <div className="mt-4">
+                <ExpansionComponent
+                    closedWidget={<IconLock size={16} />}
+                    title="Manage user access to published assistant"
+                    content={
+                      <div className="flex flex-col gap-2 mt-2">
+                        {amplifyGroups && amplifyGroups.length > 0 &&
+                        <> 
+                         Allow access via Amplify group membership
+                         <AmplifyGroupSelect 
+                            groups={amplifyGroups}
+                            selected={astPathData.accessTo.amplifyGroups ?? []}
+                            setSelected={(selected: string[]) => {
+                                const updateAccessTo = {...astPathData.accessTo, amplifyGroups: selected};
+                                setAstPathData({...astPathData, accessTo: updateAccessTo});
+                            }}
+                            isDisabled={disableEdit}
+                         /> 
+                        </>
+                        }
+                        Allow access to individual users
+                        <AddEmailWithAutoComplete
+                            id={`assistant-path`}
+                            emails={astPathData.accessTo.users ?? []}
+                            allEmails={amplifyUsers.filter((user: string) => user !== userEmail)}
+                            handleUpdateEmails={(updatedEmails: Array<string>) => {
+                                const updateAccessTo = {...astPathData.accessTo, users: updatedEmails};
+                                setAstPathData({...astPathData, accessTo: updateAccessTo});
+                            }}
+                            displayEmails={true}
+                            disableEdit={disableEdit}
+                        />
+                    
+                       </div>
+                    }
+                />
+             </div>
+            }
         </>
     );
 };
 
 export default AssistantPathEditor; 
+
+
+export const isAstPathDataChanged = (dataA: AstPathData | null | undefined, 
+                                     dataB: AstPathData | null | undefined): boolean => {
+    // If both are null/undefined, they're equal
+    if (!dataA && !dataB) return false;
+    
+    // If only one is null/undefined, they're different
+    if (!dataA || !dataB) return true;
+    
+    // Compare isPublic field
+    if (dataA.isPublic !== dataB.isPublic) return true;
+    
+    // Compare accessTo.amplifyGroups
+    const groupsA = dataA.accessTo?.amplifyGroups || [];
+    const groupsB = dataB.accessTo?.amplifyGroups || [];
+    if (groupsA.length !== groupsB.length) return true;
+    if (!groupsA.every(group => groupsB.includes(group))) return true;
+    
+    // Compare accessTo.users
+    const usersA = dataA.accessTo?.users || [];
+    const usersB = dataB.accessTo?.users || [];
+    if (usersA.length !== usersB.length) return true;
+    if (!usersA.every(user => usersB.includes(user))) return true;
+    
+    return false; // No differences found
+}

@@ -99,7 +99,10 @@ export const deleteAssistant = async (assistantId: string) => {
 
 // Simple function to send a direct message to an assistant (for standalone mode)
 import { getSession } from "next-auth/react";
-import { sendChatRequestWithDocuments } from "./chatService";
+import { MetaHandler, sendChatRequestWithDocuments } from "./chatService";
+import { emptyAstPathData } from "@/components/Promptbar/components/AssistantPathEditor";
+import { DEFAULT_SYSTEM_PROMPT } from "@/utils/app/const";
+import { deepMerge } from "@/utils/app/state";
 
 export const sendDirectAssistantMessage = async (
   chatEndpoint: string,
@@ -109,6 +112,10 @@ export const sendDirectAssistantMessage = async (
   model: any, 
   previousMessages: Array<{role: string, content: string}> = [],
   options: any,
+  messageState: any,
+  handleMessageState: (state: any) => void,
+  setResponseStatus: (status: string) => void,
+  controller: AbortController
 ) => {
   try {
     const session = await getSession();
@@ -117,8 +124,6 @@ export const sendDirectAssistantMessage = async (
     if (!session || !session.accessToken || !chatEndpoint) {
       throw new Error("No session or chat endpoint available");
     }
-    
-    const controller = new AbortController();
     
     // Create user message with assistant data embedded
     const userMessage = {
@@ -158,22 +163,30 @@ export const sendDirectAssistantMessage = async (
     
     const chatBody = {
       model: model,
+      prompt: DEFAULT_SYSTEM_PROMPT,
       messages: allMessages,
       temperature: 0.7,
       maxTokens: model?.outputTokenLimit ? Math.round(model.outputTokenLimit / 2) : 2000,
       // Pass assistantId directly in the top level and in options
       assistantId: assistantId,
-      options: { ...options,
-        assistantId: assistantId,
-        assistantName: assistantName,
-        skipRag: false,
-        skipCodeInterpreter: false,
-        skipMemory: true // Skip memory processing
-      }
+      assistantName: assistantName,
+      skipRag: false,
+      skipCodeInterpreter: false,
+      skipMemory: true, // Skip memory processing
+      ...options,
     };
-    console.log("chatBody", chatBody);
+
+    const metaHandler: MetaHandler = {
+      status: (meta: any) => {
+        setResponseStatus(meta.message ?? "");
+      },
+      mode: (modeName: string) => {},
+      state: (state: any) => handleMessageState(deepMerge(messageState, state)),
+      shouldAbort: () => false
+    };
+    // console.log("chatBody", chatBody);
     // @ts-ignore
-    const response = await sendChatRequestWithDocuments(chatEndpoint, session.accessToken, chatBody, controller.signal);
+    const response = await sendChatRequestWithDocuments(chatEndpoint, session.accessToken, chatBody, controller.signal, metaHandler);
     
     return {
       success: response.ok,
@@ -192,27 +205,30 @@ export const sendDirectAssistantMessage = async (
  * Adds a path to an assistant
  * @param assistantId The ID of the assistant
  * @param astPath The path to add to the assistant
- * @param previousPath The previous path, if updating an existing path
+ * @param groupId The ID of the group, if adding to a group
+ * @param isPublic Whether the path is public
+ * @param accessTo The access control settings for the path
  * @returns Success status and the updated assistant info
  */
-export const addAssistantPath = async (assistantId: string, astPath: string, previousPath: string = "", groupId?: string) => {
+export const addAssistantPath = async (assistantId: string, astPath: string, groupId?: string, isPublic?: boolean, accessTo?: any) => {
     // Convert path to lowercase for consistency
     let op = null;
     const lowerCasePath = astPath.toLowerCase();
+    const data = { 
+      assistantId: assistantId, 
+      astPath: lowerCasePath,
+      isPublic: isPublic ?? emptyAstPathData.isPublic,
+      accessTo: accessTo ?? emptyAstPathData.accessTo
+    };
     if (groupId) {
         console.log("Adding path to group assistant: ", groupId);
-        previousPath = previousPath.toLowerCase();
         op = {
           method: 'POST',
           path: "/groups",
           op: URL_PATH + "/add_path",
           data: { 
             group_id: groupId,
-            path_data: {
-                  assistantId: assistantId, 
-                  astPath: lowerCasePath,
-                  previousPath: previousPath 
-                }
+            path_data: data
           },
           service: "groups"
         };
@@ -221,11 +237,7 @@ export const addAssistantPath = async (assistantId: string, astPath: string, pre
         method: 'POST',
         path: URL_PATH,
         op: "/add_path",
-        data: { 
-          assistantId: assistantId, 
-          astPath: lowerCasePath,
-          previousPath: previousPath 
-        },
+          data: data,
         service: SERVICE_NAME
       }; 
     }

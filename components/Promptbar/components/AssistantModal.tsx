@@ -8,7 +8,7 @@ import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
 import {IconFiles, IconTools, IconArrowRight} from "@tabler/icons-react";
-import {createAssistant, addAssistantPath} from "@/services/assistantService";
+import {createAssistant, addAssistantPath, lookupAssistant} from "@/services/assistantService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
@@ -24,7 +24,7 @@ import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import { opLanguageOptionsMap } from '@/types/op';
 import { opsSearchToggleButtons } from '@/components/Admin/AdminComponents/Ops';
 import toast from 'react-hot-toast';
-import AssistantPathEditor from './AssistantPathEditor';import {PythonFunctionModal} from "@/components/Operations/PythonFunctionModal";
+import  {AssistantPathEditor, AstPathData, emptyAstPathData, isAstPathDataChanged} from './AssistantPathEditor';import {PythonFunctionModal} from "@/components/Operations/PythonFunctionModal";
 
 
 interface Props {
@@ -237,10 +237,46 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('tag'); 
     const [apiInfo, setApiInfo] = useState<API[]>(initialApiCapabilities || []);
     const [addFunctionOpen, setAddFunctionOpen] = useState(false);
+    
     // Path-related state
-    const [astPath, setAstPath] = useState<string|null>(definition.astPath || null);
-    const [isCheckingPath, setIsCheckingPath] = useState(false);
-    const [isPathAvailable, setIsPathAvailable] = useState(false);
+    const [astPath, setAstPath] = useState<string|null>(featureFlags.assistantPathPublishing ? definition.astPath || definition.data?.astPath || definition.pathFromDefinition : null); // initialize in useEffect
+    const [isCheckingPath, setIsCheckingPath] = useState(true);
+    const [isPathAvailable, setIsPathAvailable] = useState<boolean>(!!astPath); 
+    const [astPathData, setAstPathData] = useState<AstPathData | null>(null);
+    
+    useEffect(() => {
+        const lookupPath = async () => {
+            let pathData: AstPathData = emptyAstPathData;
+            if (!astPath) {
+                setAstPathData(pathData);
+                return;
+            };
+            const result = await lookupAssistant(astPath);
+            // If lookup was successful, the path is already taken
+            if (result.success && result.data) {
+                // console.log("result.data", result.data);
+                const data = result.data;
+                const astId = data.assistantId;
+                if (astId !== definition.assistantId) {
+                    setAstPathData(pathData);
+                    setAstPath(null);
+                    setIsPathAvailable(false);
+                    return;
+                } 
+
+                const accessTo = data.accessTo;
+                pathData = {isPublic: data.public ?? true, 
+                            accessTo: {amplifyGroups: accessTo.amplifyGroups ?? [], 
+                                        users: accessTo.users ?? []}};
+            } 
+            setAstPathData(pathData);
+        }
+
+        if (featureFlags.assistantPathPublishing && astPathData === null) {
+            lookupPath();
+            setIsCheckingPath(false);
+        }
+    }, [featureFlags.assistantPathPublishing]);
 
     useEffect(() => {
         const filterOps = async (data: any[]) => {
@@ -265,64 +301,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         additionalGroupDataRef.current = additionalGroupData;
     }, [additionalGroupData]);
 
-    // Initialize form with existing assistant data
-    useEffect(() => {
-        if (!assistant) return;
-        if (!isAssistant(assistant)) return;
-        const definition = getAssistant(assistant);
-        
-        // Log the full assistant definition to help debug path issues
-        console.log('Loading assistant for edit:', {
-            assistantId: definition.assistantId,
-            name: definition.name,
-            astPath: definition.astPath,
-            pathFromDefinition: definition.pathFromDefinition,
-            data: definition.data,
-            completeDefinition: definition
-        });
-    
-        
-        // Initialize path-related state based on feature flag
-        if (featureFlags?.assistantPathPublishing) {
-            // Debug logging for path-related information
-            console.log('DEBUG - Assistant path info:', {
-                astPath: definition.astPath,
-                dataAstPath: definition.data?.astPath,
-                pathFromDefinition: definition.pathFromDefinition,
-            });
-            
-            // Determine which path value to use (in priority order)
-            if (definition.astPath) {
-                setAstPath(definition.astPath);
-                setIsPathAvailable(true);
-            } 
-            else if (definition.data?.astPath) {
-                console.log(`DEBUG - Using path from data object: ${definition.data.astPath}`);
-                setAstPath(definition.data.astPath);
-                setIsPathAvailable(true);
-            }
-            else if (definition.pathFromDefinition) {
-                console.log(`DEBUG - Using pathFromDefinition ${definition.pathFromDefinition} since astPath is not available`);
-                setAstPath(definition.pathFromDefinition);
-                setIsPathAvailable(true);
-            }
-        } else {
-            // If feature flag is disabled, ensure path-related state is reset
-            setAstPath(null);
-            setIsPathAvailable(false);
-        }
-        
-    }, [assistant, featureFlags?.assistantPathPublishing]);
 
     const validateApiInfo = (api: any) => {
         return api.RequestType && api.URL && api.Description;
     };
 
-    // Handle path validation callback from the AssistantPathEditor
-    const handlePathValidated = (isValid: boolean, path: string | null, error: string | null) => {
-        if (error) console.log("HandlePathValidated Error:", error);
-        setIsPathAvailable(isValid);
-    };
 
     let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
     const [tags, setTags] = useState((assistant.data && assistant.data.tags) ? assistant.data.tags.join(",") : "");
@@ -445,12 +428,12 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             return;
         }
 
-        if (featureFlags?.assistantPathPublishing) {
+        if (featureFlags.assistantPathPublishing) {
             if (isCheckingPath) {
                 alert("Please wait for assistant path to be cleared for use.");
                 return;
             }
-            if (!isPathAvailable) {
+            if (astPath && !isPathAvailable) {
                 alert("Assistant path is not available, please try a different path.");
                 return;
             }
@@ -468,16 +451,12 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             newAssistant.instructions = content;
             newAssistant.disclaimer = disclaimer;
 
-            if (!featureFlags?.assistantPathPublishing) {
+            if (!featureFlags.assistantPathPublishing || (definition.astPath && !astPath)) {
                 // If feature flag is disabled, ensure astPath is not set
-                if (newAssistant.astPath) {
-                    console.log(`Feature flag disabled, removing existing path "${newAssistant.astPath}" from definition`);
-                    delete newAssistant.astPath;
-                }
-                
-                // Also remove from data object if it exists
-                if (newAssistant.data && newAssistant.data.astPath) {
+                if (newAssistant.astPath) delete newAssistant.astPath;
+                if (newAssistant.data ) {
                     delete newAssistant.data.astPath;
+                    delete newAssistant.data.astPathData;
                 }
             }
             
@@ -583,39 +562,28 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             newAssistant.provider = provider;
             newAssistant.assistantId = assistantId;
 
-            // If we have an assistantId and astPath, update the path in DynamoDB (but only if feature flag is enabled)
-            // if path has changed
-            if (assistantId && astPath && featureFlags?.assistantPathPublishing
-                && astPath !== definition.astPath) {
+            // If we have an assistantId and astPath, update the path in DynamoDB
+            // if path has changed or pathData has changed
+            if (featureFlags.assistantPathPublishing && assistantId && astPath &&
+                (astPath !== definition.astPath || isAstPathDataChanged(astPathData, definition.data?.astPathData))) {
                 try {
                     const formattedPath = astPath.toLowerCase();
                     setLoadingMessage(`Publishing assistant to ${window.location.origin}/assistants/${formattedPath}...`);
                     console.log(`Attempting to save path "${formattedPath}" for assistant "${assistantId}" (ID type: ${typeof assistantId})`);
 
-                    // Make sure the assistantId is a valid string
-                    if (!assistantId || typeof assistantId !== 'string' || assistantId.trim() === '') {
-                        throw new Error('Invalid assistant ID');
-                    }
-
-                    // Make sure the path is a valid string
-                    if (!formattedPath || typeof formattedPath !== 'string' || formattedPath.trim() === '') {
-                        throw new Error('Invalid path');
-                    }
-
-                    const pathResult = await addAssistantPath(assistantId, formattedPath, definition.astPath, assistant.groupId);
+                    if (!assistantId?.trim()) throw new Error('Invalid assistant ID');// Make sure the assistantId is a valid string
+                    if (!formattedPath?.trim()) throw new Error('Invalid path');// Make sure the path is a valid string
+                    
+                    const pathResult = await addAssistantPath(assistantId, formattedPath, assistant.groupId, astPathData?.isPublic, astPathData?.accessTo);
                     // console.log('Path saving result:', pathResult);
 
                     if (pathResult.success) {
-                        
-                        // Update the newAssistant definition with the path
                         newAssistant.astPath = formattedPath;
                         
-                        // Also ensure it's in the data object
-                        if (!newAssistant.data) {
-                            newAssistant.data = {};
-                        }
+                        if (!newAssistant.data) newAssistant.data = {};
 
                         newAssistant.data.astPath = formattedPath;
+                        newAssistant.data.astPathData = astPathData;
                         toast(`Assistant successfully published at: ${formattedPath}`);
                     } else {
                         console.error('Failed to save path:', pathResult);
@@ -860,13 +828,16 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 content={
                                     <div className="text-black dark:text-neutral-200">
                                         <div className="mt-4">
-                                            {featureFlags?.assistantPathPublishing && (
+                                            {featureFlags.assistantPathPublishing && (
                                                 <AssistantPathEditor
                                                     savedAstPath={definition.astPath}
                                                     astPath={astPath}
                                                     setAstPath={setAstPath}
                                                     assistantId={definition.assistantId}
-                                                    onPathValidated={handlePathValidated}
+                                                    astPathData={astPathData}
+                                                    setAstPathData={setAstPathData}
+                                                    isPathAvailable={isPathAvailable}
+                                                    setIsPathAvailable={setIsPathAvailable}
                                                     disableEdit={disableEdit}
                                                     isCheckingPath={isCheckingPath}
                                                     setIsCheckingPath={setIsCheckingPath}

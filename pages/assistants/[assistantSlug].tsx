@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getSession, useSession } from 'next-auth/react';
 import { useTranslation } from 'next-i18next';
-import { IconMessage, IconSend, IconInfoCircle, IconCamera, IconCameraOff, IconCurrencyDollar, IconBaselineDensitySmall, IconBaselineDensityMedium, IconBaselineDensityLarge, IconChevronUp, IconChevronDown } from '@tabler/icons-react';
+import { IconMessage, IconSend, IconInfoCircle, IconCamera, IconCameraOff, IconCurrencyDollar, IconBaselineDensitySmall, IconBaselineDensityMedium, IconBaselineDensityLarge, IconChevronUp, IconChevronDown, IconSquare } from '@tabler/icons-react';
 import { getAvailableModels } from '@/services/adminService';
 import { sendDirectAssistantMessage, lookupAssistant } from '@/services/assistantService';
 import { getSettings } from '@/utils/app/settings';
@@ -19,6 +19,14 @@ import { AssistantDefinition } from '@/types/assistant';
 import { GroupTypeSelector } from '@/components/Chat/GroupTypeSelector';
 import AssistantContentBlock from '@/components/StandAloneAssistant/AssistantContentBlock';
 import { isMemberOfAstAdminGroup } from '@/services/groupsService';
+import ActionButton from '@/components/ReusableComponents/ActionButton';
+import { 
+  IconCopy, 
+  IconDownload, 
+  IconEdit, 
+  IconTrash,
+  IconMail
+} from '@tabler/icons-react';
 
 // Extend the Model type to include isDefault property
 interface Model extends BaseModel {
@@ -47,9 +55,7 @@ const AssistantPage = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [assistantId, setAssistantId] = useState('');
   const [assistantName, setAssistantName] = useState('Assistant');
-  const [assistantDescription, setAssistantDescription] = useState('');
   const [assistantDefinition, setAssistantDefinition] = useState<AssistantDefinition | undefined>(undefined);
-  const [assistantRole, setAssistantRole] = useState('Custom Assistant');
   const [lightMode, setLightMode] = useState<Theme>('dark');
   const [defaultModel, setDefaultModel] = useState<any>(null);
   const [loadingMessage, setLoadingMessage] = useState('');
@@ -61,7 +67,65 @@ const AssistantPage = ({
   const messageEndRef = useRef<HTMLDivElement>(null);
   const [showSettings, setShowSettings] = useState(true);
   const [isHoveringSettings, setIsHoveringSettings] = useState(false);
-  
+  const [messageState, setMessageState] = useState<any>({});
+  const [responseStatus, setResponseStatus] = useState<string>('');
+  const [editing, setEditing] = useState<number | null>(null);
+  const [editedContent, setEditedContent] = useState("");
+  const [abortController, setAbortController] = useState<AbortController>(new AbortController());
+
+  // Add the shimmer animation useEffect here with the other hooks
+  useEffect(() => {
+    // Add the shimmer animation CSS to the document head
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @keyframes shimmer {
+        0% {
+          background-position: -200px 0;
+        }
+        100% {
+          background-position: 200px 0;
+        }
+      }
+
+      .shimmer-text {
+        background: linear-gradient(90deg, rgba(0,0,0,0) 0%, rgb(0, 109, 243) 50%, rgba(0,0,0,0) 100%);
+        background-size: 200px 100%;
+        background-repeat: no-repeat;
+        background-clip: text;
+        -webkit-background-clip: text;
+        color: transparent;
+        animation: shimmer 3s infinite linear;
+        position: relative;
+      }
+      
+      .shimmer-text::before {
+        position: absolute;
+        left: 0;
+        top: 0;
+        color: #000000; /* Pure black for light mode */
+        z-index: -1;
+      }
+      
+      
+      .dark .shimmer-text {
+        background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(225, 228, 233, 0.8) 50%, rgba(255,255,255,0) 100%);
+        background-size: 200px 100%;
+        background-repeat: no-repeat;
+        background-clip: text;
+        -webkit-background-clip: text;
+        color: transparent;
+        animation: shimmer 2s infinite linear;
+        position: relative;
+      }
+      
+    `;
+
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   // Get the current active model (selected or default)
   const activeModel = selectedModel || defaultModel;
@@ -110,30 +174,12 @@ const AssistantPage = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Custom interface for assistant lookup result
-  interface AssistantLookupResult {
-    success: boolean;
-    message: string;
-    assistantId?: string;
-    astPath?: string;
-    pathFromDefinition?: string;
-    name?: string;
-    public?: boolean;
-    data?: any;
-    definition?: {
-      name?: string;
-      instructions?: string;
-      description?: string;
-      role?: string;
-      [key: string]: any;
-    };
-  }
-
   // Initialize the page
   useEffect(() => {
     const initializePage = async () => {
       if (!chatEndpoint) {
         setError('Chat endpoint is not configured');
+        setLoading(false);
         return;
       }
 
@@ -188,81 +234,24 @@ const AssistantPage = ({
         setLoadingMessage('Finding assistant...');
         
         // lookupAssistant takes only the path as argument
-        const result = await lookupAssistant(assistantSlug);
-        
-        // Cast the result to our custom interface
-        const assistantResult = result as AssistantLookupResult;
+        const assistantResult = await lookupAssistant(assistantSlug);
         
         if (assistantResult.success) {
-          const { assistantId, astPath, pathFromDefinition, public: isPublic , definition } = assistantResult;
+          const { assistantId, definition } = assistantResult;
           setAssistantDefinition(definition as AssistantDefinition);
 
           if (Object.keys(definition?.data?.groupTypeData || {}).length > 0) {
             setRequiredGroupType(true);
           }
-          
-          if (definition?.data?.groupId) {
-            setLoadingMessage('Verifying access to assistant...');
-            const result = await isMemberOfAstAdminGroup(definition?.data?.groupId);
 
-            if (!result.success || !result.isMember) {
-              setError('You are not authorized to access this assistant');
-              return;
-            }
-          }
           setLoadingMessage('Finalizing assistant...');
 
           if (assistantId) {
             setAssistantId(assistantId);
-            
-            // Initialize variables to track our progress finding a name
-            let assistantNameFound = false;
-            
-            // APPROACH 1: Check if the name is directly in the top-level result or data
-            if (!assistantNameFound && assistantResult.name) {
-              setAssistantName(assistantResult.name);
-              assistantNameFound = true;
-            }
-            
-            // APPROACH 2: Check if the name is in the data object
-            else if (!assistantNameFound && assistantResult.data && assistantResult.data.name) {
-              setAssistantName(assistantResult.data.name || '');
-              assistantNameFound = true;
-            }
-            
-            // APPROACH 3: Check if the definition object is present and has a name
-            else if (!assistantNameFound && assistantResult.definition && assistantResult.definition.name) {
-              const definition = assistantResult.definition;
-              
-              setAssistantName(definition.name || '');
-              assistantNameFound = true;
-              
-              // Also set description and role if available
-              if (definition.description) {
-                setAssistantDescription(definition.description);
-              }
-              
-              if (definition.role) {
-                setAssistantRole(definition.role);
-              }
-              
-              // Add an initial welcome message if provided
-              if (definition.instructions) {
-                // Use current assistantName value to ensure it has the most up-to-date name
-                setTimeout(() => {
-                  const currentName = definition.name || 'your assistant';
-                  setMessages([
-                    { 
-                      role: 'assistant', 
-                      content: `👋 I'm ${currentName}. ${definition.instructions}` 
-                    }
-                  ]);
-                }, 0);
-              }
-            }
-            
-            // FALLBACK: If we still haven't found a name, derive one from the slug
-            else if (!assistantNameFound) {
+            const astName = assistantResult.name || assistantResult.data?.name || definition?.name
+            if (astName) {
+              setAssistantName(astName);
+            } else { // FALLBACK: derive name from the slug
               // Convert dash/slash separated slug to space-separated title case
               const derivedName = assistantSlug
                 .split(/[-_/]/)  // Split on dashes, underscores, or slashes
@@ -271,7 +260,6 @@ const AssistantPage = ({
               
               setAssistantName(derivedName);
             }
-            
             setLoading(false);
           } else {
             console.error('Assistant ID not found in lookup result');
@@ -279,29 +267,26 @@ const AssistantPage = ({
           }
         } else {
           console.error('Assistant lookup failed:', assistantResult.message);
-          setError(`Assistant not found at path "${assistantSlug}"`);
+          setError(`Assistant not available at path "${assistantSlug}"`);
         }
       } catch (error) {
         console.error('Failed to initialize page:', error);
         setError('Failed to load assistant: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      } finally {
+        setLoading(false);
       }
     };
 
     initializePage();
   }, [chatEndpoint, assistantSlug]);
 
-  useEffect(() => {
-    if (!error) {
-      setLoading(false);
-    }
-  }, [error]);
 
   // Handle sending a message
-  const handleSendMessage = async () => {
-    if (!inputMessage.trim() || isProcessing || !chatEndpoint) return;
+  const handleSendMessage = async (inputContent: string) => {
+    if (!inputContent.trim() || isProcessing || !chatEndpoint) return;
     
     // Add user message to the chat
-    const userMessage = { role: 'user', content: inputMessage };
+    const userMessage = { role: 'user', content: inputContent };
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsProcessing(true);
@@ -317,18 +302,20 @@ const AssistantPage = ({
         console.error('Model is missing id:', activeModel);
         throw new Error("The selected model is invalid. Please select a different model.");
       }
-      
       const options = requiredGroupType ? {groupType: groupType, groupId: assistantDefinition?.data?.groupId} : {};
-
       // Send the message to the assistant with conversation history and selected model
       const result = await sendDirectAssistantMessage(
         chatEndpoint,
         assistantId,
         assistantName,
-        inputMessage,
+        inputContent,
         activeModel, // Send the complete model object
         messages,
-        options
+        options,
+        messageState,
+        handleMessageState,
+        setResponseStatus,
+        abortController,
       );
       
       if (!result.success) {
@@ -437,24 +424,30 @@ const AssistantPage = ({
         }
       } catch (streamError) {
         console.error('Error processing stream:', streamError);
-        // Update the last message to show the error
-        setMessages(prev => {
-          const newMessages = [...prev];
-          if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'assistant') {
-            newMessages[newMessages.length - 1] = { 
-              role: 'assistant', 
-              content: 'Sorry, there was an error processing the response stream: ' + 
-                (streamError instanceof Error ? streamError.message : String(streamError))
-            };
-          } else {
-            newMessages.push({ 
-              role: 'assistant', 
-              content: 'Sorry, there was an error processing the response stream: ' + 
-                (streamError instanceof Error ? streamError.message : String(streamError))
-            });
-          }
-          return newMessages;
-        });
+        const errorMessage = streamError instanceof Error ? streamError.message : String(streamError);
+        const isAbortError = errorMessage.includes('abort') || errorMessage.includes('aborted');
+        
+        // Only show error message if it's not an abort error
+        if (!isAbortError) {
+          // Update the last message to show the error
+          setMessages(prev => {
+            const newMessages = [...prev];
+            if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'assistant') {
+              newMessages[newMessages.length - 1] = { 
+                role: 'assistant', 
+                content: 'Sorry, there was an error processing the response stream: ' + errorMessage
+              };
+            } else {
+              newMessages.push({ 
+                role: 'assistant', 
+                content: 'Sorry, there was an error processing the response stream: ' + errorMessage
+              });
+            }
+            return newMessages;
+          });
+        } else {
+          setAbortController(new AbortController());
+        }
       }
     } catch (error) {
       console.error("Error sending message:", error);
@@ -465,6 +458,7 @@ const AssistantPage = ({
       }]);
     } finally {
       setIsProcessing(false);
+      setResponseStatus('');
     }
   };
 
@@ -472,7 +466,7 @@ const AssistantPage = ({
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      handleSendMessage(inputMessage);
     }
   };
 
@@ -498,25 +492,10 @@ const AssistantPage = ({
     }
   };
 
-  // Helper function to get model description
-  const getModelDescription = (model: any) => {
-    if (!model) return '';
-    
-    // Create description based on model capabilities
-    const capabilities = [];
-    if (model.supportsImages) capabilities.push('Image understanding');
-    if (model.supportsReasoning) capabilities.push('Advanced reasoning');
-    
-    let description = `${model.description || 'AI language model'}`;
-    if (model.inputContextWindow) {
-      description += `. Context: ${Math.round(model.inputContextWindow/1000)}k tokens`;
-    }
-    if (capabilities.length > 0) {
-      description += `. Capabilities: ${capabilities.join(', ')}`;
-    }
-    
-    return description;
-  };
+  const handleMessageState = (state: any) => {
+    const messageIndex = messages.length - 1;
+    setMessageState({ ...messageState, [messageIndex]: state });
+  }
 
   // Content for header
   const headerContent = (
@@ -524,14 +503,13 @@ const AssistantPage = ({
       <div className="flex-shrink-0 bg-blue-100 dark:bg-blue-900 p-2 rounded-full flex items-center justify-center">
         <IconMessage className="text-blue-600 dark:text-blue-300" size={22} />
       </div>
-      <div className="group relative flex items-center ">
+      <div className="group relative flex items-center">
         <h1 className="text-xl font-bold text-neutral-800 dark:text-neutral-100 leading-none py-1">
           {assistantName}
         </h1>
-        <div className="absolute left-0 top-full mt-1 hidden rounded-md bg-gray-800 p-2 text-xs text-white shadow-lg group-hover:block z-10">
-          <p>ID: {assistantId}</p>
-          <p>Description: {assistantDescription || 'Not provided'}</p>
-          <p>Role: {assistantRole || 'Not provided'}</p>
+        <div className="absolute left-0 top-full mt-1 hidden rounded-md bg-gray-800 p-3 text-xs text-white shadow-lg group-hover:block z-10 max-w-[350px] w-max">
+          <p className="mb-1 break-all"><span className="font-bold">ID:</span> {assistantId}</p>
+          <p className="break-words"><span className="font-bold">Description:</span> {assistantDefinition?.description || 'Not provided'}</p>
         </div>
       </div>
       {groupType && <div className="ml-auto text-xl font-bold text-neutral-800 dark:text-neutral-100  py-1">{groupType}</div>}
@@ -544,7 +522,72 @@ const AssistantPage = ({
   }, [assistantName]);
 
  
+  const filterMessages = () => {
+    return messages.filter(message => ["user", "assistant"].includes(message.role));
+  }
 
+  const handleEditMessage = (index: number) => {
+    const newContent = messages[index].content;
+    setEditedContent(newContent);
+    setEditing(index);
+  };
+
+  const handleSaveEdit = () => {
+    if (editing !== null) {
+      const updatedMessages = [...messages.slice(0, editing)];
+    
+      updatedMessages[editing] = {
+        ...updatedMessages[editing],
+        content: editedContent
+      };
+      setMessages(updatedMessages);
+      setEditing(null);
+      handleSendMessage(editedContent);
+    }
+    
+  };
+
+  const handleDeleteMessage = (index: number) => {
+    // If deleting a user message, also delete the following assistant message
+    if (messages[index].role === 'user' && index < messages.length - 1 && messages[index + 1].role === 'assistant') {
+      const updatedMessages = messages.filter((_, i) => i !== index && i !== index + 1);
+      setMessages(updatedMessages);
+    } else {
+      const updatedMessages = messages.filter((_, i) => i !== index);
+      setMessages(updatedMessages);
+    }
+  };
+
+  const handleCopyMessage = (content: string) => {
+    navigator.clipboard.writeText(content)
+      .then(() => {
+        // Show toast or feedback
+        console.log('Copied to clipboard');
+      })
+      .catch(err => {
+        console.error('Failed to copy: ', err);
+      });
+  };
+
+  const handleDownloadMessage = (content: string) => {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'message.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Function to stop generation
+  const stopGeneration = () => {
+    if (abortController) {
+      abortController.abort();
+      setIsProcessing(false);
+    }
+  };
 
   // Loading state
   if (loading) {
@@ -647,7 +690,7 @@ const AssistantPage = ({
 
       {/* Chat messages */}
       <div className="flex-1 overflow-y-auto py-4 px-6 bg-white dark:bg-[#343541]">
-        {messages.length === 0 ? (
+        {filterMessages().length === 0 ? (
           <div className="flex h-full flex-col">
             {assistantDefinition?.data && requiredGroupType && 
             <div className="flex justify-center text-neutral-500 dark:text-neutral-400 w-full py-4">
@@ -667,17 +710,72 @@ const AssistantPage = ({
           </div>
         ) : (
           <div className="space-y-6 w-full px-20">
-            {messages.map((message, index) => {
-              
-              return (
-                <div key={index} className="w-full">
-                  {message.role === 'user' ? (
+            {filterMessages().map((message, index) => (
+              <div key={index} className="w-full mb-6">
+                {message.role === 'user' ? (
+                  <>
                     <div className="flex justify-end">
                       <div className="amplify-user-message amplify-message-container">
-                        {message.content}
+                        {editing === index ? (
+                          <>
+                          <textarea
+                            className="w-full p-3 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-[#40414f] text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all resize-none"
+                            value={editedContent}
+                            onChange={(e) => setEditedContent(e.target.value)}
+                            rows={4}
+                            placeholder="Edit your message..."
+                            
+                          />
+                          <div className="flex justify-end mt-3 space-x-2">
+                          <button
+                            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 rounded-md text-xs font-medium transition-colors duration-200 flex items-center border border-transparent dark:border-gray-700"
+                            onClick={() => setEditing(null)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:hover:bg-blue-800/60 dark:text-blue-200 rounded-md text-xs font-medium transition-colors duration-200 flex items-center border border-blue-200 dark:border-blue-800"
+                            onClick={handleSaveEdit}
+                          >
+                            Save changes
+                          </button>
+                        </div>
+                        </>
+                        ) : (
+                          <>{message.content}</>
+                        )}
                       </div>
                     </div>
-                  ) : (
+                    
+                    {/* User message action buttons */}
+                    {!isProcessing && !editing && (
+                      <div className="flex mt-1 space-x-1 justify-end">
+                        <ActionButton 
+                          handleClick={() => handleCopyMessage(message.content)}
+                          title="Copy message"
+                          id={`copy-message-${index}`}
+                        >
+                          <IconCopy size={16} />
+                        </ActionButton>
+                        <ActionButton 
+                          handleClick={() => handleEditMessage(index)}
+                          title="Edit message"
+                          id={`edit-message-${index}`}
+                        >
+                          <IconEdit size={16} />
+                        </ActionButton>
+                        <ActionButton 
+                          handleClick={() => handleDeleteMessage(index)}
+                          title="Delete message"
+                          id={`delete-message-${index}`}
+                        >
+                          <IconTrash size={16} />
+                        </ActionButton>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
                     <div className="w-full">
                       <div className="amplify-assistant-message rounded-lg inline-block">
                         <AssistantContentBlock
@@ -689,14 +787,47 @@ const AssistantPage = ({
                         />
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                    
+                    {/* Assistant message action buttons */}
+                    {!isProcessing && !editing && (
+                      <div className="flex mt-1 space-x-1 justify-start">
+                        <ActionButton 
+                          handleClick={() => handleCopyMessage(message.content)}
+                          title="Copy message"
+                          id={`copy-message-${index}`}
+                        >
+                          <IconCopy size={16} />
+                        </ActionButton>
+                        <ActionButton 
+                          handleClick={() => handleDownloadMessage(message.content)}
+                          title="Save as file"
+                          id={`download-message-${index}`}
+                        >
+                          <IconDownload size={16} />
+                        </ActionButton>
+                        <ActionButton 
+                          handleClick={() => {
+                            window.location.href = `mailto:?body=${encodeURIComponent(message.content)}`;
+                          }}
+                          title="Email response"
+                          id={`email-message-${index}`}
+                        >
+                          <IconMail size={16} />
+                        </ActionButton>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
             {isProcessing && (
-              <div className="flex justify-start">
-                <div className="bg-neutral-100 dark:bg-[#444654] px-4 py-3 rounded-lg flex items-center">
-                  <Spinner />
+              <div className="mb-6">
+                <div className="flex justify-start">
+                  <div className="bg-neutral-100 dark:bg-[#444654] px-4 py-3 rounded-lg">
+                    <div className="flex items-center">
+                      <Spinner size="16px"/> {responseStatus && <span className="ml-2 shimmer-text">{responseStatus}</span> }
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -705,8 +836,25 @@ const AssistantPage = ({
         )}
       </div>
 
+      {/* Stop generation button */}
+      {isProcessing && (
+      <div className='relative'>
+        <div className="absolute bottom-2 w-full text-center flex justify-center mt-3">
+          <button 
+            onClick={stopGeneration}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-500 hover:bg-gray-300 dark:hover:bg-gray-400 text-black rounded-full border border-gray-200 transition-colors duration-200"
+            title="Stop generating"
+            id="stop-generation"
+          >
+            <IconSquare size={12} fill="blue" className="animate-pulse" />
+            <span className="text-xs">Stop generating</span>
+          </button>
+        </div>
+        </div>)}
+
       {/* Input area */}
       <div className="border-t border-neutral-200 dark:border-neutral-600 bg-white dark:bg-[#343541] py-4 px-6">
+      
         <div className="w-full px-10">
           <div className="relative">
             <textarea
@@ -730,7 +878,7 @@ const AssistantPage = ({
                     ? 'opacity-40 cursor-not-allowed'
                     : 'hover:bg-neutral-200 dark:hover:bg-neutral-600'
                 } p-1.5 rounded-md`}
-                onClick={handleSendMessage}
+                onClick={() => handleSendMessage(inputMessage)}
                 disabled={!inputMessage.trim() || isProcessing || (requiredGroupType && !groupType)}
                 aria-label="Send message"
               >
