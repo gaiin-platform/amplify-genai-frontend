@@ -25,6 +25,7 @@ import { opLanguageOptionsMap } from '@/types/op';
 import { opsSearchToggleButtons } from '@/components/Admin/AdminComponents/Ops';
 import toast from 'react-hot-toast';
 import  {AssistantPathEditor, AstPathData, emptyAstPathData, isAstPathDataChanged} from './AssistantPathEditor';import {PythonFunctionModal} from "@/components/Operations/PythonFunctionModal";
+import Checkbox from '@/components/ReusableComponents/CheckBox';
 
 
 interface Props {
@@ -237,6 +238,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('tag'); 
     const [apiInfo, setApiInfo] = useState<API[]>(initialApiCapabilities || []);
     const [addFunctionOpen, setAddFunctionOpen] = useState(false);
+
+    const [availableOnRequest, setAvailableOnRequest] = useState(definition.data?.availableOnRequest || false);
     
     // Path-related state
     const [astPath, setAstPath] = useState<string|null>(featureFlags.assistantPathPublishing ? definition.astPath || definition.data?.astPath || definition.pathFromDefinition : null); // initialize in useEffect
@@ -522,6 +525,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             newAssistant.data.featureOptions = featureOptions;
 
             newAssistant.data.opsLanguageVersion = opsLanguageVersion;
+
+            newAssistant.data.availableOnRequest = availableOnRequest;
 
             // console.log("apiInfo",apiInfo);
             // console.log("selectedApis",selectedApis);
@@ -874,6 +879,15 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                               value={definition.assistantId || ''}
                                               disabled={true}
                                             />
+
+                                            <div className='mt-4 text-[1rem]'>
+                                                <Checkbox
+                                                    id="allowRequestAccess"
+                                                    label="Allow other users to request chat permissions for this assistant. "
+                                                    checked={availableOnRequest}
+                                                    onChange={(isChecked: boolean) => setAvailableOnRequest(isChecked)}
+                                                />
+                                            </div>
 
                                             <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
                                                 {t('Data Source Options')}
