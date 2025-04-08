@@ -50,9 +50,7 @@ export interface Op extends OpDef {
 
 
 export const opLanguageOptionsMap = {
-    v1 : "v1",
-    v2 : "v2",
-    v3 : "v3",
-    v4 : "Deep VU1",
+    v1 : "Standard",
+    v4 : "Agent",
     custom : "Custom"
 }
