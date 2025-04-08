@@ -91,6 +91,7 @@ import { WorkspaceLegacyMessage } from '@/components/Workspace/WorkspaceLegacyMe
 import { getSharedItems } from '@/services/shareService';
 import { lowestCostModel } from '@/utils/app/models';
 import { SidebarButton } from '@/components/Sidebar/SidebarButton';
+import { useRouter } from 'next/router';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -236,6 +237,16 @@ const Home = ({
     useEffect(() => {
         if (chatEndpoint) dispatch({ field: 'chatEndpoint', value: chatEndpoint });
     }, [chatEndpoint]);
+
+    const router = useRouter();
+
+    // Handle callback URL redirect
+    useEffect(() => {
+        const callbackUrl = router.query.callbackUrl as string;
+        if (session && callbackUrl) {
+            router.push(callbackUrl);
+        }
+    }, [session, router]);
 
 
     const handleSelectConversation = async (conversation: Conversation) => {

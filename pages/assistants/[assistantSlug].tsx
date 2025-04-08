@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-import { getSession, useSession } from 'next-auth/react';
+import { getSession, useSession, signIn } from 'next-auth/react';
 import { useTranslation } from 'next-i18next';
-import { IconMessage, IconSend, IconInfoCircle, IconCamera, IconCameraOff, IconCurrencyDollar, IconBaselineDensitySmall, IconBaselineDensityMedium, IconBaselineDensityLarge, IconChevronUp, IconChevronDown, IconSquare } from '@tabler/icons-react';
+import { IconMessage, IconSend, IconInfoCircle, IconCamera, IconCameraOff, IconCurrencyDollar, IconBaselineDensitySmall, IconBaselineDensityMedium, IconBaselineDensityLarge, IconChevronUp, IconChevronDown, IconSquare, Icon3dCubeSphere } from '@tabler/icons-react';
 import { getAvailableModels } from '@/services/adminService';
 import { sendDirectAssistantMessage, lookupAssistant } from '@/services/assistantService';
 import { getSettings } from '@/utils/app/settings';
@@ -27,6 +27,7 @@ import {
   IconTrash,
   IconMail
 } from '@tabler/icons-react';
+import styled from 'styled-components';
 
 // Extend the Model type to include isDefault property
 interface Model extends BaseModel {
@@ -37,6 +38,12 @@ interface Props {
   chatEndpoint: string | null;
   assistantSlug: string;
 }
+
+const LoadingIcon = styled(Icon3dCubeSphere)`
+  color: lightgray;
+  height: 150px;
+  width: 150px;
+`;
 
 const AssistantPage = ({
   chatEndpoint,
@@ -607,7 +614,7 @@ const AssistantPage = ({
   }
 
   // Error state
-  if (error) {
+  if (error || !session) {
     return (
       <MainLayout
         title="Error"
@@ -616,18 +623,29 @@ const AssistantPage = ({
         showLeftSidebar={false}
         showRightSidebar={false}
       >
-        <div className="flex h-full items-center justify-center bg-white dark:bg-[#343541]">
-          <div className="text-center p-8 max-w-md bg-white dark:bg-gray-700 rounded-lg shadow-lg">
-            <div className="mb-4 text-2xl text-red-500 font-bold">{t('Error') || 'Error'}</div>
-            <div className="mb-6 text-gray-700 dark:text-gray-300">{error}</div>
-            <div className="mb-6 text-sm text-gray-500 dark:text-gray-400">
-              Please check the path in your URL and try again. If you believe this is an error, contact your administrator.
-            </div>
-            <button 
-              className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 transition-colors"
-              onClick={() => router.push('/')}
+        <div className="flex h-screen w-screen flex-col text-sm text-black dark:text-white">
+          <div className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
+            <h1 className="mb-4 text-2xl font-bold">
+              <LoadingIcon />
+            </h1>
+            <button
+              onClick={() => signIn('cognito')}
+              id="loginButton"
+              className="shadow-md"
+              style={{
+                backgroundColor: 'white',
+                border: '2px solid #ccc',
+                color: 'black',
+                fontWeight: 'bold',
+                padding: '10px 20px',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                transition: 'background-color 0.3s ease-in-out',
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
             >
-              {t('Go Home') || 'Go Home'}
+              Login
             </button>
           </div>
         </div>
@@ -896,16 +914,6 @@ const AssistantPage = ({
 
 export const getServerSideProps: GetServerSideProps = async ({ locale, params, req }) => {
   const session = await getSession({ req });
-  
-  // Redirect to login if no session
-  if (!session) {
-    return {
-      redirect: {
-        destination: '/',
-        permanent: false,
-      },
-    };
-  }
   
   const chatEndpoint = process.env.CHAT_ENDPOINT;
   
