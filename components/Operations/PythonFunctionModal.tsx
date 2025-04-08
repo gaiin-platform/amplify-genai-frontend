@@ -297,7 +297,8 @@ if __name__ == "__main__":
     const [assistantAccessible, setAssistantAccessible] = useState(true);
     const [access, setAccess] = useState<'public' | 'private'>('public');
     const [isPublishing, setIsPublishing] = useState(false);
-
+    const [allowedGroups, setAllowedGroups] = useState<string[]>([]);
+    const [newGroupInput, setNewGroupInput] = useState('');
     const [testCases, setTestCases] = useState<any[]>([]);
     const [accessToken, setAccessToken] = useState<string | null>(null);
 
@@ -380,6 +381,8 @@ if __name__ == "__main__":
         setSchema(JSON.stringify(fn.inputSchema ?? {}, null, 2));
         setTestCases(fn.testCases || []);
         setTags(fn.tags || [])
+
+        setAllowedGroups(fn.metadata?.allowed_groups || []);
 
         if(fn.metadata && fn.metadata.published){
             setPublicationData(fn.metadata.published);
@@ -497,7 +500,8 @@ if __name__ == "__main__":
 
             const metadata = {
                 environment: env,
-                published: publicationData
+                published: publicationData,
+                allowed_groups: allowedGroups
             };
 
             const oldFnId = selectedFnId;
@@ -927,6 +931,59 @@ Output only a markdown code block like this:
                                                     className="ml-2 text-gray-700 hover:text-red-600 dark:text-white dark:hover:text-red-400"
                                                     onClick={() => {
                                                         setTags(tags.filter((t) => t !== tag));
+                                                        setHasUnsavedChanges(true);
+                                                    }}
+                                                >
+                                                    <IconCircleX size={16} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="mt-6">
+                                    <div className="text-sm font-bold mb-1">Groups That Can Invoke</div>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Add a group..."
+                                            className="flex-grow rounded-lg border border-neutral-500 px-3 py-1 dark:bg-[#40414F] dark:text-neutral-100"
+                                            value={newGroupInput}
+                                            onChange={(e) => setNewGroupInput(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && newGroupInput.trim()) {
+                                                    e.preventDefault();
+                                                    if (!allowedGroups.includes(newGroupInput.trim())) {
+                                                        setAllowedGroups([...allowedGroups, newGroupInput.trim()]);
+                                                        setHasUnsavedChanges(true);
+                                                    }
+                                                    setNewGroupInput('');
+                                                }
+                                            }}
+                                        />
+                                        <button
+                                            className="text-gray-600 hover:text-black dark:hover:text-white"
+                                            onClick={() => {
+                                                if (newGroupInput.trim() && !allowedGroups.includes(newGroupInput.trim())) {
+                                                    setAllowedGroups([...allowedGroups, newGroupInput.trim()]);
+                                                    setHasUnsavedChanges(true);
+                                                }
+                                                setNewGroupInput('');
+                                            }}
+                                        >
+                                            <IconPlus size={20} />
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-wrap mt-2 gap-2">
+                                        {allowedGroups.map((group, index) => (
+                                            <div
+                                                key={index}
+                                                className="flex items-center bg-gray-200 dark:bg-neutral-600 text-sm font-medium px-3 py-1 rounded-full"
+                                            >
+                                                <span>{group}</span>
+                                                <button
+                                                    className="ml-2 text-gray-700 hover:text-red-600 dark:text-white dark:hover:text-red-400"
+                                                    onClick={() => {
+                                                        setAllowedGroups(allowedGroups.filter((g) => g !== group));
                                                         setHasUnsavedChanges(true);
                                                     }}
                                                 >
