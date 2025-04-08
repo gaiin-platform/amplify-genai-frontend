@@ -7,8 +7,8 @@ import {ExistingFileList, FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
-import {IconFiles, IconTools, IconCircleX, IconArrowRight, IconTags, IconMessage} from "@tabler/icons-react";
-import {createAssistant} from "@/services/assistantService";
+import {IconFiles, IconTools, IconArrowRight} from "@tabler/icons-react";
+import {createAssistant, addAssistantPath, lookupAssistant} from "@/services/assistantService";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
@@ -23,7 +23,9 @@ import Search from '@/components/Search';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import { opLanguageOptionsMap } from '@/types/op';
 import { opsSearchToggleButtons } from '@/components/Admin/AdminComponents/Ops';
-import {PythonFunctionModal} from "@/components/Operations/PythonFunctionModal";
+import toast from 'react-hot-toast';
+import  {AssistantPathEditor, AstPathData, emptyAstPathData, isAstPathDataChanged} from './AssistantPathEditor';import {PythonFunctionModal} from "@/components/Operations/PythonFunctionModal";
+import Checkbox from '@/components/ReusableComponents/CheckBox';
 
 
 interface Props {
@@ -140,7 +142,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                           translateY, blackoutBackground=true, additionalTemplates, autofillOn=false, embed=false, additionalGroupData, children}) => {
     const {t} = useTranslation('promptbar');
 
-    const { state: { prompts, featureFlags} , setLoadingMessage} = useContext(HomeContext);
+    const { state: { prompts, featureFlags }, setLoadingMessage} = useContext(HomeContext);
 
     const definition = getAssistant(assistant);
 
@@ -236,7 +238,49 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('tag'); 
     const [apiInfo, setApiInfo] = useState<API[]>(initialApiCapabilities || []);
     const [addFunctionOpen, setAddFunctionOpen] = useState(false);
+
+    const [availableOnRequest, setAvailableOnRequest] = useState(definition.data?.availableOnRequest || false);
     
+    // Path-related state
+    const [astPath, setAstPath] = useState<string|null>(featureFlags.assistantPathPublishing ? definition.astPath || definition.data?.astPath || definition.pathFromDefinition : null); // initialize in useEffect
+    const [isCheckingPath, setIsCheckingPath] = useState(true);
+    const [isPathAvailable, setIsPathAvailable] = useState<boolean>(!!astPath); 
+    const [astPathData, setAstPathData] = useState<AstPathData | null>(null);
+    
+    useEffect(() => {
+        const lookupPath = async () => {
+            let pathData: AstPathData = emptyAstPathData;
+            if (!astPath) {
+                setAstPathData(pathData);
+                return;
+            };
+            const result = await lookupAssistant(astPath);
+            // If lookup was successful, the path is already taken
+            if (result.success && result.data) {
+                // console.log("result.data", result.data);
+                const data = result.data;
+                const astId = data.assistantId;
+                if (astId !== definition.assistantId) {
+                    setAstPathData(pathData);
+                    setAstPath(null);
+                    setIsPathAvailable(false);
+                    return;
+                } 
+
+                const accessTo = data.accessTo;
+                pathData = {isPublic: data.public ?? true, 
+                            accessTo: {amplifyGroups: accessTo.amplifyGroups ?? [], 
+                                        users: accessTo.users ?? []}};
+            } 
+            setAstPathData(pathData);
+        }
+
+        if (featureFlags.assistantPathPublishing && astPathData === null) {
+            lookupPath();
+            setIsCheckingPath(false);
+        }
+    }, [featureFlags.assistantPathPublishing]);
+
     useEffect(() => {
         const filterOps = async (data: any[]) => {
             const filteredOps = await filterSupportedIntegrationOps(data);
@@ -253,7 +297,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             }
                                         });
     }, [availableApis]);
-    
 
     const additionalGroupDataRef = useRef<any>({});
 
@@ -261,15 +304,16 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         additionalGroupDataRef.current = additionalGroupData;
     }, [additionalGroupData]);
 
+
     const validateApiInfo = (api: any) => {
         return api.RequestType && api.URL && api.Description;
     };
+
 
     let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
     const [tags, setTags] = useState((assistant.data && assistant.data.tags) ? assistant.data.tags.join(",") : "");
     const [conversationTags, setConversationTags] = useState(cTags);
 
-   
     const getTemplates = () => {
         let templates = prompts.filter((p:Prompt) => isAssistant(p) && (!p.groupId));
         if (additionalTemplates) templates = [...templates, ...additionalTemplates];
@@ -374,6 +418,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
    
 
     const handleUpdateAssistant = async () => {
+        if(!name){
+            alert("Must provide a name.");
+            return;
+        }
+
         // Check if any data sources are still uploading
         const isUploading = Object.values(documentState).some((x) => x < 100);
         const isUploadingGroupDS = additionalGroupData && additionalGroupData.groupTypeData ? Object.entries(additionalGroupData.groupTypeData as AstGroupTypeData).some(([type, info]) => !allDocumentsUploaded(info.documentState)) : false;
@@ -382,122 +431,190 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             return;
         }
 
+        if (featureFlags.assistantPathPublishing) {
+            if (isCheckingPath) {
+                alert("Please wait for assistant path to be cleared for use.");
+                return;
+            }
+            if (astPath && !isPathAvailable) {
+                alert("Assistant path is not available, please try a different path.");
+                return;
+            }
+        }
 
         setIsLoading(true);
         setLoadingMessage(loadingMessage);
 
-        let newAssistant = getAssistant(assistant);
-        newAssistant.name = name;
-        newAssistant.provider = AssistantProviderID.AMPLIFY;
-        newAssistant.data = newAssistant.data || {provider: AssistantProviderID.AMPLIFY};
-        newAssistant.description = description;
-        newAssistant.instructions = content;
-        newAssistant.disclaimer = disclaimer;
+        try {
+            let newAssistant = getAssistant(assistant);
+            newAssistant.name = name;
+            newAssistant.provider = AssistantProviderID.AMPLIFY;
+            newAssistant.data = newAssistant.data || {provider: AssistantProviderID.AMPLIFY};
+            newAssistant.description = description;
+            newAssistant.instructions = content;
+            newAssistant.disclaimer = disclaimer;
 
-        // TODO handle for groupTypes too 
-        if(uri && uri.trim().length > 0){
-            // Check that it is a valid uri
-            if(uri.trim().indexOf("://") === -1){
-                alert("Invalid URI, please update and try again.");
+            if (!featureFlags.assistantPathPublishing || (definition.astPath && !astPath)) {
+                // If feature flag is disabled, ensure astPath is not set
+                if (newAssistant.astPath) delete newAssistant.astPath;
+                if (newAssistant.data ) {
+                    delete newAssistant.data.astPath;
+                    delete newAssistant.data.astPathData;
+                }
+            }
+            
+            // TODO handle for groupTypes too 
+            if(uri && uri.trim().length > 0){
+                // Check that it is a valid uri
+                if(uri.trim().indexOf("://") === -1){
+                    alert("Invalid URI, please update and try again.");
+                    setIsLoading(false);
+                    setLoadingMessage("");
+
+                    return;
+                }
+
+                newAssistant.uri = uri.trim();
+            }
+
+          // console.log(dataSources.map((d: any)=> d.name));
+
+            newAssistant.dataSources = dataSources.map(ds => {
+                if (assistant.groupId) {
+                    if (!ds.key) ds.key = ds.id;
+                    if (!ds.groupId) ds.groupId = assistant.groupId;
+                    return {
+                      ...ds,
+                      id: "s3://"+ds.key
+                    }
+                }
+                if(ds.key || (ds.id && ds.id.indexOf("://") > 0)){
+                    return ds;
+                }
+                else {
+                    return {
+                        ...ds,
+                        id: "s3://"+ds.id
+                    }
+                }
+            });
+            // do the same for 
+            newAssistant.tools = selectedApis || [];
+            
+            // Handle tags whether it's a string or array
+            const tagsList = Array.isArray(tags) 
+                ? tags 
+                : (tags ? tags.split(",").map((x: string) => x.trim()) : []);
+            
+            newAssistant.tags = tagsList;
+            newAssistant.data.tags = tagsList;
+            
+            // Handle conversationTags in the same way
+            newAssistant.data.conversationTags = Array.isArray(conversationTags)
+                ? conversationTags
+                : (conversationTags ? conversationTags.split(",").map((x: string) => x.trim()) : []);
+            
+            //if we were able to get to this assistant modal (only comes up with + assistant and edit buttons)
+            //then they must have had read/write access.
+            newAssistant.data.access = {read: true, write: true};
+
+            newAssistant.data.dataSourceOptions = dataSourceOptions;
+
+            newAssistant.data.messageOptions = messageOptions;
+
+            newAssistant.data.featureOptions = featureOptions;
+
+            newAssistant.data.opsLanguageVersion = opsLanguageVersion;
+
+            newAssistant.data.availableOnRequest = availableOnRequest;
+
+            // console.log("apiInfo",apiInfo);
+            // console.log("selectedApis",selectedApis);
+
+            const combinedOps = [
+              ...selectedApis,
+              ...(apiInfo.map((api) => {return {type:"http", ...api}}))
+            ];
+
+            newAssistant.data = {
+                ...newAssistant.data,
+                operations: combinedOps//selectedApis
+            };
+
+            if (apiOptions.IncludeApiInstr && apiInfo.some(api => !validateApiInfo(api))) {
+                alert("Please fill out all required API fields (Request Type, URL, and Description) before saving.");
                 setIsLoading(false);
                 setLoadingMessage("");
-
                 return;
             }
 
-            newAssistant.uri = uri.trim();
-        }
-
-        // console.log(dataSources.map((d: any)=> d.name));
-
-        newAssistant.dataSources = dataSources.map(ds => {
-            if (assistant.groupId) {
-                if (!ds.key) ds.key = ds.id;
-                if (!ds.groupId) ds.groupId = assistant.groupId;
-                return {
-                ...ds,
-                id: "s3://"+ds.key
-                }
+            if (assistant.groupId) newAssistant.data.groupId = assistant.groupId;
+            
+            const updatedAdditionalGroupData = prepAdditionalData();
+            newAssistant.data = {...newAssistant.data, ...updatedAdditionalGroupData};
+            
+            const {id, assistantId, provider} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant, null);
+            console.log('Assistant created with ID:', assistantId);
+            
+            if (!id) {
+                alert("Unable to save the assistant at this time, please try again later...");
+                setIsLoading(false);
+                setLoadingMessage("");
+                return;
             }
-            if(ds.key || (ds.id && ds.id.indexOf("://") > 0)){
-                return ds;
+
+            newAssistant.id = id;
+            newAssistant.provider = provider;
+            newAssistant.assistantId = assistantId;
+
+            // If we have an assistantId and astPath, update the path in DynamoDB
+            // if path has changed or pathData has changed
+            if (featureFlags.assistantPathPublishing && assistantId && astPath &&
+                (astPath !== definition.astPath || isAstPathDataChanged(astPathData, definition.data?.astPathData))) {
+                try {
+                    const formattedPath = astPath.toLowerCase();
+                    setLoadingMessage(`Publishing assistant to ${window.location.origin}/assistants/${formattedPath}...`);
+                    console.log(`Attempting to save path "${formattedPath}" for assistant "${assistantId}" (ID type: ${typeof assistantId})`);
+
+                    if (!assistantId?.trim()) throw new Error('Invalid assistant ID');// Make sure the assistantId is a valid string
+                    if (!formattedPath?.trim()) throw new Error('Invalid path');// Make sure the path is a valid string
+                    
+                    const pathResult = await addAssistantPath(assistantId, formattedPath, assistant.groupId, astPathData?.isPublic, astPathData?.accessTo);
+                    // console.log('Path saving result:', pathResult);
+
+                    if (pathResult.success) {
+                        newAssistant.astPath = formattedPath;
+                        
+                        if (!newAssistant.data) newAssistant.data = {};
+
+                        newAssistant.data.astPath = formattedPath;
+                        newAssistant.data.astPathData = astPathData;
+                        toast(`Assistant successfully published at: ${formattedPath}`);
+                    } else {
+                        console.error('Failed to save path:', pathResult);
+                        alert(`Error saving path: ${pathResult.message || 'Failed to save assistant path. Please try again.'}`);
+                    }
+
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    console.error('Exception when saving path:', errorMessage);
+                    alert(`An error occurred while saving the path: ${errorMessage}`);
+                } 
             }
-            else {
-                return {
-                    ...ds,
-                    id: "s3://"+ds.id
-                }
-            }
-        });
-        // do the same for 
-        newAssistant.tools = selectedApis || [];
-        const tagsList = tags ? tags.split(",").map((x: string) => x.trim()) : [];
-        newAssistant.tags = tagsList
-        newAssistant.data.tags = tagsList;
-        newAssistant.data.conversationTags = conversationTags ? conversationTags.split(",").map((x: string) => x.trim()) : [];
-        
-        //if we were able to get to this assistant modal (only comes up with + assistant and edit buttons)
-        //then they must have had read/write access.
-        newAssistant.data.access = {read: true, write: true};
 
-        newAssistant.data.dataSourceOptions = dataSourceOptions;
+            const aPrompt = createAssistantPrompt(newAssistant);
+            onUpdateAssistant(aPrompt);
 
-        newAssistant.data.messageOptions = messageOptions;
 
-        newAssistant.data.featureOptions = featureOptions;
-
-        newAssistant.data.opsLanguageVersion = opsLanguageVersion;
-
-        // console.log("apiInfo",apiInfo);
-        // console.log("selectedApis",selectedApis);
-
-        const combinedOps = [
-          ...selectedApis,
-          ...(apiInfo.map((api) => {return {type:"http", ...api}}))
-        ];
-
-        newAssistant.data = {
-            ...newAssistant.data,
-            operations: combinedOps//selectedApis
-        };
-
-        if (apiOptions.IncludeApiInstr && apiInfo.some(api => !validateApiInfo(api))) {
-            alert("Please fill out all required API fields (Request Type, URL, and Description) before saving.");
-            setIsLoading(false);
-            setLoadingMessage("");
-            return;
+            onSave();
+        } catch (error) {
+            console.error('Error updating assistant:', error);
         }
-
-        if (assistant.groupId) newAssistant.data.groupId = assistant.groupId;
-        
-        const updatedAdditionalGroupData = prepAdditionalData();
-        newAssistant.data = {...newAssistant.data, ...updatedAdditionalGroupData};
-        
-        const {id, assistantId, provider} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant, null);
-        if (!id) {
-            alert("Unable to save the assistant at this time, please try again later...");
-            setIsLoading(false);
-            setLoadingMessage("");
-
-            return;
-        }
-
-        newAssistant.id = id;
-        newAssistant.provider = provider;
-        newAssistant.assistantId = assistantId;
-
-        const aPrompt = createAssistantPrompt(newAssistant);
-
-
-        onUpdateAssistant(aPrompt);
-
         setIsLoading(false);
         setLoadingMessage("");
-
-        onSave();
     }
 
-        // handle file upload functions //
+            // handle file upload functions //
         const onAttach = (doc: AttachedDocument) => {
             setDataSources((prev) => {
                 prev.push(doc as any);
@@ -527,7 +644,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                  return prev;
             });
         }
-
     if (isLoading) return <></>;
     
 
@@ -712,18 +828,37 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 }} />
                             }
                             
-                            <ExpansionComponent title={"Advanced"} content={
-                                <div className="text-black dark:text-neutral-200">
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                        {t('URI')}
-                                    </div>
-                                    <input
-                                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                      placeholder={t('') || ''}
-                                      value={uri || ''}
-                                      onChange={(e) => setUri(e.target.value)}
-                                      disabled={disableEdit}
-                                    />
+                            <ExpansionComponent
+                                title={"Advanced"}
+                                content={
+                                    <div className="text-black dark:text-neutral-200">
+                                        <div className="mt-4">
+                                            {featureFlags.assistantPathPublishing && (
+                                                <AssistantPathEditor
+                                                    savedAstPath={definition.astPath}
+                                                    astPath={astPath}
+                                                    setAstPath={setAstPath}
+                                                    assistantId={definition.assistantId}
+                                                    astPathData={astPathData}
+                                                    setAstPathData={setAstPathData}
+                                                    isPathAvailable={isPathAvailable}
+                                                    setIsPathAvailable={setIsPathAvailable}
+                                                    disableEdit={disableEdit}
+                                                    isCheckingPath={isCheckingPath}
+                                                    setIsCheckingPath={setIsCheckingPath}
+                                                />
+                                            )}
+                                            
+                                            <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
+                                                {t('URI')}
+                                            </div>
+                                            <input
+                                              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                              placeholder={t('') || ''}
+                                              value={uri || ''}
+                                              onChange={(e) => setUri(e.target.value)}
+                                              disabled={disableEdit}
+                                            />
 
                                     <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
                                         Assistant Ops Language Version
@@ -736,100 +871,109 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         {Object.entries(opLanguageOptionsMap).map(([val, name]) => <option key={val} value={val}>{name}</option>)}
                                     </select>
 
-                                    <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
-                                        {t('Assistant ID')}
-                                    </div>
-                                    <input
-                                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                      value={definition.assistantId || ''}
-                                      disabled={true}
-                                    />
+                                            <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
+                                                {t('Assistant ID')}
+                                            </div>
+                                            <input
+                                              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                              value={definition.assistantId || ''}
+                                              disabled={true}
+                                            />
 
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
-                                        {t('Data Source Options')}
-                                    </div>
-                                    <ExpansionComponent
-                                        title='Manage'
-                                        content= {
-                                             <FlagsMap id={'dataSourceFlags'}
-                                              flags={dataSourceFlags}
-                                              state={dataSourceOptions}
-                                              flagChanged={
-                                                  (key, value) => {
-                                                      if (!disableEdit) setDataSourceOptions({
-                                                          ...dataSourceOptions,
-                                                          [key]: value,
-                                                      });
-                                                  }
-                                              } />
-                                        }
-                                    />
-                                   
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
-                                        {t('Message Options')}
-                                    </div>
-                                    <FlagsMap id={'messageOptionFlags'}
-                                              flags={messageOptionFlags}
-                                              state={messageOptions}
-                                              flagChanged={
-                                                  (key, value) => {
-                                                      if (!disableEdit) setMessageOptions({
-                                                          ...messageOptions,
-                                                          [key]: value,
-                                                      });
-                                                  }
-                                              } />
+                                            <div className='mt-4 text-[1rem]'>
+                                                <Checkbox
+                                                    id="allowRequestAccess"
+                                                    label="Allow other users to request chat permissions for this assistant. "
+                                                    checked={availableOnRequest}
+                                                    onChange={(isChecked: boolean) => setAvailableOnRequest(isChecked)}
+                                                />
+                                            </div>
 
-                                    {Object.keys(featureOptions).length > 0 &&
-                                      <>
-                                          <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
-                                              {t('Feature Options')}
-                                          </div>
-                                          <FlagsMap id={'astFeatureOptionFlags'}
-                                                    flags={featureOptionFlags}
-                                                    state={featureOptions}
-                                                    flagChanged={
-                                                        (key, value) => {
-                                                            if (!disableEdit) setFeatureOptions({
-                                                                ...featureOptions,
-                                                                [key]: value,
-                                                            });
-                                                        }
-                                                    } />
-                                      </>
-                                    }
-                                    <div className="mt-2 mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
-                                        <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                            {t('Tags')}
-                                        </div>
-                                        <input
-                                          className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                          placeholder={t('Tag names separated by commas.') || ''}
-                                          value={tags}
-                                          title={'Tags for conversations created with this template.'}
-                                          onChange={(e) => {
-                                              setTags(e.target.value);
-                                          }}
-                                        />
-                                    </div>
+                                            <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                                {t('Data Source Options')}
+                                            </div>
+                                            <ExpansionComponent
+                                                title='Manage'
+                                                content= {
+                                                     <FlagsMap id={'dataSourceFlags'}
+                                                      flags={dataSourceFlags}
+                                                      state={dataSourceOptions}
+                                                      flagChanged={
+                                                          (key, value) => {
+                                                              if (!disableEdit) setDataSourceOptions({
+                                                                  ...dataSourceOptions,
+                                                                  [key]: value,
+                                                              });
+                                                          }
+                                                      } />
+                                            }
+                                            />
+                                           
+                                            <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                                {t('Message Options')}
+                                            </div>
+                                            <FlagsMap id={'messageOptionFlags'}
+                                                      flags={messageOptionFlags}
+                                                      state={messageOptions}
+                                                      flagChanged={
+                                                          (key, value) => {
+                                                              if (!disableEdit) setMessageOptions({
+                                                                  ...messageOptions,
+                                                                  [key]: value,
+                                                              });
+                                                          }
+                                                      } />
 
-                                    <div className="mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
-                                        <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                            {t('Conversation Tags')}
-                                        </div>
-                                        <input
-                                          className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                          placeholder={t('Tag names separated by commas.') || ''}
-                                          value={conversationTags}
-                                          title={'Tags for conversations created with this template.'}
-                                          onChange={(e) => {
-                                              setConversationTags(e.target.value);
-                                          }}
-                                        />
-                                    </div>
+                                            {Object.keys(featureOptions).length > 0 &&
+                                              <>
+                                                  <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                                      {t('Feature Options')}
+                                                  </div>
+                                                  <FlagsMap id={'astFeatureOptionFlags'}
+                                                            flags={featureOptionFlags}
+                                                            state={featureOptions}
+                                                            flagChanged={
+                                                                (key, value) => {
+                                                                    if (!disableEdit) setFeatureOptions({
+                                                                        ...featureOptions,
+                                                                        [key]: value,
+                                                                    });
+                                                                }
+                                                            } />
+                                              </>
+                                            }
+                                            <div className="mt-2 mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
+                                                <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                                    {t('Tags')}
+                                                </div>
+                                                <input
+                                                  className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                  placeholder={t('Tag names separated by commas.') || ''}
+                                                  value={tags}
+                                                  title={'Tags for conversations created with this template.'}
+                                                  onChange={(e) => {
+                                                      setTags(e.target.value);
+                                                  }}
+                                                />
+                                            </div>
+
+                                            <div className="mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
+                                                <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                                    {t('Conversation Tags')}
+                                                </div>
+                                                <input
+                                                  className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                  placeholder={t('Tag names separated by commas.') || ''}
+                                                  value={conversationTags}
+                                                  title={'Tags for conversations created with this template.'}
+                                                  onChange={(e) => {
+                                                      setConversationTags(e.target.value);
+                                                  }}
+                                                />
+                                            </div>
 
                                     {featureFlags.integrations && <>
-                                    {!availableApis && <>Loading API Capabilities...</>}
+                                            {!availableApis && <>Loading API Capabilities...</>}
 
                                     <>
                                         <button
@@ -880,8 +1024,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     </>}
 
 
-                                </div>
-                            } />
+                                        </div>
+                                    </div>
+                                }
+                            />
                         </div>
               <div className="flex flex-row items-center justify-end p-4 bg-white dark:bg-[#22232b]">
                   <button
