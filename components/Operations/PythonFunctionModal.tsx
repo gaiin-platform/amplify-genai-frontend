@@ -301,6 +301,9 @@ if __name__ == "__main__":
     const [newGroupInput, setNewGroupInput] = useState('');
     const [testCases, setTestCases] = useState<any[]>([]);
     const [accessToken, setAccessToken] = useState<string | null>(null);
+    const [groupedFunctions, setGroupedFunctions] = useState<Record<string, any[]>>({});
+    const [expandedApps, setExpandedApps] = useState<Record<string, boolean>>({});
+    const [loadingFunctionDetails, setLoadingFunctionDetails] = useState(false);
 
     useEffect(() => {
         getSession().then((session) => {
@@ -308,6 +311,21 @@ if __name__ == "__main__":
             setAccessToken(session.accessToken || null);
         });
     }, []);
+
+    useEffect(() => {
+      const groups: Record<string, any[]> = { All: [...userFunctions] };
+
+      for (const fn of userFunctions) {
+        const appTags = (fn.tags || []).filter((t: string) => t.startsWith("app:"));
+        for (const tag of appTags) {
+          const appName = tag.slice(4).trim();
+          if (!groups[appName]) groups[appName] = [];
+          groups[appName].push(fn);
+        }
+      }
+
+      setGroupedFunctions(groups);
+    }, [userFunctions]);
 
     const refreshUserIntegrations = async () => {
         const integrationSupport = await getAvailableIntegrations();
@@ -359,6 +377,20 @@ if __name__ == "__main__":
             if (response.success) {
                 const initialized = response.data.map((f: any) => ({...f, deleting: false}));
                 setUserFunctions(initialized);
+
+                const groups: Record<string, any[]> = { All: [...initialized] };
+
+                for (const fn of initialized) {
+                    const appTags = (fn.tags || []).filter((t: string) => t.startsWith("app:"));
+                    for (const tag of appTags) {
+                        const appName = tag.slice(4).trim(); // removes 'app:' prefix
+                        if (!groups[appName]) groups[appName] = [];
+                        groups[appName].push(fn);
+                    }
+                }
+
+                setGroupedFunctions(groups);
+                setExpandedApps(Object.fromEntries(Object.keys(groups).map(app => [app, true])));
                 if (initialized.length > 0) {
                    await loadFunctionDetails(initialized[0]);
                 }
@@ -374,78 +406,82 @@ if __name__ == "__main__":
     const modalRef = useRef<HTMLDivElement>(null);
 
     const loadFunctionDetails = async (fn: any) => {
-
-        setSelectedFnId(fn.uuid);
-        setName(fn.name);
-        setDescription(fn.description)
-        setSchema(JSON.stringify(fn.inputSchema ?? {}, null, 2));
-        setTestCases(fn.testCases || []);
-        setTags(fn.tags || [])
-
-        setAllowedGroups(fn.metadata?.allowed_groups || []);
-
-        if(fn.metadata && fn.metadata.published){
-            setPublicationData(fn.metadata.published);
-
-            // version
-            const apiPrefix = "/amp/api";
-            const fullPath = fn.metadata.published.path || "";
-            let path = fullPath;
-            let version = "v1"
-            if(fullPath && fullPath.indexOf(apiPrefix) > -1){
-                const start = fullPath.indexOf(apiPrefix) + apiPrefix.length;
-                const splitPath = fullPath.indexOf("/", start)
-                const splitPath2 = fullPath.indexOf("/", splitPath + 1)
-                version = fullPath.substring(splitPath, splitPath2);
-                path = fullPath.substring(splitPath2);
-
-                if(path.startsWith("/")){
-                    path = path.substring(1);
-                }
-                if(version.startsWith("/")){
-                    version = version.substring(1);
-                }
-
-                //alert("Version: " + version + " Path: " + path)
-            }
-
-            setPublishPath(path);
-            setPublishVersion(version);
-        } else {
-            setPublicationData(notPublished);
-        }
-
+        setLoadingFunctionDetails(true);
         try {
+            setSelectedFnId(fn.uuid);
+            setName(fn.name);
+            setDescription(fn.description)
+            setSchema(JSON.stringify(fn.inputSchema ?? {}, null, 2));
+            setTestCases(fn.testCases || []);
+            setTags(fn.tags || [])
 
-            const codeRes = await getFunctionCode(fn.uuid);
-            if (codeRes.success && codeRes.data?.code !== undefined) {
-                setCode(codeRes.data.code);
+            setAllowedGroups(fn.metadata?.allowed_groups || []);
 
+            if(fn.metadata && fn.metadata.published){
+                setPublicationData(fn.metadata.published);
+
+                // version
+                const apiPrefix = "/amp/api";
+                const fullPath = fn.metadata.published.path || "";
+                let path = fullPath;
+                let version = "v1"
+                if(fullPath && fullPath.indexOf(apiPrefix) > -1){
+                    const start = fullPath.indexOf(apiPrefix) + apiPrefix.length;
+                    const splitPath = fullPath.indexOf("/", start)
+                    const splitPath2 = fullPath.indexOf("/", splitPath + 1)
+                    version = fullPath.substring(splitPath, splitPath2);
+                    path = fullPath.substring(splitPath2);
+
+                    if(path.startsWith("/")){
+                        path = path.substring(1);
+                    }
+                    if(version.startsWith("/")){
+                        version = version.substring(1);
+                    }
+
+                    //alert("Version: " + version + " Path: " + path)
+                }
+
+                setPublishPath(path);
+                setPublishVersion(version);
             } else {
-                setCode('// Error: No code returned from backend.');
+                setPublicationData(notPublished);
             }
-        } catch (err) {
-            setCode('// Error: Failed to fetch code.');
-        }
 
-        const envVarsFromMetadata: { type: string, key: string, value: string }[] = [];
+            try {
 
-        const envMeta = fn.metadata?.environment ?? {};
-        const secrets = envMeta.secrets ?? {};
-        const oauth = envMeta.oauth ?? {};
-        const variables = envMeta.variables ?? {};
+                const codeRes = await getFunctionCode(fn.uuid);
+                if (codeRes.success && codeRes.data?.code !== undefined) {
+                    setCode(codeRes.data.code);
 
-        for (const key in secrets) {
-            envVarsFromMetadata.push({ type: 'Secret', key: key, value: secrets[key] });
-        }
-        for (const key in oauth) {
-            envVarsFromMetadata.push({ type: 'OAuth Token', key, value: oauth[key] });
-        }
-        for (const key in variables) {
-            envVarsFromMetadata.push({ type: 'Variable', key, value: variables[key] });
-        }
+                } else {
+                    setCode('// Error: No code returned from backend.');
+                }
+            } catch (err) {
+                setCode('// Error: Failed to fetch code.');
+            }
 
-        setEnvVars(envVarsFromMetadata.length > 0 ? envVarsFromMetadata : [{ type: 'Variable', key: '', value: '' }]);
+            const envVarsFromMetadata: { type: string, key: string, value: string }[] = [];
+
+            const envMeta = fn.metadata?.environment ?? {};
+            const secrets = envMeta.secrets ?? {};
+            const oauth = envMeta.oauth ?? {};
+            const variables = envMeta.variables ?? {};
+
+            for (const key in secrets) {
+                envVarsFromMetadata.push({ type: 'Secret', key: key, value: secrets[key] });
+            }
+            for (const key in oauth) {
+                envVarsFromMetadata.push({ type: 'OAuth Token', key, value: oauth[key] });
+            }
+            for (const key in variables) {
+                envVarsFromMetadata.push({ type: 'Variable', key, value: variables[key] });
+            }
+
+            setEnvVars(envVarsFromMetadata.length > 0 ? envVarsFromMetadata : [{ type: 'Variable', key: '', value: '' }]);
+        } finally {
+            setLoadingFunctionDetails(false);
+        }
     };
 
 
@@ -599,131 +635,151 @@ if __name__ == "__main__":
                                     </button>
                                 </div>
                                 {loadingFunctions ? (
-                                    <div className="text-sm text-gray-500 dark:text-neutral-400">Loading...</div>
-                                ) : (
-                                userFunctions.map((fn, i) => (
-                                        <div
-                                            key={i}
-                                            className={`p-2 rounded cursor-pointer text-sm relative ${selectedFnId === fn.uuid ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                                        >
-                                            <div
-                                                onClick={() => {
-                                                    if (hasUnsavedChanges) {
-                                                        setPendingFnToLoad(fn);
-                                                    } else {
-                                                        loadFunctionDetails(fn);
-                                                    }
-                                                }}
-                                            >
-                                                <div className="font-semibold">{fn.name}</div>
-                                                <div className="text-xs text-gray-600 dark:text-gray-400">{fn.description}</div>
-                                                {fn.params && fn.params.length > 0 && (
-                                                    <ul className="mt-1 ml-2 text-xs list-disc text-gray-500 dark:text-gray-400">
-                                                        {fn.params.map((p: any, idx: number) => (
-                                                            <li key={idx}><b>{p.name}</b>: {p.description}</li>
+                                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-neutral-400">
+                                        <IconLoader2 size={16} className="animate-spin" />
+                                        Loading...
+                                    </div>
+                                ) : (<>
+                                    {Object.entries(groupedFunctions).map(([appName, functions]) => (
+                                            <div key={appName} className="mb-2">
+                                                <div
+                                                    className="flex justify-between items-center cursor-pointer font-semibold px-2 py-1 bg-gray-200 dark:bg-neutral-700 rounded"
+                                                    onClick={() => setExpandedApps(prev => ({ ...prev, [appName]: !prev[appName] }))}
+                                                >
+                                                    <span>{appName}</span>
+                                                    <span>{expandedApps[appName] ? "▾" : "▸"}</span>
+                                                </div>
+                                                {expandedApps[appName] && (
+                                                    <div className="mt-1 ml-2">
+                                                        {functions.map((fn:any, i:number) => (
+                                                            <div
+                                                                key={i}
+                                                                className={`p-2 rounded cursor-pointer text-sm relative ${selectedFnId === fn.uuid ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                                            >
+                                                                <div
+                                                                    onClick={() => {
+                                                                        if (hasUnsavedChanges) {
+                                                                            setPendingFnToLoad(fn);
+                                                                        } else {
+                                                                            loadFunctionDetails(fn);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <div className="font-semibold">{fn.name}</div>
+                                                                    <div className="text-xs text-gray-600 dark:text-gray-400">{fn.description}</div>
+                                                                    {fn.params && fn.params.length > 0 && (
+                                                                        <ul className="mt-1 ml-2 text-xs list-disc text-gray-500 dark:text-gray-400">
+                                                                            {fn.params.map((p: any, idx: number) => (
+                                                                                <li key={idx}><b>{p.name}</b>: {p.description}</li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    )}
+                                                                </div>
+                                                                {selectedFnId === fn.uuid && (
+                                                                    confirmDeleteId === fn.uuid ? (
+                                                                        <div className="absolute top-1 right-1 flex gap-1">
+                                                                            <button
+                                                                                className="text-green-600 hover:text-green-800"
+                                                                                onClick={async (e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setHasUnsavedChanges(false);
+                                                                                    if (fn.uuid && fn.uuid.startsWith("new-")) {
+                                                                                        if (selectedFnId === fn.uuid) {
+                                                                                            if (userFunctions.length > 1) {
+                                                                                                await loadFunctionDetails(userFunctions[0]);
+                                                                                            } else {
+                                                                                                setSelectedFnId(null);
+                                                                                                setDescription("")
+                                                                                                setName("")
+                                                                                                setEnvVars([])
+                                                                                                setCode("")
+                                                                                                setTestCases([])
+                                                                                            }
+                                                                                        }
+                                                                                        setUserFunctions(prev => prev.filter(f => f.uuid !== fn.uuid));
+                                                                                } else {
+                                                                                        setUserFunctions(prev =>
+                                                                                            prev.map(f =>
+                                                                                                f.uuid === fn.uuid ? { ...f, deleting: true } : f
+                                                                                            )
+                                                                                        );
+                                                                                        setConfirmDeleteId(null);
+                                                                                        try {
+                                                                                            const res = await deletePythonFunction(fn.uuid);
+                                                                                            if (res.success) {
+                                                                                                if (selectedFnId === fn.uuid) {
+                                                                                                    if (userFunctions.length > 1) {
+                                                                                                        await loadFunctionDetails(userFunctions[0]);
+                                                                                                    } else {
+                                                                                                        setSelectedFnId(null);
+                                                                                                        setDescription("")
+                                                                                                        setName("")
+                                                                                                        setEnvVars([])
+                                                                                                        setCode("")
+                                                                                                        setTestCases([])
+                                                                                                    }
+                                                                                                }
+                                                                                                setUserFunctions((prev) => prev.filter(f => f.uuid !== fn.uuid));
+                                                                                            } else {
+                                                                                                alert(res.error || 'Failed to delete function.');
+                                                                                            }
+                                                                                        } catch (err) {
+                                                                                            alert('Error occurred while deleting.');
+                                                                                            setUserFunctions(prev =>
+                                                                                                prev.map(f =>
+                                                                                                    f.uuid === fn.uuid ? { ...f, deleting: false } : f
+                                                                                                )
+                                                                                            );
+                                                                                        }
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                <IconCircleCheck size={18} />
+                                                                            </button>
+                                                                            <button
+                                                                                className="text-red-600 hover:text-red-800"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setConfirmDeleteId(null);
+                                                                                }}
+                                                                            >
+                                                                                <IconCircleX size={18} />
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <button
+                                                                            className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                                                                            title="Delete function"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setConfirmDeleteId(fn.uuid);
+                                                                            }}
+                                                                        >
+                                                                            {fn.deleting ? (
+                                                                                <IconLoader2 size={16} className="animate-spin" />
+                                                                            ) : (
+                                                                                <IconTrash size={16} />
+                                                                            )}
+                                                                        </button>
+                                                                    )
+                                                                )}
+                                                            </div>
                                                         ))}
-                                                    </ul>
+                                                    </div>
                                                 )}
                                             </div>
-                                            {confirmDeleteId === fn.uuid ? (
-                                              <div className="absolute top-1 right-1 flex gap-1">
-                                                <button
-                                                  className="text-green-600 hover:text-green-800"
-                                                onClick={async (e) => {
-                                                    e.stopPropagation();
-
-                                                    setHasUnsavedChanges(false);
-
-                                                    if(fn.uuid && fn.uuid.startsWith("new-")) {
-                                                        // No need to go to the server as it was never saved
-                                                        if (selectedFnId === fn.uuid) {
-                                                            if (userFunctions.length > 1) {
-                                                                await loadFunctionDetails(userFunctions[0]);
-                                                            } else {
-                                                                setSelectedFnId(null);
-                                                                setDescription("")
-                                                                setName("")
-                                                                setEnvVars([])
-                                                                setCode("")
-                                                                setTestCases([])
-                                                            }
-                                                        }
-                                                        setUserFunctions(prev =>
-                                                            prev.filter(f =>
-                                                                f.uuid !== fn.uuid
-                                                            )
-                                                        );
-                                                    }
-                                                    else {
-                                                        setUserFunctions(prev =>
-                                                            prev.map(f =>
-                                                                f.uuid === fn.uuid ? {...f, deleting: true} : f
-                                                            )
-                                                        );
-                                                        setConfirmDeleteId(null);
-                                                        try {
-                                                            const res = await deletePythonFunction(fn.uuid);
-                                                            if (res.success) {
-                                                                if (selectedFnId === fn.uuid) {
-                                                                    if (userFunctions.length > 1) {
-                                                                        await loadFunctionDetails(userFunctions[0]);
-                                                                    } else {
-                                                                        setSelectedFnId(null);
-                                                                        setDescription("")
-                                                                        setName("")
-                                                                        setEnvVars([])
-                                                                        setCode("")
-                                                                        setTestCases([])
-                                                                    }
-                                                                }
-                                                                setUserFunctions((prev) => prev.filter(f => f.uuid !== fn.uuid));
-                                                            } else {
-                                                                alert(res.error || 'Failed to delete function.');
-                                                            }
-                                                        } catch (err) {
-                                                            alert('Error occurred while deleting.');
-                                                            setUserFunctions(prev =>
-                                                                prev.map(f =>
-                                                                    f.uuid === fn.uuid ? {...f, deleting: false} : f
-                                                                )
-                                                            );
-                                                        }
-                                                    }
-                                                  }}
-                                                >
-                                                  <IconCircleCheck size={18} />
-                                                </button>
-                                                <button
-                                                  className="text-red-600 hover:text-red-800"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setConfirmDeleteId(null);
-                                                  }}
-                                                >
-                                                  <IconCircleX size={18} />
-                                                </button>
-                                              </div>
-                                            ) : (
-                                              <button
-                                                className="absolute top-2 right-2 text-red-500 hover:text-red-700"
-                                                title="Delete function"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setConfirmDeleteId(fn.uuid);
-                                                }}
-                                              >
-                                                {fn.deleting ? (
-                                                  <IconLoader2 size={16} className="animate-spin" />
-                                                ) : (
-                                                  <IconTrash size={16} />
-                                                )}
-                                              </button>
-                                            )}
-                                        </div>
-                                ))
-                                )}
+                                        ))}
+                                </>)}
                             </div>
+
                             <div className="w-2/3 p-4 overflow-y-auto">
+                                {loadingFunctions || loadingFunctionDetails || selectedFnId === null ? (
+                                <div className="flex items-center justify-center h-full text-sm text-gray-500 dark:text-neutral-400 gap-2">
+                                        <IconLoader2 size={16} className="animate-spin" />
+                                        Loading function details...
+                                </div>
+                                ) : (
+                                    <>
                                 {errorMsg && <div className="mb-4 p-2 bg-red-100 text-red-700 text-sm rounded border border-red-300">{errorMsg}</div>}
 
                                 <div className="flex justify-between items-center">
@@ -1678,6 +1734,7 @@ Output only a markdown code block like this:
                                         {isPublishing ? "Publishing..." : "Publish Function"}
                                     </button>
                                 </div>
+                                </>)}
                             </div>
                         </div>
 
