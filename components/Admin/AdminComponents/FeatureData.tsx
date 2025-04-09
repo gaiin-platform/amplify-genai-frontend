@@ -73,7 +73,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
 
     const [dataDisclosureUploaded, setDataDisclosureUploaded] = useState<boolean>(false);
     
-    const [showUploadApiDocs, setShowUploadApiDocs] = useState<boolean>(false);
+    const [showUploadApiDocs, setShowUploadApiDocs] = useState<boolean>(true);
     const [apiDocsUploaded, setApiDocsUploaded] = useState<{csv: boolean, pdf: boolean, json: boolean}>(
                                                                {csv: false, pdf: false, json: false});
     

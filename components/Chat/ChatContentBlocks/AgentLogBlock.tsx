@@ -1,5 +1,5 @@
 import { IconArrowRight, IconCircleCheck, IconCircleX, IconBrackets, IconRobot, IconTerminal2, IconUser } from '@tabler/icons-react';
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 
 
@@ -93,22 +93,24 @@ const getAgentLogItem = (msg: any) => {
     return (
       <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#444654] rounded p-2 my-1 max-w-full">
         <IconTerminal2 className="min-w-[20px] text-blue-600 dark:text-blue-400" />
-        <div className="w-full overflow-hidden">
+        <div className="w-full overflow-x-auto">
           <span className="font-medium text-blue-700 dark:text-blue-300">
             Execute Code:
           </span>
           <MemoizedReactMarkdown
-            className="prose dark:prose-invert mt-1"
+            className="prose dark:prose-invert mt-1 break-words w-full max-w-full"
             remarkPlugins={[remarkGfm, remarkMath]}
             components={{
               code({ node, inline, className, children, ...props }) {
                 if (!inline) {
                   return (
-                    <CodeBlock
-                      language="python"
-                      value={String(children).replace(/\n$/, '')}
-                      {...props}
-                    />
+                    <div className="overflow-x-auto">
+                      <CodeBlock
+                        language="python"
+                        value={String(children).replace(/\n$/, '')}
+                        {...props}
+                      />
+                    </div>
                   );
                 }
                 return (
@@ -136,7 +138,7 @@ const getAgentLogItem = (msg: any) => {
             Thinking:
           </span>
           <MemoizedReactMarkdown
-            className="prose dark:prose-invert mt-1"
+            className="prose dark:prose-invert mt-1 w-full max-w-full"
             remarkPlugins={[remarkGfm, remarkMath]}
             components={{
               code({ node, inline, className, children, ...props }) {
@@ -189,7 +191,7 @@ const getAgentLogItem = (msg: any) => {
             </span>
           </div>
           <MemoizedReactMarkdown
-            className="prose dark:prose-invert"
+            className="prose dark:prose-invert w-full max-w-full"
             remarkPlugins={[remarkGfm, remarkMath]}
             components={{
               code({ node, inline, className, children, ...props }) {
@@ -209,15 +211,16 @@ const getAgentLogItem = (msg: any) => {
       </div>
     );
   } else if (msg.role === 'user') {
+    
     return (
-      <div className="flex items-center gap-2 bg-white dark:bg-[#343541] rounded p-2 my-1">
+      <div className="flex items-center gap-2 bg-white dark:bg-[#343541] rounded p-2 my-1 mr-2">
         <IconUser className="min-w-[20px] text-purple-600 dark:text-purple-400" />
         <div>
           <span className="font-medium text-purple-700 dark:text-purple-300">
             User Prompt:
           </span>{' '}
           <MemoizedReactMarkdown
-            className="prose dark:prose-invert"
+            className="prose dark:prose-invert w-full max-w-full"
             remarkPlugins={[remarkGfm, remarkMath]}
             components={{
               code({ node, inline, className, children, ...props }) {
@@ -241,7 +244,7 @@ const getAgentLogItem = (msg: any) => {
     return (
       <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#444654] rounded p-2 my-1">
         <IconTerminal2 className="min-w-[20px] text-blue-600 dark:text-blue-400" />
-        <div className="w-full">
+        <div className="w-full overflow-x-auto">
           <div className="flex items-center gap-2 mb-1">
             {hasError ? (
               <IconCircleX className="min-w-[16px] text-red-600 dark:text-red-400" />
@@ -252,23 +255,25 @@ const getAgentLogItem = (msg: any) => {
            Result:
          </span>
           </div>
-          <MemoizedReactMarkdown
-            className="prose dark:prose-invert mt-1"
-            remarkPlugins={[remarkGfm, remarkMath]}
-            components={{
-              code({ node, inline, className, children, ...props }) {
-                return (
-                  <CodeBlock
-                    language="json"
-                    value={String(children).replace(/\n$/, '')}
-                    {...props}
-                  />
-                );
-              },
-            }}
-          >
-            {`\`\`\`json\n${JSON.stringify(msg.content, null, 2)}\n\`\`\``}
-          </MemoizedReactMarkdown>
+          <div className="overflow-x-auto">
+            <MemoizedReactMarkdown
+              className="prose dark:prose-invert mt-1 break-words w-full max-w-full"
+              remarkPlugins={[remarkGfm, remarkMath]}
+              components={{
+                code({ node, inline, className, children, ...props }) {
+                  return (
+                    <CodeBlock
+                      language="json"
+                      value={String(children).replace(/\n$/, '')}
+                      {...props}
+                    />
+                  );
+                },
+              }}
+            >
+              {`\`\`\`json\n${JSON.stringify(msg.content, null, 2)}\n\`\`\``}
+            </MemoizedReactMarkdown>
+          </div>
         </div>
       </div>
     );
@@ -283,6 +288,25 @@ interface Props {
 }
 
 const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStreaming }) => {
+  const getChatContainerWidth = () => {
+    const container = document.querySelector(".chatcontainer");
+    if (container) {
+      return `${container.getBoundingClientRect().width * 0.68}px`;
+    }
+    return '80%';
+  };
+
+  const [chatContainerWidth, setChatContainerWidth] = useState(getChatContainerWidth());
+
+  useEffect(() => {
+    const updateInnerWindow = () => setChatContainerWidth(getChatContainerWidth())
+    // Listen to window resize to update the size
+    window.addEventListener('resize', updateInnerWindow);
+    return () => {
+      window.removeEventListener('resize', updateInnerWindow);
+    };
+  }, []);
+
   if (
     !message ||
     !message.data ||
@@ -296,8 +320,8 @@ const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStrea
     message.data?.state && message.data?.state.agentLog
       ? message.data.state.agentLog
       : {};
-  // console.log("ds",sources)
-  console.log('Reasoning Log', agentLog);
+ 
+  // console.log('Reasoning Log', agentLog);
 
   if (!agentLog || !agentLog.data || !agentLog.data.result) {
     return <></>;
@@ -335,7 +359,7 @@ const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStrea
   agentLog = agentLog.data.result;
 
   return (
-    <div className="mt-3" key={message.id}>
+    <div className="mt-3" style={{width: (chatContainerWidth)}} key={message.id}>
       <AgentFileList files={files} />
       <ExpansionComponent
         title="Reasoning / Actions"

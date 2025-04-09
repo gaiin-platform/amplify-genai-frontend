@@ -3,7 +3,7 @@ import { loadingIcon, titleLabel } from "../AdminUI";
 import { IconMessage, IconPlus, IconTags, IconTrash } from "@tabler/icons-react";
 import { OpDef } from "@/types/op";
 import InputsMap from "@/components/ReusableComponents/InputMap";
-import { HTTPRequestSelect } from "@/components/CustomAPI/CustomAPIEditor";
+import { HTTPRequestSelect } from "@/components/AssistantApi/CustomAPIEditor";
 import { deleteOp, registerOps } from "@/services/opsService";
 import toast from "react-hot-toast";
 import Search from "@/components/Search";
