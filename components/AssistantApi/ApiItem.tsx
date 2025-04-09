@@ -18,15 +18,20 @@ interface ApiItemProps {
     [key: string]: any;
   };
   index: number;
-  onChange: (id: string, checked: boolean) => void;
+  onChange?: (id: string, checked: boolean) => void;
   selected: boolean;
+  onClick?: (api: any) => void;
+}
+const filterTags = (tags: string[]) => {
+  return tags.filter((t:string) => !['default', 'all'].includes(t));
 }
 
-const ApiItem: React.FC<ApiItemProps> = ({ api, index, selected, onChange }) => {
+const ApiItem: React.FC<ApiItemProps> = ({ api, index, selected, onChange, onClick}) => {
   return (
     <div
+      onClick={() => onClick && onClick(api)}
       key={api.id}
-      className="api-item"
+      className={`api-item ${onClick ? 'cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-700' : ''}`}
       style={{
         border: '1px solid #ccc',
         padding: '10px',
@@ -35,20 +40,22 @@ const ApiItem: React.FC<ApiItemProps> = ({ api, index, selected, onChange }) => 
       }}
     >
       <div className='flex flex-row'>
+        { onChange ?
         <Checkbox
           id={`api-${index}`}
           label={camelCaseToTitle(api.name)}
           checked={selected || false}
           onChange={(e) => onChange(api.id, e)}
           bold={true}
-        />
+        /> :  <span className={`mt-[1px] font-bold`}>{camelCaseToTitle(api.name)}</span>}
+        {api.tags && filterTags(api.tags).length > 0 &&
         <div className='ml-auto'>
           <TagsList
-            tags={api.tags.filter((t:string) => !['default', 'all'].includes(t))}
+            tags={filterTags(api.tags)}
             setTags={() => {}}
             isDisabled={true}
           />
-        </div>
+        </div>}
       </div>
       
       {api.description && <p>{api.description}</p>}
