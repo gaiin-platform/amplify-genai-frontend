@@ -1,4 +1,4 @@
-import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot, IconUser, IconSettingsBolt, IconDeviceSdCard } from '@tabler/icons-react';
+import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot, IconUser, IconSettingsBolt, IconDeviceSdCard, IconTools } from '@tabler/icons-react';
 import { useContext, useEffect, useRef, useState } from 'react';
 
 
@@ -17,6 +17,8 @@ import { IntegrationsDialog } from '@/components/Integrations/IntegrationsDialog
 import { getSettings } from '@/utils/app/settings';
 import { MemoryDialog } from '@/components/Memory/MemoryDialog';
 import { Settings } from '@/types/settings';
+import { PythonFunctionModal } from '@/components/Operations/PythonFunctionModal';
+import { AssistantWorkflowBuilder } from '@/components/AssistantWorkflows/AssistantWorkflowBuilder';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
@@ -24,6 +26,9 @@ export const ChatbarSettings = () => {
     const [isAccountDialogVisible, setIsAccountDialogVisible] = useState<boolean>(false);
     const [isIntegrationsOpen, setIsIntegrationsOpen] = useState<boolean>(false);
     const [isMemoryDialogOpen, setIsMemoryDialogOpen] = useState(false);
+    const [isPyFunctionApiOpen, setIsPyFunctionApiOpen] = useState(false);
+    const [isWorkflowBuilderOpen, setIsWorkflowBuilderOpen] = useState(false);
+
 
     const {
         state: { featureFlags, supportEmail },
@@ -111,6 +116,36 @@ export const ChatbarSettings = () => {
                     onClick={() => setIsMemoryDialogOpen(true)}
                 />
             )}
+
+            { featureFlags.createPythonFunctionApis && <>
+                <SidebarButton
+                    text={t('Custom Function APIs')}
+                    icon={<IconTools size={18} />}
+                    onClick={() => setIsPyFunctionApiOpen(!isPyFunctionApiOpen)}
+                />
+
+            {isPyFunctionApiOpen && 
+              <PythonFunctionModal
+                onCancel={()=>{setIsPyFunctionApiOpen(false);}}
+                onSave={()=>{}}
+                width="65%"
+            />}
+            </>}
+
+            { featureFlags.createAssistantWorkflows && <> 
+                <SidebarButton
+                    text={t('Assistant Workflows')}
+                    icon={<IconPuzzle size={18} />}
+                    onClick={() => setIsWorkflowBuilderOpen(!isWorkflowBuilderOpen)}
+              
+                />
+                <AssistantWorkflowBuilder 
+                    isOpen={isWorkflowBuilderOpen} 
+                    onClose={() => setIsWorkflowBuilderOpen(false)} 
+                    onRegister={(template) => {}} 
+                    width={() => window.innerWidth * 0.7}
+                    height={() => window.innerHeight * 0.94}
+            /> </> }
 
 
             <Import onImport={handleImportConversations} />

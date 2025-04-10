@@ -205,7 +205,7 @@ export function useSendService() {
                     homeDispatch({ field: 'loading', value: true });
                     homeDispatch({ field: 'messageIsStreaming', value: true });
 
-                    const isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts &&
+                    let isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts &&
                         // we only consider whats in the plugins if we have the feature option for it on.
                         (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER)));
                     console.log("Artifacts on: ", isArtifactsOn)
@@ -216,13 +216,19 @@ export function useSendService() {
                     console.log("Memory on: ", isMemoryOn)
 
                     // if both artifact and smart messages is off then it returnes with the messages right away 
-                    const prepareMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService,
+                    const {focusedMessages, includeArtifactInstr} = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService,
                         isArtifactsOn, isSmartMessagesOn, homeDispatch,
                         getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST));
+
+                    if (isArtifactsOn && !includeArtifactInstr) {
+                        isArtifactsOn = false;
+                        console.log("Turning Artifacts off - llm determined it is not needed")
+                    }
+
                     console.log("Conversation tokens: ", updatedConversation.maxTokens);
                     const chatBody: ChatBody = {
                         model: updatedConversation.model,
-                        messages: prepareMessages, //updatedConversation.messages,
+                        messages: focusedMessages, //updatedConversation.messages,
                         prompt: rootPrompt || updatedConversation.prompt || "",
                         temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
                         maxTokens: updatedConversation.maxTokens || (Math.round(updatedConversation.model.outputTokenLimit / 2)),

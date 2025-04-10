@@ -4,6 +4,10 @@ import {
     MantineReactTable,
     useMantineReactTable,
     type MRT_ColumnDef, MRT_SortingState, MRT_ColumnFiltersState, MRT_Cell, MRT_TableInstance,
+    MRT_ShowHideColumnsButton,
+    MRT_ToggleDensePaddingButton,
+    MRT_ToggleGlobalFilterButton,
+    MRT_ToggleFiltersButton,
 } from 'mantine-react-table';
 import {MantineProvider} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
@@ -386,16 +390,6 @@ const DataSourcesTable = () => {
         onSortingChange: setSorting,
         enableStickyHeader: true,
         enableBottomToolbar: true,
-        renderBottomToolbar: () => (
-            <div style={{ padding: '10px 20px'}}>
-                <ActionButton
-                    title="Refresh Data"
-                    handleClick={handleRefresh}
-                >
-                    <IconRefresh />
-                </ActionButton>
-            </div>
-        ),
         state: {
             columnFilters,
             globalFilter,
@@ -409,6 +403,18 @@ const DataSourcesTable = () => {
         mantineToolbarAlertBannerProps: isError
             ? {color: 'red', children: 'Error loading data'}
             : undefined,
+        renderToolbarInternalActions: ({ table }) => (
+            <>
+                <IconRefresh 
+                    onClick={handleRefresh} 
+                    style={{ cursor: 'pointer', marginLeft: '10px' }}  
+                />
+                <MRT_ToggleGlobalFilterButton table={table} />
+                <MRT_ToggleFiltersButton table={table} />
+                <MRT_ShowHideColumnsButton table={table} />
+                <MRT_ToggleDensePaddingButton table={table} />
+            </>
+        ),
     });
 
     return (

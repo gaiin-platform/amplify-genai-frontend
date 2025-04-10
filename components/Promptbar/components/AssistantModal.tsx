@@ -7,8 +7,9 @@ import {ExistingFileList, FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
-import {IconFiles, IconTools, IconArrowRight} from "@tabler/icons-react";
 import {createAssistant, addAssistantPath, lookupAssistant} from "@/services/assistantService";
+import {IconFiles, IconArrowRight, IconX, IconPencil, IconMailBolt, IconMailFast, IconPencilBolt, IconCaretRight, IconCaretDown} from "@tabler/icons-react";
+
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
@@ -16,16 +17,26 @@ import { AstGroupTypeData } from '@/types/groups';
 import React from 'react';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { getOpsForUser } from '@/services/opsService';
-import ApiItem from '@/components/AssistantApi/ApiItem';
 import { getSettings } from '@/utils/app/settings';
-import { API, APIComponent } from '@/components/CustomAPI/CustomAPIEditor';
-import Search from '@/components/Search';
+import { API } from '@/components/AssistantApi/CustomAPIEditor';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';
-import { opLanguageOptionsMap } from '@/types/op';
-import { opsSearchToggleButtons } from '@/components/Admin/AdminComponents/Ops';
-import toast from 'react-hot-toast';
-import  {AssistantPathEditor, AstPathData, emptyAstPathData, isAstPathDataChanged} from './AssistantPathEditor';import {PythonFunctionModal} from "@/components/Operations/PythonFunctionModal";
+import  {AssistantPathEditor, AstPathData, emptyAstPathData, isAstPathDataChanged} from './AssistantPathEditor';
+import {opLanguageOptionsMap } from '@/types/op';
+import { getAgentTools } from '@/services/agentService';
+import { AssistantWorkflowSelector } from '@/components/AssistantWorkflows/AssistantWorkflowSelector';
+import { AstWorkflow, Step } from '@/types/assistantWorkflows';
+import { getAstWorkflowTemplate, registerAstWorkflowTemplate } from '@/services/assistantWorkflowService';
+import { AssistantWorkflow } from '@/components/AssistantWorkflows/AssistantWorkflow';
+import { computeDisabledSegments } from '@/utils/app/assistantWorkflows';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
+import { InfoBox } from '@/components/ReusableComponents/InfoBox';
+import { useSession } from 'next-auth/react';
+import { compareEmailEventTemplates, constructAstEventEmailAddress, formatEmailEventTemplate, safeEmailEventTag, updateAllowedSenders } from '@/utils/app/assistantEmailEvents';
+import { addEventTemplate, listAllowedSenders, removeAllowedSender, removeEventTemplate } from '@/services/emailEventService';
+import toast from 'react-hot-toast';
+import { AddEmailWithAutoComplete } from '@/components/Emails/AddEmailsAutoComplete';
+import ApiIntegrationsPanel from '@/components/AssistantApi/ApiIntegrationsPanel';
+import cloneDeep from 'lodash/cloneDeep';
 
 
 interface Props {
@@ -141,8 +152,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                           disableEdit=false, title, onCreateAssistant,height, width = `${window.innerWidth * 0.6}px`,
                                           translateY, blackoutBackground=true, additionalTemplates, autofillOn=false, embed=false, additionalGroupData, children}) => {
     const {t} = useTranslation('promptbar');
-
-    const { state: { prompts, featureFlags }, setLoadingMessage} = useContext(HomeContext);
+    const { data: session } = useSession();
+    const userEmail = session?.user?.email ?? '';
+    const { state: { prompts, featureFlags, amplifyUsers} , setLoadingMessage} = useContext(HomeContext);
 
     const definition = getAssistant(assistant);
 
@@ -231,13 +243,15 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
     const [messageOptions, setMessageOptions] = useState<{ [key: string]: boolean }>(initialMessageOptionState);
     const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(initialFeatureOptionState);
+    
     const [apiOptions, setAPIOptions] = useState<{ [key: string]: boolean }>(initialAPIOptionState);
     const [availableApis, setAvailableApis] = useState<any[] | null>(null);
-    const [apiSearchTerm, setApiSearchTerm] = useState<string>(''); 
+
     const [selectedApis, setSelectedApis] = useState<any[]>(initialSelectedApis);
-    const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('tag'); 
     const [apiInfo, setApiInfo] = useState<API[]>(initialApiCapabilities || []);
-    const [addFunctionOpen, setAddFunctionOpen] = useState(false);
+
+    const [availableAgentTools, setAvailableAgentTools] = useState<Record<string, any> | null>(null);
+    const [builtInAgentTools, setBuiltInAgentTools] = useState<string[]>(definition.data?.builtInOperations ?? []);
 
     const [availableOnRequest, setAvailableOnRequest] = useState(definition.data?.availableOnRequest || false);
     
@@ -281,22 +295,61 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         }
     }, [featureFlags.assistantPathPublishing]);
 
+    // workflow template
+    const [baseWorkflowTemplateId, setBaseWorkflowTemplateId] =  useState<string | undefined>(definition.data?.baseWorkflowTemplateId);
+    const [astWorkflowTemplateId, setAstWorkflowTemplateId] =  useState<string | undefined>(definition.data?.workflowTemplateId);
+    const [currentWorkflowTemplate, setCurrentWorkflowTemplate] =  useState<AstWorkflow | null>(null);
+
+    // email events
+    const [enableEmailEvents, setEnableEmailEvents] = useState<boolean>(!!definition.data?.emailEvents?.tag || !!definition.data?.emailEvents?.template);
+    const [emailEventTemplate, setEmailEventTemplate] = useState<{systemPrompt?: string, userPrompt?: string} | undefined>(definition.data?.emailEvents?.template);
+    
+    const [existingAllowedSenders, setExistingAllowedSenders] = useState<string[] | null>(null);
+    const [curAllowedSenders, setCurAllowedSenders] = useState<string[]>([]);
+
+
     useEffect(() => {
-        const filterOps = async (data: any[]) => {
+        const getAllowedSenders = async () => {
+        const tag = safeEmailEventTag(name);
+        if (!tag) setExistingAllowedSenders([]);
+        const response = await listAllowedSenders(tag);
+            if (response.success && response.data)  {
+                const senders: string[] = response.data.data ?? [];
+                setExistingAllowedSenders(senders);
+                const curSenders = new Set([...senders, ...curAllowedSenders]);
+                setCurAllowedSenders(Array.from(curSenders));
+            }
+        }
+        if (existingAllowedSenders === null && enableEmailEvents) getAllowedSenders();
+    }, [existingAllowedSenders, enableEmailEvents]);
+
+
+    // we need to detect name changes if there is a tag predefined because then the existing sender list is empty
+    const filterOps = async (data: any[]) => {
             const filteredOps = await filterSupportedIntegrationOps(data);
             if (filteredOps) setAvailableApis(filteredOps);
         }
-        
+
+    useEffect(() => {
         if (featureFlags.integrations && availableApis === null) getOpsForUser().then((ops) => {
-                                            if(ops.success){
-                                                // console.log("ops: ", ops.data);
-                                                filterOps(ops.data);
-                                                
-                                            } else {
-                                                setAvailableApis([]);
-                                            }
-                                        });
+                                                                    if (ops.success) {
+                                                                        // console.log("ops: ", ops.data);
+                                                                        filterOps(ops.data); 
+                                                                        return;
+                                                                    } 
+                                                                    setAvailableApis([]);
+                                                                });
     }, [availableApis]);
+
+    useEffect(() => {
+        if (featureFlags.agentTools && availableAgentTools === null ) {
+            getAgentTools().then((tools) => {
+                // console.log("tools", tools.data);
+                setAvailableAgentTools(tools.success ? tools.data : {});
+            });
+        }
+    }, [availableAgentTools]);
+    
 
     const additionalGroupDataRef = useRef<any>({});
 
@@ -304,6 +357,13 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         additionalGroupDataRef.current = additionalGroupData;
     }, [additionalGroupData]);
 
+    useEffect(() => {
+        if (baseWorkflowTemplateId) {
+            setOpsLanguageVersion("v4");
+        } else {
+            setOpsLanguageVersion("v1");
+        }
+    }, [baseWorkflowTemplateId]);
 
     const validateApiInfo = (api: any) => {
         return api.RequestType && api.URL && api.Description;
@@ -314,7 +374,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [tags, setTags] = useState((assistant.data && assistant.data.tags) ? assistant.data.tags.join(",") : "");
     const [conversationTags, setConversationTags] = useState(cTags);
 
-    const getTemplates = () => {
+    const getTemplates = () => { // Allows auto fill from existing assistants
         let templates = prompts.filter((p:Prompt) => isAssistant(p) && (!p.groupId));
         if (additionalTemplates) templates = [...templates, ...additionalTemplates];
         return templates.map((p:Prompt) => p.data?.assistant?.definition);
@@ -323,8 +383,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [templates, setTemplates] =  useState<AssistantDefinition[]>(getTemplates());
     const [selectTemplateId, setSelectTemplateId] =  useState<any>("");
 
-
-    const [uri, setUri] = useState<string|null>(definition.uri || null);
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const modalRef = useRef<HTMLDivElement>(null);
@@ -372,7 +430,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         
     }
 
-    const handleTemplateChange = () => {
+    const handleAstTemplateChange = () => {
         if (!selectTemplateId) return;
         const ast = templates.find((p:AssistantDefinition) => p.id === selectTemplateId);
         if (ast) {
@@ -404,16 +462,14 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 setFeatureOptions(data.featureOptions);
                 setOpsLanguageVersion(data.opsLanguageVersion);
                 if (data.operations) setApiInfo(data.operations.filter( (api:any) => api.type === "http") || []);
+                if (data.baseWorkflowTemplateId) setBaseWorkflowTemplateId(data.baseWorkflowTemplateId);
+                if (data.emailEvents?.template) {
+                    setEnableEmailEvents(true);
+                    setEmailEventTemplate(data.emailEvents?.template);
+                }
             }
             
         }
-    }
-
-    const handleUpdateApiItem = (id: string, checked: boolean) => {
-        const api = availableApis?.find((api) => api.id === id);
-        if (!api) return;
-        const newSelectedApis = checked ? [...selectedApis, api] : selectedApis.filter((api) => api.id !== id);
-        setSelectedApis(newSelectedApis);
     }
    
 
@@ -461,20 +517,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                     delete newAssistant.data.astPath;
                     delete newAssistant.data.astPathData;
                 }
-            }
-            
-            // TODO handle for groupTypes too 
-            if(uri && uri.trim().length > 0){
-                // Check that it is a valid uri
-                if(uri.trim().indexOf("://") === -1){
-                    alert("Invalid URI, please update and try again.");
-                    setIsLoading(false);
-                    setLoadingMessage("");
-
-                    return;
-                }
-
-                newAssistant.uri = uri.trim();
             }
 
           // console.log(dataSources.map((d: any)=> d.name));
@@ -525,8 +567,69 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             newAssistant.data.featureOptions = featureOptions;
 
             newAssistant.data.opsLanguageVersion = opsLanguageVersion;
-
             newAssistant.data.availableOnRequest = availableOnRequest;
+
+            newAssistant.data.builtInOperations = builtInAgentTools; 
+
+            if (!baseWorkflowTemplateId && definition.data?.workflowTemplateId) {
+                console.log("remove workflow template")
+                newAssistant.data.workflowTemplateId = undefined;
+                newAssistant.data.baseWorkflowTemplateId = undefined;
+            } else if (baseWorkflowTemplateId && !currentWorkflowTemplate && 
+                      (astWorkflowTemplateId !== definition.data?.workflowTemplateId)) { 
+                alert("Please confirm and save the worflow template before saving the assistant.");
+                setIsLoading(false);
+                setLoadingMessage("");
+                return;
+            } else if (baseWorkflowTemplateId && currentWorkflowTemplate && 
+                       currentWorkflowTemplate.template && currentWorkflowTemplate.template.steps) { 
+                setLoadingMessage("Registering workflow template...");
+                const response = await registerAstWorkflowTemplate(currentWorkflowTemplate.template, currentWorkflowTemplate.name, currentWorkflowTemplate.description);
+                if (response.success && response.data?.templateId) {
+                    newAssistant.data.workflowTemplateId = response.data.templateId;
+                    newAssistant.data.baseWorkflowTemplateId = baseWorkflowTemplateId;
+                    setLoadingMessage(loadingMessage);
+                    newAssistant.data.opsLanguageVersion = "v4";
+                } else {
+                    alert("Unable to register assistant workflow template, please try again later...");
+                    setIsLoading(false);
+                    setLoadingMessage("");
+                    return;
+                } 
+            } else { // no changes to workflow 
+                console.log("--Workflow no changes--")
+                newAssistant.data.baseWorkflowTemplateId = baseWorkflowTemplateId;
+                newAssistant.data.workflowTemplateId = astWorkflowTemplateId;
+                if (astWorkflowTemplateId) newAssistant.data.opsLanguageVersion = "v4";
+            }
+            
+            // Email Events
+            let registerEmailEvent = false; // we have to register after we get the assistant id
+            const eventTag = safeEmailEventTag(name);
+            if (enableEmailEvents) {
+                newAssistant.data.emailEvents = {
+                    tag : eventTag,
+                    template : emailEventTemplate,
+                }
+                // register event template if 
+                // 1. not registered before
+                // 2. template has changed
+                // 3. name has changed
+                const safeTemplate = {userPrompt: emailEventTemplate?.userPrompt || "", systemPrompt: emailEventTemplate?.systemPrompt || ""};
+                if (!definition.data?.emailEvents?.tag ||  eventTag !== safeEmailEventTag(definition.name || "") ||
+                    !compareEmailEventTemplates(definition.data?.emailEvents?.template, safeTemplate)) {
+                    registerEmailEvent = true;
+                }
+
+                // handle allowed sender changes
+                updateAllowedSenders(eventTag, existingAllowedSenders ?? [], curAllowedSenders);
+            } else if (definition.data?.emailEvents?.tag) {// remove if disabling
+                const oldEventTag = safeEmailEventTag(definition.name);
+                removeEventTemplate(oldEventTag);
+                removeAllowedSender(oldEventTag);
+                delete newAssistant.data.emailEvents;
+            }
+
 
             // console.log("apiInfo",apiInfo);
             // console.log("selectedApis",selectedApis);
@@ -561,6 +664,17 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 setIsLoading(false);
                 setLoadingMessage("");
                 return;
+            }
+            
+            if (registerEmailEvent) { // needed assistantId to register
+                setLoadingMessage("Registering email event template...");
+                const response = await addEventTemplate(eventTag, formatEmailEventTemplate(emailEventTemplate), assistantId);
+                if (response.success) {
+                    toast("Assistant successfully setup to receive emails.");
+                } else {
+                    alert("Unable to register email event template. You will not be able to send emails to this assistant, please try saving again.");
+                }
+    
             }
 
             newAssistant.id = id;
@@ -614,36 +728,38 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         setLoadingMessage("");
     }
 
-            // handle file upload functions //
-        const onAttach = (doc: AttachedDocument) => {
-            setDataSources((prev) => {
-                prev.push(doc as any);
+        // handle file upload functions //
+    const onAttach = (doc: AttachedDocument) => {
+        setDataSources((prev) => {
+            prev.push(doc as any);
+            return prev;
+        });
+    }
+    const onSetMetadata = (doc: AttachedDocument, metadata: any) => {
+        setDataSources((prev)=>{
+            return prev.map(x => x.id === doc.id ? {
+                ...x,
+                metadata
+            } : x)
+        });
+    }
+    const onSetKey = (doc: AttachedDocument, key: string) => {
+        setDataSources((prev)=>{
+            return prev.map(x => x.id === doc.id ? {
+                ...x,
+                key
+            } : x)
+        });
+    }
+
+    const onUploadProgress = (doc: AttachedDocument, progress: number) => {
+        setDocumentState((prev)=>{
+                prev[doc.id] = progress;
                 return prev;
-            });
-        }
-        const onSetMetadata = (doc: AttachedDocument, metadata: any) => {
-            setDataSources((prev)=>{
-                return prev.map(x => x.id === doc.id ? {
-                    ...x,
-                    metadata
-                } : x)
-            });
-        }
-        const onSetKey = (doc: AttachedDocument, key: string) => {
-            setDataSources((prev)=>{
-                return prev.map(x => x.id === doc.id ? {
-                    ...x,
-                    key
-                } : x)
-            });
-        }
+        });
+    }
     
-        const onUploadProgress = (doc: AttachedDocument, progress: number) => {
-            setDocumentState((prev)=>{
-                 prev[doc.id] = progress;
-                 return prev;
-            });
-        }
+
     if (isLoading) return <></>;
     
 
@@ -670,7 +786,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>
                             <div className="flex flex-row gap-2 ">
                                 <select
-                                    className="my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow"
+                                    className={selectClassName}
                                     value={selectTemplateId}
                                     onChange={(e) => setSelectTemplateId(e.target.value ?? '')}
                                     >
@@ -687,7 +803,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 className={`mt-2 px-1 h-[36px] rounded border border-neutral-900 dark:border-neutral-500 px-4 py-2 text-neutral-500 dark:text-neutral-300 dark:bg-[#40414F]
                                             ${selectTemplateId ? "cursor-pointer  hover:text-neutral-900 dark:hover:text-neutral-100"  : "cursor-not-allowed"}`}
                                 disabled={!selectTemplateId}
-                                onClick={() => handleTemplateChange()}
+                                onClick={() => handleAstTemplateChange()}
                                 title={"Fill-In Template"}
                                 >
                                     <IconArrowRight size={18} />
@@ -703,6 +819,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 disabled={disableEdit}
+                                onBlur={() => setExistingAllowedSenders(null)}
                             />
 
                             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
@@ -827,13 +944,69 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         setDataSources([...docs, ...newDocs] as any[]);
                                 }} />
                             }
+
+                            {/* Workflow Template Selector - purposefully not featured flagged / outside ofthe advanced section */}
+                            {baseWorkflowTemplateId && 
+                            <AssistantWorkflowDisplay
+                                baseWorkflowTemplateId={baseWorkflowTemplateId}
+                                astWorkflowTemplateId={astWorkflowTemplateId}
+                                onWorkflowTemplateUpdate={(workflowTemplate) => {
+                                    setCurrentWorkflowTemplate(workflowTemplate);
+                                }}
+                            />}
+
+                            {/* Email Events - purposefully not featured flagged / outside ofthe advanced section */}
+                            {enableEmailEvents &&
+                            <div className="mb-4 mt-2 flex flex-col gap-2 mr-6">
+                                <label className=" text-[1.02rem]"> Email this assistant at: <span className='ml-2 text-blue-500'> {`${constructAstEventEmailAddress(name, userEmail)}`} </span></label>
                             
-                            <ExpansionComponent
-                                title={"Advanced"}
-                                content={
-                                    <div className="text-black dark:text-neutral-200">
-                                        <div className="mt-4">
-                                            {featureFlags.assistantPathPublishing && (
+                                {!existingAllowedSenders ? <>Loading allowed senders...</> : 
+                                <ExpansionComponent title={"Manage authorized senders who can email this assistant"} 
+                                    closedWidget= { <IconMailFast size={22} />} 
+                                    content={
+                                    <AddEmailWithAutoComplete
+                                        id={`allowedSenders`}
+                                        emails={curAllowedSenders}
+                                        allEmails={amplifyUsers.filter((user: string) => user !== userEmail)}
+                                        handleUpdateEmails={(updatedEmails: Array<string>) => {
+                                            setCurAllowedSenders(updatedEmails);
+                                        }}
+                                        displayEmails={true}
+                                    />} 
+                                />}
+                            </div>}
+
+                            <ExpansionComponent title={"Advanced"} content={
+                                <div className="mb-4 text-black dark:text-neutral-200 mb-6">
+                                    
+                                    { definition.assistantId && 
+                                    <>
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                        {t('Assistant ID')}
+                                    </div>
+                                    <input
+                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                        value={definition.assistantId || ''}
+                                        disabled={true}
+                                    />
+                                    </>}
+
+                                    { featureFlags.integrations && <>
+                                    <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
+                                        Assistant Type
+                                    </div>
+                                    <select
+                                      title={baseWorkflowTemplateId ? "This assistant is using a workflow template. You cannot change the assistant type." : ""}
+                                      disabled={baseWorkflowTemplateId !== undefined}
+                                      className={`mt-2 mb-4 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 ${baseWorkflowTemplateId ? "opacity-40" : ""}`}
+                                      value={opsLanguageVersion}
+                                      onChange={(e) => setOpsLanguageVersion(e.target.value)}
+                                    >   
+                                        {Object.entries(opLanguageOptionsMap).map(([val, name]) => <option key={val} value={val}>{name}</option>)}
+                                    </select>
+                                    </>}
+
+                                    {featureFlags.assistantPathPublishing && (
                                                 <AssistantPathEditor
                                                     savedAstPath={definition.astPath}
                                                     astPath={astPath}
@@ -849,80 +1022,50 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 />
                                             )}
                                             
-                                            <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
-                                                {t('URI')}
-                                            </div>
-                                            <input
-                                              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                              placeholder={t('') || ''}
-                                              value={uri || ''}
-                                              onChange={(e) => setUri(e.target.value)}
-                                              disabled={disableEdit}
-                                            />
 
-                                    <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
-                                        Assistant Type
+                                    <div className='mt-4 text-[1rem]'>
+                                        <Checkbox
+                                            id="allowRequestAccess"
+                                            label="Allow other users to request chat permissions for this assistant. "
+                                            checked={availableOnRequest}
+                                            onChange={(isChecked: boolean) => setAvailableOnRequest(isChecked)}
+                                        />
                                     </div>
-                                    <select
-                                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                      value={opsLanguageVersion}
-                                      onChange={(e) => setOpsLanguageVersion(e.target.value)}
-                                    >   
-                                        {Object.entries(opLanguageOptionsMap).map(([val, name]) => <option key={val} value={val}>{name}</option>)}
-                                    </select>
 
-                                            <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
-                                                {t('Assistant ID')}
-                                            </div>
-                                            <input
-                                              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                              value={definition.assistantId || ''}
-                                              disabled={true}
-                                            />
-
-                                            <div className='mt-4 text-[1rem]'>
-                                                <Checkbox
-                                                    id="allowRequestAccess"
-                                                    label="Allow other users to request chat permissions for this assistant. "
-                                                    checked={availableOnRequest}
-                                                    onChange={(isChecked: boolean) => setAvailableOnRequest(isChecked)}
-                                                />
-                                            </div>
-
-                                            <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
-                                                {t('Data Source Options')}
-                                            </div>
-                                            <ExpansionComponent
-                                                title='Manage'
-                                                content= {
-                                                     <FlagsMap id={'dataSourceFlags'}
-                                                      flags={dataSourceFlags}
-                                                      state={dataSourceOptions}
-                                                      flagChanged={
-                                                          (key, value) => {
-                                                              if (!disableEdit) setDataSourceOptions({
-                                                                  ...dataSourceOptions,
-                                                                  [key]: value,
-                                                              });
-                                                          }
-                                                      } />
-                                            }
-                                            />
-                                           
-                                            <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
-                                                {t('Message Options')}
-                                            </div>
-                                            <FlagsMap id={'messageOptionFlags'}
-                                                      flags={messageOptionFlags}
-                                                      state={messageOptions}
-                                                      flagChanged={
-                                                          (key, value) => {
-                                                              if (!disableEdit) setMessageOptions({
-                                                                  ...messageOptions,
-                                                                  [key]: value,
-                                                              });
-                                                          }
-                                                      } />
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-4"
+                                         style={{transform: 'translateX(-28px)'}}>
+                                        <ExpansionComponent
+                                            closedWidget= { <IconCaretRight style={{transform: 'translateX(8px)'}} size={18} />}
+                                            openWidget= { <IconCaretDown style={{transform: 'translateX(8px)'}} size={18} />}
+                                            title='Data Source Options'
+                                            content= {
+                                                <FlagsMap id={'dataSourceFlags'}
+                                                flags={dataSourceFlags}
+                                                state={dataSourceOptions}
+                                                flagChanged={
+                                                    (key, value) => {
+                                                        if (!disableEdit) setDataSourceOptions({
+                                                            ...dataSourceOptions,
+                                                            [key]: value,
+                                                        });
+                                                    }
+                                                } />
+                                        }/>
+                                    </div>
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-4">
+                                        {t('Message Options')}
+                                    </div>
+                                    <FlagsMap id={'messageOptionFlags'}
+                                              flags={messageOptionFlags}
+                                              state={messageOptions}
+                                              flagChanged={
+                                                  (key, value) => {
+                                                      if (!disableEdit) setMessageOptions({
+                                                          ...messageOptions,
+                                                          [key]: value,
+                                                      });
+                                                  }
+                                              } />
 
                                             {Object.keys(featureOptions).length > 0 &&
                                               <>
@@ -972,60 +1115,97 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 />
                                             </div>
 
-                                    {featureFlags.integrations && <>
-                                            {!availableApis && <>Loading API Capabilities...</>}
+                                    {/* Workflow Template Selector */}
+                                    {featureFlags.assistantWorkflows && 
+                                    <AssistantWorkflowSelector
+                                        selectedTemplateId={baseWorkflowTemplateId}
+                                        onTemplateChange={(workflowTemplateId) => {
+                                            setBaseWorkflowTemplateId(workflowTemplateId ? workflowTemplateId : undefined);
+                                            setAstWorkflowTemplateId(undefined);
+                                            setCurrentWorkflowTemplate(null);
+                                        }}
+                                    />}
 
+                                    {featureFlags.assistantEmailEvents && 
                                     <>
-                                        <button
-                                            className="mt-2 mb-4 flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-sm text-neutral-800 hover:bg-neutral-200 dark:border-neutral-700 dark:text-neutral-100 dark:hover:bg-neutral-700"
-                                            onClick={() => setAddFunctionOpen(!addFunctionOpen)}
-                                        >
-                                            <IconTools size={18} />
-                                            Manage Custom APIs
-                                        </button>
-
-                                        {addFunctionOpen && <PythonFunctionModal
-                                            onCancel={()=>{setAddFunctionOpen(false);}}
-                                            onSave={()=>{}}
-                                        />}
-                                    </>
-                                    {availableApis && availableApis.length > 0 &&
-                                        <>
-                                        <div className="flex flex-row text-sm font-bold text-black dark:text-neutral-200 mt-2 mb-2">
-                                            {t('Enabled API Capabilities')}
-                                            {availableApis && opsSearchToggleButtons(opSearchBy, setOpSearchBy, apiSearchTerm, setApiSearchTerm, " ml-auto mr-2", 'translateY(8px)')}
-                                        </div> 
-
-                                        <div className="max-h-[400px] overflow-y-auto">
-                                            {availableApis.filter((api) => apiSearchTerm ? (opSearchBy === 'name' ? api.name 
-                                                          : (api.tags?.join("") ?? '')).toLowerCase().includes(apiSearchTerm) : true)
-                                                          .map((api, index) => (
-                                                <ApiItem
-                                                selected={!!selectedApis?.some((selectedApi) => selectedApi.id === api.id)}
-                                                key={index}
-                                                api={api}
-                                                index={index}
-                                                onChange={handleUpdateApiItem} />
-                                            ))}
-                                        </div>  
-                                        </>
-                                    }
-                                    </>}
-
-                                    {featureFlags.assistantApis && <>
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-8 mb-1">
-                                        {t('Custom API Capabilities')}
-                                    </div>
-
-                                    <APIComponent
-                                      apiInfo={apiInfo}
-                                      setApiInfo={setApiInfo}
-                                    />
-                                    </>}
-
-
+                                      <div className="mt-4 mb-2 ml-1 flex flex-row gap-3">
+                                        <Checkbox
+                                            id={`emailEvents`}
+                                            bold={true}
+                                            label="Enable Email Events"
+                                            checked={enableEmailEvents}
+                                            onChange={(checked) => setEnableEmailEvents(checked)}
+                                        />
+                                        <IconMailBolt className="mt-1" size={18} />
+                                      </div>
+                                      <div className="mx-6 mt-[-4px] flex flex-col gap-4">
+                                        <InfoBox 
+                                            content={
+                                                <span className="px-4"> 
+                                                    This feature allows you to email your assistant directly. When enabled, you can customize the assistant&apos;s behavior 
+                                                    by configuring the system prompt and instructions given to the assistant when it receives an email.
+                                                    <div className="text-center mt-1 font-bold"> Email the Assistant at: 
+                                                        <div className='text-blue-500'>{`${constructAstEventEmailAddress(name, userEmail)}`}</div>  
+                                                    </div>    
+                                                </span>}
+                                        /> 
+                                        <div className={`${enableEmailEvents ? "" : "opacity-40"}`}>
+                                            <ExpansionComponent title={"Customize assistant's email response instructions"} 
+                                                closedWidget= { <IconPencilBolt size={18} />} 
+                                                content={ <>
+                                                    {[{key: "systemPrompt", label: "System Prompt", placeholder: "Instructions for how the assistant should process emails"}, 
+                                                    {key: "userPrompt", label: "Instructions", placeholder: "The email content will be appended to this prompt"}].map(({key, label, placeholder}) => 
+                                                    <div key={key} title={!enableEmailEvents ? "Enable Email Events To Edit" : ""}>
+                                                        <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
+                                                            {label}
+                                                        </div>
+                                                        <textarea
+                                                            className="w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                            style={{resize: !enableEmailEvents || disableEdit ? 'none' : 'vertical'}}
+                                                            placeholder={placeholder}
+                                                            value={emailEventTemplate?.[key as keyof typeof emailEventTemplate] || ''}
+                                                            onChange={(e) => setEmailEventTemplate({
+                                                                ...(emailEventTemplate || {}),
+                                                                [key]: e.target.value
+                                                            })}
+                                                            rows={1}
+                                                            disabled={!enableEmailEvents || disableEdit}
+                                                        />
+                                                    </div>)
+                                                    } </>
+                                                }
+                                            />
                                         </div>
-                                    </div>
+                                       </div>
+                                    </>
+                                    }
+
+                                    <br></br>
+                                    {/* Api Component View Selector */}
+                                    <ApiIntegrationsPanel
+                                        // API-related props
+                                        availableApis={availableApis}
+                                        selectedApis={selectedApis}
+                                        setSelectedApis={setSelectedApis}
+                                        
+                                        // External API props
+                                        apiInfo={apiInfo}
+                                        setApiInfo={setApiInfo}
+                                        
+                                        // Agent tools props
+                                        availableAgentTools={availableAgentTools}
+                                        builtInAgentTools={builtInAgentTools}
+                                        setBuiltInAgentTools={setBuiltInAgentTools}
+                                        
+                                        // Refresh APIs function
+                                        pythonFunctionOnSave={(fn)=>{
+                                            getOpsForUser().then((ops) => {
+                                            if (ops.success) filterOps(ops.data); 
+                                            })
+                                        }}
+                                    />
+                                       
+                                </div>
                                 }
                             />
                         </div>
@@ -1077,5 +1257,131 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     );
 };
 
+const selectClassName = "my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow";
 
+
+// This component is very specific to Assistant Modal, which uses the other Workflow components that are more appropriate for reuse
+interface WorkflowProps {
+    baseWorkflowTemplateId: string | undefined;
+    astWorkflowTemplateId: string | undefined;
+    onWorkflowTemplateUpdate: (workflowTemplate: AstWorkflow | null) => void;
+    disableEdit?: boolean;
+}
+  
+const AssistantWorkflowDisplay: React.FC<WorkflowProps> = ({ 
+    baseWorkflowTemplateId, astWorkflowTemplateId, onWorkflowTemplateUpdate, disableEdit=false
+  }) => {
+
+    const getWorkflowTemplate = async (workflowTemplateId: string | undefined): Promise<any> => {
+        if (!workflowTemplateId) return null;
+        const response = await getAstWorkflowTemplate(workflowTemplateId);
+        if (!response.success && 
+            confirm("Error fetching workflow template, would you like to try to retrieve it again?")) {
+            return getWorkflowTemplate(workflowTemplateId);
+        }
+        return response.success ? response.data : null;
+    }
+    // initial states
+    const [baseWorkflowTemplate, setBaseWorkflowTemplate] = useState<AstWorkflow | null>(null);
+    const [astWorkflowTemplate, setAstWorkflowTemplate] = useState<AstWorkflow | null>(null);
+    const [loadingState, setLoadingState] = useState<{
+        baseTemplate: boolean;
+        astTemplate: boolean;
+    }>({
+        baseTemplate: !!baseWorkflowTemplateId, 
+        astTemplate: !!astWorkflowTemplateId
+    });
+
+    const [editWorkflowTemplate, setEditWorkflowTemplate] = useState(false);
+    
+   useEffect(() => {
+        if (baseWorkflowTemplateId) {
+            if (!baseWorkflowTemplate || 
+                // to handle when base templates in selector has changed 
+                (baseWorkflowTemplate.templateId !== baseWorkflowTemplateId)) {
+                setLoadingState(prev => ({ ...prev, baseTemplate: true }));
+                getWorkflowTemplate(baseWorkflowTemplateId).then((template) => {
+                    setBaseWorkflowTemplate(template ?? null);
+                    setLoadingState(prev => ({ ...prev, baseTemplate: false }));
+                }); 
+            }    
+        } else {
+            setBaseWorkflowTemplate(null);
+            setLoadingState(prev => ({ ...prev, baseTemplate: false }));
+        }
+   }, [baseWorkflowTemplateId]);
+
+
+   useEffect(() => {
+       // runs once since astWorkflowTemplateId does not change to another template id
+        if (astWorkflowTemplateId && !astWorkflowTemplate) {
+            setLoadingState(prev => ({ ...prev, astTemplate: true }));
+            getWorkflowTemplate(astWorkflowTemplateId).then((template) => {
+               setAstWorkflowTemplate(template ?? null);
+               setLoadingState(prev => ({ ...prev, astTemplate: false }));
+            });
+        } else if (!astWorkflowTemplateId) {
+            setLoadingState(prev => ({ ...prev, astTemplate: false }));
+        }
+   }, [astWorkflowTemplateId]);
+
+
+   const isLoading = loadingState.baseTemplate || loadingState.astTemplate;
+
+    return <div className={`w-full mb-4 ${baseWorkflowTemplate ? "border-b pb-3 border-neutral-500" : ""} `}>
+    {isLoading || !baseWorkflowTemplate ? <> Loading Workflow Template...</>:
+      <>
+      {/* Initial Setup  */}
+       { !astWorkflowTemplateId || (baseWorkflowTemplate && !astWorkflowTemplate) ?
+        <AssistantWorkflow 
+            id={"intialWorkflowSetup"}
+            workflowTemplate={baseWorkflowTemplate} 
+            enableCustomization={true && !disableEdit} 
+            onWorkflowTemplateUpdate={onWorkflowTemplateUpdate}
+        /> : <>
+        {/* {baseWorkflowTemplate.templateId === astWorkflowTemplate?.templateId &&  */}
+        <div className="relative">
+            {!disableEdit &&
+            <button className={"absolute right-2 text-xs flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700"}
+                style={{transform: 'translateY(-10px)'}}
+                onClick={() => {
+                    if (editWorkflowTemplate) onWorkflowTemplateUpdate(null);
+                    setEditWorkflowTemplate(!editWorkflowTemplate);
+                }}
+            >   {editWorkflowTemplate ? 
+                <> <IconX size={16} />  {"Discard Changes"}</> :
+                <> <IconPencil size={16} /> {"Edit Template"}</>}
+                
+            </button>}
+
+        </div>
+        {baseWorkflowTemplate && astWorkflowTemplate && 
+          (editWorkflowTemplate ?
+            // Display the current workflow template setup only
+           <AssistantWorkflow 
+            // We will use the base workflow and existing workflow template to create a new workflow template 
+                id={"editExistingWorkflow"}
+                workflowTemplate={cloneDeep(baseWorkflowTemplate)} 
+                enableCustomization={true} 
+                onWorkflowTemplateUpdate={onWorkflowTemplateUpdate}
+                computedDisabledSegments={() => computeDisabledSegments(baseWorkflowTemplate, astWorkflowTemplate)}
+            /> 
+            : 
+            <AssistantWorkflow 
+                id={"viewExistingWorkflow"}
+                workflowTemplate={astWorkflowTemplate} 
+                enableCustomization={false}  // do nothing 
+                onWorkflowTemplateUpdate={(workflowTemplate: AstWorkflow | null) => {}}
+            /> ) 
+        }
+        </>
+       }
+      
+      </>
+    
+    }
+    
+    </div>
+
+  }
 

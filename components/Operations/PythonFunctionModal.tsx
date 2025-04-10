@@ -1743,7 +1743,7 @@ Output only a markdown code block like this:
                                         disabled={isPublishing}
                                         onClick={async () => {
                                             if (!selectedFnId || !publishPath) {
-                                                alert("Please enter a path and ensure the function is selected.");
+                                                alert("Please ensure the function has been saved with a path name and is selected.");
                                                 return;
                                             }
                                             setIsPublishing(true);

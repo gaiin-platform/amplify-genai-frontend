@@ -157,6 +157,14 @@ Where <option> determines which tests to execute:
 
 3 – Run all test files in the CustomInstructionsTests folder.
 
+### Running Tests Asynchronously
+
+To run all of the tests asynchronously, run the following command:
+
+```
+pytest -xvs -n auto tests/
+```
+
 ## Test Organization
 
 The tests folder contains various test files. Additionally, there are subdirectories with specialized test cases:

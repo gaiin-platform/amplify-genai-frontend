@@ -337,6 +337,15 @@ export function camelCaseToTitle(camelCaseString: string) {
     return camelCaseString.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
 }
 
+// Format snake_case tool name to Title Case With Spaces
+export const snakeCaseToTitleCase = (toolName: string): string => {
+    if (!toolName) return '';
+    return toolName
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
 
 export function stringToColor(str:string) {
     // Array of the color options provided

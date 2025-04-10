@@ -16,12 +16,8 @@ export const IMAGE_FILE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/
 
 export const DEFAULT_TEMPERATURE = 1;
 
-export const ARTIFACTS_PROMPT = `
 
-Custom Instructions for Artifact Handling
-
-1. Artifact Mode Activation
-
+export const ARTIFACT_TRIGGER_CONDITIONS = `
 Trigger Conditions:
 Enter Artifact Mode when the user requests content that is:
 
@@ -45,6 +41,15 @@ Do not activate Artifact Mode for:
 
 Short snippets or minor tasks.
 Simple or brief user requests.
+`
+
+export const ARTIFACTS_PROMPT = `
+
+Custom Instructions for Artifact Handling
+
+1. Artifact Mode Activation
+
+${ARTIFACT_TRIGGER_CONDITIONS}
 
 DO NOT TELL THE USER ARTIFACT MODE HAS BEEN ACTIVATED, DO NOT SAY autoArtifacts Block (you will only confuse the user, instead says artifact)
 

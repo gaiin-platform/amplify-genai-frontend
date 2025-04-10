@@ -204,7 +204,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                 {!isCheckingPath && astPathData &&
                 <div className="ml-auto mr-4 ">
                     { !disableEdit ?
-                        <Checkbox
+                        (astPath ? <Checkbox
                             id="publish-to-all-users"
                             label="Publish to all users"
                             checked={astPathData.isPublic ?? true}
@@ -212,7 +212,8 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                                 const newAstPathData = {...astPathData, isPublic: checked};
                                 setAstPathData(newAstPathData);
                             }}
-                    />  : <label className={"mt-5 text-xs text-blue-500"}>
+                    /> : null)  
+                       : <label className={"mt-5 text-xs text-blue-500"}>
                         {astPathData.isPublic ? "Public Access" : "Restricted Access"}
                         </label>
                     }

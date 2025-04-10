@@ -96,7 +96,7 @@ export const createAssistantPrompt = (assistant: AssistantDefinition): Prompt =>
 
 
 
-const isSystemAssistant = (prompt: Prompt) => {
+export const isSystemAssistant = (prompt: Prompt) => {
     return prompt.data?.assistant?.definition?.tags.includes(ReservedTags.SYSTEM);
 
 }
@@ -133,7 +133,7 @@ export const syncAssistants = async (assistants: AssistantDefinition[], prompts:
                          });                   
     // keep imported Assistants
     const importedAssistants = prompts.filter(prompt =>  isAssistant(prompt) && prompt.data?.noShare && 
-                                                        !assistantNames.has(prompt.name) && !prompt.groupId && !isSystemAssistant(prompt)) ;                           
+                                                        !assistantNames.has(prompt.name) && !prompt.groupId && !isSystemAssistant(prompt));                           
     const sortedAssistants = [...assistantPrompts, ...importedAssistants];
     sortedAssistants.sort((a, b) =>  a.name.localeCompare(b.name));
     return sortedAssistants;
