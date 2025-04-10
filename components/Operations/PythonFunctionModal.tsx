@@ -304,6 +304,7 @@ if __name__ == "__main__":
     const [groupedFunctions, setGroupedFunctions] = useState<Record<string, any[]>>({});
     const [expandedApps, setExpandedApps] = useState<Record<string, boolean>>({});
     const [loadingFunctionDetails, setLoadingFunctionDetails] = useState(false);
+    const [dependencies, setDependencies] = useState('');
 
     useEffect(() => {
         getSession().then((session) => {
@@ -416,6 +417,7 @@ if __name__ == "__main__":
             setTags(fn.tags || [])
 
             setAllowedGroups(fn.metadata?.allowed_groups || []);
+            setDependencies(fn.metadata?.dependencies || '');
 
             if(fn.metadata && fn.metadata.published){
                 setPublicationData(fn.metadata.published);
@@ -457,6 +459,7 @@ if __name__ == "__main__":
                 } else {
                     setCode('// Error: No code returned from backend.');
                 }
+
             } catch (err) {
                 setCode('// Error: Failed to fetch code.');
             }
@@ -534,10 +537,13 @@ if __name__ == "__main__":
                 }
             });
 
+            const cleanDependencies = dependencies.trim() === '' ? null : dependencies;
+
             const metadata = {
                 environment: env,
                 published: publicationData,
-                allowed_groups: allowedGroups
+                allowed_groups: allowedGroups,
+                dependencies: cleanDependencies
             };
 
             const oldFnId = selectedFnId;
@@ -560,15 +566,38 @@ if __name__ == "__main__":
 
             const fnUuid = res.data.uuid;
 
-            setUserFunctions(prev => prev.map(f => {
-                if (f.uuid === oldFnId) {
-                    return {
-                        ...f,
-                        uuid: fnUuid
-                    };
-                }
-                return f;
-            }));
+            // setUserFunctions(prev => prev.map(f => {
+            //     if (f.uuid === oldFnId) {
+            //         return {
+            //             ...f,
+            //             uuid: fnUuid
+            //         };
+            //     }
+            //     return f;
+            // }));
+            setUserFunctions(prev =>
+                prev.map(f => {
+                    if (f.uuid === oldFnId) {
+                        return {
+                            ...f,
+                            uuid: res.data.uuid,
+                            name,
+                            description,
+                            inputSchema: JSON.parse(schema),
+                            testCases,
+                            tags,
+                            metadata: {
+                                ...f.metadata,
+                                environment: metadata.environment,
+                                published: metadata.published,
+                                allowed_groups: metadata.allowed_groups,
+                                dependencies: metadata.dependencies,
+                            }
+                        };
+                    }
+                    return f;
+                })
+            );
 
             setSelectedFnId(fnUuid);
 
@@ -1058,6 +1087,21 @@ Output only a markdown code block like this:
                                     temperature={0.7}
                                     value={description}
                                     onChange={(val) => {setDescription(val);setHasUnsavedChanges(true);}}
+                                />
+
+                                <div className="mt-6 text-sm font-bold">Dependencies (requirements.txt)</div>
+                                <textarea
+                                    className="w-full border rounded p-2 text-sm dark:bg-neutral-800 dark:text-white"
+                                    value={dependencies}
+                                    onChange={(e) => {
+                                        setDependencies(e.target.value);
+                                        setHasUnsavedChanges(true);
+                                    }}
+                                    rows={4}
+                                    placeholder="e.g. requests==2.28.1"
+                                    spellCheck={false}
+                                    autoCorrect="off"
+                                    autoCapitalize="off"
                                 />
 
                                 <div className="mt-6 text-sm font-bold">Python Code</div>
