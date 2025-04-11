@@ -1145,10 +1145,25 @@ Output only a markdown code block like this:
 
                                 <div className="mt-6">
                                     <div className="text-sm font-bold mb-2">Environment Variables</div>
+
                                     {envVars.map((env, index) => (
                                         <div key={index} className="grid grid-cols-3 gap-2 mb-2 items-center">
+
+                                            <div className="flex flex-row">
+                                            <button
+                                                className="text-gray-600 hover:text-red-600 dark:text-white dark:hover:text-red-400 ml-2"
+                                                onClick={() => {
+                                                    const newVars = envVars.filter((_, i) => i !== index);
+                                                    setEnvVars(newVars);
+                                                    setHasUnsavedChanges(true);
+                                                }}
+                                                title="Remove"
+                                            >
+                                                <IconCircleX size={24} />
+                                            </button>
+
                                             <select
-                                                className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                                className="ml-2 border rounded p-2 dark:bg-[#40414F] dark:text-white"
                                                 value={env.type}
                                                 onChange={(e) => {
                                                     const newVars = [...envVars];
@@ -1163,6 +1178,7 @@ Output only a markdown code block like this:
                                                 <option value="Variable">Variable</option>
                                                 <option value="Amplify Variable">Amplify Variable</option>
                                             </select>
+                                            </div>
                                             <input
                                                 className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
                                                 placeholder="Key"
@@ -1235,6 +1251,7 @@ Output only a markdown code block like this:
                                         }}
                                       />
                                     )}
+
                                         </div>
                                     ))}
                                     <button
