@@ -56,6 +56,7 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt,onOptimiz
                     onKeyDown={(e) => {
 
                     }}
+                    id="promptOptimizerButton"
                     title="Optimize Prompt"
 
                 >

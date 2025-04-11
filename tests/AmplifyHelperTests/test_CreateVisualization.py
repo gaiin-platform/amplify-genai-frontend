@@ -276,6 +276,69 @@ class CreateVisualizationsTests(BaseTest):
             "Create Visualization (copy)",
             "The text extracted should be ",
         )
+        
+    # ----------------- Create Visualization with Quotations Modal is interactable -----------------
+    """Ensure the Create Visualization button in the Amplify Helpers folder can be clicked 
+       on the Right Side Bar and the modal is interactable"""
+    
+    def test_create_visualization_modal_is_interactable_bullet(self):                        
+        # Locate all elements with the ID 'dropName'
+        drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "dropName")
+        ))
+        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
+
+        # Find the element with text "Amplify Helpers"
+        time.sleep(2)
+        amplify_helper_dropdown_button = next((el for el in drop_name_elements if el.text == "Amplify Helpers"), None)
+        self.assertIsNotNone(amplify_helper_dropdown_button, "Amplify Helpers button should be present")
+
+        # Click to open the dropdown
+        amplify_helper_dropdown_button.click()
+        
+        # Create Visualization is visible in drop down menu
+        # Locate all elements with ID "promptName" and find the one with text "Create Visualization"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+
+        # Check if any of the elements contain "Create Visualization"
+        create_visualization = next((el for el in prompt_name_elements if el.text == "Create Visualization"), None)
+        self.assertIsNotNone(create_visualization, "Create Visualization should be visible in the dropdown")
+        
+        # Ensure the parent button's
+        create_visualization_button = create_visualization.find_element(By.XPATH, "./ancestor::button")
+        button_id = create_visualization_button.get_attribute("id")
+        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+
+        # Click to close the dropdown
+        create_visualization_button.click()
+
+        # Ensure the create_visualization Chat Label appears after selection
+        create_visualization_modal_title = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "modalTitle")
+        ))
+        self.assertIsNotNone(create_visualization_modal_title, "Create Visualization modal title should appear after selection")
+
+        # Extract the text from the element
+        modal_text = create_visualization_modal_title.text
+
+        # Ensure the extracted text matches the expected value
+        self.assertEqual(modal_text, "Create Visualization", "Modal title should be 'Create Visualization'")
+        
+        time.sleep(2)
+        
+        # Locate and click the Save button
+        confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
+        self.assertTrue(confirmation_button, "Drop name elements should be initialized")
+        
+        save_button = next((el for el in confirmation_button if el.text == "Submit"), None)
+        self.assertIsNotNone(save_button, "Submit button should be present")
+        
+        save_button.click()
+        
+        time.sleep(15)
 
 
 if __name__ == "__main__":

@@ -107,7 +107,7 @@ const getIcons = (model: Model) => {
           <label className="mb-2 text-left text-neutral-700 dark:text-neutral-400">
             {t('Model')}
           </label>
-          <div className='ml-auto' onMouseEnter={() => setShowLegend(true) } onMouseLeave={() => setShowLegend(false)}>
+          <div id="legendHover" className='ml-auto' onMouseEnter={() => setShowLegend(true) } onMouseLeave={() => setShowLegend(false)}>
             <IconInfoCircle size={19} className='mr-1 mt-[-4px] flex-shrink-0 text-gray-600 dark:text-gray-300' />
             {showLegend && legend()}
           </div>
@@ -118,6 +118,7 @@ const getIcons = (model: Model) => {
           disabled={isDisabled}
           onClick={() => setIsOpen(!isOpen)}
           title={isDisabled ? disableMessage : 'Select Model'}
+          id="modelSelect"
           className={`w-full flex items-center justify-between rounded-lg border border-neutral-200 bg-transparent p-2 pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white custom-shadow ${
             isDisabled ? 'opacity-50 cursor-not-allowed' : ''
           }`}
@@ -136,11 +137,12 @@ const getIcons = (model: Model) => {
           
         </button>
         {isOpen && (
-          <ul className="absolute z-10 mt-1 w-full overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
+          <ul id="modelList" className="absolute z-10 mt-1 w-full overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
               style={{maxHeight: window.innerHeight * 0.55}}>
             {models.map((model: Model) => (
               <li
                 key={model.id}
+                id={model.id}
                 onClick={() => handleOptionClick(model.id)}
                 className="flex cursor-pointer items-center justify-between px-4 py-2 text-neutral-900 hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-600"
                 title={model.description}
@@ -171,7 +173,7 @@ const legend = () => {
   return (
     <div className='text-black dark:text-white absolute mt-1 w-[260px] rounded-lg border border-neutral-200 bg-white p-4 text-sm shadow-lg z-20 dark:border-neutral-600 dark:bg-[#343541]'
          style={{transform: 'translateX(-85%)'}}>
-      <div className='mb-2 font-semibold text-neutral-700 dark:text-neutral-300'>
+      <div id="modelLegend" className='mb-2 font-semibold text-neutral-700 dark:text-neutral-300'>
         Legend
       </div>
       {legendItem(<IconCamera size={16} />, "Supports Images in Prompts")}

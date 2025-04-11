@@ -978,7 +978,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             onScroll={handleScroll}
                         >
                             {selectedConversation && selectedConversation.messages?.length === 0 && filteredModels ? (
-                                <div className='overflow-y-auto' style={{height: windowInnerDims.height - 200}}>
+                                <div id="overflowScroll" className='overflow-y-auto' style={{height: windowInnerDims.height - 200}}>
                                     <div
                                         className="mx-auto flex flex-col space-y-1 md:space-y-8 px-3 pt-5 md:pt-10" 
                                         style={{width: windowInnerDims.width * 0.45}}>
@@ -1009,6 +1009,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                             
                                                         <button
                                                             className={`ml-2 ${messageIsStreaming ? "cursor-not-allowed": "cursor-pointer"} hover:opacity-50 pr-2`}
+                                                            id="advancedConversationSettings"
                                                             disabled={messageIsStreaming}
                                                             onClick={(e) => {
                                                                 setShowAdvancedConvSettings(!showAdvancedConvSettings);
@@ -1130,6 +1131,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     {featureFlags.integrations && <IntegrationsDialog open={isIntegrationsOpen} onClose={()=>{setIsIntegrationsOpen(false)}}/>}
 
                                     <div
+                                       id="chatUpperMenu"
                                        className="items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
                                         {featureFlags.mtdCost  && (
                                             <>
@@ -1142,6 +1144,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         setIsAccountDialogVisible(true);
                                                     }}
                                                     title="Month-To-Date Cost"
+                                                    id="month-to-date-cost"
                                                 >
                                                     <div className={`text-[0.93rem] ${chat_button_blue_color}`}>
                                                         <div className="ml-1">MTD Cost: {mtdCost}</div>
@@ -1164,6 +1167,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 
                                             }}
                                             title="Chat Settings"
+                                            id="chatSettings"
                                         >
                                             <IconSettings size={18}/>
                                         </button>
@@ -1173,6 +1177,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             disabled={messageIsStreaming}
                                             onClick={onClearAll}
                                             title="Clear Messages"
+                                            id="clearMessages"
                                         >
                                             <IconClearAll size={18}/>
                                         </button>
@@ -1181,6 +1186,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             disabled={messageIsStreaming}
                                             onClick={() => setIsShareDialogVisible(true)}
                                             title="Share"
+                                            id="shareChatUpper"
                                         >
                                             <IconShare size={18}/>
                                         </button>
@@ -1194,6 +1200,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                             }}
                                             title="Download"
+                                            id="downloadUpper"
                                         >
                                             <IconDownload size={18}/>
                                         </button>
@@ -1216,6 +1223,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     homeDispatch({field: 'page', value: 'home'});
                                                 }}
                                                 title="Data Sources"
+                                                id="dateSources"
                                             >
                                                 <div className={`text-[0.9rem] flex flex-row items-center ${chat_button_blue_color}`}>
                                                     <div><IconRocket size={18}/></div>

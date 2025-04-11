@@ -264,6 +264,69 @@ class CSVExtractorTests(BaseTest):
             "The text extracted should be ",
         )
 
+    # ----------------- CSV Extractor with Quotations Modal is interactable -----------------
+    """Ensure the CSV Extractor button in the Amplify Helpers folder can be clicked 
+       on the Right Side Bar and the modal is interactable"""
+    
+    def test_create_visualization_modal_is_interactable_bullet(self):                        
+        # Locate all elements with the ID 'dropName'
+        drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "dropName")
+        ))
+        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
+
+        # Find the element with text "Amplify Helpers"
+        time.sleep(2)
+        amplify_helper_dropdown_button = next((el for el in drop_name_elements if el.text == "Amplify Helpers"), None)
+        self.assertIsNotNone(amplify_helper_dropdown_button, "Amplify Helpers button should be present")
+
+        # Click to open the dropdown
+        amplify_helper_dropdown_button.click()
+        
+        # CSV Extractor is visible in drop down menu
+        # Locate all elements with ID "promptName" and find the one with text "CSV Extractor"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+
+        # Check if any of the elements contain "CSV Extractor"
+        csv_extractor = next((el for el in prompt_name_elements if el.text == "CSV Extractor"), None)
+        self.assertIsNotNone(csv_extractor, "CSV Extractor should be visible in the dropdown")
+        
+        # Ensure the parent button's
+        csv_extractor_button = csv_extractor.find_element(By.XPATH, "./ancestor::button")
+        button_id = csv_extractor_button.get_attribute("id")
+        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+
+        # Click to close the dropdown
+        csv_extractor_button.click()
+
+        # Ensure the csv_extractor Chat Label appears after selection
+        csv_extractor_modal_title = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "modalTitle")
+        ))
+        self.assertIsNotNone(csv_extractor_modal_title, "CSV Extractor modal title should appear after selection")
+
+        # Extract the text from the element
+        modal_text = csv_extractor_modal_title.text
+
+        # Ensure the extracted text matches the expected value
+        self.assertEqual(modal_text, "CSV Extractor", "Modal title should be 'CSV Extractor'")
+        
+        time.sleep(2)
+        
+        # Locate and click the Save button
+        confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
+        self.assertTrue(confirmation_button, "Drop name elements should be initialized")
+        
+        save_button = next((el for el in confirmation_button if el.text == "Submit"), None)
+        self.assertIsNotNone(save_button, "Submit button should be present")
+        
+        save_button.click()
+        
+        time.sleep(15)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

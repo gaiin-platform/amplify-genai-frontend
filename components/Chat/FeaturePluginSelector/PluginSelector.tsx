@@ -136,18 +136,20 @@ export const PluginSelector: FC<Props> = ({
     const index = validPlugins.findIndex((p:Plugin) => p.id === plugin.id);
     if (index !== -1) {
       optionsRef.current[index]?.focus(); 
-      setFocusedIndex(index); 
+      setFocusedIndex(index);
     }
     
   }
 
   return (
     <div className="rounded flex flex-col cursor-pointer border border-neutral-600 bg-neutral-200 dark:bg-[#282834]" 
+    id="enabledFeaturesMenu"
     style={{ boxShadow: '0 6px 10px rgba(0, 0, 0, 0.3)'}}
       >
       {[...validPlugins, null].map((p, index) => (
         <div
           key={p ? p.id : 'none'}
+          id="enabledFeatureIndex"
           ref={el => (optionsRef.current[index] = el)}  
           tabIndex={0}
           className={`border-b border-neutral-600 p-1 ${isActivePlugin(p) ? "text-neutral-600 dark:text-neutral-300" : "text-neutral-400 dark:text-neutral-600"} hover:text-black dark:hover:text-white`}
@@ -164,6 +166,7 @@ export const PluginSelector: FC<Props> = ({
       <div
         className={`${isDragging ? 'cursor-grabbing' : 'cursor-grab'} text-neutral-400 border-b border-neutral-600`}
         title='Click and Drag'
+        id="clickAndDragEnabledFeaturesMenu"
       >
         <IconGripVertical className='ml-2 my-1' size={18}  />
       </div>
@@ -171,6 +174,7 @@ export const PluginSelector: FC<Props> = ({
       <div
         className='flex w-full text-neutral-700 dark:text-neutral-100 bg-neutral-100 dark:bg-neutral-600'
         onClick={() => setShowPluginSelect(false)}
+        id="closeEnabledFeaturesMenu"
         title='Close'
       >    
         <IconSparkles className='ml-1' />

@@ -138,6 +138,7 @@ const FeaturePlugin = ({ plugins, setPlugins }: Props) => {
     return ( hide ? <></> :
         <>
             <div className="`relative inline-block z-20 max-h-full" 
+                id="selectEnabledFeaturesDrag"
                 draggable="true"
                 onMouseDown={startDragging}
                 onMouseUp={stopDragging}
@@ -163,6 +164,7 @@ const FeaturePlugin = ({ plugins, setPlugins }: Props) => {
                 <button // \nNote: You will not be able to use at the same time as a selected Assistant
                     title={`${!codeInterpreterEnabled() ? "Select Enabled Features" : codeInterpreterPlugin?.name}`}
                     className="p-1.5 text-neutral-800 bg-neutral-100 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-neutral-600 dark:text-white dark:hover:bg-neutral-500"
+                    id="selectEnabledFeaturesClick" 
                     style={{
                         cursor: isDragging? "grabbing": "pointer",
                         borderRadius: '50%',
