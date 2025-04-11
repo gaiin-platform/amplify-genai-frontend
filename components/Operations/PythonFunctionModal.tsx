@@ -831,6 +831,7 @@ Generate the following fields in a markdown code block in JSON format:
 - description: a 3-5 sentence summary of the function with key details listed
 - code: a full Python function following the standard described below
 - schema: a JSON schema matching the expected input for the function
+- dependencies: a string in requirements.txt format of any needed dependencies
 - tags: array of keywords
 - environment: a JSON object with secrets, oauth, and variables as keys. Each one is a dict with key-value pairs. The keys are the names of the variables. Any secrets that you need should go into the secrets object. Any oauth tokens you will need should go into the oauth object. Any other variables should go into the oauth. If the user specifies things like a queue name, etc. that might change but aren't input, they should go into variables. Only fill in the values for variables.
 
@@ -883,7 +884,8 @@ Output only a markdown code block like this:
   "description": "This function summarizes text into 3 bullet points.",
   "code": "<the full Python function code using the rules described above>",
   "schema": { "type": "object", "properties": { ... } },
-  "tags": ["text_manipulation","nlp","knowledge_extraction"]
+  "dependencies": "dep1\ndep2\n\etc\nrequirementstxtformat",
+  "tags": ["text_manipulation","nlp","knowledge_extraction"],
 }
 \`\`\`
 `;
@@ -899,12 +901,14 @@ Output only a markdown code block like this:
                                       try {
 
                                         const parsed = JSON.parse(match[1]);
+
                                         const code = postProcessPythonFunction(parsed.code || "");
                                         setName(parsed.name || '');
                                         setDescription(parsed.description || '');
                                         setCode(code);
                                         setSchema(JSON.stringify(parsed.schema ?? {}, null, 2));
                                         setTags(Array.isArray(parsed.tags) ? parsed.tags : []);
+                                        setDependencies(parsed.dependencies);
                                         setHasUnsavedChanges(true);
 
                                         const environment = parsed.environment;
@@ -1435,8 +1439,6 @@ Output only a markdown code block like this:
 
                                                     try {
                                                         const parsed = JSON.parse(match[1]);
-
-                                                        alert(JSON.stringify(parsed))
 
                                                         setNewTestCase({
                                                             name: parsed.name || '',
