@@ -4,7 +4,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { AstWorkflow, Step } from '@/types/assistantWorkflows';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { registerAstWorkflowTemplate, listAstWorkflowTemplates, getAstWorkflowTemplate, updateAstWorkflowTemplate, deleteAstWorkflowTemplate } from '@/services/assistantWorkflowService';
-import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconCaretDown, IconCaretRight, IconArrowUp, IconArrowDown, IconLoader2 } from '@tabler/icons-react';
+import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconCaretDown, IconCaretRight, IconArrowUp, IconArrowDown, IconLoader2, IconInfoCircle, IconPresentation, IconPuzzle, IconPuzzleFilled, IconEdit, IconEditOff } from '@tabler/icons-react';
 import cloneDeep from 'lodash/cloneDeep';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import ExpansionComponent from '../Chat/ExpansionComponent';
@@ -18,6 +18,7 @@ import { getAgentTools } from '@/services/agentService';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import toast from 'react-hot-toast';
 import ActionButton from '../ReusableComponents/ActionButton';
+import { AssistantWorkflow } from './AssistantWorkflow';
 
 interface WorkflowTemplateBuilderProps {
   isOpen: boolean;
@@ -93,10 +94,6 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
 
   const { state: {featureFlags} } = useContext(HomeContext);
   const [selectedWorkflow, setSelectedWorkflow] = useState<AstWorkflow>(emptyTemplate(isBaseTemplate));
-  
-  const [currentStepIndex, setCurrentStepIndex] = useState<number | null>(null);
-  const [isEditingStep, setIsEditingStep] = useState(false);
-  const [currentStep, setCurrentStep] = useState<Step>(defaultStep);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeletingTemplate, setIsDeletingTemplate] = useState<number>(-1);
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +114,9 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
 
   const [availableApis, setAvailableApis] = useState<any[] | null>(null);
   const [availableAgentTools, setAvailableAgentTools] = useState<Record<string, any> | null>(null);
+
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [detailedPreview, setDetailedPreview] = useState(false);
 
 
       // we need to detect name changes if there is a tag predefined because then the existing sender list is empty
@@ -361,26 +361,6 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
     setSelectedWorkflow(newTemplate);
   };
   
-  const handleSaveStep = () => {
-    const newTemplate = cloneDeep(selectedWorkflow);
-    
-    if (!newTemplate.template) {
-      newTemplate.template = { steps: [] };
-    }
-    
-    if (currentStepIndex !== null) {
-      // Edit existing step
-      newTemplate.template.steps[currentStepIndex] = currentStep;
-    } else {
-      // Add new step
-      newTemplate.template.steps.push(currentStep);
-    }
-    
-    setSelectedWorkflow(newTemplate);
-    setIsEditingStep(false);
-    setCurrentStepIndex(null);
-    setExpandedSteps([]);
-  };
 
   const sanitizeKey = (key: string): string => {
     let sanitized = key.trim();
@@ -399,13 +379,17 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   
   const handleNewTemplate = () => {
     setSelectedWorkflow( emptyTemplate(false) );
-    setExpandedSteps([]);
+    setIsPreviewing(false);
   };
+
+  useEffect(() => {
+    setDetailedPreview(false);
+  }, [isPreviewing]);
 
 
   const handleLoadTemplate = async (templateId: string) => {
     setLoadingSelectedWorkflow(true);
-    setExpandedSteps([]);
+    setIsPreviewing(false);
     const selectedTemp = allTemplates.find(t => t.templateId === templateId);
     if (!selectedTemp) {
       alert("Template not found");
@@ -452,7 +436,8 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   }
   
   const renderSidebar = () => (
-    <div className="w-1/4 border-r border-neutral-300 dark:border-neutral-700 overflow-y-auto h-full pr-4">
+    <div className="w-1/4 border-r border-neutral-300 dark:border-neutral-700 overflow-y-auto pr-4"
+         style={{height: '100% !important'}}>
   
       <div className="flex justify-between items-center mb-2">
           <div className="text-sm font-bold">Templates</div>
@@ -479,8 +464,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   ? 'bg-blue-100 dark:bg-blue-900'
                   : 'hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
-              onClick={() => handleLoadTemplate(template.templateId)}
-            >
+              onClick={() => handleLoadTemplate(template.templateId)}>
               <div className="flex flex-col truncate">
                 <div className="font-medium text-neutral-800 dark:text-neutral-200">
                   {template.name}
@@ -520,7 +504,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   const renderStepEditor = (step: Step, index: number) => {
     const isTerminate = isTerminateStep(step);
     return <div className="mb-4">
-        <div className="mb-4">
+        <div className={`mb-4 ${isTerminate ? 'opacity-50' : ''}`}>
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
             Step Name
           </label>
@@ -540,7 +524,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           />
         </div>
       
-      <div className="mb-4">
+      <div className={`mb-4 ${isTerminate ? 'opacity-50' : ''}`}>
         <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
           Description
         </label>
@@ -560,14 +544,15 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
         />
       </div>
       
-      <div className="mb-4">
+      <div className={`mb-4 ${isTerminate ? 'opacity-50' : ''}`}>
         <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
           Tool
         </label>
         <div className="flex flex-col">
           <button
+            disabled={isTerminate}
             type="button"
-            className="flex flex-row w-full p-2 border text-left rounded-lg bg-white hover:bg-gray-50 dark:bg-[#40414F] dark:border-neutral-600 dark:text-white dark:hover:bg-[#4a4b59] transition-colors"
+            className={`flex flex-row w-full p-2 border text-left rounded-lg bg-white dark:bg-[#40414F] dark:border-neutral-600 dark:text-white ${ isTerminate ? "" : "hover:bg-gray-50 dark:hover:bg-[#4a4b59] transition-colors"}`}
             onClick={() => setShowToolSelector(!showToolSelector)}
           >
             {step.tool || "Select a tool"}
@@ -576,7 +561,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
              <IconChevronUp size={18} className="ml-auto flex-shrink-0 ml-1" />}
           </button>
 
-          {showToolSelector  && 
+          {showToolSelector && !isTerminate && 
           <div className='border-b flex flex-col  border-neutral-500'>
             <ApiIntegrationsPanel
                 // API-related props
@@ -625,11 +610,11 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
           rows={4}
           placeholder="Instructions for this step"
-          disabled={isTerminate}
+          // disabled={isTerminate}
         />
       </div>
       
-      <div className="mb-4">
+      <div className={`mb-4 ${isTerminate ? 'opacity-40' : ''}`}>
         <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
           Action Segment
         </label>
@@ -652,7 +637,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
       <div className="mb-4">
         <div className="flex justify-between items-center mb-2">
           <label className="block text-sm font-medium dark:text-neutral-200">
-            Arguments
+            Argument Instructions
           </label>
         </div>
         {Object.keys(step.args || {}).length === 0 ? (
@@ -673,31 +658,69 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   <InputsMap
                     id={`arg-${index}-${argIndex}`}
                     inputs={[
-                      {label: 'Name', key: 'key', disabled: true},
-                      {label: 'Description', key: 'value', disabled: true}
+                      {label: 'Argument', key: 'key', disabled: true},
+                      {label: 'Instructions', key: 'value', }
+                      // disabled: isTerminate
                     ]}
                     state={{key, value}}
-                    inputChanged={(changedKey, changedValue) => {}}
+                    inputChanged={(changedKey, changedValue) => {
+                      const newTemplate = cloneDeep(selectedWorkflow);
+                      if (newTemplate.template?.steps) {
+                        if (changedKey === 'value') {
+                          const newArgs = { ...newTemplate.template.steps[index].args };
+                          newArgs[key] = changedValue;
+                          newTemplate.template.steps[index].args = newArgs;
+                          setSelectedWorkflow(newTemplate);
+                        } 
+                      }
+                    }}
                   />
                 </div>
                 
                 {!isTerminate && (
-                  <div className="w-[28px] flex items-center">
+                  <div className="w-[28px] mt-1 flex items-center">
                     {hoveredArgIndex === `${index}-${argIndex}` && (
+                    <div className="flex flex-col gap-2">
                       <button
-                        onClick={() => {
-                          const newTemplate = cloneDeep(selectedWorkflow);
-                          if (newTemplate.template?.steps) {
-                            const newArgs = { ...newTemplate.template.steps[index].args };
-                            delete newArgs[key];
-                            newTemplate.template.steps[index].args = newArgs;
-                            setSelectedWorkflow(newTemplate);
-                          }
-                        }}
-                        className="p-1 text-red-600 dark:text-red-400 hover:opacity-60 rounded flex-shrink-0"
-                      >
-                        <IconTrash size={18} />
+                          onClick={() => {
+                            const newTemplate = cloneDeep(selectedWorkflow);
+                            if (newTemplate.template?.steps) {
+                              const newArgs = { ...newTemplate.template.steps[index].args };
+                              delete newArgs[key];
+                              newTemplate.template.steps[index].args = newArgs;
+                              setSelectedWorkflow(newTemplate);
+                            }
+                          }}
+                          className="p-1 text-red-600 dark:text-red-400 hover:opacity-60 rounded flex-shrink-0"
+                        >
+                          <IconTrash size={20} />
                       </button>
+
+                      <button
+                          onClick={() => {
+                            const newTemplate = cloneDeep(selectedWorkflow);
+                            if (newTemplate.template?.steps) {
+                              // Initialize editableArgs if it doesn't exist
+                              if (!newTemplate.template.steps[index].editableArgs) {
+                                newTemplate.template.steps[index].editableArgs = [];
+                              }
+                              const editableArgs = newTemplate.template.steps[index].editableArgs || [];
+                              if (editableArgs.includes(key)) {
+                                newTemplate.template.steps[index].editableArgs = editableArgs.filter(arg => arg !== key);
+                              } else {// Add to editable args
+                                newTemplate.template.steps[index].editableArgs = [...editableArgs, key];
+                              }
+                              setSelectedWorkflow(newTemplate);
+                            }
+                          }}
+                          className="p-1 text-neutral-900 dark:text-neutral-100 hover:opacity-80 rounded flex-shrink-0 mr-1"
+                          title={`${(step.editableArgs || []).includes(key) ? "Users will be able to edit this argument's instructions.\nClick to mark as non-editable" : 'Users will not be able to edit this argument.\nClick to mark as editable'}`}
+                        >
+                          {(step.editableArgs || []).includes(key) ? (
+                            <IconEdit size={20} /> ) : ( <IconEditOff size={20} className="opacity-60" />
+                          )}
+                      </button>
+                    </div>
                     )}
                   </div>
                 )}
@@ -709,26 +732,26 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
       <div className="mb-4">
         <div className="flex justify-between items-center mb-2">
           <label className="block text-sm font-medium dark:text-neutral-200">
-            Values
+            Argument Values
           </label>
-          {!isTerminate && (
-            <button
-              onClick={() => {
-                const newTemplate = cloneDeep(selectedWorkflow);
-                if (newTemplate.template?.steps) {
-                  newTemplate.template.steps[index].values = {
-                    ...newTemplate.template.steps[index].values,
-                    '': ''
-                  };
-                  setSelectedWorkflow(newTemplate);
-                }
-              }}
-              className="flex items-center px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-            >
-              <IconPlus size={14} className="mr-1" />
-              Add Value
-            </button>
-          )}
+          
+          <button
+            onClick={() => {
+              const newTemplate = cloneDeep(selectedWorkflow);
+              if (newTemplate.template?.steps) {
+                newTemplate.template.steps[index].values = {
+                  ...newTemplate.template.steps[index].values,
+                  '': ''
+                };
+                setSelectedWorkflow(newTemplate);
+              }
+            }}
+            className="flex items-center px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+          >
+            <IconPlus size={14} className="mr-1" />
+            Add Value
+          </button>
+          
         </div>
         {Object.keys(step.values || {}).length === 0 ? (
           <div className="text-neutral-500 dark:text-neutral-400">
@@ -773,26 +796,24 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               />
             </div>
             
-            {!isTerminate && (
-              <div className="w-[28px] flex items-center">
-                {hoveredValueIndex === `${index}-${valueIndex}` && (
-                  <button
-                    onClick={() => {
-                      const newTemplate = cloneDeep(selectedWorkflow);
-                      if (newTemplate.template?.steps) {
-                        const newValues = { ...newTemplate.template.steps[index].values };
-                        delete newValues[key];
-                        newTemplate.template.steps[index].values = newValues;
-                        setSelectedWorkflow(newTemplate);
-                      }
-                    }}
-                    className="p-1 text-red-600 dark:text-red-400 hover:opacity-60 rounded flex-shrink-0"
-                  >
-                    <IconTrash size={18} />
-                  </button>
-                )}
-              </div>
-            )}
+            <div className="w-[28px] flex items-center">
+              {hoveredValueIndex === `${index}-${valueIndex}` && (
+                <button
+                  onClick={() => {
+                    const newTemplate = cloneDeep(selectedWorkflow);
+                    if (newTemplate.template?.steps) {
+                      const newValues = { ...newTemplate.template.steps[index].values };
+                      delete newValues[key];
+                      newTemplate.template.steps[index].values = newValues;
+                      setSelectedWorkflow(newTemplate);
+                    }
+                  }}
+                  className="p-1 text-red-600 dark:text-red-400 hover:opacity-60 rounded flex-shrink-0"
+                >
+                  <IconTrash size={18} />
+                </button>
+              )}
+            </div>
           </div>
         )))}
       </div>
@@ -979,7 +1000,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   <div 
                     className={`p-4 bg-white border-t border-neutral-300 dark:border-neutral-700 dark:bg-[#343541] 
                     ${expandedSteps.includes(index) ? '' : 'hover:bg-neutral-200 dark:hover:bg-gray-700'}
-                    ${isTerminateStep(step) ? 'opacity-40' : ''} 
+                    ${isTerminateStep(step) && !expandedSteps.includes(index) ? 'opacity-50' : ''} 
                     ${draggedIndex === index ? 'opacity-50' : ''}
                     flex flex-row relative`}
                   draggable={!isTerminateStep(step) && !expandedSteps.includes(index)}
@@ -1043,20 +1064,40 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   };
   
   const renderMainContent = () => (
-    <div className="flex-1 pl-4 overflow-y-auto">
-       <InfoBox
-        content={
-          <span className='px-4'>
-          Workflow templates are used to create assistant workflows. They are a collection of steps that are executed in order.
-          
-          <ul className="mt-2 list-disc pl-5">
-            <li><strong>Steps and Tools:</strong> Each step allows you to select a Tool (internal API, custom API, or agent tool). Selecting a tool will automatically populate the Arguments section. Use the Values section to assign permanent values to specific arguments, otherwise the assistant will decide the value at runtime.</li>
-            <li><strong>Action Segments:</strong> Group related steps by giving them the same Action Segment name. Steps with the same segment will be color-coded together. When creating an assistant with this template, you can enable/disable entire segments at once.</li>
-            <li><strong>Terminate Step:</strong> Every workflow must end with a terminate step. This step is automatically added and should always remain as the last step in your workflow.</li>
-          </ul>
-        </span>
-         }
-      />
+    <div className="flex-1 pl-4">
+      <div className="relative mt-2 ">
+        <ExpansionComponent
+          closedWidget={<IconInfoCircle size={18} className='flex-shrink-0'/>}
+          title="Understanding Assistant Workflow Templates"
+          content={<div className="mb-8 py-2">
+            <InfoBox
+              content={
+                <span className='px-4'>
+              Workflow templates are used to create assistant workflows. They are a collection of steps that are executed in order.
+              
+              <ul className="mt-2 list-disc pl-5">
+                <li><strong>Steps and Tools:</strong> Each step allows you to select a Tool (internal API, custom API, or agent tool). </li>
+                <li className="ml-4"> Selecting a tool will automatically populate the Arguments section. </li>
+                <li className="ml-4"> Edit the Arguments instructions to influence the Assistant's generated argument value. </li>
+                <li className="ml-4"> Use the Values section to assign permanent values to specific arguments, otherwise the assistant will decide the value at runtime.</li>
+                <li className="ml-4"> Arguments are not required and can be removed by clicking the Trash Icon to the right of the argument name. </li>
+                <li className="ml-4"> Select the Edit Icon to the right of the argument name to enable/disable the ability to edit the argument value when adding this workflow to an assistant. </li>
+                <li><strong>Action Segments:</strong> Group related steps by giving them the same Action Segment name. Steps with the same segment will be color-coded together. When creating an assistant with this template, you can enable/disable entire segments at once.</li>
+                <li><strong>Terminate Step:</strong> Every workflow must end with a terminate step. This step is automatically added and should always remain as the last step in your workflow.</li>
+              </ul>
+            </span>
+            }
+          /></div> }
+          /> 
+          <div className="absolute right-1 top-[-6px]">
+            <button
+              className={`px-3  ${buttonStyle}`}
+              onClick={() => setIsPreviewing(true)}>
+              <IconPresentation size={18} />
+              Preview Workflow
+            </button>
+          </div>
+      </div>
       <div className="my-4">
         <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
           Template Name
@@ -1078,9 +1119,6 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           checked={selectedWorkflow.isPublic || false}
           onChange={(checked) => setSelectedWorkflow({...selectedWorkflow, isPublic: checked})}
         />
-        {/* <InfoBox
-          content={<span className='px-4'>Base templates can be attached to assistants for customizing assistant workflows</span>}
-        /> */}
 
       </div>
       
@@ -1101,6 +1139,34 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
       
     </div>
   );
+
+  const renderPreviewContent = () => (
+    <div className="flex-1 pl-4">
+       <div className="relative mt-2 ">
+        <div className="absolute right-1 top-[-6px] flex flex-row gap-4">
+        <button
+              className={`w-[168px] px-4 ${buttonStyle}`}
+              onClick={() => setDetailedPreview(!detailedPreview)}>
+              {`${detailedPreview ? "Hide" : "View"} Detailed Steps`}
+            </button>
+            <button
+              className={`px-3  ${buttonStyle}`}
+              onClick={() => setIsPreviewing(false)}>
+              <IconPuzzle className="ml-1" size={20} />
+              Workflow Builder
+            </button>
+          </div>
+      </div>
+      <AssistantWorkflow 
+          id={"previewCurrentWorkflow"}
+          workflowTemplate={selectedWorkflow} 
+          enableCustomization={false}  // do nothing 
+          onWorkflowTemplateUpdate={(workflowTemplate: AstWorkflow | null) => {}}
+          obfuscate={!detailedPreview}
+      />
+
+    </div>
+  );
   
   if (!isOpen) return null;
   
@@ -1108,29 +1174,24 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
     <Modal
       title={initialTemplate?.templateId ? 'Edit Assistant Workflow Template' : 'Create Assistant Workflow Template'}
       content={
-        <div className="flex h-full">
-          {isEditingStep ? (
-            renderStepEditor(currentStep, currentStepIndex || 0)
-          ) : (
-            <>
-              {renderSidebar()}
-              {renderMainContent()}
-              
-            </>
-          )}
-          
-          
+        <div className="flex flex-row" style={{height: (height ?height() : window.innerHeight * 0.9) * 0.8}}>
+                {renderSidebar()}
+                { isPreviewing ? renderPreviewContent() : renderMainContent()}
         </div>
       }
-      showSubmit={!isEditingStep}
       showCancel={false}
       submitLabel={isSubmitting ? 'Saving Template...' : 'Save Template'}
       onSubmit={handleSaveTemplate}
-      onCancel={onClose}
+      onCancel={ () => {
+        setSelectedWorkflow(emptyTemplate(isBaseTemplate));
+        onClose();
+      }}
       disableSubmit={isSubmitting}
       width={() => width ? width() : Math.min(1000, window.innerWidth * 0.9)}
       height={() => height ? height() : window.innerHeight * 0.9}
     />
   );
 };
+
+const buttonStyle = "py-2 border rounded text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2";
 

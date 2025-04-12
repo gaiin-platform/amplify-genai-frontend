@@ -91,7 +91,7 @@ export const ChatbarSettings = () => {
             {featureFlags.assistantAdminInterface && 
                 <SidebarButton
                     text={t('Assistant Interface')}
-                    icon={<IconRobot size={18} />}
+                    icon={<IconRobot size={19} />}
                     onClick={() => {
                         // send trigger to close side bars and open the interface 
                         window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: true }} ));
@@ -120,7 +120,7 @@ export const ChatbarSettings = () => {
             { featureFlags.createPythonFunctionApis && <>
                 <SidebarButton
                     text={t('Custom Function APIs')}
-                    icon={<IconTools size={18} />}
+                    icon={<IconTools size={17} />}
                     onClick={() => setIsPyFunctionApiOpen(!isPyFunctionApiOpen)}
                 />
 
@@ -135,7 +135,7 @@ export const ChatbarSettings = () => {
             { featureFlags.createAssistantWorkflows && <> 
                 <SidebarButton
                     text={t('Assistant Workflows')}
-                    icon={<IconPuzzle size={18} />}
+                    icon={<IconPuzzle size={20} />}
                     onClick={() => setIsWorkflowBuilderOpen(!isWorkflowBuilderOpen)}
               
                 />
@@ -143,7 +143,7 @@ export const ChatbarSettings = () => {
                     isOpen={isWorkflowBuilderOpen} 
                     onClose={() => setIsWorkflowBuilderOpen(false)} 
                     onRegister={(template) => {}} 
-                    width={() => window.innerWidth * 0.7}
+                    width={() => window.innerWidth * 0.8}
                     height={() => window.innerHeight * 0.94}
             /> </> }
 

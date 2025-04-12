@@ -8,10 +8,10 @@ export const safeEmailEventTag = (tag: string) => {
               .toLowerCase();
 }
 
-export const constructAstEventEmailAddress = (tag: string, userEmail: string) => {
-        const safeTag = safeEmailEventTag(tag);
+export const constructAstEventEmailAddress = (tag: string, userEmail: string, aiEmailDomain: string | null) => {
+    const safeTag = safeEmailEventTag(tag);
     const placeholder = '<Assistant_Name>';
-    return `${userEmail?.split('@')[0]}+${safeTag || placeholder}@${userEmail?.split('@')[1] || 'yourdomain.com'}`;
+    return `${userEmail?.split('@')[0]}+${safeTag || placeholder}@${aiEmailDomain || 'yourdomain.com'}`;
 };
 
 /**

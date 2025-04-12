@@ -8,7 +8,7 @@ import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
 import {createAssistant, addAssistantPath, lookupAssistant} from "@/services/assistantService";
-import {IconFiles, IconArrowRight, IconX, IconPencil, IconMailBolt, IconMailFast, IconPencilBolt, IconCaretRight, IconCaretDown} from "@tabler/icons-react";
+import {IconFiles, IconArrowRight, IconX, IconPencil, IconMailBolt, IconMailFast, IconPencilBolt, IconCaretRight, IconCaretDown, IconBulb, IconTrash} from "@tabler/icons-react";
 
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
@@ -27,7 +27,7 @@ import { AssistantWorkflowSelector } from '@/components/AssistantWorkflows/Assis
 import { AstWorkflow, Step } from '@/types/assistantWorkflows';
 import { getAstWorkflowTemplate, registerAstWorkflowTemplate } from '@/services/assistantWorkflowService';
 import { AssistantWorkflow } from '@/components/AssistantWorkflows/AssistantWorkflow';
-import { computeDisabledSegments } from '@/utils/app/assistantWorkflows';
+import { computeDisabledSegments, rebuildWorkflowFromBase } from '@/utils/app/assistantWorkflows';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import { InfoBox } from '@/components/ReusableComponents/InfoBox';
 import { useSession } from 'next-auth/react';
@@ -154,7 +154,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const {t} = useTranslation('promptbar');
     const { data: session } = useSession();
     const userEmail = session?.user?.email ?? '';
-    const { state: { prompts, featureFlags, amplifyUsers} , setLoadingMessage} = useContext(HomeContext);
+    const { state: { prompts, featureFlags, amplifyUsers, aiEmailDomain } , setLoadingMessage} = useContext(HomeContext);
 
     const definition = getAssistant(assistant);
 
@@ -584,6 +584,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             } else if (baseWorkflowTemplateId && currentWorkflowTemplate && 
                        currentWorkflowTemplate.template && currentWorkflowTemplate.template.steps) { 
                 setLoadingMessage("Registering workflow template...");
+
                 const response = await registerAstWorkflowTemplate(currentWorkflowTemplate.template, currentWorkflowTemplate.name, currentWorkflowTemplate.description);
                 if (response.success && response.data?.templateId) {
                     newAssistant.data.workflowTemplateId = response.data.templateId;
@@ -605,26 +606,28 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             
             // Email Events
             let registerEmailEvent = false; // we have to register after we get the assistant id
-            const eventTag = safeEmailEventTag(name);
+            const eventTag: string = safeEmailEventTag(name);
+            const oldEventTag: string | undefined = safeEmailEventTag(definition.data?.emailEvents?.tag);
             if (enableEmailEvents) {
                 newAssistant.data.emailEvents = {
                     tag : eventTag,
                     template : emailEventTemplate,
                 }
+                const tagChanged = oldEventTag && eventTag !== oldEventTag;
                 // register event template if 
                 // 1. not registered before
                 // 2. template has changed
                 // 3. name has changed
                 const safeTemplate = {userPrompt: emailEventTemplate?.userPrompt || "", systemPrompt: emailEventTemplate?.systemPrompt || ""};
-                if (!definition.data?.emailEvents?.tag ||  eventTag !== safeEmailEventTag(definition.name || "") ||
+                if (!oldEventTag || tagChanged || 
                     !compareEmailEventTemplates(definition.data?.emailEvents?.template, safeTemplate)) {
+                    if (tagChanged) removeAllowedSender(oldEventTag);
                     registerEmailEvent = true;
                 }
 
                 // handle allowed sender changes
                 updateAllowedSenders(eventTag, existingAllowedSenders ?? [], curAllowedSenders);
             } else if (definition.data?.emailEvents?.tag) {// remove if disabling
-                const oldEventTag = safeEmailEventTag(definition.name);
                 removeEventTemplate(oldEventTag);
                 removeAllowedSender(oldEventTag);
                 delete newAssistant.data.emailEvents;
@@ -958,7 +961,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             {/* Email Events - purposefully not featured flagged / outside ofthe advanced section */}
                             {enableEmailEvents &&
                             <div className="mb-4 mt-2 flex flex-col gap-2 mr-6">
-                                <label className=" text-[1.02rem]"> Email this assistant at: <span className='ml-2 text-blue-500'> {`${constructAstEventEmailAddress(name, userEmail)}`} </span></label>
+                                <label className=" text-[1.02rem]"> Email this assistant at: <span className='ml-2 text-blue-500'> {`${constructAstEventEmailAddress(name, userEmail, aiEmailDomain)}`} </span></label>
                             
                                 {!existingAllowedSenders ? <>Loading allowed senders...</> : 
                                 <ExpansionComponent title={"Manage authorized senders who can email this assistant"} 
@@ -1033,7 +1036,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     </div>
 
                                     <div className="text-sm font-bold text-black dark:text-neutral-200 mt-4"
-                                         style={{transform: 'translateX(-28px)'}}>
+                                         style={{transform: 'translateX(-25px)'}}>
                                         <ExpansionComponent
                                             closedWidget= { <IconCaretRight style={{transform: 'translateX(8px)'}} size={18} />}
                                             openWidget= { <IconCaretDown style={{transform: 'translateX(8px)'}} size={18} />}
@@ -1085,36 +1088,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                             } />
                                               </>
                                             }
-                                            <div className="mt-2 mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
-                                                <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                                    {t('Tags')}
-                                                </div>
-                                                <input
-                                                  className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                  placeholder={t('Tag names separated by commas.') || ''}
-                                                  value={tags}
-                                                  title={'Tags for conversations created with this template.'}
-                                                  onChange={(e) => {
-                                                      setTags(e.target.value);
-                                                  }}
-                                                />
-                                            </div>
-
-                                            <div className="mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
-                                                <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                                    {t('Conversation Tags')}
-                                                </div>
-                                                <input
-                                                  className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                  placeholder={t('Tag names separated by commas.') || ''}
-                                                  value={conversationTags}
-                                                  title={'Tags for conversations created with this template.'}
-                                                  onChange={(e) => {
-                                                      setConversationTags(e.target.value);
-                                                  }}
-                                                />
-                                            </div>
-
+                                    
                                     {/* Workflow Template Selector */}
                                     {featureFlags.assistantWorkflows && 
                                     <AssistantWorkflowSelector
@@ -1145,7 +1119,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                     This feature allows you to email your assistant directly. When enabled, you can customize the assistant&apos;s behavior 
                                                     by configuring the system prompt and instructions given to the assistant when it receives an email.
                                                     <div className="text-center mt-1 font-bold"> Email the Assistant at: 
-                                                        <div className='text-blue-500'>{`${constructAstEventEmailAddress(name, userEmail)}`}</div>  
+                                                        <div className='text-blue-500'>{`${constructAstEventEmailAddress(name, userEmail, aiEmailDomain)}`}</div>  
                                                     </div>    
                                                 </span>}
                                         /> 
@@ -1168,11 +1142,20 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                                 ...(emailEventTemplate || {}),
                                                                 [key]: e.target.value
                                                             })}
-                                                            rows={1}
+                                                            rows={2}
                                                             disabled={!enableEmailEvents || disableEdit}
                                                         />
                                                     </div>)
-                                                    } </>
+                                                    }
+                                                    <span className="text-sm text-neutral-500 flex flex-row gap-2"> 
+                                                        <IconBulb size={16} />
+                                                        Use the following valid placeholders to dynamically insert data using the format {"${placeholder}"}
+                                                        <br></br>
+                                                        {"Valid placeholders: sender, recipients, timestamp, subject, contents"}
+                                                        <br></br>
+                                                        {"Example instructions: Acknowledge the email came from ${sender} with subject \"${subject}\" and contains: ${contents}"}
+                                                    </span>
+                                                    </>
                                                 }
                                             />
                                         </div>
@@ -1326,6 +1309,7 @@ const AssistantWorkflowDisplay: React.FC<WorkflowProps> = ({
    }, [astWorkflowTemplateId]);
 
 
+
    const isLoading = loadingState.baseTemplate || loadingState.astTemplate;
 
     return <div className={`w-full mb-4 ${baseWorkflowTemplate ? "border-b pb-3 border-neutral-500" : ""} `}>
@@ -1333,23 +1317,26 @@ const AssistantWorkflowDisplay: React.FC<WorkflowProps> = ({
       <>
       {/* Initial Setup  */}
        { !astWorkflowTemplateId || (baseWorkflowTemplate && !astWorkflowTemplate) ?
-        <AssistantWorkflow 
+        <div key={`initialBaseWorkflow`}>
+            <AssistantWorkflow 
             id={"intialWorkflowSetup"}
             workflowTemplate={baseWorkflowTemplate} 
             enableCustomization={true && !disableEdit} 
             onWorkflowTemplateUpdate={onWorkflowTemplateUpdate}
-        /> : <>
+        /></div> : <>
         {/* {baseWorkflowTemplate.templateId === astWorkflowTemplate?.templateId &&  */}
         <div className="relative">
             {!disableEdit &&
             <button className={"absolute right-2 text-xs flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700"}
                 style={{transform: 'translateY(-10px)'}}
                 onClick={() => {
-                    if (editWorkflowTemplate) onWorkflowTemplateUpdate(null);
-                    setEditWorkflowTemplate(!editWorkflowTemplate);
+                    if (editWorkflowTemplate && !confirm("Are you sure you want to discard workflow changes?")) return;
+                        const newEditValue = !editWorkflowTemplate;
+                        if (!newEditValue) onWorkflowTemplateUpdate(null);
+                        setEditWorkflowTemplate(newEditValue);
                 }}
             >   {editWorkflowTemplate ? 
-                <> <IconX size={16} />  {"Discard Changes"}</> :
+                <> <IconTrash size={16} />  {"Discard Changes"}</> :
                 <> <IconPencil size={16} /> {"Edit Template"}</>}
                 
             </button>}
@@ -1358,21 +1345,24 @@ const AssistantWorkflowDisplay: React.FC<WorkflowProps> = ({
         {baseWorkflowTemplate && astWorkflowTemplate && 
           (editWorkflowTemplate ?
             // Display the current workflow template setup only
+            <div key={`EditingExistingWorkflow`}>
            <AssistantWorkflow 
             // We will use the base workflow and existing workflow template to create a new workflow template 
                 id={"editExistingWorkflow"}
-                workflowTemplate={cloneDeep(baseWorkflowTemplate)} 
+                workflowTemplate={rebuildWorkflowFromBase(baseWorkflowTemplate, astWorkflowTemplate)} 
                 enableCustomization={true} 
+                originalBaseWorkflowTemplate={baseWorkflowTemplate}
                 onWorkflowTemplateUpdate={onWorkflowTemplateUpdate}
                 computedDisabledSegments={() => computeDisabledSegments(baseWorkflowTemplate, astWorkflowTemplate)}
-            /> 
+            /> </div>
             : 
+            <div key={`ExistingWorkflow`}>
             <AssistantWorkflow 
                 id={"viewExistingWorkflow"}
-                workflowTemplate={astWorkflowTemplate} 
+                workflowTemplate={{...astWorkflowTemplate}} 
                 enableCustomization={false}  // do nothing 
                 onWorkflowTemplateUpdate={(workflowTemplate: AstWorkflow | null) => {}}
-            /> ) 
+            /> </div>) 
         }
         </>
        }

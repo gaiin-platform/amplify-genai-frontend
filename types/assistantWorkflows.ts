@@ -7,6 +7,7 @@ export interface Step {
     args: { [key: string]: string };
     stepName?: string;
     actionSegment?: string; // Groups steps by action, used to customize the workflow by linking steps to an action
+    editableArgs?: string[]
   }
   
   export interface AstWorkflowTemplate {

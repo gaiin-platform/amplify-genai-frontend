@@ -25,7 +25,7 @@ const AgentToolsSelector: React.FC<AgentToolsSelectorProps> = ({
   onClickAgentTool,
   disableSelection = false
 }) => {
-    const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('tag'); 
+    const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('name'); 
     const [searchTerm, setSearchTerm] = useState<string>(''); 
 
 

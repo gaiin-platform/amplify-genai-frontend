@@ -171,8 +171,8 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
                   disabled={loadingStates[integration.id] || connectingStates[integration.id]}
                   className={`py-2 rounded-md whitespace-nowrap ${
                     connectedIntegrations.includes(integration.id)
-                      ? 'bg-red-500 text-white px-4'
-                      : 'bg-blue-500 text-white px-6 '
+                      ? `bg-red-500 text-white ${loadingStates[integration.id] ? "px-7" :"px-4"}`
+                      : 'bg-blue-500 text-white px-7'
                   } ${(loadingStates[integration.id] || connectingStates[integration.id]) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {loadingStates[integration.id] || connectingStates[integration.id] ? (

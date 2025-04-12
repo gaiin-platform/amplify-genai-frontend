@@ -1,6 +1,6 @@
 import { Dispatch, FC, SetStateAction, useState } from "react";
 import { loadingIcon, titleLabel } from "../AdminUI";
-import { IconMessage, IconPlus, IconTags, IconTrash } from "@tabler/icons-react";
+import { IconInfoCircle, IconMessage, IconPlus, IconTags, IconTrash } from "@tabler/icons-react";
 import { OpDef } from "@/types/op";
 import InputsMap from "@/components/ReusableComponents/InputMap";
 import { HTTPRequestSelect } from "@/components/AssistantApi/CustomAPIEditor";
@@ -290,6 +290,7 @@ return <>
 
             </div>}
             <ExpansionComponent
+                    closedWidget={<IconInfoCircle size={18} className='flex-shrink-0'/>}
                     title={"Understanding Ops"}
                     content={
                     <InfoBox content={

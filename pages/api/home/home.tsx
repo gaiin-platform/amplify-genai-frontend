@@ -106,6 +106,7 @@ interface Props {
     cognitoClientId: string | null;
     mixPanelToken: string;
     chatEndpoint: string | null;
+    aiEmailDomain: string;
 }
 
 
@@ -114,6 +115,7 @@ const Home = ({
     cognitoDomain,
     mixPanelToken,
     chatEndpoint,
+    aiEmailDomain,
 }: Props) => {
     const { t } = useTranslation('chat');
     const [initialRender, setInitialRender] = useState<boolean>(true);
@@ -136,7 +138,8 @@ const Home = ({
     const contextValue = useHomeReducer({
         initialState: {
             ...initialState,
-            statsService: useEventService(mixPanelToken) },
+            statsService: useEventService(mixPanelToken),
+            aiEmailDomain: aiEmailDomain },
     });
 
 
@@ -1591,6 +1594,7 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
     const mixPanelToken = process.env.MIXPANEL_TOKEN;
     const cognitoClientId = process.env.COGNITO_CLIENT_ID;
     const cognitoDomain = process.env.COGNITO_DOMAIN;
+    const aiEmailDomain = process.env.AI_EMAIL_DOMAIN ?? '';
     
     // const googleApiKey = process.env.GOOGLE_API_KEY;
     // const googleCSEId = process.env.GOOGLE_CSE_ID;
@@ -1604,6 +1608,7 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
             mixPanelToken,
             cognitoClientId,
             cognitoDomain,
+            aiEmailDomain,
             ...(await serverSideTranslations(locale ?? 'en', [
                 'common',
                 'chat',

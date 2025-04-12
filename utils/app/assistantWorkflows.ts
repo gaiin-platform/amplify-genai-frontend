@@ -1,7 +1,7 @@
 import { AstWorkflow, Step } from "@/types/assistantWorkflows";
 import cloneDeep from "lodash/cloneDeep";
 
-export const rebuildWorkflowFromBase = (astWorkflowTemplate: AstWorkflow, baseWorkflowTemplate: AstWorkflow) => {
+export const rebuildWorkflowFromBase = (baseWorkflowTemplate: AstWorkflow, astWorkflowTemplate: AstWorkflow) => {
     // If astWorkflowTemplate doesn't exist or has no template, use the base template
     if (!astWorkflowTemplate || !astWorkflowTemplate.template) return baseWorkflowTemplate ?? null;
     const newTemplate = cloneDeep(astWorkflowTemplate);

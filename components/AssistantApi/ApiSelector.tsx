@@ -21,7 +21,7 @@ export const ApiItemSelector: React.FC<ApiItemSelectorProps> = ({
     disableSelection
   }) => {
 
-    const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('tag'); 
+    const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('name'); 
     const [apiSearchTerm, setApiSearchTerm] = useState<string>(''); 
 
     const handleUpdateApiItem = (id: string, checked: boolean) => {
