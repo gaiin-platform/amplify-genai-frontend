@@ -1,6 +1,7 @@
 import { addAllowedSender, removeAllowedSender } from "@/services/emailEventService";
 
 export const safeEmailEventTag = (tag: string) => {
+    if (!tag) return "";
     return tag.trim()
               .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace invalid chars with underscore
               .replace(/__+/g, '_')            // Replace multiple consecutive underscores with a single one

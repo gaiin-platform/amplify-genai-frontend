@@ -252,7 +252,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                         </div>
                       )}
                       {enableCustomization && segment !== 'default' && (
-                        <div  className="absolute right-1"
+                        <div  className="absolute right-1 mt-4"
                               onClick={e => e.stopPropagation()} 
                            >
                           <Checkbox

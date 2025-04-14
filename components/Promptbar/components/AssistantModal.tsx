@@ -606,8 +606,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             
             // Email Events
             let registerEmailEvent = false; // we have to register after we get the assistant id
-            const eventTag: string = safeEmailEventTag(name);
-            const oldEventTag: string | undefined = safeEmailEventTag(definition.data?.emailEvents?.tag);
+            const eventTag: string = enableEmailEvents ? safeEmailEventTag(name) : "";
+            const oldEventTag: string | undefined = enableEmailEvents ? safeEmailEventTag(definition.data?.emailEvents?.tag) : "";
             if (enableEmailEvents) {
                 newAssistant.data.emailEvents = {
                     tag : eventTag,
@@ -621,13 +621,13 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 const safeTemplate = {userPrompt: emailEventTemplate?.userPrompt || "", systemPrompt: emailEventTemplate?.systemPrompt || ""};
                 if (!oldEventTag || tagChanged || 
                     !compareEmailEventTemplates(definition.data?.emailEvents?.template, safeTemplate)) {
-                    if (tagChanged) removeAllowedSender(oldEventTag);
+                    if (tagChanged && oldEventTag) removeAllowedSender(oldEventTag);
                     registerEmailEvent = true;
                 }
 
                 // handle allowed sender changes
                 updateAllowedSenders(eventTag, existingAllowedSenders ?? [], curAllowedSenders);
-            } else if (definition.data?.emailEvents?.tag) {// remove if disabling
+            } else if (oldEventTag) {// remove if disabling
                 removeEventTemplate(oldEventTag);
                 removeAllowedSender(oldEventTag);
                 delete newAssistant.data.emailEvents;
