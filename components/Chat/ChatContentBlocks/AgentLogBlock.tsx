@@ -175,9 +175,13 @@ const getAgentLogItem = (msg: any) => {
           <IconRobot className="min-w-[20px] text-blue-600 dark:text-blue-400" />
           <IconArrowRight className="min-w-[16px] text-blue-500 dark:text-blue-300" />
           <div>
+            {msg.content?.skipped ?
+            <span className="font-medium text-lg text-red-700 dark:text-red-500">
+              {"Skipped: "}
+            </span> :
             <span className="font-medium text-blue-700 dark:text-blue-300">
-              Execute:
-            </span>{' '}
+              {"Execute: "}
+            </span>}
             <span className="text-gray-600 dark:text-gray-300">
               {msg.content && msg.content.tool ? msg.content.tool : ""}
             </span>
@@ -185,9 +189,9 @@ const getAgentLogItem = (msg: any) => {
         </div>
         <div className="ml-9">
           <div className="flex items-center gap-2 mb-1">
-            <IconBrackets className="min-w-[16px] text-amber-500 dark:text-amber-400" />
+            {!msg.content.skipped && <IconBrackets className="min-w-[16px] text-amber-500 dark:text-amber-400" />}
             <span className="font-medium text-amber-600 dark:text-amber-300">
-              Arguments:
+              {msg.content?.skipped ? "Reasoning: " : "Arguments: "}
             </span>
           </div>
           <MemoizedReactMarkdown
@@ -205,9 +209,9 @@ const getAgentLogItem = (msg: any) => {
               },
             }}
           >
-            {msg.content && msg.content.args ? `\`\`\`json\n${JSON.stringify(msg.content.args, null, 2)}\n\`\`\`` : ""}
+            {msg.content && msg.content.args ? `\`\`\`json\n${JSON.stringify(msg.content.args, null, 2)}\n\`\`\`` : msg.content.skipped ?? ""}
           </MemoizedReactMarkdown>
-        </div>
+        </div> 
       </div>
     );
   } else if (msg.role === 'user') {
