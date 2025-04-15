@@ -115,10 +115,16 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
             .map(prompt => prompt.data?.rootPromptId)
             .map(id => promptsRef.current.find((p:Prompt) => p.id === id))
             .filter(prompt => prompt !== undefined) as Prompt[];
+        
         const sharedData = await createExport(
             selectedConversationsState,
             selectedFoldersState,
-            [...selectedPromptsState, ...rootPromptsToAdd], "share", false);
+            [...selectedPromptsState.map(p => {
+                delete p.data?.workflowTemplateId;
+                delete p.data?.emailEvents?.tag;
+                return p;
+            }),
+             ...rootPromptsToAdd], "share", false);
         
         const sharedWith = [...selectedPeople];
         const sharedBy = user?.email ? user.email.toLowerCase() : undefined;

@@ -70,7 +70,10 @@ const SharedItemsList: FC<{}> = () => {
                 try {
                     const result = await getSharedItems();
                     if (result.success) {
-                        const grouped = groupBy('sharedBy', result.items);
+                        const shared = result.items.filter((item: { sharedBy: string; }) => {
+                            return item.sharedBy !== user?.email;
+                        });
+                        const grouped = groupBy('sharedBy', shared);
                         setGroupedItems(grouped);
                     }
 
@@ -254,7 +257,7 @@ const SharedItemsList: FC<{}> = () => {
                                 <div className="truncate text-left text-[12.5px] leading-3 pr-1">
                                     <div className="mb-1 text-gray-500">{new Date(item.sharedAt).toLocaleString()}</div>
                                     <div
-                                        className="relative max-w-5 truncate text-left text-[12.5px] leading-3 pr-1 "
+                                        className="relative truncate text-left text-[12.5px] leading-3 pr-1 "
                                         style={{wordWrap: "break-word"}} // Added word wrap style
                                     >
                                         {item.note}

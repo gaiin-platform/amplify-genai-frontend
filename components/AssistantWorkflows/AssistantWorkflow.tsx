@@ -287,8 +287,8 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                                   • {step.description}
                                   </div>
                                   <div className="text-xs bg-neutral-100 dark:bg-[#343541] p-2 rounded">
+                                    
                                     <div className="mb-1"><span className="font-medium">Tool:</span> {step.tool}</div>
-                                    <div><span className="font-medium">Instructions:</span> {step.instructions}</div>
                                     
                                     {step.args && Object.keys(step.args).length > 0 && (
                                       <div className="mt-2">
@@ -303,7 +303,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                                     )}
                                     
                                     {step.values && Object.keys(step.values).length > 0 && (
-                                      <div className="mt-2">
+                                      <div className="my-2">
                                         <div className="font-medium">Values:</div>
                                         <ul className="list-disc pl-4">
                                           {Object.entries(step.values).map(([key, value]) => (
@@ -312,6 +312,11 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                                         </ul>
                                       </div>
                                     )}
+
+                                  <ExpansionComponent
+                                    title={"Instructions"}
+                                    content={<div><span className="font-medium">Instructions:</span> {step.instructions}</div>}
+                                    />
                                   </div>
                                 </div>
                               ))}
