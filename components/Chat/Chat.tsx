@@ -1254,7 +1254,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     
 
 
-                                    {selectedConversationState?.messages.map((message: Message, index: number) => (
+                                    {selectedConversationState?.messages?.map((message: Message, index: number) => (
                                         <MemoizedChatMessage
                                                 key={index}
                                                 message={message}

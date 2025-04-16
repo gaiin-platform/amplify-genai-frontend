@@ -1115,7 +1115,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
         
         <Checkbox
           id="isPublic"
-          label="Public to all Amplify users"
+          label="Accessible to any Amplify user"
           checked={selectedWorkflow.isPublic || false}
           onChange={(checked) => setSelectedWorkflow({...selectedWorkflow, isPublic: checked})}
         />

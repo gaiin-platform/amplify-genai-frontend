@@ -295,7 +295,7 @@ if __name__ == "__main__":
     const [publishPath, setPublishPath] = useState('');
     const [publishVersion, setPublishVersion] = useState('v1');
     const [assistantAccessible, setAssistantAccessible] = useState(true);
-    const [access, setAccess] = useState<'public' | 'private'>('public');
+    const [access, setAccess] = useState<'public' | 'private'>('private');
     const [isPublishing, setIsPublishing] = useState(false);
     const [allowedGroups, setAllowedGroups] = useState<string[]>([]);
     const [newGroupInput, setNewGroupInput] = useState('');
@@ -1751,9 +1751,12 @@ Output only a markdown code block like this:
                                             value={access}
                                             //@ts-ignore
                                             onChange={(e) => setAccess(e.target.value)}
-                                        >
-                                            <option value="public">Public</option>
-                                            <option value="private">Private</option>
+                                            
+                                        >   {featureFlags.publicizePythonFunctionApis && 
+                                              <option value="public">Public</option>
+                                            }
+                                              <option value="private">Private</option>
+                                           
                                         </select>
                                     </div>
 
