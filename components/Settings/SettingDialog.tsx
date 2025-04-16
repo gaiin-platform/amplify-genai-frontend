@@ -27,25 +27,25 @@ export const modelOptionFlags = [
     "label": "OpenAI",
     "key": "allOpenAI",
     "defaultValue": false,
-    "identifers": ['gpt', 'o1', 'o3']
+    "identifiers": ['gpt', 'o1', 'o3']
   },
   {
       "label": "Claude",
       "key": "allClaude",
       "defaultValue": false,
-      "identifers": ['anthropic']
+      "identifiers": ['anthropic']
   },
   {
       "label": "Mistral",
       "key": "allMistral",
       "defaultValue": false,
-      "identifers": ['mistral']
+      "identifiers": ['mistral']
   },
   {
     "label": "Llama",
     "key": "allLlama",
     "defaultValue": false,
-    "identifers": ['llama']
+    "identifiers": ['llama']
 },
   ];
 
@@ -79,9 +79,9 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
     models.forEach((model) => {
       const matchedOption = modelOptionFlags.find(flag => {
             // Check if any pattern matches the model.id
-            const identifers = flag.identifers;
+            const identifiers = flag.identifiers;
 
-            return !!identifers.find((identifier: string) => model.id.includes(identifier));
+            return !!identifiers.find((identifier: string) => model.id.includes(identifier));
         }
       );
 
