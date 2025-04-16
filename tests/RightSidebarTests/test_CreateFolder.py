@@ -14,7 +14,7 @@ from selenium.common.exceptions import (
 from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.webdriver.common.keys import Keys
-from .base_test import BaseTest
+from ..base_test import BaseTest
 
 
 class CreateFolderTests(BaseTest):

@@ -274,6 +274,70 @@ class DiagramAssistantsTests(BaseTest):
             "The text extracted should be ",
         )
 
+    # ----------------- Diagram Assistant Modal is interactable -----------------
+    """Ensure the Diagram Assistant button in the Diagram Assistant folder can be clicked 
+       on the Right Side Bar and the modal is interactable"""
+    
+    def test_diagram_assistant_modal_is_interactable(self):                        
+        # Locate all elements with the ID 'dropName'
+        drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "dropName")
+        ))
+        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
+
+        # Find the element with text "Diagram Assistant"
+        time.sleep(2)
+        custom_instructions_dropdown_button = next((el for el in drop_name_elements if el.text == "Custom Instructions"), None)
+        self.assertIsNotNone(custom_instructions_dropdown_button, "Diagram Assistant button should be present")
+
+        # Click to open the dropdown
+        custom_instructions_dropdown_button.click()
+        
+        # Diagram Assistant is visible in drop down menu
+        # Locate all elements with ID "promptName" and find the one with text "Diagram Assistant"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+
+        # Check if any of the elements contain "Diagram Assistant"
+        diagram_assistant = next((el for el in prompt_name_elements if el.text == "Diagram Assistant"), None)
+        self.assertIsNotNone(diagram_assistant, "Diagram Assistant should be visible in the dropdown")
+        
+        # Ensure the parent button's
+        diagram_assistant_button = diagram_assistant.find_element(By.XPATH, "./ancestor::button")
+        button_id = diagram_assistant_button.get_attribute("id")
+        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+
+        # Click to close the dropdown
+        diagram_assistant_button.click()
+
+        # Ensure the diagram_assistant Chat Label appears after selection
+        diagram_assistant_modal_title = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "modalTitle")
+        ))
+        self.assertIsNotNone(diagram_assistant_modal_title, "Diagram Assistant modal title should appear after selection")
+
+        # Extract the text from the element
+        modal_text = diagram_assistant_modal_title.text
+
+        # Ensure the extracted text matches the expected value 
+        # Might be 'Chat with Diagram Assistant'
+        self.assertEqual(modal_text, "Diagram Assistant", "Modal title should be 'Diagram Assistant'")
+        
+        time.sleep(2)
+        
+        # Locate and click the Save button
+        confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
+        self.assertTrue(confirmation_button, "Drop name elements should be initialized")
+        
+        save_button = next((el for el in confirmation_button if el.text == "Submit"), None)
+        self.assertIsNotNone(save_button, "Submit button should be present")
+        
+        save_button.click()
+        
+        time.sleep(15)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

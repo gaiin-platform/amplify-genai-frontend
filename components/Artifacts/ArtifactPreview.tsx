@@ -50,7 +50,7 @@ export const ArtifactPreview: React.FC<Props> = ({ codeBlocks, artifactContent, 
     <div className="p-2 text-base md:max-w-2xl md:gap-6 md:py-2 lg:max-w-2xl lg:px-0 xl:max-w-3xl flex-grow overflow-auto">
       <div className="prose mt-[-2px] w-full dark:prose-invert">
         <div className="flex w-full flex-col h-full">
-          <div className='max-w-[600px]'>
+          <div className='max-w-[600px]' id="renderedContent">
                 {renderedContent()}
             </div>
           </div>

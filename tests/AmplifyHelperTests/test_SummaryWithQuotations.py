@@ -322,6 +322,176 @@ class SummaryWithQuotationsTests(BaseTest):
             "The text extracted should be ",
         )
 
+    # ----------------- Test Summary with Quotations Modal is interactable bullet points -----------------
+    """Ensure the Summary with Quotations button in the Amplify Helpers folder can be clicked 
+       on the Right Side Bar and the modal is interactable with bullet points"""
+    
+    def test_summary_with_quotations_modal_is_interactable_bullet(self):                        
+        # Locate all elements with the ID 'dropName'
+        drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "dropName")
+        ))
+        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
+
+        # Find the element with text "Amplify Helpers"
+        time.sleep(2)
+        amplify_helper_dropdown_button = next((el for el in drop_name_elements if el.text == "Amplify Helpers"), None)
+        self.assertIsNotNone(amplify_helper_dropdown_button, "Amplify Helpers button should be present")
+
+        # Click to open the dropdown
+        amplify_helper_dropdown_button.click()
+        
+        # Summary with Quotations is visible in drop down menu
+        # Locate all elements with ID "promptName" and find the one with text "Summary with Quotations"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+
+        # Check if any of the elements contain "Summary with Quotations"
+        summary_with_quotations = next((el for el in prompt_name_elements if el.text == "Summary with Quotations"), None)
+        self.assertIsNotNone(summary_with_quotations, "Summary with Quotations should be visible in the dropdown")
+        
+        # Ensure the parent button's
+        summary_with_quotations_button = summary_with_quotations.find_element(By.XPATH, "./ancestor::button")
+        button_id = summary_with_quotations_button.get_attribute("id")
+        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+
+        # Click to close the dropdown
+        summary_with_quotations_button.click()
+
+        # Ensure the summary_with_quotations Chat Label appears after selection
+        summary_with_quotations_modal_title = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "modalTitle")
+        ))
+        self.assertIsNotNone(summary_with_quotations_modal_title, "Summary with Quotations modal title should appear after selection")
+
+        # Extract the text from the element
+        modal_text = summary_with_quotations_modal_title.text
+
+        # Ensure the extracted text matches the expected value
+        self.assertEqual(modal_text, "Summary with Quotations", "Modal title should be 'Summary with Quotations'")
+        
+        # id="__idVarFile0"
+        self.upload_file("Test_3.txt")
+        
+        # Click the Model Select Button
+        summarization_options = self.wait.until(EC.presence_of_element_located((By.ID, "selectTool")))
+        self.assertTrue(summarization_options.is_displayed(), "Summarization Select Button is visible")
+        
+        # Open the model dropdown
+        summarization_options.click()
+        
+        time.sleep(1)
+
+        # Click the specific model by ID
+        bullet_option = self.wait.until(EC.presence_of_element_located((By.ID, "Use bullets for quotations")))
+        bullet_option.click()
+        
+        time.sleep(1)
+        
+        # selectTool
+        # Use bullets for quotations
+        # Use numbers for quotations
+        
+        # Locate and click the Save button
+        confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
+        self.assertTrue(confirmation_button, "Drop name elements should be initialized")
+        
+        save_button = next((el for el in confirmation_button if el.text == "Submit"), None)
+        self.assertIsNotNone(save_button, "Submit button should be present")
+        
+        save_button.click()
+        
+        time.sleep(15)
+        
+        
+        
+    # ----------------- Test Summary with Quotations Modal is interactable Numbered List -----------------
+    """Ensure the Summary with Quotations button in the Amplify Helpers folder can be clicked 
+       on the Right Side Bar and the modal is interactable with numbered list"""
+    
+    def test_summary_with_quotations_modal_is_interactable_number(self):                        
+        # Locate all elements with the ID 'dropName'
+        drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "dropName")
+        ))
+        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
+
+        # Find the element with text "Amplify Helpers"
+        time.sleep(2)
+        amplify_helper_dropdown_button = next((el for el in drop_name_elements if el.text == "Amplify Helpers"), None)
+        self.assertIsNotNone(amplify_helper_dropdown_button, "Amplify Helpers button should be present")
+
+        # Click to open the dropdown
+        amplify_helper_dropdown_button.click()
+        
+        # Summary with Quotations is visible in drop down menu
+        # Locate all elements with ID "promptName" and find the one with text "Summary with Quotations"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+
+        # Check if any of the elements contain "Summary with Quotations"
+        summary_with_quotations = next((el for el in prompt_name_elements if el.text == "Summary with Quotations"), None)
+        self.assertIsNotNone(summary_with_quotations, "Summary with Quotations should be visible in the dropdown")
+        
+        # Ensure the parent button's
+        summary_with_quotations_button = summary_with_quotations.find_element(By.XPATH, "./ancestor::button")
+        button_id = summary_with_quotations_button.get_attribute("id")
+        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+
+        # Click to close the dropdown
+        summary_with_quotations_button.click()
+
+        # Ensure the summary_with_quotations Chat Label appears after selection
+        summary_with_quotations_modal_title = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "modalTitle")
+        ))
+        self.assertIsNotNone(summary_with_quotations_modal_title, "Summary with Quotations modal title should appear after selection")
+
+        # Extract the text from the element
+        modal_text = summary_with_quotations_modal_title.text
+
+        # Ensure the extracted text matches the expected value
+        self.assertEqual(modal_text, "Summary with Quotations", "Modal title should be 'Summary with Quotations'")
+        
+        time.sleep(2)
+        
+        # id="__idVarFile0"
+        self.upload_file("Test_3.txt")
+        
+        # Click the Model Select Button
+        summarization_options = self.wait.until(EC.presence_of_element_located((By.ID, "selectTool")))
+        self.assertTrue(summarization_options.is_displayed(), "Summarization Select Button is visible")
+        
+        # Open the model dropdown
+        summarization_options.click()
+        
+        time.sleep(1)
+
+        # Click the specific model by ID
+        bullet_option = self.wait.until(EC.presence_of_element_located((By.ID, "Use numbers for quotations")))
+        bullet_option.click()
+        
+        time.sleep(1)
+        
+        # selectTool
+        # Use bullets for quotations
+        # Use numbers for quotations
+        
+        # Locate and click the Save button
+        confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
+        self.assertTrue(confirmation_button, "Drop name elements should be initialized")
+        
+        save_button = next((el for el in confirmation_button if el.text == "Submit"), None)
+        self.assertIsNotNone(save_button, "Submit button should be present")
+        
+        save_button.click()
+        
+        time.sleep(15)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

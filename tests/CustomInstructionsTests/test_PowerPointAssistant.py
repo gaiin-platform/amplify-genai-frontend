@@ -280,6 +280,70 @@ class PowerPointAssistantsTests(BaseTest):
             "The text extracted should be ",
         )
 
+    # ----------------- PowerPoint Assistant Modal is interactable -----------------
+    """Ensure the PowerPoint Assistant button in the PowerPoint Assistant folder can be clicked 
+       on the Right Side Bar and the modal is interactable"""
+    
+    def test_powerpoint_assistant_modal_is_interactable(self):                        
+        # Locate all elements with the ID 'dropName'
+        drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "dropName")
+        ))
+        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
+
+        # Find the element with text "PowerPoint Assistant"
+        time.sleep(2)
+        custom_instructions_dropdown_button = next((el for el in drop_name_elements if el.text == "Custom Instructions"), None)
+        self.assertIsNotNone(custom_instructions_dropdown_button, "PowerPoint Assistant button should be present")
+
+        # Click to open the dropdown
+        custom_instructions_dropdown_button.click()
+        
+        # PowerPoint Assistant is visible in drop down menu
+        # Locate all elements with ID "promptName" and find the one with text "PowerPoint Assistant"
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "promptName")
+        ))
+        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+
+        # Check if any of the elements contain "PowerPoint Assistant"
+        powerpoint_assistant = next((el for el in prompt_name_elements if el.text == "PowerPoint Assistant"), None)
+        self.assertIsNotNone(powerpoint_assistant, "PowerPoint Assistant should be visible in the dropdown")
+        
+        # Ensure the parent button's
+        powerpoint_assistant_button = powerpoint_assistant.find_element(By.XPATH, "./ancestor::button")
+        button_id = powerpoint_assistant_button.get_attribute("id")
+        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+
+        # Click to close the dropdown
+        powerpoint_assistant_button.click()
+
+        # Ensure the powerpoint_assistant Chat Label appears after selection
+        powerpoint_assistant_modal_title = self.wait.until(EC.presence_of_element_located(
+            (By.ID, "modalTitle")
+        ))
+        self.assertIsNotNone(powerpoint_assistant_modal_title, "PowerPoint Assistant modal title should appear after selection")
+
+        # Extract the text from the element
+        modal_text = powerpoint_assistant_modal_title.text
+
+        # Ensure the extracted text matches the expected value 
+        # Might be 'Chat with PowerPoint Assistant'
+        self.assertEqual(modal_text, "PowerPoint Assistant", "Modal title should be 'PowerPoint Assistant'")
+        
+        time.sleep(2)
+        
+        # Locate and click the Save button
+        confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
+        self.assertTrue(confirmation_button, "Drop name elements should be initialized")
+        
+        save_button = next((el for el in confirmation_button if el.text == "Submit"), None)
+        self.assertIsNotNone(save_button, "Submit button should be present")
+        
+        save_button.click()
+        
+        time.sleep(15)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

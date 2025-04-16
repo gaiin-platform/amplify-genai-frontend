@@ -78,6 +78,7 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEm
         return ( <>
             <input ref={inputRef}
                 className="w-full rounded-lg border-2 border-[#0dcfda] px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-2 border-[#0dcfda] dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                id="emailInput"
                 type="text"
                 value={input}
                 onChange={async (e) => {
