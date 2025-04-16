@@ -1,7 +1,15 @@
 import { addAllowedSender, removeAllowedSender } from "@/services/emailEventService";
 
+export const EMAIL_EVENT_TAG_PREFIX = "my_";
+
+
+export const isPresetEmailEventTag = (initialTag: string | undefined) => {
+  return !!(initialTag && !initialTag.startsWith( EMAIL_EVENT_TAG_PREFIX ));
+}
+
 export const safeEmailEventTag = (tag: string) => {
-    if (!tag) return "";
+    if (!tag || tag === EMAIL_EVENT_TAG_PREFIX) return `${EMAIL_EVENT_TAG_PREFIX}assistant`;
+    if (!tag.startsWith(EMAIL_EVENT_TAG_PREFIX)) tag = `${EMAIL_EVENT_TAG_PREFIX}${tag}`;
     return tag.trim()
               .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace invalid chars with underscore
               .replace(/__+/g, '_')            // Replace multiple consecutive underscores with a single one

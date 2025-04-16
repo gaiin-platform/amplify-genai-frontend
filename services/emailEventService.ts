@@ -102,5 +102,23 @@ export const listAllowedSenders = async (tag: string) => {
     data: { tag },
     service: SERVICE_NAME
   };
-  return await doRequestOp(op);
+  const response = await doRequestOp(op);
+
+  return response.data?.success ? response.data : response;
+};
+
+/**
+ * Check if an event template tag is available for the current user and assistant
+ */
+export const isEventTemplateTagAvailable = async (tag: string, assistantId?: string) => {
+  const op = {
+    method: 'POST',
+    path: URL_PATH,
+    op: "/is-event-template-tag-available",
+    data: { tag, ...(assistantId ? { assistantId } : {}) },
+    service: SERVICE_NAME
+  };
+  const response = await doRequestOp(op);
+
+  return response.data?.success ? response.data : response;
 };

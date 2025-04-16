@@ -8,7 +8,7 @@ import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
 import {createAssistant, addAssistantPath, lookupAssistant} from "@/services/assistantService";
-import {IconFiles, IconArrowRight, IconX, IconPencil, IconMailBolt, IconMailFast, IconPencilBolt, IconCaretRight, IconCaretDown, IconBulb, IconTrash} from "@tabler/icons-react";
+import {IconFiles, IconArrowRight, IconMailFast, IconCaretRight, IconCaretDown} from "@tabler/icons-react";
 
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
@@ -20,23 +20,21 @@ import { getOpsForUser } from '@/services/opsService';
 import { getSettings } from '@/utils/app/settings';
 import { API } from '@/components/AssistantApi/CustomAPIEditor';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';
-import  {AssistantPathEditor, AstPathData, emptyAstPathData, isAstPathDataChanged} from './AssistantPathEditor';
+import  {AssistantPathEditor, AstPathData, emptyAstPathData, isAstPathDataChanged} from './AssistantModalComponents/AssistantPathEditor';
 import {opLanguageOptionsMap } from '@/types/op';
 import { getAgentTools } from '@/services/agentService';
 import { AssistantWorkflowSelector } from '@/components/AssistantWorkflows/AssistantWorkflowSelector';
-import { AstWorkflow, Step } from '@/types/assistantWorkflows';
-import { getAstWorkflowTemplate, registerAstWorkflowTemplate } from '@/services/assistantWorkflowService';
-import { AssistantWorkflow } from '@/components/AssistantWorkflows/AssistantWorkflow';
-import { computeDisabledSegments, rebuildWorkflowFromBase } from '@/utils/app/assistantWorkflows';
+import { AstWorkflow} from '@/types/assistantWorkflows';
+import { registerAstWorkflowTemplate } from '@/services/assistantWorkflowService';;
 import Checkbox from '@/components/ReusableComponents/CheckBox';
-import { InfoBox } from '@/components/ReusableComponents/InfoBox';
 import { useSession } from 'next-auth/react';
-import { compareEmailEventTemplates, constructAstEventEmailAddress, formatEmailEventTemplate, safeEmailEventTag, updateAllowedSenders } from '@/utils/app/assistantEmailEvents';
+import { compareEmailEventTemplates, constructAstEventEmailAddress, EMAIL_EVENT_TAG_PREFIX, formatEmailEventTemplate, isPresetEmailEventTag, safeEmailEventTag, updateAllowedSenders } from '@/utils/app/assistantEmailEvents';
 import { addEventTemplate, listAllowedSenders, removeAllowedSender, removeEventTemplate } from '@/services/emailEventService';
 import toast from 'react-hot-toast';
 import { AddEmailWithAutoComplete } from '@/components/Emails/AddEmailsAutoComplete';
 import ApiIntegrationsPanel from '@/components/AssistantApi/ApiIntegrationsPanel';
-import cloneDeep from 'lodash/cloneDeep';
+import { AssistantEmailEvents } from '@/components/Promptbar/components/AssistantModalComponents/AssistantEmailEvents';
+import { AssistantWorkflowDisplay } from './AssistantModalComponents/AssistantWorkflowDisplay';
 
 
 interface Props {
@@ -301,8 +299,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [currentWorkflowTemplate, setCurrentWorkflowTemplate] =  useState<AstWorkflow | null>(null);
 
     // email events
-    const [enableEmailEvents, setEnableEmailEvents] = useState<boolean>(!!definition.data?.emailEvents?.tag || !!definition.data?.emailEvents?.template);
+    const [enableEmailEvents, setEnableEmailEvents] = useState<boolean>(!!definition.data?.emailEvents);
+    const [emailEventTag, setEmailEventTag] = useState<string | undefined>(definition.data?.emailEvents?.tag);
     const [emailEventTemplate, setEmailEventTemplate] = useState<{systemPrompt?: string, userPrompt?: string} | undefined>(definition.data?.emailEvents?.template);
+    const [isEmailTagAvailable, setIsEmailTagAvailable] = useState<boolean>(!!emailEventTag);
+    const [isCheckingEmailTag, setIsCheckingEmailTag] = useState<boolean>(!isPresetEmailEventTag(emailEventTag));
     
     const [existingAllowedSenders, setExistingAllowedSenders] = useState<string[] | null>(null);
     const [curAllowedSenders, setCurAllowedSenders] = useState<string[]>([]);
@@ -310,11 +311,14 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     useEffect(() => {
         const getAllowedSenders = async () => {
-        const tag = safeEmailEventTag(name);
-        if (!tag) setExistingAllowedSenders([]);
-        const response = await listAllowedSenders(tag);
+            const tag = definition.data?.emailEvents?.tag;
+            if (!tag) {
+                setExistingAllowedSenders([]);
+                return;
+            }
+            const response = await listAllowedSenders(tag);
             if (response.success && response.data)  {
-                const senders: string[] = response.data.data ?? [];
+                const senders: string[] = response.data ?? [];
                 setExistingAllowedSenders(senders);
                 const curSenders = new Set([...senders, ...curAllowedSenders]);
                 setCurAllowedSenders(Array.from(curSenders));
@@ -498,6 +502,18 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             }
         }
 
+        if (enableEmailEvents) {
+            if (!isEmailTagAvailable) {
+                alert("Email event tag is not available, please try a different tag.");
+                return;
+            }
+            if (isCheckingEmailTag) {
+                alert("Please wait for email event tag to be cleared for use...");
+                return;
+            }
+        }
+
+
         setIsLoading(true);
         setLoadingMessage(loadingMessage);
 
@@ -572,7 +588,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             newAssistant.data.builtInOperations = builtInAgentTools; 
 
             if (!baseWorkflowTemplateId && definition.data?.workflowTemplateId) {
-                console.log("remove workflow template")
+                console.log("removing workflow template")
                 newAssistant.data.workflowTemplateId = undefined;
                 newAssistant.data.baseWorkflowTemplateId = undefined;
             } else if (baseWorkflowTemplateId && !currentWorkflowTemplate && 
@@ -606,8 +622,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             
             // Email Events
             let registerEmailEvent = false; // we have to register after we get the assistant id
-            const eventTag: string = enableEmailEvents ? safeEmailEventTag(name) : "";
-            const oldEventTag: string | undefined = enableEmailEvents ? safeEmailEventTag(definition.data?.emailEvents?.tag) : "";
+            const eventTag: string = enableEmailEvents ? emailEventTag && emailEventTag !== EMAIL_EVENT_TAG_PREFIX ? emailEventTag : safeEmailEventTag(name) : "";
+            const oldEventTag: string | undefined = definition.data?.emailEvents?.tag;
             if (enableEmailEvents) {
                 newAssistant.data.emailEvents = {
                     tag : eventTag,
@@ -619,7 +635,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 // 2. template has changed
                 // 3. name has changed
                 const safeTemplate = {userPrompt: emailEventTemplate?.userPrompt || "", systemPrompt: emailEventTemplate?.systemPrompt || ""};
-                if (!oldEventTag || tagChanged || 
+                if (!oldEventTag || tagChanged || !newAssistant.assistantId || !eventTag.startsWith( EMAIL_EVENT_TAG_PREFIX ) ||
                     !compareEmailEventTemplates(definition.data?.emailEvents?.template, safeTemplate)) {
                     if (tagChanged && oldEventTag) removeAllowedSender(oldEventTag);
                     registerEmailEvent = true;
@@ -789,7 +805,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>
                             <div className="flex flex-row gap-2 ">
                                 <select
-                                    className={selectClassName}
+                                    className={"my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow"}
                                     value={selectTemplateId}
                                     onChange={(e) => setSelectTemplateId(e.target.value ?? '')}
                                     >
@@ -961,7 +977,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             {/* Email Events - purposefully not featured flagged / outside ofthe advanced section */}
                             {enableEmailEvents &&
                             <div className="mb-4 mt-2 flex flex-col gap-2 mr-6">
-                                <label className=" text-[1.02rem]"> Email this assistant at: <span className='ml-2 text-blue-500'> {`${constructAstEventEmailAddress(name, userEmail, aiEmailDomain)}`} </span></label>
+                                <label className=" text-[1.02rem]"> Email this assistant at: <span className='ml-2 text-blue-500'> {`${constructAstEventEmailAddress(emailEventTag ?? name, userEmail, aiEmailDomain)}`} </span></label>
                             
                                 {!existingAllowedSenders ? <>Loading allowed senders...</> : 
                                 <ExpansionComponent title={"Manage authorized senders who can email this assistant"} 
@@ -1088,6 +1104,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                             } />
                                               </>
                                             }
+                                    <br></br>
                                     
                                     {/* Workflow Template Selector */}
                                     {featureFlags.assistantWorkflows && 
@@ -1101,66 +1118,22 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     />}
 
                                     {featureFlags.assistantEmailEvents && 
-                                    <>
-                                      <div className="mt-4 mb-2 ml-1 flex flex-row gap-3">
-                                        <Checkbox
-                                            id={`emailEvents`}
-                                            bold={true}
-                                            label="Enable Email Events"
-                                            checked={enableEmailEvents}
-                                            onChange={(checked) => setEnableEmailEvents(checked)}
-                                        />
-                                        <IconMailBolt className="mt-1" size={18} />
-                                      </div>
-                                      <div className="mx-6 mt-[-4px] flex flex-col gap-4">
-                                        <InfoBox 
-                                            content={
-                                                <span className="px-4"> 
-                                                    This feature allows you to email your assistant directly. When enabled, you can customize the assistant&apos;s behavior 
-                                                    by configuring the system prompt and instructions given to the assistant when it receives an email.
-                                                    <div className="text-center mt-1 font-bold"> Email the Assistant at: 
-                                                        <div className='text-blue-500'>{`${constructAstEventEmailAddress(name, userEmail, aiEmailDomain)}`}</div>  
-                                                    </div>    
-                                                </span>}
-                                        /> 
-                                        <div className={`${enableEmailEvents ? "" : "opacity-40"}`}>
-                                            <ExpansionComponent title={"Customize assistant's email response instructions"} 
-                                                closedWidget= { <IconPencilBolt size={18} />} 
-                                                content={ <>
-                                                    {[{key: "systemPrompt", label: "System Prompt", placeholder: "Instructions for how the assistant should process emails"}, 
-                                                    {key: "userPrompt", label: "Instructions", placeholder: "The email content will be appended to this prompt"}].map(({key, label, placeholder}) => 
-                                                    <div key={key} title={!enableEmailEvents ? "Enable Email Events To Edit" : ""}>
-                                                        <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
-                                                            {label}
-                                                        </div>
-                                                        <textarea
-                                                            className="w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                            style={{resize: !enableEmailEvents || disableEdit ? 'none' : 'vertical'}}
-                                                            placeholder={placeholder}
-                                                            value={emailEventTemplate?.[key as keyof typeof emailEventTemplate] || ''}
-                                                            onChange={(e) => setEmailEventTemplate({
-                                                                ...(emailEventTemplate || {}),
-                                                                [key]: e.target.value
-                                                            })}
-                                                            rows={2}
-                                                            disabled={!enableEmailEvents || disableEdit}
-                                                        />
-                                                    </div>)
-                                                    }
-                                                    <span className="text-sm text-neutral-500 flex flex-row gap-2"> 
-                                                        <IconBulb size={16} />
-                                                        Use the following valid placeholders to dynamically insert data using the format {"${placeholder}"}
-                                                        <br></br>
-                                                        {"Valid placeholders: sender, recipients, timestamp, subject, contents"}
-                                                        <br></br>
-                                                        {"Example instructions: Acknowledge the email came from ${sender} with subject \"${subject}\" and contains: ${contents}"}
-                                                    </span>
-                                                    </>
-                                                }
-                                            />
-                                        </div>
-                                       </div>
-                                    </>
+                                     <AssistantEmailEvents
+                                        assistantId={definition.assistantId}
+                                        initialEmailEventTag={definition.data?.emailEvents?.tag}
+                                        enableEmailEvents={enableEmailEvents}
+                                        setEnableEmailEvents={setEnableEmailEvents}
+                                        disableEdit={disableEdit}
+                                        assistantName={name}
+                                        emailEventTag={emailEventTag}
+                                        setEmailEventTag={setEmailEventTag}
+                                        emailEventTemplate={emailEventTemplate}
+                                        setEmailEventTemplate={setEmailEventTemplate}
+                                        isTagAvailable={isEmailTagAvailable}
+                                        setIsTagAvailable={setIsEmailTagAvailable}
+                                        isCheckingTag={isCheckingEmailTag}
+                                        setIsCheckingTag={setIsCheckingEmailTag}
+                                    />
                                     }
 
                                     <br></br>
@@ -1239,139 +1212,4 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         </div>
     );
 };
-
-const selectClassName = "my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow";
-
-
-// This component is very specific to Assistant Modal, which uses the other Workflow components that are more appropriate for reuse
-interface WorkflowProps {
-    baseWorkflowTemplateId: string | undefined;
-    astWorkflowTemplateId: string | undefined;
-    onWorkflowTemplateUpdate: (workflowTemplate: AstWorkflow | null) => void;
-    disableEdit?: boolean;
-}
-  
-const AssistantWorkflowDisplay: React.FC<WorkflowProps> = ({ 
-    baseWorkflowTemplateId, astWorkflowTemplateId, onWorkflowTemplateUpdate, disableEdit=false
-  }) => {
-
-    const getWorkflowTemplate = async (workflowTemplateId: string | undefined): Promise<any> => {
-        if (!workflowTemplateId) return null;
-        const response = await getAstWorkflowTemplate(workflowTemplateId);
-        if (!response.success && 
-            confirm("Error fetching workflow template, would you like to try to retrieve it again?")) {
-            return getWorkflowTemplate(workflowTemplateId);
-        }
-        return response.success ? response.data : null;
-    }
-    // initial states
-    const [baseWorkflowTemplate, setBaseWorkflowTemplate] = useState<AstWorkflow | null>(null);
-    const [astWorkflowTemplate, setAstWorkflowTemplate] = useState<AstWorkflow | null>(null);
-    const [loadingState, setLoadingState] = useState<{
-        baseTemplate: boolean;
-        astTemplate: boolean;
-    }>({
-        baseTemplate: !!baseWorkflowTemplateId, 
-        astTemplate: !!astWorkflowTemplateId
-    });
-
-    const [editWorkflowTemplate, setEditWorkflowTemplate] = useState(false);
-    
-   useEffect(() => {
-        if (baseWorkflowTemplateId) {
-            if (!baseWorkflowTemplate || 
-                // to handle when base templates in selector has changed 
-                (baseWorkflowTemplate.templateId !== baseWorkflowTemplateId)) {
-                setLoadingState(prev => ({ ...prev, baseTemplate: true }));
-                getWorkflowTemplate(baseWorkflowTemplateId).then((template) => {
-                    setBaseWorkflowTemplate(template ?? null);
-                    setLoadingState(prev => ({ ...prev, baseTemplate: false }));
-                }); 
-            }    
-        } else {
-            setBaseWorkflowTemplate(null);
-            setLoadingState(prev => ({ ...prev, baseTemplate: false }));
-        }
-   }, [baseWorkflowTemplateId]);
-
-
-   useEffect(() => {
-       // runs once since astWorkflowTemplateId does not change to another template id
-        if (astWorkflowTemplateId && !astWorkflowTemplate) {
-            setLoadingState(prev => ({ ...prev, astTemplate: true }));
-            getWorkflowTemplate(astWorkflowTemplateId).then((template) => {
-               setAstWorkflowTemplate(template ?? null);
-               setLoadingState(prev => ({ ...prev, astTemplate: false }));
-            });
-        } else if (!astWorkflowTemplateId) {
-            setLoadingState(prev => ({ ...prev, astTemplate: false }));
-        }
-   }, [astWorkflowTemplateId]);
-
-
-
-   const isLoading = loadingState.baseTemplate || loadingState.astTemplate;
-
-    return <div className={`w-full mb-4 ${baseWorkflowTemplate ? "border-b pb-3 border-neutral-500" : ""} `}>
-    {isLoading || !baseWorkflowTemplate ? <> Loading Workflow Template...</>:
-      <>
-      {/* Initial Setup  */}
-       { !astWorkflowTemplateId || (baseWorkflowTemplate && !astWorkflowTemplate) ?
-        <div key={`initialBaseWorkflow`}>
-            <AssistantWorkflow 
-            id={"intialWorkflowSetup"}
-            workflowTemplate={baseWorkflowTemplate} 
-            enableCustomization={true && !disableEdit} 
-            onWorkflowTemplateUpdate={onWorkflowTemplateUpdate}
-        /></div> : <>
-        {/* {baseWorkflowTemplate.templateId === astWorkflowTemplate?.templateId &&  */}
-        <div className="relative">
-            {!disableEdit &&
-            <button className={"absolute right-2 text-xs flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700"}
-                style={{transform: 'translateY(-10px)'}}
-                onClick={() => {
-                    if (editWorkflowTemplate && !confirm("Are you sure you want to discard workflow changes?")) return;
-                        const newEditValue = !editWorkflowTemplate;
-                        if (!newEditValue) onWorkflowTemplateUpdate(null);
-                        setEditWorkflowTemplate(newEditValue);
-                }}
-            >   {editWorkflowTemplate ? 
-                <> <IconTrash size={16} />  {"Discard Changes"}</> :
-                <> <IconPencil size={16} /> {"Edit Template"}</>}
-                
-            </button>}
-
-        </div>
-        {baseWorkflowTemplate && astWorkflowTemplate && 
-          (editWorkflowTemplate ?
-            // Display the current workflow template setup only
-            <div key={`EditingExistingWorkflow`}>
-           <AssistantWorkflow 
-            // We will use the base workflow and existing workflow template to create a new workflow template 
-                id={"editExistingWorkflow"}
-                workflowTemplate={rebuildWorkflowFromBase(baseWorkflowTemplate, astWorkflowTemplate)} 
-                enableCustomization={true} 
-                originalBaseWorkflowTemplate={baseWorkflowTemplate}
-                onWorkflowTemplateUpdate={onWorkflowTemplateUpdate}
-                computedDisabledSegments={() => computeDisabledSegments(baseWorkflowTemplate, astWorkflowTemplate)}
-            /> </div>
-            : 
-            <div key={`ExistingWorkflow`}>
-            <AssistantWorkflow 
-                id={"viewExistingWorkflow"}
-                workflowTemplate={{...astWorkflowTemplate}} 
-                enableCustomization={false}  // do nothing 
-                onWorkflowTemplateUpdate={(workflowTemplate: AstWorkflow | null) => {}}
-            /> </div>) 
-        }
-        </>
-       }
-      
-      </>
-    
-    }
-    
-    </div>
-
-  }
 

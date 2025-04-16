@@ -181,7 +181,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
         };
       }, []);
 
-      useEffect(() => {
+    useEffect(() => {
         const handleArtifactEvent = (event:any) => {
             const isArtifactsOpen = event.detail.isOpen;
             if (!isArtifactsOpen) cleanUp();

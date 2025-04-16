@@ -33,6 +33,8 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
             assistantDefinition.fileKeys = assistantDefinition.dataSources.map((ds) => ds.id);
         }
 
+        op.data = { ...assistantDefinition };
+
         const result = await doRequestOp(op);
 
         const id = result.data.assistantId;
@@ -100,7 +102,7 @@ export const deleteAssistant = async (assistantId: string) => {
 // Simple function to send a direct message to an assistant (for standalone mode)
 import { getSession } from "next-auth/react";
 import { MetaHandler, sendChatRequestWithDocuments } from "./chatService";
-import { emptyAstPathData } from "@/components/Promptbar/components/AssistantPathEditor";
+import { emptyAstPathData } from "@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor";
 import { DEFAULT_SYSTEM_PROMPT } from "@/utils/app/const";
 import { deepMerge } from "@/utils/app/state";
 

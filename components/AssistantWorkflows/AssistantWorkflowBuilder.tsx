@@ -1078,7 +1078,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               <ul className="mt-2 list-disc pl-5">
                 <li><strong>Steps and Tools:</strong> Each step allows you to select a Tool (internal API, custom API, or agent tool). </li>
                 <li className="ml-4"> Selecting a tool will automatically populate the Arguments section. </li>
-                <li className="ml-4"> Edit the Arguments instructions to influence the Assistant's generated argument value. </li>
+                <li className="ml-4"> {"Edit the Arguments instructions to influence the Assistant's generated argument value."} </li>
                 <li className="ml-4"> Use the Values section to assign permanent values to specific arguments, otherwise the assistant will decide the value at runtime.</li>
                 <li className="ml-4"> Arguments are not required and can be removed by clicking the Trash Icon to the right of the argument name. </li>
                 <li className="ml-4"> Select the Edit Icon to the right of the argument name to enable/disable the ability to edit the argument value when adding this workflow to an assistant. </li>
