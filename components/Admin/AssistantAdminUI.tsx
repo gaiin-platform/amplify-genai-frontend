@@ -1561,7 +1561,7 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
             }
             submitLabel={"Create Group"}
             content={
-                <>
+                <div className='text-black dark:text-white'>
                     {"You will be able to manage assistants and view key metrics related to user engagement and conversation."}
                             <div className="text-sm mb-4 text-black dark:text-neutral-200">{message}</div>
 
@@ -1595,7 +1595,7 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
                                 </div>
                             </div>
                         
-                </>
+                </div>
             }
         />
     )
