@@ -112,7 +112,7 @@ export const AssistantWorkflowDisplay: React.FC<WorkflowProps> = ({
                 id={"editExistingWorkflow"}
                 workflowTemplate={rebuildWorkflowFromBase(baseWorkflowTemplate, astWorkflowTemplate)} 
                 enableCustomization={true} 
-                originalBaseWorkflowTemplate={baseWorkflowTemplate}
+                originalBaseWorkflowTemplate={{...baseWorkflowTemplate}}
                 onWorkflowTemplateUpdate={onWorkflowTemplateUpdate}
                 computedDisabledSegments={() => computeDisabledSegments(baseWorkflowTemplate, astWorkflowTemplate)}
             /> </div>

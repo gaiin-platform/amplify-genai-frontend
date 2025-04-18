@@ -49,9 +49,9 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
     } 
     const [groupedSteps, setGroupedSteps] = useState<Record<string, Step[]>>(groupSteps(internalTemplate)?? {});
 
-    // useEffect(() => {
-    //   console.log("\n\nUPDATED groupedSteps", groupedSteps);
-    // },[groupedSteps]);
+    useEffect(() => {
+      if (obfuscate !== undefined) setObfuscateSteps(obfuscate);
+  }, [obfuscate]);
 
     useEffect(() => {
       const displayTemplate = rebuildWorkflowFromBase(workflowTemplate, internalTemplate);
@@ -67,10 +67,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
             setInternalTemplate(cloneDeep(workflowTemplate));
         }
     }, [workflowTemplate?.templateId]);
-    
-    useEffect(() => {
-        setObfuscateSteps(obfuscate ?? !featureFlags.assistantWorkflows);
-    }, [obfuscate]);
+  
 
 
     const updateInternalWithDisabledSegments = (disabledSegments: string[]) => {
@@ -144,7 +141,8 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
     const findStepInTemplate = (template: AstWorkflow, step: Step) => {
       return template.template?.steps.findIndex(s => 
         s.tool === step.tool && 
-        s.instructions === step.instructions &&
+        s.stepName === step.stepName &&
+        s.description === step.description &&
         s.actionSegment === step.actionSegment
       );
     
@@ -267,7 +265,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                     <ExpansionComponent
                       isOpened={obfuscateSteps || typeof obfuscate === 'boolean'}
                       title={segmentTitle}
-                      content={ <div className="py-3 mt-5 bg-neutral-100 dark:bg-[#22232b] p-2">
+                      content={ <div className="py-3 mt-5 bg-gray-200 dark:bg-[#22232b] p-2">
                           {obfuscateSteps ? (
                             // Simplified view (obfuscated)
                             <div className="text-sm text-neutral-700 dark:text-neutral-300">
@@ -286,7 +284,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                                   <div className="font-medium text-neutral-800 dark:text-neutral-200 mb-1">
                                   • {step.description}
                                   </div>
-                                  <div className="text-xs bg-neutral-100 dark:bg-[#343541] p-2 rounded">
+                                  <div className="text-xs bg-gray-300 dark:bg-[#343541] p-2 rounded">
                                     
                                     <div className="mb-1"><span className="font-medium">Tool:</span> {step.tool}</div>
                                     
