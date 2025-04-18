@@ -304,7 +304,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                                       content={
                         <div className="mt-2 mb-6 text-sm font-bold text-black dark:text-neutral-200">
                           {variableOption.typeData && Object.entries(variableOption.typeData).map(([key,data],index) => (
-                              <div key={key} className="mt-4">
+                              <div key={key} id={key} className="mt-4">
                                 <input
                                     className={"mr-2"}
                                     type="checkbox"

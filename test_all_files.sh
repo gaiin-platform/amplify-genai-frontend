@@ -25,28 +25,27 @@ export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 export ENV_FILE="$SCRIPT_DIR/.env.local"
 
 # Navigate to the project directory
-cd "$SCRIPT_DIR/tests" || { echo "Directory not found"; exit 1; }
+cd "$SCRIPT_DIR" || { echo "Directory not found"; exit 1; }
 
 # Function to run tests in a specific directory
 run_tests_in_directory() {
   local dir=$1
   echo "Running tests in the '$dir' folder..."
-  cd "$dir" || { echo "Directory $dir not found"; return 1; }
-  for test_file in Test*.py; do
-    if [[ -f $test_file ]]; then
-      echo "Running $test_file ..."
-      python3 -m unittest "$test_file"
-    fi
+  
+  # Find all test files, excluding .pytest_cache and __pycache__
+  find "tests/$dir" -type f -name "test_*.py" | grep -v "\.pytest_cache" | grep -v "__pycache__" | while read -r test_file; do
+    echo "Running tests in $test_file..."
+    PYTHONPATH="$SCRIPT_DIR" python3 -m unittest -v "$test_file"
   done
-  cd ..
 }
 
 # Determine which tests to run based on the case
 case $1 in
   1)
     echo "Running all tests in all folders..."
-    for dir in */; do
-      run_tests_in_directory "${dir%/}"
+    find tests -type f -name "test_*.py" | grep -v "\.pytest_cache" | grep -v "__pycache__" | while read -r test_file; do
+      echo "Running tests in $test_file..."
+      PYTHONPATH="$SCRIPT_DIR" python3 -m unittest -v "$test_file"
     done
     ;;
   2)

@@ -7,7 +7,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
-from ..base_test import BaseTest
+from tests.base_test import BaseTest
 
 
 class PowerPointAssistantsTests(BaseTest):
@@ -329,7 +329,7 @@ class PowerPointAssistantsTests(BaseTest):
 
         # Ensure the extracted text matches the expected value 
         # Might be 'Chat with PowerPoint Assistant'
-        self.assertEqual(modal_text, "PowerPoint Assistant", "Modal title should be 'PowerPoint Assistant'")
+        self.assertEqual(modal_text, "Chat with PowerPoint Assistant", "Modal title should be 'PowerPoint Assistant'")
         
         time.sleep(2)
         

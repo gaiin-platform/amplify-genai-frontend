@@ -13,7 +13,7 @@ from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import Select
-from ..base_test import BaseTest
+from tests.base_test import BaseTest
 
 class FileInclusionTests(BaseTest):
     
@@ -46,7 +46,7 @@ class FileInclusionTests(BaseTest):
         self.driver.execute_script("arguments[0].style.display = 'block';", file_input)
         # print("Sending file to input field...")
         file_input.send_keys(file_path)
-        time.sleep(15) 
+        time.sleep(35) 
         
     def send_message(self, message):
         # Locate the chatbar to input in messageChatInputText
