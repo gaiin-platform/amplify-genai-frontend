@@ -89,6 +89,12 @@ export const ModelSelect: React.FC<Props> = ({
 
   const selectedModel:Model | undefined = models.find((model) => model.id === selectModel);
 
+  const defaultModelLabel =  (name: string) => {
+    return <>
+      <span>{name}</span>
+      <span className="text-blue-500 ml-2 text-xs">{"(Default)"}</span>
+    </>
+  }
   
 const getIcons = (model: Model) => {
   return <div className="ml-auto flex flex-row gap-1 opacity-70">
@@ -127,7 +133,7 @@ const getIcons = (model: Model) => {
           <>
           <span className="flex items-center">
             {selectedModel?.id === defaultModelId
-              ? `Default (${selectedModel?.name})`
+              ? defaultModelLabel(selectedModel?.name)
               : selectedModel?.name}
           </span>
           {getIcons(selectedModel)}
@@ -148,7 +154,7 @@ const getIcons = (model: Model) => {
                 title={model.description}
               >
                 <span>
-                  {model.id === defaultModelId ? `Default (${model.name})` : model.name}
+                  {model.id === defaultModelId ? defaultModelLabel(model.name) : model.name}
                 </span>
                 {getIcons(model)}
               </li>

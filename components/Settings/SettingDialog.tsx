@@ -42,11 +42,23 @@ export const modelOptionFlags = [
       "identifiers": ['mistral']
   },
   {
-    "label": "Llama",
-    "key": "allLlama",
+    "label": "Amazon",
+    "key": "allAmazon",
     "defaultValue": false,
-    "identifiers": ['llama']
-},
+    "identifiers": ['amazon', 'nova']
+  },
+  {
+    "label": "Meta",
+    "key": "allMeta",
+    "defaultValue": false,
+    "identifiers": ['llama', 'meta']
+  },
+  {"label": "DeepSeek",
+    "key": "allDeepSeek",
+    "defaultValue": false,
+    "identifiers": ['deepseek']
+  },
+
   ];
 
 
@@ -90,7 +102,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
 
 
       Object.entries(sortedModels).forEach(([key, models]) => 
-          sortedModels[key] = (models as any).sort((a: any, b: any) => b.name.length - a.name.length),
+          sortedModels[key] = (models as any).sort((a: any, b: any) => a.name.localeCompare(b.name)),
       );
 
       return sortedModels;
@@ -285,7 +297,7 @@ const modelLabel = (modelId: string, name: string) => {
                                     </div> 
                               </div>      
                               <div className='flex flex-row pr-8'>
-                                <div className='w-[100px] border border-gray-300 mr-[-1px] mt-[-2px] dark:border-neutral-700 px-2'>
+                                <div className='w-[140px] border border-gray-300 mr-[-1px] mt-[-2px] dark:border-neutral-700 px-2'>
                                   <div className='mt-1'>
                                     <FlagsMap 
                                       id={'modelOptionFlags'}
