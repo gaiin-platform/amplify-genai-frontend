@@ -121,7 +121,8 @@ export const Chatbar = () => {
           prompt: DEFAULT_SYSTEM_PROMPT,
           temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
           folderId: folder.id,
-          promptTemplate: null
+          promptTemplate: null,
+          timestamp: Date.now()
         };
         updatedConversations.push(newConversation)
         selectedConversation = {...newConversation}

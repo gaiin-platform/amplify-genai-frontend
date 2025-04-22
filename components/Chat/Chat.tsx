@@ -843,11 +843,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         id: uuidv4(),
                         name: t('New Conversation'),
                         messages: [],
-                        model: getDefaultModel(DefaultModels.DEFAULT),
+                        model: selectedConversation?.model || getDefaultModel(DefaultModels.DEFAULT),
                         prompt: DEFAULT_SYSTEM_PROMPT,
-                        temperature: DEFAULT_TEMPERATURE,
+                        temperature: selectedConversation?.temperature ?? DEFAULT_TEMPERATURE,
                         folderId: null,
-                        isLocal: getIsLocalStorageSelection(storageSelection)
+                        promptTemplate: null,
+                        timestamp: Date.now()
                     },
                 });
 
@@ -1154,6 +1155,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                          {/*  Removing Workspaces:    old   { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' }  */}
                                          {/* Should be in sync with selectedModelId now:      old   selectedConversation?.model?.name || ''*/}
                                         {` `}{selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
+                                        {selectedConversation?.timestamp && (
+                                            <>
+                                                {' '}{new Date(selectedConversation.timestamp).toLocaleDateString()}{' '}|
+                                            </>
+                                        )}
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={(e) => {

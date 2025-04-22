@@ -210,7 +210,9 @@ export const ConversationComponent = ({ conversation}: Props) => {
               selectedConversation?.id === conversation.id ? 'pr-12' : 'pr-1'
             }`}
           >
-            {conversation.name}
+            <div className="flex items-center">
+              <span className="mr-2">{conversation.name}</span>
+            </div>
           </div>
         </button>
       )}
