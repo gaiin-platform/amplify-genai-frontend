@@ -93,7 +93,7 @@ interface ApiItemProps {
                         This feature allows you to email your assistant directly. When enabled, you can customize the assistant&apos;s behavior 
                         by configuring the system prompt and instructions given to the assistant when it receives an email.
                         <div className="text-center mt-1 font-bold"> Email the Assistant at: 
-                            <div className='text-blue-500'>{`${constructAstEventEmailAddress(emailEventTag ?? assistantName, userEmail, aiEmailDomain)}`}</div>  
+                            <div className='text-blue-500'>{`${constructAstEventEmailAddress(emailEventTag ?? safeEmailEventTag(assistantName), userEmail, aiEmailDomain)}`}</div>  
                         </div>    
                     </span>}
             /> 

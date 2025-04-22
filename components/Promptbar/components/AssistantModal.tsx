@@ -622,9 +622,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             
             // Email Events
             let registerEmailEvent = false; // we have to register after we get the assistant id
-            const eventTag: string = enableEmailEvents ? emailEventTag && emailEventTag !== EMAIL_EVENT_TAG_PREFIX ? emailEventTag : safeEmailEventTag(name) : "";
+            let eventTag: string = enableEmailEvents ? emailEventTag && emailEventTag !== EMAIL_EVENT_TAG_PREFIX ? emailEventTag : safeEmailEventTag(name) : "";
             const oldEventTag: string | undefined = definition.data?.emailEvents?.tag;
             if (enableEmailEvents) {
+                eventTag = eventTag.replace(/^[._-]+|[._-]+$/g, '');
                 newAssistant.data.emailEvents = {
                     tag : eventTag,
                     template : emailEventTemplate,
@@ -635,7 +636,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 // 2. template has changed
                 // 3. name has changed
                 const safeTemplate = {userPrompt: emailEventTemplate?.userPrompt || "", systemPrompt: emailEventTemplate?.systemPrompt || ""};
-                if (!oldEventTag || tagChanged || !newAssistant.assistantId || !eventTag.startsWith( EMAIL_EVENT_TAG_PREFIX ) ||
+                if (!oldEventTag || tagChanged || !newAssistant.assistantId ||
                     !compareEmailEventTemplates(definition.data?.emailEvents?.template, safeTemplate)) {
                     if (tagChanged && oldEventTag) removeAllowedSender(oldEventTag);
                     registerEmailEvent = true;
@@ -977,7 +978,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             {/* Email Events - purposefully not featured flagged / outside ofthe advanced section */}
                             {enableEmailEvents &&
                             <div className="mb-4 mt-2 flex flex-col gap-2 mr-6">
-                                <label className=" text-[1.02rem]"> Email this assistant at: <span className='ml-2 text-blue-500'> {`${constructAstEventEmailAddress(emailEventTag ?? name, userEmail, aiEmailDomain)}`} </span></label>
+                                <label className=" text-[1.02rem]"> Email this assistant at: <span className='ml-2 text-blue-500'> {`${constructAstEventEmailAddress(emailEventTag ?? safeEmailEventTag(name), userEmail, aiEmailDomain)}`} </span></label>
                             
                                 {!existingAllowedSenders ? <>Loading allowed senders...</> : 
                                 <ExpansionComponent title={"Manage authorized senders who can email this assistant"} 

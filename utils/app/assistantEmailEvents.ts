@@ -13,14 +13,12 @@ export const safeEmailEventTag = (tag: string) => {
     return tag.trim()
               .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace invalid chars with underscore
               .replace(/__+/g, '_')            // Replace multiple consecutive underscores with a single one
-              .replace(/^[._-]+|[._-]+$/g, '') // Remove leading/trailing dots, underscores, hyphens
               .toLowerCase();
 }
 
 export const constructAstEventEmailAddress = (tag: string, userEmail: string, aiEmailDomain: string | null) => {
-    const safeTag = safeEmailEventTag(tag);
     const placeholder = '<Assistant_Name>';
-    return `${userEmail?.split('@')[0]}+${safeTag || placeholder}@${aiEmailDomain || 'yourdomain.com'}`;
+    return `${userEmail?.split('@')[0]}+${tag || placeholder}@${aiEmailDomain || 'yourdomain.ai'}`;
 };
 
 /**
