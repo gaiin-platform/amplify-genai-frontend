@@ -25,6 +25,7 @@ import { IntegrationsTab } from "./AdminComponents/Integrations";
 import { EmbeddingsTab } from "./AdminComponents/Embeddings";
 import { OpsTab } from "./AdminComponents/Ops";
 import { Pptx_TEMPLATES, Ast_Group_Data, FeatureDataTab, } from "./AdminComponents/FeatureData";
+import { ConversationStorage } from "@/types/conversationStorage";
 
 
 export const titleLabel = (title: string, textSize: string = "lg") => 
@@ -69,6 +70,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [rateLimit, setRateLimit] = useState<{period: PeriodType, rate: string}>({...noRateLimit, rate: '0'});
     const [promptCostAlert, setPromptCostAlert] = useState<PromptCostAlert>({isActive:false, alertMessage: '', cost: 0});
     const [emailSupport, setEmailSupport] = useState<EmailSupport>({isActive:false, email:''});
+
+    const [defaultConversationStorage, setDefaultConversationStorage] = useState<ConversationStorage>('future-local');
 
     const [availableModels, setAvailableModels] = useState<SupportedModelsConfig>({});   
 
@@ -154,6 +157,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setTemplates(data[AdminConfigTypes.PPTX_TEMPLATES] || []);
                 setRateLimit(data[AdminConfigTypes.RATE_LIMIT || rateLimit]);
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
+                setDefaultConversationStorage(data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE] || defaultConversationStorage);
                 setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT || emailSupport]);
                 setLoadingMessage("");
             
@@ -211,6 +215,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return rateLimitObj(rateLimit.period, rateLimit.rate);
             case AdminConfigTypes.PROMPT_COST_ALERT:
                 return promptCostAlert;
+            case AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE:
+                return defaultConversationStorage;
             case AdminConfigTypes.EMAIL_SUPPORT:
                 return emailSupport;
             case AdminConfigTypes.APP_SECRETS:
@@ -462,6 +468,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setRateLimit={setRateLimit}
                     promptCostAlert={promptCostAlert}
                     setPromptCostAlert={setPromptCostAlert}
+                    defaultConversationStorage={defaultConversationStorage}
+                    setDefaultConversationStorage={setDefaultConversationStorage}
                     emailSupport={emailSupport}
                     setEmailSupport={setEmailSupport}
                     allEmails={allEmails}

@@ -12,6 +12,8 @@ import ActionButton from "@/components/ReusableComponents/ActionButton";
 import { useSession } from "next-auth/react";
 import InputsMap from "@/components/ReusableComponents/InputMap";
 import { AddEmailWithAutoComplete } from "@/components/Emails/AddEmailsAutoComplete";
+import { ConversationStorage } from "@/types/conversationStorage";
+import { capitalize } from "@/utils/app/data";
 
 interface Props {
     admins: string[];
@@ -26,6 +28,9 @@ interface Props {
     promptCostAlert: PromptCostAlert;
     setPromptCostAlert: (a: PromptCostAlert) => void;
 
+    defaultConversationStorage: ConversationStorage;
+    setDefaultConversationStorage: (s: ConversationStorage) => void;
+
     emailSupport: EmailSupport;
     setEmailSupport: (e :EmailSupport) => void;
 
@@ -37,6 +42,7 @@ interface Props {
 
 export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setAmpGroups, allEmails,
                                               rateLimit, setRateLimit, promptCostAlert, setPromptCostAlert,
+                                              defaultConversationStorage, setDefaultConversationStorage,
                                               emailSupport, setEmailSupport, admin_text, updateUnsavedConfigs}) => {
 
     const { data: session } = useSession();
@@ -66,6 +72,11 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const handleUpdatePromptCostAlert = (updatedPromptCostAlert: PromptCostAlert) => {
         setPromptCostAlert(updatedPromptCostAlert);
         updateUnsavedConfigs(AdminConfigTypes.PROMPT_COST_ALERT);
+    }
+
+    const handleUpdateDefaultConversationStorage = (updatedDefaultConversationStorage: string) => {
+        setDefaultConversationStorage(updatedDefaultConversationStorage as ConversationStorage);
+        updateUnsavedConfigs(AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE);
     }
 
     const handleUpdateEmailSupport = (updatedEmailSupport: EmailSupport) => {
@@ -233,6 +244,25 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 /></span>
             
             </div>
+
+            
+            <div className="flex flex-row gap-6">
+                {titleLabel('Default User Conversation Storage')}
+                {["future-local", "future-cloud"].map((storage) => (
+                 <label className="flex items-center mt-5" key={storage}>
+                    <input type="radio" name="conversationStorage"
+                    value={storage}
+                    checked={defaultConversationStorage === storage}
+                    onChange={(event) =>  handleUpdateDefaultConversationStorage(event.target.value as ConversationStorage)}
+                    className="form-radio cursor-pointer"
+                    />
+                    <span className="ml-2 text-neutral-700 dark:text-neutral-200">
+                        {capitalize(storage.split('-')[1])}
+                    </span>
+                </label>
+              ))}
+            </div>
+        
 
             {titleLabel('Prompt Cost Alert')}
             <div className="px-6 mr-6">

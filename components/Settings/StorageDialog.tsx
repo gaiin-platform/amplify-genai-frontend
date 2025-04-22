@@ -58,7 +58,7 @@ export const StorageDialog: FC<Props> = ({ open }) => {
 
   const handleSave = async () => {
     setHasChanges(false);
-    saveStorageSettings({ storageLocation: selectedOption } as ConversationStorage);
+    saveStorageSettings(selectedOption as ConversationStorage);
     homeDispatch({field: 'storageSelection', value: selectedOption});
 
     const updatedConversations = await handleStorageSelection(selectedOption, conversationsRef.current, foldersRef.current, statsService);

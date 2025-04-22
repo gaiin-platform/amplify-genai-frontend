@@ -6,7 +6,7 @@ import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
-import { getIsLocalStorageSelection, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
+import { getIsLocalStorageSelection, saveStorageSettings, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import cloneDeep from 'lodash/cloneDeep';
 import {styled} from "styled-components";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
@@ -82,7 +82,7 @@ import { getAllArtifacts } from '@/services/artifactsService';
 import { baseAssistantFolder, basePrompts, isBaseFolder, isOutDatedBaseFolder } from '@/utils/app/basePrompts';
 import { fetchUserSettings } from '@/services/settingsService';
 import { Settings } from '@/types/settings';
-import { getAvailableModels, getEmailSupportData, getFeatureFlags, getPowerPoints } from '@/services/adminService';
+import { getAvailableModels, getFeatureFlags, getPowerPoints, getUserAppConfigs } from '@/services/adminService';
 import { DefaultModels, Model } from '@/types/model';
 import { ErrorMessage } from '@/types/error';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
@@ -92,6 +92,8 @@ import { getSharedItems } from '@/services/shareService';
 import { lowestCostModel } from '@/utils/app/models';
 import { SidebarButton } from '@/components/Sidebar/SidebarButton';
 import { useRouter } from 'next/router';
+import { AdminConfigTypes } from '@/types/admin';
+import { ConversationStorage } from '@/types/conversationStorage';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -780,18 +782,30 @@ const Home = ({
             }  
         };
 
-        const fetchSupportEmail = async () => {      
-            console.log("Fetching Support Email Data...");
+        const fetchUserAppConfigs = async () => {      
+            console.log("Fetching User App Configs...");
             try {
-                const response = await getEmailSupportData();
+                const response = await getUserAppConfigs();
                 if (response.success) {
                     const data = response.data;
-                    if ( data && data.isActive && data.email) dispatch({ field: 'supportEmail', value: data.email});  
+                    if (AdminConfigTypes.EMAIL_SUPPORT in data) {
+                        const emailData = data[AdminConfigTypes.EMAIL_SUPPORT];
+                        if (emailData && emailData.isActive && emailData.email) dispatch({ field: 'supportEmail', value: emailData.email});  
+                    }
+                    if (AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE in data) {
+                        const storageData = data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE];
+                            // honor users selection if it exists
+                        if (!storageSelection && storageData) {
+                            dispatch({ field: 'storageSelection', value: storageData as ConversationStorage}); 
+                            saveStorageSettings(storageData as ConversationStorage);
+                        }
+                    }
+
                 } else {
-                    console.log("Failed to fetch support email data.");
+                    console.log("Failed to fetch user app configs.");
                 }
             } catch (e) {
-                console.log("Failed to support email data: ", e);
+                console.log("Failed to fetch user app configs: ", e);
             }  
         };
 
@@ -1066,7 +1080,7 @@ const Home = ({
             handleFeatureDependantOnLoadData(); 
             fetchAccounts();  // fetch accounts for chatting charging
             fetchAmplifyUsers();
-            fetchSupportEmail();
+            fetchUserAppConfigs();
             fetchPowerPoints();
  
         } 

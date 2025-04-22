@@ -16,6 +16,7 @@ import { Model } from '@/types/model';
 import toast from 'react-hot-toast';
 import { ActiveTabs } from '../ReusableComponents/ActiveTabs';
 import LegacyWorkspaces from '../Workspace/LegacyWorkspace';
+import { capitalize } from '@/utils/app/data';
 
   interface Props {
   open: boolean;
@@ -253,34 +254,20 @@ const modelLabel = (modelId: string, name: string) => {
                                 {t('Theme')}
                               </div>
               
-                              <div className="flex flex-row gap-6 mb-8">
-                                <label className="flex items-center">
-                                  <input
-                                    type="radio"
-                                    name="theme"
-                                    value="dark"
-                                    checked={theme === 'dark'}
-                                    onChange={(event) => {
-                                      setTheme(event.target.value as Theme);
-                                    }}
-                                    className="form-radio cursor-pointer"
-                                  />
-                                  <span className="ml-2 text-neutral-700 dark:text-neutral-200">{t('Dark mode')}</span>
-                                </label>
-                                      
-                                <label className="flex items-center">
-                                  <input
-                                    type="radio"
-                                    name="theme"
-                                    value="light"
-                                    checked={theme === 'light'}
-                                    onChange={(event) => {
-                                      setTheme(event.target.value as Theme);
-                                    }}
-                                    className="form-radio cursor-pointer"
-                                  />
-                                  <span className="ml-2 text-neutral-700 dark:text-neutral-200">{t('Light mode')}</span>
-                                </label>
+                              <div className="flex flex-row gap-6 mb-6">
+                                {["dark", "light"].map((color) => (
+                                  <label className="flex items-center" key={color}>
+                                      <input type="radio" name="theme"
+                                      value={color}
+                                      checked={theme === color}
+                                      onChange={(event) =>  setTheme(event.target.value as Theme)}
+                                      className="form-radio cursor-pointer"
+                                      />
+                                      <span className="ml-2 text-neutral-700 dark:text-neutral-200">
+                                        {t(`${capitalize(color)} mode`)} 
+                                      </span>
+                                  </label>
+                                ))}
                               </div>
               
                               { Object.keys(allAvailableModels).length > 0 && <>
@@ -332,7 +319,7 @@ const modelLabel = (modelId: string, name: string) => {
                               </div>
                                     
                               </>}
-                              <div className="mt-4 mb-2 text-lg font-bold text-black dark:text-neutral-200">
+                              <div className="mt-6 mb-2 text-lg font-bold text-black dark:text-neutral-200">
                                 {t('Features')}
                               </div>
                               <div className='pr-4'>

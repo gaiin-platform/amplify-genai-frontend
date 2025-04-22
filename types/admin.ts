@@ -27,6 +27,7 @@ export enum AdminConfigTypes {
     PROMPT_COST_ALERT = 'promtCostAlert',
     EMAIL_SUPPORT = 'emailSupport',
     INTEGRATIONS = 'integrations',
+    DEFAULT_CONVERSATION_STORAGE = 'defaultConversationStorage',
 
   }
 
@@ -44,6 +45,7 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
       AdminConfigTypes.PROMPT_COST_ALERT,
       AdminConfigTypes.EMAIL_SUPPORT,
       AdminConfigTypes.AMPLIFY_GROUPS,
+      AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE,
     ],
 
     'Feature Flags' : [

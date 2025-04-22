@@ -37,11 +37,12 @@ export const getFeatureFlags = async () => {
     return await doRequestOp(op);
 }
 
-export const getEmailSupportData = async () => {
+
+export const getUserAppConfigs = async () => {
     const op = {
         method: 'GET',
         path: URL_PATH,
-        op: "/support_email",
+        op: "/user_app_configs",
         service: SERVICE_NAME
     };
     return await doRequestOp(op);
