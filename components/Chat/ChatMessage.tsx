@@ -464,7 +464,7 @@ export const ChatMessage: FC<Props> = memo(({
                         <div className="flex flex-col w-full" ref={markdownComponentRef}>
                             <div className="flex flex-row w-full">
                                 <div className="flex flex-col w-full">
-                                    {(selectedConversation?.messages.length === messageIndex + 1) && (
+                                    {(selectedConversation?.messages?.length === messageIndex + 1) && (
                                         <PromptingStatusDisplay statusHistory={status}/>
                                     )}
                                      {featureFlags.highlighter && settingRef.current.featureOptions.includeHighlighter && 
@@ -642,7 +642,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     )}
                                 </>
                             )}
-                            {((messageIsStreaming || artifactIsStreaming) && messageIndex == (selectedConversation?.messages.length ?? 0) - 1) ?
+                            {((messageIsStreaming || artifactIsStreaming) && messageIndex == (selectedConversation?.messages?.length ?? 0) - 1) ?
                                 // <LoadingIcon />
                                 <Loader type="ping" size="48"/>
                                 : null}

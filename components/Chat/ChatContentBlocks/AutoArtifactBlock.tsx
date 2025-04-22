@@ -145,7 +145,7 @@ const repairJson = async () => {
         prepareArtifacts(fixedJson, false);
      } else {
          message.data.artifactStatus = ArtifactMessageStatus.CANCELLED;
-         if (selectedConversation) {
+         if (selectedConversation && selectedConversation.messages) {
             const updatedConversation = {...selectedConversation};
             updatedConversation.messages[selectedConversation.messages.length - 1] = message;
             handleUpdateSelectedConversation(updatedConversation);
@@ -308,7 +308,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
 
             let updatedConversation: Conversation = {...selectedConversation, artifacts: selectedConversation.artifacts || {}};
            // selectedConversation with the assistant message stripped of artifact block data
-            const messageLen = selectedConversation.messages.length - 1;
+            const messageLen = selectedConversation.messages?.length - 1;
             const responseData = response.body;
             const reader = responseData ? responseData.getReader() : null;
             const decoder = new TextDecoder();

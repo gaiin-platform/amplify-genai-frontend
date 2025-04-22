@@ -1317,7 +1317,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         />
                                     )}
 
-                                    {showOnEditMessagePrompt && 
+                                    {showOnEditMessagePrompt && selectedConversationState?.messages &&
                                     <ConfirmModal
                                     title='Save a Copy of the Conversation?'
                                     message="Would you like to save a copy of the conversation with the original messages before finalizing your edits? Once the changes are applied, any messages following the edited one will be removed and resubmitted to the model, effectively updating and overwriting the conversation."

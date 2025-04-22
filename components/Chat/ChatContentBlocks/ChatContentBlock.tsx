@@ -63,7 +63,7 @@ const ChatContentBlock: React.FC<Props> = (
     const transformedMessageContent = selectedConversation ?
         transformMessageContent(selectedConversation, message) :
         message.content;
-    const isLast = messageIndex == (selectedConversation?.messages.length ?? 0) - 1;
+    const isLast = messageIndex == (selectedConversation?.messages?.length ?? 0) - 1;
 
 
     const promptbarRef = useRef(showPromptbar);
@@ -186,7 +186,7 @@ const ChatContentBlock: React.FC<Props> = (
 
                 switch (match[1]) {
                     case 'mermaid':
-                        return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1 }/>);
+                        return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages?.length ?? 0) - 1 }/>);
                     
                     case 'apiResult':
                         return (<ExpansionComponent title={"Result"} content={String(children)}/>)
@@ -259,7 +259,7 @@ const ChatContentBlock: React.FC<Props> = (
                     default:
                         if (match[1].toLowerCase() === 'vega' || match[1].toLowerCase() === 'vegalite') {
                             //console.log("mermaid")
-                            return (<VegaVis chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1} />);
+                            return (<VegaVis chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages?.length ?? 0) - 1} />);
                         }
                         break;
                 }
@@ -308,7 +308,7 @@ const ChatContentBlock: React.FC<Props> = (
 >
     {`${transformedMessageContent}${
         messageIsStreaming && !document.querySelector('.highlight-pulse') && 
-        messageIndex == (selectedConversation?.messages.length ?? 0) - 1 ? '`▍`' : ''
+        messageIndex == (selectedConversation?.messages?.length ?? 0) - 1 ? '`▍`' : ''
     }`}
 </MemoizedReactMarkdown>
 </div>);
