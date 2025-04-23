@@ -12,7 +12,7 @@ from selenium.common.exceptions import UnexpectedAlertPresentException, NoSuchEl
 from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.webdriver.common.keys import Keys
-from ..base_test import BaseTest
+from tests.base_test import BaseTest
 
 class SelectEnabledFeaturesTests(BaseTest):
 

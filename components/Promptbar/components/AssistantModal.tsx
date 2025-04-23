@@ -795,6 +795,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                         
 
                         <div className=" max-h-[calc(100vh-10rem)] overflow-y-auto"
+                            id="assistantModalScroll"
                             style={{ height: height}}>
                             {children}
 
@@ -807,6 +808,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             <div className="flex flex-row gap-2 ">
                                 <select
                                     className={"my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow"}
+                                    id="autoPopulateSelect"
                                     value={selectTemplateId}
                                     onChange={(e) => setSelectTemplateId(e.target.value ?? '')}
                                     >
@@ -823,6 +825,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 className={`mt-2 px-1 h-[36px] rounded border border-neutral-900 dark:border-neutral-500 px-4 py-2 text-neutral-500 dark:text-neutral-300 dark:bg-[#40414F]
                                             ${selectTemplateId ? "cursor-pointer  hover:text-neutral-900 dark:hover:text-neutral-100"  : "cursor-not-allowed"}`}
                                 disabled={!selectTemplateId}
+                                id="fillInTemplateButton"
                                 onClick={() => handleAstTemplateChange()}
                                 title={"Fill-In Template"}
                                 >
@@ -847,6 +850,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>
                             <textarea
                                 className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                id="assistantDescription"
                                 style={{resize: 'none'}}
                                 placeholder={t('A description for your prompt.') || ''}
                                 value={description}
@@ -866,6 +870,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         'Prompt content. Use {{}} to denote a variable. Ex: {{name}} is a {{adjective}} {{noun}}',
                                     ) || ''
                                 }
+                                id="assistantInstructions"
                                 value={content}
                                 onChange={(e) => setContent(e.target.value)}
                                 rows={15}
@@ -885,6 +890,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         ) || ''
                                     }
                                     value={disclaimer}
+                                    id="assistantDisclaimer"
                                     onChange={(e) => setDisclaimer(e.target.value)}
                                     rows={2}
                                     disabled={disableEdit}
@@ -897,6 +903,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             {!disableEdit && <div className="flex flex-row items-center">
                                 <button
                                     title='Add Files'
+                                    id="assistantViewFile"
                                     className={`left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:hover:text-neutral-200 dark:bg-opacity-50 dark:text-neutral-100 `}
                                     onClick={(e) => {
                                         e.preventDefault();
@@ -1105,8 +1112,36 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                             } />
                                               </>
                                             }
-                                    <br></br>
-                                    
+                                            <div className="mt-2 mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
+                                                <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                                    {t('Tags')}
+                                                </div>
+                                                <input
+                                                  className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                  placeholder={t('Tag names separated by commas.') || ''}
+                                                  value={tags}
+                                                  title={'Tags for conversations created with this template.'}
+                                                  onChange={(e) => {
+                                                      setTags(e.target.value);
+                                                  }}
+                                                />
+                                            </div>
+
+                                            <div className="mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
+                                                <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                                    {t('Conversation Tags')}
+                                                </div>
+                                                <input
+                                                  className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                  placeholder={t('Tag names separated by commas.') || ''}
+                                                  value={conversationTags}
+                                                  title={'Tags for conversations created with this template.'}
+                                                  onChange={(e) => {
+                                                      setConversationTags(e.target.value);
+                                                  }}
+                                                />
+                                            </div>
+
                                     {/* Workflow Template Selector */}
                                     {featureFlags.assistantWorkflows && 
                                     <AssistantWorkflowSelector

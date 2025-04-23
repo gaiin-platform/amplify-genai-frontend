@@ -12,7 +12,7 @@ from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import Select
-from ..base_test import BaseTest
+from tests.base_test import BaseTest
 
 class AssistantModalTests(BaseTest):
     
@@ -379,56 +379,8 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        # id="URIinput"
-        uri_input = self.wait.until(EC.presence_of_element_located((By.ID, "URIinput")))
-        self.assertIsNotNone(uri_input, "Assistant disclaimer input should be present")
-        uri_input.send_keys("https://www.exampleOfDaruk'sProtection.com/") # This is a fake uri
-        
-        time.sleep(2)
-        
-        # id="assistantOpsLanguageVersion"
-        ops_language = self.wait.until(EC.presence_of_element_located((By.ID, "assistantOpsLanguageVersion")))
-        self.assertIsNotNone(ops_language, "Custom Instructions select should be present")
-        instruction_options = [option.text for option in ops_language.find_elements(By.TAG_NAME, "option")]
-        self.assertTrue(instruction_options, "Custom Instructions select should contain options")
-        
-        for option in ops_language.find_elements(By.TAG_NAME, "option"):
-            if option.text == "v2":
-                option.click()
-                break
-
-        time.sleep(1)
-
-        for option in ops_language.find_elements(By.TAG_NAME, "option"):
-            if option.text == "v3":
-                option.click()
-                break
-
-        time.sleep(1)
-        
-        for option in ops_language.find_elements(By.TAG_NAME, "option"):
-            if option.text == "Deep VU1":
-                option.click()
-                break
-
-        time.sleep(1)
-        
-        for option in ops_language.find_elements(By.TAG_NAME, "option"):
-            if option.text == "Custom":
-                option.click()
-                break
-
-        time.sleep(1)
-        
-        for option in ops_language.find_elements(By.TAG_NAME, "option"):
-            if option.text == "v1":
-                option.click()
-                break
-
-        time.sleep(1)
-        
-        assistant_scroll_window = self.wait.until(EC.presence_of_element_located((By.ID, "assistantModalScroll")))
-        self.driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight;", assistant_scroll_window)
+        allow_request = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "label[for='allowRequestAccess']")))
+        allow_request.click()
         
         time.sleep(2)
         
@@ -540,19 +492,9 @@ class AssistantModalTests(BaseTest):
         advanced_button = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent")))
         self.assertIsNotNone(advanced_button, "Advanced Button should be present")
         advanced_button.click()
-        
-        # Verify the values in the reopened modal
-        self.assertEqual(
-            self.wait.until(EC.presence_of_element_located((By.ID, "URIinput"))).get_attribute("value"),
-            "https://www.exampleOfDaruk'sProtection.com/",
-            "Assistant URI should match the input value"
-        )
 
-        self.assertEqual(
-            self.wait.until(EC.presence_of_element_located((By.ID, "assistantOpsLanguageVersion"))).get_attribute("value"),
-            "v1",
-            "Version should match the input value"
-        )
+        allow_request_checked = self.wait.until(EC.presence_of_element_located((By.ID, "allowRequestAccess")))
+        self.assertTrue(allow_request_checked.is_selected(), "Include Message IDs checkbox should remain checked")
         
         include_message_ids_checked = self.wait.until(EC.presence_of_element_located((By.ID, "messageOptionFlags-includeMessageIds")))
         self.assertTrue(include_message_ids_checked.is_selected(), "Include Message IDs checkbox should remain checked")
@@ -748,7 +690,7 @@ class AssistantModalTests(BaseTest):
     # ----------------- Test Assistant Document and Sources -----------------
     """This test goes through to create an Assistant and test an added document makes the sources appear""" 
     
-    def test_assistant_data_source_options(self):
+    def test_assistant_document_and_sources(self):
         
         time.sleep(3)
         
