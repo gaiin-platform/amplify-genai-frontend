@@ -1,4 +1,4 @@
-import { IconArrowRight, IconCircleCheck, IconCircleX, IconBrackets, IconRobot, IconTerminal2, IconUser } from '@tabler/icons-react';
+import { IconArrowRight, IconCircleCheck, IconCircleX, IconBrackets, IconRobot, IconTerminal2, IconUser, IconCurrencyDollar } from '@tabler/icons-react';
 import React, { useEffect, useState } from "react";
 
 
@@ -85,6 +85,10 @@ export function guessMimeType(fileName: string): SupportedMimeType {
 
   // Return the MIME type if found, otherwise return binary/octet-stream
   return mimeTypes[extension] || 'binary/octet-stream';
+}
+
+function formatCost(cost: number) {
+  return cost < 0.01 ? `$${cost.toPrecision(4)}` : `$${cost.toFixed(2)}`;
 }
 
 
@@ -244,6 +248,18 @@ const getAgentLogItem = (msg: any) => {
       </div>
     );
   } else if (msg.role === 'environment') {
+    if (msg.content?.total_token_cost) {
+      return (
+      <div className="mt-4 flex items-center gap-2 bg-white dark:bg-[#343541] rounded p-2 my-1 mr-2">
+        <IconCurrencyDollar className="min-w-[20px] text-green-500" />
+        <div>
+          <span className="font-medium text-lg">
+            {`Total Token Cost: ${formatCost(msg.content.total_token_cost)}`}            
+          </span>
+        </div>
+      </div>
+      );
+    }
     const hasError = msg.content?.error;
     return (
       <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#444654] rounded p-2 my-1">
