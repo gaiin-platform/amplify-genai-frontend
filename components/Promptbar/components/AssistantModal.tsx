@@ -507,7 +507,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 alert("Email event tag is not available, please try a different tag.");
                 return;
             }
-            if (isCheckingEmailTag) {
+            if (isCheckingEmailTag && (definition.data?.emailEvents?.tag && !emailEventTag)) {
                 alert("Please wait for email event tag to be cleared for use...");
                 return;
             }
@@ -626,16 +626,17 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             const oldEventTag: string | undefined = definition.data?.emailEvents?.tag;
             if (enableEmailEvents) {
                 eventTag = eventTag.replace(/^[._-]+|[._-]+$/g, '');
+                const safeTemplate = {userPrompt: emailEventTemplate?.userPrompt || "", systemPrompt: emailEventTemplate?.systemPrompt || ""};
                 newAssistant.data.emailEvents = {
                     tag : eventTag,
-                    template : emailEventTemplate,
+                    template : safeTemplate,
                 }
                 const tagChanged = oldEventTag && eventTag !== oldEventTag;
                 // register event template if 
                 // 1. not registered before
                 // 2. template has changed
                 // 3. name has changed
-                const safeTemplate = {userPrompt: emailEventTemplate?.userPrompt || "", systemPrompt: emailEventTemplate?.systemPrompt || ""};
+                
                 if (!oldEventTag || tagChanged || !newAssistant.assistantId ||
                     !compareEmailEventTemplates(definition.data?.emailEvents?.template, safeTemplate)) {
                     if (tagChanged && oldEventTag) removeAllowedSender(oldEventTag);
