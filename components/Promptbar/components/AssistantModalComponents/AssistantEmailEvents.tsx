@@ -101,7 +101,7 @@ interface ApiItemProps {
                 <div className="absolute right-0 flex flex-row gap-2">
                     Email Identifier Tag:
                     <input
-                        className="w-[200px] mt-[-3px] rounded-lg border border-neutral-500 px-4 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                        className="w-[200px] mt-[-3px] rounded-lg border border-neutral-500 pl-4 pr-8 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                         value={ (emailEventTag || safeEmailEventTag(assistantName))}
                         disabled={!enableEmailEvents || disableEdit || isPresetEmailEventTag(initialEmailEventTag)}
                         onChange={(e) => {
@@ -121,7 +121,7 @@ interface ApiItemProps {
                     />
                 
                 {!isPresetEmailEventTag(initialEmailEventTag) && enableEmailEvents &&
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
                     {isCheckingTag ? (
                         <IconLoader2 className="animate-spin h-5 w-5 text-gray-400" />
                     ) : (<>
@@ -169,7 +169,7 @@ interface ApiItemProps {
                             />
                         </div>)
                         }
-                        <span className="text-sm text-neutral-500 flex flex-row gap-2"> 
+                        <span className="text-sm text-gray-400 dark:text-neutral-500 flex flex-row gap-2"> 
                             <IconBulb size={16} />
                             Use the following valid placeholders to dynamically insert data using the format {"${placeholder}"}
                             <br></br>
