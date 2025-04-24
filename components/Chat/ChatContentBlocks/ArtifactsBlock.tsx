@@ -43,7 +43,7 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
     }, [message])
 
     useEffect(()=> {
-        if (selectedConversation) {
+        if (selectedConversation && selectedConversation.messages) {
             const msg = selectedConversation.messages[messageIndex];
             if (msg && msg.data && msg.data.artifacts) setArtifacts(msg.data.artifacts);
         }

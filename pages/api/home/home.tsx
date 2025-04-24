@@ -377,11 +377,7 @@ const Home = ({
                         conversation.id === selectedConversation.id) : false;
                 if (!selectedNotDeleted) { // was deleted
                     const newSelectedConversation = updatedConversations[updatedConversations.length - 1];
-                    dispatch({
-                        field: 'selectedConversation',
-                        value: newSelectedConversation,
-                    });
-                    localStorage.setItem('selectedConversation', JSON.stringify(newSelectedConversation));
+                    handleSelectConversation(newSelectedConversation);
                 }
 
             } else {
@@ -1232,7 +1228,6 @@ const Home = ({
         }
 
         dispatch({ field: 'selectedConversation', value: selectedConversation });
-        localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
 
         if (conversationHistory) {
             const cleanedConversationHistory = cleanConversationHistory(conversations, getDefaultModel(DefaultModels.DEFAULT));
