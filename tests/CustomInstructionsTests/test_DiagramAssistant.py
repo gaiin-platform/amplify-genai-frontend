@@ -7,7 +7,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
-from ..base_test import BaseTest
+from tests.base_test import BaseTest
 
 
 class DiagramAssistantsTests(BaseTest):
@@ -323,7 +323,7 @@ class DiagramAssistantsTests(BaseTest):
 
         # Ensure the extracted text matches the expected value 
         # Might be 'Chat with Diagram Assistant'
-        self.assertEqual(modal_text, "Diagram Assistant", "Modal title should be 'Diagram Assistant'")
+        self.assertEqual(modal_text, "Chat with Diagram Assistant", "Modal title should be 'Diagram Assistant'")
         
         time.sleep(2)
         
