@@ -219,7 +219,6 @@ export const ChatInput = ({
 
     const [showQiDialog, setShowQiDialog] = useState(false);
     const [isQiLoading, setIsQiLoading] = useState<boolean>(true);
-    const [isPromptOptimizerRunning, setIsPromptOptimizerRunning] = useState<boolean>(false);
     const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
     const [isInputInFocus, setIsInputInFocus] = useState(false);
     
@@ -883,9 +882,8 @@ const onAssistantChange = (assistant: Assistant) => {
                         {featureFlags.promptOptimizer && isInputInFocus && (
                             <div className='relative mr-[-32px]'>
                                 <PromptOptimizerButton
-                                    maxPlaceholders={0}
                                     prompt={content || ""}
-                                    onOptimized={(prompt:string, optimizedPrompt:string) => {
+                                    onOptimized={(optimizedPrompt:string) => {
                                         setContent(optimizedPrompt);
                                         textareaRef.current?.focus();
                                     }}
