@@ -281,9 +281,8 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             {featureFlags.promptOptimizer && (
                 <>
                   <PromptOptimizerButton
-                      maxPlaceholders={3}
                       prompt={content || ""}
-                      onOptimized={(prompt:string, optimizedPrompt:string) => {
+                      onOptimized={(optimizedPrompt:string) => {
                         setContent(optimizedPrompt);
                         handleUpdateTemplate(optimizedPrompt);
                       }}
