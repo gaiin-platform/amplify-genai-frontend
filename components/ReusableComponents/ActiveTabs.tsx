@@ -47,6 +47,7 @@ export const ActiveTabs: FC<Props> = ({tabs, width, initialActiveTab}) => {
                         <button
                             title={tab.title}
                             key={index}
+                            id={tab.title}
                             onClick={() => {
                                 setActiveTab(index);
                                 if (tabRef && tabRef.current) tabRef.current.scrollIntoView({ block: 'start' });

@@ -256,12 +256,13 @@ const modelLabel = (modelId: string, name: string) => {
               
                               <div className="flex flex-row gap-6 mb-6">
                                 {["dark", "light"].map((color) => (
-                                  <label className="flex items-center" key={color}>
+                                  <label className="flex items-center" id={"theme"+color} key={color}>
                                       <input type="radio" name="theme"
                                       value={color}
                                       checked={theme === color}
                                       onChange={(event) =>  setTheme(event.target.value as Theme)}
                                       className="form-radio cursor-pointer"
+                                      id="checkboxInput"
                                       />
                                       <span className="ml-2 text-neutral-700 dark:text-neutral-200">
                                         {t(`${capitalize(color)} mode`)} 
@@ -359,6 +360,7 @@ const modelLabel = (modelId: string, name: string) => {
                               // Model Pricing 
 
                         { label: "Model Pricing",
+                          title: "View the model pricing",
                           content: 
                           <>
                           <div className='w-full text-lg font-bold '>Model Pricing / Million Tokens</div>
