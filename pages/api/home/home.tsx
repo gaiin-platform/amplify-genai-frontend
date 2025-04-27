@@ -11,7 +11,7 @@ import cloneDeep from 'lodash/cloneDeep';
 import {styled} from "styled-components";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import { MemoryDialog } from '@/components/Memory/MemoryDialog';
-
+import Header from '@/components/Folder/Header'
 
 import {
     cleanConversationHistory,
@@ -1418,6 +1418,10 @@ const Home = ({
                                 selectedConversation={selectedConversation}
                                 onNewConversation={handleNewConversation}
                             />
+                        </div>
+
+                        <div>
+                            <Header/>
                         </div>
 
                         <div className="flex h-full w-full pt-[48px] sm:pt-0">

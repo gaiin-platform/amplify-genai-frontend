@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+Header {
+  background-color: #D42121;
+}
+
+.logo {
+  width: 25%;
+}
+
+.headerText {
+  width: 75%;
+  text-align: center;
+  font-family: Helvetica;
+}
 
 ::-webkit-scrollbar-track {
   background-color: transparent;
