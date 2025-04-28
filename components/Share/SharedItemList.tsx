@@ -254,6 +254,7 @@ const SharedItemsList: FC<{}> = () => {
                                     <div
                                         className="relative flex-1 break-all text-left text-[12.5px] leading-3 pr-1"
                                         style={{wordWrap: "break-word"}}
+
                                     >
                                         {item.note}
                                     </div>
