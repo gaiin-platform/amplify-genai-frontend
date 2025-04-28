@@ -473,6 +473,7 @@ const Home = ({
             folderId: folder.id,
             promptTemplate: null,
             isLocal: getIsLocalStorageSelection(storageSelection),
+            timestamp: Date.now(),
             ...params
         };
         if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);
@@ -1167,7 +1168,8 @@ const Home = ({
                 temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
                 folderId: folder.id,
                 promptTemplate: null,
-                isLocal: getIsLocalStorageSelection(storageSelection)
+                isLocal: getIsLocalStorageSelection(storageSelection),
+                timestamp: Date.now()
             };
 
             if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);

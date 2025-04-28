@@ -223,8 +223,8 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
                                 <div className="flex-1 flex-col break-all text-left text-[12.5px] leading-3 pr-1">
                                     <div className="mb-1 text-gray-500">{new Date(item.sharedAt).toLocaleString()}</div>
                                     <div
-                                        className="relative max-w-5 flex-1 break-all text-left text-[12.5px] leading-3 pr-1"
-                                        style={{wordWrap: "break-word"}} // Added word wrap style
+                                        className="relative flex-1 break-all text-left text-[12.5px] leading-3 pr-1"
+                                        style={{wordWrap: "break-word"}}
                                     >
                                         {item.note}
                                     </div>

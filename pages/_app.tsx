@@ -4,6 +4,7 @@ import { SessionProvider } from "next-auth/react"
 import {appWithTranslation} from 'next-i18next';
 import type {AppProps} from 'next/app';
 import {Inter} from 'next/font/google';
+import FloatingHelpButtonWithModal from '@/components/ReusableComponents/FloatingHelpButtonWithModal';
 
 import '@/styles/globals.css';
 
@@ -22,6 +23,7 @@ function App({ Component, pageProps }: AppProps) {
                 <Toaster/>
                 <QueryClientProvider client={queryClient}>
                     <Component {...pageProps} />
+                    <FloatingHelpButtonWithModal />
                 </QueryClientProvider>
             </div>
         </SessionProvider>

@@ -5,7 +5,7 @@ import { Prompt } from "@/types/prompt";
 import React from "react";
 import { FC, useContext, useEffect, useRef, useState } from "react";
 import Checkbox from "./CheckBox";
-import { IconFolder, IconMessage, IconRobot } from "@tabler/icons-react";
+import { IconFolder, IconMessage, IconRobot, IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 
 interface Props {
     promptOptions?: Prompt[];
@@ -78,8 +78,10 @@ export const ItemSelect: FC<Props> = (
         switch (itemType) {
             case 'Prompt':
                 return (includePrompts ? promptFilter(promptOptions ?? promptsRef.current) : []) as Prompt[];
-            case 'Conversation':
-                return (includeConversations ? conversationFilter(conversationOptions ?? conversationsRef.current) : []) as Conversation[];
+            case 'Conversation': {
+                const conversations = (includeConversations ? conversationFilter(conversationOptions ?? conversationsRef.current) : []) as Conversation[];
+                return conversations.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+            }
             case 'Folder':
                 return (includeFolders ? folderFilter(folderOptions ?? foldersRef.current) : []) as FolderInterface[];
             default:
@@ -94,7 +96,8 @@ export const ItemSelect: FC<Props> = (
     const [allFoldersChecked, setAllFoldersChecked] = useState(false);
     const noItems = ITEM_TYPES.every(type => getItems(type).length === 0);
 
-    
+    const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+
     const handlePromptsCheck = (checked:boolean) => {
         // if checked, add all prompts to selected, else remove them
         setSelectedPrompts(checked ? promptOptions ?? promptsRef.current : []);
@@ -244,52 +247,117 @@ export const ItemSelect: FC<Props> = (
         return items.some(i => i === item) ? items.filter(i => i !== item) : [...items, item];
     }
 
+    const toggleFolder = (folderId: string, event: React.MouseEvent) => {
+        event.stopPropagation();
+        setExpandedFolders(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(folderId)) {
+                newSet.delete(folderId);
+            } else {
+                newSet.add(folderId);
+            }
+            return newSet;
+        });
+    };
 
     const renderItem = (item: Prompt | Conversation | FolderInterface, itemType: ItemType) => {
-            // Create a new ref for each item if it does not exist yet.
-            if (!itemRefs.current[item.id]) {
-                itemRefs.current[item.id] = React.createRef();
+        // Create a new ref for each item if it does not exist yet.
+        if (!itemRefs.current[item.id]) {
+            itemRefs.current[item.id] = React.createRef();
+        }
+
+        const renderFolderContents = (folder: FolderInterface) => {
+            if (folder.type === 'chat' && expandedFolders.has(folder.id)) {
+                const conversationSelection = conversationOptions ?? conversationsRef.current;
+                const folderConversations = conversationSelection
+                    .filter((c: Conversation) => c.folderId === folder.id)
+                    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+                if (folderConversations.length === 0) return null;
+
+                return (
+                    <div className="ml-8 mt-1">
+                        {folderConversations.map((conv) => (
+                            <div className="flex items-center p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-[#40414F]" key={conv.id}>
+                                <Checkbox
+                                    id={conv.id}
+                                    label={``}
+                                    checked={selectedConversationsState.some(c => c.id === conv.id)}
+                                    onChange={(checked: boolean) => handleItemSelect(conv, 'Conversation')}
+                                />
+                                <div className="ml-2 mb-1 text-black dark:text-white font-medium flex flex-row gap-2 items-center">
+                                    <IconMessage size={18} />
+                                    <span>{conv.name}</span>
+                                    {conv.timestamp && (
+                                        <span className="text-xs text-gray-500">
+                                            {new Date(conv.timestamp).toLocaleString()}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                );
             }
-    
-            return (
-                <div className="flex items-center p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-[#40414F]" ref={itemRefs.current[item.id]} key={item.id}>
+            return null;
+        };
+
+        return (
+            <div ref={itemRefs.current[item.id]} key={item.id}>
+                <div className="flex items-center p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-[#40414F]">
                     <Checkbox
                         id={item.id}
                         label={``}
                         checked={isSelected(item, itemType)}
                         onChange={(checked: boolean) => handleItemSelect(item, itemType)}
                     />
-                    <div className="ml-2 mb-1 text-black dark:text-white font-medium flex flex-row gap-2 ">
-                        {getIcon(item, itemType)} {item.name}
-                    </div>
-                </div>
-            );
-        };
-    
-        const renderScrollableSection = (isChecked: boolean, handleCheck: (e :boolean) => void, itemType: ItemType) => {
-            const items:Array<Prompt | Conversation | FolderInterface> = getItems(itemType);
-            if (items.length === 0) return null;
-            return <>
-                    <div className="mt-6 flex items-center border-b border-b-black dark:border-b-white">
-                        <div className="ml-2" title={`${isChecked ? "Deselect": "Selectl"} All ${itemType}s`}>
-                        <Checkbox
-                            id={itemType}
-                            label={``}
-                            checked={isChecked}
-                            onChange={(checked: boolean) => handleCheck(checked)}
-                        />
-                        </div>
-                        <h3 className="ml-2 mb-1 text-black dark:text-white text-lg">{`${itemType}s`}</h3>
-                    </div>
-
-                    <div className="max-h-[180px] overflow-y-auto">
-                        {items.map((item) =>
-                            renderItem(item, itemType)
+                    <div className="ml-2 mb-1 text-black dark:text-white font-medium flex flex-row gap-2 items-center">
+                        {itemType === 'Folder' && (
+                            <button 
+                                onClick={(e) => toggleFolder(item.id, e)}
+                                className="p-1 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md"
+                            >
+                                {expandedFolders.has(item.id) ? <IconChevronDown size={18} /> : <IconChevronRight size={18} />}
+                            </button>
+                        )}
+                        {getIcon(item, itemType)} 
+                        <span>{item.name}</span>
+                        {itemType === 'Conversation' && (item as Conversation).timestamp && (
+                            <span className="text-xs text-gray-500">
+                                {new Date((item as Conversation).timestamp!).toLocaleString()}
+                            </span>
                         )}
                     </div>
-                    </>
-        };
-            
+                </div>
+                {itemType === 'Folder' && renderFolderContents(item as FolderInterface)}
+            </div>
+        );
+    };
+    
+    const renderScrollableSection = (isChecked: boolean, handleCheck: (e :boolean) => void, itemType: ItemType) => {
+        const items:Array<Prompt | Conversation | FolderInterface> = getItems(itemType);
+        if (items.length === 0) return null;
+        return <>
+                <div className="mt-6 flex items-center border-b border-b-black dark:border-b-white">
+                    <div className="ml-2" title={`${isChecked ? "Deselect": "Selectl"} All ${itemType}s`}>
+                    <Checkbox
+                        id={itemType}
+                        label={``}
+                        checked={isChecked}
+                        onChange={(checked: boolean) => handleCheck(checked)}
+                    />
+                    </div>
+                    <h3 className="ml-2 mb-1 text-black dark:text-white text-lg">{`${itemType}s`}</h3>
+                </div>
+
+                <div className="max-h-[180px] overflow-y-auto">
+                    {items.map((item) =>
+                        renderItem(item, itemType)
+                    )}
+                </div>
+                </>
+    };
+        
     return (
 
         noItems ? 
