@@ -328,7 +328,7 @@ export function useSendService() {
                             const memoriesPromise = Promise.race([
                                 doReadMemoryOp({}),
                                 new Promise<any>((_, reject) =>
-                                    setTimeout(() => reject(new Error('Memory fetch timeout')), 300) // 300ms timeout
+                                    setTimeout(() => reject(new Error('Memory fetch timeout')), 500) // 500ms timeout
                                 )
                             ]);
 
