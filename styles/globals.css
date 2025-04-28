@@ -69,3 +69,30 @@ pre:has(div.codeblock) {
     color: #8edffa; 
   }
 }
+
+.floating-help-btn {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #d32f2f;
+  color: #fff;
+  font-size: 1.8rem;
+  font-family: 'Arial', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 200;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  cursor: pointer;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+}
+.floating-help-btn:hover {
+  background: #b71c1c;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+  transform: translateY(-2px) scale(1.05);
+}
