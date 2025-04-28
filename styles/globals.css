@@ -8,11 +8,17 @@ Header {
 
 .logo {
   width: 25%;
+  display: flex;
+  justify-content: right;
+}
+
+.DClogo {
+  width: 25%;
 }
 
 .headerText {
   width: 75%;
-  text-align: center;
+  text-align: left;
   font-family: Helvetica;
 }
 
