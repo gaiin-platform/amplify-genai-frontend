@@ -175,9 +175,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
                 if (Object.keys(integrationsMap).length === 0) {
                     integrationsMap = await getIntegrations();
                     cachedIntegrationsMap.current = integrationsMap;
-                } else {
-                    console.log("ALREADY HAVE INTEGRATIONS");
-                }
+                } 
                 const mappedOps = definition.operations.filter((url: string) => 
                                                  Object.keys(integrationsMap).includes(url))
                                                        .map((url: string) => integrationsMap[url]);                                      
@@ -186,7 +184,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
             }
             delete definition.operations;
             if (definition.opsLanguageVersion && 
-                Object.keys(opLanguageOptionsMap).includes(definition.opsLanguageVersion)) {
+                Object.keys(opLanguageOptionsMap(featureFlags)).includes(definition.opsLanguageVersion)) {
                     definition.data.opsLanguageVersion = definition.opsLanguageVersion;
                     delete definition.opsLanguageVersion;
             }
@@ -313,7 +311,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
                         
                         {opsLanguageVersion && 
                             <div className="flex flex-row gap-2 " > Op Language:
-                            {section(opLanguageOptionsMap[opsLanguageVersion as keyof typeof opLanguageOptionsMap], 'language')}
+                            {section(opLanguageOptionsMap(featureFlags)[opsLanguageVersion as keyof typeof opLanguageOptionsMap], 'language')}
                         </div>}
                         {disclaimer &&  <div className="ml-2">Disclaimer: {section(disclaimer, "disclaimer")}</div> }
                         {assistantTags.length > 0 && 
