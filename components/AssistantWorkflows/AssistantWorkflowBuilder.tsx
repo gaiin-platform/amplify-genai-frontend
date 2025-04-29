@@ -634,6 +634,21 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
         />
       </div>
       
+      <div className="mb-4" title="Uses a more advanced model for this step">
+        <Checkbox
+          id={`advanced-reasoning-${index}`}
+          label="Use Advanced Reasoning"
+          checked={step.useAdvancedReasoning || false}
+          onChange={(checked) => {
+            const newTemplate = cloneDeep(selectedWorkflow);
+            if (newTemplate.template?.steps) {
+              newTemplate.template.steps[index].useAdvancedReasoning = checked;
+              setSelectedWorkflow(newTemplate);
+            }
+          }}
+        />
+      </div>
+      
       <div className="mb-4">
         <div className="flex justify-between items-center mb-2">
           <label className="block text-sm font-medium dark:text-neutral-200">
