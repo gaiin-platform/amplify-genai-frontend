@@ -4,7 +4,7 @@ import { Modal } from "../ReusableComponents/Modal";
 import HomeContext from "@/pages/api/home/home.context";
 import InputsMap from "../ReusableComponents/InputMap";
 import {  getAdminConfigs, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs } from "@/services/adminService";
-import { AdminConfigTypes, Endpoint, FeatureFlagConfig, OpenAIModelsConfig, SupportedModel, SupportedModelsConfig, AdminTab } from "@/types/admin";
+import { AdminConfigTypes, Endpoint, FeatureFlagConfig, OpenAIModelsConfig, SupportedModel, SupportedModelsConfig, AdminTab, DefaultModelsConfig } from "@/types/admin";
 import { IconCheck, IconPlus, IconRefresh, IconX} from "@tabler/icons-react";
 import { LoadingIcon } from "../Loader/LoadingIcon";
 import toast from "react-hot-toast";
@@ -74,6 +74,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [defaultConversationStorage, setDefaultConversationStorage] = useState<ConversationStorage>('future-local');
 
     const [availableModels, setAvailableModels] = useState<SupportedModelsConfig>({});   
+    const [defaultModels, setDefaultModels] = useState<DefaultModelsConfig>({user: '', advanced: '', cheapest: '', agent: '', embeddings: '', qa: ''});
 
     const [features, setFeatures] = useState<FeatureFlagConfig>({}); 
 
@@ -159,6 +160,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
                 setDefaultConversationStorage(data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE] || defaultConversationStorage);
                 setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT || emailSupport]);
+                setDefaultModels(data[AdminConfigTypes.DEFAULT_MODELS] || {});
                 setLoadingMessage("");
             
                 const nonlazyResult = await nonlazyReq;
@@ -227,6 +229,12 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return features;
             case AdminConfigTypes.AVAILABLE_MODELS:
                 return availableModels;
+            case AdminConfigTypes.DEFAULT_MODELS:
+                const nonEmptyStrDefaults: any = {...defaultModels};
+                Object.keys(nonEmptyStrDefaults).forEach((key: string) => {
+                    if (nonEmptyStrDefaults[key] === '') nonEmptyStrDefaults[key] = null;
+                });
+                return nonEmptyStrDefaults;
             case AdminConfigTypes.AST_ADMIN_GROUPS:
                 return astGroups.filter((g:Ast_Group_Data) => changedAstGroups.includes(g.group_id))
                                 .map((g:Ast_Group_Data) =>  ({ group_id: g.group_id, 
@@ -300,12 +308,12 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const saveUpdateAvailableModels = () => {
         const updatedModels = Object.values(availableModels)
-        const defaultId = updatedModels.find((m:SupportedModel) => m.isDefault);
-        homeDispatch({ field: 'defaultModelId', value: defaultId });
-        const cheapestId = updatedModels.find((m:SupportedModel) => m.defaultCheapestModel);
-        homeDispatch({ field: 'cheapestModelId', value: cheapestId });
-        const advancedId = updatedModels.find((m:SupportedModel) => m.defaultAdvancedModel);
-        homeDispatch({ field: 'advancedModelId', value: advancedId });
+        const defaultModel = updatedModels.find((m:SupportedModel) => m.id === defaultModels.user);
+        homeDispatch({ field: 'defaultModelId', value: defaultModel?.id });
+        const cheapestModel = updatedModels.find((m:SupportedModel) => m.id === defaultModels.cheapest);
+        homeDispatch({ field: 'cheapestModelId', value: cheapestModel?.id });
+        const advancedModel = updatedModels.find((m:SupportedModel) => m.id === defaultModels.advanced);
+        homeDispatch({ field: 'advancedModelId', value: advancedModel?.id });
 
         const availModels: Model[] = updatedModels.filter((m:SupportedModel) => m.isAvailable)
                                      .map((m:SupportedModel) => ({ id: m.id,
@@ -321,10 +329,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const validateSavedData = () => {
         const models = Object.values(availableModels);
-        if (models.filter((m:SupportedModel) => m.isAvailable && !m.id.includes('embedding')).length === 0) {
+        if (models.filter((m:SupportedModel) => m.isAvailable && !m.id.includes('embedding'))
+                  .length === 0) {
             alert("No models were made available. To enable chat, update the models under the 'Supported Models' tab.");
-        } else {
-            if (!models.find((m:SupportedModel) => m.isDefault)) alert("No default model was selected. User's default model will be set to the cheapest model until configured in the 'Supported Models' tab.");
+        }
+        if (Object.keys(defaultModels).some((key:string) => defaultModels[key as keyof DefaultModelsConfig] === '' && key !== 'agent'))  {
+            alert("Ensure all default models are set in the 'Supported Models' tab.");
+            return false;
         }
 
         if (emailSupport.isActive && !emailSupport.email) {
@@ -362,7 +373,9 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                value: { ...features, 'adminInterface': admins.includes(userEmail ?? '')} });
                 localStorage.setItem('mixPanelOn', JSON.stringify(features.mixPanel ?? false));
             }
-            if (unsavedConfigs.has(AdminConfigTypes.AVAILABLE_MODELS)) saveUpdateAvailableModels();
+            
+            if (unsavedConfigs.has(AdminConfigTypes.AVAILABLE_MODELS) || 
+                unsavedConfigs.has(AdminConfigTypes.DEFAULT_MODELS)) saveUpdateAvailableModels();
             toast("Configurations successfully saved");
             setUnsavedConfigs(new Set());
             testEndpointsRef.current = [];
@@ -488,9 +501,12 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 <SupportedModelsTab
                     availableModels={availableModels}
                     setAvailableModels={setAvailableModels}
+                    defaultModels={defaultModels}
+                    setDefaultModels={setDefaultModels}
                     ampGroups={ampGroups}
                     isAvailableCheck={isAvailableCheck}
                     updateUnsavedConfigs={updateUnsavedConfigs}
+                    featureFlags={features}
                 />
             },
 ///////////////////////////////////////////////////////////////////////////////
