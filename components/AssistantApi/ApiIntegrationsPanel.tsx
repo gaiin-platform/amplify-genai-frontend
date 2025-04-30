@@ -30,6 +30,7 @@ interface ApiIntegrationsPanelProps {
   allowCreatePythonFunction?: boolean;
 
   hideApisPanel?: string[];
+  disabled?: boolean;
 }
 
 const buttonClassName = (shown: boolean) => 
@@ -39,7 +40,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
   availableApis, selectedApis=[], setSelectedApis, apiInfo=[], setApiInfo,
   availableAgentTools, builtInAgentTools=[], setBuiltInAgentTools,
   pythonFunctionOnSave = (fn: { name: string; code: string; schema: string; testJson: string }) => {}, 
-  allowCreatePythonFunction = true, onClickApiItem, onClickAgentTool, hideApisPanel=[]
+  allowCreatePythonFunction = true, onClickApiItem, onClickAgentTool, hideApisPanel=[], disabled=false
 }) => {
   const { state: {featureFlags} } = useContext(HomeContext);
   const [shownAPIComponent, setShownAPIComponent] = useState<string>("");
@@ -56,7 +57,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
             setSelectedApis={setSelectedApis ?? ((apis: any[]) => {})}
             apiFilter={(apis) => apis.filter((api) => api.type !== "custom")}
             onClickApiItem={onClickApiItem}
-            disableSelection={setSelectedApis === undefined}
+            disableSelection={setSelectedApis === undefined || disabled}
           />
         );
       case "external":
@@ -64,6 +65,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
           <APIComponent
             apiInfo={apiInfo}
             setApiInfo={setApiInfo}
+            disabled={disabled}
           />
         );
       case "custom":
@@ -71,13 +73,13 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
           <>
             {allowCreatePythonFunction && featureFlags.createPythonFunctionApis &&
               <div className="relative">
-              <button 
+              {!disabled && <button 
                 className={`${buttonClassName(false)} absolute -top-2 mt-0 z-10`}
                 onClick={() => setAddFunctionOpen(!addFunctionOpen)}
               >
                 <IconPlus size={18} />
                 Add Custom APIs
-              </button>
+              </button>}
             </div>}
             <ApiItemSelector
               availableApis={availableApis}
@@ -85,7 +87,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
               setSelectedApis={setSelectedApis ?? ((apis: any[]) => {})}
               apiFilter={(apis) => apis.filter((api) => api.type === "custom")}
               onClickApiItem={onClickApiItem}
-              disableSelection={setSelectedApis === undefined}
+              disableSelection={setSelectedApis === undefined || disabled}
             />
             
             {addFunctionOpen && 
@@ -102,7 +104,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
             selectedTools={builtInAgentTools}
             onToolSelectionChange={setBuiltInAgentTools ?? ((tools: string[]) => {})}
             onClickAgentTool={onClickAgentTool}
-            disableSelection={setBuiltInAgentTools === undefined}
+            disableSelection={setBuiltInAgentTools === undefined || disabled}
           />
         );
     }

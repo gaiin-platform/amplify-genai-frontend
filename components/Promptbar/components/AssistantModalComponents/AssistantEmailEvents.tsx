@@ -83,6 +83,7 @@ interface ApiItemProps {
                 label="Enable Email Events"
                 checked={enableEmailEvents}
                 onChange={(checked) => setEnableEmailEvents(checked)}
+                disabled={disableEdit}
             />
             <IconMailBolt className="mt-1" size={18} />
             </div>

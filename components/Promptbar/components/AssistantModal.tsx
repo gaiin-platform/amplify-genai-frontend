@@ -8,7 +8,7 @@ import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
 import {createAssistant, addAssistantPath, lookupAssistant} from "@/services/assistantService";
-import {IconFiles, IconArrowRight, IconMailFast, IconCaretRight, IconCaretDown} from "@tabler/icons-react";
+import {IconFiles, IconArrowRight, IconMailFast, IconCaretRight, IconCaretDown, IconCheck, IconX} from "@tabler/icons-react";
 
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
@@ -897,11 +897,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     disabled={disableEdit}
                                 />
                             </div>
-
-                            <div className="mt-6 mb-2 font-bold text-black dark:text-neutral-200">
+                           {!disableEdit && <>
+                            <div className="mt-6 font-bold text-black dark:text-neutral-200">
                                 {t('Upload Data Sources')}
                             </div>
-                            {!disableEdit && <div className="flex flex-row items-center">
+                            <div className="flex flex-row items-center">
                                 <button
                                     title='Add Files'
                                     id="assistantViewFile"
@@ -926,7 +926,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             onSetAbortController={() => {}}
                                             onUploadProgress={onUploadProgress}
                                 />
-                            </div>}
+                            </div>
                             <FileList documents={dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)))} documentStates={documentState}
                                 setDocuments={(docs) => {
                                 const preexisting = dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)));
@@ -961,8 +961,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     </div>
                                 </div>
                             )}
+                            </>}
 
                             { definition.dataSources.length > 0  &&
+                             <div className="mt-4">
                                 <ExistingFileList 
                                     label={'Assistant Data Sources'}
                                     allowRemoval={!disableEdit}
@@ -971,6 +973,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         const newDocs = dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)));
                                         setDataSources([...docs, ...newDocs] as any[]);
                                 }} />
+                              </div>
                             }
 
                             {/* Workflow Template Selector - purposefully not featured flagged / outside ofthe advanced section */}
@@ -1025,7 +1028,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     </div>
                                     <select
                                       title={baseWorkflowTemplateId ? "This assistant is using a workflow template. You cannot change the assistant type." : ""}
-                                      disabled={baseWorkflowTemplateId !== undefined}
+                                      disabled={baseWorkflowTemplateId !== undefined || disableEdit}
                                       className={`mt-2 mb-4 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 ${baseWorkflowTemplateId ? "opacity-40" : ""}`}
                                       value={opsLanguageVersion}
                                       onChange={(e) => setOpsLanguageVersion(e.target.value)}
@@ -1050,14 +1053,14 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 />
                                             )}
                                             
-
                                     <div className='mt-4 text-[1rem]'>
                                         <Checkbox
                                             id="allowRequestAccess"
                                             label="Allow other users to request chat permissions for this assistant. "
                                             checked={availableOnRequest}
                                             onChange={(isChecked: boolean) => setAvailableOnRequest(isChecked)}
-                                        />
+                                            disabled={disableEdit}
+                                        /> 
                                     </div>
 
                                     <div className="text-sm font-bold text-black dark:text-neutral-200 mt-4"
@@ -1118,6 +1121,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                     {t('Tags')}
                                                 </div>
                                                 <input
+                                                  disabled={disableEdit}
                                                   className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                                   placeholder={t('Tag names separated by commas.') || ''}
                                                   value={tags}
@@ -1133,6 +1137,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                     {t('Conversation Tags')}
                                                 </div>
                                                 <input
+                                                  disabled={disableEdit}
                                                   className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                                   placeholder={t('Tag names separated by commas.') || ''}
                                                   value={conversationTags}
@@ -1152,6 +1157,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             setAstWorkflowTemplateId(undefined);
                                             setCurrentWorkflowTemplate(null);
                                         }}
+                                        disabled={disableEdit}
                                     />}
 
                                     {featureFlags.assistantEmailEvents && 
@@ -1196,6 +1202,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             if (ops.success) filterOps(ops.data); 
                                             })
                                         }}
+                                        disabled={disableEdit}
                                     />
                                        
                                 </div>

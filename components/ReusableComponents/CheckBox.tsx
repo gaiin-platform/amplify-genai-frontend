@@ -6,12 +6,14 @@ interface CheckboxProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   bold?: boolean;
+  disabled?: boolean;
 }
 
-export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange, bold = false }) => {
+export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange, disabled, bold = false }) => {
   return (
     <div className="checkbox-wrapper">
       <input
+        disabled={!!disabled}
         className="inp-cbx"
         id={id}
         type="checkbox"

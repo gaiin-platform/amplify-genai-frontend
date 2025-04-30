@@ -10,11 +10,13 @@ import HomeContext from "@/pages/api/home/home.context";
 interface Props {
     selectedTemplateId: string | undefined;
     onTemplateChange: (workflowTemplateId: string) => void;
+    disabled: boolean;
 }
   
 export const AssistantWorkflowSelector: React.FC<Props> = ({ 
     selectedTemplateId,
     onTemplateChange,
+    disabled
   }) => {
 
     const [workflowTemplates, setWorkflowTemplates] = useState<AstWorkflow[] | null>(null);
@@ -43,7 +45,7 @@ export const AssistantWorkflowSelector: React.FC<Props> = ({
             </div>
             <div className="flex flex-row gap-3">
                 <select className={`${workflowTemplates === null || workflowTemplates.length === 0 ? "opacity-40" : ""} mb-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow`} 
-                    disabled={workflowTemplates === null || workflowTemplates.length === 0}
+                    disabled={workflowTemplates === null || workflowTemplates.length === 0 || disabled}
                     value={selectedTemplateId ?? ''}
                     title='Add Workflow Template to assistant'
                     onChange={(event) => {
@@ -65,10 +67,11 @@ export const AssistantWorkflowSelector: React.FC<Props> = ({
                     } 
                 </select>
 
-                { allowWorkflowCreation &&
+                { allowWorkflowCreation && !disabled &&
                     <button type="button" title='Add Workflow Template' style={{transform: "translateY(-3px)"}}
                         className="px-2 my-1 rounded-md border border-neutral-300 dark:border-white/20 transition-colors duration-200 cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10 "
                         onClick={() => setIsModalOpen(true)}
+                        disabled={disabled}
                     > <IconPlus size={18} />
                     </button>}
                 
