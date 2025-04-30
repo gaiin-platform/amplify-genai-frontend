@@ -1,4 +1,4 @@
-import { IconArrowRight, IconCircleCheck, IconCircleX, IconBrackets, IconRobot, IconTerminal2, IconUser, IconCurrencyDollar } from '@tabler/icons-react';
+import { IconArrowRight, IconCircleCheck, IconCircleX, IconBrackets, IconRobot, IconTerminal2, IconUser, IconCurrencyDollar, IconBrain } from '@tabler/icons-react';
 import React, { useEffect, useState } from "react";
 
 
@@ -178,14 +178,16 @@ const getAgentLogItem = (msg: any) => {
         <div className="flex items-center gap-2">
           <IconRobot className="min-w-[20px] text-blue-600 dark:text-blue-400" />
           <IconArrowRight className="min-w-[16px] text-blue-500 dark:text-blue-300" />
-          <div>
+          <div className="flex flex-row gap-2">
             {msg.content?.skipped ?
             <span className="font-medium text-lg text-red-700 dark:text-red-500">
               {"Skipped: "}
             </span> :
-            <span className="font-medium text-blue-700 dark:text-blue-300">
-              {"Execute: "}
-            </span>}
+            <div className="flex flex-row items-center gap-1 text-blue-700 dark:text-blue-300">
+              {msg.content?.advanced_reasoning && 
+              <span title="Advanced Reasoning Model Used"><IconBrain size={18}/></span> }
+              <span className="font-medium text-blue-700 dark:text-blue-300">{"Execute: "} </span>
+            </div>}
             <span className="text-gray-600 dark:text-gray-300">
               {msg.content && msg.content.tool ? msg.content.tool : ""}
             </span>
