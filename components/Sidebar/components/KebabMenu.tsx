@@ -192,8 +192,7 @@ interface Props {
                 updatedConversations.push(newConversation)
                 selectedConversation = {...newConversation}
             }
-        
-            localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
+    
             handleSelectConversation(selectedConversation);
     
         } else {
@@ -539,7 +538,6 @@ interface Props {
                                             if (updatedSelected) {
                                                 const selectedWithTags = {...selectedConversation, tags: updatedSelected.tags};
                                                 homeDispatch({ field: 'selectedConversation', value: selectedWithTags});
-                                                localStorage.setItem('selectedConversation', JSON.stringify(selectedWithTags))
                                             }
                                         }
                                         setTags([]);

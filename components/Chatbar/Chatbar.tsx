@@ -127,8 +127,6 @@ export const Chatbar = () => {
         selectedConversation = {...newConversation}
         
       }
-
-      localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
       handleSelectConversation(selectedConversation);
 
     } else {

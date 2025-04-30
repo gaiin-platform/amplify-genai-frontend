@@ -219,7 +219,6 @@ export const ChatInput = ({
 
     const [showQiDialog, setShowQiDialog] = useState(false);
     const [isQiLoading, setIsQiLoading] = useState<boolean>(true);
-    const [isPromptOptimizerRunning, setIsPromptOptimizerRunning] = useState<boolean>(false);
     const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
     const [isInputInFocus, setIsInputInFocus] = useState(false);
     
@@ -686,40 +685,30 @@ const onAssistantChange = (assistant: Assistant) => {
         if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER ));
     }, [selectedAssistant]);
 
-
-    // memoryExtractionEnabled is tied to PluginID.MEMORY
-    useEffect(() => { // if memory extraction is toggled in memory dialog, ensure memory plugin is in sync
+    // don't remove Memory plugin when extraction is disabled
+    useEffect(() => {
         // ensure we dont alter the plugin when memory feature is disabled
         if (featureFlags.memory && settingRef?.current?.featureOptions.includeMemory) {
             const containsMemory = plugins.map((p: Plugin) => p.id).includes(PluginID.MEMORY);
             if (memoryExtractionEnabled && !containsMemory) {
                 setPlugins([...plugins, Plugins[PluginID.MEMORY]]);
-            } else if (!memoryExtractionEnabled && containsMemory) {
-                setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.MEMORY));
             }
         }
-
     }, [memoryExtractionEnabled]);
 
-    useEffect(() => { // if memory is toggled in plugin selector, ensure memoryExtractionEnabled is in sync
-        setTimeout(() => { // offset useEffect triggers to ensure memoryExtractionEnabled is up to date
+    useEffect(() => {
+        // Ensure MEMORY plugin is included when memory feature is enabled
+        if (featureFlags.memory &&
+            settingRef?.current?.featureOptions.includeMemory) {
+
             const containsMemory = plugins.map((p: Plugin) => p.id).includes(PluginID.MEMORY);
 
-            if ((containsMemory && !memoryExtractionEnabled) || 
-                (!containsMemory && memoryExtractionEnabled)) {
-                // considering the condition: memory feature flag is off or turned off in settings, 
-                // the memoryExtractionEnabled strictly depends on that condition throughout the codebase
-                // so its fine to keep this in sync especially because the plugin selector already accounts for that condition when rendering plus the default value of memoryExtractionEnabled is true
-                // therefore the plugins will never containMemory when the condition is off, effectively keeping memoryExtractionEnabled off/synced via !containsMemory && memoryExtractionEnabled
-                homeDispatch({
-                    field: 'memoryExtractionEnabled',
-                    value: containsMemory
-                });
-            } 
-        }, 3000);
-
-    }, [plugins]);
-
+            // If memory is enabled in settings but not in plugins, add it
+            if (!containsMemory) {
+                setPlugins([...plugins, Plugins[PluginID.MEMORY]]);
+            }
+        }
+    }, [featureFlags.memory, settingRef?.current?.featureOptions.includeMemory]);
 
     // RAG EVAL is dependent on RAG
     useEffect(() => { // ensure rag being off and eval being on is not possible
@@ -883,9 +872,8 @@ const onAssistantChange = (assistant: Assistant) => {
                         {featureFlags.promptOptimizer && isInputInFocus && (
                             <div className='relative mr-[-32px]'>
                                 <PromptOptimizerButton
-                                    maxPlaceholders={0}
                                     prompt={content || ""}
-                                    onOptimized={(prompt:string, optimizedPrompt:string) => {
+                                    onOptimized={(optimizedPrompt:string) => {
                                         setContent(optimizedPrompt);
                                         textareaRef.current?.focus();
                                     }}

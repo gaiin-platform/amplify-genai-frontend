@@ -1030,7 +1030,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                       value={opsLanguageVersion}
                                       onChange={(e) => setOpsLanguageVersion(e.target.value)}
                                     >   
-                                        {Object.entries(opLanguageOptionsMap).map(([val, name]) => <option key={val} value={val}>{name}</option>)}
+                                        {Object.entries(opLanguageOptionsMap(featureFlags)).map(([val, name]) => <option key={val} value={val}>{name as string}</option>)}
                                     </select>
                                     </>}
 
