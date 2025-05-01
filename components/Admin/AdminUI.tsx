@@ -3,8 +3,8 @@ import { FC, useContext, useEffect, useRef, useState } from "react";
 import { Modal } from "../ReusableComponents/Modal";
 import HomeContext from "@/pages/api/home/home.context";
 import InputsMap from "../ReusableComponents/InputMap";
-import {  getAdminConfigs, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs } from "@/services/adminService";
-import { AdminConfigTypes, Endpoint, FeatureFlagConfig, OpenAIModelsConfig, SupportedModel, SupportedModelsConfig, AdminTab } from "@/types/admin";
+import {  getAdminConfigs, getAvailableModels, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs } from "@/services/adminService";
+import { AdminConfigTypes, Endpoint, FeatureFlagConfig, OpenAIModelsConfig, SupportedModel, SupportedModelsConfig, AdminTab, DefaultModelsConfig } from "@/types/admin";
 import { IconCheck, IconPlus, IconRefresh, IconX} from "@tabler/icons-react";
 import { EmailsAutoComplete } from "../Emails/EmailsAutoComplete";
 import { LoadingIcon } from "../Loader/LoadingIcon";
@@ -268,23 +268,25 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         return true;
       };
 
-    const saveUpdateAvailableModels = () => {
-        const updatedModels = Object.values(availableModels)
-        const defaultId = updatedModels.find((m:SupportedModel) => m.isDefault);
-        homeDispatch({ field: 'defaultModelId', value: defaultId });
-        const cheapestId = updatedModels.find((m:SupportedModel) => m.defaultCheapestModel);
-        homeDispatch({ field: 'cheapestModelId', value: cheapestId });
-        const advancedId = updatedModels.find((m:SupportedModel) => m.defaultAdvancedModel);
-        homeDispatch({ field: 'advancedModelId', value: advancedId });
+    const saveUpdateAvailableModels = async () => {
+        try {
+            const response = await getAvailableModels();
+            if (response.success && response.data && response.data?.models.length > 0) {
+                const defaultModel = response.data.default;
+                const models = response.data.models;
+                if (defaultModel) homeDispatch({ field: 'defaultModelId', value: defaultModel.id });
+                if (response.data.cheapest) homeDispatch({ field: 'cheapestModelId', value: response.data.cheapest.id });
+                if (response.data.advanced) homeDispatch({ field: 'advancedModelId', value: response.data.advanced.id });
+                const modelMap = models.reduce((acc:any, model:any) => ({...acc, [model.id]: model}), {});
+                homeDispatch({ field: 'availableModels', value: modelMap});  
 
-        const availModels: Model[] = updatedModels.filter((m:SupportedModel) => m.isAvailable)
-                                     .map((m:SupportedModel) => ({ id: m.id,
-                                                            "name": m.name,
-                                                            "description": m.description ?? '',
-                                                            "inputContextWindow": m.inputContextWindow,
-                                                            "supportsImages": m.supportsImages,
-                                                            } as Model));
-        homeDispatch({ field: 'availableModels', value: availModels}); 
+                //save default model 
+                localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
+                return;
+            } 
+        } catch (e) {
+            console.log("Failed to fetch models: ", e);
+        } 
     }
       
       

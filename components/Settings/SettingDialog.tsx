@@ -45,8 +45,26 @@ export const modelOptionFlags = [
     "label": "Llama",
     "key": "allLlama",
     "defaultValue": false,
-    "identifers": ['llama']
-},
+    "identifiers": ['amazon', 'nova']
+  },
+  {
+    "label": "Meta",
+    "key": "allMeta",
+    "defaultValue": false,
+    "identifiers": ['llama', 'meta']
+  },
+  {"label": "DeepSeek",
+    "key": "allDeepSeek",
+    "defaultValue": false,
+    "identifiers": ['deepseek']
+  },
+  {"label": "Google",
+    "key": "allGemini",
+    "defaultValue": false,
+    "identifiers": ['gemini']
+  },
+
+
   ];
 
 
@@ -71,7 +89,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
       [K in ModelKey]: { id: string; name: string }[];
     };
 
-    const sortedModels = modelOptionFlags.reduce((acc, flag) => {
+    const modelsMap = modelOptionFlags.reduce((acc, flag) => {
       acc[flag.key] = [];
       return acc;
     }, {} as ModelsMap);
@@ -85,16 +103,34 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
         }
       );
 
-      if (matchedOption) sortedModels[matchedOption.key].push({ id: model.id, name: model.name });
+      if (matchedOption) modelsMap[matchedOption.key].push(model);
     });
 
+      const sortModelFlags = (a: string, b: string) => {
+        const bLength = modelsMap[b].length;
+        const aLength = modelsMap[a].length;
+        if (bLength === aLength) {
+          // Find the labels for comparison
+          const aFlag = modelOptionFlags.find(flag => flag.key === a);
+          const bFlag = modelOptionFlags.find(flag => flag.key === b);
+          return (aFlag?.label || '').localeCompare(bFlag?.label || '');
+        }
+        return bLength - aLength;
+      }
+      
+      // Create a new ordered object with sorted keys
+      const orderedSortedModels: Record<ModelKey, any[]> = {};
+      Object.keys(modelsMap)
+        .sort(sortModelFlags)
+        .forEach(key => {
+          orderedSortedModels[key as ModelKey] = modelsMap[key as ModelKey];
+        });
 
-      Object.entries(sortedModels).forEach(([key, models]) => 
-          sortedModels[key] = (models as any).sort((a: any, b: any) => b.name.length - a.name.length),
+      Object.entries(orderedSortedModels).forEach(([key, models]) => 
+          modelsMap[key] = (models as any).sort((a: any, b: any) => a.name.localeCompare(b.name)),
       );
-
-      return sortedModels;
-
+      
+      return orderedSortedModels;
     }
 
 
@@ -289,7 +325,13 @@ const modelLabel = (modelId: string, name: string) => {
                                   <div className='mt-1'>
                                     <FlagsMap 
                                       id={'modelOptionFlags'}
-                                      flags={modelOptionFlags.filter((f: Flag) => availableModels[f.key].length > 0 )}
+                                      flags={modelOptionFlags
+                                            .filter((f: Flag) => availableModels[f.key].length > 0 )
+                                            .sort((a, b) => {
+                                              // Get the keys in the order they appear in availableModels
+                                              const orderedKeys = Object.keys(availableModels);
+                                              return orderedKeys.indexOf(a.key) - orderedKeys.indexOf(b.key);
+                                            })}
                                       state={modelOptions}
                                       flagChanged={(key, value) => {
                                         handleModelOptionChange(key as ModelKey, value);
