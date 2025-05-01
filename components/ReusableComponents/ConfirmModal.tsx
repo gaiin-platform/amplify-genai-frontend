@@ -17,12 +17,12 @@ interface Props {
 }
 
 
-export const ConfirmModal: FC<Props> = ({title="", message, height=240, width=450,
+export const ConfirmModal: FC<Props> = ({title="", message, height=260, width=450,
                                         confirmLabel="Yes", denyLabel="No", onConfirm, onDeny}) => {
 
     return <Modal
         title={title}
-        content={<span className="text-black dark:text-white"> {message} </span>}
+        content={<div className="text-black dark:text-white"> {message} </div>}
         width={() => width}
         height={() => height}
         showClose={false}

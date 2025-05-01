@@ -1,4 +1,4 @@
-import { IconArrowRight, IconCircleCheck, IconCircleX, IconBrackets, IconRobot, IconTerminal2, IconUser, IconCurrencyDollar, IconBrain } from '@tabler/icons-react';
+import { IconArrowRight, IconCircleCheck, IconCircleX, IconBrackets, IconRobot, IconTerminal2, IconUser, IconCurrencyDollar, IconBrain, IconBulb } from '@tabler/icons-react';
 import React, { useEffect, useState } from "react";
 
 
@@ -136,7 +136,7 @@ const getAgentLogItem = (msg: any) => {
   else if (msg.role === 'environment' && msg.content && msg.content.tool === 'think') {
     return (
       <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#444654] rounded p-2 my-1 max-w-full">
-        <IconTerminal2 className="min-w-[20px] text-blue-600 dark:text-blue-400" />
+        <IconBulb size={26} className="min-w-[28px] text-amber-400 dark:text-amber-300" />
         <div className="w-full overflow-hidden">
           <span className="font-medium text-blue-700 dark:text-blue-300">
             Thinking:

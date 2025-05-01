@@ -174,7 +174,7 @@ interface ApiItemProps {
                             <IconBulb size={16} />
                             Use the following valid placeholders to dynamically insert data using the format {"${placeholder}"}
                             <br></br>
-                            {"Valid placeholders: sender, recipients, timestamp, subject, contents"}
+                            {"Valid placeholders: sender, recipients, cc, bcc, timestamp, subject, contents"}
                             <br></br>
                             {"Example instructions: Acknowledge the email came from ${sender} with subject \"${subject}\" and contains: ${contents}"}
                         </span>
