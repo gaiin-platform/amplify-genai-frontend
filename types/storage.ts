@@ -25,5 +25,6 @@ export interface LocalStorage {
   hiddenGroupFolders: FolderInterface[];
   defaultModel: Model// curretly used for the on load conversation because the models do not come until after 
   mixPanelOn: boolean;
+  archiveConversationPastNumOfDays: number;
   workspaces: SharedItem[];
 }
