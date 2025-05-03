@@ -99,8 +99,8 @@ export const listActionSets = async (limit?: number): Promise<ActionSet[]> => {
       
       // Transform data to match the ActionSet interface
       return actionSetsData
-        .filter(item => item && typeof item === 'object')
-        .map(item => {
+        .filter((item: unknown): item is Record<string, any> => Boolean(item) && typeof item === 'object')
+        .map((item: Record<string, any>): ActionSet => {
           // The actual action set data is inside the data property
           const actionSetData = item.data || {};
           
@@ -111,7 +111,7 @@ export const listActionSets = async (limit?: number): Promise<ActionSet[]> => {
             actions: Array.isArray(actionSetData.actions) ? actionSetData.actions : [],
             createdAt: actionSetData.createdAt || new Date(item.createdAt).toISOString(),
             updatedAt: actionSetData.updatedAt || new Date().toISOString()
-          } as ActionSet;
+          };
         });
     }
     return [];
