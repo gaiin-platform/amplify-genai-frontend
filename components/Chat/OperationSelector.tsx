@@ -24,6 +24,7 @@ import {
     IconSearch,
     IconX
 } from '@tabler/icons-react';
+import { getAgentTools } from '@/services/agentService';
 
 // Define the interfaces needed for the component
 interface AgentTool {
@@ -78,6 +79,9 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
     const [customDescription, setCustomDescription] = useState<string>(initialAction?.customDescription || '');
     // Internal edit mode state - can change when user selects different operations
     const [editMode, setEditMode] = useState<boolean>(initialEditMode);
+    // State for agent tools
+    const [agentTools, setAgentTools] = useState<AgentTool[]>([]);
+    const [combinedOperations, setCombinedOperations] = useState<AgentTool[]>(operations);
 
     const handleParamModeChange = (param: string, mode: 'ai' | 'manual') => {
         setParamModes({ ...paramModes, [param]: mode });
@@ -90,11 +94,56 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
     const clearSearch = () => {
         setSearchQuery('');
     };
+    
+    // Fetch agent tools and combine with operations
+    useEffect(() => {
+        const fetchAgentTools = async () => {
+            try {
+                const result = await getAgentTools();
+                
+                if (result && result.data) {
+                    // The tools are properties of the data object, not an array
+                    const toolEntries = Object.entries(result.data);
+                    
+                    // Convert to AgentTool format
+                    const tools: AgentTool[] = toolEntries.map(([key, tool]: [string, any]) => {
+                        // Start with existing tags or empty array, then add 'Agent Tool' and 'native'
+                        const tags = [...(tool.tags || []), 'Agent Tool', 'native'];
+                        
+                        return {
+                            id: tool.tool_name,
+                            name: tool.tool_name || key,
+                            description: tool.description || '',
+                            schema: tool.parameters || {},
+                            parameters: tool.parameters || {},
+                            tags: tags,
+                            type: "builtIn"
+                        };
+                    });
+                    
+                    setAgentTools(tools);
+                    
+                    // Combine with operations, avoiding duplicates
+                    const combined = [...operations];
+                    for (const tool of tools) {
+                        if (!combined.some(op => op.name === tool.name)) {
+                            combined.push(tool);
+                        }
+                    }
+                    setCombinedOperations(combined);
+                }
+            } catch (error) {
+                console.error('Error fetching agent tools:', error);
+            }
+        };
+        
+        fetchAgentTools();
+    }, [operations]);
 
     // Initialize with the initial action if provided
     useEffect(() => {
-        if (initialAction && operations.length > 0) {
-            const matchingOp = operations.find(op => op.name === initialAction.name);
+        if (initialAction && combinedOperations.length > 0) {
+            const matchingOp = combinedOperations.find(op => op.name === initialAction.name);
             if (matchingOp) {
                 setSelectedOp(matchingOp);
                 
@@ -116,7 +165,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                 }
             }
         }
-    }, [initialAction, operations, initialEditMode]);
+    }, [initialAction, combinedOperations, initialEditMode]);
 
     // Reset selected operation if it's filtered out
     useEffect(() => {
@@ -126,7 +175,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                 setSelectedOp(null);
             }
         }
-    }, [searchQuery]);
+    }, [searchQuery, combinedOperations]);
 
     const paramSource = selectedOp ? (selectedOp.schema || selectedOp.parameters) : undefined;
 
@@ -149,10 +198,10 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
 
     // Filter operations based on search query
     const filteredOperations = useMemo(() => {
-        if (!searchQuery.trim()) return operations;
+        if (!searchQuery.trim()) return combinedOperations;
 
         const query = searchQuery.toLowerCase();
-        return operations.filter(op => {
+        return combinedOperations.filter(op => {
             // Search in name
             if (op.name.toLowerCase().includes(query)) return true;
 
@@ -164,7 +213,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
 
             return false;
         });
-    }, [operations, searchQuery]);
+    }, [combinedOperations, searchQuery]);
 
     // Group operations by tags
     const { sortedOperations, tagGroups, noTagOperations } = useMemo(() => {
