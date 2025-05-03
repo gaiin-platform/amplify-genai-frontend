@@ -19,7 +19,9 @@ import {
     IconCheck,
     IconAlertTriangle,
     IconAdjustments,
-    IconEdit
+    IconEdit,
+    IconDeviceFloppy,
+    IconTrashX
 } from '@tabler/icons-react';
 import React, { useState } from "react";
 
@@ -35,6 +37,8 @@ interface ActionsListProps {
     onActionClick?: (action: AgentAction, index: number) => void;
     onDeleteRequested?: (action: AgentAction, index: number) => void;
     onConfigureAction?: (action: AgentAction, index: number) => void;
+    onSaveActions?: () => void;
+    onClearActions?: () => void;
 }
 
 const ActionsList: React.FC<ActionsListProps> = ({
@@ -42,7 +46,9 @@ const ActionsList: React.FC<ActionsListProps> = ({
                                                      onRemoveAction,
                                                      onActionClick,
                                                      onDeleteRequested,
-                                                     onConfigureAction
+                                                     onConfigureAction,
+                                                     onSaveActions,
+                                                     onClearActions
                                                  }) => {
     // State to track which action is currently in delete confirmation mode
     const [confirmDeleteIndex, setConfirmDeleteIndex] = useState<number | null>(null);
@@ -125,6 +131,26 @@ const ActionsList: React.FC<ActionsListProps> = ({
                 <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-1 px-2">
                     Actions ({actions.length})
                 </span>
+                {onSaveActions && (
+                    <button
+                        onClick={onSaveActions}
+                        className="mr-2 p-1 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        title="Save actions"
+                        aria-label="Save actions"
+                    >
+                        <IconDeviceFloppy size={16} stroke={1.5} />
+                    </button>
+                )}
+                {onClearActions && (
+                    <button
+                        onClick={onClearActions}
+                        className="mr-2 p-1 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        title="Clear all actions"
+                        aria-label="Clear all actions"
+                    >
+                        <IconTrashX size={16} stroke={1.5} />
+                    </button>
+                )}
                 <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
             </div>
             <div className="flex flex-wrap gap-2 px-2">

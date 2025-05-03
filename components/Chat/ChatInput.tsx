@@ -7,8 +7,10 @@ import {
     IconDeviceSdCard,
     IconBrain,
     IconBulb,
-    IconScale, IconActivity, IconSettingsAutomation
+    IconScale, IconActivity, IconSettingsAutomation, IconFolderOpen
 } from '@tabler/icons-react';
+import SaveActionsModal from './SaveActionsModal';
+import LoadActionSetModal from './LoadActionSetModal';
 import {
     KeyboardEvent,
     MutableRefObject,
@@ -245,6 +247,10 @@ export const ChatInput = ({
         index: number;
         parameters?: Record<string, { value: string; mode: 'ai' | 'manual' }>;
     } | null>(null);
+    
+    // Action set modal states
+    const [showSaveActionsModal, setShowSaveActionsModal] = useState(false);
+    const [showLoadActionSetModal, setShowLoadActionSetModal] = useState(false);
 
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
@@ -950,6 +956,18 @@ export const ChatInput = ({
                                                      });
                                                  }
                                              }
+                                             
+                                             onSaveActions={
+                                                 () => {
+                                                     setShowSaveActionsModal(true);
+                                                 }
+                                             }
+
+                                             onClearActions={
+                                                 () => {
+                                                     setAddedActions([]);
+                                                 }
+                                             }
                                 />
                             </div>
                         )}
@@ -1096,6 +1114,7 @@ export const ChatInput = ({
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     setShowDataSourceSelector(!showDataSourceSelector);
+                                    setShowOpsPopup(false); // Close operation selector when opening data source selector
                                     setIsFactsVisible(false);
                                 }}
                                 onKeyDown={(e) => {
@@ -1129,6 +1148,7 @@ export const ChatInput = ({
                                     setEditingAction(null);
                                 }
                                 setShowOpsPopup(!showOpsPopup);
+                                setShowDataSourceSelector(false); // Close data source selector when opening operation selector
                             }}
                             onKeyDown={(e) => {
                             }}
@@ -1136,9 +1156,26 @@ export const ChatInput = ({
                         >
                             <IconSettingsAutomation size={20}/>
                         </button>
+                        
+                        {/* Load Action Set button */}
+                        <button
+                            className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                            id="loadActionSet"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowLoadActionSetModal(true);
+                                setShowOpsPopup(false);
+                                setShowDataSourceSelector(false);
+                            }}
+                            onKeyDown={(e) => {
+                            }}
+                            title="Load Saved Action Set"
+                        >
+                            <IconFolderOpen size={20}/>
+                        </button>
                         {/* Show the operations popup when showOpsPopup is true */}
                         {showOpsPopup && (
-                            <div className="absolute bottom-[122px] left-[60px] z-50">
+                            <div className="absolute bottom-[190px] left-[70px] z-50">
                                 <OperationSelector
                                     operations={allOperations}
                                     initialAction={editingAction ? 
@@ -1328,6 +1365,28 @@ export const ChatInput = ({
 
             </div>
 
+            {/* Save Actions Modal */}
+            {showSaveActionsModal && (
+                <SaveActionsModal
+                    actions={addedActions}
+                    onSave={(name, tags) => {
+                        setShowSaveActionsModal(false);
+                    }}
+                    onCancel={() => setShowSaveActionsModal(false)}
+                />
+            )}
+            
+            {/* Load Action Set Modal */}
+            {showLoadActionSetModal && (
+                <LoadActionSetModal
+                    onLoad={(actionSet) => {
+                        setAddedActions(actionSet.actions);
+                        setShowLoadActionSetModal(false);
+                        //alert(`Loaded action set "${actionSet.name}" with ${actionSet.actions.length} actions`);
+                    }}
+                    onCancel={() => setShowLoadActionSetModal(false)}
+                />
+            )}
         </>
     );
 };
