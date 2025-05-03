@@ -231,6 +231,7 @@ export const ChatInput = ({
     const [addedActions, setAddedActions] = useState<{ 
         name: string; 
         customName?: string;
+        customDescription?: string;
         operation?: any;
         parameters?: Record<string, { value: string; mode: 'ai' | 'manual' }>;
     }[]>([]);
@@ -239,7 +240,8 @@ export const ChatInput = ({
     const [showOpsPopup, setShowOpsPopup] = useState(false);
     const [editingAction, setEditingAction] = useState<{
         name: string; 
-        customName?: string; 
+        customName?: string;
+        customDescription?: string;
         index: number;
         parameters?: Record<string, { value: string; mode: 'ai' | 'manual' }>;
     } | null>(null);
@@ -1143,6 +1145,7 @@ export const ChatInput = ({
                                         { 
                                           name: editingAction.name, 
                                           customName: editingAction.customName,
+                                          customDescription: editingAction.customDescription,
                                           parameters: editingAction.parameters || {} 
                                         } : 
                                         undefined
@@ -1152,7 +1155,7 @@ export const ChatInput = ({
                                         setShowOpsPopup(false);
                                         setEditingAction(null);
                                     }}
-                                    onActionAdded={(operation, parameters, customName) => {
+                                    onActionAdded={(operation, parameters, customName, customDescription) => {
                                         if (editingAction) {
                                             // Update the existing action
                                             setAddedActions((prev) => {
@@ -1161,6 +1164,7 @@ export const ChatInput = ({
                                                     name: operation.name,
                                                     operation,
                                                     customName,
+                                                    customDescription,
                                                     parameters
                                                 };
                                                 return newActions;
@@ -1168,6 +1172,7 @@ export const ChatInput = ({
                                             console.log(
                                                 `Action Updated: ${operation.name}`,
                                                 customName ? `Custom Name: ${customName}` : '',
+                                                customDescription ? `Custom Description: ${customDescription}` : '',
                                                 'Parameters:', parameters,
                                                 'Operation:', operation
                                             );
@@ -1177,11 +1182,13 @@ export const ChatInput = ({
                                                 name: operation.name,
                                                 operation,
                                                 customName,
+                                                customDescription,
                                                 parameters
                                             }]);
                                             console.log(
                                                 `Action Added: ${operation.name}`,
                                                 customName ? `Custom Name: ${customName}` : '',
+                                                customDescription ? `Custom Description: ${customDescription}` : '',
                                                 'Parameters:', parameters,
                                                 'Operation:', operation
                                             );

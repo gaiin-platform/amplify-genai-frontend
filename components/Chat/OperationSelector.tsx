@@ -37,11 +37,12 @@ interface AgentTool {
 interface OperationSelectorProps {
     operations: AgentTool[];
     initialHeader?: React.ReactNode; // Optional header content
-    onActionAdded?: (operation: AgentTool, parameters: Record<string, { value: string; mode: 'ai' | 'manual' }>, customName?: string) => void;
+    onActionAdded?: (operation: AgentTool, parameters: Record<string, { value: string; mode: 'ai' | 'manual' }>, customName?: string, customDescription?: string) => void;
     onCancel?: () => void; // Callback when cancel button is clicked
     initialAction?: { // Optional initial action for editing
         name: string;
         customName?: string;
+        customDescription?: string;
         parameters?: Record<string, { value: string; mode: 'ai' | 'manual' }>;
     };
     editMode?: boolean; // Whether the component is in edit mode
@@ -74,6 +75,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
     const [paramValues, setParamValues] = useState<Record<string, string>>({});
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [customName, setCustomName] = useState<string>(initialAction?.customName || '');
+    const [customDescription, setCustomDescription] = useState<string>(initialAction?.customDescription || '');
     // Internal edit mode state - can change when user selects different operations
     const [editMode, setEditMode] = useState<boolean>(initialEditMode);
 
@@ -285,8 +287,9 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                         // If selecting a different operation during edit mode,
                                         // reset the form to add mode
                                         if (selectedOp && selectedOp.name !== op.name && editMode) {
-                                            // Reset custom name when switching operations
+                                            // Reset custom name and description when switching operations
                                             setCustomName('');
+                                            setCustomDescription('');
                                             // Reset params when switching operations
                                             setParamModes({});
                                             setParamValues({});
@@ -340,8 +343,9 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                         // If selecting a different operation during edit mode,
                                         // reset the form to add mode
                                         if (selectedOp && selectedOp.name !== op.name && editMode) {
-                                            // Reset custom name when switching operations
+                                            // Reset custom name and description when switching operations
                                             setCustomName('');
+                                            setCustomDescription('');
                                             // Reset params when switching operations
                                             setParamModes({});
                                             setParamValues({});
@@ -389,8 +393,9 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                         // If selecting a different operation during edit mode,
                                         // reset the form to add mode
                                         if (selectedOp && selectedOp.name !== op.name && editMode) {
-                                            // Reset custom name when switching operations
+                                            // Reset custom name and description when switching operations
                                             setCustomName('');
+                                            setCustomDescription('');
                                             // Reset params when switching operations
                                             setParamModes({});
                                             setParamValues({});
@@ -465,7 +470,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                                     }
                                                 ])
                                             );
-                                            onActionAdded(selectedOp, formattedParams, customName);
+                                            onActionAdded(selectedOp, formattedParams, customName, customDescription);
                                         }
                                     }}
                                 >
@@ -501,7 +506,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                         )}
 
                         {/* Custom Name input field */}
-                        <div className="mb-6">
+                        <div className="mb-4">
                             <label className="flex items-center justify-between font-medium text-sm text-gray-900 dark:text-white mb-2">
                               <div className="flex items-center">
                                 <IconTags size={14} stroke={1.5} className="text-blue-500 mr-2" />
@@ -516,6 +521,28 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                               placeholder="Enter a custom name..."
                               value={customName}
                               onChange={(e) => setCustomName(e.target.value)}
+                              className="w-full px-3 py-2 border rounded-md bg-white dark:bg-[#343541] border-gray-300 dark:border-neutral-600
+                              text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500
+                              focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-shadow duration-150"
+                            />
+                        </div>
+
+                        {/* Custom Description input field */}
+                        <div className="mb-6">
+                            <label className="flex items-center justify-between font-medium text-sm text-gray-900 dark:text-white mb-2">
+                              <div className="flex items-center">
+                                <IconInfoCircle size={14} stroke={1.5} className="text-blue-500 mr-2" />
+                                Custom Description
+                              </div>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 italic">
+                                Optional – only needed if you want to give the AI special notes on how to use the action
+                              </span>
+                            </label>
+                            <textarea
+                              placeholder="Enter special notes for the AI on how to use this action..."
+                              value={customDescription}
+                              onChange={(e) => setCustomDescription(e.target.value)}
+                              rows={3}
                               className="w-full px-3 py-2 border rounded-md bg-white dark:bg-[#343541] border-gray-300 dark:border-neutral-600
                               text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500
                               focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-shadow duration-150"

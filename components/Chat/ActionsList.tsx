@@ -26,6 +26,7 @@ import React, { useState } from "react";
 interface AgentAction {
     name: string;
     customName?: string;
+    customDescription?: string;
 }
 
 interface ActionsListProps {
