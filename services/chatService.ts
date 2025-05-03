@@ -54,6 +54,7 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
             ...chatBody.messages
         ],
         options: {
+            conversationId: chatBody.conversationId || uuidv4(),
             // Determine the current timezone
             timeZone,
             time,

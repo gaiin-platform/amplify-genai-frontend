@@ -235,6 +235,7 @@ export function useSendService() {
                         conversationId
                     };
 
+
                     if (selectedConversation?.projectId) {
                         // console.log("Selected Project Memory ID:", selectedConversation.projectId);
                         chatBody.projectId = selectedConversation.projectId;
@@ -380,6 +381,7 @@ export function useSendService() {
                             return { id: doc.id, type: doc.type, name: doc.name || "", metadata: doc.metadata || {} };
                         });
                     }
+
 
                     //PLUGINS before options is assigned
                     //in case no plugins are defined, we want to keep the default behavior
