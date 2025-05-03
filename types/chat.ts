@@ -13,6 +13,7 @@ export interface Message {
   data: any | undefined;
   label?: string;
   topicData?: messageTopicData;
+  configuredTools?: any[];
 }
 
 export enum MessageType {
