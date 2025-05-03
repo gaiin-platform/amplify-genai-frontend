@@ -627,10 +627,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             if (enableEmailEvents) {
                 eventTag = eventTag.replace(/^[._-]+|[._-]+$/g, '');
                 const safeTemplate = {userPrompt: emailEventTemplate?.userPrompt || "", systemPrompt: emailEventTemplate?.systemPrompt || ""};
-                newAssistant.data.emailEvents = {
-                    tag : eventTag,
-                    template : safeTemplate,
-                }
                 const tagChanged = oldEventTag && eventTag !== oldEventTag;
                 // register event template if 
                 // 1. not registered before
@@ -642,7 +638,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                     if (tagChanged && oldEventTag) removeAllowedSender(oldEventTag);
                     registerEmailEvent = true;
                 }
-
+                
+                newAssistant.data.emailEvents = {
+                    tag : eventTag,
+                    template : safeTemplate,
+                }
                 // handle allowed sender changes
                 updateAllowedSenders(eventTag, existingAllowedSenders ?? [], curAllowedSenders);
             } else if (oldEventTag) {// remove if disabling
