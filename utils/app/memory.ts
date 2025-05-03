@@ -47,24 +47,35 @@ export const buildExtractFactsPrompt = (userInput: string, existingMemories: Mem
         ).join('\n')}`
         : "Current Knowledge Base: Empty";
 
-    return `Given the following taxonomy structure and current state of knowledge, analyze the new text and extract novel facts that don't duplicate existing information. For each fact, determine its appropriate place in the taxonomy. Preserve any personal perspectives exactly as stated. Each fact must be:
+    return `Given the following taxonomy structure and current state of knowledge, analyze the new text and extract only SIGNIFICANT facts that don't duplicate existing information. Each fact must be:
 - Written exactly as presented (keep "I", "my", "we" if present)
-- Include specific details when present
-- Free of opinions or interpretations
+- Focus on STABLE, PERSISTENT information about the person or their work context
+- Be specific but comprehensive (consolidate related points into single facts when possible)
 
-DO NOT include meta-facts about this conversation or about AI systems in general. ONLY extract facts that are explicitly stated in the input text.
+IMPORTANT RULES:
+1. DO NOT extract facts from code snippets, syntax, or technical implementation details
+2. DO NOT extract temporary states, actions, or short-term plans
+3. DO NOT extract facts about specific dates or deadlines unless they represent major milestones
+4. DO NOT extract facts that are overly specific to the current conversation context
+5. PRIORITIZE information about:
+   - Professional background, experience, and skills
+   - Organizational role and relationships
+   - Ongoing projects and responsibilities
+   - Personal preferences and working styles
+6. LIMIT to a MAXIMUM of 3 high-quality, significant facts per input
+7. CONSOLIDATE related information into meaningful units
 
 Taxonomy Structure:
 ${JSON.stringify(TAXONOMY_STRUCTURE, null, 2)}
 
 ${existingKnowledgeBase}
 
-For each extracted fact, provide both the fact and its classification in the following format:
+For each extracted fact, provide the fact and its classification in the following format:
 FACT: [Extracted fact]
 TAXONOMY: [Category]/[Subcategory]
-REASONING: [Brief explanation of why this fact belongs in this category]
+REASONING: [Brief explanation of why this fact is significant and belongs in this category]
 
-Only extract facts that add new information not already present in the current knowledge base. If a similar fact already exists in the knowledge base, do not extract it again.
+Only extract facts that add substantial new information not already present in the current knowledge base. If a similar fact already exists, do not extract it again.
 
 Only extract facts from the following text and nowhere else:
 ${userInput}`;

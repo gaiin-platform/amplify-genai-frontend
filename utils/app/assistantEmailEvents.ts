@@ -2,9 +2,9 @@ import { addAllowedSender, removeAllowedSender } from "@/services/emailEventServ
 
 export const EMAIL_EVENT_TAG_PREFIX = "my_";
 
-
-export const isPresetEmailEventTag = (initialTag: string | undefined) => {
-  return !!(initialTag && !initialTag.startsWith( EMAIL_EVENT_TAG_PREFIX ));
+export const isPresetEmailEventTag = (initialTag: string | undefined): boolean => {
+  if (!initialTag) return false;
+  return !initialTag.startsWith(EMAIL_EVENT_TAG_PREFIX);
 }
 
 export const safeEmailEventTag = (tag: string) => {

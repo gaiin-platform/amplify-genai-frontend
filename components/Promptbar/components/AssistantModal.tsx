@@ -303,7 +303,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [emailEventTag, setEmailEventTag] = useState<string | undefined>(definition.data?.emailEvents?.tag);
     const [emailEventTemplate, setEmailEventTemplate] = useState<{systemPrompt?: string, userPrompt?: string} | undefined>(definition.data?.emailEvents?.template);
     const [isEmailTagAvailable, setIsEmailTagAvailable] = useState<boolean>(!!emailEventTag);
-    const [isCheckingEmailTag, setIsCheckingEmailTag] = useState<boolean>(!isPresetEmailEventTag(emailEventTag));
+    // Use fallback function if the imported one fails
+    const isPresetCheck = typeof isPresetEmailEventTag === 'function' ? isPresetEmailEventTag : isPresetEmailEventTagFallback;
+    const [isCheckingEmailTag, setIsCheckingEmailTag] = useState<boolean>(!isPresetCheck(emailEventTag));
     
     const [existingAllowedSenders, setExistingAllowedSenders] = useState<string[] | null>(null);
     const [curAllowedSenders, setCurAllowedSenders] = useState<string[]>([]);
@@ -1331,5 +1333,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             </div>
         </div>
     );
+};
+
+// Fallback function in case the imported one is not available
+const isPresetEmailEventTagFallback = (initialTag: string | undefined): boolean => {
+  if (!initialTag) return false;
+  return !initialTag.startsWith(EMAIL_EVENT_TAG_PREFIX);
 };
 
