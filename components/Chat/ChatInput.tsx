@@ -463,8 +463,7 @@ export const ChatInput = ({
         setDocumentState({});
         setDocumentMetadata({});
         
-        // Clear actions after sending
-        setAddedActions([]);
+        // Keep the actions list after sending - removed setAddedActions([])
 
         if (window.innerWidth < 640 && textareaRef && textareaRef.current) {
             textareaRef.current.blur();
@@ -791,7 +790,7 @@ export const ChatInput = ({
             <div style={{width: chatContainerWidth}}
                  className="px-14 absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2 z-15">
 
-                <div className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-3 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 ">
+                <div className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-0 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 ">
 
                     {!showScrollDownButton && !messageIsStreaming && !artifactIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
                         (selectedConversation && selectedConversation.messages?.length > 0) &&  (
@@ -825,7 +824,7 @@ export const ChatInput = ({
                             <>
                                 <button
                                     id="stopGenerating"
-                                    className="mt-10 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 "
+                                    className="mt-10 flex w-fit items-center gap-1 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 "
                                     onClick={handleStopConversation}
                                 >
                                     <IconPlayerStop size={16}/> {t('Stop Generating')}
