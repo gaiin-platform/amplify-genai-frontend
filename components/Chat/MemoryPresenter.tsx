@@ -128,7 +128,7 @@ export const MemoryPresenter: FC<Props> = ({
                 {featureFlags.memory && settingRef.current?.featureOptions.includeMemory && selectedConversation && selectedConversation.messages?.length > 0 && extractedFacts.length > 0 && (
                     <div className="w-full">
                         {isFactsVisible && (
-                            <div className="extracted-facts bg-white dark:bg-[#343541] rounded-lg shadow-lg flex flex-col">
+                            <div className="text-black dark:text-white extracted-facts bg-white dark:bg-[#343541] rounded-lg shadow-lg flex flex-col">
                                 <div className="relative max-h-96 overflow-y-auto pt-0.5">
                                     <table className="w-full border-collapse">
                                         <thead>
