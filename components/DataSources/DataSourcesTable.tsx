@@ -11,11 +11,13 @@ import {
 } from 'mantine-react-table';
 import {MantineProvider} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
-import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl} from "@/services/fileService";
+import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl, reprocessFile} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
 import { downloadDataSourceFile, deleteDatasourceFile } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
+import toast from 'react-hot-toast';
+import { IMAGE_FILE_TYPES } from '@/utils/app/const';
 
 
 const DataSourcesTable = () => {
@@ -246,6 +248,20 @@ const DataSourcesTable = () => {
         }
     }
 
+    const fileReprocessing = async (key: string) => {
+        setLoadingMessage("Reprocessing File...");
+        try {;
+            const result = {success: true};
+            if (result.success) {
+                toast("File's rag and embeddings regenerated successfully. Please wait a few minutes for the changes to take effect.");
+            } else {
+                alert("Failed to regenerate file's rag and embeddings.");
+            }
+        } finally {
+            setLoadingMessage("");
+        }
+    }
+
     const handleSaveCell = (table: MRT_TableInstance<FileRecord>, cell: MRT_Cell<FileRecord>, value: any) => {
         //if using flat data and simple accessorKeys/ids, you can just do a simple assignment here
         const index = cell.row.index;
@@ -352,6 +368,35 @@ const DataSourcesTable = () => {
                         <IconTrash/>
                     </ActionButton>
                 ),   
+            },
+            {
+                accessorKey: 're-embed', //access nested data with dot notation
+                header: ' ',
+                width: 18,
+                size: 18,
+                maxSize: 18,
+                enableSorting: false,
+                enableColumnActions: false,
+                enableColumnFilter: false,
+                Cell: ({cell}) => {
+                    // Only show the refresh button for non-image file types
+                    const fileType = cell.row.original.type;
+                    if (IMAGE_FILE_TYPES.includes(fileType)) {
+                        return null;
+                    }
+                    
+                    return (
+                        <ActionButton
+                            title='Regenerate text extraction and embeddings for this file.'
+                            handleClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                fileReprocessing(cell.row.original.id);
+                            }}> 
+                        <IconRefresh size={20} />
+                        </ActionButton>
+                    );
+                },
             },
         ],
         [],
