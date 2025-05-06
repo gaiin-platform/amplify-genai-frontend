@@ -259,7 +259,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
     }, [filteredOperations, viewMode]);
 
     return (
-        <div className="flex h-[400px] w-[800px] border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg bg-white dark:bg-[#22232b] overflow-hidden">
+        <div className="flex h-[400px] w-full border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg bg-white dark:bg-[#22232b] overflow-hidden">
             {/* Left Pane - Operations List */}
             <div className="w-1/3 border-r border-gray-300 dark:border-gray-700 overflow-auto bg-gray-50 dark:bg-[#2b2c35]">
                 <div className="sticky top-0 bg-gray-100 dark:bg-[#343541] px-4 py-3 border-b border-gray-200 dark:border-gray-700">

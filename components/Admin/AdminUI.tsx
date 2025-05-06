@@ -445,6 +445,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     }} 
     onSubmit={() => handleSave()
     }
+    cancelLabel={"Close"}
     submitLabel={"Save Changes"}
     disableSubmit={unsavedConfigs.size === 0}
     content={

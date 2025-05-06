@@ -4,10 +4,9 @@ import {
     IconAt,
     IconFiles,
     IconSend,
-    IconDeviceSdCard,
     IconBrain,
     IconBulb,
-    IconScale, IconActivity, IconSettingsAutomation, IconFolderOpen
+    IconScale, IconSettingsAutomation, IconFolderOpen
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
 import LoadActionSetModal from './LoadActionSetModal';
@@ -264,6 +263,7 @@ export const ChatInput = ({
 
     const promptListRef = useRef<HTMLUListElement | null>(null);
     const dataSourceSelectorRef = useRef<HTMLDivElement | null>(null);
+    const actionSelectorRef = useRef<HTMLDivElement | null>(null);
     const assistantSelectorRef = useRef<HTMLDivElement | null>(null);
 
     const [isWorkflowOn, setWorkflowOn] = useState(false);
@@ -642,6 +642,9 @@ export const ChatInput = ({
 
             if (dataSourceSelectorRef.current &&
                 !dataSourceSelectorRef.current.contains(e.target as Node)) setShowDataSourceSelector(false);
+            
+            if (actionSelectorRef.current && 
+                !actionSelectorRef.current.contains(e.target as Node)) setShowOpsPopup(false);
 
             if (assistantSelectorRef.current && !assistantSelectorRef.current.contains(e.target as Node)) setShowAssistantSelect(false);
         };
@@ -790,7 +793,7 @@ export const ChatInput = ({
             <div style={{width: chatContainerWidth}}
                  className="px-14 absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2 z-15">
 
-                <div className="flex flex-col justify-center items-center stretch mx-2 mt-4 flex flex-row gap-2 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 ">
+                <div className="flex flex-col gap-2 justify-center items-center stretch mx-2 mt-4 flex flex-row gap-0 last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 ">
 
                     {!showScrollDownButton && !messageIsStreaming && !artifactIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
                         (selectedConversation && selectedConversation.messages?.length > 0) &&  (
@@ -868,6 +871,7 @@ export const ChatInput = ({
                                     handleSetMetadata(doc, d.metadata);
                                     handleDocumentState(doc, 100);
                                 }}
+                                showActionButtons={true}
                                 onIntegrationDataSourceSelected={featureFlags.integrations ?
                                     (file: File) => { handleFile(file, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments, undefined)}
                                     : undefined
@@ -875,6 +879,71 @@ export const ChatInput = ({
                             />
                         </div>
                     )}
+
+                    {showOpsPopup && (
+                            <div ref={actionSelectorRef} className="z-50 w-full" 
+                                 style={{transform: 'translateY(60px)'}} >
+                                <OperationSelector
+                                    operations={allOperations}
+                                    initialAction={editingAction ? 
+                                        { 
+                                          name: editingAction.name, 
+                                          customName: editingAction.customName,
+                                          customDescription: editingAction.customDescription,
+                                          parameters: editingAction.parameters || {} 
+                                        } : 
+                                        undefined
+                                    }
+                                    editMode={!!editingAction}
+                                    onCancel={() => {
+                                        setShowOpsPopup(false);
+                                        setEditingAction(null);
+                                    }}
+                                    onActionAdded={(operation, parameters, customName, customDescription) => {
+                                        if (editingAction) {
+                                            // Update the existing action
+                                            setAddedActions((prev) => {
+                                                const newActions = [...prev];
+                                                newActions[editingAction.index] = { 
+                                                    name: operation.name,
+                                                    operation,
+                                                    customName,
+                                                    customDescription,
+                                                    parameters
+                                                };
+                                                return newActions;
+                                            });
+                                            console.log(
+                                                `Action Updated: ${operation.name}`,
+                                                customName ? `Custom Name: ${customName}` : '',
+                                                customDescription ? `Custom Description: ${customDescription}` : '',
+                                                'Parameters:', parameters,
+                                                'Operation:', operation
+                                            );
+                                        } else {
+                                            // Add a new action
+                                            setAddedActions((prev) => [...prev, { 
+                                                name: operation.name,
+                                                operation,
+                                                customName,
+                                                customDescription,
+                                                parameters
+                                            }]);
+                                            console.log(
+                                                `Action Added: ${operation.name}`,
+                                                customName ? `Custom Name: ${customName}` : '',
+                                                customDescription ? `Custom Description: ${customDescription}` : '',
+                                                'Parameters:', parameters,
+                                                'Operation:', operation
+                                            );
+                                        }
+                                        // Clear editing state and close the popup
+                                        setEditingAction(null);
+                                        // setShowOpsPopup(false);
+                                    }}
+                                />
+                            </div>
+                        )}
 
                     {//TODO: feature flag this
                     }
@@ -1172,70 +1241,6 @@ export const ChatInput = ({
                         >
                             <IconFolderOpen size={20}/>
                         </button>
-                        {/* Show the operations popup when showOpsPopup is true */}
-                        {showOpsPopup && (
-                            <div className="absolute bottom-[190px] left-[70px] z-50">
-                                <OperationSelector
-                                    operations={allOperations}
-                                    initialAction={editingAction ? 
-                                        { 
-                                          name: editingAction.name, 
-                                          customName: editingAction.customName,
-                                          customDescription: editingAction.customDescription,
-                                          parameters: editingAction.parameters || {} 
-                                        } : 
-                                        undefined
-                                    }
-                                    editMode={!!editingAction}
-                                    onCancel={() => {
-                                        setShowOpsPopup(false);
-                                        setEditingAction(null);
-                                    }}
-                                    onActionAdded={(operation, parameters, customName, customDescription) => {
-                                        if (editingAction) {
-                                            // Update the existing action
-                                            setAddedActions((prev) => {
-                                                const newActions = [...prev];
-                                                newActions[editingAction.index] = { 
-                                                    name: operation.name,
-                                                    operation,
-                                                    customName,
-                                                    customDescription,
-                                                    parameters
-                                                };
-                                                return newActions;
-                                            });
-                                            console.log(
-                                                `Action Updated: ${operation.name}`,
-                                                customName ? `Custom Name: ${customName}` : '',
-                                                customDescription ? `Custom Description: ${customDescription}` : '',
-                                                'Parameters:', parameters,
-                                                'Operation:', operation
-                                            );
-                                        } else {
-                                            // Add a new action
-                                            setAddedActions((prev) => [...prev, { 
-                                                name: operation.name,
-                                                operation,
-                                                customName,
-                                                customDescription,
-                                                parameters
-                                            }]);
-                                            console.log(
-                                                `Action Added: ${operation.name}`,
-                                                customName ? `Custom Name: ${customName}` : '',
-                                                customDescription ? `Custom Description: ${customDescription}` : '',
-                                                'Parameters:', parameters,
-                                                'Operation:', operation
-                                            );
-                                        }
-                                        // Clear editing state and close the popup
-                                        setEditingAction(null);
-                                        setShowOpsPopup(false);
-                                    }}
-                                />
-                            </div>
-                        )}
 
                         <div className='flex flex-row gap-2'>
 
