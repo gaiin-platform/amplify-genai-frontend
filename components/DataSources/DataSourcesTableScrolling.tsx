@@ -310,6 +310,9 @@ const DataSourcesTableScrolling: FC<Props> = ({
         setLoadingMessage("Deleting File...");
         try {
             await deleteDatasourceFile({id: key}); // TODO: check response
+            setData([]); // Clear existing data to force a complete refresh
+            setIsRefetching(true);
+            fetchFiles(); 
         } finally {
             setLoadingMessage("");
         }

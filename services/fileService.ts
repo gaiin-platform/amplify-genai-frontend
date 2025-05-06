@@ -282,10 +282,7 @@ export const deleteFile = async (key: string) => {
         },
         service: SERVICE_NAME
     };
-    const result = await doRequestOp(op);
-    const isSuccess = result.statusCode === 200;  // Check statusCode instead of success
-
-    return { success: isSuccess, key: key };
+    return await doRequestOp(op);
 }
 
 

@@ -243,6 +243,7 @@ const DataSourcesTable = () => {
         setLoadingMessage("Deleting File.");
         try {
             await deleteDatasourceFile({id: key});
+            handleRefresh();
         } finally {
             setLoadingMessage("");
         }
@@ -449,11 +450,14 @@ const DataSourcesTable = () => {
             ? {color: 'red', children: 'Error loading data'}
             : undefined,
         renderToolbarInternalActions: ({ table }) => (
-            <>
+            <> 
+             <div className="ml-[10px] rounded p-1 hover:bg-gray-600 dark:hover:bg-black">
                 <IconRefresh 
-                    onClick={handleRefresh} 
-                    style={{ cursor: 'pointer', marginLeft: '10px' }}  
+                    
+                    onClick={handleRefresh}  
+                    style={{ cursor: 'pointer' }}  
                 />
+            </div>
                 <MRT_ToggleGlobalFilterButton table={table} />
                 <MRT_ToggleFiltersButton table={table} />
                 <MRT_ShowHideColumnsButton table={table} />
