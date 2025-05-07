@@ -57,20 +57,25 @@ IMPORTANT RULES:
 2. DO NOT extract temporary states, actions, or short-term plans
 3. DO NOT extract facts about specific dates or deadlines unless they represent major milestones
 4. DO NOT extract facts that are overly specific to the current conversation context
-5. PRIORITIZE information about:
+5. DO NOT extract any statements about AI model training data, capabilities, or limitations
+6. DO NOT extract any self-referential statements about being an AI or language model
+7. PRIORITIZE information about:
    - Professional background, experience, and skills
    - Organizational role and relationships
    - Ongoing projects and responsibilities
    - Personal preferences and working styles
-6. LIMIT to a MAXIMUM of 3 high-quality, significant facts per input
-7. CONSOLIDATE related information into meaningful units
+8. LIMIT to a MAXIMUM of 3 high-quality, significant facts per input
+9. CONSOLIDATE related information into meaningful units
 
 Taxonomy Structure:
 ${JSON.stringify(TAXONOMY_STRUCTURE, null, 2)}
 
 ${existingKnowledgeBase}
 
-For each extracted fact, provide the fact and its classification in the following format:
+If there are NO relevant facts to extract (e.g., the input contains only questions, commands, or non-factual content), respond with:
+NO_FACTS: [Brief explanation of why no facts were extracted]
+
+Otherwise, for each extracted fact, provide the fact and its classification in the following format:
 FACT: [Extracted fact]
 TAXONOMY: [Category]/[Subcategory]
 REASONING: [Brief explanation of why this fact is significant and belongs in this category]
