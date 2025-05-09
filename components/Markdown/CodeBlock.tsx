@@ -1,5 +1,5 @@
 import { IconCheck, IconClipboard, IconDownload } from '@tabler/icons-react';
-import { FC, memo, useState } from 'react';
+import { FC, memo, useContext, useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 
@@ -18,6 +18,8 @@ interface Props {
 export const CodeBlock: FC<Props> = memo(({ language, value }) => {
 
   const { t } = useTranslation('markdown');
+  const { state: { featureFlags}} = useContext(HomeContext);
+
   const [isCopied, setIsCopied] = useState<Boolean>(false);
 
   const copyToClipboard = () => {
