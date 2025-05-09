@@ -18,7 +18,6 @@ interface Props {
 export const CodeBlock: FC<Props> = memo(({ language, value }) => {
 
   const { t } = useTranslation('markdown');
-  const { state: { featureFlags}} = useContext(HomeContext);
 
   const [isCopied, setIsCopied] = useState<Boolean>(false);
 
