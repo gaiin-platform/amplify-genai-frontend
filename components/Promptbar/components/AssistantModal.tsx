@@ -1263,6 +1263,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
                                     <br></br>
                                     {/* Api Component View Selector */}
+                                    { featureFlags.integrations &&
                                     <ApiIntegrationsPanel
                                         // API-related props
                                         availableApis={availableApis}
@@ -1285,7 +1286,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             })
                                         }}
                                         disabled={disableEdit}
-                                    />
+                                    />}
                                        
                                 </div>
                                 }

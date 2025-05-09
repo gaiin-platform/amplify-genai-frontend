@@ -880,7 +880,7 @@ export const ChatInput = ({
                         </div>
                     )}
 
-                    {showOpsPopup && (
+                    { featureFlags.actionSets &&  showOpsPopup && (
                             <div ref={actionSelectorRef} className="z-50 w-full" 
                                  style={{transform: 'translateY(60px)'}} >
                                 <OperationSelector
@@ -991,7 +991,7 @@ export const ChatInput = ({
                     <div className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4" >
 
                         {/* Render ActionsList above the input area */}
-                        {addedActions.length > 0 && (
+                        {featureFlags.actionSets && addedActions.length > 0 && (
                             <div className="w-full px-2 py-2 border-b border-black/10 dark:border-gray-700/50">
                                 <ActionsList actions={addedActions}
                                              onActionClick={
@@ -1205,6 +1205,9 @@ export const ChatInput = ({
                                         onUploadProgress={handleDocumentState}
                             />}
 
+                        
+                        { featureFlags.actionSets && 
+                        <>
                         {/* Add Action button toggles the operations popup */}
                         <button
                             className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
@@ -1241,6 +1244,7 @@ export const ChatInput = ({
                         >
                             <IconFolderOpen size={20}/>
                         </button>
+                        </>}
 
                         <div className='flex flex-row gap-2'>
 
