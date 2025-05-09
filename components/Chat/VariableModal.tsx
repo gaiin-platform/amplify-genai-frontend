@@ -491,7 +491,7 @@ export const VariableModal: FC<Props> = ({
                 {updatedVariables.map((variable, index) => (
                     <div className="mb-4" key={index}>
                         {!isBoolean(variable.key) &&
-                            <div className="mb-2 text-sm font-bold text-neutral-200">
+                            <div id="variableName" className="mb-2 text-sm font-bold text-neutral-200">
                                 {parseVariableName(variable.key)}{isRequired(variable.key) && "*"}
                             </div>}
 
@@ -500,6 +500,7 @@ export const VariableModal: FC<Props> = ({
                                 ref={index === 0 ? nameInputRef : undefined}
                                 className="mt-1 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                 style={{resize: 'none'}}
+                                id="variableInputText"
                                 placeholder={`Enter a value...`}
                                 value={variable.value}
                                 onChange={(e) => handleChange(index, e.target.value)}
@@ -634,19 +635,15 @@ export const VariableModal: FC<Props> = ({
                 ))}
 
                 {showModelSelector && models && (
-                    <>
-                    <div className="mb-2 text-sm font-bold text-neutral-200">
-                        Model
-                    </div>
-
+                    <div className="relative h-[100px]">
                     <ModelSelect
-                        isTitled={false}
+                        isTitled={true}
                         modelId={selectedModel.id}
                         handleModelChange={(modelId:string) => {
                             handleModelChange(modelId)
                         }}
                     />
-                    </>
+                    </div>
                 )}
                 <div className="mb-2 mt-6 text-sm font-bold text-neutral-200">
                     Required fields are marked with *

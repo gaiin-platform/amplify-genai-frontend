@@ -1,5 +1,5 @@
 import { FC, useState, useEffect, useRef, useContext } from 'react';
-import { Plugin, PluginID, PluginList } from '@/types/plugin';
+import { Plugin, PluginID, PluginList, Plugins } from '@/types/plugin';
 import { IconGripVertical, IconSparkles, IconX } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { getSettings } from '@/utils/app/settings';
@@ -32,9 +32,11 @@ export const PluginSelector: FC<Props> = ({
     return PluginList.filter(plugin => {
              // Do not include the plugin in the list if ragEnabled is false
               if (plugin.id === PluginID.RAG && !featureFlags.ragEnabled) return false; 
+              if (plugin.id === PluginID.RAG_EVAL && (!featureFlags.ragEnabled || !featureFlags.ragEvaluation)) return false; 
               if (plugin.id === PluginID.CODE_INTERPRETER && !featureFlags.codeInterpreterEnabled) return false;
               if (plugin.id === PluginID.ARTIFACTS && (!featureFlags.artifacts || !settingRef.current?.featureOptions.includeArtifacts)) return false;
               if (plugin.id === PluginID.SMART_MESSAGES && !settingRef.current?.featureOptions.includeFocusedMessages) return false;
+              if (plugin.id === PluginID.MEMORY && (!featureFlags.memory || !settingRef.current?.featureOptions.includeMemory)) return false;
               return true; // Include the plugin in the list if no flags block it
           });
   }
@@ -115,27 +117,39 @@ export const PluginSelector: FC<Props> = ({
         return;
     } 
 
-    if (isActivePlugin(plugin)) {
-        onPluginChange(plugins.filter((p:Plugin) => p.id !== plugin?.id));
-    } else {
-        onPluginChange([...plugins, plugin]);
+    if (isActivePlugin(plugin)) { // turn off
+        // turning off RAG means RAG_EVAL needs to be off as well 
+        let updatedPlugins = plugins.filter((p:Plugin) => p.id !== plugin?.id &&
+                                            (plugin?.id === PluginID.RAG ? 
+                                                   p.id !== PluginID.RAG_EVAL : true));
+        onPluginChange(updatedPlugins);
+    } else { // turn on
+        // turning on RAG_EVAL means RAG is required to be on as well
+        const updatedPlugins = [...plugins, plugin];
+        if (plugin.id === PluginID.RAG_EVAL && !isActivePlugin(Plugins[PluginID.RAG])) {
+          updatedPlugins.push(Plugins[PluginID.RAG]);
+        }
+
+        onPluginChange(updatedPlugins);
     }
 
     const index = validPlugins.findIndex((p:Plugin) => p.id === plugin.id);
     if (index !== -1) {
       optionsRef.current[index]?.focus(); 
-      setFocusedIndex(index); 
+      setFocusedIndex(index);
     }
     
   }
 
   return (
     <div className="rounded flex flex-col cursor-pointer border border-neutral-600 bg-neutral-200 dark:bg-[#282834]" 
+    id="enabledFeaturesMenu"
     style={{ boxShadow: '0 6px 10px rgba(0, 0, 0, 0.3)'}}
       >
       {[...validPlugins, null].map((p, index) => (
         <div
           key={p ? p.id : 'none'}
+          id="enabledFeatureIndex"
           ref={el => (optionsRef.current[index] = el)}  
           tabIndex={0}
           className={`border-b border-neutral-600 p-1 ${isActivePlugin(p) ? "text-neutral-600 dark:text-neutral-300" : "text-neutral-400 dark:text-neutral-600"} hover:text-black dark:hover:text-white`}
@@ -152,6 +166,7 @@ export const PluginSelector: FC<Props> = ({
       <div
         className={`${isDragging ? 'cursor-grabbing' : 'cursor-grab'} text-neutral-400 border-b border-neutral-600`}
         title='Click and Drag'
+        id="clickAndDragEnabledFeaturesMenu"
       >
         <IconGripVertical className='ml-2 my-1' size={18}  />
       </div>
@@ -159,6 +174,7 @@ export const PluginSelector: FC<Props> = ({
       <div
         className='flex w-full text-neutral-700 dark:text-neutral-100 bg-neutral-100 dark:bg-neutral-600'
         onClick={() => setShowPluginSelect(false)}
+        id="closeEnabledFeaturesMenu"
         title='Close'
       >    
         <IconSparkles className='ml-1' />

@@ -8,13 +8,13 @@ import { Group, GroupAccessType, AstGroupTypeData, GroupUpdateType, Members } fr
 import { createEmptyPrompt } from '@/utils/app/prompts';
 import { useSession } from 'next-auth/react';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
-import { createAstAdminGroup, deleteAstAdminGroup, updateGroupAssistants, updateGroupMembers, updateGroupMembersPermissions, updateGroupTypes } from '@/services/groupsService';
+import { createAstAdminGroup, deleteAstAdminGroup, updateGroupAmplifyGroups, updateGroupAssistants, updateGroupMembers, updateGroupMembersPermissions, updateGroupSystemUsers, updateGroupTypes } from '@/services/groupsService';
 import Search from '../Search';
 import { TagsList } from '../Chat/TagsList';
 import ExpansionComponent from '../Chat/ExpansionComponent';
-import { AttachFile } from '../Chat/AttachFile';
+import { AttachFile, handleFile } from '../Chat/AttachFile';
 import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
-import { AssistantDefinition } from '@/types/assistant';
+import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
 import { DataSourceSelector } from '../DataSources/DataSourceSelector';
 import { AttachedDocument } from '@/types/attacheddocument';
 import {ExistingFileList, FileList} from "@/components/Chat/FileList";
@@ -33,6 +33,10 @@ import { includeGroupInfoBox } from '../Emails/EmailsList';
 import Checkbox from '../ReusableComponents/CheckBox';
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from '@/utils/app/amplifyAssistants';
 import { Modal } from '../ReusableComponents/Modal';
+import { AmplifyGroupSelect } from './AdminUI';
+import { getUserAmplifyGroups } from '@/services/adminService';
+import { fetchAllSystemIds } from '@/services/apiKeysService';
+import { ReactElement } from 'react-markdown/lib/react-markdown';
 
 
 interface Conversation {
@@ -56,16 +60,65 @@ const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversation
     const [sortColumn, setSortColumn] = useState<keyof Conversation>('timestamp');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
     const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+    const [searchTerm, setSearchTerm] = useState<string>('');
+    const [filteredConversations, setFilteredConversations] = useState<Conversation[]>(conversations);
+    const [visibleColumns, setVisibleColumns] = useState<(keyof Conversation)[]>([
+        'assistantName',
+        'user',
+        'employeeType',
+        'entryPoint',
+        'numberPrompts',
+        'modelUsed',
+        'timestamp',
+        'userRating',
+        'category'
+    ]);
+
+    // Format date for better readability
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        return date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    // Handle search functionality
+    useEffect(() => {
+        if (searchTerm.trim() === '') {
+            setFilteredConversations(conversations);
+        } else {
+            const lowercaseSearchTerm = searchTerm.toLowerCase();
+            setFilteredConversations(conversations.filter(conv =>
+                conv.assistantName.toLowerCase().includes(lowercaseSearchTerm) ||
+                conv.user.toLowerCase().includes(lowercaseSearchTerm) ||
+                (conv.category && conv.category.toLowerCase().includes(lowercaseSearchTerm)) ||
+                (conv.userFeedback && conv.userFeedback.toLowerCase().includes(lowercaseSearchTerm)) ||
+                (conv.employeeType && conv.employeeType.toLowerCase().includes(lowercaseSearchTerm)) ||
+                (conv.entryPoint && conv.entryPoint.toLowerCase().includes(lowercaseSearchTerm))
+            ));
+        }
+    }, [searchTerm, conversations]);
 
     const openPopup = (conversation: Conversation) => {
         setSelectedConversation(conversation);
     };
 
     if (conversations.length === 0) {
-        return <p>No conversations available</p>;
+        return (
+            <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
+                <div className="text-center">
+                    <IconFiles size={48} className="mx-auto mb-4 opacity-40" />
+                    <p className="text-lg">No conversations available</p>
+                </div>
+            </div>
+        );
     }
 
-    const columnOrder: (keyof Conversation)[] = [
+    const allColumns: (keyof Conversation)[] = [
         'assistantName',
         'user',
         'employeeType',
@@ -81,6 +134,14 @@ const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversation
         'assistantId'
     ];
 
+    const toggleColumnVisibility = (column: keyof Conversation) => {
+        if (visibleColumns.includes(column)) {
+            setVisibleColumns(visibleColumns.filter(col => col !== column));
+        } else {
+            setVisibleColumns([...visibleColumns, column]);
+        }
+    };
+
     const handleSort = (column: keyof Conversation) => {
         if (sortColumn === column) {
             setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -90,7 +151,26 @@ const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversation
         }
     };
 
-    const sortedConversations = [...conversations].sort((a, b) => {
+    // Render star rating
+    const renderStarRating = (rating: number) => {
+        if (!rating) return <span className="text-gray-400">No rating</span>;
+
+        return (
+            <div className="flex items-center">
+                {[1, 2, 3, 4, 5].map((star) => (
+                    <span
+                        key={star}
+                        className={`${star <= rating ? 'text-yellow-500' : 'text-gray-300 dark:text-gray-600'}`}
+                    >
+                        ★
+                    </span>
+                ))}
+                <span className="ml-1 text-xs text-gray-600 dark:text-gray-400">{rating.toFixed(1)}</span>
+            </div>
+        );
+    };
+
+    const sortedConversations = [...filteredConversations].sort((a, b) => {
         if (sortColumn) {
             const aValue = a[sortColumn];
             const bValue = b[sortColumn];
@@ -108,13 +188,13 @@ const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversation
             }
 
             // Special handling for specific columns
-            if (['modelUsed', 'category'].includes(sortColumn)) {
+            if (['modelUsed', 'category', 'assistantName', 'user', 'employeeType', 'entryPoint'].includes(sortColumn)) {
                 return sortDirection === 'asc'
                     ? String(aValue).localeCompare(String(bValue))
                     : String(bValue).localeCompare(String(aValue));
             }
 
-            if (['userRating', 'systemRating'].includes(sortColumn)) {
+            if (['userRating', 'systemRating', 'numberPrompts'].includes(sortColumn)) {
                 return sortDirection === 'asc'
                     ? Number(aValue) - Number(bValue)
                     : Number(bValue) - Number(aValue);
@@ -127,45 +207,187 @@ const ConversationTable: FC<{ conversations: Conversation[] }> = ({ conversation
         return 0;
     });
 
+    // Get column display name with proper formatting
+    const getColumnDisplayName = (column: string): string => {
+        return column
+            .replace(/([A-Z])/g, ' $1') // Insert space before capital letters
+            .replace(/^./, (str) => str.toUpperCase()) // Capitalize first letter
+            .trim();
+    };
+
     return (
         <>
-            <div className="overflow-x-auto overflow-y-auto"  style={{ height: `${window.innerHeight * 0.65 }px` }}>
-                <table className="w-full border-collapse text-black dark:text-white">
-                    <thead className="sticky top-0 bg-white dark:bg-gray-800">
+            <div className="mb-4 px-4 py-3 dark:bg-gray-800 bg-white rounded-lg shadow">
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                    <div className="flex-1 w-full sm:w-auto">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                className="w-full px-4 py-2 pl-10 rounded-md border dark:border-gray-700 dark:bg-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Search conversations..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                            <div className="absolute left-3 top-2.5 text-gray-500 dark:text-gray-400">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="11" cy="11" r="8" />
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="relative group">
+                        <button className="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center">
+                            <svg className="mr-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="4" y1="21" x2="4" y2="14" />
+                                <line x1="4" y1="10" x2="4" y2="3" />
+                                <line x1="12" y1="21" x2="12" y2="12" />
+                                <line x1="12" y1="8" x2="12" y2="3" />
+                                <line x1="20" y1="21" x2="20" y2="16" />
+                                <line x1="20" y1="12" x2="20" y2="3" />
+                                <line x1="1" y1="14" x2="7" y2="14" />
+                                <line x1="9" y1="8" x2="15" y2="8" />
+                                <line x1="17" y1="16" x2="23" y2="16" />
+                            </svg>
+                            Customize Table
+                        </button>
+                        <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-md shadow-lg border dark:border-gray-700 z-10 hidden group-hover:block">
+                            <div className="p-3 border-b dark:border-gray-700">
+                                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Visible Columns</h3>
+                            </div>
+                            <div className="p-2 max-h-60 overflow-y-auto">
+                                {allColumns.map(column => (
+                                    <div key={column} className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                                        <input
+                                            type="checkbox"
+                                            id={`column-${column}`}
+                                            checked={visibleColumns.includes(column)}
+                                            onChange={() => toggleColumnVisibility(column)}
+                                            className="rounded text-blue-500 focus:ring-blue-500 dark:bg-gray-900"
+                                        />
+                                        <label htmlFor={`column-${column}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                            {getColumnDisplayName(column as string)}
+                                        </label>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    Showing {filteredConversations.length} of {conversations.length} conversations
+                </div>
+            </div>
+
+            <div className="overflow-x-auto overflow-y-auto rounded-lg shadow border dark:border-gray-700" style={{ height: `${window.innerHeight * 0.65}px` }}>
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
                         <tr>
-                            {columnOrder.map((key) => (
+                            {visibleColumns.map((column) => (
                                 <th
-                                    key={key}
-                                    className="border px-4 py-2 cursor-pointer"
-                                    onClick={() => handleSort(key as keyof Conversation)}
+                                    key={column}
+                                    scope="col"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    onClick={() => handleSort(column)}
                                 >
-                                    {key}
-                                    {sortColumn === key && (
-                                        <span className="ml-1">
-                                            {sortDirection === 'asc' ? '▲' : '▼'}
-                                        </span>
-                                    )}
+                                    <div className="flex items-center">
+                                        {getColumnDisplayName(column as string)}
+                                        {sortColumn === column && (
+                                            <span className="ml-1">
+                                                {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                        )}
+                                    </div>
                                 </th>
                             ))}
+                            <th scope="col" className="relative px-6 py-3">
+                                <span className="sr-only">View</span>
+                            </th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {sortedConversations.map((conv) => (
-                            <tr key={conv.conversationId} onClick={() => openPopup(conv)} className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700">
-                                {columnOrder.map((key) => (
-                                    <td key={key} className="border px-4 py-2">
-                                        {conv[key as keyof Conversation] !== undefined
-                                            ? typeof conv[key as keyof Conversation] === 'boolean'
-                                                ? conv[key as keyof Conversation].toString()
-                                                : conv[key as keyof Conversation]
-                                            : '-'}
-                                    </td>
-                                ))}
+                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
+                        {sortedConversations.map((conversation, index) => (
+                            <tr
+                                key={conversation.conversationId}
+                                className={`
+                                    hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150
+                                    ${index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800'}
+                                `}
+                                onClick={() => openPopup(conversation)}
+                            >
+                                {visibleColumns.map((column) => {
+                                    // Format different column types
+                                    const value = conversation[column];
+
+                                    if (column === 'timestamp') {
+                                        return (
+                                            <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                                {formatDate(value as string)}
+                                            </td>
+                                        );
+                                    }
+
+                                    if (column === 'userRating' || column === 'systemRating') {
+                                        return (
+                                            <td key={column} className="px-6 py-4 whitespace-nowrap">
+                                                {renderStarRating(value as number)}
+                                            </td>
+                                        );
+                                    }
+
+                                    if (column === 'assistantName' || column === 'category') {
+                                        return (
+                                            <td key={column} className="px-6 py-4 whitespace-nowrap">
+                                                <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                                                    {value || 'N/A'}
+                                                </span>
+                                            </td>
+                                        );
+                                    }
+
+                                    if (column === 'userFeedback') {
+                                        return (
+                                            <td key={column} className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+                                                {value || 'No feedback'}
+                                            </td>
+                                        );
+                                    }
+
+                                    if (column === 'numberPrompts') {
+                                        return (
+                                            <td key={column} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100 text-center">
+                                                <span className="px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700">{value}</span>
+                                            </td>
+                                        );
+                                    }
+
+                                    if (column === 'conversationId' || column === 'assistantId') {
+                                        return (
+                                            <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                                <span className="font-mono text-xs">{String(value).substring(0, 10)}...</span>
+                                            </td>
+                                        );
+                                    }
+
+                                    // Default display for other columns
+                                    return (
+                                        <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                            {value || 'N/A'}
+                                        </td>
+                                    );
+                                })}
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <span className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
+                                        View
+                                    </span>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
+
             {selectedConversation && (
                 <ConversationPopup
                     conversation={selectedConversation}
@@ -260,46 +482,238 @@ interface DashboardMetrics {
     averageSystemRating: number | null;
 }
 
-const Dashboard: FC<{ metrics: DashboardMetrics }> = ({ metrics }) => {
+// Define types for our data structures
+type DataPoint = {
+    name: string;
+    value: number;
+};
+
+// Simple bar chart implementation without external libraries
+const SimpleBarChart: FC<{ data: DataPoint[], color?: string }> = ({
+    data,
+    color = "#0088FE"
+}) => {
+    // Find the maximum value for scaling
+    const maxValue = Math.max(...data.map(item => item.value));
+
+    // Sort data by value in descending order for better visualization
+    const sortedData = [...data].sort((a, b) => b.value - a.value);
+
     return (
-        <div className="p-4 text-black dark:text-white">
+        <div className="w-full">
+            {sortedData.map((item, index) => (
+                <div key={index} className="mb-2">
+                    <div className="flex items-center">
+                        <div className="w-32 text-sm truncate mr-2" title={item.name}>{item.name}</div>
+                        <div className="flex-grow">
+                            <div className="relative pt-1">
+                                <div className="flex items-center justify-between">
+                                    <div className="w-full mr-2">
+                                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded">
+                                            <div
+                                                className="h-4 rounded transition-all duration-500 ease-in-out"
+                                                style={{
+                                                    width: `${Math.max((item.value / maxValue) * 100, 5)}%`,
+                                                    backgroundColor: color
+                                                }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                    <div className="ml-2 text-sm whitespace-nowrap">{item.value}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+// Simple pie chart representation without external libraries
+const SimplePieList: FC<{ data: DataPoint[] }> = ({ data }) => {
+    const total = data.reduce((sum, item) => sum + item.value, 0);
+    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#8dd1e1', '#a4de6c', '#d0ed57'];
+
+    // Sort data by value in descending order for better visualization
+    const sortedData = [...data].sort((a, b) => b.value - a.value);
+
+    return (
+        <div className="w-full">
+            {sortedData.map((item, index) => {
+                const percentage = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
+                return (
+                    <div key={index} className="mb-3 flex items-center group hover:bg-gray-100 dark:hover:bg-gray-700 p-1 rounded transition-colors duration-150">
+                        <div
+                            className="w-3 h-3 rounded-full mr-2"
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                        ></div>
+                        <div className="text-sm flex-grow truncate" title={item.name}>{item.name}</div>
+                        <div className="text-sm mr-2">{item.value}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 w-16">{percentage}%</div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+const Dashboard: FC<{ metrics: DashboardMetrics }> = ({ metrics }) => {
+    // Transform object data into array format for visualization
+    const transformDistributionData = (data: { [key: string]: number }): DataPoint[] => {
+        return Object.entries(data).map(([name, value]) => ({ name, value }));
+    };
+
+    const entryPointData = transformDistributionData(metrics.entryPointDistribution);
+    const categoryData = transformDistributionData(metrics.categoryDistribution);
+    const employeeTypeData = transformDistributionData(metrics.employeeTypeDistribution);
+
+    // Render star rating
+    const renderStarRating = (rating: number | null) => {
+        if (rating === null) return 'N/A';
+
+        return (
+            <div className="flex items-center">
+                <span className="mr-2">{rating.toFixed(2)}</span>
+                <div className="flex">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                        <svg
+                            key={star}
+                            className={`w-4 h-4 ${star <= Math.round(rating) ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`}
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                        >
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    // Progress bar component for comparison
+    const ProgressBar: FC<{ label: string, value: number, maxValue: number, color: string }> = ({
+        label, value, maxValue, color
+    }) => (
+        <div className="mb-3">
+            <div className="flex justify-between items-center mb-1">
+                <span className="text-sm">{label}</span>
+                <span className="text-sm font-semibold">{value.toFixed(2)}</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                <div
+                    className="h-2.5 rounded-full"
+                    style={{
+                        width: `${(value / maxValue) * 100}%`,
+                        backgroundColor: color
+                    }}
+                ></div>
+            </div>
+        </div>
+    );
+
+    return (
+        <div
+            className="p-4 text-black dark:text-white overflow-auto h-full"
+            style={{
+                maxHeight: `${window.innerHeight * 0.75}px`,
+                overflowY: 'auto'
+            }}
+        >
             <h2 className="text-2xl font-bold mb-4">Dashboard Metrics for {metrics.assistantName}</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                Assistant ID: {metrics.assistantId}
+            </p>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-                    <h3 className="text-lg font-semibold mb-2">General Stats</h3>
-                    <p>Number of Unique Users: {metrics.numUsers}</p>
-                    <p>Number of Conversations: {metrics.totalConversations}</p>
-                    <p>Average Number of Prompts per Conversation: {metrics.averagePromptsPerConversation.toFixed(2)}</p>
-                    <p>Average User Rating: {metrics.averageUserRating ? metrics.averageUserRating.toFixed(2) : 'N/A'}</p>
-                    <p>Average System Rating: {metrics.averageSystemRating ? metrics.averageSystemRating.toFixed(2) : 'N/A'}</p>
+                    <h3 className="text-sm uppercase text-gray-500 dark:text-gray-400 mb-2">Unique Users</h3>
+                    <p className="text-3xl font-bold">{metrics.numUsers}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+                    <h3 className="text-sm uppercase text-gray-500 dark:text-gray-400 mb-2">Total Conversations</h3>
+                    <p className="text-3xl font-bold">{metrics.totalConversations}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+                    <h3 className="text-sm uppercase text-gray-500 dark:text-gray-400 mb-2">Avg. Prompts Per Conversation</h3>
+                    <p className="text-3xl font-bold">{metrics.averagePromptsPerConversation.toFixed(2)}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+                    <h3 className="text-sm uppercase text-gray-500 dark:text-gray-400 mb-2">User Satisfaction</h3>
+                    <div className="text-xl font-bold">
+                        {renderStarRating(metrics.averageUserRating)}
+                    </div>
+                </div>
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                {/* Entry Point Distribution */}
+                <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+                    <h3 className="text-lg font-semibold mb-4">Entry Point Distribution</h3>
+                    {entryPointData.length > 0 ? (
+                        <div className="h-64 overflow-y-auto">
+                            <SimpleBarChart data={entryPointData} color="#0088FE" />
+                        </div>
+                    ) : (
+                        <p>No entry point data available</p>
+                    )}
                 </div>
 
+                {/* Category Distribution */}
                 <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-                    <h3 className="text-lg font-semibold mb-2">Entry Point Distribution</h3>
-                    <ul>
-                        {Object.entries(metrics.entryPointDistribution).map(([entryPoint, count]) => (
-                            <li key={entryPoint}>{entryPoint}: {count}</li>
-                        ))}
-                    </ul>
+                    <h3 className="text-lg font-semibold mb-4">Category Distribution</h3>
+                    {categoryData.length > 0 ? (
+                        <div className="h-64 overflow-y-auto">
+                            <SimplePieList data={categoryData} />
+                        </div>
+                    ) : (
+                        <p>No category data available</p>
+                    )}
                 </div>
 
+                {/* Group Type Distribution */}
                 <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-                    <h3 className="text-lg font-semibold mb-2">Category Distribution</h3>
-                    <ul>
-                        {Object.entries(metrics.categoryDistribution).map(([category, count]) => (
-                            <li key={category}>{category}: {count}</li>
-                        ))}
-                    </ul>
+                    <h3 className="text-lg font-semibold mb-4">Group Type Distribution</h3>
+                    {employeeTypeData.length > 0 ? (
+                        <div className="h-64 overflow-y-auto">
+                            <SimplePieList data={employeeTypeData} />
+                        </div>
+                    ) : (
+                        <p>No employee type data available</p>
+                    )}
                 </div>
 
+                {/* System Performance */}
                 <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-                    <h3 className="text-lg font-semibold mb-2">Employee Type Distribution</h3>
-                    <ul>
-                        {Object.entries(metrics.employeeTypeDistribution).map(([employeeType, count]) => (
-                            <li key={employeeType}>{employeeType}: {count}</li>
-                        ))}
-                    </ul>
+                    <h3 className="text-lg font-semibold mb-4">System Performance</h3>
+                    <div className="flex flex-col space-y-4">
+                        <div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">System Rating</p>
+                            <div className="text-xl font-bold mt-1">
+                                {renderStarRating(metrics.averageSystemRating)}
+                            </div>
+                        </div>
+
+                        <div className="mt-4">
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Ratings Comparison</p>
+                            <div className="mt-2">
+                                <ProgressBar
+                                    label="User Rating"
+                                    value={metrics.averageUserRating || 0}
+                                    maxValue={5}
+                                    color="#0088FE"
+                                />
+                                <ProgressBar
+                                    label="System Rating"
+                                    value={metrics.averageSystemRating || 0}
+                                    maxValue={5}
+                                    color="#00C49F"
+                                />
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -320,16 +734,21 @@ interface ManagementProps {
     setLoadingActionMessage: (s:string) => void;
     adminGroups: Group[];
     setAdminGroups: (groups:Group[]) => void;
+    amplifyGroups: string[];
+    systemUsers: string[];
 }
 
 
-const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, members, allEmails, setLoadingActionMessage, adminGroups, setAdminGroups}) => {
+const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, members, allEmails, setLoadingActionMessage,
+                                               adminGroups, setAdminGroups, amplifyGroups, systemUsers}) => {
     const { state: { featureFlags, groups, prompts, folders, statsService}, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
 
     const [hasAdminAccess, setHasAdminAccess] = useState<boolean>((userEmail && selectedGroup.members[userEmail] === GroupAccessType.ADMIN) || false);
     const [groupTypes, setGroupTypes] = useState<string[]>(selectedGroup.groupTypes);
+    const [groupAmpGroups, setGroupAmpGroups] = useState<string[]>(selectedGroup.amplifyGroups ?? []);
+    const [groupSystemUsers, setGroupSystemUsers] = useState<string[]>(selectedGroup.systemUsers ?? []);
 
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [isDeleting, setIsDeleting] = useState<boolean>(false);
@@ -412,6 +831,70 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
             });
         setAdminGroups(updatedAdminGroups);
         setLoadingActionMessage('');
+    }
+
+    const onUpdateAmpGroups = async () => {
+        if (!hasAdminAccess) {
+            alert("You are not authorized to update this group's Amplify Group list.");
+            return false;
+        }
+        setLoadingActionMessage('Updating Amplify Group List');
+        const updateData = {
+                        "group_id": selectedGroup.id,
+                        "amplify_groups": groupAmpGroups
+                    };
+        // statsService.updateGroupAmplifyGroupsEvent(updateData); 
+        const result = await updateGroupAmplifyGroups(updateData);
+        if (!result) {
+            alert(`Unable to update amplify group list at this time. Please try again later.`);
+            setLoadingActionMessage('');
+            return false;;
+        } else {
+            toast(`Successfully updated Amplify group list.`);
+        }
+        
+        //update groups home dispatch 
+        const updatedGroup = {...selectedGroup, amplifyGroups: groupAmpGroups};
+        setSelectedGroup(updatedGroup);
+        const updatedAdminGroups = adminGroups.map((g: Group) => {
+                if (selectedGroup?.id === g.id) return updatedGroup;
+                    return g;
+            });
+        setAdminGroups(updatedAdminGroups);
+        setLoadingActionMessage('');
+        return true;
+    }
+
+    const onUpdateSystemUsers = async () => {
+        if (!hasAdminAccess) {
+            alert("You are not authorized to update this group's system users list.");
+            return false;
+        }
+        setLoadingActionMessage('Updating System User List');
+        const updateData = {
+                        "group_id": selectedGroup.id,
+                        "system_users": systemUsers
+                    };
+        // statsService.updateGroupSystemUsersEvent(updateData); 
+        const result = await updateGroupSystemUsers(updateData);
+        if (!result) {
+            alert(`Unable to update the system users list at this time. Please try again later.`);
+            setLoadingActionMessage('');
+            return false;
+        } else {
+            toast(`Successfully updated group's system users list.`);
+        }
+        
+        //update groups home dispatch 
+        const updatedGroup = {...selectedGroup, systemUsers: systemUsers};
+        setSelectedGroup(updatedGroup);
+        const updatedAdminGroups = adminGroups.map((g: Group) => {
+                if (selectedGroup?.id === g.id) return updatedGroup;
+                    return g;
+            });
+        setAdminGroups(updatedAdminGroups);
+        setLoadingActionMessage('');
+        return true;
     }
 
 
@@ -686,20 +1169,18 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
                 />
                
             { isAddingUsers && 
-                <div className='mx-10'>
-                     <AddMemberAccess
-                        groupMembers={newGroupMembers}
-                        setGroupMembers={setNewGroupMembers}
-                        input={input}
-                        setInput={setInput}
-                        allEmails={allGroupEmails}
-                        handleAddEmails={handleAddEmails}
-                        width='840px'
+                    <AddMemberAccess
+                    groupMembers={newGroupMembers}
+                    setGroupMembers={setNewGroupMembers}
+                    input={input}
+                    setInput={setInput}
+                    allEmails={allGroupEmails}
+                    handleAddEmails={handleAddEmails}
+                    width='840px'
 
-                    />
-                </div>
+                />
                 }
-            <label className="text-2lg font-bold">Group Members</label>
+            <label className="font-bold">Group Members</label>
             
             <div className="flex justify-between gap-6 items-center">
                 <Search
@@ -773,7 +1254,7 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
                     />
 
                 <UsersAction
-                    condition={isEditingAccess}
+                     condition={isEditingAccess}
                      label='Updating Users Access'
                      title='Update Users access'
                      clickAction={() => {
@@ -800,6 +1281,7 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
             { isEditingAccess && accessInfoBox}
             
             { users.length === 0 ? <div className='ml-4'> No members to display</div> :
+            <div className='overflow-y-auto max-h-[300px]'>
                 <table className="w-full border-collapse">
                     <thead>
                         <tr>
@@ -826,7 +1308,7 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
                         </tr>
                     </thead>
                     <tbody>
-                        {users.map((user, index) => (
+                        {[...users].map((user, index) => (
                             <tr key={index}>
                                 {isDeleting &&   
                                 <td className="py-2">
@@ -866,7 +1348,22 @@ const GroupManagement: FC<ManagementProps> = ({selectedGroup, setSelectedGroup, 
                         ))}
                     </tbody>
                 </table>
+            </div>
             }
+
+            <AmpGroupsSysUsersSelection 
+                amplifyGroups={amplifyGroups}
+                selectedAmplifyGroups={groupAmpGroups}
+                setSelectedAmplifyGroups={setGroupAmpGroups}
+                systemUsers={systemUsers}
+                selectedSystemUsers={groupSystemUsers}
+                setSelectedSystemUsers={setGroupSystemUsers}
+                onConfirmAmpGroups={onUpdateAmpGroups} 
+                onCancelAmpGroups={() => setGroupAmpGroups(selectedGroup.amplifyGroups ?? [])} 
+                onConfirmSystemUsers={onUpdateSystemUsers} 
+                onCancelSystemUsers={() => setGroupSystemUsers(selectedGroup.systemUsers ?? [])}
+            />
+            
                 { hasAdminAccess &&
                     <button
                         type="button"
@@ -929,7 +1426,18 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     const [showCreateNewGroup, setShowCreateNewGroup] = useState<boolean>();
     const [showCreateGroupAssistant, setShowCreateGroupAssistant] = useState<string | null>(null);
 
-    const [allEmails, setAllEmails] = useState<Array<string> | null>(null);
+    const fetchEmails = () => {
+        const emailSuggestions = amplifyUsers;
+        // add groups  #groupName
+        const groupForMembers = groups.map((group:Group) => `#${group.name}`);
+        return (emailSuggestions ? [...emailSuggestions,
+                                    ...groupForMembers].filter((e: string) => e !== user) : []);
+    };
+
+    const allEmails:Array<string> = (fetchEmails());
+
+    const [amplifyGroups, setAmplifyGroups] = useState<string[] | null>(null);
+    const [systemUsers, setSystemUsers] = useState<string[] | null>(null);
 
     useEffect(() => {
         const updateInnerWindow = () => {
@@ -943,14 +1451,22 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
       }, []);
 
     useEffect(() => {
-        const fetchEmails = async () => {
-            const emailSuggestions = amplifyUsers;
-            // add groups  #groupName
-            const groupForMembers = groups.map((group:Group) => `#${group.name}`);
-            setAllEmails(emailSuggestions ? [...emailSuggestions,
-                                             ...groupForMembers].filter((e: string) => e !== user) : []);
-        };
-        if (!allEmails) fetchEmails();
+        const fetchAmpGroups = async () => {
+            const ampGroupsResult = await getUserAmplifyGroups();
+            setAmplifyGroups(ampGroupsResult.success ? ampGroupsResult.data : []);
+            if (!ampGroupsResult.success) console.log("Failed to retrieve user amplify groups");
+        } 
+
+        if (!amplifyGroups) fetchAmpGroups();
+
+        const fetchSystemUsers = async () => {
+            const apiSysIds = await fetchAllSystemIds();
+            const sysIds: string[] = apiSysIds.map((k: any) => k.systemId).filter((k: any) => k);
+            setSystemUsers(sysIds);
+        }
+
+        if (!systemUsers) fetchSystemUsers();
+
     }, [open]);
 
     useEffect(()=>{
@@ -1103,7 +1619,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             dataSources: [],
                             version: 1,
                             fileKeys: [],
-                            provider: 'Amplify',
+                            provider: AssistantProviderID.AMPLIFY,
                             groupId: group.id
                             }
         newPrompt.id = `${group.id}_${group.assistants.length}`;
@@ -1126,7 +1642,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                 : {
                                     id: null,
                                     assistantId: null,
-                                    provider: 'amplify'
+                                    provider: AssistantProviderID.AMPLIFY
                                   };
     }
 
@@ -1326,6 +1842,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                         setLoadingActionMessage={setLoadingActionMessage}
                         adminGroups={adminGroups}
                         setAdminGroups={setAdminGroups}
+                        amplifyGroups={amplifyGroups ?? []}
+                        systemUsers={systemUsers ?? []}
                         />
                         : null;
             default:
@@ -1342,11 +1860,13 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                     onClose={onClose} // note clear for built in one
                     allEmails={allEmails}
                     message={adminGroups.length === 0 ? "You currently do not have admin access to any groups." : "" }
+                    amplifyGroups={amplifyGroups ?? []}
+                    systemUsers={systemUsers ?? []}
                 />  
         ):
         // User has groups 
         (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-20">
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-20" key={"ast_admin_ui"}>
             <div className="fixed inset-0 z-10 overflow-hidden">
                 <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                     <div className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true" />
@@ -1384,7 +1904,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                 astprompt.folderId = selectedGroup.id;
                                                 astprompt.data = {...astprompt?.data, noEdit: false}; 
                                                 setSelectedAssistant(astprompt);
-                                                const updatedGroup =  {...selectedGroup, assistants: [...selectedGroup.assistants, astprompt]};
+                                                const updatedGroup =  {...selectedGroup, assistants: [...selectedGroup.assistants ?? [], astprompt]};
                                                 const updatedGroups = adminGroups.map((g:Group) => {
                                                                                         if (astprompt?.groupId === g.id) return updatedGroup;
                                                                                         return g;
@@ -1509,10 +2029,12 @@ interface CreateProps {
     onClose: () => void;
     allEmails: Array<string> | null;
     message: string;
+    amplifyGroups: string[];
+    systemUsers: string[];
 }
 
 
-export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEmails, message}) => {
+export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEmails, message, amplifyGroups, systemUsers}) => {
     const { state: { statsService, groups }, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
     const user = session?.user?.email;
@@ -1523,7 +2045,8 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
     const [groupMembers, setGroupMembers] = useState< Members>({});
 
     const [groupTypes, setGroupTypes] = useState<string[]>([]);
-
+    const [groupAmpGroups, setGroupAmpGroups] = useState<string[]>([]);
+    const [groupSystemUsers, setGroupSystemUsers] = useState<string[]>([]);
 
     const handleAddEmails = () => {
         const entries = input.split(',').map(email => email.trim()).filter(email => email);
@@ -1547,8 +2070,8 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
 
     return (
         <Modal 
-            width={() => window.innerWidth * 0.5}
-            height={() => window.innerHeight * 0.8}
+            width={() => window.innerWidth * 0.7}
+            height={() => window.innerHeight * 0.92}
             title={"Assistant Admin Interface "}
             onCancel={() => {
                 onClose()
@@ -1556,16 +2079,18 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
             onSubmit={() => 
                 createGroup({ group_name: groupName,
                     members: {...groupMembers, [user as string]: GroupAccessType.ADMIN},
-                    types: groupTypes
+                    types: groupTypes,
+                    amplify_groups: groupAmpGroups,
+                    system_users: groupSystemUsers
                   })
             }
             submitLabel={"Create Group"}
             content={
-                <>
+                <div className='mr-2'>
                     {"You will be able to manage assistants and view key metrics related to user engagement and conversation."}
                             <div className="text-sm mb-4 text-black dark:text-neutral-200">{message}</div>
 
-                            <div className='flex flex-col gap-2 font-bold '>
+                            <div className='flex flex-col gap-3 font-bold '>
                                 <>
                                     Group Name
 
@@ -1583,7 +2108,7 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
                                     groupTypes={groupTypes}
                                     setGroupTypes={setGroupTypes}
                                 />
-                                <div className='mt-2'>
+                                <div className='my-2'>
                                     <AddMemberAccess
                                         groupMembers={groupMembers}
                                         setGroupMembers={setGroupMembers}
@@ -1593,9 +2118,17 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
                                         handleAddEmails={handleAddEmails}
                                     /> 
                                 </div>
+                                <AmpGroupsSysUsersSelection 
+                                    amplifyGroups={amplifyGroups}
+                                    selectedAmplifyGroups={groupAmpGroups}
+                                    setSelectedAmplifyGroups={setGroupAmpGroups}
+                                    systemUsers={systemUsers}
+                                    selectedSystemUsers={groupSystemUsers}
+                                    setSelectedSystemUsers={setGroupSystemUsers}
+                                />
                             </div>
                         
-                </>
+                </div>
             }
         />
     )
@@ -1630,7 +2163,7 @@ const accessInfoBox =  <InfoBox content={
         </span>}
 />
 
-export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupMembers, input, setInput, allEmails, handleAddEmails, width='500px'}) => {
+const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupMembers, input, setInput, allEmails, handleAddEmails, width='500px'}) => {
     const [hoveredUser, setHoveredUser] = useState<string | null>(null);
 
 
@@ -1641,15 +2174,15 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
     }
 
     return <div className='flex flex-col gap-2 mb-6'>
+                <label className='font-bold'>Add Members </label>
                 {accessInfoBox}
-                Add Members 
                 <label className='text-sm font-normal'>List group members and their permission levels.</label>
                 <>{includeGroupInfoBox}</>
                 <div className='flex flex-row gap-2'>
                     <div className="flex-shrink-0 ml-[-6px] mr-2">
                         <button
                             type="button"
-                            title='Add Account'
+                            title='Add Members'
                             className="ml-2 mt-1 px-3 py-1.5 text-white rounded bg-neutral-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
                             onClick={handleAddEmails}
                         >
@@ -1667,8 +2200,6 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
                     
                 </div>
         
-                {/* <div className='overflow overflow-y-auto' style={{maxHeight:'200px'}}> */}
-               
                 {Object.keys(groupMembers).length > 0 &&
                     <div>
                      Set Member Access 
@@ -1718,10 +2249,142 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
                         </tbody>
                     </table>
                      
-
                     </div>}
-                {/* </div>  */}
             </div>
+}
+
+interface AmpSysSelectionProps {
+    amplifyGroups: string[];
+    selectedAmplifyGroups: string[];
+    setSelectedAmplifyGroups: (selectedGroups:string[]) => void;
+    systemUsers: string[];
+    selectedSystemUsers: string[];
+    setSelectedSystemUsers: (selectedGroups:string[]) => void;
+
+    onConfirmAmpGroups?: () => Promise<boolean>;
+    onCancelAmpGroups?: () => void;
+    onConfirmSystemUsers?: () =>  Promise<boolean>;
+    onCancelSystemUsers?: () => void;
+
+}
+const AmpGroupsSysUsersSelection: FC<AmpSysSelectionProps> = ({amplifyGroups, selectedAmplifyGroups, setSelectedAmplifyGroups, 
+                                                               systemUsers, selectedSystemUsers, setSelectedSystemUsers, 
+                                                               onConfirmAmpGroups, onCancelAmpGroups, 
+                                                               onConfirmSystemUsers, onCancelSystemUsers
+                                                            }) => {
+    const [isUpdatingAmpGroups, setIsUpdatingAmpGroups] = useState<boolean>(false);
+    const [isUpdatingSystemUsers, setIsUpdatingSystemUsers] = useState<boolean>(false);   
+    const manageAmpGroupChanges = (!!onConfirmAmpGroups);
+    const manageSystemUserChanges = (!!onConfirmSystemUsers);
+
+    const onAcceptAmpGroups = async () => {
+        if (onConfirmAmpGroups) {
+            const sucess = await onConfirmAmpGroups();
+            if (sucess) setIsUpdatingAmpGroups(false);
+        } 
+    }
+
+    const onAcceptSystemUsers = async () => {
+        if (onConfirmSystemUsers) {
+            const sucess = await onConfirmSystemUsers();
+            if (sucess) setIsUpdatingSystemUsers(false);
+        } 
+    }
+
+    const manageChanges = (onConfirm: () => void, onCancel: () => void) => {
+        return <div className="mr-3 mt-1.5 flex flex-row gap-1 h-[20px]">
+            <button 
+                    className="text-green-500 hover:text-green-700 cursor-pointer" 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onConfirm();
+                    }}
+                    title={"Confirm Changes"} 
+                >
+                    <IconCheck size={18} />
+                </button>
+            
+            <button
+                className="text-red-500 hover:text-red-700 cursor-pointer"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onCancel();
+                }}
+                title={"Cancel"}
+            >
+                <IconX size={18} />
+            </button> 
+        </div> 
+    }
+
+    return (
+        <div className='mb-6'>
+        {amplifyGroups.length > 0 && 
+            <ListSelection 
+                title="Amplify Group Access"
+                infoLabel="Grant read access to users who are members of the following Amplify Groups. These users will not appear under the Group Members list."
+                selection={amplifyGroups}
+                selected={selectedAmplifyGroups}
+                setSelected={(selected: string[]) => {
+                    setSelectedAmplifyGroups(selected);
+                    if (manageAmpGroupChanges) setIsUpdatingAmpGroups(true);
+                }}
+                manageButtons={manageAmpGroupChanges && isUpdatingAmpGroups ? 
+                    <div>{ manageChanges(onAcceptAmpGroups, () => {
+                                if (onCancelAmpGroups) onCancelAmpGroups();
+                                setIsUpdatingAmpGroups(false);
+                            })}
+                    </div> : <></>}
+            /> }
+        {systemUsers.length > 0 && 
+            <ListSelection 
+                title='System User Access'
+                infoLabel='Grant read access to your API created system users.'
+                selection={systemUsers}
+                selected={selectedSystemUsers}
+                setSelected={(selected: string[]) => {
+                    setSelectedSystemUsers(selected);
+                    if (manageSystemUserChanges) setIsUpdatingSystemUsers(true);
+                }}
+                manageButtons={manageSystemUserChanges && isUpdatingSystemUsers ?
+                    <div> { manageChanges(onAcceptSystemUsers, () => {
+                                if (onCancelSystemUsers) onCancelSystemUsers();
+                                setIsUpdatingSystemUsers(false);
+                            })}
+                    </div> : <></>}
+            /> }
+
+        </div>
+    );
+}
+
+interface SelectionProps {
+    title: string;
+    infoLabel: string;
+    selection: string[];
+    selected: string[];
+    setSelected: (selectedGroups:string[]) => void;
+    manageButtons?: ReactElement;
+}
+const ListSelection: FC<SelectionProps> = ({title, infoLabel, selection, selected, setSelected, manageButtons=null}) => {
+    return (
+        <div className='mb-6'>
+            <label className='mb-2 font-bold'>{title}</label>
+            <InfoBox content={
+                <>
+                    <span className="ml-1 text-xs w-full text-center"> {infoLabel} </span>
+                     <div className='ml-auto'>{manageButtons}</div>
+                     {!!manageButtons}
+                </>
+                }/>
+        
+            <AmplifyGroupSelect 
+                groups={selection}
+                selected={selected}
+                setSelected={setSelected}
+            /> 
+        </div>
+    );
 }
 
 
@@ -1730,7 +2393,7 @@ interface AccessProps {
     setAccess: (t: GroupAccessType) => void;
 }
 
-export const AccessSelect: FC<AccessProps> = ({ access, setAccess}) => {
+const AccessSelect: FC<AccessProps> = ({ access, setAccess}) => {
     
     return ( 
         <select className={"w-full text-center border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"}
@@ -1800,7 +2463,7 @@ interface ActionProps {
 export const UsersAction: FC<ActionProps> = ({condition, label, title, clickAction, onConfirm, onCancel}) => {
 
     return ( condition ? (
-        <div className="text-xs flex flex-row gap-1">
+        <div className="flex flex-row gap-1">
         <label className={`px-4 py-2 text-white  bg-gray-700`}>  {label}</label>
         <div className="flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 ">
             <button 
@@ -1968,7 +2631,7 @@ interface TypeProps {
 
 export const GroupTypesAst: FC<TypeProps> = ({groupTypes, setGroupTypes, canAddTags=true, showControlButtons=false, onConfirm, onCancel}) => {
     return <>
-        <div className="text-md pb-1 font-bold text-black dark:text-neutral-200 flex items-center">
+        <div className="text-md pb-1 font-bold text-black dark:text-white flex items-center">
                 Group Types
         </div>
         <InfoBox content={
@@ -2034,6 +2697,7 @@ interface TypeAstProps {
 }
 
 export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assistantGroupData, additionalGroupData, setAdditionalGroupData, groupUserTypeQuestion, groupTypes}) => {
+    const { state: { featureFlags } } = useContext(HomeContext);
     const preexistingDSids: {[key:string]:string[]} = {};
 
     const initialDs = (dataSources: any) => {
@@ -2132,6 +2796,27 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
         }));
     };
 
+    const createDataSourceHandlers = (type: string) => {
+        return {
+            onAttach: (doc: AttachedDocument) => {
+                updateGroupType(type, 'dataSources', [...groupTypeDataRef.current[type].dataSources, doc]);
+            },
+            onSetMetadata: (doc: AttachedDocument, metadata: any) => {
+                updateGroupType(type, 'dataSources', groupTypeDataRef.current[type].dataSources.map(x =>
+                    x.id === doc.id ? { ...x, metadata } : x
+                ));
+            },
+            onSetKey: (doc: AttachedDocument, key: string) => {
+                updateGroupType(type, 'dataSources', groupTypeDataRef.current[type].dataSources.map(x =>
+                    x.id === doc.id ? { ...x, key } : x
+                ));
+            },
+            onUploadProgress: (doc: AttachedDocument, progress: number) => {
+                updateDocumentState(type, doc.id, progress);
+            }
+        };
+    };
+
     //on save we will only save the grouptype data that is in the selected types
     if (groupTypes.length === 0) return <></>
 
@@ -2180,8 +2865,9 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
                 content={
                 Object.entries(groupTypeData)
                         .filter(([type]) => selectedTypes.includes(type))
-                        .map(([type, data]) => (
-                            <ExpansionComponent 
+                        .map(([type, data]) => {
+                            const handlers = createDataSourceHandlers(type);
+                            return <ExpansionComponent 
                             key={type}
                             isOpened={true}
                             title={type}
@@ -2250,24 +2936,10 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
                                         <AttachFile id={`__attachFile_admin_${type}_${groupId}_${astPromptId}`}
                                                     groupId={groupId}
                                                     disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
-                                                    onAttach={(doc) => { 
-                                                        console.log("onAttach")
-
-                                                        updateGroupType(type, 'dataSources', [...groupTypeDataRef.current[type].dataSources, doc]);
-                                                    }}
-                                                    onSetMetadata={(doc, metadata) => {
-                                                        updateGroupType(type, 'dataSources', groupTypeDataRef.current[type].dataSources.map(x =>
-                                                            x.id === doc.id ? { ...x, metadata } : x
-                                                        ));
-                                                    }}
-                                                    onSetKey={(doc, key) => {
-                                                        updateGroupType(type, 'dataSources', groupTypeDataRef.current[type].dataSources.map(x =>
-                                                            x.id === doc.id ? { ...x, key } : x
-                                                        ));
-                                                    }}
-                                                    onUploadProgress={(doc, progress) => {
-                                                        updateDocumentState(type, doc.id, progress);
-                                                    }}
+                                                    onAttach={handlers.onAttach}
+                                                    onSetMetadata={handlers.onSetMetadata}
+                                                    onSetKey={handlers.onSetKey}
+                                                    onUploadProgress={handlers.onUploadProgress}
                                         />
                                     </div>
 
@@ -2278,22 +2950,12 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
                                     />
                                     
                                     {showDataSourceSelector === type && (
-                                        <div className="mt-[-40px] flex flex-col justify-center overflow-x-hidden">
-                                            <div className="relative top-[306px] left-1">
-                                                <button
-                                                    type="button" style={{width: "100px"}}
-                                                    className="px-4 py-3 rounded-lg hover:text-gray-900 hover:bg-blue-100 bg-gray-100 w-full dark:hover:bg-gray-700 dark:hover:text-white bg-50 dark:bg-gray-800"
-                                                    onClick={() => {
-                                                        setShowDataSourceSelector('');
-                                                    }}
-                                                >
-                                                    Close
-                                                </button>
-                                            </div>
+                                        <div className="mt-[-10px] justify-center overflow-x-hidden">
                                             <div className="rounded bg-white dark:bg-[#343541]">
                                                 <DataSourceSelector
+                                                    disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
+                                                    onClose={() => setShowDataSourceSelector('')}
                                                     minWidth="500px"
-                                                    height='310px'
                                                     onDataSourceSelected={(d) => {
                                                         const doc = {
                                                             id: d.id,
@@ -2306,6 +2968,11 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
                                                         updateGroupType(type, 'dataSources', [...groupTypeData[type].dataSources, doc]);
                                                         updateDocumentState(type, doc.id, 100);
                                                     }}
+                                                    onIntegrationDataSourceSelected={featureFlags.integrations ? 
+                                                        (file: File) => { handleFile(file, handlers.onAttach, handlers.onUploadProgress, handlers.onSetKey, 
+                                                                          handlers.onSetMetadata, () => {}, featureFlags.uploadDocuments, groupId)} 
+                                                        : undefined
+                                                    }
                                                 />
                                             </div>
                                         </div>
@@ -2322,7 +2989,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({groupId, astPromptId, assis
 
                                 </div>
                             } />
-                    ))
+                })
                 }
             />
             </div>

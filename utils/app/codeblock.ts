@@ -1,6 +1,4 @@
-interface languageMap {
-  [key: string]: string | undefined;
-}
+import { getFileExtensionFromLanguage } from "./fileTypeTranslations";
 
 export interface CodeBlockDetails {
    language: string,
@@ -60,80 +58,6 @@ export const extractCodeBlocksAndText = (content: string) => {
 };
 
 
-
-
-export const getFileExtensionFromLanguage = (language: string): string => {
-  return programmingLanguages[language.toLowerCase()] || '.txt'; // Default to .txt if language is not found
-};
-
-
- export const programmingLanguages: languageMap = {
-  javascript: '.js',
-  python: '.py',
-  java: '.java',
-  c: '.c',
-  cpp: '.cpp',
-  'c++': '.cpp',
-  'c#': '.cs',
-  ruby: '.rb',
-  php: '.php',
-  swift: '.swift',
-  'objective-c': '.m',
-  kotlin: '.kt',
-  typescript: '.ts',
-  go: '.go',
-  perl: '.pl',
-  rust: '.rs',
-  scala: '.scala',
-  haskell: '.hs',
-  lua: '.lua',
-  shell: '.sh',
-  sql: '.sql',
-  html: '.html',
-  css: '.css',
-  json: '.json', 
-  yaml: '.yaml', 
-  markdown: '.md', 
-  plaintext: '.txt', // Added
-  xml: '.xml', // add more file extensions here, make sure the key is same as language prop in CodeBlock.tsx component
-};
-
-
-export const getFileMimeTypeFromLanguage = (language: string): string => {
-  return programmingLanguages[language.toLowerCase()] || 'text/plain'; 
-};
-
-export const programmingLanguagesMimeTypes: { [key: string]: string } = {
-  javascript: 'text/javascript',
-  python: 'text/x-python',
-  java: 'text/x-java-source',
-  c: 'text/x-csrc',
-  cpp: 'text/x-c++src',
-  'c++': 'text/x-c++src',
-  'c#': 'text/x-csharp',
-  ruby: 'text/x-ruby',
-  php: 'application/x-httpd-php',
-  swift: 'text/x-swift',
-  'objective-c': 'text/x-objectivec',
-  kotlin: 'text/x-kotlin',
-  typescript: 'text/typescript',
-  go: 'text/x-go',
-  perl: 'text/x-perl',
-  rust: 'text/x-rustsrc',
-  scala: 'text/x-scala',
-  haskell: 'text/x-haskell',
-  lua: 'text/x-lua',
-  shell: 'application/x-sh',
-  sql: 'application/x-sql',
-  html: 'text/html',
-  css: 'text/css',
-  json: 'application/json', 
-  yaml: 'text/yaml', 
-  markdown: 'text/markdown', 
-  plaintext: 'text/plain',
-  xml: 'application/xml', // or 'text/xml' for textual XML data
-  // Add more MIME types here as needed
-};
 
 export const generateRandomString = (length: number, lowercase = false) => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXY3456789'; // excluding similar looking characters like Z, 2, I, 1, O, 0

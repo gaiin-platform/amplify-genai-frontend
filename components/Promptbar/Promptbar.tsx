@@ -19,9 +19,10 @@ import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {FolderInterface, SortType} from "@/types/folder";
 import { AssistantModal } from '../Promptbar/components/AssistantModal';
 import { getAssistants, handleUpdateAssistantPrompt} from '@/utils/app/assistants';
-import { AssistantDefinition } from '@/types/assistant';
+import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
 import { useSession } from 'next-auth/react';
 import Sidebar from '../Sidebar/Sidebar';
+import toast from 'react-hot-toast';
 
 
 
@@ -41,6 +42,7 @@ const Promptbar = () => {
 
   const sortBy = localStorage?.getItem('promptFolderSort');
   const [folderSort, setFolderSort] = useState<SortType>(sortBy ? sortBy as SortType : 'date');
+
 
   useEffect(() => {
     localStorage.setItem('promptFolderSort', folderSort);
@@ -86,7 +88,40 @@ const Promptbar = () => {
   const [showAssistantModal, setAssistantShowModal] = useState(false);
 
   const [prompt, setPrompt] = useState<Prompt>(createPrompt("Prompt 0"));
-  const [assistantPrompt, setAssistantPrompt] = useState<Prompt>(createPrompt("Assistant 0"));
+  const [assistantPrompt, setAssistantPrompt] = useState<Prompt | undefined>(undefined);
+
+  const [autofillTemplate, setAutofillTemplate] = useState<boolean>(true);
+
+  const workflowAssistantRefs = useRef<Prompt[]>([]);
+
+  const handleOpenOnWorkflowAssistant = () => {
+    const currentAssistants = workflowAssistantRefs.current;
+    const firstAssistant = currentAssistants[0];
+    setAssistantPrompt(firstAssistant);
+    workflowAssistantRefs.current = currentAssistants.slice(1);
+    toast("Please review, edit, and save the assistant to gain access");
+    setAutofillTemplate(false);
+  }
+
+  useEffect(() => {
+    const handleEvent = (event:any) => {
+        const assistants = event.detail.assistants;
+        if (assistants.length > 0) {
+          workflowAssistantRefs.current = [...assistants];
+          handleOpenOnWorkflowAssistant();
+
+        }
+    };
+    window.addEventListener('openAstModalTrigger', handleEvent);
+    return () => {
+        window.removeEventListener('openAstModalTrigger', handleEvent);
+    };
+  }, []);
+
+  
+  useEffect(() => {
+    if (assistantPrompt) setAssistantShowModal(true);
+  }, [assistantPrompt]);
 
 
   const handleAddPrompt = (prompt: Prompt) => {
@@ -130,7 +165,7 @@ const Promptbar = () => {
                           dataSources: [],
                           version: 1,
                           fileKeys: [],
-                          provider: 'Amplify'
+                          provider: AssistantProviderID.AMPLIFY
                         }
 
     if (!newPrompt.data) newPrompt.data = {};  
@@ -138,8 +173,6 @@ const Promptbar = () => {
 
     newPrompt.data.assistant.definition = assistantDef;
     setAssistantPrompt(newPrompt);
-    setAssistantShowModal(true);
-    
   }
 
   const handleDeletePrompt = (prompt: Prompt) => {
@@ -175,6 +208,16 @@ const Promptbar = () => {
     
   };
 
+  const handleCloseAssistantModal = () => {
+    setAssistantShowModal(false);
+    if (workflowAssistantRefs.current.length > 0) {
+      handleOpenOnWorkflowAssistant();
+      setAssistantShowModal(true);
+    } else {
+      setAutofillTemplate(true);
+    }
+   
+  }
   
 
   const handleDrop = (e: any) => {
@@ -277,18 +320,19 @@ const Promptbar = () => {
               onUpdatePrompt={handleUpdatePrompt}
           />
       )}
-      {showAssistantModal && (
+      {assistantPrompt && showAssistantModal && (
         <AssistantModal
         assistant={assistantPrompt} 
-        onCancel={() => {setAssistantShowModal(false)}}
-        onSave={() => { setAssistantShowModal(false)
+        onCancel={() => handleCloseAssistantModal()}
+        onSave={() => { 
+                handleCloseAssistantModal();
                 statsService.createPromptEvent(assistantPrompt);
                }}
         onUpdateAssistant={async (assistantPrompt) => {
               handleUpdateAssistantPrompt(assistantPrompt, promptsRef.current, homeDispatch);
             }}
         loadingMessage='Creating assistant...'
-        autofillOn={true}
+        autofillOn={autofillTemplate}
         loc="add_assistant"
         />
       )}

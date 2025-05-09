@@ -91,8 +91,8 @@ export const PromptStatus: React.FC<PromptStatusProps> = ({ status }) => {
 
         return (
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              {/* Animated dots */}
-              {Array(6).fill(null).map((_, i) => (
+              {/* Animated dots*/}
+              {/* {Array(6).fill(null).map((_, i) => (
                 <div
                   key={`dot-${i}`}
                   className="absolute w-2 h-2 bg-blue-500 rounded-full opacity-0"
@@ -101,7 +101,7 @@ export const PromptStatus: React.FC<PromptStatusProps> = ({ status }) => {
                       animation: `promptStatusPulse 1.5s ease-in-out ${i * 0.2}s infinite`
                   }}
                 />
-              ))}
+              ))} */}
 
               {/* Animated wave */}
               {Array(8).fill(null).map((_, i) => (
@@ -110,7 +110,7 @@ export const PromptStatus: React.FC<PromptStatusProps> = ({ status }) => {
                   className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-purple-500 opacity-30"
                   style={{
                       transform: `translateY(${Math.sin((animationFrame + i * 10) * 0.1) * 5}px)`,
-                      transition: 'transform 0.1s ease-in-out'
+                      transition: 'transform 0.2s ease-in-out'
                   }}
                 />
               ))}

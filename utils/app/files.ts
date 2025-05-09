@@ -1,6 +1,7 @@
-import { getFileDownloadUrl } from "@/services/fileService";
+import { getFileDownloadUrl, deleteFile } from "@/services/fileService";
 import { DataSource } from "@/types/chat";
 import { IMAGE_FILE_TYPES } from "./const";
+import toast from "react-hot-toast";
 
 export const downloadDataSourceFile = async (dataSource: DataSource, groupId: string | undefined = undefined) => {
     const response = await getFileDownloadUrl(dataSource.id, groupId); // support images too 
@@ -11,17 +12,30 @@ export const downloadDataSourceFile = async (dataSource: DataSource, groupId: st
     if (dataSource.type && IMAGE_FILE_TYPES.includes(dataSource.type)) {
         downloadImageFromPresignedUrl(response.downloadUrl, dataSource.name || 'image', dataSource.type || '');
     } else {
-        const link = document.createElement('a');
-        link.href = response.downloadUrl;
-        link.download = dataSource.name || 'File';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        downloadFileFromPresignedUrl(response.downloadUrl, dataSource.name || 'File');
     }
 }
 
+export const deleteDatasourceFile = async (dataSource: DataSource) => {
+  console.log("deleteDatasourceFile: ", dataSource)
+  try {
+      const response = await deleteFile(dataSource.id || 'none');
+      if (!response.success) {  // Now correctly checking success
+          console.error(`Failed to delete file: ${dataSource.id}`, response);
+          alert(`Error deleting file. Please try again.`);
+          return false;
+      }
+      toast(`File deleted successfully`);
+      console.log(`File deleted successfully: ${dataSource.id}`);
+      return true;
+  } catch (error) {
+      console.error(`Error while deleting file: ${dataSource.id}`, error);
+      alert(`An unexpected error occurred while deleting "${dataSource.id}". Please try again later.`);
+      return false;
+  }
+};
 
-async function downloadImageFromPresignedUrl(presignedUrl: string, filename: string, fileType: string): Promise<void> {
+export async function fetchImageFromPresignedUrl(presignedUrl: string, fileType: string) {
     try {
       const response = await fetch(presignedUrl);
       if (!response.ok) throw new Error('Network response was not ok');
@@ -34,8 +48,18 @@ async function downloadImageFromPresignedUrl(presignedUrl: string, filename: str
         byteNumbers[i] = byteCharacters.charCodeAt(i);
       }
       const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: fileType }); 
-  
+      return new Blob([byteArray], { type: fileType }); 
+    } catch (error) {
+      console.error('Failed to fetch image:', error);
+      alert("Error downloading file. Please try again later.");
+      return null;
+    }
+}
+
+async function downloadImageFromPresignedUrl(presignedUrl: string, filename: string, fileType: string): Promise<void> {
+    try {
+      const blob = await fetchImageFromPresignedUrl(presignedUrl, fileType);
+      if (!blob) return;
       // Trigger the download
       const blobUrl = URL.createObjectURL(blob);
       const downloadLink = document.createElement('a');
@@ -51,9 +75,20 @@ async function downloadImageFromPresignedUrl(presignedUrl: string, filename: str
       console.error('Failed to download image:', error);
     }
   }
-  
 
-  export async function fetchFile(presignedUrl: string) {
+export function downloadFileFromPresignedUrl(presignedUrl: string | null, fileName: string) {
+    if (!presignedUrl) return false;
+    
+    const link = document.createElement('a');
+    link.href = presignedUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return true;
+}
+
+export async function fetchFile(presignedUrl: string) {
     if (!presignedUrl) return null;
     try {
       const response = await fetch(presignedUrl);

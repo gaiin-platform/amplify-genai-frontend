@@ -1,7 +1,7 @@
 import { FC, useEffect, useRef } from 'react';
 
 import { useTranslation } from 'next-i18next';
-import {Assistant} from "@/types/assistant";
+import {Assistant, AssistantProviderID} from "@/types/assistant";
 
 interface Props {
     assistant: Assistant | null;
@@ -63,7 +63,7 @@ export const AssistantSelect: FC<Props> = ({
 
     return (
         <div className="flex flex-col"> 
-            <div className="mb-1 w-full rounded border border-neutral-200 bg-transparent pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white">
+            <div id="selectConversationAssistant" className="mb-1 w-full rounded border border-neutral-200 bg-transparent pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white">
                 <select
                     ref={selectRef}
                     className="w-full cursor-pointer bg-transparent p-2"
@@ -81,8 +81,9 @@ export const AssistantSelect: FC<Props> = ({
                     }}
                 >
                     <option
-                        key="amplify"
-                        value="amplify"
+                        key={AssistantProviderID.AMPLIFY}
+                        value={AssistantProviderID.AMPLIFY}
+                        id="standardConversation"
                         className="dark:bg-[#343541] dark:text-white"
                     >
                         Standard Conversation
@@ -93,6 +94,7 @@ export const AssistantSelect: FC<Props> = ({
                             key={a.id}
                             value={a.id}
                             className="dark:bg-[#343541] dark:text-white"
+                            id="assistantName"
                         >
                             {a.definition.name}
                         </option>

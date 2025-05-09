@@ -1,9 +1,10 @@
 
 import JSZip from "jszip";
-import { CodeBlockDetails, getFileMimeTypeFromLanguage } from "./codeblock";
+import { CodeBlockDetails } from "./codeblock";
 import { AttachedDocument } from "@/types/attacheddocument";
 import { addFile } from "@/services/fileService";
 import toast from "react-hot-toast";
+import { getFileMimeTypeFromLanguage } from "./fileTypeTranslations";
 
 const downloadBlob = (blob: Blob, filename: string) => {
         const url = URL.createObjectURL(blob);

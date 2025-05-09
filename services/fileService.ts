@@ -1,8 +1,8 @@
-import {AttachedDocument} from "@/types/attacheddocument";
+import { AttachedDocument } from "@/types/attacheddocument";
 import { doRequestOp } from "./doRequestOp";
 
-const URL_PATH =  "/files";
-
+const URL_PATH = "/files";
+const SERVICE_NAME = "file";
 
 const uploadFileToS3 = (
     file: File,
@@ -53,7 +53,7 @@ const uploadFileToS3 = (
         xhr.send(file);
     });
 
-    return {response:result, abort:()=>xhr.abort()};
+    return { response: result, abort: () => xhr.abort() };
 }
 
 export function checkContentReady(url: string, maxSeconds: number): Promise<any> {
@@ -68,19 +68,19 @@ export function checkContentReady(url: string, maxSeconds: number): Promise<any>
 
             const xhr = new XMLHttpRequest();
             xhr.open('GET', url);
-            xhr.onreadystatechange = function() {
+            xhr.onreadystatechange = function () {
                 if (xhr.readyState === 4) {
                     if (xhr.status === 200) {
                         console.log("File ready for chat");
                         let metadata = null;
-                        try{
+                        try {
                             metadata = JSON.parse(xhr.responseText);
                         }
-                        catch(e){
+                        catch (e) {
                             console.log("Error parsing content metadata response", e);
                         }
                         clearInterval(intervalId);
-                        resolve({success: true, metadata: metadata});
+                        resolve({ success: true, metadata: metadata });
                     }
                     // else if (xhr.status !== 404) {
                     //     clearInterval(intervalId);
@@ -93,8 +93,7 @@ export function checkContentReady(url: string, maxSeconds: number): Promise<any>
     });
 }
 
-
-export const addFile = async (metadata:AttachedDocument, file: File, onProgress?: (progress: number) => void, abortSignal:AbortSignal|null= null, tags: string[] = []) => {
+export const addFile = async (metadata: AttachedDocument, file: File, onProgress?: (progress: number) => void, abortSignal: AbortSignal | null = null, tags: string[] = []) => {
 
     const response = await fetch('/api/files/upload', {
         method: 'POST',
@@ -102,13 +101,13 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            data:{
-                actions:[],
-                type:metadata.type,
-                name:metadata.name,
-                knowledgeBase:"default",
-                tags:tags,
-                data:{},
+            data: {
+                actions: [],
+                type: metadata.type,
+                name: metadata.name,
+                knowledgeBase: "default",
+                tags: tags,
+                data: {},
                 groupId: metadata.groupId
             }
         }),
@@ -127,24 +126,26 @@ export const addFile = async (metadata:AttachedDocument, file: File, onProgress?
     const uploadUrl = result.url;
     const contentUrl = result.contentUrl || null;
     const statusUrl = result.statusUrl || null;
-    const metadataUrl = result.metadataUrl || null 
+    const metadataUrl = result.metadataUrl || null
 
     // console.log("contentUrl", contentUrl);
     // console.log("statusUrl", statusUrl);
     // console.log("metadataUrl", metadataUrl);
 
-    const {response:uploadResponse, abort:abort} = uploadFileToS3(file, uploadUrl, (progress: number) => {
+    const { response: uploadResponse, abort: abort } = uploadFileToS3(file, uploadUrl, (progress: number) => {
         if (onProgress) {
             onProgress(progress);
         }
     });
 
-    return {key:key,
-            contentUrl:contentUrl,
-            metadataUrl:metadataUrl,
-            statusUrl:statusUrl,
-            response:uploadResponse,
-            abortController:abort};
+    return {
+        key: key,
+        contentUrl: contentUrl,
+        metadataUrl: metadataUrl,
+        statusUrl: statusUrl,
+        response: uploadResponse,
+        abortController: abort
+    };
 };
 
 export type PageKey = {
@@ -156,10 +157,10 @@ export type FileQuery = {
     startDate?: string;
     sortIndex?: string;
     pageSize?: number;
-    pageKey?: PageKey|null;
-    namePrefix?: string|null;
-    createdAtPrefix?: string|null;
-    typePrefix?: string|null;
+    pageKey?: PageKey | null;
+    namePrefix?: string | null;
+    createdAtPrefix?: string | null;
+    typePrefix?: string | null;
     types?: string[];
     tags?: string[];
     pageIndex?: number;
@@ -208,47 +209,44 @@ export type FileQueryResult = {
     };
 };
 
+export const getFileDownloadUrl = async (key: string, groupId: string | undefined) => {
 
-
-export const getFileDownloadUrl = async (key:string, groupId: string | undefined) => {
     const op = {
         method: 'POST',
         path: URL_PATH,
         op: "/download",
         data: {
-            key:key,
-            groupId:groupId
-        }
+            key: key,
+            groupId: groupId
+        },
+        service: SERVICE_NAME
     };
     const result = await doRequestOp(op);
-    return {success: result.success, key: key, downloadUrl: result.downloadUrl};
+    return { success: result.success, key: key, downloadUrl: result.downloadUrl };
 }
 
-
-export const deleteTags = async (tags:string[]) => {
+export const deleteTags = async (tags: string[]) => {
     const op = {
         method: 'POST',
         path: URL_PATH,
         op: "/tags/delete",
-        data: {tags: tags}
+        data: { tags: tags },
+        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
-
-
 
 export const listTags = async () => {
     const op = {
         method: 'GET',
         path: URL_PATH,
         op: "/tags/list",
+        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
 
-
-
-export const setTags = async (file:FileRecord) => {
+export const setTags = async (file: FileRecord) => {
     const op = {
         method: 'POST',
         path: URL_PATH,
@@ -256,19 +254,45 @@ export const setTags = async (file:FileRecord) => {
         data: {
             id: file.id,
             tags: file.tags
-        }
+        },
+        service: SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}
+
+export const queryUserFiles = async (query: FileQuery, abortSignal: AbortSignal | null = null) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/query",
+        data: { ...query },
+        service: SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}
+
+export const deleteFile = async (key: string) => {
+    console.log("Delete File function, Service Name:", SERVICE_NAME);
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/delete",
+        data: {
+            key: key,
+        },
+        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
 
 
-
-export const queryUserFiles = async (query:FileQuery, abortSignal:AbortSignal|null= null) => {
+export const reprocessFile = async (key: string, groupId?: string) => {
     const op = {
         method: 'POST',
         path: URL_PATH,
-        op: "/query",
-        data: {...query}
+        op: "/reprocess/rag",
+        data: { key, groupId },
+        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }

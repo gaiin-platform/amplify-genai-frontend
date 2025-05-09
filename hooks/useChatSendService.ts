@@ -5,7 +5,6 @@ import { killRequest as killReq, MetaHandler } from '../services/chatService';
 import { ChatBody, Conversation, CustomFunction, JsonSchema, Message, newMessage } from "@/types/chat";
 import { ColumnsSpec, } from "@/utils/app/csv";
 import { Plugin, PluginID } from '@/types/plugin';
-
 import { useSession } from "next-auth/react"
 import json5 from "json5";
 import { DefaultModels, Model } from "@/types/model";
@@ -23,9 +22,19 @@ import { useChatService } from "@/hooks/useChatService";
 import { ARTIFACTS_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { uploadConversation } from "@/services/remoteConversationService";
 import { getFocusedMessages } from '@/services/prepareChatService';
-import { doExtractFactsOp, doReadMemoryOp } from '@/services/memoryService';
+import { doReadMemoryOp } from '@/services/memoryService';
+import {
+    ExtractedFact,
+    Memory,
+    MemoryOperationResponse
+} from '@/types/memory';
 import { getSettings } from '@/utils/app/settings';
-
+import { promptForData } from '@/utils/app/llm';
+import {
+    buildExtractFactsPrompt,
+    getRelevantMemories,
+    buildMemoryContextPrompt
+} from '@/utils/app/memory';
 
 export type ChatRequest = {
     message: Message;
@@ -41,15 +50,6 @@ export type ChatRequest = {
     prompt?: Prompt;
     conversationId?: string;
 };
-
-interface Memory {
-    content: string;
-    user: string;
-    memory_type: string;
-    memory_type_id: string;
-    id: string;
-    timestamp: string;
-}
 
 export function useSendService() {
     const {
@@ -205,96 +205,67 @@ export function useSendService() {
                     homeDispatch({ field: 'loading', value: true });
                     homeDispatch({ field: 'messageIsStreaming', value: true });
 
-                    const isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts &&
+                    let isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts &&
                         // we only consider whats in the plugins if we have the feature option for it on.
                         (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER)));
                     console.log("Artifacts on: ", isArtifactsOn)
                     const isSmartMessagesOn = featureOptions.includeFocusedMessages && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
-                    console.log("smart on: ", isSmartMessagesOn)
+                    console.log("Smart Messageson: ", isSmartMessagesOn)
 
-                    const isMemoryOn = featureFlags.memory && featureOptions.includeMemory;
+                    const isMemoryOn = featureFlags.memory && featureOptions.includeMemory && (!pluginIds || (pluginIds.includes(PluginID.MEMORY)));
+                    console.log("Memory on: ", isMemoryOn)
 
                     // if both artifact and smart messages is off then it returnes with the messages right away 
-                    const prepareMessages = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService,
+                    const {focusedMessages, includeArtifactInstr} = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService,
                         isArtifactsOn, isSmartMessagesOn, homeDispatch,
                         getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST));
-                    console.log("tokens: ", updatedConversation.maxTokens);
+
+                    if (isArtifactsOn && !includeArtifactInstr) {
+                        isArtifactsOn = false;
+                        console.log("Turning Artifacts off - llm determined it is not needed")
+                    }
+
+                    console.log("Conversation tokens: ", updatedConversation.maxTokens);
                     const chatBody: ChatBody = {
                         model: updatedConversation.model,
-                        messages: prepareMessages, //updatedConversation.messages,
+                        messages: focusedMessages, //updatedConversation.messages,
                         prompt: rootPrompt || updatedConversation.prompt || "",
                         temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
                         maxTokens: updatedConversation.maxTokens || (Math.round(updatedConversation.model.outputTokenLimit / 2)),
                         conversationId
                     };
 
+
                     if (selectedConversation?.projectId) {
                         // console.log("Selected Project Memory ID:", selectedConversation.projectId);
                         chatBody.projectId = selectedConversation.projectId;
                     }
 
-                    // if memory is on, then extract-facts and integrate existing memories into the conversation
+                    // Handle memory operations in parallel with the main request flow
                     if (isMemoryOn) {
-                        // extract facts from user prompt
-                        if (memoryExtractionEnabled) {
-                            const userInput = updatedConversation.messages
-                                .filter(msg => msg.role === 'user')
-                                .pop()?.content || '';
-                                
-                            // const response = await doExtractFactsOp(userInput);
-                            // const extractedFacts = JSON.parse(response.body).facts;
-                            // const currentFacts = extractedFacts || [];
-                            // homeDispatch({
-                            //     field: 'extractedFacts',
-                            //     value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
-                            //         self.indexOf(fact) === index
-                            //     )
-                            // });
+                        // For memory context, use a short timeout to keep the request moving
+                        // if memory retrieval takes too long
+                        try {
+                            // Create a promise with a timeout
+                            const memoriesPromise = Promise.race([
+                                doReadMemoryOp({}),
+                                new Promise<any>((_, reject) =>
+                                    setTimeout(() => reject(new Error('Memory fetch timeout')), 500) // 500ms timeout
+                                )
+                            ]);
 
-                            // extract facts without waiting
-                            const factExtractionPromise = doExtractFactsOp(userInput)
-                                .then(response => {
-                                    const extractedFacts = JSON.parse(response.body).facts;
-                                    const currentFacts = extractedFacts || [];
-                                    homeDispatch({
-                                        field: 'extractedFacts',
-                                        value: [...currentFacts, ...extractedFacts].filter((fact, index, self) =>
-                                            self.indexOf(fact) === index
-                                        )
-                                    });
-                                })
-                                .catch(error => {
-                                    console.warn('Fact extraction failed:', error);
-                                    // Continue with the chat even if fact extraction fails
-                                });
+                            const memoriesResponse = await memoriesPromise;
+                            const allMemories = JSON.parse(memoriesResponse.body).memories || [];
+                            const relevantMemories = getRelevantMemories(allMemories);
+                            const memoryContext = buildMemoryContextPrompt(relevantMemories);
+
+                            if (memoryContext) {
+                                chatBody.prompt += '\n\n' + memoryContext;
+                            }
+                        } catch (error) {
+                            // If memory fetching times out or fails, just proceed without it
+                            console.log("Skipping memory context due to timeout or error:", error);
                         }
-
-                        // memory fetching
-                        const memoriesResponse = await doReadMemoryOp();
-                        const allMemories = JSON.parse(memoriesResponse.body).memories || [];
-
-                        // Filter memories based on criteria
-                        const relevantMemories = allMemories.filter((memory: any) => {
-                            // Check for user memories
-                            if (memory.memory_type === 'user') {
-                                return true;
-                            }
-
-                            // Check for project memories
-                            if (chatBody.projectId && memory.memory_type_id === chatBody.projectId) {
-                                return true;
-                            }
-
-                            return false;
-                        });
-
-                        const memoryContext = relevantMemories.length > 0
-                            ? `Consider these relevant past memories when responding: ${JSON.stringify(
-                                relevantMemories.map((memory: Memory) => memory.content)
-                            )}. Use this context to provide more personalized and contextually appropriate responses.`
-                            : '';
-
-                        chatBody.prompt += '\n\n' + memoryContext;
                     }
 
                     if (isArtifactsOn) {
@@ -332,11 +303,15 @@ export function useSendService() {
                         });
                     }
 
+
                     //PLUGINS before options is assigned
                     //in case no plugins are defined, we want to keep the default behavior
                     if (!featureFlags.ragEnabled || (plugins && pluginActive && !pluginIds?.includes(PluginID.RAG))) {
-                        options = { ...(options || {}), skipRag: true };
+                        options = { ...(options || {}), skipRag: true, ragEvaluation: false };
+                    } else if (featureFlags.ragEnabled && featureFlags.ragEvaluation && (pluginIds?.includes(PluginID.RAG) && pluginIds?.includes(PluginID.RAG_EVAL))) {
+                        options = { ...(options || {}), ragEvaluation: true };
                     }
+
 
                     if (!featureFlags.codeInterpreterEnabled) {
                         //check if we need
@@ -362,6 +337,14 @@ export function useSendService() {
                                 ragOnly: false
                             };
                         }
+                    }
+
+                    if (selectedConversation.model?.supportsReasoning) {
+                        // console.log("model supports reasoning: ", selectedConversation.data?.reasoningLevel)
+                        options = {
+                            ...(options || {}),
+                            reasoningLevel: selectedConversation.data?.reasoningLevel
+                        };
                     }
 
                     if (options) {
@@ -409,9 +392,9 @@ export function useSendService() {
                     const controller = new AbortController();
                     const handleStopGenerationEvent = () => {
                         controller.abort();
-                        console.log("Kill chat event trigger, control signal aborted value: " , controller.signal.aborted); 
+                        console.log("Kill chat event trigger, control signal aborted value: ", controller.signal.aborted);
                     }
-            
+
                     window.addEventListener('killChatRequest', handleStopGenerationEvent);
                     try {
 
@@ -473,6 +456,7 @@ export function useSendService() {
                         if (!response || !response.ok) {
                             homeDispatch({ field: 'loading', value: false });
                             homeDispatch({ field: 'messageIsStreaming', value: false });
+                            console.log(response);
                             toast.error(response.statusText);
                             return;
                         }
@@ -668,6 +652,90 @@ export function useSendService() {
 
                         homeDispatch({ field: 'messageIsStreaming', value: false });
 
+                        // Run memory extraction after main response is processed
+                        if (isMemoryOn && memoryExtractionEnabled) {
+                            // This runs completely independently and doesn't affect the main response flow
+                            (async () => {
+                                try {
+                                    // get the last user message
+                                    const userInput = updatedConversation.messages[updatedConversation.messages.length - 2]?.content || '';
+
+                                    console.log("User input: ", userInput);
+
+                                    // Fetch existing memories for fact extraction
+                                    const memoriesResponse = await doReadMemoryOp({});
+                                    let existingMemories: Memory[] = [];
+
+                                    try {
+                                        const allMemories = JSON.parse(memoriesResponse.body).memories || [];
+                                        existingMemories = getRelevantMemories(allMemories);
+                                    } catch (error) {
+                                        console.error("Error fetching existing memories for fact extraction:", error);
+                                    }
+
+                                    // Build and send fact extraction prompt
+                                    const extractFactsPrompt = buildExtractFactsPrompt(userInput, existingMemories);
+
+                                    console.log("Extract facts prompt: ", extractFactsPrompt);
+
+                                    const extractFactsResult = await promptForData(
+                                        chatEndpoint || '',
+                                        [], // Send empty array instead of conversation messages
+                                        getDefaultModel(DefaultModels.CHEAPEST),
+                                        extractFactsPrompt,
+                                        statsService
+                                    );
+
+                                    console.log("Extract facts result: ", extractFactsResult);
+
+                                    if (!extractFactsResult) {
+                                        console.warn('Fact extraction returned null response');
+                                        return;
+                                    }
+
+                                    // Parse the response to extract facts
+                                    const facts: ExtractedFact[] = [];
+                                    const factBlocks = extractFactsResult.split('\n\n');
+
+                                    for (const block of factBlocks) {
+                                        if (!block.trim()) continue;
+
+                                        const contentMatch = block.match(/FACT: (.*?)(?:\n|$)/);
+                                        const taxonomyMatch = block.match(/TAXONOMY: (.*?)(?:\n|$)/);
+                                        const reasoningMatch = block.match(/REASONING: ([\s\S]*?)(?:\n\n|$)/);
+
+                                        if (contentMatch && taxonomyMatch) {
+                                            facts.push({
+                                                content: contentMatch[1].trim(),
+                                                taxonomy_path: taxonomyMatch[1].trim(),
+                                                reasoning: reasoningMatch ? reasoningMatch[1].trim() : "",
+                                                conversation_id: conversationId || updatedConversation.id
+                                            });
+                                        }
+                                    }
+
+                                    // Filter out duplicates
+                                    const existingContents = new Set(
+                                        existingMemories.map((memory: Memory) => memory.content.toLowerCase().trim())
+                                    );
+                                    const uniqueFacts = facts.filter(fact =>
+                                        !existingContents.has(fact.content.toLowerCase().trim())
+                                    );
+
+                                    // Update state with new facts
+                                    homeDispatch({
+                                        field: 'extractedFacts',
+                                        value: [...(extractedFacts || []), ...uniqueFacts].filter(
+                                            (fact, index, self) =>
+                                                self.findIndex(f => f.content === fact.content) === index
+                                        )
+                                    });
+                                } catch (error) {
+                                    console.warn('Fact extraction process failed:', error);
+                                }
+                            })();
+                        }
+
                         resolve(text);
 
                     } catch (error: any) {
@@ -681,7 +749,6 @@ export function useSendService() {
                         //reject(error);
                         // Handle any other errors, as required.
                     } finally {
-                        
                         window.removeEventListener('killChatRequest', handleStopGenerationEvent);
                     }
 

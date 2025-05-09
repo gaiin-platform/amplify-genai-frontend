@@ -135,6 +135,10 @@ pytest TestActiveAssistantsList.py
 
 This will execute all tests defined in the file.
 
+Furthermore, be sure you're calling pytest from in the correct directory.
+
+The previous file for example has the path: tests/AmplifyHelperTests/TestActiveAssistantsList.py
+
 ### Running Multiple Tests
 
 To execute multiple test files, navigate back to the main project directory:
@@ -155,7 +159,27 @@ Where <option> determines which tests to execute:
 
 2 – Run all test files in the AmplifyHelperTests folder.
 
-3 – Run all test files in the CustomInstructionsTests folder.
+3 – Run all test files in the ChatTests folder.
+
+4 – Run all test files in the ConversationTests folder.
+
+5 – Run all test files in the CustomInstructionsTests folder.
+
+6 – Run all test files in the LeftSidebarTests folder.
+
+7 – Run all test files in the ModalTests folder.
+
+8 – Run all test files in the RightSidebarTests folder.
+
+9 – Run all test files in the TabTests folder.
+
+### Running Tests Asynchronously
+
+To run all of the tests asynchronously, run the following command:
+
+```
+pytest -xvs -n auto tests/
+```
 
 ## Test Organization
 
@@ -163,7 +187,7 @@ The tests folder contains various test files. Additionally, there are subdirecto
 
 AmplifyHelperTests/ – Contains tests related to Amplify helper functions.
 
-CustomInstructionsTests/ – Includes tests for custom instruction handling.
+CustomInstructionsTests/ – Includes tests for Custom Instruction handling.
 
 ## Additional Notes
 

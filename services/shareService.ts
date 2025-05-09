@@ -1,45 +1,46 @@
-import {ExportFormatV4, ShareItem} from "@/types/export";
+import { ExportFormatV4, ShareItem } from "@/types/export";
 import { doRequestOp } from "./doRequestOp";
 
-const URL_PATH =  "/state";
+const URL_PATH = "/state";
+const SERVICE_NAME = "share";
 
-
-export const shareItems = async (user:string, sharedWith:string[], note:string, sharedData:ExportFormatV4, abortSignal= null)=> {
+export const shareItems = async (user: string, sharedWith: string[], note: string, sharedData: ExportFormatV4, abortSignal = null) => {
 
     const op = {
         method: 'POST',
         path: URL_PATH,
-        data: {note, sharedWith, sharedData},
+        data: { note, sharedWith, sharedData },
         op: "/share",
+        service: SERVICE_NAME
     };
-    
+
     return await doRequestOp(op);
 };
 
-export const getSharedItems = async ()=> {
+export const getSharedItems = async () => {
 
     const op = {
-            method: 'GET',
-            path: URL_PATH,
-            op: "/share",
-        };
-        
+        method: 'GET',
+        path: URL_PATH,
+        op: "/share",
+        service: SERVICE_NAME
+    };
+
     return await doRequestOp(op);
 };
 
-export const loadSharedItem = async (key:string)=> {
+export const loadSharedItem = async (key: string) => {
     const op = {
         method: 'POST',
         path: URL_PATH,
-        data: {key},
+        data: { key },
         op: "/share/load",
+        service: SERVICE_NAME
     };
-    
+
     return await doRequestOp(op);
 
 };
-
-
 
 export const deleteShareItem = async (shareItem: ShareItem, abortSignal = null) => {
     if ('sharedAt' in shareItem) shareItem.sharedAt;
@@ -48,7 +49,7 @@ export const deleteShareItem = async (shareItem: ShareItem, abortSignal = null) 
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({op: "/delete", data: shareItem}),
+        body: JSON.stringify({ op: "/delete", data: shareItem }),
         signal: abortSignal,
     });
 
@@ -62,13 +63,13 @@ export const deleteShareItem = async (shareItem: ShareItem, abortSignal = null) 
     }
 };
 
-export const deleteYouSharedItem = async (data:{id:string, shared_users: any}, abortSignal = null) => {
+export const deleteYouSharedItem = async (data: { id: string, shared_users: any }, abortSignal = null) => {
     const response = await fetch('/api/share/deleteyoushared', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({op: "/delete", data: data}),
+        body: JSON.stringify({ op: "/delete", data: data }),
         signal: abortSignal,
     });
 
@@ -82,8 +83,7 @@ export const deleteYouSharedItem = async (data:{id:string, shared_users: any}, a
     }
 };
 
-
-export const getYouSharedItems = async (user:string, abortSignal= null)=> {
+export const getYouSharedItems = async (user: string, abortSignal = null) => {
 
     const response = await fetch('/api/share/youshared', {
         method: 'GET',

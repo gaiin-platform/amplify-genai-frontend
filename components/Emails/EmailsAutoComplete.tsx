@@ -76,44 +76,43 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEm
 
 
         return ( <>
-                                <input ref={inputRef}
-                                    className="w-full rounded-lg border-2 border-[#0dcfda] px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-2 border-[#0dcfda] dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                    type="text"
-                                    value={input}
-                                    onChange={async (e) => {
-                                            setInput(e.target.value.toLowerCase())
-                                        }}
+            <input ref={inputRef}
+                className="w-full rounded-lg border-2 border-[#0dcfda] px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-2 border-[#0dcfda] dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                id="emailInput"
+                type="text"
+                value={input}
+                onChange={async (e) => {
+                        setInput(e.target.value.toLowerCase())
+                    }}
 
-                                    onKeyUp={async (e: React.KeyboardEvent<HTMLInputElement>) => {
-                                        const value = e.currentTarget.value;
-                                        setInput(value);
-                                        const lastQuery = value.split(',').pop();
-                                        
-                                        if (lastQuery && lastQuery.length > 0 && lastQuery.trim().length > 0) {
-                                            emailSuggestions(lastQuery.trim(), input);
-                                        } else {
-                                            setSuggestions([]);
-                                        }
-                                    }}
-                                    placeholder={`Enter email address${addMultipleUsers ? 'es separated by commas' : ""}`}
-                                    autoFocus
-                                />
-                                {suggestions.length > 0 && (
-                                    <div ref={suggestionRef}  
-                                    className="sm:w-full sm:max-w-[440px] absolute z-50 border border-neutral-300 rounded overflow-y-auto bg-white dark:border-neutral-600 bg-neutral-100 dark:bg-[#202123]"
-                                    style={{ height: `${calculateHeight(suggestions.length)}px`}}>
-                                        <ul className="suggestions-list">
-                                        {suggestions.map((suggestion, index) => (
-                                            <li key={index} onClick={() => handleSuggestionClick(suggestion)}
-                                            className="cursor-pointer p-1 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-[#343541]/90">
+                onKeyUp={async (e: React.KeyboardEvent<HTMLInputElement>) => {
+                    const value = e.currentTarget.value;
+                    setInput(value);
+                    const lastQuery = value.split(',').pop();
+                    
+                    if (lastQuery && lastQuery.length > 0 && lastQuery.trim().length > 0) {
+                        emailSuggestions(lastQuery.trim(), input);
+                    } else {
+                        setSuggestions([]);
+                    }
+                }}
+                placeholder={`Enter email address${addMultipleUsers ? 'es separated by commas' : ""}`}
+                autoFocus
+            />
+            {suggestions.length > 0 && (
+                <div ref={suggestionRef}  
+                className="sm:w-full sm:max-w-[440px] absolute z-50 border border-neutral-300 rounded overflow-y-auto bg-white dark:border-neutral-600 bg-neutral-100 dark:bg-[#202123]"
+                style={{ height: `${calculateHeight(suggestions.length)}px`}}>
+                    <ul className="suggestions-list">
+                    {suggestions.map((suggestion, index) => (
+                        <li key={index} onClick={() => handleSuggestionClick(suggestion)}
+                        className="cursor-pointer p-1 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-[#343541]/90">
 
-                                                {suggestion}
-                                            </li>
-                                        ))}
-                                        </ul>
-                                </div> 
-                                )}
-
-
+                            {suggestion}
+                        </li>
+                    ))}
+                    </ul>
+            </div> 
+            )}
         </> )
 }

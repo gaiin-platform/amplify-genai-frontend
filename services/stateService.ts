@@ -1,6 +1,7 @@
 import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH =  "/state";
+const SERVICE_NAME = "state";
 
 const saveState = async(user:string, name:string, data:any) => {
     try {

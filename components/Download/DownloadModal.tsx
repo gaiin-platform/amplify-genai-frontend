@@ -235,7 +235,8 @@ export const DownloadModal: FC<DownloadModalProps> = (
     return (
         <Modal 
             width={() => window.innerWidth * (preDownload() ?  0.5 : 0.3)}
-            height={() => preDownload() && includeConversations ? window.innerHeight *  0.78 : 280}
+            height={() => preDownload() && includeConversations ? window.innerHeight *  0.6 : 280}
+            transform={includeConversations ? "translateY(200px) !important" : ""}
             title={preDownload() ? "Download": ""}
             onCancel={onClose} 
             // showCancel={!isDownloading}
@@ -254,6 +255,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                         ( downloadUrl != null ? (
                             <div className="flex flex-row items-center justify-center mb-6 text-2xl button">
                                 <a href={downloadUrl || ""}
+                                   id="downloadClick"
                                    className="bg-blue-500 hover:bg-green-500 text-white font-bold py-2 px-4 rounded"
                                 >
                                     <IconDownload className="text-center w-full" size={34}/>
@@ -266,10 +268,10 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                 <h3 className="text-black dark:text-white text-lg mt-2 border-b">Options</h3>
 
 
-                                <div className="grid grid-cols-2 w-full items-center p-2 text-black dark:text-white">
+                                <div id="optionsGrid" className="grid grid-cols-2 w-full items-center p-2 text-black dark:text-white">
 
                                     <div>Format</div>
-                                    <div className="ml-2 rounded w-full text-black pr-2 pt-2">
+                                    <div id="formatSelection" className="ml-2 rounded w-full text-black pr-2 pt-2">
                                     <select
                                         className={shadow}
                                         onChange={(e) => {
@@ -292,7 +294,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                     </div>
 
                                     <div>Template</div>
-                                    <div className="ml-2 rounded w-full text-black pr-2 pt-2">
+                                    <div id="templateSelection" className="ml-2 rounded w-full text-black pr-2 pt-2">
                                         <select
                                             className={shadow}
                                             onChange={(e) => {
@@ -307,7 +309,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                     </div>
 
                                     <div>Include Conversation Name</div>
-                                    <div className="ml-2 rounded w-full text-black pr-2 pt-2">
+                                    <div id="convoNameInclusionSelection" className="ml-2 rounded w-full text-black pr-2 pt-2">
                                         <select
                                             className={shadow}
                                             onChange={(e) => {
@@ -324,7 +326,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                     <div className="mt-2">Include</div>
                                         )}
                                     {showInclude && (
-                                    <div className="ml-2 rounded text-black pr-2 pt-2">
+                                    <div id="includeSelection" className="ml-2 rounded text-black pr-2 pt-2">
                                         <select
                                             className={shadow}
                                             onChange={(e) => {
@@ -346,7 +348,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                     <div>Conversation Header</div>
                                         )}
                                     {showHeaders && (
-                                    <div className="ml-2">
+                                    <div id="conversationHeaderText" className="ml-2">
                                         <textarea
                                             className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                             style={{resize: 'none'}}
@@ -365,7 +367,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                     <div>Message Header</div>
                                         )}
                                     {showHeaders && (
-                                    <div className="ml-2">
+                                    <div id="messageHeaderText" className="ml-2">
                                         <textarea
                                             className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                             style={{resize: 'none'}}
@@ -383,7 +385,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                     <div>User Message Header</div>
                                         )}
                                     {showHeaders && (
-                                    <div className="ml-2">
+                                    <div id="userMessageHeaderText" className="ml-2">
                                         <textarea
                                             className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                             style={{resize: 'none'}}
@@ -400,7 +402,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                     <div>Assistant Header</div>
                                         )}
                                     {showHeaders && (
-                                    <div className="ml-2">
+                                    <div id="assistantHeaderText" className="ml-2">
                                         <textarea
                                             className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                             style={{resize: 'none'}}
@@ -429,6 +431,5 @@ export const DownloadModal: FC<DownloadModalProps> = (
                     
                     } 
         />
- 
     );
 };

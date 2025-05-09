@@ -356,8 +356,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                                 </div>
                             
                             { !docsIsOpen && <div className='flex flex-row justify-between mx-8 py-1'>
-                                <div className='flex flex-row gap-4' style={{ width: '240px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}>
-                                    <label className="text-sm mt-1" htmlFor="rateLimitType">Rate Limit</label>
+                                <div className='flex flex-row gap-4 items-center' style={{ width: '240px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}>
+                                    <label className="text-sm " htmlFor="rateLimitType">Rate Limit</label>
                                     <RateLimiter
                                         period={rateLimitPeriod}
                                         setPeriod={setRateLimitPeriod}
@@ -366,7 +366,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                                     />
                                  </div>
 
-                                <div className='flex flex-row' style={{width: '296px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}> 
+                                <div className='flex flex-row items-center' style={{width: '296px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}> 
                                     <div className='mt-1'> <Checkbox
                                             id={`expirationDate`}
                                             label={'Set Expiration Date'}
@@ -428,7 +428,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                                         
                                     }}
                                 >
-                                    <div className=' flex flex-row gap-2 mr-1'> 
+                                    <div className=' flex flex-row gap-2 mr-1 truncate'> 
                                     <IconPlus size={20} />
                                     Create Key
                                     </div>

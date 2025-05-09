@@ -104,7 +104,7 @@ const LegacyWorkspaces: FC<Props> = () => {
                 >
                     <IconRocket className='ml-2 mb-1' size={22}/>
                     <div className="flex flex-row gap-1 break-all text-left leading-3 pr-1">
-                        <div className="max-w-5 flex-1 break-all text-left text-[15px] leading-3 pr-1"
+                        <div className="flex-1 break-all text-left text-[15px] leading-3 pr-1"
                             style={{wordWrap: "break-word"}} // Added word wrap style
                         >
                             {item.note}

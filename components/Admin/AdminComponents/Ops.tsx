@@ -1,14 +1,51 @@
-import { FC, useState } from "react";
+import { Dispatch, FC, SetStateAction, useState } from "react";
 import { loadingIcon, titleLabel } from "../AdminUI";
-import { IconMessage, IconPlus, IconTags, IconTrash } from "@tabler/icons-react";
+import { IconInfoCircle, IconMessage, IconPlus, IconTags, IconTrash } from "@tabler/icons-react";
 import { OpDef } from "@/types/op";
 import InputsMap from "@/components/ReusableComponents/InputMap";
-import { HTTPRequestSelect } from "@/components/CustomAPI/CustomAPIEditor";
+import { HTTPRequestSelect } from "@/components/AssistantApi/CustomAPIEditor";
 import { deleteOp, registerOps } from "@/services/opsService";
 import toast from "react-hot-toast";
 import Search from "@/components/Search";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import { InfoBox } from "@/components/ReusableComponents/InfoBox";
+
+
+export const opsSearchToggleButtons = (opSearchBy: string, setOpSearchBy: Dispatch<SetStateAction<"name" | "tag">>, 
+                                       opSearchTerm: string, setOpSearchTerm: (s: string) => void, 
+                                       shift:string, translate: string) => {
+    return <div className={`h-[0px] items-center ${shift} flex flex-row gap-4`}
+                style={{transform: translate}}>
+            <div className="ml-auto"> Search by</div>
+            <div className="w-[140px] flex items-center rounded-md border border-neutral-600 bg-neutral-200 dark:bg-[#39394a] p-1">
+            {["name", "tag"].map((search: string) => 
+            <button onMouseDown={(e) =>  e.preventDefault()}
+                key={search}
+                className={`flex flex-row gap-2 py-1 px-2 text-[12px] rounded-md focus:outline-none 
+                            ${ opSearchBy === search ? 'bg-white dark:bg-[#1f1f29] text-neutral-900 dark:text-neutral-100 font-bold transform scale-105' 
+                                                     : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
+                }`}
+                disabled={opSearchBy === search}
+                onClick={(e) => {  
+                e.preventDefault();
+                e.stopPropagation();
+                setOpSearchBy(search as "name" | "tag");
+                }}
+            > <div className="mt-0.5">{ search === "tag" ?
+                <IconTags size={14}/> : <IconMessage size={14} />}</div>
+                <label className={`${opSearchBy === search ? "" : "cursor-pointer"} mt-[-1px] mr-0.5`}>{search}</label>
+            </button>
+            ) }
+        </div>
+        <div className="w-[200px]" >
+            <Search
+            placeholder={'Search Ops...'}
+            searchTerm={opSearchTerm}
+            onSearch={(searchTerm: string) => setOpSearchTerm(searchTerm.toLocaleLowerCase())}
+            />
+        </div>
+    </div>
+}
 
 interface Props {
     ops: OpDef[];
@@ -253,6 +290,7 @@ return <>
 
             </div>}
             <ExpansionComponent
+                    closedWidget={<IconInfoCircle size={18} className='flex-shrink-0'/>}
                     title={"Understanding Ops"}
                     content={
                     <InfoBox content={
@@ -304,36 +342,7 @@ return <>
 
             { ops.length > 0 && 
             <div className="mt-8">
-            { showOpSearch && 
-                <div className="h-[0px] items-center ml-[200px] mr-14 flex flex-row gap-4"
-                        style={{transform: 'translateY(6px)'}}>
-                    <div className="ml-auto"> Search by</div>
-                    <div className="w-[140px] flex items-center rounded-md border border-neutral-600 bg-neutral-200 dark:bg-[#39394a] p-1">
-                    {["name", "tag"].map((search: string) => 
-                    <button onMouseDown={(e) =>  e.preventDefault()}
-                        key={search}
-                        className={`flex flex-row gap-2 py-1 px-2 text-[12px] rounded-md focus:outline-none ${ opSearchBy === search ? 'bg-white dark:bg-[#1f1f29] text-neutral-900 dark:text-neutral-100 font-bold transform scale-105' : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
-                        }`}
-                        disabled={opSearchBy === search}
-                        onClick={(e) => {  
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setOpSearchBy(search as "name" | "tag");
-                        }}
-                    > <div className="mt-0.5">{ search === "tag" ?
-                        <IconTags size={14}/> : <IconMessage size={14} />}</div>
-                        <label className={`${opSearchBy === search ? "" : "cursor-pointer"} mt-[-1px] mr-0.5`}>{search}</label>
-                    </button>
-                    ) }
-                </div>
-                <div className="w-[200px]" >
-                    <Search
-                    placeholder={'Search Ops...'}
-                    searchTerm={opSearchTerm}
-                    onSearch={(searchTerm: string) => setOpSearchTerm(searchTerm.toLocaleLowerCase())}
-                    />
-                </div>
-            </div>}
+            { showOpSearch && opsSearchToggleButtons(opSearchBy, setOpSearchBy, opSearchTerm, setOpSearchTerm, " ml-[200px] mr-14", 'translateY(5px)') }
             <ExpansionComponent
                 onOpen={() => setShowOpSearch(true)}
                 onClose={() => {
@@ -363,12 +372,12 @@ return <>
                         <tr key={op.id} 
                             onMouseEnter={() => setHoveredOp(opIdx)}
                             onMouseLeave={() => setHoveredOp(-1)}>
-                            <td className="text-center border border-neutral-500 p-2">
+                            <td className="text-center border border-neutral-500 p-2 break-words">
                                 {op.name}
                             </td>
                             
-                            <td className="text-center border border-neutral-500 px-0.5 py-1 break-words">
-                                <div className="flex flex-row gap-1 items-center justify-center" >
+                            <td className="text-center border border-neutral-500 px-0.5 py-1 break-words ">
+                                <div className="flex flex-row gap-1 items-center justify-center max-w-[300px] flex-wrap" >
                                     {op.tags?.filter((t: string) => t !== 'all')
                                                 .map((t : string) => 
                                                 <div key={t}
@@ -377,7 +386,7 @@ return <>
                                 </div>
                             </td>
 
-                            <td className="border border-neutral-500 px-2 py-2 text-start">
+                            <td className="border border-neutral-500 px-2 py-2 text-start max-w-[220px] break-words">
                                 {op.url}
                             </td>
 

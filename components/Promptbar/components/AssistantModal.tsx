@@ -6,21 +6,35 @@ import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
 import {ExistingFileList, FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
-import {AttachFile} from "@/components/Chat/AttachFile";
-import {IconFiles, IconCircleX, IconArrowRight} from "@tabler/icons-react";
-import {createAssistant} from "@/services/assistantService";
+import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
+import {createAssistant, addAssistantPath, lookupAssistant} from "@/services/assistantService";
+import {IconFiles, IconArrowRight, IconMailFast, IconCaretRight, IconCaretDown, IconSitemap, IconWorld} from "@tabler/icons-react";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
-import { AssistantDefinition } from '@/types/assistant';
+import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
 import { AstGroupTypeData } from '@/types/groups';
 import React from 'react';
 import { AttachedDocument } from '@/types/attacheddocument';
-import { executeAssistantApiCall } from '@/services/assistantAPIService';
 import { getOpsForUser } from '@/services/opsService';
-import ApiItem from '@/components/AssistantApi/ApiItem';
 import { getSettings } from '@/utils/app/settings';
-import { API, APIComponent } from '@/components/CustomAPI/CustomAPIEditor';
-import Search from '@/components/Search';
+import { API } from '@/components/AssistantApi/CustomAPIEditor';
+import { filterSupportedIntegrationOps } from '@/utils/app/ops';
+import  {AssistantPathEditor, AstPathData, emptyAstPathData, isAstPathDataChanged} from './AssistantModalComponents/AssistantPathEditor';
+import {opLanguageOptionsMap } from '@/types/op';
+import { getAgentTools } from '@/services/agentService';
+import { AssistantWorkflowSelector } from '@/components/AssistantWorkflows/AssistantWorkflowSelector';
+import { AstWorkflow} from '@/types/assistantWorkflows';
+import { registerAstWorkflowTemplate } from '@/services/assistantWorkflowService';;
+import Checkbox from '@/components/ReusableComponents/CheckBox';
+import { useSession } from 'next-auth/react';
+import { compareEmailEventTemplates, constructAstEventEmailAddress, EMAIL_EVENT_TAG_PREFIX, formatEmailEventTemplate, isPresetEmailEventTag, safeEmailEventTag, updateAllowedSenders } from '@/utils/app/assistantEmailEvents';
+import { addEventTemplate, listAllowedSenders, removeAllowedSender, removeEventTemplate } from '@/services/emailEventService';
+import toast from 'react-hot-toast';
+import { AddEmailWithAutoComplete } from '@/components/Emails/AddEmailsAutoComplete';
+import ApiIntegrationsPanel from '@/components/AssistantApi/ApiIntegrationsPanel';
+import { AssistantEmailEvents } from '@/components/Promptbar/components/AssistantModalComponents/AssistantEmailEvents';
+import { AssistantWorkflowDisplay } from './AssistantModalComponents/AssistantWorkflowDisplay';
+import { WebsiteURLInput } from '@/components/DataSources/WebsiteURLInput';
 
 
 interface Props {
@@ -136,8 +150,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                           disableEdit=false, title, onCreateAssistant,height, width = `${window.innerWidth * 0.6}px`,
                                           translateY, blackoutBackground=true, additionalTemplates, autofillOn=false, embed=false, additionalGroupData, children}) => {
     const {t} = useTranslation('promptbar');
-
-    const { state: { prompts, featureFlags} , setLoadingMessage} = useContext(HomeContext);
+    const { data: session } = useSession();
+    const userEmail = session?.user?.email ?? '';
+    const { state: { prompts, featureFlags, amplifyUsers, aiEmailDomain } , setLoadingMessage} = useContext(HomeContext);
 
     const definition = getAssistant(assistant);
 
@@ -226,24 +241,120 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
     const [messageOptions, setMessageOptions] = useState<{ [key: string]: boolean }>(initialMessageOptionState);
     const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(initialFeatureOptionState);
+    
     const [apiOptions, setAPIOptions] = useState<{ [key: string]: boolean }>(initialAPIOptionState);
     const [availableApis, setAvailableApis] = useState<any[] | null>(null);
-    const [apiSearchTerm, setApiSearchTerm] = useState<string>(''); 
-    const [selectedApis, setSelectedApis] = useState<any[]>(initialSelectedApis);
 
+    const [selectedApis, setSelectedApis] = useState<any[]>(initialSelectedApis);
     const [apiInfo, setApiInfo] = useState<API[]>(initialApiCapabilities || []);
 
+    const [availableAgentTools, setAvailableAgentTools] = useState<Record<string, any> | null>(null);
+    const [builtInAgentTools, setBuiltInAgentTools] = useState<string[]>(definition.data?.builtInOperations ?? []);
+
+    const [availableOnRequest, setAvailableOnRequest] = useState(definition.data?.availableOnRequest || false);
+    
+    // Path-related state
+    const [astPath, setAstPath] = useState<string|null>(featureFlags.assistantPathPublishing ? definition.astPath || definition.data?.astPath || definition.pathFromDefinition : null); // initialize in useEffect
+    const [isCheckingPath, setIsCheckingPath] = useState(true);
+    const [isPathAvailable, setIsPathAvailable] = useState<boolean>(!!astPath); 
+    const [astPathData, setAstPathData] = useState<AstPathData | null>(null);
+    
     useEffect(() => {
-        
-        if (availableApis === null) getOpsForUser().then((ops) => {
-                                            if(ops.success){
-                                                // console.log(ops.data);
-                                                setAvailableApis(ops.data);
-                                            } else {
-                                                setAvailableApis([]);
-                                            }
-                                        });
+        const lookupPath = async () => {
+            let pathData: AstPathData = emptyAstPathData;
+            if (!astPath) {
+                setAstPathData(pathData);
+                return;
+            };
+            const result = await lookupAssistant(astPath);
+            // If lookup was successful, the path is already taken
+            if (result.success && result.data) {
+                // console.log("result.data", result.data);
+                const data = result.data;
+                const astId = data.assistantId;
+                if (astId !== definition.assistantId) {
+                    setAstPathData(pathData);
+                    setAstPath(null);
+                    setIsPathAvailable(false);
+                    return;
+                } 
+
+                const accessTo = data.accessTo;
+                pathData = {isPublic: data.public ?? true, 
+                            accessTo: {amplifyGroups: accessTo.amplifyGroups ?? [], 
+                                        users: accessTo.users ?? []}};
+            } 
+            setAstPathData(pathData);
+        }
+
+        if (featureFlags.assistantPathPublishing && astPathData === null) {
+            lookupPath();
+            setIsCheckingPath(false);
+        }
+    }, [featureFlags.assistantPathPublishing]);
+
+    // workflow template
+    const [baseWorkflowTemplateId, setBaseWorkflowTemplateId] =  useState<string | undefined>(definition.data?.baseWorkflowTemplateId);
+    const [astWorkflowTemplateId, setAstWorkflowTemplateId] =  useState<string | undefined>(definition.data?.workflowTemplateId);
+    const [currentWorkflowTemplate, setCurrentWorkflowTemplate] =  useState<AstWorkflow | null>(null);
+
+    // email events
+    const [enableEmailEvents, setEnableEmailEvents] = useState<boolean>(!!definition.data?.emailEvents);
+    const [emailEventTag, setEmailEventTag] = useState<string | undefined>(definition.data?.emailEvents?.tag);
+    const [emailEventTemplate, setEmailEventTemplate] = useState<{systemPrompt?: string, userPrompt?: string} | undefined>(definition.data?.emailEvents?.template);
+    const [isEmailTagAvailable, setIsEmailTagAvailable] = useState<boolean>(!!emailEventTag);
+    // Use fallback function if the imported one fails
+    const isPresetCheck = typeof isPresetEmailEventTag === 'function' ? isPresetEmailEventTag : isPresetEmailEventTagFallback;
+    const [isCheckingEmailTag, setIsCheckingEmailTag] = useState<boolean>(!isPresetCheck(emailEventTag));
+    
+    const [existingAllowedSenders, setExistingAllowedSenders] = useState<string[] | null>(null);
+    const [curAllowedSenders, setCurAllowedSenders] = useState<string[]>([]);
+
+
+    useEffect(() => {
+        const getAllowedSenders = async () => {
+            const tag = definition.data?.emailEvents?.tag;
+            if (!tag) {
+                setExistingAllowedSenders([]);
+                return;
+            }
+            const response = await listAllowedSenders(tag);
+            if (response.success && response.data)  {
+                const senders: string[] = response.data ?? [];
+                setExistingAllowedSenders(senders);
+                const curSenders = new Set([...senders, ...curAllowedSenders]);
+                setCurAllowedSenders(Array.from(curSenders));
+            }
+        }
+        if (existingAllowedSenders === null && enableEmailEvents) getAllowedSenders();
+    }, [existingAllowedSenders, enableEmailEvents]);
+
+
+    // we need to detect name changes if there is a tag predefined because then the existing sender list is empty
+    const filterOps = async (data: any[]) => {
+            const filteredOps = await filterSupportedIntegrationOps(data);
+            if (filteredOps) setAvailableApis(filteredOps);
+        }
+
+    useEffect(() => {
+        if (featureFlags.integrations && availableApis === null) getOpsForUser().then((ops) => {
+                                                                    if (ops.success) {
+                                                                        // console.log("ops: ", ops.data);
+                                                                        filterOps(ops.data); 
+                                                                        return;
+                                                                    } 
+                                                                    setAvailableApis([]);
+                                                                });
     }, [availableApis]);
+
+    useEffect(() => {
+        if (featureFlags.agentTools && availableAgentTools === null ) {
+            getAgentTools().then((tools) => {
+                // console.log("tools", tools.data);
+                setAvailableAgentTools(tools.success ? tools.data : {});
+            });
+        }
+    }, [availableAgentTools]);
     
 
     const additionalGroupDataRef = useRef<any>({});
@@ -252,16 +363,24 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         additionalGroupDataRef.current = additionalGroupData;
     }, [additionalGroupData]);
 
+    useEffect(() => {
+        if (baseWorkflowTemplateId) {
+            setOpsLanguageVersion("v4");
+        } else {
+            setOpsLanguageVersion("v1");
+        }
+    }, [baseWorkflowTemplateId]);
+
     const validateApiInfo = (api: any) => {
         return api.RequestType && api.URL && api.Description;
     };
+
 
     let cTags = (assistant.data && assistant.data.conversationTags) ? assistant.data.conversationTags.join(",") : "";
     const [tags, setTags] = useState((assistant.data && assistant.data.tags) ? assistant.data.tags.join(",") : "");
     const [conversationTags, setConversationTags] = useState(cTags);
 
-   
-    const getTemplates = () => {
+    const getTemplates = () => { // Allows auto fill from existing assistants
         let templates = prompts.filter((p:Prompt) => isAssistant(p) && (!p.groupId));
         if (additionalTemplates) templates = [...templates, ...additionalTemplates];
         return templates.map((p:Prompt) => p.data?.assistant?.definition);
@@ -270,8 +389,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [templates, setTemplates] =  useState<AssistantDefinition[]>(getTemplates());
     const [selectTemplateId, setSelectTemplateId] =  useState<any>("");
 
-
-    const [uri, setUri] = useState<string|null>(definition.uri || null);
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     const modalRef = useRef<HTMLDivElement>(null);
@@ -319,7 +436,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         
     }
 
-    const handleTemplateChange = () => {
+    const handleAstTemplateChange = () => {
         if (!selectTemplateId) return;
         const ast = templates.find((p:AssistantDefinition) => p.id === selectTemplateId);
         if (ast) {
@@ -340,20 +457,34 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 return acc;
                             }, {})
                         );
-            if (ast.tags) setTags(ast.tags ? ast.tags.join(", "): '');
+            setSelectedApis(ast.tools ?? []);
+            if (ast.tags) setTags(ast.tags.join(", "));
             if (ast.disclaimer) setDisclaimer(ast.disclaimer);
+            if (ast.data) {
+                const data = ast.data;
+                if (data.conversationTags) setConversationTags(data.conversationTags.join(", "));
+                setDataSourceOptions(data.dataSourceOptions);
+                setMessageOptions(data.messageOptions);
+                setFeatureOptions(data.featureOptions);
+                setOpsLanguageVersion(data.opsLanguageVersion);
+                if (data.operations) setApiInfo(data.operations.filter( (api:any) => api.type === "http") || []);
+                if (data.baseWorkflowTemplateId) setBaseWorkflowTemplateId(data.baseWorkflowTemplateId);
+                if (data.emailEvents?.template) {
+                    setEnableEmailEvents(true);
+                    setEmailEventTemplate(data.emailEvents?.template);
+                }
+            }
+            
         }
-    }
-
-    const handleUpdateApiItem = (id: string, checked: boolean) => {
-        const api = availableApis?.find((api) => api.id === id);
-        if (!api) return;
-        const newSelectedApis = checked ? [...selectedApis, api] : selectedApis.filter((api) => api.id !== id);
-        setSelectedApis(newSelectedApis);
     }
    
 
     const handleUpdateAssistant = async () => {
+        if(!name){
+            alert("Must provide a name.");
+            return;
+        }
+
         // Check if any data sources are still uploading
         const isUploading = Object.values(documentState).some((x) => x < 100);
         const isUploadingGroupDS = additionalGroupData && additionalGroupData.groupTypeData ? Object.entries(additionalGroupData.groupTypeData as AstGroupTypeData).some(([type, info]) => !allDocumentsUploaded(info.documentState)) : false;
@@ -362,120 +493,295 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             return;
         }
 
+        if (featureFlags.assistantPathPublishing) {
+            if (isCheckingPath) {
+                alert("Please wait for assistant path to be cleared for use.");
+                return;
+            }
+            if (astPath && !isPathAvailable) {
+                alert("Assistant path is not available, please try a different path.");
+                return;
+            }
+        }
+
+        if (enableEmailEvents) {
+            if (!isEmailTagAvailable) {
+                alert("Email event tag is not available, please try a different tag.");
+                return;
+            }
+            if (isCheckingEmailTag && (definition.data?.emailEvents?.tag && !emailEventTag)) {
+                alert("Please wait for email event tag to be cleared for use...");
+                return;
+            }
+        }
+
 
         setIsLoading(true);
         setLoadingMessage(loadingMessage);
 
-        let newAssistant = getAssistant(assistant);
-        newAssistant.name = name;
-        newAssistant.provider = "amplify";
-        newAssistant.data = newAssistant.data || {provider: "amplify"};
-        newAssistant.description = description;
-        newAssistant.instructions = content;
-        newAssistant.disclaimer = disclaimer;
+        try {
+            let newAssistant = getAssistant(assistant);
+            newAssistant.name = name;
+            newAssistant.provider = AssistantProviderID.AMPLIFY;
+            newAssistant.data = newAssistant.data || {provider: AssistantProviderID.AMPLIFY};
+            newAssistant.description = description;
+            newAssistant.instructions = content;
+            newAssistant.disclaimer = disclaimer;
 
-        // TODO handle for groupTypes too 
-        if(uri && uri.trim().length > 0){
-            // Check that it is a valid uri
-            if(uri.trim().indexOf("://") === -1){
-                alert("Invalid URI, please update and try again.");
+            if (!featureFlags.assistantPathPublishing || (definition.astPath && !astPath)) {
+                // If feature flag is disabled, ensure astPath is not set
+                if (newAssistant.astPath) delete newAssistant.astPath;
+                if (newAssistant.data ) {
+                    delete newAssistant.data.astPath;
+                    delete newAssistant.data.astPathData;
+                }
+            }
+
+          // console.log(dataSources.map((d: any)=> d.name));
+
+            newAssistant.dataSources = dataSources.map(ds => {
+                if (assistant.groupId) {
+                    if (!ds.key) ds.key = ds.id;
+                    if (!ds.groupId) ds.groupId = assistant.groupId;
+                    return {
+                      ...ds,
+                      id: "s3://"+ds.key
+                    }
+                }
+                if(ds.key || (ds.id && ds.id.indexOf("://") > 0)){
+                    return ds;
+                }
+                else {
+                    return {
+                        ...ds,
+                        id: "s3://"+ds.id
+                    }
+                }
+            });
+            // do the same for 
+            newAssistant.tools = selectedApis || [];
+            
+            // Handle tags whether it's a string or array
+            const tagsList = Array.isArray(tags) 
+                ? tags 
+                : (tags ? tags.split(",").map((x: string) => x.trim()) : []);
+            
+            newAssistant.tags = tagsList;
+            newAssistant.data.tags = tagsList;
+            
+            // Handle conversationTags in the same way
+            newAssistant.data.conversationTags = Array.isArray(conversationTags)
+                ? conversationTags
+                : (conversationTags ? conversationTags.split(",").map((x: string) => x.trim()) : []);
+            
+            //if we were able to get to this assistant modal (only comes up with + assistant and edit buttons)
+            //then they must have had read/write access.
+            newAssistant.data.access = {read: true, write: true};
+
+            newAssistant.data.dataSourceOptions = dataSourceOptions;
+
+            newAssistant.data.messageOptions = messageOptions;
+
+            newAssistant.data.featureOptions = featureOptions;
+
+            newAssistant.data.opsLanguageVersion = opsLanguageVersion;
+            newAssistant.data.availableOnRequest = availableOnRequest;
+
+            newAssistant.data.builtInOperations = builtInAgentTools; 
+
+            if (!baseWorkflowTemplateId && definition.data?.workflowTemplateId) {
+                console.log("removing workflow template")
+                newAssistant.data.workflowTemplateId = undefined;
+                newAssistant.data.baseWorkflowTemplateId = undefined;
+            } else if (baseWorkflowTemplateId && !currentWorkflowTemplate && 
+                      (astWorkflowTemplateId !== definition.data?.workflowTemplateId)) { 
+                alert("Please confirm and save the worflow template before saving the assistant.");
                 setIsLoading(false);
                 setLoadingMessage("");
+                return;
+            } else if (baseWorkflowTemplateId && currentWorkflowTemplate && 
+                       currentWorkflowTemplate.template && currentWorkflowTemplate.template.steps) { 
+                setLoadingMessage("Registering workflow template...");
 
+                const response = await registerAstWorkflowTemplate(currentWorkflowTemplate.template, currentWorkflowTemplate.name, currentWorkflowTemplate.description);
+                if (response.success && response.data?.templateId) {
+                    newAssistant.data.workflowTemplateId = response.data.templateId;
+                    newAssistant.data.baseWorkflowTemplateId = baseWorkflowTemplateId;
+                    setLoadingMessage(loadingMessage);
+                    newAssistant.data.opsLanguageVersion = "v4";
+                } else {
+                    alert("Unable to register assistant workflow template, please try again later...");
+                    setIsLoading(false);
+                    setLoadingMessage("");
+                    return;
+                } 
+            } else { // no changes to workflow 
+                console.log("--Workflow no changes--")
+                newAssistant.data.baseWorkflowTemplateId = baseWorkflowTemplateId;
+                newAssistant.data.workflowTemplateId = astWorkflowTemplateId;
+                if (astWorkflowTemplateId) newAssistant.data.opsLanguageVersion = "v4";
+            }
+            
+            // Email Events
+            let registerEmailEvent = false; // we have to register after we get the assistant id
+            let eventTag: string = enableEmailEvents ? emailEventTag && emailEventTag !== EMAIL_EVENT_TAG_PREFIX ? emailEventTag : safeEmailEventTag(name) : "";
+            const oldEventTag: string | undefined = definition.data?.emailEvents?.tag;
+            if (enableEmailEvents) {
+                eventTag = eventTag.replace(/^[._-]+|[._-]+$/g, '');
+                const safeTemplate = {userPrompt: emailEventTemplate?.userPrompt || "", systemPrompt: emailEventTemplate?.systemPrompt || ""};
+                const tagChanged = oldEventTag && eventTag !== oldEventTag;
+                // register event template if 
+                // 1. not registered before
+                // 2. template has changed
+                // 3. name has changed
+                
+                if (!oldEventTag || tagChanged || !newAssistant.assistantId ||
+                    !compareEmailEventTemplates(definition.data?.emailEvents?.template, safeTemplate)) {
+                    if (tagChanged && oldEventTag) removeAllowedSender(oldEventTag);
+                    registerEmailEvent = true;
+                }
+                
+                newAssistant.data.emailEvents = {
+                    tag : eventTag,
+                    template : safeTemplate,
+                }
+                // handle allowed sender changes
+                updateAllowedSenders(eventTag, existingAllowedSenders ?? [], curAllowedSenders);
+            } else if (oldEventTag) {// remove if disabling
+                removeEventTemplate(oldEventTag);
+                removeAllowedSender(oldEventTag);
+                delete newAssistant.data.emailEvents;
+            }
+
+
+            // console.log("apiInfo",apiInfo);
+            // console.log("selectedApis",selectedApis);
+
+            const combinedOps = [
+              ...selectedApis,
+              ...(apiInfo.map((api) => {return {type:"http", ...api}}))
+            ];
+
+            newAssistant.data = {
+                ...newAssistant.data,
+                operations: combinedOps//selectedApis
+            };
+
+            if (apiOptions.IncludeApiInstr && apiInfo.some(api => !validateApiInfo(api))) {
+                alert("Please fill out all required API fields (Request Type, URL, and Description) before saving.");
+                setIsLoading(false);
+                setLoadingMessage("");
                 return;
             }
 
-            newAssistant.uri = uri.trim();
-        }
-
-        console.log(dataSources.map((d: any)=> d.name));
-
-        newAssistant.dataSources = dataSources.map(ds => {
-            if (assistant.groupId) {
-                if (!ds.key) ds.key = ds.id;
-                if (!ds.groupId) ds.groupId = assistant.groupId;
-                return {
-                ...ds,
-                id: "s3://"+ds.key
+            if (assistant.groupId) newAssistant.data.groupId = assistant.groupId;
+            
+            const updatedAdditionalGroupData = prepAdditionalData();
+            newAssistant.data = {...newAssistant.data, ...updatedAdditionalGroupData};
+            
+            const {id, assistantId, provider} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant, null);
+            console.log('Assistant created with ID:', assistantId);
+            
+            if (!id) {
+                alert("Unable to save the assistant at this time, please try again later...");
+                setIsLoading(false);
+                setLoadingMessage("");
+                return;
+            }
+            
+            if (registerEmailEvent) { // needed assistantId to register
+                setLoadingMessage("Registering email event template...");
+                const response = await addEventTemplate(eventTag, formatEmailEventTemplate(emailEventTemplate), assistantId);
+                if (response.success) {
+                    toast("Assistant successfully setup to receive emails.");
+                } else {
+                    alert("Unable to register email event template. You will not be able to send emails to this assistant, please try saving again.");
                 }
+    
             }
-            if(ds.key || (ds.id && ds.id.indexOf("://") > 0)){
-                return ds;
+
+            newAssistant.id = id;
+            newAssistant.provider = provider;
+            newAssistant.assistantId = assistantId;
+
+            // If we have an assistantId and astPath, update the path in DynamoDB
+            // if path has changed or pathData has changed
+            if (featureFlags.assistantPathPublishing && assistantId && astPath &&
+                (astPath !== definition.astPath || isAstPathDataChanged(astPathData, definition.data?.astPathData))) {
+                try {
+                    const formattedPath = astPath.toLowerCase();
+                    setLoadingMessage(`Publishing assistant to ${window.location.origin}/assistants/${formattedPath}...`);
+                    console.log(`Attempting to save path "${formattedPath}" for assistant "${assistantId}" (ID type: ${typeof assistantId})`);
+
+                    if (!assistantId?.trim()) throw new Error('Invalid assistant ID');// Make sure the assistantId is a valid string
+                    if (!formattedPath?.trim()) throw new Error('Invalid path');// Make sure the path is a valid string
+                    
+                    const pathResult = await addAssistantPath(assistantId, formattedPath, assistant.groupId, astPathData?.isPublic, astPathData?.accessTo);
+                    // console.log('Path saving result:', pathResult);
+
+                    if (pathResult.success) {
+                        newAssistant.astPath = formattedPath;
+                        
+                        if (!newAssistant.data) newAssistant.data = {};
+
+                        newAssistant.data.astPath = formattedPath;
+                        newAssistant.data.astPathData = astPathData;
+                        toast(`Assistant successfully published at: ${formattedPath}`);
+                    } else {
+                        console.error('Failed to save path:', pathResult);
+                        alert(`Error saving path: ${pathResult.message || 'Failed to save assistant path. Please try again.'}`);
+                    }
+
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    console.error('Exception when saving path:', errorMessage);
+                    alert(`An error occurred while saving the path: ${errorMessage}`);
+                } 
             }
-            else {
-                return {
-                    ...ds,
-                    id: "s3://"+ds.id
-                }
-            }
-        });
-        // do the same for 
-        newAssistant.tools = selectedApis || [];
-        const tagsList = tags ? tags.split(",").map((x: string) => x.trim()) : [];
-        newAssistant.tags = tagsList
-        newAssistant.data.tags = tagsList;
-        newAssistant.data.conversationTags = conversationTags ? conversationTags.split(",").map((x: string) => x.trim()) : [];
-        
-        //if we were able to get to this assistant modal (only comes up with + assistant and edit buttons)
-        //then they must have had read/write access.
-        newAssistant.data.access = {read: true, write: true};
 
-        newAssistant.data.dataSourceOptions = dataSourceOptions;
+            const aPrompt = createAssistantPrompt(newAssistant);
+            onUpdateAssistant(aPrompt);
 
-        newAssistant.data.messageOptions = messageOptions;
 
-        newAssistant.data.featureOptions = featureOptions;
-
-        newAssistant.data.opsLanguageVersion = opsLanguageVersion;
-
-        console.log("apiInfo",apiInfo);
-        console.log("selectedApis",selectedApis);
-
-        const combinedOps = [
-          ...selectedApis,
-          ...(apiInfo.map((api) => {return {type:"http", ...api}}))
-        ];
-
-        newAssistant.data = {
-            ...newAssistant.data,
-            operations: combinedOps//selectedApis
-        };
-
-        if (apiOptions.IncludeApiInstr && apiInfo.some(api => !validateApiInfo(api))) {
-            alert("Please fill out all required API fields (Request Type, URL, and Description) before saving.");
-            setIsLoading(false);
-            setLoadingMessage("");
-            return;
+            onSave();
+        } catch (error) {
+            console.error('Error updating assistant:', error);
         }
-
-        if (assistant.groupId) newAssistant.data.groupId = assistant.groupId;
-        
-        const updatedAdditionalGroupData = prepAdditionalData();
-        newAssistant.data = {...newAssistant.data, ...updatedAdditionalGroupData};
-        
-        const {id, assistantId, provider} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant, null);
-        if (!id) {
-            alert("Unable to save the assistant at this time, please try again later...");
-            setIsLoading(false);
-            setLoadingMessage("");
-
-            return;
-        }
-
-        newAssistant.id = id;
-        newAssistant.provider = provider;
-        newAssistant.assistantId = assistantId;
-
-        const aPrompt = createAssistantPrompt(newAssistant);
-
-
-        onUpdateAssistant(aPrompt);
-
         setIsLoading(false);
         setLoadingMessage("");
-
-        onSave();
     }
+
+        // handle file upload functions //
+    const onAttach = (doc: AttachedDocument) => {
+        setDataSources((prev) => {
+            prev.push(doc as any);
+            return prev;
+        });
+    }
+    const onSetMetadata = (doc: AttachedDocument, metadata: any) => {
+        setDataSources((prev)=>{
+            return prev.map(x => x.id === doc.id ? {
+                ...x,
+                metadata
+            } : x)
+        });
+    }
+    const onSetKey = (doc: AttachedDocument, key: string) => {
+        setDataSources((prev)=>{
+            return prev.map(x => x.id === doc.id ? {
+                ...x,
+                key
+            } : x)
+        });
+    }
+
+    const onUploadProgress = (doc: AttachedDocument, progress: number) => {
+        setDocumentState((prev)=>{
+                prev[doc.id] = progress;
+                return prev;
+        });
+    }
+    
 
     if (isLoading) return <></>;
     
@@ -492,6 +798,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                         
 
                         <div className=" max-h-[calc(100vh-10rem)] overflow-y-auto"
+                            id="assistantModalScroll"
                             style={{ height: height}}>
                             {children}
 
@@ -503,7 +810,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>
                             <div className="flex flex-row gap-2 ">
                                 <select
-                                    className="my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow"
+                                    className={"my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow"}
+                                    id="autoPopulateSelect"
                                     value={selectTemplateId}
                                     onChange={(e) => setSelectTemplateId(e.target.value ?? '')}
                                     >
@@ -520,7 +828,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 className={`mt-2 px-1 h-[36px] rounded border border-neutral-900 dark:border-neutral-500 px-4 py-2 text-neutral-500 dark:text-neutral-300 dark:bg-[#40414F]
                                             ${selectTemplateId ? "cursor-pointer  hover:text-neutral-900 dark:hover:text-neutral-100"  : "cursor-not-allowed"}`}
                                 disabled={!selectTemplateId}
-                                onClick={() => handleTemplateChange()}
+                                id="fillInTemplateButton"
+                                onClick={() => handleAstTemplateChange()}
                                 title={"Fill-In Template"}
                                 >
                                     <IconArrowRight size={18} />
@@ -536,6 +845,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 disabled={disableEdit}
+                                onBlur={() => setExistingAllowedSenders(null)}
                             />
 
                             <div className="mt-6 text-sm font-bold text-black dark:text-neutral-200">
@@ -543,6 +853,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>
                             <textarea
                                 className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                id="assistantDescription"
                                 style={{resize: 'none'}}
                                 placeholder={t('A description for your prompt.') || ''}
                                 value={description}
@@ -562,6 +873,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         'Prompt content. Use {{}} to denote a variable. Ex: {{name}} is a {{adjective}} {{noun}}',
                                     ) || ''
                                 }
+                                id="assistantInstructions"
                                 value={content}
                                 onChange={(e) => setContent(e.target.value)}
                                 rows={15}
@@ -581,18 +893,20 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         ) || ''
                                     }
                                     value={disclaimer}
+                                    id="assistantDisclaimer"
                                     onChange={(e) => setDisclaimer(e.target.value)}
                                     rows={2}
                                     disabled={disableEdit}
                                 />
                             </div>
-
-                            <div className="mt-6 mb-2 font-bold text-black dark:text-neutral-200">
+                           {!disableEdit && <>
+                            <div className="mt-6 font-bold text-black dark:text-neutral-200">
                                 {t('Upload Data Sources')}
                             </div>
-                            {!disableEdit && <div className="flex flex-row items-center">
+                            <div className="flex flex-row items-center">
                                 <button
                                     title='Add Files'
+                                    id="assistantViewFile"
                                     className={`left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:hover:text-neutral-200 dark:bg-opacity-50 dark:text-neutral-100 `}
                                     onClick={(e) => {
                                         e.preventDefault();
@@ -608,60 +922,25 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 <AttachFile id={"__attachFile_assistant_" + loc}
                                             groupId={assistant.groupId}
                                             disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
-                                            onAttach={(doc) => {
-                                                setDataSources((prev) => {
-                                                    prev.push(doc as any);
-                                                    return prev;
-                                                });
-                                            }}
-                                            onSetMetadata={(doc, metadata) => {
-                                                setDataSources((prev)=>{
-                                                    return prev.map(x => x.id === doc.id ? {
-                                                        ...x,
-                                                        metadata
-                                                    } : x)
-                                                });
-                                            }}
-                                            onSetKey={(doc, key) => {
-                                                setDataSources((prev)=>{
-                                                    return prev.map(x => x.id === doc.id ? {
-                                                        ...x,
-                                                        key
-                                                    } : x)
-                                                });
-                                            }}
-                                            onSetAbortController={() => {
-                                            }}
-                                            onUploadProgress={(doc, progress) => {
-                                                setDocumentState((prev)=>{
-                                                     prev[doc.id] = progress;
-                                                     return prev;
-                                                });
-                                            }}
+                                            onAttach={onAttach}
+                                            onSetMetadata={onSetMetadata}
+                                            onSetKey={onSetKey}
+                                            onSetAbortController={() => {}}
+                                            onUploadProgress={onUploadProgress}
                                 />
-                            </div>}
+                            </div>
                             <FileList documents={dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)))} documentStates={documentState}
                                 setDocuments={(docs) => {
                                 const preexisting = dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)));
                                 setDataSources([...docs, ...preexisting ]as any[]);
                             }} allowRemoval={!disableEdit}/>
                             {showDataSourceSelector && (
-                                <div className="mt-[-34px] flex flex-col justify-center overflow-hidden">
-                                    <div className="relative top-[306px] left-1">
-                                        <button
-                                            type="button" style={{width: "100px"}}
-                                            className="px-4 py-3 rounded-lg hover:text-gray-900 hover:bg-blue-100 bg-gray-100 w-full dark:hover:bg-gray-700 dark:hover:text-white bg-50 dark:bg-gray-800"
-                                            onClick={() => {
-                                                setShowDataSourceSelector(false);
-                                            }}
-                                        >
-                                            Close
-                                        </button>
-                                    </div>
+                                <div className="mt-[-8px] flex justify-center overflow-hidden">
                                     <div className="rounded bg-white dark:bg-[#343541] mb-4">
-                                        <DataSourceSelector
+                                    <DataSourceSelector
+                                            disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                             minWidth="500px"
-                                            height='310px'
+                                            // height='310px'
                                             onDataSourceSelected={(d) => {
                                                 const doc = {
                                                     id: d.id,
@@ -674,12 +953,20 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 setDataSources([...dataSources, doc as any]);
                                                 setDocumentState({...documentState, [d.id]: 100});
                                             }}
+                                            onClose={() =>  setShowDataSourceSelector(false)}
+                                            onIntegrationDataSourceSelected={featureFlags.integrations ? 
+                                                (file: File) => { handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, 
+                                                                  () => {}, featureFlags.uploadDocuments, assistant.groupId)} 
+                                                : undefined
+                                            }
                                         />
                                     </div>
                                 </div>
                             )}
+                            </>}
 
                             { definition.dataSources.length > 0  &&
+                             <div className="mt-4">
                                 <ExistingFileList 
                                     label={'Assistant Data Sources'}
                                     allowRemoval={!disableEdit}
@@ -688,66 +975,197 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         const newDocs = dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)));
                                         setDataSources([...docs, ...newDocs] as any[]);
                                 }} />
+                              </div>
                             }
+
+                            {/* Add Website URLs Section */}
+                            {featureFlags.websiteUrls && (
+                                <>
+                                    <div className="mt-6 mb-2 font-bold text-black dark:text-neutral-200">
+                                        {t('Add Website URLs')}
+                                    </div>
+                                    {!disableEdit && (
+                                        <WebsiteURLInput
+                                            onAddURL={(url, isSitemap) => {
+                                                // Create a data source object for the URL
+                                                const websiteSource = {
+                                                    id: url,
+                                                    name: `${isSitemap ? 'Sitemap' : 'Website'}: ${url}`,
+                                                    type: isSitemap ? 'website/sitemap' : 'website/url',
+                                                    metadata: {
+                                                        scanFrequency: 7, // Default scan frequency in days
+                                                        sourceUrl: url,
+                                                        isSitemap: isSitemap,
+                                                    },
+                                                };
+
+                                                // Add to dataSources
+                                                setDataSources([...dataSources, websiteSource as any]);
+
+                                                // Set document state to 100% (fully loaded)
+                                                setDocumentState({ ...documentState, [url]: 100 });
+                                            }}
+                                        />
+                                    )}
+
+                                    {/* Display added website URLs */}
+                                    {dataSources.filter(ds => ds.type === 'website/url' || ds.type === 'website/sitemap').length > 0 && (
+                                        <div className="mb-4">
+                                            <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                                Added Website URLs
+                                            </div>
+                                            <div className="mt-2">
+                                                {dataSources
+                                                    .filter(ds => ds.type === 'website/url' || ds.type === 'website/sitemap')
+                                                    .map((ds, index) => (
+                                                        <div key={index} className="flex justify-between items-center p-2 mb-2 rounded-lg border border-neutral-500 dark:border-neutral-800">
+                                                            <div className="flex items-center gap-2">
+                                                                {ds.type === 'website/sitemap' ? (
+                                                                    <IconSitemap size={18} />
+                                                                ) : (
+                                                                    <IconWorld size={18} />
+                                                                )}
+                                                                <span className="truncate">{ds.id}</span>
+                                                            </div>
+                                                            {!disableEdit && (
+                                                                <button
+                                                                    className="p-1 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                                                                    onClick={() => {
+                                                                        setDataSources(dataSources.filter(source => source.id !== ds.id));
+                                                                    }}
+                                                                >
+                                                                    <svg
+                                                                        stroke="currentColor"
+                                                                        fill="none"
+                                                                        strokeWidth="2"
+                                                                        viewBox="0 0 24 24"
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        height="1em"
+                                                                        width="1em"
+                                                                        xmlns="http://www.w3.org/2000/svg"
+                                                                    >
+                                                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+
+                            {/* Workflow Template Selector - purposefully not featured flagged / outside ofthe advanced section */}
+                            {baseWorkflowTemplateId && 
+                            <AssistantWorkflowDisplay
+                                baseWorkflowTemplateId={baseWorkflowTemplateId}
+                                astWorkflowTemplateId={astWorkflowTemplateId}
+                                onWorkflowTemplateUpdate={(workflowTemplate) => {
+                                    setCurrentWorkflowTemplate(workflowTemplate);
+                                }}
+                            />}
+
+                            {/* Email Events - purposefully not featured flagged / outside ofthe advanced section */}
+                            {enableEmailEvents &&
+                            <div className="mb-4 mt-2 flex flex-col gap-2 mr-6">
+                                <label className=" text-[1.02rem]"> Email this assistant at: <span className='ml-2 text-blue-500'> {`${constructAstEventEmailAddress(emailEventTag ?? safeEmailEventTag(name), userEmail, aiEmailDomain)}`} </span></label>
                             
+                                {!existingAllowedSenders ? <>Loading allowed senders...</> : 
+                                <ExpansionComponent title={"Manage authorized senders who can email this assistant"} 
+                                    closedWidget= { <IconMailFast size={22} />} 
+                                    content={
+                                    <AddEmailWithAutoComplete
+                                        id={`allowedSenders`}
+                                        emails={curAllowedSenders}
+                                        allEmails={amplifyUsers.filter((user: string) => user !== userEmail)}
+                                        handleUpdateEmails={(updatedEmails: Array<string>) => {
+                                            setCurAllowedSenders(updatedEmails);
+                                        }}
+                                        displayEmails={true}
+                                    />} 
+                                />}
+                            </div>}
+
                             <ExpansionComponent title={"Advanced"} content={
-                                <div className="text-black dark:text-neutral-200">
+                                <div className="mb-4 text-black dark:text-neutral-200 mb-6">
+                                    
+                                    { definition.assistantId && 
+                                    <>
                                     <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                        {t('URI')}
-                                    </div>
-                                    <input
-                                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                      placeholder={t('') || ''}
-                                      value={uri || ''}
-                                      onChange={(e) => setUri(e.target.value)}
-                                      disabled={disableEdit}
-                                    />
-
-                                    <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
-                                        Assistant Ops Language Version
-                                    </div>
-                                    <select
-                                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                      value={opsLanguageVersion}
-                                      onChange={(e) => setOpsLanguageVersion(e.target.value)}
-                                    >
-                                        <option value="v1">v1</option>
-                                        <option value="v2">v2</option>
-                                        <option value="v3">v3</option>
-                                        <option value="v4">Deep VU1</option>
-                                        <option value="custom">custom</option>
-                                    </select>
-
-                                    <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
                                         {t('Assistant ID')}
                                     </div>
                                     <input
-                                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                      value={definition.assistantId || ''}
-                                      disabled={true}
+                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                        value={definition.assistantId || ''}
+                                        disabled={true}
                                     />
+                                    </>}
 
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
-                                        {t('Data Source Options')}
+                                    { featureFlags.integrations && <>
+                                    <div className="mt-4 text-sm font-bold text-black dark:text-neutral-200">
+                                        Assistant Type
                                     </div>
-                                    <ExpansionComponent
-                                        title='Manage'
-                                        content= {
-                                             <FlagsMap id={'dataSourceFlags'}
-                                              flags={dataSourceFlags}
-                                              state={dataSourceOptions}
-                                              flagChanged={
-                                                  (key, value) => {
-                                                      if (!disableEdit) setDataSourceOptions({
-                                                          ...dataSourceOptions,
-                                                          [key]: value,
-                                                      });
-                                                  }
-                                              } />
-                                        }
-                                    />
-                                   
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                    <select
+                                      title={baseWorkflowTemplateId ? "This assistant is using a workflow template. You cannot change the assistant type." : ""}
+                                      disabled={baseWorkflowTemplateId !== undefined || disableEdit}
+                                      className={`mt-2 mb-4 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 ${baseWorkflowTemplateId ? "opacity-40" : ""}`}
+                                      value={opsLanguageVersion}
+                                      onChange={(e) => setOpsLanguageVersion(e.target.value)}
+                                    >   
+                                        {Object.entries(opLanguageOptionsMap(featureFlags)).map(([val, name]) => <option key={val} value={val}>{name as string}</option>)}
+                                    </select>
+                                    </>}
+
+                                    {featureFlags.assistantPathPublishing && (
+                                                <AssistantPathEditor
+                                                    savedAstPath={definition.astPath}
+                                                    astPath={astPath}
+                                                    setAstPath={setAstPath}
+                                                    assistantId={definition.assistantId}
+                                                    astPathData={astPathData}
+                                                    setAstPathData={setAstPathData}
+                                                    isPathAvailable={isPathAvailable}
+                                                    setIsPathAvailable={setIsPathAvailable}
+                                                    disableEdit={disableEdit}
+                                                    isCheckingPath={isCheckingPath}
+                                                    setIsCheckingPath={setIsCheckingPath}
+                                                />
+                                            )}
+                                            
+                                    <div className='mt-4 text-[1rem]'>
+                                        <Checkbox
+                                            id="allowRequestAccess"
+                                            label="Allow other users to request chat permissions for this assistant. "
+                                            checked={availableOnRequest}
+                                            onChange={(isChecked: boolean) => setAvailableOnRequest(isChecked)}
+                                            disabled={disableEdit}
+                                        /> 
+                                    </div>
+
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-4"
+                                         style={{transform: 'translateX(-25px)'}}>
+                                        <ExpansionComponent
+                                            closedWidget= { <IconCaretRight style={{transform: 'translateX(8px)'}} size={18} />}
+                                            openWidget= { <IconCaretDown style={{transform: 'translateX(8px)'}} size={18} />}
+                                            title='Data Source Options'
+                                            content= {
+                                                <FlagsMap id={'dataSourceFlags'}
+                                                flags={dataSourceFlags}
+                                                state={dataSourceOptions}
+                                                flagChanged={
+                                                    (key, value) => {
+                                                        if (!disableEdit) setDataSourceOptions({
+                                                            ...dataSourceOptions,
+                                                            [key]: value,
+                                                        });
+                                                    }
+                                                } />
+                                        }/>
+                                    </div>
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-4">
                                         {t('Message Options')}
                                     </div>
                                     <FlagsMap id={'messageOptionFlags'}
@@ -762,99 +1180,117 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                   }
                                               } />
 
-                                    {Object.keys(featureOptions).length > 0 &&
-                                      <>
-                                          <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
-                                              {t('Feature Options')}
-                                          </div>
-                                          <FlagsMap id={'astFeatureOptionFlags'}
-                                                    flags={featureOptionFlags}
-                                                    state={featureOptions}
-                                                    flagChanged={
-                                                        (key, value) => {
-                                                            if (!disableEdit) setFeatureOptions({
-                                                                ...featureOptions,
-                                                                [key]: value,
-                                                            });
-                                                        }
-                                                    } />
-                                      </>
-                                    }
-                                    <div className="mt-2 mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
-                                        <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                            {t('Tags')}
-                                        </div>
-                                        <input
-                                          className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                          placeholder={t('Tag names separated by commas.') || ''}
-                                          value={tags}
-                                          title={'Tags for conversations created with this template.'}
-                                          onChange={(e) => {
-                                              setTags(e.target.value);
-                                          }}
-                                        />
-                                    </div>
-
-                                    <div className="mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
-                                        <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                            {t('Conversation Tags')}
-                                        </div>
-                                        <input
-                                          className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                          placeholder={t('Tag names separated by commas.') || ''}
-                                          value={conversationTags}
-                                          title={'Tags for conversations created with this template.'}
-                                          onChange={(e) => {
-                                              setConversationTags(e.target.value);
-                                          }}
-                                        />
-                                    </div>
-
-
-                                    {!availableApis && <>Loading API Capabilities...</>}
-
-                                    {availableApis && availableApis.length > 0 &&
-                                        <>
-                                        <div className="flex flex-row text-sm font-bold text-black dark:text-neutral-200 mt-2 mb-2">
-                                            {t('Enabled API Capabilities')}
-                                            {availableApis && 
-                                            <div className="h-0 ml-auto" style={{transform: 'translateY(-18px)'}}>
-                                                <Search
-                                                placeholder={'Search APIs...'}
-                                                searchTerm={apiSearchTerm}
-                                                onSearch={(searchTerm: string) => setApiSearchTerm(searchTerm.toLocaleLowerCase())}
+                                            {Object.keys(featureOptions).length > 0 &&
+                                              <>
+                                                  <div className="text-sm font-bold text-black dark:text-neutral-200 mt-2">
+                                                      {t('Feature Options')}
+                                                  </div>
+                                                  <FlagsMap id={'astFeatureOptionFlags'}
+                                                            flags={featureOptionFlags}
+                                                            state={featureOptions}
+                                                            flagChanged={
+                                                                (key, value) => {
+                                                                    if (!disableEdit) setFeatureOptions({
+                                                                        ...featureOptions,
+                                                                        [key]: value,
+                                                                    });
+                                                                }
+                                                            } />
+                                              </>
+                                            }
+                                            <div className="mt-2 mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
+                                                <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                                    {t('Tags')}
+                                                </div>
+                                                <input
+                                                  disabled={disableEdit}
+                                                  className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                  placeholder={t('Tag names separated by commas.') || ''}
+                                                  value={tags}
+                                                  title={'Tags for conversations created with this template.'}
+                                                  onChange={(e) => {
+                                                      setTags(e.target.value);
+                                                  }}
                                                 />
-                                            </div>}
-                                        </div> 
+                                            </div>
 
-                                        <div className="max-h-[400px] overflow-y-auto">
-                                            {availableApis.filter((api) => (apiSearchTerm ? 
-                                                                   api.name.toLowerCase().includes(apiSearchTerm) : true))
-                                                          .map((api, index) => (
-                                                <ApiItem
-                                                selected={selectedApis.some((selectedApi) => selectedApi.id === api.id)}
-                                                key={index}
-                                                api={api}
-                                                index={index}
-                                                onChange={handleUpdateApiItem} />
-                                            ))}
-                                        </div>  
-                                        </>
+                                            <div className="mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
+                                                <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                                    {t('Conversation Tags')}
+                                                </div>
+                                                <input
+                                                  disabled={disableEdit}
+                                                  className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                  placeholder={t('Tag names separated by commas.') || ''}
+                                                  value={conversationTags}
+                                                  title={'Tags for conversations created with this template.'}
+                                                  onChange={(e) => {
+                                                      setConversationTags(e.target.value);
+                                                  }}
+                                                />
+                                            </div>
+
+                                    {/* Workflow Template Selector */}
+                                    {featureFlags.assistantWorkflows && 
+                                    <AssistantWorkflowSelector
+                                        selectedTemplateId={baseWorkflowTemplateId}
+                                        onTemplateChange={(workflowTemplateId) => {
+                                            setBaseWorkflowTemplateId(workflowTemplateId ? workflowTemplateId : undefined);
+                                            setAstWorkflowTemplateId(undefined);
+                                            setCurrentWorkflowTemplate(null);
+                                        }}
+                                        disabled={disableEdit}
+                                    />}
+
+                                    {featureFlags.assistantEmailEvents && 
+                                     <AssistantEmailEvents
+                                        assistantId={definition.assistantId}
+                                        initialEmailEventTag={definition.data?.emailEvents?.tag}
+                                        enableEmailEvents={enableEmailEvents}
+                                        setEnableEmailEvents={setEnableEmailEvents}
+                                        disableEdit={disableEdit}
+                                        assistantName={name}
+                                        emailEventTag={emailEventTag}
+                                        setEmailEventTag={setEmailEventTag}
+                                        emailEventTemplate={emailEventTemplate}
+                                        setEmailEventTemplate={setEmailEventTemplate}
+                                        isTagAvailable={isEmailTagAvailable}
+                                        setIsTagAvailable={setIsEmailTagAvailable}
+                                        isCheckingTag={isCheckingEmailTag}
+                                        setIsCheckingTag={setIsCheckingEmailTag}
+                                    />
                                     }
 
-
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-8 mb-1">
-                                        {t('Custom API Capabilities')}
-                                    </div>
-
-                                    <APIComponent
-                                      apiInfo={apiInfo}
-                                      setApiInfo={setApiInfo}
-                                    />
-
-
+                                    <br></br>
+                                    {/* Api Component View Selector */}
+                                    { featureFlags.integrations &&
+                                    <ApiIntegrationsPanel
+                                        // API-related props
+                                        availableApis={availableApis}
+                                        selectedApis={selectedApis}
+                                        setSelectedApis={setSelectedApis}
+                                        
+                                        // External API props
+                                        apiInfo={apiInfo}
+                                        setApiInfo={setApiInfo}
+                                        
+                                        // Agent tools props
+                                        availableAgentTools={availableAgentTools}
+                                        builtInAgentTools={builtInAgentTools}
+                                        setBuiltInAgentTools={setBuiltInAgentTools}
+                                        
+                                        // Refresh APIs function
+                                        pythonFunctionOnSave={(fn)=>{
+                                            getOpsForUser().then((ops) => {
+                                            if (ops.success) filterOps(ops.data); 
+                                            })
+                                        }}
+                                        disabled={disableEdit}
+                                    />}
+                                       
                                 </div>
-                            } />
+                                }
+                            />
                         </div>
               <div className="flex flex-row items-center justify-end p-4 bg-white dark:bg-[#22232b]">
                   <button
@@ -904,5 +1340,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     );
 };
 
-
+// Fallback function in case the imported one is not available
+const isPresetEmailEventTagFallback = (initialTag: string | undefined): boolean => {
+  if (!initialTag) return false;
+  return !initialTag.startsWith(EMAIL_EVENT_TAG_PREFIX);
+};
 

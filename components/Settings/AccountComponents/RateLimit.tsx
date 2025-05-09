@@ -2,7 +2,7 @@
 
 // for future rate limit tab
 
-import { PeriodType, UNLIMITED } from "@/types/rateLimit";
+import { PeriodType, periodTypes, UNLIMITED } from "@/types/rateLimit";
 import React from "react";
 import { FC } from "react";
 
@@ -38,14 +38,11 @@ export const RateLimiter: FC<RateLimitProps> = ({period, setPeriod, rate, setRat
             <select
                 id="rateLimitType"
                 className="rounded border-gray-300 p-0.5 text-neutral-900 dark:text-neutral-100 shadow-sm dark:bg-[#40414F] focus:border-neutral-700 focus:ring focus:ring-neutral-500 focus:ring-opacity-50  custom-shadow"
-                style={{ width: '88px'}}
+                style={{ width: '92px'}}
                 value={period}
                 onChange={(e) => setPeriod(e.target.value as PeriodType)}
             >
-                <option className="ml-6" value="Unlimited">Unlimited</option>
-                <option className="ml-6" value="Monthly">Monthly</option>
-                <option className="ml-6" value="Daily">Daily</option>
-                <option className="ml-6" value="Hourly">Hourly</option>
+                {periodTypes.map(p =>  <option key={p} className="ml-6" value={p}>{p}</option>)}
             </select>
 
             {period !== UNLIMITED && (

@@ -5,13 +5,10 @@ import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 
 import { useTranslation } from 'next-i18next';
 
-import {
-  generateRandomString,
-  programmingLanguages,
-} from '@/utils/app/codeblock';
+import {generateRandomString} from '@/utils/app/codeblock';
 import { Artifact } from '@/types/artifacts';
 import PythonMetadataDisplay from '@/components/Artifacts/PythonMetadataDisplay';
-
+import { programmingLanguages } from '@/utils/app/fileTypeTranslations';
 interface Props {
   language: string;
   value: string;

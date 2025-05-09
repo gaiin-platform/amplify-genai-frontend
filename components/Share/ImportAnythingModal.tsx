@@ -176,20 +176,45 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
             exportData.folders,
             exportData.prompts.map(prompt => {
                 // already prepped before sending out, but backup prep
-                if (isAssistant(prompt) && prompt?.data?.access) {
-                    prompt.data.access = {read: true, write: false};
-                    prompt.data.noCopy = true;
-                    prompt.data.noEdit = true;
-                    prompt.data.noShare = true;
-                    prompt.data.noDelete = true;
+                if (isAssistant(prompt) && prompt?.data) {
+                    const hasWorkflow = prompt.data.baseWorkflowTemplateId;
+                    const hasEmailEventsTag = prompt.data?.emailEvents?.tag;
+                    if (!hasWorkflow && !hasEmailEventsTag && prompt.data?.access) {
+                        prompt.data.access = {read: true, write: false};
+                        prompt.data.noCopy = true;
+                        prompt.data.noEdit = true;
+                        prompt.data.noShare = true;
+                        prompt.data.noDelete = true;
+                    }
+                    // clean up user specific workflow version
+                    if (hasWorkflow || hasEmailEventsTag) {
+                        delete prompt.data.workflowTemplateId;
+                        delete prompt.data.assistant?.definition?.data?.workflowTemplateId;
+                        delete prompt.data.emailEvents?.tag;
+                        delete prompt.data.assistant?.definition?.data?.emailEvents?.tag;
+                        // remove assistantIds
+                        delete prompt.data.assistant?.definition?.assistantId;
+                    }
+
                 } 
                 return promptsToSetFolderToNull.some(p => p.id === prompt.id) ? {...prompt, folderId: null} : prompt;
-                
             }), "import", false);
 
+        
+        const [workflowAssistants, filteredPrompts] = cleanedUpExport.prompts.reduce(
+            ([workflowAssistants, otherPrompts], prompt) => {
+                return isAssistant(prompt) && (prompt.data?.baseWorkflowTemplateId || prompt.data?.emailEvents) ?
+                                  [[...workflowAssistants, prompt], otherPrompts] :
+                                  [workflowAssistants, [...otherPrompts, prompt]]
+            },
+            [[], []] as [Prompt[], Prompt[]]
+        );
+        
+        cleanedUpExport.prompts = filteredPrompts;
 
-        console.log("Cleaned up export: ", cleanedUpExport);
-
+        // open workflow assistants if any
+        if (workflowAssistants.length > 0) window.dispatchEvent(new CustomEvent('openAstModalTrigger', { detail: { assistants: [...workflowAssistants] }} ));
+        // console.log("Cleaned up export: ", cleanedUpExport);
         const {history, folders, prompts}: LatestExportFormat = importData(cleanedUpExport, conversationsRef.current, promptsRef.current, foldersRef.current, getDefaultModel(DefaultModels.DEFAULT));
 
         // console.log("Imported prompts, conversations, and folders: ", prompts, history, folders);

@@ -331,3 +331,48 @@ export const transformPayload = {
 export const capitalize = (label: string) => {
     return label.charAt(0).toUpperCase() + label.slice(1);
   }
+
+
+export function camelCaseToTitle(camelCaseString: string) {
+    return camelCaseString.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+}
+
+// Format snake_case tool name to Title Case With Spaces
+export const snakeCaseToTitleCase = (toolName: string): string => {
+    if (!toolName) return '';
+    return toolName
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+
+export function stringToColor(str:string) {
+    // Array of the color options provided
+    const colors = [
+        "#fbfbfb", // snowman
+        "#979197", // gandalf
+        "#f69833", // orange
+        "#419bf9", // cornflower-blue
+        "#f7f7f7", // whitey
+        // "#554d56", // teflon
+        "#ee6723", // peach
+        "#fecf33", // yellow
+        "#c8cf2d", // green
+        "#0dcfda", // turquoise
+        "#edeced", // karl
+        "#c1bec1", // clooney
+        "#fdbd39", // light-orange
+    ];
+
+    // Hash function
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    hash = Math.abs(hash); // Ensure hash is positive
+
+    // Use the hashed value to select a color
+    const index = hash % colors.length; // Modulus operation to get a valid array index
+    return colors[index];
+}

@@ -41,6 +41,7 @@ import { Artifact } from '@/types/artifacts';
 import { getDateName } from '@/utils/app/date';
 import AgentLogBlock from '@/components/Chat/ChatContentBlocks/AgentLogBlock';
 import { Settings } from '@/types/settings';
+import RagEvaluationBlock from './ChatContentBlocks/RagEvaluationBlock';
 
 export interface Props {
     message: Message;
@@ -463,7 +464,7 @@ export const ChatMessage: FC<Props> = memo(({
                         <div className="flex flex-col w-full" ref={markdownComponentRef}>
                             <div className="flex flex-row w-full">
                                 <div className="flex flex-col w-full">
-                                    {(selectedConversation?.messages.length === messageIndex + 1) && (
+                                    {(selectedConversation?.messages?.length === messageIndex + 1) && (
                                         <PromptingStatusDisplay statusHistory={status}/>
                                     )}
                                      {featureFlags.highlighter && settingRef.current.featureOptions.includeHighlighter && 
@@ -504,16 +505,22 @@ export const ChatMessage: FC<Props> = memo(({
                                               messageIndex={messageIndex}
                                             />}
 
-                                          <ChatCodeInterpreterFileBlock
-                                            messageIsStreaming={messageIsStreaming}
-                                            message={message}
-                                            selectedConversation={selectedConversation}
-                                            updateConversation={handleUpdateSelectedConversation}
-                                          />
+                                          {featureFlags.codeInterpreterEnabled &&
+                                            <ChatCodeInterpreterFileBlock
+                                                messageIsStreaming={messageIsStreaming}
+                                                message={message}
+                                                selectedConversation={selectedConversation}
+                                                updateConversation={handleUpdateSelectedConversation}
+                                            />}
                                           <ChatSourceBlock
                                             messageIsStreaming={messageIsStreaming}
                                             message={message}
                                           />
+                                          {featureFlags.ragEvaluation && 
+                                          <RagEvaluationBlock
+                                            messageIsStreaming={messageIsStreaming}
+                                            message={message}
+                                          />}
                                       </>
                                     )}
 
@@ -635,7 +642,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     )}
                                 </>
                             )}
-                            {((messageIsStreaming || artifactIsStreaming) && messageIndex == (selectedConversation?.messages.length ?? 0) - 1) ?
+                            {((messageIsStreaming || artifactIsStreaming) && messageIndex == (selectedConversation?.messages?.length ?? 0) - 1) ?
                                 // <LoadingIcon />
                                 <Loader type="ping" size="48"/>
                                 : null}

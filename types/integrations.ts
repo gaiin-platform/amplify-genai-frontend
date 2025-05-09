@@ -9,6 +9,7 @@ import {
     IconNotebook,
     IconBrandTeams,
     IconUsers,
+    IconFile,
   } from '@tabler/icons-react';
   
 
@@ -23,6 +24,10 @@ export const integrationProviders = {
 //   // Derive the type from the object keys
 export type IntegrationProviders = keyof typeof integrationProviders;
 
+// Helper function to extract values with literal types
+const values = <T extends Record<string, U>, U extends string>(obj: T) =>
+  Object.keys(obj).map((key) => obj[key]) as Array<T[keyof T]>;
+export const integrationProvidersList: string[] = values(integrationProviders);
 
 export interface Integration {
     name: string;
@@ -35,6 +40,7 @@ export interface Integration {
 export interface IntegrationSecrets {
     client_id: string;
     client_secret: string;
+    tenant_id: string;
 }
   
  
@@ -48,18 +54,14 @@ export type IntegrationSecretsMap = Partial<{
 }>;
 
 
-// Helper function to extract values with literal types
-const values = <T extends Record<string, U>, U extends string>(obj: T) =>
-Object.keys(obj).map((key) => obj[key]) as Array<T[keyof T]>;
-
   
-export const integrationProvidersList = values(integrationProviders);
   
   // Define the icon mapping
 export const integrationIconComponents = {
     "BrandGoogleDrive": IconBrandGoogleDrive,
     "FileSpreadsheet": IconFileSpreadsheet,
     "FileText": IconFileText,
+    "File": IconFile,
     "Forms": IconForms,
     "BrandGmail": IconBrandGmail,
     "BrandOffice": IconBrandOffice,

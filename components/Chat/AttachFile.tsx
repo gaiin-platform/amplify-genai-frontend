@@ -25,7 +25,7 @@ interface Props {
 }
 
 
-const handleFile = async (file:any,
+export const handleFile = async (file:any,
                           onAttach:any,
                           onUploadProgress:any,
                           onSetKey:any,
@@ -39,7 +39,7 @@ const handleFile = async (file:any,
         let type:string = file.type;
         const extension = file.name.split('.').pop()?.toLowerCase();
 
-        if (!type && (extension === 'ts' || extension === 'tsx')) {
+      if (!type && ((extension === 'ts' || extension === 'tsx') || (extension === 'ps1'))) {
             type = 'application/octet-stream'; // AWS S3 expects typescript files to be this type
         }
 
@@ -201,6 +201,7 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
     
           <button
             className="left-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+            id="uploadFile"
             onClick={() => {
               const importFile = document.querySelector('#' + id) as HTMLInputElement;
               if (importFile) {

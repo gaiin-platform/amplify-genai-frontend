@@ -362,6 +362,22 @@ const useEventService = (mixPanelToken:string) => {
 
         }),
 
+        userSendChatEvent: ifReady( (message: Message, modelId: string) => {
+            try {
+                const data = {
+                    message: message,
+                    modelId: modelId,
+                    messagesCharacters: message.content.length,
+                }
+
+                mixpanel.track('User Chat', {
+                    ...toEventData("User Chat", data)
+                });
+            } catch (e) {
+                console.error("Error tracking user chat sent", e);
+            }
+        }),
+
 
         sendChatEvent: ifReady( (chatBody: ChatBody) => {
             try {
@@ -375,7 +391,7 @@ const useEventService = (mixPanelToken:string) => {
                     ...toEventData("Chat", data)
                 });
             } catch (e) {
-                console.error("Error tracking prompt edit completed", e);
+                console.error("Error tracking send chat event", e);
             }
         }),
         sendChatRewriteEvent: ifReady( (chatBody: ChatBody, updateIndex: number) => {
