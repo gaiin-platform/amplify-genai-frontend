@@ -610,7 +610,7 @@ const ConversationPopup: FC<{ conversation: Conversation; onClose: () => void; s
                                         User Feedback
                                     </div>
                                     <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
-                                        <p className="text-gray-800 dark:text-gray-200 italic">"{conversation.userFeedback}"</p>
+                                        <p className="text-gray-800 dark:text-gray-200 italic">{conversation.userFeedback}</p>
                                     </div>
                                 </div>
                             )}
