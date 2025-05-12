@@ -363,7 +363,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const updateOnSave = () => {
         const saveAction = (types: AdminConfigTypes[], action: () => void) => {
-            if (types.every(type => unsavedConfigs.has(type))) action();
+            if (types.some(type => unsavedConfigs.has(type))) action();
         }
 
         saveAction([AdminConfigTypes.FEATURE_FLAGS], saveUpdateFeatureFlags);

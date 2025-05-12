@@ -701,7 +701,10 @@ const Home = ({
                             handleUpdateSelectedConversation({...selectedConversation, model: defaultModel ?? lowestCostModel(models)});
                         }
 
-                        if (defaultModel) dispatch({ field: 'defaultModelId', value: defaultModel.id });
+                        if (defaultModel) {
+                            console.log("DefaultModel dispatch: ", defaultModel);
+                            dispatch({ field: 'defaultModelId', value: defaultModel.id });
+                        }
                         if (response.data.cheapest) dispatch({ field: 'cheapestModelId', value: response.data.cheapest.id });
                         if (response.data.advanced) dispatch({ field: 'advancedModelId', value: response.data.advanced.id });
                         const modelMap = models.reduce((acc:any, model:any) => ({...acc, [model.id]: model}), {});
