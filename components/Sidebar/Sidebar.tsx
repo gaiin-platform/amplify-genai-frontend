@@ -5,6 +5,7 @@ import Search from '../Search';
 import { KebabMenu } from './components/KebabMenu';
 import { SortType } from '@/types/folder';
 import HomeContext from '@/pages/api/home/home.context';
+import { getSettings } from '@/utils/app/settings';
 
 
 interface Props<T> {
@@ -43,15 +44,15 @@ const Sidebar = <T,>({
   setFolderSort,
 }: Props<T>) => {
 
-  const { state: { messageIsStreaming}} = useContext(HomeContext);
+  const { state: { messageIsStreaming, featureFlags}} = useContext(HomeContext);
   const { t } = useTranslation('promptbar');
-
+  const theme = getSettings(featureFlags).theme;
   const allowDrop = (e: any) => {
     e.preventDefault();
   };
 
   const highlightDrop = (e: any) => {
-    e.target.style.background = '#343541';
+    e.target.style.background = theme === 'dark' ? '#343541' : '#e7e8e9';
   };
 
   const removeHighlight = (e: any) => {

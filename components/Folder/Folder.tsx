@@ -30,6 +30,7 @@ import { hideGroupFolder, saveFolders } from '@/utils/app/folders';
 import { Group, GroupAccessType } from '@/types/groups';
 import { folder } from 'jszip';
 import { useSession } from 'next-auth/react';
+import { getSettings } from '@/utils/app/settings';
 
 interface Props {
   currentFolder: FolderInterface;
@@ -50,6 +51,7 @@ const Folder = ({
 
   const { data: session } = useSession();
   const user = session?.user?.email;
+  const theme = getSettings(featureFlags).theme;
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -111,7 +113,7 @@ const Folder = ({
   };
 
   const highlightDrop = (e: any) => {
-    if (canDropInto) e.target.style.background = '#343541';
+    if (canDropInto) e.target.style.background = theme === 'dark' ? '#343541' : '#e7e8e9';
   };
 
   const removeHighlight = (e: any) => {
