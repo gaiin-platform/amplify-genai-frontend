@@ -1563,8 +1563,8 @@ const Home = ({
     } else {
         return (
             <main
-                className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`}
-            >
+                className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`} 
+                style={{backgroundColor: lightMode === 'dark' ? 'black' : 'white'}}>
                 <div
                     className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
                     <h1 className="mb-4 text-2xl font-bold">
