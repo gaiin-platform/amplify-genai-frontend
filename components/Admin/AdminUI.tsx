@@ -3,7 +3,7 @@ import { FC, useContext, useEffect, useRef, useState } from "react";
 import { Modal } from "../ReusableComponents/Modal";
 import HomeContext from "@/pages/api/home/home.context";
 import InputsMap from "../ReusableComponents/InputMap";
-import {  getAdminConfigs, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs } from "@/services/adminService";
+import {  getAdminConfigs, getAvailableModels, getFeatureFlags, getPowerPoints, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs } from "@/services/adminService";
 import { AdminConfigTypes, Endpoint, FeatureFlagConfig, OpenAIModelsConfig, SupportedModel, SupportedModelsConfig, AdminTab, DefaultModelsConfig } from "@/types/admin";
 import { IconCheck, IconPlus, IconRefresh, IconX} from "@tabler/icons-react";
 import { LoadingIcon } from "../Loader/LoadingIcon";
@@ -54,7 +54,7 @@ interface Props {
 
 
 export const AdminUI: FC<Props> = ({ open, onClose }) => {
-    const { state: { statsService, amplifyUsers}, dispatch: homeDispatch, setLoadingMessage } = useContext(HomeContext);
+    const { state: { statsService, storageSelection, amplifyUsers}, dispatch: homeDispatch, setLoadingMessage } = useContext(HomeContext);
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
 
@@ -306,26 +306,42 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         return true;
       };
 
-    const saveUpdateAvailableModels = () => {
-        const updatedModels = Object.values(availableModels)
-        const defaultModel = updatedModels.find((m:SupportedModel) => m.id === defaultModels.user);
-        homeDispatch({ field: 'defaultModelId', value: defaultModel?.id });
-        const cheapestModel = updatedModels.find((m:SupportedModel) => m.id === defaultModels.cheapest);
-        homeDispatch({ field: 'cheapestModelId', value: cheapestModel?.id });
-        const advancedModel = updatedModels.find((m:SupportedModel) => m.id === defaultModels.advanced);
-        homeDispatch({ field: 'advancedModelId', value: advancedModel?.id });
+    const saveUpdateAvailableModels = async () => {
+        try {
+            const response = await getAvailableModels();
+            if (response.success && response.data && response.data?.models.length > 0) {
+                const defaultModel = response.data.default;
+                const models = response.data.models;
+                if (defaultModel) homeDispatch({ field: 'defaultModelId', value: defaultModel.id });
+                if (response.data.cheapest) homeDispatch({ field: 'cheapestModelId', value: response.data.cheapest.id });
+                if (response.data.advanced) homeDispatch({ field: 'advancedModelId', value: response.data.advanced.id });
+                const modelMap = models.reduce((acc:any, model:any) => ({...acc, [model.id]: model}), {});
+                homeDispatch({ field: 'availableModels', value: modelMap});  
 
-        const availModels: Model[] = updatedModels.filter((m:SupportedModel) => m.isAvailable)
-                                     .map((m:SupportedModel) => ({ id: m.id,
-                                                            "name": m.name,
-                                                            "description": m.description ?? '',
-                                                            "inputContextWindow": m.inputContextWindow,
-                                                            "supportsImages": m.supportsImages,
-                                                            "supportsReasoning": m.supportsReasoning
-                                                            } as Model));
-        homeDispatch({ field: 'availableModels', value: availModels}); 
+                //save default model 
+                localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
+                return;
+            } 
+        } catch (e) {
+            console.log("Failed to fetch models: ", e);
+        } 
     }
       
+    const saveUpdateFeatureFlags = async () => {
+        const result = await getFeatureFlags();
+        if (result.success && result.data) {
+            let flags: any = result.data;
+            homeDispatch({ field: 'featureFlags', value: flags});
+            localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
+        }
+    }
+
+    const saveUpdatePptx = async () => {
+        const result = await getPowerPoints();
+        let pptx: any = result.success && result.data ? result.data :  
+                        templates.filter((pptx:Pptx_TEMPLATES) => pptx.isAvailable).map((pptx:Pptx_TEMPLATES) => pptx.name);
+        homeDispatch({ field: 'powerPointTemplateOptions', value: pptx});
+    }
 
     const validateSavedData = () => {
         const models = Object.values(availableModels);
@@ -344,7 +360,18 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         }
         return true;
     }
-      
+
+    const updateOnSave = () => {
+        const saveAction = (types: AdminConfigTypes[], action: () => void) => {
+            if (types.every(type => unsavedConfigs.has(type))) action();
+        }
+
+        saveAction([AdminConfigTypes.FEATURE_FLAGS], saveUpdateFeatureFlags);
+        saveAction([AdminConfigTypes.AVAILABLE_MODELS, AdminConfigTypes.DEFAULT_MODELS], saveUpdateAvailableModels);
+        saveAction([AdminConfigTypes.PPTX_TEMPLATES], saveUpdatePptx); 
+        saveAction([AdminConfigTypes.EMAIL_SUPPORT], () => homeDispatch({ field: 'supportEmail', value: emailSupport.email}));
+        if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage})); 
+    }
 
     const handleSave = async () => {
         if (Array.from(unsavedConfigs).length === 0) {
@@ -367,15 +394,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         setLoadingMessage('Saving Configurations');
         const result = await updateAdminConfigs(collectUpdateData);
         if (result.success) {
-            if (unsavedConfigs.has(AdminConfigTypes.FEATURE_FLAGS)) {
-                // to do doesnt account for exclusives think about pulling them again from home same with groups
-                homeDispatch({ field: 'featureFlags',
-                               value: { ...features, 'adminInterface': admins.includes(userEmail ?? '')} });
-                localStorage.setItem('mixPanelOn', JSON.stringify(features.mixPanel ?? false));
-            }
-            
-            if (unsavedConfigs.has(AdminConfigTypes.AVAILABLE_MODELS) || 
-                unsavedConfigs.has(AdminConfigTypes.DEFAULT_MODELS)) saveUpdateAvailableModels();
+            // update ui affecting changes 
+            updateOnSave();
             toast("Configurations successfully saved");
             setUnsavedConfigs(new Set());
             testEndpointsRef.current = [];
@@ -444,6 +464,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     }} 
     onSubmit={() => handleSave()
     }
+    cancelLabel={"Close"}
     submitLabel={"Save Changes"}
     disableSubmit={unsavedConfigs.size === 0}
     content={

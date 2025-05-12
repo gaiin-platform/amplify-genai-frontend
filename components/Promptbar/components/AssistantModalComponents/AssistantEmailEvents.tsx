@@ -8,6 +8,12 @@ import { useContext, useEffect, useRef } from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import { isEventTemplateTagAvailable } from "@/services/emailEventService";
 
+// Fallback function in case the imported one is not available
+const isPresetEmailEventTagFallback = (initialTag: string | undefined): boolean => {
+  if (!initialTag) return false;
+  return !initialTag.startsWith(EMAIL_EVENT_TAG_PREFIX);
+};
+
 interface ApiItemProps {
     assistantId: string | undefined;
     initialEmailEventTag: string | undefined;
@@ -35,6 +41,9 @@ interface ApiItemProps {
     const { state: { aiEmailDomain, featureFlags }} = useContext(HomeContext);
     const { data: session } = useSession();
     const userEmail = session?.user?.email ?? '';
+
+    // Use fallback function if the imported one fails
+    const isPresetCheck = typeof isPresetEmailEventTag === 'function' ? isPresetEmailEventTag : isPresetEmailEventTagFallback;
 
     const validatedTagCacheRef = useRef<{valid: string[], invalid: string[]}>({valid: [], invalid: []});
 
@@ -83,6 +92,7 @@ interface ApiItemProps {
                 label="Enable Email Events"
                 checked={enableEmailEvents}
                 onChange={(checked) => setEnableEmailEvents(checked)}
+                disabled={disableEdit}
             />
             <IconMailBolt className="mt-1" size={18} />
             </div>
@@ -103,7 +113,7 @@ interface ApiItemProps {
                     <input
                         className="w-[200px] mt-[-3px] rounded-lg border border-neutral-500 pl-4 pr-8 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                         value={ (emailEventTag || safeEmailEventTag(assistantName))}
-                        disabled={!enableEmailEvents || disableEdit || isPresetEmailEventTag(initialEmailEventTag)}
+                        disabled={!enableEmailEvents || disableEdit || isPresetCheck(initialEmailEventTag)}
                         onChange={(e) => {
                             const userInput = e.target.value;
                             const newTag = userInput === EMAIL_EVENT_TAG_PREFIX || 
@@ -120,8 +130,8 @@ interface ApiItemProps {
                         }}
                     />
                 
-                {!isPresetEmailEventTag(initialEmailEventTag) && enableEmailEvents &&
-                <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                {!isPresetCheck(initialEmailEventTag) && enableEmailEvents &&
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                     {isCheckingTag ? (
                         <IconLoader2 className="animate-spin h-5 w-5 text-gray-400" />
                     ) : (<>
@@ -173,7 +183,7 @@ interface ApiItemProps {
                             <IconBulb size={16} />
                             Use the following valid placeholders to dynamically insert data using the format {"${placeholder}"}
                             <br></br>
-                            {"Valid placeholders: sender, recipients, timestamp, subject, contents"}
+                            {"Valid placeholders: sender, recipients, cc, bcc, timestamp, subject, contents"}
                             <br></br>
                             {"Example instructions: Acknowledge the email came from ${sender} with subject \"${subject}\" and contains: ${contents}"}
                         </span>

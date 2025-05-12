@@ -225,7 +225,8 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                         createdBy : userEmail,
                         isPublic : false,
                         numOfAssistants: astDefs.length,
-                        supportConvAnalysis: false
+                        supportConvAnalysis: false,
+                        trackCoversations: true
                     } as Ast_Group_Data;
                     setAstGroups([...astGroups, ampAstGroup]);
                     toast("Successfully created Amplify Assistants group");
@@ -798,6 +799,7 @@ export interface Ast_Group_Data {
     isPublic : boolean;
     numOfAssistants: number;
     supportConvAnalysis: boolean;
+    trackCoversations: boolean;
 }
 
 

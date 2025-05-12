@@ -6,6 +6,7 @@ import { IconPlus } from '@tabler/icons-react';
 interface SelectProps {
   requestType: string,
   handleChange: (val: string) => void;
+  disabled?: boolean;
 }
 
 export interface Auth {
@@ -35,9 +36,10 @@ export interface API {
 export interface APIState {
   apiInfo: API[];
   setApiInfo: React.Dispatch<React.SetStateAction<API[]>>;
+  disabled?: boolean;
 }
 
-export const HTTPRequestSelect: FC<SelectProps> = ({requestType, handleChange}) => {
+export const HTTPRequestSelect: FC<SelectProps> = ({requestType, handleChange, disabled}) => {
 
   return (
     <div className='text-black dark:text-neutral-200'>
@@ -48,6 +50,7 @@ export const HTTPRequestSelect: FC<SelectProps> = ({requestType, handleChange}) 
         id="selectRequestType"
         onChange={(e) => handleChange(e.target.value)}
         required
+        disabled={disabled}
       >
         <option value="GET">GET</option>
         <option value="POST">POST</option>
@@ -60,7 +63,7 @@ export const HTTPRequestSelect: FC<SelectProps> = ({requestType, handleChange}) 
 
 }
 
-export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo }) => {
+export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled }) => {
 
   const [apiResponse, setApiResponse] = useState<any>(null);
 
@@ -100,7 +103,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo }) => {
 
   return (
     <div className="mt-2">
-       <button
+       {!disabled && <button
         className="mt-2 mb-4 flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-sm text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700"
         onClick={() => setApiInfo([...apiInfo, {
           id: '',
@@ -116,7 +119,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo }) => {
       >
         <IconPlus size={18} />
         Add External API
-      </button>
+      </button>}
 
 
       {apiInfo.map((api, index) => (

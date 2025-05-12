@@ -23,7 +23,6 @@ export const getFileDownloadUrls = async (files: FileDownloadOptions) => {
   return await doRequestOp(op);
 }
 
-
 export const getAgentTools = async () => {
   const op = {
     method: 'GET',

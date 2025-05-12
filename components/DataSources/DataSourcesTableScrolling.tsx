@@ -1,5 +1,5 @@
 import React, {FC, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
-import {IconDownload} from "@tabler/icons-react";
+import {IconDownload, IconRefresh, IconTrash} from "@tabler/icons-react";
 import {
     MantineReactTable,
     useMantineReactTable,
@@ -7,14 +7,15 @@ import {
 } from 'mantine-react-table';
 import {MantineProvider, ScrollArea} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
-import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags} from "@/services/fileService";
+import {FileQuery, FileRecord, PageKey, queryUserFiles, reprocessFile, setTags} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
 import {DataSource} from "@/types/chat";
 import { v4 as uuidv4 } from 'uuid';
-import { downloadDataSourceFile } from '@/utils/app/files';
+import { deleteDatasourceFile, downloadDataSourceFile } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
-
+import { IMAGE_FILE_TYPES } from '@/utils/app/const';
+import toast from 'react-hot-toast';
 
 
 interface Props {
@@ -305,6 +306,32 @@ const DataSourcesTableScrolling: FC<Props> = ({
         }
     }
 
+    const deleteFile = async (key: string) => {
+        setLoadingMessage("Deleting File...");
+        try {
+            await deleteDatasourceFile({id: key}); // TODO: check response
+            setData([]); // Clear existing data to force a complete refresh
+            setIsRefetching(true);
+            fetchFiles(); 
+        } finally {
+            setLoadingMessage("");
+        }
+    }
+
+    const fileReprocessing = async (key: string) => {
+        setLoadingMessage("Reprocessing File...");
+        try {
+            const result = await reprocessFile(key);
+            if (result.success) {
+                toast("File's rag and embeddings regenerated successfully. Please wait a few minutes for the changes to take effect.");
+            } else {
+                alert("Failed to regenerate file's rag and embeddings.");
+            }
+        } finally {
+            setLoadingMessage("");
+        }
+    }
+
     const handleSaveCell = (table: MRT_TableInstance<FileRecord>, cell: MRT_Cell<FileRecord>, value: any) => {
         //if using flat data and simple accessorKeys/ids, you can just do a simple assignment here
         const index = cell.row.index;
@@ -330,9 +357,9 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: '__id', //access nested data with dot notation
                 header: ' ',
-                width: 20,
-                size: 20,
-                maxSize: 20,
+                width: 18,
+                size: 18,
+                maxSize: 18,
                 enableSorting: false,
                 enableColumnActions: false,
                 enableColumnFilter: false,
@@ -344,16 +371,24 @@ const DataSourcesTableScrolling: FC<Props> = ({
                             e.stopPropagation();
                             downloadFile(cell.getValue<string>().split("#")[1], cell.row.original.name, cell.row.original.type);
                         }}> 
-                    <IconDownload/>
+                    <IconDownload size={20}/>
                     </ActionButton>
                 ),
             },
             {
+                accessorKey: 'name', //access nested data with dot notation
+                header: 'Name',
+                width: 200,
+                size: 200,
+                //enableSorting: false,
+                maxSize: 300,
+            },
+            {
                 accessorKey: 'id', //access nested data with dot notation
                 header: ' ',
-                width: 20,
-                size: 20,
-                maxSize: 20,
+                width: 18,
+                size: 18,
+                maxSize: 18,
                 enableSorting: false,
                 enableColumnActions: false,
                 enableColumnFilter: false,
@@ -365,17 +400,9 @@ const DataSourcesTableScrolling: FC<Props> = ({
                             e.stopPropagation();
                             downloadFile(cell.getValue<string>(), cell.row.original.name, cell.row.original.type)
                         }}> 
-                    <IconDownload/>
-                    </ActionButton>
+                    <IconDownload size={20}/>
+                    </ActionButton >
                 ),
-            },
-            {
-                accessorKey: 'name', //access nested data with dot notation
-                header: 'Name',
-                width: 200,
-                size: 200,
-                //enableSorting: false,
-                maxSize: 300,
             },
             {
                 accessorKey: 'createdAt',
@@ -413,6 +440,56 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 size: 100,
                 maxSize: 100,
                 Edit: ({cell, column, table}) => <>{cell.getValue<string>()}</>,
+            },
+            {
+                accessorKey: 'delete',
+                header: '',
+                width: 18,
+                size: 18,
+                maxSize: 18,
+                enableSorting: false,
+                enableColumnActions: false,
+                enableColumnFilter: false,
+                Cell: ({cell}) => (
+                    <ActionButton
+                        title='Delete File'
+                        handleClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            deleteFile(cell.row.original.id);
+                        }}> 
+                        <IconTrash size={20}/>
+                    </ActionButton>
+                ),   
+            },
+            {
+                accessorKey: 're-embed', //access nested data with dot notation
+                header: ' ',
+                width: 18,
+                size: 18,
+                maxSize: 18,
+                enableSorting: false,
+                enableColumnActions: false,
+                enableColumnFilter: false,
+                Cell: ({cell}) => {
+                    // Only show the refresh button for non-image file types
+                    const fileType = cell.row.original.type;
+                    if (IMAGE_FILE_TYPES.includes(fileType)) {
+                        return null;
+                    }
+                    
+                    return (
+                        <ActionButton
+                            title='Regenerate text extraction and embeddings for this file.'
+                            handleClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                fileReprocessing(cell.row.original.id);
+                            }}> 
+                        <IconRefresh size={20} />
+                        </ActionButton>
+                    );
+                },
             },
         ],
         [],

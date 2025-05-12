@@ -1,14 +1,5 @@
 // Provider Types
-
-export const modelProviders = {
-    Azure: 'Azure',
-    OpenAI: 'OpenAI',
-    Bedrock: 'Bedrock',
-  } as const;
-  
-  // Derive the type from the object keys
-  export type ModelProviders = keyof typeof modelProviders;
-
+export const ModelProviders = ['Azure', 'OpenAI', 'Bedrock', 'Gemini'];
 
 // Used for updating data in the backend
 export enum AdminConfigTypes {

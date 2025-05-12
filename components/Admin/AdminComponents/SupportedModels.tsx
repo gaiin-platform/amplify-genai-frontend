@@ -1,6 +1,6 @@
 import { FC, useEffect, useRef, useState } from "react";
 import {  Amplify_Groups, AmplifyGroupSelect, camelToTitleCase, titleLabel, UserAction } from "../AdminUI";
-import { AdminConfigTypes, DefaultModelsConfig, FeatureFlagConfig, modelProviders, ModelProviders, SupportedModel, SupportedModelsConfig} from "@/types/admin";
+import { AdminConfigTypes, DefaultModelsConfig, FeatureFlagConfig, ModelProviders, SupportedModel, SupportedModelsConfig} from "@/types/admin";
 import { InfoBox } from "@/components/ReusableComponents/InfoBox";
 import { IconCheck, IconPlus, IconX, IconEdit, IconTrash } from "@tabler/icons-react";
 import Search from "@/components/Search";
@@ -34,7 +34,8 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
     const supportedModelsRef = useRef<HTMLDivElement>(null);  // to help control the scroll bar 
     const [isAddingAvailModel, setIsAddingAvailModel] = useState< { model: SupportedModel, 
                                                                     action: 'Adding' | 'Editing'} | null>(null);  
-    const [hoveredAvailModel, setHoveredAvailModel] = useState<string>('');  
+    const [hoveredAvailModel, setHoveredAvailModel] = useState<string>(''); 
+    const [hoveredModelIcons, setHoveredModelIcons] = useState<string>(''); 
     const [modelsSearchTerm, setModelsSearchTerm] = useState<string>(''); 
     const [showModelsSearch, setShowModelsSearch] = useState<boolean>(true); 
 
@@ -205,12 +206,12 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                 </div>
 
                                 <div className="max-w-[730px]">
-                                { Object.values(modelProviders).map((p:ModelProviders) => 
+                                { ModelProviders.map((p:string) => 
                                     <button key={p}
                                     id={`provider${p}`}
                                     className={`w-[182.5px] h-[39px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-300 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 
-                                    ${p === isAddingAvailModel.model.provider as ModelProviders ? "cursor-default" : "opacity-60 hover:opacity-80"}`}
-                                    disabled={p === isAddingAvailModel.model.provider as ModelProviders}
+                                    ${p === isAddingAvailModel.model.provider ? "cursor-default" : "opacity-60 hover:opacity-80"}`}
+                                    disabled={p === isAddingAvailModel.model.provider}
                                     onClick={() => {
                                         let updated = {...isAddingAvailModel.model, provider: p};
                                         setIsAddingAvailModel({...isAddingAvailModel, model: updated})
@@ -358,7 +359,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                                     .includes(modelsSearchTerm) : true))
                                 .sort((a, b) => a.name.localeCompare(b.name))
                                 .map((availModel: SupportedModel) => 
-                            <tr key={availModel.id}  className="text-xs"
+                            <tr key={availModel.id}  className={`text-xs ${hoveredModelIcons === availModel.id ? 'hover:bg-gray-200 dark:hover:bg-[#40414f]' : ''}`}
                                 onMouseEnter={() => setHoveredAvailModel(availModel.id)}
                                 onMouseLeave={() => setHoveredAvailModel('')}>
                                 <td id="supportedModelTitle" className="border border-neutral-500 p-2">
@@ -447,11 +448,12 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     /> : <>N/A</>
                                 }
                                 </td>
-                                <td>
+                                <td className="bg-gray-100 dark:bg-[#2b2c36]">
                                         <div className="w-[30px]">
                                         {hoveredAvailModel === availModel.id && (!isAddingAvailModel 
                                         || (isAddingAvailModel.action === 'Adding' && JSON.stringify(isAddingAvailModel.model) === JSON.stringify(emptySupportedModel()))) ?
-                                        <div className="flex flex-row gap-1"> 
+                                        <div className="flex flex-row gap-1" onMouseEnter={() => setHoveredModelIcons(availModel.id)} 
+                                                                             onMouseLeave={() => setHoveredModelIcons('')}> 
                                         <ActionButton
                                             handleClick={() => {setIsAddingAvailModel( {model: availModel, action: "Editing" })}}
                                             title="Edit Model Data">
@@ -518,7 +520,8 @@ const ModelDefaultSelect: FC<SelectProps> = ({models, defaultModels, selectedKey
                 <option value="" disabled hidden>
                     Select Model
                 </option>
-                {models.map((model:SupportedModel) => (
+                {models.sort((a, b) => a.name.localeCompare(b.name))
+                       .map((model:SupportedModel) => (
                     <option key={model.id} value={model.name}>
                         {model.name}
                     </option>

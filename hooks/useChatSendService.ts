@@ -235,6 +235,7 @@ export function useSendService() {
                         conversationId
                     };
 
+
                     if (selectedConversation?.projectId) {
                         // console.log("Selected Project Memory ID:", selectedConversation.projectId);
                         chatBody.projectId = selectedConversation.projectId;
@@ -242,85 +243,6 @@ export function useSendService() {
 
                     // Handle memory operations in parallel with the main request flow
                     if (isMemoryOn) {
-                        // Fire off fact extraction in the background, don't wait for it
-                        if (memoryExtractionEnabled) {
-                            // This runs completely independently and doesn't affect the main response flow
-                            (async () => {
-                                try {
-                                    const userInput = updatedConversation.messages
-                                        .filter(msg => msg.role === 'user')
-                                        .pop()?.content || '';
-
-                                    // Fetch existing memories for fact extraction
-                                    const memoriesResponse = await doReadMemoryOp({});
-                                    let existingMemories: Memory[] = [];
-
-                                    try {
-                                        const allMemories = JSON.parse(memoriesResponse.body).memories || [];
-                                        existingMemories = getRelevantMemories(allMemories);
-                                    } catch (error) {
-                                        console.error("Error fetching existing memories for fact extraction:", error);
-                                    }
-
-                                    // Build and send fact extraction prompt
-                                    const extractFactsPrompt = buildExtractFactsPrompt(userInput, existingMemories);
-                                    const extractFactsResult = await promptForData(
-                                        chatEndpoint || '',
-                                        updatedConversation.messages,
-                                        getDefaultModel(DefaultModels.CHEAPEST),
-                                        extractFactsPrompt,
-                                        statsService
-                                    );
-
-                                    if (!extractFactsResult) {
-                                        console.warn('Fact extraction returned null response');
-                                        return;
-                                    }
-
-                                    // Parse the response to extract facts
-                                    const facts: ExtractedFact[] = [];
-                                    const factBlocks = extractFactsResult.split('\n\n');
-
-                                    for (const block of factBlocks) {
-                                        if (!block.trim()) continue;
-
-                                        const contentMatch = block.match(/FACT: (.*?)(?:\n|$)/);
-                                        const taxonomyMatch = block.match(/TAXONOMY: (.*?)(?:\n|$)/);
-                                        const reasoningMatch = block.match(/REASONING: ([\s\S]*?)(?:\n\n|$)/);
-
-                                        if (contentMatch && taxonomyMatch) {
-                                            facts.push({
-                                                content: contentMatch[1].trim(),
-                                                taxonomy_path: taxonomyMatch[1].trim(),
-                                                reasoning: reasoningMatch ? reasoningMatch[1].trim() : "",
-                                                conversation_id: conversationId || updatedConversation.id
-                                            });
-                                        }
-                                    }
-
-                                    // Filter out duplicates
-                                    const existingContents = new Set(
-                                        existingMemories.map((memory: Memory) => memory.content.toLowerCase().trim())
-                                    );
-                                    const uniqueFacts = facts.filter(fact =>
-                                        !existingContents.has(fact.content.toLowerCase().trim())
-                                    );
-
-                                    // Update state with new facts
-                                    homeDispatch({
-                                        field: 'extractedFacts',
-                                        value: [...(extractedFacts || []), ...uniqueFacts].filter(
-                                            (fact, index, self) =>
-                                                self.findIndex(f => f.content === fact.content) === index
-                                        )
-                                    });
-                                } catch (error) {
-                                    console.warn('Fact extraction process failed:', error);
-                                }
-                            })();
-                            // The fact extraction now runs in a fire-and-forget mode
-                        }
-
                         // For memory context, use a short timeout to keep the request moving
                         // if memory retrieval takes too long
                         try {
@@ -380,6 +302,7 @@ export function useSendService() {
                             return { id: doc.id, type: doc.type, name: doc.name || "", metadata: doc.metadata || {} };
                         });
                     }
+
 
                     //PLUGINS before options is assigned
                     //in case no plugins are defined, we want to keep the default behavior
@@ -728,6 +651,90 @@ export function useSendService() {
                         }
 
                         homeDispatch({ field: 'messageIsStreaming', value: false });
+
+                        // Run memory extraction after main response is processed
+                        if (isMemoryOn && memoryExtractionEnabled) {
+                            // This runs completely independently and doesn't affect the main response flow
+                            (async () => {
+                                try {
+                                    // get the last user message
+                                    const userInput = updatedConversation.messages[updatedConversation.messages.length - 2]?.content || '';
+
+                                    console.log("User input: ", userInput);
+
+                                    // Fetch existing memories for fact extraction
+                                    const memoriesResponse = await doReadMemoryOp({});
+                                    let existingMemories: Memory[] = [];
+
+                                    try {
+                                        const allMemories = JSON.parse(memoriesResponse.body).memories || [];
+                                        existingMemories = getRelevantMemories(allMemories);
+                                    } catch (error) {
+                                        console.error("Error fetching existing memories for fact extraction:", error);
+                                    }
+
+                                    // Build and send fact extraction prompt
+                                    const extractFactsPrompt = buildExtractFactsPrompt(userInput, existingMemories);
+
+                                    console.log("Extract facts prompt: ", extractFactsPrompt);
+
+                                    const extractFactsResult = await promptForData(
+                                        chatEndpoint || '',
+                                        [], // Send empty array instead of conversation messages
+                                        getDefaultModel(DefaultModels.CHEAPEST),
+                                        extractFactsPrompt,
+                                        statsService
+                                    );
+
+                                    console.log("Extract facts result: ", extractFactsResult);
+
+                                    if (!extractFactsResult) {
+                                        console.warn('Fact extraction returned null response');
+                                        return;
+                                    }
+
+                                    // Parse the response to extract facts
+                                    const facts: ExtractedFact[] = [];
+                                    const factBlocks = extractFactsResult.split('\n\n');
+
+                                    for (const block of factBlocks) {
+                                        if (!block.trim()) continue;
+
+                                        const contentMatch = block.match(/FACT: (.*?)(?:\n|$)/);
+                                        const taxonomyMatch = block.match(/TAXONOMY: (.*?)(?:\n|$)/);
+                                        const reasoningMatch = block.match(/REASONING: ([\s\S]*?)(?:\n\n|$)/);
+
+                                        if (contentMatch && taxonomyMatch) {
+                                            facts.push({
+                                                content: contentMatch[1].trim(),
+                                                taxonomy_path: taxonomyMatch[1].trim(),
+                                                reasoning: reasoningMatch ? reasoningMatch[1].trim() : "",
+                                                conversation_id: conversationId || updatedConversation.id
+                                            });
+                                        }
+                                    }
+
+                                    // Filter out duplicates
+                                    const existingContents = new Set(
+                                        existingMemories.map((memory: Memory) => memory.content.toLowerCase().trim())
+                                    );
+                                    const uniqueFacts = facts.filter(fact =>
+                                        !existingContents.has(fact.content.toLowerCase().trim())
+                                    );
+
+                                    // Update state with new facts
+                                    homeDispatch({
+                                        field: 'extractedFacts',
+                                        value: [...(extractedFacts || []), ...uniqueFacts].filter(
+                                            (fact, index, self) =>
+                                                self.findIndex(f => f.content === fact.content) === index
+                                        )
+                                    });
+                                } catch (error) {
+                                    console.warn('Fact extraction process failed:', error);
+                                }
+                            })();
+                        }
 
                         resolve(text);
 

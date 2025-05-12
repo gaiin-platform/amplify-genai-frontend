@@ -210,6 +210,7 @@ export type FileQueryResult = {
 };
 
 export const getFileDownloadUrl = async (key: string, groupId: string | undefined) => {
+
     const op = {
         method: 'POST',
         path: URL_PATH,
@@ -273,17 +274,26 @@ export const queryUserFiles = async (query: FileQuery, abortSignal: AbortSignal 
 export const deleteFile = async (key: string) => {
     console.log("Delete File function, Service Name:", SERVICE_NAME);
     const op = {
-        // service: SERVICE_NAME,
         method: 'POST',
         path: URL_PATH,
         op: "/delete",
         data: {
             key: key,
-        }
+        },
+        service: SERVICE_NAME
     };
-    const result = await doRequestOp(op);
-    const isSuccess = result.statusCode === 200;  // Check statusCode instead of success
+    return await doRequestOp(op);
+}
 
-    return { success: isSuccess, key: key };
+
+export const reprocessFile = async (key: string, groupId?: string) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/reprocess/rag",
+        data: { key, groupId },
+        service: SERVICE_NAME
+    };
+    return await doRequestOp(op);
 }
 

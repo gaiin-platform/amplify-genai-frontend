@@ -16,6 +16,7 @@ interface Props {
     height?: string;
     onClose?: () => void;
     disallowedFileExtensions?: string[];
+    showActionButtons?: boolean;
     onIntegrationDataSourceSelected?: (file: File) => void;
 }
 
@@ -24,6 +25,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                                                   height,
                                                   onClose,
                                                   disallowedFileExtensions,
+                                                  showActionButtons = false,
                                                   onIntegrationDataSourceSelected
                                               }) => {
     const {t} = useTranslation('chat');
@@ -189,7 +191,8 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                 {selectedPage === "files" && (
                     <DataSourcesTableScrolling
                         height={height}
-                        visibleColumns={["name", "createdAt", "commonType"]}
+                        visibleColumns={ showActionButtons ? ["name", "id", "createdAt", "commonType", "delete", "re-embed"] 
+                                                           : ["name", "createdAt", "commonType"]}
                         onDataSourceSelected={onDataSourceSelected}
                         tableParams={{
                             enableGlobalFilter: false,
