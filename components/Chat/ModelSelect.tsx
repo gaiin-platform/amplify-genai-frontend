@@ -9,6 +9,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 import React from 'react';
+import { Conversation } from '@/types/chat';
 
 interface Props {
   modelId: string | undefined;
@@ -35,14 +36,37 @@ export const ModelSelect: React.FC<Props> = ({
   const { t } = useTranslation('chat');
 
   const contextValue = useContext(HomeContext);
+
+  const handleUpdateConversation = contextValue?.handleUpdateConversation || (() => {});
   
   // Default values when context is missing
-  const selectedConversation = contextValue?.state?.selectedConversation;
-  const defaultModelId = contextValue?.state?.defaultModelId || backupDefaultModelId;
-  const featureFlags = contextValue?.state?.featureFlags || {};
-  const availableModels = contextValue?.state?.availableModels || {};
-  const handleUpdateConversation = contextValue?.handleUpdateConversation || (() => {});
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | undefined>(contextValue?.state?.selectedConversation);
+  useEffect(() => {
+    setSelectedConversation(contextValue?.state?.selectedConversation);
+  }, [contextValue?.state?.selectedConversation]);
 
+  const [featureFlags, setFeatureFlags] = useState(contextValue?.state?.featureFlags || {});
+  useEffect(() => {
+    setFeatureFlags(contextValue?.state?.featureFlags || {});
+  }, [contextValue?.state?.featureFlags]);
+
+
+  const [availableModels, setAvailableModels] = useState(contextValue?.state?.availableModels || {});
+  useEffect(() => {
+    setAvailableModels(contextValue?.state?.availableModels || {});
+  }, [contextValue?.state?.availableModels]);
+
+  // Use state to track defaultModelId
+  const [defaultModelId, setDefaultModelId] = useState<string | undefined>(
+    contextValue?.state?.defaultModelId || backupDefaultModelId
+  );
+
+  // Update state when context changes
+  useEffect(() => {
+    setDefaultModelId(contextValue?.state?.defaultModelId || backupDefaultModelId);
+  }, [contextValue?.state?.defaultModelId, backupDefaultModelId]);
+
+  
   const [selectModel, setSelectModel] = useState<string | undefined>(modelId ?? defaultModelId);
   const [isOpen, setIsOpen] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
