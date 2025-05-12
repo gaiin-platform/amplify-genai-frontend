@@ -1009,7 +1009,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
         };
         // statsService.updateGroupAmplifyGroupsEvent(updateData); 
         const result = await updateGroupAmplifyGroups(updateData);
-        if (!result) {
+        if (!result.success) {
             alert(`Unable to update amplify group list at this time. Please try again later.`);
             setLoadingActionMessage('');
             return false;;
@@ -1041,7 +1041,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
         };
         // statsService.updateGroupSystemUsersEvent(updateData); 
         const result = await updateGroupSystemUsers(updateData);
-        if (!result) {
+        if (!result.success) {
             alert(`Unable to update the system users list at this time. Please try again later.`);
             setLoadingActionMessage('');
             return false;
