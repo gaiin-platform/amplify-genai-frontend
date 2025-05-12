@@ -303,6 +303,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                                             <textarea
                                                 className= "mt-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                                 style={{resize: 'none'}}
+                                                id="applicationName"
                                                 placeholder={`Application Name`}
                                                 value={appName}
                                                 onChange={(e) => setAppName(e.target.value)}
@@ -337,6 +338,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                                 <textarea
                                     className="mr-6 mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                     style={{resize: 'none'}}
+                                    id="applicationDescription"
                                     placeholder={`Provide a short description on the application use of this api key.`}
                                     value={appDescription}
                                     onChange={(e) => setAppDescriptione(e.target.value)}
@@ -417,6 +419,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                                 <button
                                     type="button"
                                     title='Create Api Key'
+                                    id="createAPIKeyConfirm"
                                     className={`ml-auto mr-6 mt-4 px-2 py-1.5 text-white rounded bg-neutral-600 hover:bg-${!selectedAccount ? 'red': 'green'}-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500`}
                                     style= {{width: '146px', height: '36px'}}
                                     onClick={() => {
@@ -478,7 +481,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                                     <td>{<Label label={apiKey.applicationName} />}</td>
                                     <td>
                                         <div className='flex justify-center items-center' style={{width: '60px'}}>
-                                            {apiKey.active ? <button title='Deactivate Key' onClick={() => handleDeactivateApikey(apiKey.api_owner_id, apiKey.applicationName)}>
+                                            {apiKey.active ? <button title='Deactivate Key' id="deactivateKeyButton" onClick={() => handleDeactivateApikey(apiKey.api_owner_id, apiKey.applicationName)}>
                                                                  <IconCheck className= 'text-green-600 hover:text-gray-400' size={18} /> 
                                                             </button> 
                                                            : <IconX className='text-red-600' size={18} />}
@@ -562,6 +565,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
             { !docsIsOpen && <div className="flex-shrink-0 flex flex-row fixed bottom-0 left-0 w-full px-4 py-2 mb-2"> 
                 <button
                     type="button"
+                    id="cancel"
                     className="mr-2 w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-white dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                     onClick={onClose}
                 >
@@ -569,6 +573,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                 </button>
                 <button
                     type="button"
+                    id="Save Changes"
                     className="w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-white dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                     onClick={handleSave}
                 >
@@ -894,7 +899,7 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
 
     return (
          <div className='flex flex-row gap-2 text-xs' >
-            <input type="checkbox" checked={fullAccess} onChange={(e) => {
+            <input type="checkbox" id="fullAccessCheckbox" checked={fullAccess} onChange={(e) => {
                     const checked = e.target.checked;
                     setFullAccess(checked);
                     setOptions((prevOptions: any)=> 
@@ -907,7 +912,7 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
             <label className="mr-3 whitespace-nowrap" htmlFor="FullAccess">Full Access</label>
             {Object.keys(options).map((key: string) => (
                 <div key={key} className='whitespace-nowrap'>
-                <input type="checkbox" checked={options[key]} onChange={() => {
+                <input type="checkbox" id="accessCheckboxes" checked={options[key]} onChange={() => {
                     setOptions((prevOptions:any) => {
                         const newOptions = { ...prevOptions, [key]: !prevOptions[key] };
                         if (!newOptions[key]) setFullAccess(false);
@@ -1032,6 +1037,7 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
                 <label className='mt-2 text-xs '>|</label>
                     <ActionButton
                     handleClick={() => handleShowApiDoc()}
+                    id="amplifyDocumentationButton"
                     title='View Amplify API Documentation'>
                       <div className='flex flex-row gap-1 text-[0.8]'>
                         Amplify API Documentation
@@ -1093,6 +1099,7 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
                                         <button
                                             key={"Doc"}
                                             onClick={() => handleTabSwitch("Doc")}
+                                            id="viewAmplifyAPI"
                                             className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Doc" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white  shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
                                             <h3 className="text-xl">View Amplify API</h3> 
                                         </button> )}
@@ -1101,6 +1108,7 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
                                         <button
                                             key={"Downloads"}
                                             onClick={() => handleTabSwitch("Downloads")}
+                                            id="downloadsAPI"
                                             className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Downloads" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white  shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
                                             <h3 className="text-xl">Downloads</h3> 
                                         </button> )}
@@ -1125,7 +1133,7 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
 
                 { activeTab === "Downloads" && 
                     <div className='absolute top-20 flex justify-center mt-4 flex-col text-lg'>
-                    <label className='text-xl'> Available Amplify API Documentation Formats</label>
+                    <label id="downloadsAPITabTitle" className='text-xl'> Available Amplify API Documentation Formats</label>
                     <div className='ml-6'>
                         {docUrl &&
                                 <APIDownloadFile

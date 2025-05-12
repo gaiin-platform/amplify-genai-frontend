@@ -30,11 +30,12 @@ export const OpenAIEndpointsTab: FC<Props> = ({openAiEndpoints, setOpenAiEndpoin
     {openAiEndpoints.models.map((modelData: any, modelIndex: number) => {
         return Object.keys(modelData).map((modelName: string) => {
             return (
-                <div key={modelName} className={`ml-4 flex flex-col gap-2 ${modelIndex > 0 ? 'mt-6': 'mt-2'}`}>
+                <div key={modelName} id="openAiEndpoint" className={`ml-4 flex flex-col gap-2 ${modelIndex > 0 ? 'mt-6': 'mt-2'}`}>
                     <div className="flex flex-row gap-2">
-                        <label className="py-2 text-[0.95rem]">{modelName}</label>
+                        <label id="endpointModelName" className="py-2 text-[0.95rem]">{modelName}</label>
                         <button
                             title='Add Endpoint'
+                            id={`addEndpointButton-${modelName}`}
                             className={`ml-2 mt-1 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10`}
                             onClick={async () => {
                                 const newEndpoint = { url: '', key: '', isNew: true};
@@ -52,6 +53,7 @@ export const OpenAIEndpointsTab: FC<Props> = ({openAiEndpoints, setOpenAiEndpoin
                         { modelData[modelName].endpoints.length > 0 &&
                         <button
                             title="Delete Endpoints"
+                            id={`deleteEndpointButton-${modelName}`}
                             disabled={isDeletingEndpoint === modelName}
                             className={`mt-1 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 dark:text-neutral-100 transition-colors duration-200 ${isDeletingEndpoint !== modelName ? "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" : ""}`}
                             onClick={() => {
@@ -100,7 +102,7 @@ export const OpenAIEndpointsTab: FC<Props> = ({openAiEndpoints, setOpenAiEndpoin
                     </div> 
 
                     {modelData[modelName].endpoints.map((endpoint: Endpoint, index:number) => 
-                        <div className="flex flex-row mr-10 mt-2" key={index}
+                        <div id={`urlKeyHover-${modelName}-${index}`} className="flex flex-row mr-10 mt-2" key={index}
                             onMouseEnter={() => setHoveredEndpoint({ model: modelName, index })}
                             onMouseLeave={() => setHoveredEndpoint(null)}
                         >
@@ -125,6 +127,7 @@ export const OpenAIEndpointsTab: FC<Props> = ({openAiEndpoints, setOpenAiEndpoin
                                 hoveredEndpoint.index === index && (
                                     <button
                                         type="button"
+                                        id="deleteCreatedEndpoint"
                                         className="p-0.5 ml-[-4px] text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                                         onClick={() => {
                                             const updatedModels = [...openAiEndpoints.models];

@@ -97,7 +97,8 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     <div className="relative z-10 flex flex-row gap-2.5 h-0" style={{ transform: `translateX(160px)` }}>
                         {admins.length > 0 &&
                         <button onClick={ () => setIsDeleting(true)} style={{ display: 'flex', cursor: 'pointer' }}
-                            className="flex flex-shrink-0"
+                            className="flex flex-shrink-0 items-center justify-center p-2"
+                            id="removeAdminButton"
                             title={"Remove Admins"}
                             >
                             <IconTrash className="mt-0.5" size={15}/>
@@ -166,7 +167,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                         <div className="flex flex-wrap ">
                         {admins
                             .map((user, index) => (
-                            <div key={index} className="border border-neutral-500 flex items-center">
+                            <div key={index} id={`adminEmail${index}`} className="border border-neutral-500 flex items-center">
                                 <div
                                 className="flex items-center"
                                 onMouseEnter={() => setHoveredUser(user)}
@@ -176,6 +177,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                 {hoveredUser === user && !isDeleting && (
                                     <button
                                     type="button"
+                                    id="deleteAdminUser"
                                     className="p-0.5 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
                                     onClick={() => handleUpdateAdmins(admins.filter((u: string) => u !== user))}
                                     >
@@ -251,6 +253,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 {["future-local", "future-cloud"].map((storage) => (
                  <label className="flex items-center mt-5" key={storage}>
                     <input type="radio" name="conversationStorage"
+                    id="conversationStorageCheck"
                     value={storage}
                     checked={defaultConversationStorage === storage}
                     onChange={(event) =>  handleUpdateDefaultConversationStorage(event.target.value as ConversationStorage)}
@@ -302,6 +305,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 Cost Threshold
                 <input type="number" disabled={!promptCostAlert.isActive}
                         className="text-center w-[100px] dark:bg-[#40414F] bg-gray-200"
+                        id="costThresholdInput"
                         min={0} step={.01} value={promptCostAlert.cost as number?? 0 }
                         onChange={(e) => {
                             const value = parseFloat(e.target.value);
@@ -317,6 +321,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
             <button
                 title={isAddingAmpGroups ? "" : 'Add Amplify Group'}
                 disabled={isAddingAmpGroups !== null}
+                id="addAmplifyGroup"
                 className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingAmpGroups ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
                 onClick={() => setIsAddingAmpGroups(emptyAmplifyGroups(userEmail ?? 'unknown'))}
             >
@@ -365,6 +370,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 >Group Name </label>
                 <input
                 title={"Group names must be unique"}
+                id="groupName"
                 className={`w-[200px] ${admin_text}`}
                 placeholder={"Group Name"}
                 onChange={(e) => {
@@ -431,12 +437,13 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     title={'Manage Amplify Groups'} 
                     content={ 
                         <>
-                        <table className="mt-4 border-collapse w-full mr-10" >
+                        <table className="mt-4 border-collapse w-full mr-10" id="groupTable">
                             <thead>
                             <tr className="bg-gray-200 dark:bg-[#373844] ">
                                 {['Group Name', 'Members', 'Membership by Amplify Groups', 'Created By'
                                 ].map((title, i) => (
                                 <th key={i}
+                                    id={title}
                                     className="px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
                                     style={{width: i === 0 || i === 3 ? "15%" 
                                             : "35%", 
@@ -454,7 +461,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                 <tr key={group.groupName}
                                     onMouseEnter={() => setHoveredAmpGroup(group.groupName)}
                                     onMouseLeave={() => setHoveredAmpGroup('')}>
-                                    <td className="border border-neutral-500 px-4 py-2 break-words max-w-[200px]">
+                                    <td className="border border-neutral-500 px-4 py-2 break-words max-w-[200px]" id="groupName">
                                         {group.groupName}
                                     </td>
 

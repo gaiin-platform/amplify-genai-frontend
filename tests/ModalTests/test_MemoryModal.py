@@ -22,7 +22,7 @@ class MemoryModalTests(BaseTest):
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
-        super().setUp(headless=False)
+        super().setUp(headless=True)
         
     
     # ----------------- Setup Test Data ------------------

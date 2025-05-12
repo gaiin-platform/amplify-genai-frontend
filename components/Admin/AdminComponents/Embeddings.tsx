@@ -136,6 +136,7 @@ export const EmbeddingsTab: FC<Props> = ({refresh, refreshingTypes, setRefreshin
                         handleGetEmbeddings();
                         }}
                     title="Retrieve in-flight embeddings"
+                    id="retrieveEmbeddingsButton"
                     >
                     {"Retrieve SQS Embeddings"}
                         
