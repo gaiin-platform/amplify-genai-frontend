@@ -57,7 +57,7 @@ import React from 'react';
 import { PromptHighlightedText } from './PromptHighlightedText';
 import { AccountDialog } from '../Settings/AccountComponents/AccountDialog';
 import { getSettings } from '@/utils/app/settings';
-import { filterModels } from '@/utils/app/models';
+import { checkAvailableModelId, filterModels } from '@/utils/app/models';
 import { promptForData } from '@/utils/app/llm';
 import cloneDeep from 'lodash/cloneDeep';
 import { useSession } from 'next-auth/react';
@@ -143,8 +143,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
         }, [availableModels]);
 
+        const availableAstModelId = (astModelId: string | undefined) => {
+            if (!astModelId) return undefined;
+            return selectedAssistant?.definition?.data?.model && checkAvailableModelId(selectedAssistant.definition.data.model, availableModels);
+        }
+
         const initSelectedModel = () => {
-            const id =  selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id || defaultModelId || getDefaultModelIdFromLocalStorage();
+            const initSelectedAstModel = availableAstModelId(selectedAssistant?.definition?.data?.model);
+            const id =  initSelectedAstModel || selectedConversation?.model?.id || defaultModelId || getDefaultModelIdFromLocalStorage();
             if (id && filteredModels.find((m: Model) => m.id == id)) return id;
 
             if (filteredModels.length > 0 && selectedConversation) {
@@ -278,9 +284,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (!plugins && settingRef.current) setPlugins(getActivePlugins(settingRef.current));
         }, [featureFlags]);
 
+
         useEffect(() =>{
-            const astModel = selectedAssistant?.definition?.data?.model;
-            
+            let astModel = availableAstModelId(selectedAssistant?.definition?.data?.model);
+
             if (astModel && selectedModelId !== astModel) setSelectedModelId(astModel);
             if (astModel && selectedConversation && selectedConversation.model?.id !== astModel) {
                 const model:Model | undefined = Object.values(availableModels).find(
@@ -1002,7 +1009,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 
                                                 <div className="relative flex flex-row w-full items-center"> 
                                                     <div className="flex-grow">
-                                                        <ModelSelect modelId={selectedModelId} isDisabled={selectedAssistant?.definition?.data?.model}/>
+                                                        <ModelSelect modelId={selectedModelId} isDisabled={availableAstModelId(selectedAssistant?.definition?.data?.model)}/>
                                                     </div>
                                                     <div className='mt-[-5px] absolute top-0 right-7 flex justify-end items-center'>
                                                         {featureFlags.storeCloudConversations && <CloudStorage iconSize={20} /> }
@@ -1153,9 +1160,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 |
                                             </>
                                         )}               
-                                         {/*  Removing Workspaces:    old   { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' }  */}
-                                         {/* Should be in sync with selectedModelId now:      old   selectedConversation?.model?.name || ''*/}
-                                        {` `}{selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
+                                        {` `}{selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
+                                                                ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name 
+                                                                : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={(e) => {
@@ -1237,7 +1244,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     
                                         <div 
                                             className="flex flex-col md:gap-6 md:py-3 md:pt-6 lg:px-0 mx-16 ">
-                                            { showSettings && !(selectedAssistant?.definition?.data?.model) &&
+                                            { showSettings && !availableAstModelId(selectedAssistant?.definition?.data?.model) &&
                                                 <div
                                                     className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border custom-shadow">
                                                     <ModelSelect modelId={selectedModelId}/>

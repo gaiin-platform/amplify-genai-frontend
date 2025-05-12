@@ -1,7 +1,6 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
 import { IconCheck, IconFiles, IconPlus, IconSettings, IconTrashX, IconX } from '@tabler/icons-react';
-import Loader from "@/components/Loader/Loader";
 import { AssistantModal } from '../Promptbar/components/AssistantModal';
 import { Prompt } from '@/types/prompt';
 import { Group, GroupAccessType, AstGroupTypeData, GroupUpdateType, Members } from '@/types/groups';
@@ -37,6 +36,7 @@ import { AmplifyGroupSelect } from './AdminUI';
 import { getUserAmplifyGroups } from '@/services/adminService';
 import { fetchAllSystemIds } from '@/services/apiKeysService';
 import { ReactElement } from 'react-markdown/lib/react-markdown';
+import { checkAvailableModelId } from '@/utils/app/models';
 
 
 interface Conversation {
@@ -2716,8 +2716,8 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
     }
 
     const checkAvailableModel = () => {
-        const validIds = Object.keys(availableModels);
-        return validIds.includes(astData.model) ? astData.model : undefined;
+        const isValid = checkAvailableModelId(astData.model, availableModels);
+        return isValid;
     }
 
     const onSupportConvAnalysisChange = (isChecked: boolean) => {
@@ -2763,12 +2763,13 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
                 }}
             />
         </div>
-        <div className={`ml-6 flex flex-col ${enforceModel ? "" : 'opacity-40'}`}>
+        <div className={`ml-6 flex flex-col ${enforceModel ? "" : 'opacity-40'} `}>
             All conversations will be set to this model and unable to be changed by the user.
             <ModelSelect
                 applyModelFilter={false}
                 isTitled={false}
                 modelId={checkAvailableModel()}
+                outlineColor={enforceModel && !additionalGroupData.model ? 'red-500' : ''}
                 isDisabled={!enforceModel}
                 disableMessage=''
                 handleModelChange={(model: string) => {

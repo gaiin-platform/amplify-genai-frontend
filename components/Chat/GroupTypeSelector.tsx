@@ -1,7 +1,7 @@
 import { FC, useState } from 'react';
 
 import { AstGroupTypeData } from '@/types/groups';
-import { IconExclamationCircle, IconExclamationMark } from '@tabler/icons-react';
+import { IconExclamationCircle } from '@tabler/icons-react';
 
 interface Props {
   groupOptionsData: AstGroupTypeData;
