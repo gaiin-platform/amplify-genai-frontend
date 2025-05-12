@@ -1550,9 +1550,9 @@ const Home = ({
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`}
                 style={{backgroundColor: lightMode === 'dark' ? 'black' : 'white'}}>
-                <div
-                    className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white"
-                    style={{color: lightMode === 'dark' ? 'white' : 'black'}}>
+            <div
+                className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white"
+                style={{color: lightMode === 'dark' ? 'white' : 'black'}}>
                     <Loader />
                     <h1 className="mt-6 mb-4 text-2xl font-bold">
                         Loading...
@@ -1564,7 +1564,7 @@ const Home = ({
     } else {
         return (
             <main
-                className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`}
+                className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`} 
                 style={{backgroundColor: lightMode === 'dark' ? 'black' : 'white'}}>
                 <div
                     className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">

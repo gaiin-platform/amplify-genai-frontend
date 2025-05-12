@@ -38,6 +38,7 @@ export interface Group {
   members: Members;
   assistants: Prompt[];
   groupTypes: string[];
+  trackCoversations?: boolean;
   supportConvAnalysis?: boolean;
   amplifyGroups: string[];
   systemUsers: string[];
