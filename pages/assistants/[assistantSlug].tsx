@@ -511,10 +511,10 @@ const AssistantPage = ({
         <IconMessage className="text-blue-600 dark:text-blue-300" size={22} />
       </div>
       <div className="group relative flex items-center">
-        <h1 className="text-xl font-bold text-neutral-800 dark:text-neutral-100 leading-none py-1">
+        <h1 id="assistantNameTitle" className="text-xl font-bold text-neutral-800 dark:text-neutral-100 leading-none py-1">
           {assistantName}
         </h1>
-        <div className="absolute left-0 top-full mt-1 hidden rounded-md bg-gray-800 p-3 text-xs text-white shadow-lg group-hover:block z-10 max-w-[350px] w-max">
+        <div id="hoverIDDescriptionBlock" className="absolute left-0 top-full mt-1 hidden rounded-md bg-gray-800 p-3 text-xs text-white shadow-lg group-hover:block z-10 max-w-[350px] w-max">
           <p className="mb-1 break-all"><span className="font-bold">ID:</span> {assistantId}</p>
           <p className="break-words"><span className="font-bold">Description:</span> {assistantDefinition?.description || 'Not provided'}</p>
         </div>
@@ -688,6 +688,7 @@ const AssistantPage = ({
              onMouseLeave={() => setIsHoveringSettings(false)}>
           <button 
             title={showSettings ? 'Hide Settings' : 'Show Settings'}
+            id="hideSettings"
             onClick={() => {
               setShowSettings(!showSettings);
               setTimeout(() => {
@@ -733,12 +734,13 @@ const AssistantPage = ({
                 {message.role === 'user' ? (
                   <>
                     <div className="flex justify-end">
-                      <div className="amplify-user-message amplify-message-container">
+                      <div id={`userMessage${index}`} className="amplify-user-message amplify-message-container">
                         {editing === index ? (
                           <>
                           <textarea
                             className="w-full p-3 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-[#40414f] text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all resize-none"
                             value={editedContent}
+                            id="editUserMessage"
                             onChange={(e) => setEditedContent(e.target.value)}
                             rows={4}
                             placeholder="Edit your message..."
@@ -747,12 +749,14 @@ const AssistantPage = ({
                           <div className="flex justify-end mt-3 space-x-2">
                           <button
                             className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 rounded-md text-xs font-medium transition-colors duration-200 flex items-center border border-transparent dark:border-gray-700"
+                            id="cancelEdit"
                             onClick={() => setEditing(null)}
                           >
                             Cancel
                           </button>
                           <button
                             className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:hover:bg-blue-800/60 dark:text-blue-200 rounded-md text-xs font-medium transition-colors duration-200 flex items-center border border-blue-200 dark:border-blue-800"
+                            id="saveEdit"
                             onClick={handleSaveEdit}
                           >
                             Save changes
@@ -883,6 +887,7 @@ const AssistantPage = ({
                 maxHeight: '200px',
               }}
               rows={1}
+              id="assistantChatInput"
               placeholder={t('Type your message here...') || 'Type your message here...'}
               value={inputMessage}
               onChange={handleTextareaChange}
@@ -898,6 +903,7 @@ const AssistantPage = ({
                 } p-1.5 rounded-md`}
                 onClick={() => handleSendMessage(inputMessage)}
                 disabled={!inputMessage.trim() || isProcessing || (requiredGroupType && !groupType)}
+                id="sendMessageButton"
                 aria-label="Send message"
               >
                 <IconSend size={20} />
