@@ -273,7 +273,7 @@ const Home = ({
         if (isRemoteConversation(conversation)) { 
             const remoteConversation = await fetchRemoteConversation(conversation.id, conversationsRef.current, dispatch);
             if (remoteConversation) {
-                newSelectedConv = remoteConversation; 
+                newSelectedConv = {...remoteConversation, folderId: conversation.folderId || null}; 
             }
         } else {
             newSelectedConv = conversationWithUncompressedMessages(cloneDeep(conversation));

@@ -5,7 +5,8 @@ import {
     IconCheck, IconFolderOpen, 
     IconFolder, IconCalendar, IconAbc,
     IconTrashFilled,
-    IconEye
+    IconEye,
+    IconRefresh
 } from '@tabler/icons-react';
 import { KebabActionItem, actionItemAttr, KebabItem, KebabMenuItems } from "./KebabItems";
 import { ShareAnythingModal } from "@/components/Share/ShareAnythingModal";
@@ -22,13 +23,14 @@ import {v4 as uuidv4} from 'uuid';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { CheckItemType } from "@/types/checkItem";
 import { savePrompts } from "@/utils/app/prompts";
-import { fetchEmptyRemoteConversations, fetchMultipleRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
+import { fetchAllRemoteConversations, fetchEmptyRemoteConversations, fetchMultipleRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import { conversationWithUncompressedMessages, deleteConversationCleanUp, isRemoteConversation, saveConversations } from "@/utils/app/conversation";
 import { getDateName } from "@/utils/app/date";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import React from "react";
 import toast from "react-hot-toast";
 import { getHiddenGroupFolders, saveFolders } from "@/utils/app/folders";
+import { updateWithRemoteConversations } from "@/utils/app/conversationStorage";
 
 
 interface Props {
@@ -47,6 +49,7 @@ interface Props {
     const [isShareDialogVisible, setIsShareDialogVisible] = useState<boolean>(false);
     const [isTagsDialogVisible, setIsTagsDialogVisible] = useState<boolean>(false); 
     const [allItemsChecked, setAllItemsChecked] = useState<boolean>(false);
+    const [showReSync, setShowReSync] = useState<boolean>(false);
 
     const {
         state: { statsService, selectedAssistant, checkedItems, folders, prompts, conversations,
@@ -363,11 +366,42 @@ interface Props {
         homeDispatch({field: 'checkedItems', value: allItems}); 
     }
 
+    const reSyncConversations = async () => {
+        homeDispatch({ field: 'syncingConversations', value: true });
+        try {
+            const allRemoteConvs = await fetchAllRemoteConversations();
+            if (allRemoteConvs) {
+                const newCloudFolders = await updateWithRemoteConversations(allRemoteConvs, conversations, folders, homeDispatch, getDefaultModel(DefaultModels.DEFAULT));
+                const updatedFolders = [...folders, ...newCloudFolders.newfolders];
+                homeDispatch({ field: 'folders', value: updatedFolders });
+                saveFolders(updatedFolders);
+                toast("Cloud conversations successfully synced");
+            }
+        } catch (e) {
+            console.log("Failed to sync cloud conversations: ", e);
+            toast.error("Failed to sync cloud conversations.");
+        }
+        homeDispatch({ field: 'syncingConversations', value: false });
+    }
+        
+
     return (
         <>
-        <div className="flex items-center border-b dark:border-white/20" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}>
+        <div className="flex items-center border-b dark:border-white/20" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}
+             onMouseEnter={() => setShowReSync(true)}
+             onMouseLeave={() => setShowReSync(false)}
+        >
           <div className="pb-1 flex w-full text-lg ml-1 text-black dark:text-neutral-200 flex items-center">
             {label} 
+            { isConvSide && !actionItem && !isSyncing && (showReSync || isMenuOpen) &&
+               <button
+                    title='Re-sync Conversations'
+                    disabled={isSyncing}
+                    className={`ml-2 text-sidebar flex-shrink-0 select-none items-center gap-3 rounded-md border dark:border-white/20 px-2 py-1 dark:text-white transition-colors duration-200 ${!isSyncing ? "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" : ""}`}
+                    onClick={async () => reSyncConversations()}
+                >  <IconRefresh size={16}/>
+                </button>
+            }
             { isSyncing && 
                 <label className="flex flex-row gap-1 text-xs ml-auto mr-1">
                     <LoadingIcon style={{ width: "14px", height: "14px" }}/>
@@ -410,7 +444,7 @@ interface Props {
                 </div>
             )}
 
-          <div className="relative inline-block text-left">
+          <div className="relative inline-block text-left" >
             { actionItem && checkIsActiveSide() ?
                 <div id="selectAllCheck" className={`z-10 p-0.5 ${ checkingItemType?.includes("Folder")? "": ""}`}>
                     <input

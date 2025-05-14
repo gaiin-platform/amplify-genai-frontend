@@ -153,11 +153,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             const id =  initSelectedAstModel || selectedConversation?.model?.id || defaultModelId || getDefaultModelIdFromLocalStorage();
             if (id && filteredModels.find((m: Model) => m.id == id)) return id;
 
-            if (filteredModels.length > 0 && selectedConversation) {
-                const updatedModel = filteredModels[0];
-                handleUpdateSelectedConversation({...selectedConversation, model: updatedModel});
-                return updatedModel.id;
-            }
+            // if (filteredModels.length > 0 && selectedConversation) {
+            //     const updatedModel = filteredModels[0];
+            //     handleUpdateSelectedConversation({...selectedConversation, model: updatedModel});
+            //     // return updatedModel.id;
+            // }
 
             return undefined;
         }
