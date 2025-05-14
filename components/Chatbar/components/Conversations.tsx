@@ -10,7 +10,6 @@ export const Conversations = ({ conversations }: Props) => {
   return (
     <div className="mt-2 flex w-full flex-col gap-0.5">
       {conversations
-        .filter((conversation) => !conversation.folderId)
         .slice()
         .reverse()
         .map((conversation, index) => (
