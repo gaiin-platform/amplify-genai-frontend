@@ -456,8 +456,16 @@ export function useSendService() {
                         if (!response || !response.ok) {
                             homeDispatch({ field: 'loading', value: false });
                             homeDispatch({ field: 'messageIsStreaming', value: false });
-                            console.log(response);
                             toast.error(response.statusText);
+                            try {
+                                // Clone the response to read the body (streams can only be read once)
+                                const clonedResponse = response.clone();
+                                // Read the body as text
+                                const bodyText = await clonedResponse.text();
+                                if (bodyText)  alert(bodyText);
+                            } catch (readError) {
+                                console.error("Error reading response body:", readError);
+                            }
                             return;
                         }
                         const data = response.body;
