@@ -10,7 +10,7 @@ export type PeriodType = typeof periodTypes[number];
 export const UNLIMITED: PeriodType = 'Unlimited';
 
 export const formatRateLimit = (limits: RateLimit) =>  {
-    if (!limits.rate) return noRateLimit.period;
+    if (limits.rate === null || limits.rate === undefined) return noRateLimit.period;
     return `${limits.rate.toFixed(2)}/${limits.period}`;
 }
 
