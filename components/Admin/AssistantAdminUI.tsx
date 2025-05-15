@@ -920,6 +920,17 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
     const [groupAmpGroups, setGroupAmpGroups] = useState<string[]>(selectedGroup.amplifyGroups ?? []);
     const [groupSystemUsers, setGroupSystemUsers] = useState<string[]>(selectedGroup.systemUsers ?? []);
 
+    const initUniqueSystemUsers = () => {
+        const uniqueSystemUsers = new Set([
+            ...(systemUsers ?? []),
+            ...(selectedGroup?.systemUsers ?? [])
+        ]);
+        
+        return Array.from(uniqueSystemUsers);
+    }
+    const [availableSystemUsers, setAvailableSystemUsers] = useState<string[]>(initUniqueSystemUsers());
+
+
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [isDeleting, setIsDeleting] = useState<boolean>(false);
     const [deleteUsersList, setDeleteUsersList] = useState<string[]>([]);
@@ -1043,7 +1054,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
         setLoadingActionMessage('Updating System User List');
         const updateData = {
             "group_id": selectedGroup.id,
-            "system_users": systemUsers
+            "system_users": groupSystemUsers
         };
         // statsService.updateGroupSystemUsersEvent(updateData); 
         const result = await updateGroupSystemUsers(updateData);
@@ -1056,7 +1067,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
         }
 
         //update groups home dispatch 
-        const updatedGroup = { ...selectedGroup, systemUsers: systemUsers };
+        const updatedGroup = { ...selectedGroup, systemUsers: groupSystemUsers };
         setSelectedGroup(updatedGroup);
         const updatedAdminGroups = adminGroups.map((g: Group) => {
             if (selectedGroup?.id === g.id) return updatedGroup;
@@ -1526,7 +1537,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                     amplifyGroups={amplifyGroups}
                     selectedAmplifyGroups={groupAmpGroups}
                     setSelectedAmplifyGroups={setGroupAmpGroups}
-                    systemUsers={systemUsers}
+                    systemUsers={availableSystemUsers}
                     selectedSystemUsers={groupSystemUsers}
                     setSelectedSystemUsers={setGroupSystemUsers}
                     onConfirmAmpGroups={onUpdateAmpGroups}
@@ -2519,6 +2530,7 @@ const AmpGroupsSysUsersSelection: FC<AmpSysSelectionProps> = ({ amplifyGroups, s
                 <ListSelection
                     title='System User Access'
                     infoLabel='Grant read access to your API created system users.'
+                    label='System Users'
                     selection={systemUsers}
                     selected={selectedSystemUsers}
                     setSelected={(selected: string[]) => {
@@ -2544,11 +2556,12 @@ interface SelectionProps {
     selected: string[];
     setSelected: (selectedGroups: string[]) => void;
     manageButtons?: ReactElement;
+    label?: string;
 }
-const ListSelection: FC<SelectionProps> = ({ title, infoLabel, selection, selected, setSelected, manageButtons = null }) => {
+const ListSelection: FC<SelectionProps> = ({ title, infoLabel, selection, selected, setSelected, manageButtons = null, label}) => {
     return (
-        <div className='mb-6'>
-            <label className='mb-2 font-bold'>{title}</label>
+        <div className='mb-6 px-1'>
+            <div className='mb-1 font-bold'>{title}</div>
             <InfoBox content={
                 <>
                     <span className="ml-1 text-xs w-full text-center"> {infoLabel} </span>
@@ -2561,6 +2574,7 @@ const ListSelection: FC<SelectionProps> = ({ title, infoLabel, selection, select
                 groups={selection}
                 selected={selected}
                 setSelected={setSelected}
+                label={label}
             />
         </div>
     );

@@ -732,9 +732,10 @@ interface AmplifyGroupSelectProps {
     selected: string[];
     setSelected: (s: string[]) => void;
     isDisabled? : boolean;
+    label?: string;
   }
   
-export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, selected, setSelected, isDisabled = false}) => {
+export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, selected, setSelected, isDisabled = false, label = 'Amplify Groups'}) => {
     const [isOpen, setIsOpen] = useState(false);
     const [selectedGroups, setSelectedGroups] = useState<string[]>(selected);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -776,7 +777,7 @@ export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, 
             disabled={isDisabled}
           >
             {selectedGroups.length > 0 || isDisabled ? selectedGroups.join(', ') 
-                 : hasGroupOptions ? 'Select Amplify Groups' : 'No Amplify Groups Available'}
+                 : hasGroupOptions ? `Select ${label}` : `No ${label} Available`}
           </button>
     
           {isOpen && !isDisabled && hasGroupOptions && (
