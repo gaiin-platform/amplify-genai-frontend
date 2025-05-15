@@ -23,6 +23,7 @@ import { AssistantWorkflowBuilder } from '@/components/AssistantWorkflows/Assist
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
     const [isSettingDialogOpen, setIsSettingDialog] = useState<boolean>(false);
+    const settingsActiveTab = useRef<string | undefined>(undefined);
     const [isAccountDialogVisible, setIsAccountDialogVisible] = useState<boolean>(false);
     const [isIntegrationsOpen, setIsIntegrationsOpen] = useState<boolean>(false);
     const [isMemoryDialogOpen, setIsMemoryDialogOpen] = useState(false);
@@ -40,9 +41,17 @@ export const ChatbarSettings = () => {
     if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
     
     useEffect(() => {
-        const handleEvent = (event:any) => settingRef.current = getSettings(featureFlags)
-        window.addEventListener('updateFeatureSettings', handleEvent);
-        return () => window.removeEventListener('updateFeatureSettings', handleEvent)
+        const handleFeatureFlagsEvent = (event:any) => settingRef.current = getSettings(featureFlags);
+        const handleSettingsEvent = (event:any) => {
+            settingsActiveTab.current = event.detail?.openToTab;
+            setIsSettingDialog(true);
+        }
+        window.addEventListener('updateFeatureSettings', handleFeatureFlagsEvent);
+        window.addEventListener('openSettingsTrigger', handleSettingsEvent);
+        return () => {
+            window.removeEventListener('updateFeatureSettings', handleFeatureFlagsEvent)
+            window.removeEventListener('openSettingsTrigger', handleSettingsEvent)
+        }
     }, []);
 
     const {
@@ -63,6 +72,13 @@ export const ChatbarSettings = () => {
                 onClick={() => {
                     //statsService.setThemeEvent();
                     setIsAccountDialogVisible(true)
+                }}
+            />
+
+            <AccountDialog
+                open={isAccountDialogVisible}
+                onClose={() => {
+                    setIsAccountDialogVisible(false);
                 }}
             />
 
@@ -88,6 +104,16 @@ export const ChatbarSettings = () => {
                 }}
             />
 
+            {isSettingDialogOpen && <SettingDialog
+                open={isSettingDialogOpen}
+                onClose={() => {
+                    setIsSettingDialog(false);
+                    settingsActiveTab.current = undefined;
+                }}
+                openToTab={settingsActiveTab.current}
+            />}
+
+
             {featureFlags.assistantAdminInterface && 
                 <SidebarButton
                     text={t('Assistant Interface')}
@@ -103,18 +129,28 @@ export const ChatbarSettings = () => {
             
 
             {featureFlags.integrations && 
+            <>
             <SidebarButton
               text={t('Integrations')}
               icon={<IconBinaryTree2 size={18} />}
               onClick={() => setIsIntegrationsOpen(true)}
-            />}
+            />
+            <IntegrationsDialog open={isIntegrationsOpen} onClose={()=>{setIsIntegrationsOpen(false)}}/>
+            </>
+            }
 
             {featureFlags.memory && settingRef.current?.featureOptions.includeMemory && (
+                <>
                 <SidebarButton
                     text={t('Memory')}
                     icon={<IconDeviceSdCard size={18} />}
                     onClick={() => setIsMemoryDialogOpen(true)}
                 />
+                <MemoryDialog
+                    open={isMemoryDialogOpen}
+                    onClose={() => setIsMemoryDialogOpen(false)}
+                />
+                </>
             )}
 
             { featureFlags.createPythonFunctionApis && <>
@@ -169,26 +205,6 @@ export const ChatbarSettings = () => {
                 onClick={() => window.location.href = `mailto:${supportEmail}`}
             />}
 
-            <IntegrationsDialog open={isIntegrationsOpen} onClose={()=>{setIsIntegrationsOpen(false)}}/>
-
-            {isSettingDialogOpen && <SettingDialog
-                open={isSettingDialogOpen}
-                onClose={() => {
-                    setIsSettingDialog(false);
-                }}
-            />}
-
-            <AccountDialog
-                open={isAccountDialogVisible}
-                onClose={() => {
-                    setIsAccountDialogVisible(false);
-                }}
-            />
-
-            <MemoryDialog
-                open={isMemoryDialogOpen}
-                onClose={() => setIsMemoryDialogOpen(false)}
-            />
 
         </div>
     );

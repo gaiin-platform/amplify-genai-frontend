@@ -1,6 +1,7 @@
 import React, {FC, useContext, useEffect, useState} from 'react';
 import {ExportFormatV4, ShareItem} from "@/types/export";
 import {
+    IconInfoCircle,
     IconRocket,
 } from '@tabler/icons-react';
 import HomeContext from "@/pages/api/home/home.context";
@@ -91,7 +92,10 @@ const LegacyWorkspaces: FC<Props> = () => {
             )}
 
             <div className="mb-2 text-lg pb-2 font-bold text-black dark:text-neutral-200 flex items-center border-b">
-              Workspaces
+              Workspaces 
+              <div title='Click on a Workspace to selectively import saved items'>
+                 <IconInfoCircle className='mt-0.5 ml-2 flex-shrink-0 text-gray-600 dark:text-gray-400' size={18}/>
+              </div>
             </div>
 
             {workspaces && workspaces.map((item: ShareItem, index: number) => 
