@@ -88,14 +88,21 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
 
         const handleTabSwitchEvent = (event:any) => {
             if (isMultipleTabs) {
-                const eventSide = event.detail.side;
+                const detail = event.detail;
+                const eventSide = detail.side;
                 if (side === eventSide && !isOpen) setIsOpen(true);
                 if (eventSide === 'right' && isArtifactsOpen) setIsArtifactsOpen(false);
                 
                 const switchToIndex = childrenArray.findIndex(
-                    (child) => child.props.title === event.detail.tab
+                    (child) => child.props.title === detail.tab
                 );
                 setActiveTab(switchToIndex);
+                if (detail.action) {
+                    setTimeout(() => {
+                    detail.action();
+                    console.log("detail.action", detail.action);
+                    }, 50);
+                }
             }
         };
 

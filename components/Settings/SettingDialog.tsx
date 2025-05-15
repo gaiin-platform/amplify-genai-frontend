@@ -21,6 +21,7 @@ import { capitalize } from '@/utils/app/data';
   interface Props {
   open: boolean;
   onClose: () => void;
+  openToTab?: string;
 }
 
 export const modelOptionFlags = [
@@ -73,7 +74,7 @@ export const modelOptionFlags = [
 type ModelKey = (typeof modelOptionFlags)[number]["key"];
 
 
-export const SettingDialog: FC<Props> = ({ open, onClose }) => {
+export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
   const { t } = useTranslation('settings');
   const { dispatch: homeDispatch, state:{statsService, featureFlags, availableModels: allAvailableModels, defaultModelId, workspaces} } = useContext(HomeContext);
   let initSettingsRef = useRef<Settings | null>(null);
@@ -263,6 +264,7 @@ const modelLabel = (modelId: string, name: string) => {
       disableSubmit={!hasUnsavedChanges}
       content={
         <ActiveTabs
+            initialActiveTab={openToTab}
             width={() => window.innerWidth * 0.58}
             tabs={[
       

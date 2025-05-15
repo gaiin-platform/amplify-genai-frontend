@@ -20,7 +20,13 @@ export const WorkspaceLegacyMessage: React.FC<Props> = ({  }) => {
                 </p>
                 <ol className="list-decimal list-inside text-sm text-neutral-700 dark:text-neutral-400 mb-4">
                     <li>
-                        <strong>Navigate to Settings:</strong> Click on the gear icon followed by the settings button. Select the <strong>Legacy Workspaces</strong> tab.
+                        <strong>Navigate to Settings:</strong> Click on the gear icon followed by the settings button. Select the 
+                        <strong className='text-[13px] text-blue-500 dark:text-blue-400 cursor-pointer hover:underline'
+                                onClick={() => window.dispatchEvent(new CustomEvent('homeChatBarTabSwitch', 
+                                        { detail: { tab: "Settings" , side: "left", action: () => {
+                                        window.dispatchEvent(new CustomEvent('openSettingsTrigger', {detail: {openToTab: "Legacy Workspaces"}}));
+                                        }} } ))}>{" Legacy Workspaces"}
+                        </strong>
                     </li>
                     <li className='mt-3' >
                         <strong>Select Your Workspace:</strong> Choose one of the saved Workspaces listed.

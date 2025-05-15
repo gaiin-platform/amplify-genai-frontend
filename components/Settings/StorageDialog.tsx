@@ -114,7 +114,8 @@ export const StorageDialog: FC<Props> = ({ open }) => {
             <button
               type="button"
               title='Apply Conversation Storage Changes To The Current Browser'
-              className="text-xs ml-10 p-2 py-1  border rounded-lg shadow-md focus:outline-none border-neutral-800 bg-neutral-100 text-black hover:bg-neutral-200"
+              className={`text-xs ml-10 p-2 py-1 rounded-lg shadow-md focus:outline-none  bg-neutral-100 text-black hover:bg-neutral-200
+                          ${hasChanges ? 'border-2 border-green-500' : 'border border-neutral-800'}`}
               onClick={() => {
                   if (confirm(`${confirmationMessage()} \n\n Would you like to continue?`)) handleSave();
               }}
