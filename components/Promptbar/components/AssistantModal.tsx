@@ -925,15 +925,21 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             onAttach={onAttach}
                                             onSetMetadata={onSetMetadata}
                                             onSetKey={onSetKey}
-                                            onSetAbortController={() => {}}
                                             onUploadProgress={onUploadProgress}
+                                            disableRag={true}
                                 />
                             </div>
                             <FileList documents={dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)))} documentStates={documentState}
                                 setDocuments={(docs) => {
                                 const preexisting = dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)));
                                 setDataSources([...docs, ...preexisting ]as any[]);
-                            }} allowRemoval={!disableEdit}/>
+                            }} allowRemoval={!disableEdit} 
+                               onCancelUpload={(ds:AttachedDocument) => { 
+                                console.log('onCancelUpload', documentState);
+                                const updatedDocState = {...documentState};
+                                delete updatedDocState[ds.id];
+                                setDocumentState(updatedDocState);
+                               }}/>
                             {showDataSourceSelector && (
                                 <div className="mt-[-8px] flex justify-center overflow-hidden">
                                     <div className="rounded bg-white dark:bg-[#343541] mb-4">
@@ -956,7 +962,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             onClose={() =>  setShowDataSourceSelector(false)}
                                             onIntegrationDataSourceSelected={featureFlags.integrations ? 
                                                 (file: File) => { handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, 
-                                                                  () => {}, featureFlags.uploadDocuments, assistant.groupId)} 
+                                                                  () => {}, featureFlags.uploadDocuments, assistant.groupId, featureFlags.ragEnabled)} 
                                                 : undefined
                                             }
                                         />

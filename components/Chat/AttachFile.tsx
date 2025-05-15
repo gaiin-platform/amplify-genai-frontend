@@ -8,9 +8,10 @@ import { useTranslation } from 'next-i18next';
 import JSZip from "jszip";
 import { v4 as uuidv4 } from 'uuid';
 import {AttachedDocument, AttachedDocumentMetadata} from '@/types/attacheddocument';
-import {addFile, checkContentReady} from "@/services/fileService";
+import {addFile, checkContentReady, deleteFile} from "@/services/fileService";
 import HomeContext from "@/pages/api/home/home.context";
 import React from 'react';
+import { resolveRagEnabled } from '@/types/features';
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;
@@ -22,6 +23,7 @@ interface Props {
     disallowedFileExtensions?:string[];
     allowedFileExtensions?:string[];
     groupId?:string;
+    disableRag?:boolean;
 }
 
 
@@ -33,7 +35,9 @@ export const handleFile = async (file:any,
                           onSetAbortController:any,
                           uploadDocuments:boolean,
                         //   extractDocumentsLocally:boolean,
-                        groupId:string | undefined) => {
+                        groupId:string | undefined, 
+                        ragEnabled:boolean
+                      ) => {
 
     try {
         let type:string = file.type;
@@ -47,7 +51,8 @@ export const handleFile = async (file:any,
         const fileName = file.name.replace(/[_\s]+/g, '_');;
 
         let document:AttachedDocument = {id:uuidv4(), name: fileName, type:file.type, raw:"", data:"", groupId:groupId};
-
+        console.log("document", document);
+        console.log("file", file);
 
         // not in use
         // const enforceMaxFileSize = false;
@@ -69,7 +74,7 @@ export const handleFile = async (file:any,
             onAttach(document);
         }
 
-        if(uploadDocuments) {
+        if (uploadDocuments) {
             try {
 
                 const {key, response, statusUrl, metadataUrl, contentUrl, abortController} = await addFile({id: uuidv4(), name: fileName, raw: "", type: type, data: "", groupId}, file,
@@ -80,11 +85,16 @@ export const handleFile = async (file:any,
                         else if (onUploadProgress && progress >= 95) {
                             onUploadProgress(document, 95);
                         }
-                    });
+                    }, ragEnabled);
 
-                if(onSetAbortController) {
-                    onSetAbortController(document, abortController);
-                }
+                if (onSetAbortController) onSetAbortController(document, () => {
+                                            abortController?.abort()
+                                            console.log("Deleting file from server in 45 seconds", key);
+                                            setTimeout(async () => {
+                                                const result = await deleteFile(key);
+                                                console.log("Delete file result", result);
+                                            }, 45000);
+                                          });
 
                 if (onSetKey) {
                     document.key = key;
@@ -92,32 +102,28 @@ export const handleFile = async (file:any,
                 }
 
                 await response;
+                                    
+                const readyStatus = await checkContentReady(metadataUrl, 30, abortController);
 
-                const readyStatus = await checkContentReady(metadataUrl, 30);
+                if (readyStatus && readyStatus.success){
 
-                if(readyStatus && readyStatus.success){
-
-                    if(readyStatus.metadata) {
+                    if (readyStatus.metadata) {
+                        console.log("metadata", readyStatus.metadata);
                         document.metadata = readyStatus.metadata as AttachedDocumentMetadata;
 
                         // Check if document.metadata exists and has the key "totalItems"
-                        if(document.metadata) {
-                            if(!document.metadata.isImage && (!(document.metadata.totalItems) || document.metadata.totalItems < 1)) {
-                                alert("I was unable to extract any text from the provided document. If this is a PDF, please " +
-                                    "OCR the PDF before uploading it.");
+                        if (document.metadata) {
+                            if (!document.metadata.isImage && (!(document.metadata.totalItems) || document.metadata.totalItems < 1)) {
+                                alert("I was unable to extract any text from the provided document. If this is a PDF, please OCR the PDF before uploading it.");
                             }
                         }
 
-
-                        if(onSetMetadata) {
-                            onSetMetadata(document, readyStatus.metadata);
-                        }
+                        if (onSetMetadata) onSetMetadata(document, readyStatus.metadata);
                     }
 
                     onUploadProgress(document, 100);
-                }
-                else {
-                    alert("upload failed");
+                } else if (!abortController?.signal?.aborted) {
+                  alert("upload failed");
                 }
             }
             catch (e) {
@@ -126,8 +132,7 @@ export const handleFile = async (file:any,
                     alert("upload failed");
                 }
             }
-        }
-        else {
+        } else {
             onUploadProgress(document, 100);
         }
 
@@ -139,10 +144,10 @@ export const handleFile = async (file:any,
     }
 }
 
-export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetadata, onSetKey , onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId}) => {
+export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetadata, onSetKey , onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId, disableRag}) => {
     const { t } = useTranslation('sidebar');
 
-    const {state: { featureFlags, statsService } } = useContext(HomeContext);
+    const {state: { featureFlags, statsService, ragOn } } = useContext(HomeContext);
 
     const uploadDocuments = featureFlags.uploadDocuments;
 
@@ -191,8 +196,9 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
                 }
     
                 statsService.attachFileEvent(file, uploadDocuments);
-    
-                handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, onSetAbortController, uploadDocuments, groupId);  //extractDocumentsLocally,
+                const ragEnabled = disableRag === undefined ? resolveRagEnabled(featureFlags, ragOn) 
+                                                            : featureFlags.ragEnabled && !disableRag;
+                handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, onSetAbortController, uploadDocuments, groupId, ragEnabled);  //extractDocumentsLocally,
               });
     
               e.target.value = ''; // Clear the input after files are handled

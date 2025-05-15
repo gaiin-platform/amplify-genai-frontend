@@ -161,6 +161,7 @@ export interface DefaultModelsConfig {
   'agent': string,
   'embeddings': string,
   'qa': string,
+  'documentCaching': string,
 }
 
 

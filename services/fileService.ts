@@ -9,11 +9,10 @@ const uploadFileToS3 = (
     presignedUrl: string,
     onProgress?: (progress: number) => void
 ) => {
-
     const xhr = new XMLHttpRequest();
+    const abortController = new AbortController();
 
     const result = new Promise((resolve, reject) => {
-
         // Event listener for upload progress
         xhr.upload.addEventListener('progress', (event) => {
             if (event.lengthComputable && onProgress) {
@@ -53,21 +52,41 @@ const uploadFileToS3 = (
         xhr.send(file);
     });
 
-    return { response: result, abort: () => xhr.abort() };
+    // Connect the abort controller to the XHR abort
+    abortController.signal.addEventListener('abort', () => {
+        xhr.abort();
+    });
+
+    return { response: result, abortController };
 }
 
-export function checkContentReady(url: string, maxSeconds: number): Promise<any> {
+export function checkContentReady(url: string, maxSeconds: number, abortController?: AbortController): Promise<any> {
     const startTime = Date.now();
 
     return new Promise((resolve, reject) => {
         const intervalId = setInterval(() => {
+            // Check if aborted
+            if (abortController?.signal?.aborted) {
+                clearInterval(intervalId);
+                reject(new Error('Abort'));
+                return;
+            }
+
+            // Check if timeout reached
             if (Date.now() - startTime >= maxSeconds * 1000) {
                 clearInterval(intervalId);
                 reject(new Error('Timeout reached'));
+                return;
             }
 
             const xhr = new XMLHttpRequest();
             xhr.open('GET', url);
+            
+            // Add abort handling for the individual XHR request
+            if (abortController) {
+                abortController.signal.addEventListener('abort', () => xhr.abort());
+            }
+            
             xhr.onreadystatechange = function () {
                 if (xhr.readyState === 4) {
                     if (xhr.status === 200) {
@@ -93,7 +112,7 @@ export function checkContentReady(url: string, maxSeconds: number): Promise<any>
     });
 }
 
-export const addFile = async (metadata: AttachedDocument, file: File, onProgress?: (progress: number) => void, abortSignal: AbortSignal | null = null, tags: string[] = []) => {
+export const addFile = async (metadata: AttachedDocument, file: File, onProgress?: (progress: number) => void, ragEnabled: boolean = true, tags: string[] = [], abortSignal: AbortSignal | null = null) => {
 
     const response = await fetch('/api/files/upload', {
         method: 'POST',
@@ -108,7 +127,8 @@ export const addFile = async (metadata: AttachedDocument, file: File, onProgress
                 knowledgeBase: "default",
                 tags: tags,
                 data: {},
-                groupId: metadata.groupId
+                groupId: metadata.groupId,
+                ragOn: ragEnabled
             }
         }),
         signal: abortSignal,
@@ -120,7 +140,7 @@ export const addFile = async (metadata: AttachedDocument, file: File, onProgress
 
     const result = await response.json();
 
-    console.log("result", result);
+    // console.log("result", result);
 
     const key = result.key;
     const uploadUrl = result.url;
@@ -132,7 +152,7 @@ export const addFile = async (metadata: AttachedDocument, file: File, onProgress
     // console.log("statusUrl", statusUrl);
     // console.log("metadataUrl", metadataUrl);
 
-    const { response: uploadResponse, abort: abort } = uploadFileToS3(file, uploadUrl, (progress: number) => {
+    const { response: uploadResponse, abortController } = uploadFileToS3(file, uploadUrl, (progress: number) => {
         if (onProgress) {
             onProgress(progress);
         }
@@ -144,7 +164,7 @@ export const addFile = async (metadata: AttachedDocument, file: File, onProgress
         metadataUrl: metadataUrl,
         statusUrl: statusUrl,
         response: uploadResponse,
-        abortController: abort
+        abortController: abortController
     };
 };
 

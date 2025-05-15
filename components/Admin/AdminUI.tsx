@@ -74,7 +74,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [defaultConversationStorage, setDefaultConversationStorage] = useState<ConversationStorage>('future-local');
 
     const [availableModels, setAvailableModels] = useState<SupportedModelsConfig>({});   
-    const [defaultModels, setDefaultModels] = useState<DefaultModelsConfig>({user: '', advanced: '', cheapest: '', agent: '', embeddings: '', qa: ''});
+    const [defaultModels, setDefaultModels] = useState<DefaultModelsConfig>({user: '', advanced: '', cheapest: '', agent: '', documentCaching: '', embeddings: '', qa: ''});
 
     const [features, setFeatures] = useState<FeatureFlagConfig>({}); 
 
@@ -455,7 +455,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     if (!open) return <></>;
 
     return <Modal 
-    width={() => window.innerWidth - 100}
+    width={() => window.innerWidth - 60}
     height={() => window.innerHeight * 0.95}
     title={`Admin Interface${unsavedConfigs.size > 0 ? " * " : ""}`}
     onCancel={() => {

@@ -17,6 +17,7 @@ import { Group } from '@/types/groups';
 import { Artifact } from '@/types/artifacts';
 import { ShareItem } from '@/types/export';
 import { ExtractedFact } from '@/types/memory';
+import { Features } from '@/types/features';
 
 export interface HomeInitialState {
   defaultAccount: Account | undefined;
@@ -54,7 +55,7 @@ export interface HomeInitialState {
   currentFolder: FolderInterface | undefined;
   messageError: boolean;
   searchTerm: string;
-  featureFlags: { [key: string]: boolean },
+  featureFlags: Features,
   selectedAssistant: Assistant | null;
   page: string;
   statsService: StatsServices;
@@ -78,6 +79,7 @@ export interface HomeInitialState {
   memoryExtractionEnabled: boolean;
   supportEmail: string;
   aiEmailDomain: string;
+  ragOn: boolean;
 }
 
 export const initialState: HomeInitialState = {
@@ -150,5 +152,6 @@ export const initialState: HomeInitialState = {
   extractedFacts: [],
   memoryExtractionEnabled: true,
   supportEmail: '',
-  aiEmailDomain: ''
+  aiEmailDomain: '',
+  ragOn: false
 };

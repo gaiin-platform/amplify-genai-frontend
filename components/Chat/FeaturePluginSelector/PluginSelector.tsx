@@ -50,7 +50,7 @@ export const PluginSelector: FC<Props> = ({
   useEffect(() => {
     settingRef.current = getSettings(featureFlags);
     // we always do this in case the valid plugins change
-    const activePlugins:Plugin[] = getActivePlugins(settingRef.current, validPlugins);
+    const activePlugins:Plugin[] = getActivePlugins(settingRef.current, featureFlags, validPlugins);
 
     onPluginChange(activePlugins);
     // save localStorage 

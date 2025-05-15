@@ -273,7 +273,11 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                 }
 
                 {Object.keys(availableModels).length > 0 ?
-                <div className="mr-4">
+                <div className="mr-4 mb-4">
+                    <div className="w-full text-[1rem] text-center text-neutral-900 dark:text-neutral-300 font-bold">
+                    Default Models 
+                    <span className="ml-2 mt-[-2px] text-sm text-[#0bb9f4]">(* Required) </span>
+                    </div>
                     <div className="mt-4 flex flex-row justify-between mr-8"> 
                         <ModelDefaultSelect 
                             models={Object.values(availableModels).filter((m:SupportedModel) => 
@@ -282,25 +286,37 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                             selectedKey="user"
                             description="This will be the default selected model for user conversations"
                             onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
-                        />
-
+                        /> 
+                        
                         <ModelDefaultSelect 
                             models={Object.values(availableModels).filter((m:SupportedModel) => 
                                     m.isAvailable && !m.id.includes('embedding'))}
                             defaultModels={defaultModels}
-                            selectedKey="advanced"
-                            description="The advanced model is used for requests needing more complex reasoning and is automatically utilized by Amplify when required."
-                            onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
-                        />
-
-                        <ModelDefaultSelect 
-                            models={Object.values(availableModels).filter((m:SupportedModel) => 
-                                    m.isAvailable && !m.id.includes('embedding'))}
-                            defaultModels={defaultModels}
+                            label="Simple Task Model"
                             selectedKey='cheapest'
-                            description="The cheapest model is used for requests requiring less complex reasoning and is automatically utilized by Amplify when required."
+                            description="The simple task model is used for requests requiring less complex reasoning and is automatically utilized by Amplify when required."
                             onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
                         />
+
+                        <ModelDefaultSelect 
+                            models={Object.values(availableModels).filter((m:SupportedModel) => 
+                                    m.isAvailable && !m.id.includes('embedding'))}
+                            defaultModels={defaultModels}
+                            label="Advanced Task Model"
+                            selectedKey="advanced"
+                            description="The advanced task model is used for requests needing more complex reasoning and is automatically utilized by Amplify when required."
+                            onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
+                        />
+
+                        {Object.keys(featureFlags).includes('cachedDocuments') &&
+                        <ModelDefaultSelect 
+                            models={Object.values(availableModels).filter((m:SupportedModel) => 
+                                    !m.id.includes('embedding') && m.cachedTokenCost > 0)}
+                            defaultModels={defaultModels}
+                            selectedKey='documentCaching'
+                            description="This model is used when handling document context processing in chats when Retrieval Augmented Generation (RAG) is turned off. For optimal cost efficiency, choose a model with cached token support."
+                            onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
+                        />}
 
                         {Object.keys(featureFlags).includes('agentAssistantType') &&
                         <ModelDefaultSelect 
@@ -332,7 +348,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                         
                     </div>
 
-                    <table className="mt-4 border-collapse w-full" >
+                    <table className="mt-10 border-collapse w-full" >
                         <thead>
                         <tr className="bg-gray-200 dark:bg-[#373844] text-sm">
                             {['Name', 'ID',  'Provider', 'Available', 'Supports Images', 'Supports Reasoning',
@@ -495,14 +511,15 @@ interface SelectProps {
     selectedKey:  keyof DefaultModelsConfig;
     description: string;
     onSelect: (selected: SupportedModel, key: keyof DefaultModelsConfig) => void;
+    label?: string;
 }
 // keyof SupportedModel,
-const ModelDefaultSelect: FC<SelectProps> = ({models, defaultModels, selectedKey, description, onSelect}) => {
+const ModelDefaultSelect: FC<SelectProps> = ({models, defaultModels, selectedKey, description, onSelect, label}) => {
     const [selected, setSelected] = useState<SupportedModel | undefined>(models.find((model:SupportedModel) => model.id === defaultModels[selectedKey]));
 
     return (
         <div className="flex flex-col gap-2 text-center" title={description}>
-            <label className="font-bold text-[#0bb9f4]">{`Default ${capitalize(selectedKey)} Model`}</label>
+            <label className="font-bold text-[#0bb9f4]">{label ?? `${camelToTitleCase(selectedKey)} Model`}</label>
             <select className={`mb-2 text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  custom-shadow
                                 ${!!selected?.name ? '' : 'border-2 border-red-500'}`} 
                 value={selected?.name ?? ''}
@@ -527,7 +544,6 @@ const ModelDefaultSelect: FC<SelectProps> = ({models, defaultModels, selectedKey
                 
             </select>
         </div>
-        
     );
 }
 

@@ -43,6 +43,7 @@ import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codebloc
 import ActionButton from "../ReusableComponents/ActionButton";
 import { getDateName } from "@/utils/app/date";
 import { stringToColor } from "@/utils/app/data";
+import { resolveRagEnabled } from "@/types/features";
 
   interface Props {
     artifactIndex: number;
@@ -51,7 +52,7 @@ import { stringToColor } from "@/utils/app/data";
 
 export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts 
     const {state:{statsService, selectedConversation, selectedArtifacts, artifactIsStreaming, 
-                  conversations, folders, groups, featureFlags, amplifyUsers},
+                  conversations, folders, groups, featureFlags, amplifyUsers, ragOn},
            dispatch:homeDispatch, handleUpdateSelectedConversation} = useContext(HomeContext);
 
     const [selectArtifactList, setSelectArtifactList] = useState<Artifact[]>(selectedArtifacts ?? []);
@@ -342,7 +343,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
         setIsLoading('Upload Artifact to Amplify File Manager...');
         const artifact = selectArtifactList[versionIndex];
         const artifactContent = getArtifactContents();
-        await uploadArtifact(artifact.name.replace(/\s+/g, '_'), artifactContent, tags);
+        await uploadArtifact(artifact.name.replace(/\s+/g, '_'), artifactContent, tags, resolveRagEnabled(featureFlags, ragOn));
         handleTags();
         setIsLoading('');
     }

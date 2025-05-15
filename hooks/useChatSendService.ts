@@ -307,9 +307,14 @@ export function useSendService() {
                     //PLUGINS before options is assigned
                     //in case no plugins are defined, we want to keep the default behavior
                     if (!featureFlags.ragEnabled || (plugins && pluginActive && !pluginIds?.includes(PluginID.RAG))) {
-                        options = { ...(options || {}), skipRag: true, ragEvaluation: false };
+                        options = { ...(options || {}), skipRag: true, ragOnly: false, ragEvaluation: false };
+                        console.log('skipping rag');
                     } else if (featureFlags.ragEnabled && featureFlags.ragEvaluation && (pluginIds?.includes(PluginID.RAG) && pluginIds?.includes(PluginID.RAG_EVAL))) {
                         options = { ...(options || {}), ragEvaluation: true };
+                    }
+
+                    if (!featureFlags.cachedDocuments) {
+                        options = { ...(options || {}), skipDocumentCache : true};
                     }
 
 
