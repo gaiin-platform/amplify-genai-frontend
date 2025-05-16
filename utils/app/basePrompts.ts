@@ -86,7 +86,7 @@ export const basePrompts = {
         "id": "create_powerPoint",
         "name": "Create PowerPoint",
         "description": "",
-        "content": "Create a slide presentation by {{Authors Separated by Commas:text(optional:true)}} titled: \"{{Title}}\"\n\nThe presentation should cover:\n{{What should the presentation cover?}}",
+        "content": "Create a slide presentation by {{Authors Separated by Commas:text(optional:true)}} titled: \"{{Title}}\"\n\nThe presentation should cover:\n{{What should the presentation cover?}} {{Attach Documents:files(optional:true)}}",
         "folderId": "amplify_helpers",
         "type": "prompt",
         "data": {

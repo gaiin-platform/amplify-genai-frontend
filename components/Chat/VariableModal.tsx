@@ -491,7 +491,7 @@ export const VariableModal: FC<Props> = ({
                 {updatedVariables.map((variable, index) => (
                     <div className="mb-4" key={index}>
                         {!isBoolean(variable.key) &&
-                            <div id="variableName" className="mb-2 text-sm font-bold text-neutral-200">
+                            <div id="variableName" className="mb-2 text-sm font-bold text-black dark:text-neutral-200">
                                 {parseVariableName(variable.key)}{isRequired(variable.key) && "*"}
                             </div>}
 
@@ -557,7 +557,7 @@ export const VariableModal: FC<Props> = ({
                                     checked={variable.value === 'true'}
                                     onChange={(e) => handleChange(index, e.target.checked ? 'true' : 'false')}
                                 />
-                                <span className="ml-2 text-sm text-neutral-200">{parseVariableName(variable.key)}{isRequired(variable.key) && "*"}</span>
+                                <span className="ml-2 text-sm text-black dark:text-neutral-200">{parseVariableName(variable.key)}{isRequired(variable.key) && "*"}</span>
                             </div>
                         )}
                         {isOptions(variable.key) && (
@@ -645,7 +645,7 @@ export const VariableModal: FC<Props> = ({
                     />
                     </div>
                 )}
-                <div className="mb-2 mt-6 text-sm font-bold text-neutral-200">
+                <div className="mb-2 mt-6 text-sm font-bold text-black dark:text-neutral-200">
                     Required fields are marked with *
                 </div>
                
