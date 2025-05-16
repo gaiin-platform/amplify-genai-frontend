@@ -472,6 +472,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
          <button
             title={`Reload Admin Interface. ${unsavedConfigs.size > 0 ? "Any unsaved changes will be lost.": ""}`}
             className={` fixed top-4 left-[205px] flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-2 dark:text-white transition-colors duration-200 cursor-pointer hover:bg-neutral-200  dark:hover:bg-gray-500/10`}
+            id="adminModalReloadButton"
             onClick={() => {
                 setLoadData(true);
                 setUnsavedConfigs(new Set());
@@ -697,7 +698,8 @@ export const UserAction: FC<actionProps> = ({ label, onConfirm, onCancel, top, c
     return ( 
         <div className={`my-2.5 flex flex-row gap-1.5 transparent ${top}`}>
         <button 
-                className="text-green-500 hover:text-green-700 cursor-pointer" 
+                className="text-green-500 hover:text-green-700 cursor-pointer p-0.5"
+                id="confirmAction" 
                 onClick={(e) => {
                     e.stopPropagation();
                     onConfirm();
@@ -710,13 +712,14 @@ export const UserAction: FC<actionProps> = ({ label, onConfirm, onCancel, top, c
         </button>
         
         <button
-            className="text-red-500 hover:text-red-700 cursor-pointer"
+            className="text-red-500 hover:text-red-700 cursor-pointer p-0.5"
             onClick={(e) => {
             e.stopPropagation();
                 onCancel();
 
             }}
             title={"Cancel"}
+            id="cancelAction"
         >
             <IconX size={16} />
         </button>

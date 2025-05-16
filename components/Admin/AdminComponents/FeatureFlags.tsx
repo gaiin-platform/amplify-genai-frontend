@@ -43,6 +43,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                     {titleLabel('Feature Flags')}   
                     <button
                         title={isAddingFeature ? '' : 'Add Feature'}
+                        id="addFeatureButton"
                         disabled={isAddingFeature !== null}
                         className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingFeature ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
                         onClick={() => setIsAddingFeature({name: '', featureData: emptyFeature()})
@@ -93,6 +94,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                     </label>
                     <input
                     className={`mt-1.5 w-[160px] h-[38px] ${admin_text}`}
+                    id="featureNameInput"
                     placeholder={"Feature Name"}
                     onChange={(e) =>  setIsAddingFeature({...isAddingFeature, name: e.target.value})}
                     value={isAddingFeature.name}
@@ -102,7 +104,8 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                 >Status </label>
 
                 <button title={isAddingFeature.featureData.enabled ? "Click to disabled"        
-                                                                    : "Click to enabled" } 
+                                                                    : "Click to enabled" }
+                    id="statusToggle" 
                     className={`mt-1.5 h-[40px] w-[80px] px-1 items-center cursor-pointer
                                 bg-gray-200 dark:bg-[#40414F] ${isAddingFeature.featureData.enabled
                                 ? 'text-green-500 hover:text-green-600' : 'text-red-600 hover:text-red-700' }`}
@@ -175,12 +178,13 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                         </span>
                     }
                     />
-                    <table className="mt-4 border-collapse w-full" style={{ tableLayout: 'fixed' }}>
+                    <table id="featureFlagsTable" className="mt-4 border-collapse w-full" style={{ tableLayout: 'fixed' }}>
                         <thead>
                         <tr className="bg-gray-200 dark:bg-[#373844] ">
                             {['Feature', 'Status', 'User Exceptions', 'User Exceptions by Amplify Group Membership']
                                 .map((title, index) => (
                             <th key={index}
+                                id={title}
                                 className="text-center p-0.5 border border-gray-500 text-neutral-600 dark:text-neutral-300"
                                 style={{
                                 width: index === 0  ? '22%' // Feature column takes as much space as needed
@@ -200,8 +204,8 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                                 .map(([featureName, featureData]) => (
                             <tr key={featureName}>
                                 {/* Feature Name Column */}
-                                <td className="border border-neutral-500 px-4 py-2" title={featureName}>
-                                    <span className="text-[0.95rem]">{camelToTitleCase(featureName)}</span>
+                                <td className="border border-neutral-500 px-4 py-2" id="featureTitle" title={featureName}>
+                                    <span id="featureTitleName" className="text-[0.95rem]">{camelToTitleCase(featureName)}</span>
                                 </td>
 
                                 {/* Status Button Column */}

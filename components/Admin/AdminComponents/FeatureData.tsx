@@ -300,6 +300,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                             // if (!showUploadApiDocs && !apiPresignedUrls) handleApiDocPresigned();
                             setShowUploadApiDocs(!showUploadApiDocs);
                         }}
+                        id="expandUploadApiDocs"
                         title="Upload API Documents"
                         > 
                         {showUploadApiDocs ? <IconChevronLeft size={20} /> : <IconChevronRight size={20} />}
@@ -439,6 +440,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                                 setIsAddingAst(ast);
                                 handleAddAssistant([(amplifyAssistants as any)[ast]]);
                             }}
+                            id="addAssistantCopy"
                             title="Adds a copy of this assistant to the existing Amplify Assistants Group"
                             disabled={isAddingAst !== ''}
                             >
@@ -476,12 +478,12 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                     content={ 
                         stillLoadingData ? loading :
                         <>
-                            <table className="mt-4 border-collapse w-full" >
+                            <table id="assistantAdminGroupsTable" className="mt-4 border-collapse w-full" >
                                 <thead>
                                 <tr className="bg-gray-200 dark:bg-[#373844] ">
                                     {['Group Name', 'Created By', 'Support Conversation Analysis', 'Public', 'Membership by Amplify Groups', 'Number of Assistants',
                                     ].map((title, i) => (
-                                    <th key={i}
+                                    <th id="assistantAdminGroupsTitle" key={i}
                                         className="px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
                                     > {title}
                                     </th>
@@ -495,7 +497,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                                     <tr key={group.group_id}
                                         onMouseEnter={() => setHoveredAstGroup(group.group_id)}
                                         onMouseLeave={() => setHoveredAstGroup('')}>
-                                        <td className="text-center border border-neutral-500 p-2">
+                                        <td id="groupName" className="text-center border border-neutral-500 p-2">
                                             {group.groupName}
                                         </td>
                                         <td className="text-center border border-neutral-500 p-2 break-words max-w-[200px]">
@@ -595,6 +597,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
             {titleLabel('PowerPoint Templates')}
             <button
                 title={isAddingTemplate ? "" : 'Add PowerPoint Templates'}
+                id="addPowerpointTemplate"
                 disabled={isAddingTemplate !== null}
                 className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingTemplate ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
                 onClick={() => setIsAddingTemplate(emptyPptx())}
@@ -649,11 +652,12 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                 title={!uploadedTemplate ? "Template name will auto-populate once a template has been uploaded"
                                         : "" }
                 className={`h-[40px] w-[250px] ${admin_text}`}
+                id="templateNameInput"
                 placeholder={"Template Name"}
                 value={isAddingTemplate.name}
                 disabled={true}
                 />
-                <label className="ml-4 h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
+                <label id="statusAvailability" className="ml-4 h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
                 >Available </label>
 
                 
@@ -687,12 +691,13 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                     title={'Manage PowerPoint Templates'} 
                     content={ 
                         <>
-                            <table className="mt-4 border-collapse w-full" >
+                            <table id="powerpointTemplateTable" className="mt-4 border-collapse w-full" >
                                 <thead>
                                 <tr className="bg-gray-200 dark:bg-[#373844] ">
                                     {['Template Name', 'Public', 'Available to User via Amplify Group Membership'
                                     ].map((title, i) => (
                                     <th key={i}
+                                        id={title}
                                         className="px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
                                         style={{width: i === 0 ? "25%" 
                                                     : i === 1 ? "20" :"55%", 
@@ -924,6 +929,7 @@ const handleFile = async (file:File, name: string) => {
     
             <button
             className="flex flex-row gap-1 left-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+            id={`uploadFile${label}`}
             onClick={() => {
                 const importFile = document.querySelector('#' + id) as HTMLInputElement;
                 if (importFile) {

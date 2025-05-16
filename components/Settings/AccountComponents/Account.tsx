@@ -149,6 +149,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                             <button
                                 type="button"
                                 title='Add Account'
+                                id="addAccountButton"
                                 className="ml-2 mt-2.5 px-3 py-1.5 text-white rounded bg-neutral-500 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
                                 onClick={handleAddAccount}
                             >
@@ -160,6 +161,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                             <input
                             ref={accountNameRef}
                             type="text"
+                            id="accountNameInput"
                             placeholder={'Account name'}
                             className="rounded border-gray-300 p-1 text-neutral-900 shadow-sm focus:border-neutral-500 w-full"
 
@@ -168,6 +170,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                             <input
                                 ref={accountIdRef}
                                 type="text"
+                                id="coaStringInput"
                                 placeholder={'COA String'}
                                 className="rounded border-gray-300 p-1 text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50 w-full"
 
@@ -236,6 +239,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                                                     />
                                                         <button
                                                             type="button"
+                                                            id="deleteAccount"
                                                             className={`ml-auto mt-[-4px] px-2 py-1.5 text-sm bg-neutral-500 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${account.id === noCoaAccount.id ? 'invisible' : 'visible'}`}
                                                             onClick={() => handleDeleteAccount(account.name)}
                                                         >
@@ -257,6 +261,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                     {/* Save Button */}
                     <button
                         type="button"
+                        id="cancel"
                         className="mr-2 w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 bg-neutral-100 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                         onClick={onClose}
                     >
@@ -264,6 +269,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                     </button>
                     <button
                         type="button"
+                        id="saveChanges"
                         className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 bg-neutral-100 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                         onClick={handleSave}
                     >
@@ -291,6 +297,7 @@ export const AccountSelect: FC<SelectProps> = ({accounts, defaultAccount, setDef
         <> 
         {accounts.length > 0 ? 
         <select className={cn}
+            id="accountSelect"
             value={defaultAccount.name}
             onChange={(event) => {
                 const selectedAccount = accounts.find(acc => acc.name === event.target.value);
@@ -352,6 +359,7 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
                 flex: 'shrink-0',
             }}
             className={`overflow-auto mb-2 p-2 flex-1 text-sm rounded flex flex-row `}
+            id="accountRateLimitHover"
         >
         {!isEditing && <> {displayLabel}</>}
 
@@ -367,6 +375,7 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
                 <div className='bg-neutral-200 dark:bg-[#343541]/90 rounded'>
                     <ActionButton
                         title='Confirm Change'
+                        id="confirmChange"
                         handleClick={(e) => {
                             e.stopPropagation();
                             handleEdit();
@@ -377,6 +386,7 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
                     </ActionButton>
                     <ActionButton
                         title='Discard Change'
+                        id="discardChange"
                         handleClick={(e) => {
                         e.stopPropagation();
                         setIsEditing(false);
@@ -395,6 +405,7 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
             className="absolute top-1 right-0 mr-6 z-10 flex-shrink-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"> 
                 <ActionButton
                     handleClick={() => {setIsEditing(true)}}
+                    id="editRate"
                     title="Edit">
                     <IconEdit size={18} />
                 </ActionButton>
