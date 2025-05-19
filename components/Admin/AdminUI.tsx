@@ -3,7 +3,7 @@ import { FC, useContext, useEffect, useRef, useState } from "react";
 import { Modal } from "../ReusableComponents/Modal";
 import HomeContext from "@/pages/api/home/home.context";
 import InputsMap from "../ReusableComponents/InputMap";
-import {  getAdminConfigs, getAvailableModels, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs } from "@/services/adminService";
+import {  getAdminConfigs, getAvailableModels, getFeatureFlags, getPowerPoints, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs } from "@/services/adminService";
 import { AdminConfigTypes, Endpoint, FeatureFlagConfig, OpenAIModelsConfig, SupportedModel, SupportedModelsConfig, AdminTab, DefaultModelsConfig } from "@/types/admin";
 import { IconCheck, IconPlus, IconRefresh, IconX} from "@tabler/icons-react";
 import { LoadingIcon } from "../Loader/LoadingIcon";
@@ -54,7 +54,7 @@ interface Props {
 
 
 export const AdminUI: FC<Props> = ({ open, onClose }) => {
-    const { state: { statsService, amplifyUsers}, dispatch: homeDispatch, setLoadingMessage } = useContext(HomeContext);
+    const { state: { statsService, storageSelection, amplifyUsers}, dispatch: homeDispatch, setLoadingMessage } = useContext(HomeContext);
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
 
@@ -327,6 +327,21 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         } 
     }
       
+    const saveUpdateFeatureFlags = async () => {
+        const result = await getFeatureFlags();
+        if (result.success && result.data) {
+            let flags: any = result.data;
+            homeDispatch({ field: 'featureFlags', value: flags});
+            localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
+        }
+    }
+
+    const saveUpdatePptx = async () => {
+        const result = await getPowerPoints();
+        let pptx: any = result.success && result.data ? result.data :  
+                        templates.filter((pptx:Pptx_TEMPLATES) => pptx.isAvailable).map((pptx:Pptx_TEMPLATES) => pptx.name);
+        homeDispatch({ field: 'powerPointTemplateOptions', value: pptx});
+    }
 
     const validateSavedData = () => {
         const models = Object.values(availableModels);
@@ -345,7 +360,18 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         }
         return true;
     }
-      
+
+    const updateOnSave = () => {
+        const saveAction = (types: AdminConfigTypes[], action: () => void) => {
+            if (types.every(type => unsavedConfigs.has(type))) action();
+        }
+
+        saveAction([AdminConfigTypes.FEATURE_FLAGS], saveUpdateFeatureFlags);
+        saveAction([AdminConfigTypes.AVAILABLE_MODELS, AdminConfigTypes.DEFAULT_MODELS], saveUpdateAvailableModels);
+        saveAction([AdminConfigTypes.PPTX_TEMPLATES], saveUpdatePptx); 
+        saveAction([AdminConfigTypes.EMAIL_SUPPORT], () => homeDispatch({ field: 'supportEmail', value: emailSupport.email}));
+        if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage})); 
+    }
 
     const handleSave = async () => {
         if (Array.from(unsavedConfigs).length === 0) {
@@ -368,15 +394,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         setLoadingMessage('Saving Configurations');
         const result = await updateAdminConfigs(collectUpdateData);
         if (result.success) {
-            if (unsavedConfigs.has(AdminConfigTypes.FEATURE_FLAGS)) {
-                // to do doesnt account for exclusives think about pulling them again from home same with groups
-                homeDispatch({ field: 'featureFlags',
-                               value: { ...features, 'adminInterface': admins.includes(userEmail ?? '')} });
-                localStorage.setItem('mixPanelOn', JSON.stringify(features.mixPanel ?? false));
-            }
-            
-            if (unsavedConfigs.has(AdminConfigTypes.AVAILABLE_MODELS) || 
-                unsavedConfigs.has(AdminConfigTypes.DEFAULT_MODELS)) saveUpdateAvailableModels();
+            // update ui affecting changes 
+            updateOnSave();
             toast("Configurations successfully saved");
             setUnsavedConfigs(new Set());
             testEndpointsRef.current = [];
@@ -453,6 +472,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
          <button
             title={`Reload Admin Interface. ${unsavedConfigs.size > 0 ? "Any unsaved changes will be lost.": ""}`}
             className={` fixed top-4 left-[205px] flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-2 dark:text-white transition-colors duration-200 cursor-pointer hover:bg-neutral-200  dark:hover:bg-gray-500/10`}
+            id="adminModalReloadButton"
             onClick={() => {
                 setLoadData(true);
                 setUnsavedConfigs(new Set());
@@ -678,7 +698,8 @@ export const UserAction: FC<actionProps> = ({ label, onConfirm, onCancel, top, c
     return ( 
         <div className={`my-2.5 flex flex-row gap-1.5 transparent ${top}`}>
         <button 
-                className="text-green-500 hover:text-green-700 cursor-pointer" 
+                className="text-green-500 hover:text-green-700 cursor-pointer p-0.5"
+                id="confirmAction" 
                 onClick={(e) => {
                     e.stopPropagation();
                     onConfirm();
@@ -691,13 +712,14 @@ export const UserAction: FC<actionProps> = ({ label, onConfirm, onCancel, top, c
         </button>
         
         <button
-            className="text-red-500 hover:text-red-700 cursor-pointer"
+            className="text-red-500 hover:text-red-700 cursor-pointer p-0.5"
             onClick={(e) => {
             e.stopPropagation();
                 onCancel();
 
             }}
             title={"Cancel"}
+            id="cancelAction"
         >
             <IconX size={16} />
         </button>

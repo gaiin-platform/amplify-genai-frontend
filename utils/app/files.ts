@@ -1,6 +1,7 @@
 import { getFileDownloadUrl, deleteFile } from "@/services/fileService";
 import { DataSource } from "@/types/chat";
 import { IMAGE_FILE_TYPES } from "./const";
+import toast from "react-hot-toast";
 
 export const downloadDataSourceFile = async (dataSource: DataSource, groupId: string | undefined = undefined) => {
     const response = await getFileDownloadUrl(dataSource.id, groupId); // support images too 
@@ -16,14 +17,15 @@ export const downloadDataSourceFile = async (dataSource: DataSource, groupId: st
 }
 
 export const deleteDatasourceFile = async (dataSource: DataSource) => {
+  console.log("deleteDatasourceFile: ", dataSource)
   try {
       const response = await deleteFile(dataSource.id || 'none');
       if (!response.success) {  // Now correctly checking success
           console.error(`Failed to delete file: ${dataSource.id}`, response);
-          alert(`Error deleting file "${dataSource.id}". Please try again.`);
+          alert(`Error deleting file. Please try again.`);
           return false;
       }
-      alert(`File deleted successfully`);
+      toast(`File deleted successfully`);
       console.log(`File deleted successfully: ${dataSource.id}`);
       return true;
   } catch (error) {

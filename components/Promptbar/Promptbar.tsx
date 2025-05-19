@@ -120,7 +120,7 @@ const Promptbar = () => {
 
   
   useEffect(() => {
-    setAssistantShowModal(true);
+    if (assistantPrompt) setAssistantShowModal(true);
   }, [assistantPrompt]);
 
 

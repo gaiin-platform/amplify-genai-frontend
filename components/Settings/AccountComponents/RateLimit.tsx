@@ -51,6 +51,7 @@ export const RateLimiter: FC<RateLimitProps> = ({period, setPeriod, rate, setRat
                         style={{ width: `${calcCostWidth()}px`, textAlign: 'right' }}
                         type="text"
                         placeholder="$0.00"
+                        id="rateLimitAmount"
                         className="rounded border-gray-300  text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50 w-full"
                         value={rate}
                         onChange={(e) => setRate(formatDollar(e.target.value))}

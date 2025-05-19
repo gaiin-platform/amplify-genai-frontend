@@ -1087,6 +1087,8 @@ const Home = ({
     // ON LOAD --------------------------------------------
 
     useEffect(() => {
+        if (!initialRender) return;
+        console.log("Initial On Load");
         const settings = getSettings(featureFlags);
         setSettings(settings);
 
@@ -1240,10 +1242,7 @@ const Home = ({
             field: 'conversationStateId',
             value: 'post-init',
         });
-    }, [
-        defaultModelId,
-        dispatch,
-    ]);
+    }, [initialRender]);
 
     const [preProcessingCallbacks, setPreProcessingCallbacks] = useState([]);
     const [postProcessingCallbacks, setPostProcessingCallbacks] = useState([]);

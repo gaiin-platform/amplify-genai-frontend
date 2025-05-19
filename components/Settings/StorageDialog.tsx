@@ -113,6 +113,7 @@ export const StorageDialog: FC<Props> = ({ open }) => {
             {t('Where would you like to store your conversations?')}
             <button
               type="button"
+              id="applyConversationStorage"
               title='Apply Conversation Storage Changes To The Current Browser'
               className="text-xs ml-10 p-2 py-1  border rounded-lg shadow-md focus:outline-none border-neutral-800 bg-neutral-100 text-black hover:bg-neutral-200"
               onClick={() => {

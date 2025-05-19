@@ -166,6 +166,7 @@ useEffect(() => {
                                         <button
                                             key={"Accounts"}
                                             onClick={() => switchTab("Accounts")}
+                                            id="accountsTab"
                                             className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Accounts" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
                                             <h3 className="text-xl">{`Accounts${accountsUnsavedChanges ? " *" : "  "}`}</h3> 
                                         </button>
@@ -174,6 +175,7 @@ useEffect(() => {
                                         <button
                                             key={"API"}
                                             onClick={() => switchTab("API")}
+                                            id="apiTab"
                                             className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "API" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
                                             <h3 className="text-xl">{`API Access${apiUnsavedChanges ? " *" : "  "}`}</h3> 
                                         </button>}
@@ -188,7 +190,7 @@ useEffect(() => {
                             </div>
                         </>           
                         )} 
-                            <div className='overflow-y-auto' style={{ maxHeight: 'calc(100% - 60px)'}}>
+                            <div id="accountModalScroll" className='overflow-y-auto' style={{ maxHeight: 'calc(100% - 60px)'}}>
                             {/* *** Accounts Tab *** */}
                                         {activeTab === "Accounts" &&
                                             <Accounts

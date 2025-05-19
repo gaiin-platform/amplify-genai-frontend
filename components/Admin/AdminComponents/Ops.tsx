@@ -21,6 +21,7 @@ export const opsSearchToggleButtons = (opSearchBy: string, setOpSearchBy: Dispat
             {["name", "tag"].map((search: string) => 
             <button onMouseDown={(e) =>  e.preventDefault()}
                 key={search}
+                id="nameTagToggle"
                 className={`flex flex-row gap-2 py-1 px-2 text-[12px] rounded-md focus:outline-none 
                             ${ opSearchBy === search ? 'bg-white dark:bg-[#1f1f29] text-neutral-900 dark:text-neutral-100 font-bold transform scale-105' 
                                                      : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
@@ -119,6 +120,7 @@ return <>
                 {titleLabel('OPs')}
                 <button
                     title={'Add Op'} disabled={isRegisteringOps}
+                    id="addOp"
                     className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 ${isRegisteringOps ? "" : "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10"}`}
                     onClick={() => setNewOps([...newOps, emptyOps()])}>
                     <IconPlus size={16}/>
@@ -127,6 +129,7 @@ return <>
                 {newOps.length > 0 && 
                     <button
                         title={'Register Ops'} disabled={isRegisteringOps}
+                        id="registerOps"
                         className={`mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 ${isRegisteringOps ? "" : "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10"}`}
                         onClick={handleRegisterOps}
                     >
@@ -144,7 +147,7 @@ return <>
                         <div key={i} onMouseEnter={() => setHoveredNewOp(i)}
                                         onMouseLeave={() => setHoveredNewOp(-1)}
                         >
-                            <div className="flex flex-col gap-2">
+                            <div className="flex flex-col gap-2" id="opsInfo">
                                 {i > 0 && <hr></hr>}
                                 <div className="flex flex-row items-center"> 
                                 <div className="flex-grow"> <InputsMap
@@ -203,6 +206,7 @@ return <>
                                         <label className="text-md text-black dark:text-neutral-200">Parameters</label>
                                         <button 
                                             title={'Add OP Parameter'} disabled={isRegisteringOps}
+                                            id="addOpParameter"
                                             className={`h-[28px] mt-[-1] ml-1 flex-shrink-0 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 ${isRegisteringOps ? "" : "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10"}`}
                                             onClick={() => {
                                                 const updateOps = [...newOps];
@@ -352,12 +356,13 @@ return <>
                 title={"Manage Ops"}
                 content={
                 <div style={{ maxHeight: '500px', overflowY: 'auto', overflowX: 'hidden'}}>
-                <table className="mt-4 border-collapse w-full" >
+                <table id="manageOpsTable" className="mt-4 border-collapse w-full" >
                     <thead className="sticky top-0">
                     <tr className="bg-gray-200 dark:bg-[#373844]">
                         {['Function Name', 'Tags', 'Path', 'Method', 'Parameters', 'Description']
                             .map((title, i) => (
                         <th key={i}
+                            id="groupName"
                             className=" text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
                         > {title}
                         </th>
@@ -372,7 +377,7 @@ return <>
                         <tr key={op.id} 
                             onMouseEnter={() => setHoveredOp(opIdx)}
                             onMouseLeave={() => setHoveredOp(-1)}>
-                            <td className="text-center border border-neutral-500 p-2 break-words">
+                            <td id="functionName" className="text-center border border-neutral-500 p-2 break-words">
                                 {op.name}
                             </td>
                             

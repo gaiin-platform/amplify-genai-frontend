@@ -979,79 +979,83 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             }
 
                             {/* Add Website URLs Section */}
-                            <div className="mt-6 mb-2 font-bold text-black dark:text-neutral-200">
-                            {t('Add Website URLs')}
-                            </div>
-                            {!disableEdit && (
-                                <WebsiteURLInput
-                                    onAddURL={(url, isSitemap) => {
-                                        // Create a data source object for the URL
-                                        const websiteSource = {
-                                            id: url,
-                                            name: `${isSitemap ? 'Sitemap' : 'Website'}: ${url}`,
-                                            type: isSitemap ? 'website/sitemap' : 'website/url',
-                                            metadata: {
-                                                scanFrequency: 7, // Default scan frequency in days
-                                                sourceUrl: url,
-                                                isSitemap: isSitemap,
-                                            },
-                                        };
-
-                                        // Add to dataSources
-                                        setDataSources([...dataSources, websiteSource as any]);
-
-                                        // Set document state to 100% (fully loaded)
-                                        setDocumentState({ ...documentState, [url]: 100 });
-                                    }}
-                                />
-                            )}
-
-                            {/* Display added website URLs */}
-                            {dataSources.filter(ds => ds.type === 'website/url' || ds.type === 'website/sitemap').length > 0 && (
-                                <div className="mb-4">
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                        Added Website URLs
+                            {featureFlags.websiteUrls && (
+                                <>
+                                    <div className="mt-6 mb-2 font-bold text-black dark:text-neutral-200">
+                                        {t('Add Website URLs')}
                                     </div>
-                                    <div className="mt-2">
-                                        {dataSources
-                                            .filter(ds => ds.type === 'website/url' || ds.type === 'website/sitemap')
-                                            .map((ds, index) => (
-                                                <div key={index} className="flex justify-between items-center p-2 mb-2 rounded-lg border border-neutral-500 dark:border-neutral-800">
-                                                    <div className="flex items-center gap-2">
-                                                        {ds.type === 'website/sitemap' ? (
-                                                            <IconSitemap size={18} />
-                                                        ) : (
-                                                            <IconWorld size={18} />
-                                                        )}
-                                                        <span className="truncate">{ds.id}</span>
-                                                    </div>
-                                                    {!disableEdit && (
-                                                        <button
-                                                            className="p-1 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                                                            onClick={() => {
-                                                                setDataSources(dataSources.filter(source => source.id !== ds.id));
-                                                            }}
-                                                        >
-                                                            <svg
-                                                                stroke="currentColor"
-                                                                fill="none"
-                                                                strokeWidth="2"
-                                                                viewBox="0 0 24 24"
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                                height="1em"
-                                                                width="1em"
-                                                                xmlns="http://www.w3.org/2000/svg"
-                                                            >
-                                                                <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                                <line x1="6" y1="6" x2="18" y2="18"></line>
-                                                            </svg>
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            ))}
-                                    </div>
-                                </div>
+                                    {!disableEdit && (
+                                        <WebsiteURLInput
+                                            onAddURL={(url, isSitemap) => {
+                                                // Create a data source object for the URL
+                                                const websiteSource = {
+                                                    id: url,
+                                                    name: `${isSitemap ? 'Sitemap' : 'Website'}: ${url}`,
+                                                    type: isSitemap ? 'website/sitemap' : 'website/url',
+                                                    metadata: {
+                                                        scanFrequency: 7, // Default scan frequency in days
+                                                        sourceUrl: url,
+                                                        isSitemap: isSitemap,
+                                                    },
+                                                };
+
+                                                // Add to dataSources
+                                                setDataSources([...dataSources, websiteSource as any]);
+
+                                                // Set document state to 100% (fully loaded)
+                                                setDocumentState({ ...documentState, [url]: 100 });
+                                            }}
+                                        />
+                                    )}
+
+                                    {/* Display added website URLs */}
+                                    {dataSources.filter(ds => ds.type === 'website/url' || ds.type === 'website/sitemap').length > 0 && (
+                                        <div className="mb-4">
+                                            <div className="text-sm font-bold text-black dark:text-neutral-200">
+                                                Added Website URLs
+                                            </div>
+                                            <div className="mt-2">
+                                                {dataSources
+                                                    .filter(ds => ds.type === 'website/url' || ds.type === 'website/sitemap')
+                                                    .map((ds, index) => (
+                                                        <div key={index} className="flex justify-between items-center p-2 mb-2 rounded-lg border border-neutral-500 dark:border-neutral-800">
+                                                            <div className="flex items-center gap-2">
+                                                                {ds.type === 'website/sitemap' ? (
+                                                                    <IconSitemap size={18} />
+                                                                ) : (
+                                                                    <IconWorld size={18} />
+                                                                )}
+                                                                <span className="truncate">{ds.id}</span>
+                                                            </div>
+                                                            {!disableEdit && (
+                                                                <button
+                                                                    className="p-1 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                                                                    onClick={() => {
+                                                                        setDataSources(dataSources.filter(source => source.id !== ds.id));
+                                                                    }}
+                                                                >
+                                                                    <svg
+                                                                        stroke="currentColor"
+                                                                        fill="none"
+                                                                        strokeWidth="2"
+                                                                        viewBox="0 0 24 24"
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        height="1em"
+                                                                        width="1em"
+                                                                        xmlns="http://www.w3.org/2000/svg"
+                                                                    >
+                                                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
                             )}
 
                             {/* Workflow Template Selector - purposefully not featured flagged / outside ofthe advanced section */}
@@ -1259,6 +1263,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
                                     <br></br>
                                     {/* Api Component View Selector */}
+                                    { featureFlags.integrations &&
                                     <ApiIntegrationsPanel
                                         // API-related props
                                         availableApis={availableApis}
@@ -1281,7 +1286,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             })
                                         }}
                                         disabled={disableEdit}
-                                    />
+                                    />}
                                        
                                 </div>
                                 }

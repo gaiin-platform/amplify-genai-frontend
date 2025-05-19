@@ -47,12 +47,13 @@ export const ActiveTabs: FC<Props> = ({tabs, width, initialActiveTab}) => {
                         <button
                             title={tab.title}
                             key={index}
+                            id="activeTab"
                             onClick={() => {
                                 setActiveTab(index);
                                 if (tabRef && tabRef.current) tabRef.current.scrollIntoView({ block: 'start' });
                             }}
                             className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === index ? 'border-l border-t border-r dark:border-gray-500 dark:text-white  shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
-                            <h3 className="text-xl">{tab.label}</h3> 
+                            <h3 id="tabName" className="text-xl">{tab.label}</h3> 
                         </button>
                     
                     )}

@@ -36,7 +36,7 @@ export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEm
                 /> 
             </div>
             <div className="flex-shrink-0 ml-[-6px]">
-                <button type="button" title="Add User"
+                <button type="button" title="Add User" id="addUserButton"
                     className="ml-2 mt-0.5 p-2 rounded-md border border-neutral-300 dark:border-white/20 transition-colors duration-200 cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10 "
                     onClick={handleAddEmails}
                 > <IconPlus size={18} />
