@@ -31,6 +31,7 @@ const AgentImageBlock: React.FC<Props> = ({ filePath, message }) => {
         let fileId = null;
         
         for (const [id, fileData] of Object.entries(files)) {
+          // @ts-ignore
           if (fileData.original_name === fileName) {
             fileId = id;
             break;
