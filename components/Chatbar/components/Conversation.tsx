@@ -191,7 +191,7 @@ export const ConversationComponent = ({ conversation}: Props) => {
       ) : (
         <button
           id="chatClick"
-          className={`enhanced-conversation-item flex w-full cursor-pointer items-center gap-3 text-sm transition-all duration-200 ${
+          className={`enhanced-conversation-item group flex w-full cursor-pointer items-center gap-3 text-sm transition-all duration-200 ${
             messageIsStreaming || artifactIsStreaming? 'opacity-70 disabled:cursor-not-allowed' : ''
           } ${
             selectedConversation?.id === conversation.id
@@ -204,14 +204,18 @@ export const ConversationComponent = ({ conversation}: Props) => {
           onDragStart={(e) => handleDragStart(e, conversation)}
           title="View Conversation"
         >
-         {isLocalConversation(conversation) ? 
-          <IconMessage size={18} className={`${selectedConversation?.id === conversation.id ? 'text-blue-500' : 'text-gray-600 dark:text-gray-400'}`} /> 
-          : 
-          <div>
-            <IconCloud className={`block dark:hidden ${selectedConversation?.id === conversation.id ? 'text-blue-500' : 'text-gray-600'}`} size={18} />
-            <IconCloudFilled className={`hidden dark:block ${selectedConversation?.id === conversation.id ? 'text-blue-400' : 'text-gray-400'}`} size={18} />
+         <div className="relative flex items-center justify-center">
+            <div className={`absolute inset-0 rounded-full ${selectedConversation?.id === conversation.id ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-gray-100 dark:bg-gray-700/20'} 
+                          transform scale-0 opacity-0 transition-all duration-300 group-hover:scale-100 group-hover:opacity-100`}></div>
+            {isLocalConversation(conversation) ? 
+              <IconMessage size={20} className={`${selectedConversation?.id === conversation.id ? 'text-blue-500 drop-shadow-sm' : 'text-gray-600 dark:text-gray-400'}`} /> 
+              : 
+              <div className="relative">
+                <IconCloud className={`block dark:hidden ${selectedConversation?.id === conversation.id ? 'text-blue-500' : 'text-gray-600'}`} size={20} />
+                <IconCloudFilled className={`hidden dark:block ${selectedConversation?.id === conversation.id ? 'text-blue-400' : 'text-gray-400'}`} size={20} />
+              </div>
+            }
           </div>
-         }
          
           <div
             id="chatName"

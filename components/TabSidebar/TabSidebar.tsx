@@ -121,21 +121,26 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
 
     return isOpen ? (
         
-        <div className={`fixed top-0 ${side}-0 flex h-full w-[280px] flex-none ${chatSide()? 'border-r dark:border-r-[#202123]' : 'border-l dark:border-l-[#202123]'}
-            flex-col space-y-0 bg-white text-black dark:text-white bg-[#f3f3f3] dark:bg-[#202123] text-[14px] sm:relative sm:top-0`} 
+        <div className={`fixed top-0 ${side}-0 flex h-full w-[280px] flex-none
+            flex-col space-y-0 bg-white text-black dark:text-white bg-[#f3f3f3] dark:bg-[#202123] text-[14px] sm:relative sm:top-0
+            shadow-lg`} 
             id="sideBar"
             style={{
                 zIndex: '20 !important'
               }}>
             {isMultipleTabs && (
-                <div className="mt-1 ml-1 flex flex-row gap-1 bg-neutral-100 dark:bg-[#202123] rounded-t">
+                <div className="flex flex-row gap-1 px-2 pt-2 bg-neutral-100 dark:bg-[#202123]">
                     {childrenArray.map((child, index) => (
                         <button
                             key={index}
                             id="tabSelection"
                             onClick={() => setActiveTab(index)}
                             title={child.props.title}
-                            className={`px-3 py-2 rounded-t ${activeTab === index ? 'border-l border-t border-r dark:border-gray-500 dark:text-white shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
+                            className={`relative px-4 py-2.5 rounded-t transition-all duration-200 ${
+                            activeTab === index 
+                                ? 'bg-white dark:bg-[#2a2b32] text-black dark:text-white shadow-md z-10 translate-y-0' 
+                                : 'bg-neutral-200/70 dark:bg-[#27282f] text-gray-500 dark:text-gray-400 hover:bg-neutral-200 dark:hover:bg-[#2a2b32] translate-y-1'
+                            }`}>
                             {child.props.icon}
                         </button>
                     ))}

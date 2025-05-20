@@ -44,24 +44,41 @@
 /* Sidebar Container Styling */
 .enhanced-sidebar {
   background-color: var(--sidebar-bg-light);
-  border-right: 1px solid var(--sidebar-border-light);
   transition: all 0.2s ease-in-out;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.03);
 }
 
 .dark .enhanced-sidebar {
   background-color: var(--sidebar-bg-dark);
-  border-right: 1px solid var(--sidebar-border-dark);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
 }
 
-/* Folder Styling */
+/* Folder Styling - Modern & Beautiful Design */
 .enhanced-folder {
-  margin-bottom: 0.25rem;
-  border-radius: 0.5rem;
-  transition: all 0.15s ease-in-out;
+  margin-bottom: 0.35rem;
+  border-radius: 0.75rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.enhanced-folder::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent, rgba(59, 130, 246, 0.05), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 0;
 }
 
 .enhanced-folder:hover {
   background-color: var(--sidebar-hover-light);
+  transform: translateX(2px);
+}
+
+.enhanced-folder:hover::before {
+  opacity: 1;
 }
 
 .dark .enhanced-folder:hover {
@@ -72,45 +89,87 @@
   font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.375rem;
-  transition: all 0.15s ease-in-out;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  z-index: 1;
+}
+
+.enhanced-folder-title svg {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); /* Spring-like animation */
+}
+
+.enhanced-folder-title:hover svg {
+  transform: scale(1.15);
 }
 
 .enhanced-folder-open {
-  background-color: var(--sidebar-selected-light);
+  background-color: rgba(59, 130, 246, 0.08);
+  border-left: 3px solid var(--sidebar-accent-blue);
 }
 
 .dark .enhanced-folder-open {
-  background-color: var(--sidebar-selected-dark);
+  background-color: rgba(59, 130, 246, 0.1);
+  border-left: 3px solid var(--sidebar-accent-blue);
 }
 
-/* Conversation Item Styling */
+/* Conversation Item Styling - Modernized Design */
 .enhanced-conversation-item {
   padding: 0.625rem 0.75rem;
-  margin: 0.125rem 0;
-  border-radius: 0.375rem;
-  transition: all 0.15s ease-in-out;
+  margin: 0.175rem 0.25rem;
+  border-radius: 0.5rem;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   border-left: 3px solid transparent;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 0 transparent;
+}
+
+.enhanced-conversation-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent, rgba(59, 130, 246, 0.03), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .enhanced-conversation-item:hover {
   background-color: var(--sidebar-hover-light);
+  transform: translateX(2px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.enhanced-conversation-item:hover::before {
+  opacity: 1;
 }
 
 .dark .enhanced-conversation-item:hover {
   background-color: var(--sidebar-hover-dark);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.enhanced-conversation-item svg {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.05));
+}
+
+.enhanced-conversation-item:hover svg {
+  transform: scale(1.15);
 }
 
 .enhanced-conversation-item.selected {
-  background-color: var(--sidebar-selected-light);
+  background-color: rgba(59, 130, 246, 0.08);
   border-left: 3px solid var(--sidebar-accent-blue);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .dark .enhanced-conversation-item.selected {
-  background-color: var(--sidebar-selected-dark);
+  background-color: rgba(59, 130, 246, 0.1);
   border-left: 3px solid var(--sidebar-accent-blue);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 /* Conversation Title Animation */
@@ -285,9 +344,22 @@
   background-color: rgba(255, 255, 255, 0.15);
 }
 
-/* Today's conversations section */
+/* Today's conversations section - Improved styling */
 .enhanced-today-section {
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
+  position: relative;
+}
+
+.enhanced-today-section::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--sidebar-accent-blue), transparent);
+  opacity: 0.5;
+  border-radius: 1px;
 }
 
 .enhanced-today-title {
@@ -296,6 +368,13 @@
   padding: 0.25rem 0.75rem;
   font-size: 0.75rem;
   letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.enhanced-today-title svg {
+  filter: drop-shadow(0 1px 1px rgba(59, 130, 246, 0.3));
 }
 
 .dark .enhanced-today-title {

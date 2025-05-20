@@ -196,7 +196,7 @@ const Folder = ({
             </div>
           ) : (
             <button
-              className={`enhanced-folder-title flex w-full cursor-pointer items-center gap-3 rounded-lg p-3 text-sm transition-all duration-200 ${isOpen ? 'enhanced-folder-open' : ''}`}
+              className={`enhanced-folder-title group flex w-full cursor-pointer items-center gap-3 rounded-lg text-sm transition-all duration-200 ${isOpen ? 'enhanced-folder-open' : ''}`}
               id={"dropDown"}
               onClick={() => setIsOpen(!isOpen)}
               onDrop={(e) => dropHandler(e)}
@@ -205,18 +205,22 @@ const Folder = ({
               onDragLeave={removeHighlight}
               title={isOpen ? "Collapse folder" : "Expand folder"}
             >
-              <div className="transition-transform duration-200 ease-in-out transform">
+              <div className="transition-transform duration-200 ease-in-out transform relative">
+                <div className="absolute inset-0 bg-blue-100 dark:bg-blue-900/20 rounded-full opacity-0 scale-0 transition-all duration-300 group-hover:opacity-20 group-hover:scale-100"></div>
                 {isOpen ? (
-                  <IconCaretDown className={`flex flex-shrink-0 ${currentFolder.pinned ? 'text-blue-500' : ''}`} size={18} />
+                  <IconCaretDown className={`flex flex-shrink-0 ${currentFolder.pinned ? 'text-blue-500' : ''}`} size={20} />
                 ) : (
-                  <IconCaretRight className={`flex flex-shrink-0 ${currentFolder.pinned ? 'text-blue-500' : ''}`} size={18} />
+                  <IconCaretRight className={`flex flex-shrink-0 ${currentFolder.pinned ? 'text-blue-500' : ''}`} size={20} />
                 )}
               </div>
 
               <div 
                 id={"dropName"}
                 className="sidebar-text relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left font-medium">
-                {currentFolder.pinned && <span className="badge-blue mr-1.5 inline-block h-2 w-2 rounded-full"></span>}
+                {currentFolder.pinned && 
+                  <span className="badge-blue mr-1.5 inline-block h-2.5 w-2.5 rounded-full 
+                  shadow-sm shadow-blue-500/30"></span>
+                }
                 {currentFolder.name}
               </div>
             </button>
