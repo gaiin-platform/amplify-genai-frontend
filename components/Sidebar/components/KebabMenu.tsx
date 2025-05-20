@@ -365,9 +365,9 @@ interface Props {
 
     return (
         <>
-        <div className="flex items-center border-b dark:border-white/20" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}>
-          <div className="pb-1 flex w-full text-lg ml-1 text-black dark:text-neutral-200 flex items-center">
-            {label} 
+        <div className="flex items-center pb-1 border-b dark:border-white/20" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}>
+          <div className="flex w-full items-center ml-1 text-black dark:text-neutral-200">
+            <span className="text-xs uppercase tracking-wide font-medium opacity-60">{label}</span>
             { isSyncing && 
                 <label className="flex flex-row gap-1 text-xs ml-auto mr-1">
                     <LoadingIcon style={{ width: "14px", height: "14px" }}/>

@@ -124,8 +124,8 @@ const Sidebar = <T,>({
         handleSearchTerm('');
       }}
     >
-      <IconPlus size={16} className="enhanced-icon" />
-      <span className="sidebar-text">{addItemButtonTitle}</span>
+      <IconPlus size={18} className="enhanced-icon" />
+      <span className="sidebar-text font-medium">{addItemButtonTitle}</span>
     </button>
   );
 
@@ -142,8 +142,8 @@ const Sidebar = <T,>({
           handleSearchTerm('');
         }}
       >
-        <IconSparkles size={16} className="enhanced-icon text-purple-500" />
-        <span className="sidebar-text">{"Assistant"}</span>
+        <IconSparkles size={18} className="enhanced-icon text-purple-500" />
+        <span className="sidebar-text font-medium">{"Assistant"}</span>
       </button>
     );
 
@@ -164,7 +164,7 @@ const Sidebar = <T,>({
             id="createFolderButton"
             title="Create Folder"
           >
-            <IconFolderPlus size={16} className="enhanced-icon" />
+            <IconFolderPlus size={18} className="enhanced-icon" />
           </button>
         </div>
         {side === 'right' && addItemButton('')}

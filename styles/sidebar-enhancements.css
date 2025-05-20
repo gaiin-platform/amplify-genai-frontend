@@ -145,75 +145,111 @@
   background-color: rgba(255, 255, 255, 0.1);
 }
 
-/* Add button styling */
+/* Add button styling - modernized design */
 .enhanced-add-button {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1rem;
-  background-color: white;
-  border: 1px solid var(--sidebar-border-light);
+  gap: 0.75rem;
+  padding: 0.6rem 1.2rem;
+  background-color: rgba(0, 0, 0, 0.02);
   color: var(--sidebar-text-light);
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   font-weight: 500;
-  transition: all 0.2s ease-in-out;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  letter-spacing: 0.01em;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border: none;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(4px);
+}
+
+.enhanced-add-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent, rgba(59, 130, 246, 0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .enhanced-add-button:hover {
-  background-color: var(--sidebar-accent-blue);
-  border-color: var(--sidebar-accent-blue);
+  background-color: rgba(59, 130, 246, 0.9);
   color: white;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.3);
+}
+
+.enhanced-add-button:hover::before {
+  opacity: 1;
+}
+
+.enhanced-add-button:active {
+  transform: translateY(0px);
+  box-shadow: 0 5px 15px -5px rgba(59, 130, 246, 0.4);
 }
 
 .dark .enhanced-add-button {
-  background-color: var(--sidebar-bg-dark);
-  border: 1px solid var(--sidebar-border-dark);
+  background-color: rgba(255, 255, 255, 0.05);
   color: var(--sidebar-text-dark);
 }
 
 .dark .enhanced-add-button:hover {
-  background-color: var(--sidebar-accent-blue);
-  border-color: var(--sidebar-accent-blue);
+  background-color: rgba(59, 130, 246, 0.9);
   color: white;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4);
 }
 
-/* Create folder button styling */
+/* Create folder button styling - modernized design */
 .enhanced-folder-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.625rem;
-  background-color: white;
-  border: 1px solid var(--sidebar-border-light);
+  width: 42px;
+  height: 42px;
+  background-color: rgba(0, 0, 0, 0.02);
   color: var(--sidebar-text-light);
-  border-radius: 0.5rem;
-  transition: all 0.2s ease-in-out;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border: none;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(4px);
+}
+
+.enhanced-folder-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent, rgba(139, 92, 246, 0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .enhanced-folder-button:hover {
-  background-color: var(--sidebar-accent-purple);
-  border-color: var(--sidebar-accent-purple);
+  background-color: rgba(139, 92, 246, 0.9);
   color: white;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
+  transform: translateY(-2px) rotate(5deg);
+  box-shadow: 0 10px 25px -5px rgba(139, 92, 246, 0.3);
+}
+
+.enhanced-folder-button:hover::before {
+  opacity: 1;
+}
+
+.enhanced-folder-button:active {
+  transform: translateY(0px) rotate(0deg);
+  box-shadow: 0 5px 15px -5px rgba(139, 92, 246, 0.4);
 }
 
 .dark .enhanced-folder-button {
-  background-color: var(--sidebar-bg-dark);
-  border: 1px solid var(--sidebar-border-dark);
+  background-color: rgba(255, 255, 255, 0.05);
   color: var(--sidebar-text-dark);
 }
 
 .dark .enhanced-folder-button:hover {
-  background-color: var(--sidebar-accent-purple);
-  border-color: var(--sidebar-accent-purple);
+  background-color: rgba(139, 92, 246, 0.9);
   color: white;
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+  box-shadow: 0 10px 25px -5px rgba(139, 92, 246, 0.4);
 }
 
 /* Search input styling - removed for cleaner interface */
