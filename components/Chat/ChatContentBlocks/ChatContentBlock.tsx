@@ -18,6 +18,7 @@ import { ApiDocBlock } from "./APIDocBlock";
 import AutoArtifactsBlock from "./AutoArtifactBlock";
 import AgentTableBlock from "./AgentTableBlock";
 import AgentImageBlock from "./AgentImageBlock";
+import AgentFileBlock from "./AgentFileBlock";
 import DOMPurify from  "dompurify";
 import React from "react";
 import InvokeBlock from '@/components/Chat/ChatContentBlocks/InvokeBlock';
@@ -251,6 +252,9 @@ const ChatContentBlock: React.FC<Props> = (
                         
                     case 'agent_image':
                         return (<AgentImageBlock filePath={String(children).trim()} message={message} />);
+                        
+                    case 'agent':
+                        return (<AgentFileBlock filePath={String(children).trim()} message={message} />);
 
                     case 'integrationsDialog':
                         if (featureFlags.integrations) {
