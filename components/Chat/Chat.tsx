@@ -48,6 +48,7 @@ import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/as
 import {ChatRequest, useSendService} from "@/hooks/useChatSendService";
 import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
+import { getFullTimestamp } from '@/utils/app/date';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
 import { Artifacts } from '../Artifacts/Artifacts';
@@ -851,7 +852,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
-                        isLocal: getIsLocalStorageSelection(storageSelection)
+                        isLocal: getIsLocalStorageSelection(storageSelection),
+                        date: getFullTimestamp()
                     },
                 });
 

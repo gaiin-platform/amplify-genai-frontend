@@ -23,7 +23,7 @@ import {FolderInterface, SortType} from "@/types/folder";
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation } from '@/services/remoteConversationService';
 import { uncompressMessages } from '@/utils/app/messages';
-import { getDateName } from '@/utils/app/date';
+import { getFullTimestamp, getDateName } from '@/utils/app/date';
 import React from 'react';
 import Sidebar from '../Sidebar/Sidebar';
 import { DefaultModels } from '@/types/model';
@@ -121,7 +121,8 @@ export const Chatbar = () => {
           prompt: DEFAULT_SYSTEM_PROMPT,
           temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
           folderId: folder.id,
-          promptTemplate: null
+          promptTemplate: null,
+          date: getFullTimestamp()
         };
         updatedConversations.push(newConversation)
         selectedConversation = {...newConversation}
@@ -140,7 +141,8 @@ export const Chatbar = () => {
               prompt: DEFAULT_SYSTEM_PROMPT,
               temperature: conversation.temperature,
               folderId: null,
-              isLocal: getIsLocalStorageSelection(storageSelection) 
+              isLocal: getIsLocalStorageSelection(storageSelection),
+              date: getFullTimestamp()
           },
       });
 

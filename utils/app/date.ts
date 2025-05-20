@@ -15,6 +15,10 @@ export const getDate = () => {
     return new Date().toISOString().slice(0, 10);
 }
 
+export const getFullTimestamp = () => {
+    return new Date().toISOString();
+}
+
 
 export const addDateAttribute = (folder: FolderInterface) => {
     const datePattern = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{1,2}), (\d{4})$/;

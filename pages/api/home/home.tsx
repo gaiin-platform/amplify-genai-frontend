@@ -71,7 +71,7 @@ import { getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistant
 import { fetchAllRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import {killRequest as killReq} from "@/services/chatService";
 import { DefaultUser } from 'next-auth';
-import { addDateAttribute, getDate, getDateName } from '@/utils/app/date';
+import { addDateAttribute, getFullTimestamp, getDateName } from '@/utils/app/date';
 import HomeContext, {  ClickContext, Processor } from './home.context';
 import { ReservedTags } from '@/types/tags';
 import { noCoaAccount } from '@/types/accounts';
@@ -340,7 +340,7 @@ const Home = ({
 
         const newFolder: FolderInterface = {
             id: uuidv4(),
-            date: getDate(),
+            date: getFullTimestamp(),
             name,
             type,
         };
@@ -488,6 +488,7 @@ const Home = ({
             folderId: folder.id,
             promptTemplate: null,
             isLocal: getIsLocalStorageSelection(storageSelection),
+            date: getFullTimestamp(),
             ...params
         };
         if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);
@@ -508,7 +509,11 @@ const Home = ({
             statsService.forkConversationEvent();
             if (selectedConversation) {
                 setLoadingMessage("Forking Conversation...");
-                const newConversation = cloneDeep({...selectedConversation,  id: uuidv4(), codeInterpreterAssistantId: undefined,
+                const newConversation = cloneDeep({
+                                                   ...selectedConversation,  
+                                                   id: uuidv4(), 
+                                                   codeInterpreterAssistantId: undefined,
+                                                   date: getFullTimestamp(),
                                                    messages: selectedConversation?.messages.slice(0, messageIndex + 1)
                                                              .map((m:Message) => {
                                                                 if ( m.data?.state?.codeInterpreter ) {
@@ -1192,7 +1197,7 @@ const Home = ({
             if (!folder) {
                 const newFolder: FolderInterface = {
                     id: uuidv4(),
-                    date: getDate(),
+                    date: getFullTimestamp(),
                     name: dateName,
                     type: "chat"
                 };
