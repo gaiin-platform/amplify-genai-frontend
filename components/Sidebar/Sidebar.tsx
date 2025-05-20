@@ -1,10 +1,54 @@
-import { IconFolderPlus, IconMistOff, IconPlus } from '@tabler/icons-react';
-import { ReactNode, useContext, useState } from 'react';
+import { IconFolderPlus, IconMistOff, IconPlus, IconSparkles, IconX } from '@tabler/icons-react';
+import { ReactNode, useContext, useState, useEffect, FC } from 'react';
 import { useTranslation } from 'react-i18next';
-import Search from '../Search';
-import { KebabMenu } from './components/KebabMenu';
+import { KebabMenu } from '@/components/Sidebar/components/KebabMenu';
 import { SortType } from '@/types/folder';
 import HomeContext from '@/pages/api/home/home.context';
+
+// Inline Search component to avoid import issues
+interface SearchProps {
+  placeholder: string;
+  searchTerm: string;
+  onSearch: (searchTerm: string) => void;
+  disabled?: boolean;
+  paddingY?: string;
+}
+
+const SearchComponent: FC<SearchProps> = ({ placeholder, searchTerm, onSearch, disabled=false, paddingY="py-3"}) => {
+  const { t } = useTranslation('sidebar');
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onSearch(e.target.value);
+  };
+
+  const clearSearch = () => {
+    onSearch('');
+  };
+
+  return (
+    <div className="relative flex items-center">
+      <input
+        id="SearchBar"
+        className={`w-full flex-1 rounded-md border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-[#202123] px-4 ${paddingY} pr-10 text-[14px] leading-3 dark:text-white`}
+        type="text"
+        placeholder={t(placeholder) || ''}
+        value={searchTerm}
+        onChange={handleSearchChange}
+        disabled={disabled}
+        autoComplete={'off'}
+        spellCheck={false}
+      />
+
+      {searchTerm && (
+        <IconX
+          className="absolute right-4 cursor-pointer text-neutral-300 hover:text-neutral-400"
+          size={18}
+          onClick={clearSearch}
+        />
+      )}
+    </div>
+  );
+};
 
 
 interface Props<T> {
@@ -43,32 +87,47 @@ const Sidebar = <T,>({
   setFolderSort,
 }: Props<T>) => {
 
-  const { state: { messageIsStreaming}} = useContext(HomeContext);
+  const { state: { messageIsStreaming }} = useContext(HomeContext);
   const { t } = useTranslation('promptbar');
+  const [isAnimated, setIsAnimated] = useState(false);
+
+  // Trigger animation when sidebar is opened
+  useEffect(() => {
+    if (isOpen) {
+      setIsAnimated(true);
+      const timer = setTimeout(() => setIsAnimated(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
   const allowDrop = (e: any) => {
     e.preventDefault();
   };
 
   const highlightDrop = (e: any) => {
-    e.target.style.background = '#343541';
+    e.target.classList.add('bg-neutral-200', 'dark:bg-[#343541]/90');
+    e.target.style.transition = 'background-color 0.15s ease-in-out';
   };
 
   const removeHighlight = (e: any) => {
-    e.target.style.background = 'none';
+    e.target.classList.remove('bg-neutral-200', 'dark:bg-[#343541]/90');
   };
 
-  const addItemButton = (width: string) => ( <button id="promptButton" className={`text-sidebar flex ${width} flex-shrink-0 select-none items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 dark:text-white transition-colors duration-200 
-                              ${side === 'left' && messageIsStreaming ? "cursor-not-allowed" : "hover:bg-gray-500/10 cursor-pointer "}`}
-                              disabled={side === 'left' && messageIsStreaming}
-                              onClick={() => {
-                                handleCreateItem();
-                                handleSearchTerm('');
-                              }}
-                              >
-                                <IconPlus size={16} />
-                                {addItemButtonTitle}
-                              </button>);
+  const addItemButton = (width: string) => ( 
+    <button 
+      id="promptButton" 
+      className={`enhanced-add-button text-sidebar flex ${width} flex-shrink-0 select-none items-center gap-3
+      ${side === 'left' && messageIsStreaming ? "opacity-60 cursor-not-allowed" : ""}`}
+      disabled={side === 'left' && messageIsStreaming}
+      onClick={() => {
+        handleCreateItem();
+        handleSearchTerm('');
+      }}
+    >
+      <IconPlus size={16} className="enhanced-icon" />
+      <span className="sidebar-text">{addItemButtonTitle}</span>
+    </button>
+  );
 
 
   const addButtonForSide = (side: string) => {
@@ -77,54 +136,56 @@ const Sidebar = <T,>({
     const addAssistantButton = (
       <button
         id="addAssistantButton"
-        className="text-sidebar flex w-[205px] flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-gray-500/10"
+        className="enhanced-add-button flex w-[205px] flex-shrink-0 select-none items-center gap-3"
         onClick={() => {
           handleCreateAssistantItem();
           handleSearchTerm('');
         }}
       >
-        <IconPlus size={16} />
-        {"Assistant"}
+        <IconSparkles size={16} className="enhanced-icon text-purple-500" />
+        <span className="sidebar-text">{"Assistant"}</span>
       </button>
     );
 
     return addAssistantButton
-    
   }
 
   return (
-
-    <div className={`border-t dark:border-white/20 overflow-x-hidden h-full `}>
+    <div className={`border-t dark:border-white/20 overflow-x-hidden h-full`}>
       <div
-        className={`fixed top-0 ${side}-0 z-40 flex h-full w-[270px] flex-none flex-col space-y-2 bg-[#f3f3f3] dark:bg-[#202123] p-2 text-[14px] transition-all sm:relative sm:top-0 `}
+        className={`enhanced-sidebar fixed top-0 ${side}-0 z-40 flex h-full w-[270px] flex-none flex-col space-y-3 
+                   p-3 text-[14px] transition-all sm:relative sm:top-0 ${isAnimated ? 'slide-in' : ''}`}
       >
-        <div className="flex items-center">
+        <div className="flex items-center gap-2">
           {addButtonForSide(side)}
           <button
-            className="ml-2 flex flex-shrink-0 cursor-pointer items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 text-sm dark:text-white transition-colors duration-200 hover:bg-gray-500/10"
+            className="enhanced-folder-button"
             onClick={handleCreateFolder}
             id="createFolderButton"
             title="Create Folder"
           >
-            <IconFolderPlus size={16} />
+            <IconFolderPlus size={16} className="enhanced-icon" />
           </button>
         </div>
         {side === 'right' && addItemButton('')}
-        <Search
-          placeholder={t('Search...') || ''}
-          searchTerm={searchTerm}
-          onSearch={handleSearchTerm}
-        />
+        <div>
+          <SearchComponent
+            placeholder={t('Search...') || ''}
+            searchTerm={searchTerm}
+            onSearch={handleSearchTerm}
+          />
+        </div>
 
         <KebabMenu
-        label={side === 'left' ? "Conversations": "Prompts"} 
-        items={items}
-        handleSearchTerm={handleSearchTerm}
-        setFolderSort={setFolderSort}
+          label={side === 'left' ? "Conversations": "Prompts"} 
+          items={items}
+          handleSearchTerm={handleSearchTerm}
+          setFolderSort={setFolderSort}
         />
-        <div className="relative flex-grow overflow-y-auto w-[268px]">
+        
+        <div className="relative flex-grow overflow-y-auto w-[268px] enhanced-sidebar">
           {items?.length > 0 && (
-            <div className="flex border-b dark:border-white/20 pb-2">
+            <div className="flex border-b dark:border-white/20 pb-3 mb-2">
               {folderComponent}
             </div>
           )}
@@ -135,13 +196,14 @@ const Sidebar = <T,>({
               onDragOver={allowDrop}
               onDragEnter={highlightDrop}
               onDragLeave={removeHighlight}
+              className="fade-in"
             >
               {itemComponent}
             </div>
           ) : (
-            <div className="mt-8 select-none text-center dark:text-white opacity-50">
-              <IconMistOff className="mx-auto mb-3" />
-              <span className="text-[14px] leading-normal">
+            <div className="empty-state mt-8">
+              <IconMistOff className="empty-state-icon mx-auto mb-3" size={24} />
+              <span className="empty-state-text">
                 {t('No data.')}
               </span>
             </div>

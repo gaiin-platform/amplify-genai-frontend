@@ -25,7 +25,7 @@ import HomeContext from '@/pages/api/home/home.context';
 
 import React from 'react';
 import { baseAssistantFolder, isBaseFolder } from '@/utils/app/basePrompts';
-import ActionButton from '../ReusableComponents/ActionButton';
+import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { hideGroupFolder, saveFolders } from '@/utils/app/folders';
 import { Group, GroupAccessType } from '@/types/groups';
 import { folder } from 'jszip';
@@ -172,20 +172,20 @@ const Folder = ({
 
   return (
     <>
-        <div className="relative flex items-center"
+        <div className="relative flex items-center enhanced-folder"
             id="folderContainer"  
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
           {isRenaming ? (
-            <div className="flex w-full items-center gap-3 bg-neutral-200 dark:bg-[#343541]/90 p-3 rounded">
+            <div className="flex w-full items-center gap-3 bg-neutral-200 dark:bg-[#343541]/90 p-3 rounded-md">
               {isOpen ? (
-                <IconCaretDown className='flex flex-shrink-0' size={18} />
+                <IconCaretDown className='flex flex-shrink-0 text-blue-500 transition-transform duration-200' size={18} />
               ) : (
-                <IconCaretRight className='flex flex-shrink-0' size={18} />
+                <IconCaretRight className='flex flex-shrink-0 text-blue-500 transition-transform duration-200' size={18} />
               )}
               <input
-                className="mr-12 flex-1 overflow-hidden overflow-ellipsis border-neutral-400 bg-transparent text-left text-[12.5px] leading-3 dark:text-white outline-none focus:border-neutral-100"
+                className="mr-12 flex-1 overflow-hidden overflow-ellipsis border-b border-neutral-300 dark:border-neutral-600 bg-transparent text-left text-[13px] leading-5 dark:text-white outline-none focus:border-blue-500 px-1 py-0.5"
                 id="renameInput"
                 type="text"
                 value={renameValue}
@@ -196,7 +196,7 @@ const Folder = ({
             </div>
           ) : (
             <button
-              className={`flex w-full cursor-pointer items-center gap-3 rounded-lg p-3 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90`}
+              className={`enhanced-folder-title flex w-full cursor-pointer items-center gap-3 rounded-lg p-3 text-sm transition-all duration-200 ${isOpen ? 'enhanced-folder-open' : ''}`}
               id={"dropDown"}
               onClick={() => setIsOpen(!isOpen)}
               onDrop={(e) => dropHandler(e)}
@@ -205,22 +205,25 @@ const Folder = ({
               onDragLeave={removeHighlight}
               title={isOpen ? "Collapse folder" : "Expand folder"}
             >
-              {isOpen ? (
-                <IconCaretDown size={18} />
-              ) : (
-                <IconCaretRight size={18} />
-              )}
+              <div className="transition-transform duration-200 ease-in-out transform">
+                {isOpen ? (
+                  <IconCaretDown className={`flex flex-shrink-0 ${currentFolder.pinned ? 'text-blue-500' : ''}`} size={18} />
+                ) : (
+                  <IconCaretRight className={`flex flex-shrink-0 ${currentFolder.pinned ? 'text-blue-500' : ''}`} size={18} />
+                )}
+              </div>
 
               <div 
                 id={"dropName"}
-                className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
+                className="sidebar-text relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left font-medium">
+                {currentFolder.pinned && <span className="badge-blue mr-1.5 inline-block h-2 w-2 rounded-full"></span>}
                 {currentFolder.name}
               </div>
             </button>
           )}
 
           {(isDeleting || isRenaming) && (
-            <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
+            <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded-md shadow-sm overflow-hidden">
               <ActionButton
                 id = {"confirm"}
                 handleClick={(e) => {
@@ -235,6 +238,7 @@ const Folder = ({
                   setIsDeleting(false);
                   setIsRenaming(false);
                 }}
+                className="enhanced-action-button text-green-600 hover:bg-green-100 dark:hover:bg-green-900/20"
               >
                 <IconCheck size={18} />
               </ActionButton>
@@ -245,6 +249,7 @@ const Folder = ({
                   setIsDeleting(false);
                   setIsRenaming(false);
                 }}
+                className="enhanced-action-button text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20"
               >
                 <IconX size={18} />
               </ActionButton>
@@ -264,7 +269,7 @@ const Folder = ({
           )}
 
           {!isDeleting && !isRenaming && isHovered && !checkFolders && (
-            <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
+            <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded-md shadow-sm overflow-hidden fade-in">
               <ActionButton
                 handleClick={(e) => {
                   e.stopPropagation();
@@ -272,10 +277,11 @@ const Folder = ({
                 }}
                 title="Pin Folder To The Top"
                 id="pinButton"
+                className="enhanced-action-button hover:bg-blue-100 dark:hover:bg-blue-900/20"
               >
                 { currentFolder.pinned ?
                   <IconPinFilled className={"text-blue-500"} size={18} /> :
-                  <IconPin size={18} /> 
+                  <IconPin size={18} className="text-gray-500 dark:text-gray-400" /> 
                 }
               </ActionButton>
               {currentFolder.isGroupFolder && 
@@ -294,8 +300,9 @@ const Folder = ({
                     
                   }}
                   title="Open In Assistant Admin Interface"
+                  className="enhanced-action-button hover:bg-purple-100 dark:hover:bg-purple-900/20"
                 >
-                    <IconSettingsBolt size={18} /> 
+                    <IconSettingsBolt size={18} className="text-purple-500" /> 
                 </ActionButton>}
 
                 <ActionButton
@@ -305,8 +312,9 @@ const Folder = ({
                 }}
                 title="Hide Folder"
                 id="hideButton"
+                className="enhanced-action-button hover:bg-gray-200 dark:hover:bg-gray-700/50"
               >
-                  <IconEyeOff size={18} /> 
+                  <IconEyeOff size={18} className="text-gray-500 dark:text-gray-400" /> 
               </ActionButton>
               </>
               }
@@ -319,8 +327,9 @@ const Folder = ({
                 }}
                 title="Rename Folder"
                 id="renameButton"
+                className="enhanced-action-button hover:bg-green-100 dark:hover:bg-green-900/20"
               >
-                <IconPencil size={18} />
+                <IconPencil size={18} className="text-green-600 dark:text-green-400" />
               </ActionButton>
 
               <ActionButton
@@ -330,8 +339,9 @@ const Folder = ({
                 }}
                 title="Delete Folder"
                 id="deleteButton"
+                className="enhanced-action-button hover:bg-red-100 dark:hover:bg-red-900/20"
               >
-                <IconTrash size={18} />
+                <IconTrash size={18} className="text-red-500" />
               </ActionButton>
               </>}
             </div>

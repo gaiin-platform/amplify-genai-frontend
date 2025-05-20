@@ -10,7 +10,7 @@ import { ConversationComponent } from './Conversation';
 import ChatbarContext from "@/components/Chatbar/Chatbar.context";
 import {Conversation} from "@/types/chat";
 import { sortFoldersByDate, sortFoldersByName } from '@/utils/app/folders';
-import { IconCirclePlus, IconDotsVertical } from '@tabler/icons-react';
+import { IconCirclePlus, IconDotsVertical, IconCaretDown, IconCaretUp } from '@tabler/icons-react';
 import { baseAgentFolder } from '@/utils/app/basePrompts';
 
 interface Props {
@@ -137,42 +137,41 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
       <div>
        {displayFolders(recentOrPinnedFolders)}
 
-       <div className={`relative text-center ${isShowingAllFolders ? "border-y pb-3 mb-1" : "border-t"} border-gray-200 dark:border-white/20`}
+       <div className={`enhanced-archive-section relative text-center ${isShowingAllFolders ? "border-y pb-3 mb-2" : "border-t"} border-gray-200 dark:border-white/20`}
        title={"Folders older than 10 days are archived. Click the pin icon on any folder to move it to the top of the conversations list."}>
         <button
-          className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
+          className="enhanced-archive-toggle py-1.5 px-3 rounded-full text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition-all duration-200"
           onClick={() => setIsShowingAllFolders(!isShowingAllFolders)}
         >
-         
-          {<label className='text-xs cursor-pointer flex flex-row gap-2 items-center'
-                  style = {{transform: "translateY(4px)"}}> 
-            { `${isShowingAllFolders ?  "Hide" : "Show"} Archived Folders`}</label>}
+          <span className='text-xs cursor-pointer flex flex-row gap-2 items-center font-medium'> 
+            { `${isShowingAllFolders ?  "Hide" : "Show"} Archived Folders`}
+            {!isShowingAllFolders && <IconCaretDown size={12} className="text-blue-500" />}
+            {isShowingAllFolders && <IconCaretUp size={12} className="text-blue-500" />}
+          </span>
         </button>
 
         <div className='right-2 absolute top-1'>
         <button
-            className={`outline-none focus:outline-none p-0.5 ${isArchiveMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
+            className={`enhanced-action-button outline-none focus:outline-none p-1 rounded-md ${isArchiveMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
             onClick={(e) => {
                 e.stopPropagation();
                 setIsArchiveMenuOpen(!isArchiveMenuOpen);
             }}>
-            <IconDotsVertical size={20} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"/>
+            <IconDotsVertical size={16} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors duration-200"/>
         </button>
         {isArchiveMenuOpen && 
             <div ref={menuRef}
-                className="flex flex-col items-center gap-2 p-2 ml-[-400%] absolute bg-neutral-100 dark:bg-[#202123] text-neutral-900 rounded border border-neutral-200 dark:border-neutral-600 dark:text-white z-50"
-                style={{ top: '90%', pointerEvents: 'auto' }}>
-                 
-                  <label className="w-[102px] text-xs font-medium">Archive folders older than:</label>
+                className="fade-in flex flex-col items-center gap-2 p-3 ml-[-400%] absolute bg-white dark:bg-[#202123] text-neutral-900 rounded-md shadow-lg border border-neutral-200 dark:border-neutral-600 dark:text-white z-50"
+                style={{ top: '100%', pointerEvents: 'auto' }}>
+                  <label className="w-full text-xs font-semibold mb-1 text-blue-600 dark:text-blue-400">Archive folders older than:</label>
                   <div className="flex flex-row items-center gap-2 mb-1">
                     <select 
-                      className="bg-transparent border border-neutral-300 dark:border-neutral-600 rounded px-1"
+                      className="bg-transparent border border-neutral-300 dark:border-neutral-600 rounded-md px-2 py-1 focus:border-blue-500 focus:outline-none"
                       value={archiveConversationPastNumOfDays}
                       onChange={(e) => {
                         const days = parseInt(e.target.value);
                         setArchiveConversationPastNumOfDays(days);
                         saveArchiveNumOfDays(days);
-                      
                       }}
                     >
                       {[7, 14, 30, 60, 90].map((days) => (
@@ -183,7 +182,6 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
                   </div>
             </div>
         }
-
         </div>
        
        </div>
