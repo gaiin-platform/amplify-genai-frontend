@@ -58,11 +58,31 @@ export const ConversationComponent = ({ conversation}: Props) => {
     if (selectedConversation?.id === conversation.id) {
       // Wait a tick (or 100ms) to ensure the folder is open and DOM has updated
       const timeoutId = setTimeout(() => {
-        if (conversationRef.current && !isInViewport(conversationRef.current)) {
-          conversationRef.current.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center',
-          });
+        if (conversationRef.current && !isInViewport(conversationRef.current, 100)) {
+          // Find the sidebar container
+          const sidebarContainer = conversationRef.current.closest('.enhanced-sidebar');
+          if (sidebarContainer) {
+            // Instead of scrollIntoView which can be too aggressive, use scrollBy
+            // to scroll just enough to make the element visible
+            const rect = conversationRef.current.getBoundingClientRect();
+            const containerRect = sidebarContainer.getBoundingClientRect();
+            
+            // Calculate how much we need to scroll to make the element visible
+            // but without scrolling all the way to center it
+            if (rect.top < containerRect.top + 80) {
+              // Element is above the visible area or too close to top
+              sidebarContainer.scrollBy({
+                top: rect.top - containerRect.top - 80, // Leave space at the top
+                behavior: 'smooth'
+              });
+            } else if (rect.bottom > containerRect.bottom - 20) {
+              // Element is below the visible area or too close to bottom
+              sidebarContainer.scrollBy({
+                top: rect.bottom - containerRect.bottom + 20, // Leave space at the bottom
+                behavior: 'smooth'
+              });
+            }
+          }
         } 
       }, 150);
       return () => clearTimeout(timeoutId);
@@ -155,12 +175,25 @@ export const ConversationComponent = ({ conversation}: Props) => {
     }
   }
 
-  function isInViewport(el: HTMLElement) {
+  function isInViewport(el: HTMLElement, padding: number = 0) {
     const rect = el.getBoundingClientRect();
+    const sidebarContainer = el.closest('.enhanced-sidebar');
+    
+    if (sidebarContainer) {
+      // Check visibility within the sidebar container instead of the whole window
+      const containerRect = sidebarContainer.getBoundingClientRect();
+      return (
+        // Add padding to ensure element isn't just barely visible
+        rect.top >= containerRect.top + padding &&
+        rect.bottom <= containerRect.bottom - padding
+      );
+    }
+    
+    // Fallback to window viewport check if no container found
     return (
-      rect.top >= 0 &&
+      rect.top >= padding &&
       rect.left >= 0 &&
-      rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+      rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) - padding &&
       rect.right <= (window.innerWidth || document.documentElement.clientWidth)
     );
   }
