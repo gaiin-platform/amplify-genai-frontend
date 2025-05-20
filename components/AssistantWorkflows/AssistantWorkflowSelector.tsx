@@ -48,6 +48,7 @@ export const AssistantWorkflowSelector: React.FC<Props> = ({
                     disabled={workflowTemplates === null || workflowTemplates.length === 0 || disabled}
                     value={selectedTemplateId ?? ''}
                     title='Add Workflow Template to assistant'
+                    id="addWorkflowTemplate"
                     onChange={(event) => {
                         const templateId = event.target.value;
                         onTemplateChange(templateId);
@@ -68,7 +69,7 @@ export const AssistantWorkflowSelector: React.FC<Props> = ({
                 </select>
 
                 { allowWorkflowCreation && !disabled &&
-                    <button type="button" title='Add Workflow Template' style={{transform: "translateY(-3px)"}}
+                    <button type="button" id="addWorkflowButton" title='Add Workflow Template' style={{transform: "translateY(-3px)"}}
                         className="px-2 my-1 rounded-md border border-neutral-300 dark:border-white/20 transition-colors duration-200 cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10 "
                         onClick={() => setIsModalOpen(true)}
                         disabled={disabled}
