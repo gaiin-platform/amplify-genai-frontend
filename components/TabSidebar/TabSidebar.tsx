@@ -129,25 +129,55 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                 zIndex: '20 !important'
               }}>
             {isMultipleTabs && (
-                <div className="flex flex-row gap-1 px-2 pt-2 bg-neutral-100 dark:bg-[#202123]">
+                <div className="relative flex flex-row gap-1 px-3 pt-3 pb-0 bg-gradient-to-r from-neutral-100 to-neutral-50 dark:from-[#202123] dark:to-[#1c1c1e] overflow-hidden">
+                    {/* Animated gradient background */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-50/30 via-purple-50/20 to-pink-50/30 dark:from-blue-900/5 dark:via-purple-900/5 dark:to-pink-900/5 animate-gradient-x"></div>
+                    
                     {childrenArray.map((child, index) => (
                         <button
                             key={index}
                             id="tabSelection"
                             onClick={() => setActiveTab(index)}
                             title={child.props.title}
-                            className={`relative px-4 py-2.5 rounded-t transition-all duration-200 ${
+                            className={`group relative px-5 py-3 rounded-t transition-all duration-300 overflow-hidden ${
                             activeTab === index 
-                                ? 'bg-white dark:bg-[#2a2b32] text-black dark:text-white shadow-md z-10 translate-y-0' 
-                                : 'bg-neutral-200/70 dark:bg-[#27282f] text-gray-500 dark:text-gray-400 hover:bg-neutral-200 dark:hover:bg-[#2a2b32] translate-y-1'
+                                ? 'bg-white dark:bg-[#2d2d3a] text-blue-600 dark:text-blue-400 shadow-lg z-10 translate-y-0 scale-105 font-medium' 
+                                : 'bg-neutral-200/50 dark:bg-[#27282f]/70 text-gray-500 dark:text-gray-400 hover:bg-neutral-100 dark:hover:bg-[#2a2b32] hover:-translate-y-1 translate-y-1 backdrop-blur-sm'
                             }`}>
-                            {child.props.icon}
+                            {/* Tab highlight effect */}
+                            <span className={`absolute inset-0 ${activeTab === index ? 'opacity-100' : 'opacity-0 group-hover:opacity-30'} 
+                                transition-opacity duration-300 bg-gradient-to-br from-blue-100/50 to-indigo-200/30 
+                                dark:from-blue-800/20 dark:to-purple-900/10`}></span>
+                                
+                            {/* Tab bottom border glow */}
+                            <span className={`absolute bottom-0 left-0 right-0 h-0.5 ${
+                                activeTab === index ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]' : 'bg-transparent'
+                            }`}></span>
+                            
+                            {/* Icon wrapper with animations */}
+                            <span className={`relative flex items-center justify-center transition-transform duration-300 ${
+                                activeTab === index ? 'scale-110 transform' : 'group-hover:scale-105'
+                            }`}>
+                                {React.cloneElement(child.props.icon as React.ReactElement, {
+                                    className: `transition-all duration-300 ${
+                                        activeTab === index ? 'text-blue-500 filter drop-shadow-md' : 
+                                        'text-gray-500 dark:text-gray-400 group-hover:text-blue-500/70 dark:group-hover:text-blue-400/70'
+                                    }`
+                                })}
+                            </span>
                         </button>
                     ))}
                 </div>
             )}
-            <div className="overflow-auto bg-neutral-100 dark:bg-[#202123] p-0 m-0 flex-grow">
-                {childrenArray[activeTab].props.children}
+            <div className="relative overflow-hidden">
+                {/* Content fade-in effect */}
+                <div className="absolute inset-0 pointer-events-none opacity-10 dark:opacity-20 bg-gradient-to-b from-blue-100 to-transparent dark:from-blue-900/30 h-8"></div>
+                
+                <div className="overflow-auto bg-white dark:bg-[#202123] p-0 m-0 flex-grow transition-all duration-300 ease-in-out">
+                    <div className="animate-fade-in">
+                        {childrenArray[activeTab].props.children}
+                    </div>
+                </div>
             </div>
             <div className="w-full mt-auto p-2 bg-neutral-100 dark:bg-[#202123]">
                 {footerComponent}

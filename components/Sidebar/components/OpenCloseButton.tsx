@@ -13,14 +13,16 @@ export const CloseSidebarButton = ({ onClick, side, isDisabled}: Props) => {
       <button
         className={`fixed top-5 ${
           side === 'right' ? 'right-[280px]' : 'left-[280px]'
-        } z-50 h-7 w-7 hover:text-gray-400 dark:text-neutral-200 dark:hover:text-gray-300 sm:top-0.5 sm:${
+        } z-50 h-8 w-8 rounded-full bg-white dark:bg-[#343541] shadow-md dark:shadow-gray-900/50 text-blue-500
+        hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:text-blue-400
+        transition-all duration-300 ease-in-out sm:top-1 sm:${
           side === 'right' ? 'right-[280px]' : 'left-[280px]'
-        } sm:h-8 sm:w-8 sm:text-neutral-700`}
+        } transform hover:scale-110 hover:rotate-[360deg] hover:animate-glow`}
         onClick={onClick}
         title="Collapse Sidebar"
         id="collapseSidebar"
       >
-        {side === 'right' ? <IconArrowBarRight /> : <IconArrowBarLeft />}
+        {side === 'right' ? <IconArrowBarRight className="m-auto" /> : <IconArrowBarLeft className="m-auto" />}
       </button>
       <div
         onClick={onClick}
@@ -34,15 +36,25 @@ export const OpenSidebarButton = ({ onClick, side, isDisabled }: Props) => {
   return (
     <button
       className={`fixed top-2.5 ${
-        side === 'right' ? 'right-2' : 'left-2'
-      } z-50 h-7 w-7 text-white hover:text-gray-400 dark:text-neutral-200 dark:hover:text-gray-300 sm:top-0.5 sm:${
-        side === 'right' ? 'right-2' : 'left-2'
-      } sm:h-8 sm:w-8 sm:text-neutral-700`}
+        side === 'right' ? 'right-3' : 'left-3'
+      } z-50 h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 
+      text-white shadow-lg hover:shadow-blue-500/30 dark:hover:shadow-blue-500/50 
+      transition-all duration-300 sm:top-2 sm:${
+        side === 'right' ? 'right-3' : 'left-3'
+      } ${isDisabled ? 'opacity-0' : 'opacity-100 hover:scale-110 hover:rotate-[360deg]'}`}
       onClick={onClick}
       title="Expand Sidebar"
       disabled={isDisabled}
     > 
-      { !isDisabled && (side === 'right' ? <IconArrowBarLeft /> : <IconArrowBarRight />)}
+      <div className="absolute inset-0 rounded-full bg-blue-400/20 animate-pulse"></div>
+      { !isDisabled && (
+        <div className="flex items-center justify-center h-full w-full">
+          {side === 'right' ? 
+            <IconArrowBarLeft className="filter drop-shadow-md transform transition-transform duration-300" /> : 
+            <IconArrowBarRight className="filter drop-shadow-md transform transition-transform duration-300" />
+          }
+        </div>
+      )}
     </button>
   );
 };
