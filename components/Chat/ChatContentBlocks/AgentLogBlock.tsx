@@ -127,7 +127,7 @@ const getAgentLogItem = (msg: any) => {
               },
             }}
           >
-            {`\`\`\`python\n${msg.content.args.code}\n\`\`\``}
+            {`\`\`\`python\n${(msg && msg.content && msg.content.args && msg.content.args.code) ? msg.content.args.code : ""}\n\`\`\``}
           </MemoizedReactMarkdown>
         </div>
       </div>
