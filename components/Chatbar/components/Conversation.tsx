@@ -200,7 +200,7 @@ export const ConversationComponent = ({ conversation}: Props) => {
   
 
   return (
-    <div ref={conversationRef} className="relative flex items-center">
+    <div ref={conversationRef} className="relative flex items-center overflow-visible">
       {isRenaming && selectedConversation?.id === conversation.id ? (
         <div className="flex w-full items-center gap-3 rounded-md bg-neutral-200 dark:bg-[#343541]/90 p-3">
           {isLocalConversation(conversation) ? 
