@@ -136,10 +136,10 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
     });
 
     return (
-      <div>
-       {displayFolders(recentOrPinnedFolders)}
+      <div className="relative">
+       <div className="mb-2">{displayFolders(recentOrPinnedFolders)}</div>
 
-       <div className={`enhanced-archive-section relative text-center my-3 ${isShowingAllFolders ? "pb-4" : ""} after:content-[''] after:absolute after:left-0 after:right-0 after:h-[1px] after:bg-gradient-to-r after:from-transparent after:via-neutral-300 after:dark:via-neutral-600 after:to-transparent after:top-1/2 after:-translate-y-1/2 after:-z-10`}
+       <div className={`enhanced-archive-section sticky bottom-0 z-10 text-center py-3 bg-white dark:bg-[#202123] ${isShowingAllFolders ? "shadow-inner" : ""} after:content-[''] after:absolute after:left-0 after:right-0 after:h-[1px] after:bg-gradient-to-r after:from-transparent after:via-neutral-300 after:dark:via-neutral-600 after:to-transparent after:top-0 after:-z-10`}
        title={`Folders older than ${archiveConversationPastNumOfDays} days are archived. Click the pin icon on any folder to move it to the top of the conversations list.`}>
         <button
           className={`enhanced-archive-toggle relative py-1.5 px-5 rounded-full text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 ${isShowingAllFolders ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 ring-1 ring-blue-200 dark:ring-blue-700' : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700'} transition-all duration-300 shadow-sm group overflow-hidden`}
@@ -195,7 +195,7 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
        </div>
       
        {isShowingAllFolders && 
-        <div className="mt-2 pt-1 pb-1 px-1 rounded-lg bg-neutral-50 dark:bg-neutral-900/30">
+        <div className="mt-2 pt-1 pb-1 px-1 rounded-lg bg-neutral-50 dark:bg-neutral-900/30 max-h-[40vh] overflow-y-auto">
           {displayFolders(olderFolders, true)}
         </div>
        }
@@ -206,11 +206,12 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
   };
   
   return (
-    <div className="flex w-full flex-col">
-      {searchTerm ? displayFolders(folders.filter((folder:FolderInterface) => {
-                      return conversations.some((conversation) => conversation.folderId === folder.id)
-                    }))  : oragnizeFolders(folders) }
-
+    <div className="flex w-full flex-col relative">
+      <div className="overflow-y-auto" style={{ maxHeight: isShowingAllFolders ? 'calc(100vh - 240px)' : 'calc(100vh - 200px)' }}>
+        {searchTerm ? displayFolders(folders.filter((folder:FolderInterface) => {
+                        return conversations.some((conversation) => conversation.folderId === folder.id)
+                      }))  : oragnizeFolders(folders) }
+      </div>
 
         {/* Droppable Zone for setting folderId to null */}
       <div
