@@ -47,6 +47,7 @@ import {
     IconMessage,
     IconDeviceSdCard,
     IconLogout,
+    IconSparkles,
 } from "@tabler/icons-react";
 
 import { initialState } from './home.state';
@@ -1492,7 +1493,7 @@ const Home = ({
                                 }
                             >
                                 <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
-                                <Tab icon={<Icon3dCubeSphere />} title="Prompts & Assistants"><Promptbar /></Tab>
+                                <Tab icon={<IconSparkles />} title="Prompts & Assistants"><Promptbar /></Tab>
                                 {/* <Tab icon={<IconShare />} title="Share"><SharedItemsList /></Tab> */}
                             </TabSidebar>
 
