@@ -197,7 +197,7 @@ const SharedItemsList: FC<{}> = () => {
                             </div>
                             <h3 className="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-2">No shared items yet</h3>
                             <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
-                                When someone shares conversations or prompts with you, they'll appear here
+                                When someone shares conversations or prompts with you, they&apos;ll appear here
                             </p>
                         </div>
                     ) : (
