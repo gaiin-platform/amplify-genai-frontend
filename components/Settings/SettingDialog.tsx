@@ -222,26 +222,67 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
     }
   }
 
-  const modelLabel = (modelId: string, name: string) => {
+  const getModelIcon = (modelId: string) => {
+    if (modelId.includes('gpt') || modelId.includes('o1') || modelId.includes('o3')) return '🤖';
+    if (modelId.includes('claude') || modelId.includes('anthropic')) return '🧠';
+    if (modelId.includes('gemini')) return '💎';
+    if (modelId.includes('llama') || modelId.includes('meta')) return '🦙';
+    if (modelId.includes('mistral')) return '🌟';
+    if (modelId.includes('deepseek')) return '🔍';
+    if (modelId.includes('amazon') || modelId.includes('nova')) return '☁️';
+    return '⚡';
+  };
+
+  const getModelProvider = (modelId: string) => {
+    if (modelId.includes('gpt') || modelId.includes('o1') || modelId.includes('o3')) return 'OpenAI';
+    if (modelId.includes('claude') || modelId.includes('anthropic')) return 'Anthropic';
+    if (modelId.includes('gemini')) return 'Google';
+    if (modelId.includes('llama') || modelId.includes('meta')) return 'Meta';
+    if (modelId.includes('mistral')) return 'Mistral';
+    if (modelId.includes('deepseek')) return 'DeepSeek';
+    if (modelId.includes('amazon') || modelId.includes('nova')) return 'Amazon';
+    return 'Unknown';
+  };
+
+  const ModelCard = ({ modelId, name }: { modelId: string; name: string }) => {
     const isVisible = !hiddenModelIds.includes(modelId);
     const isDisabled = modelId === defaultModelId;
+    const provider = getModelProvider(modelId);
+    const icon = getModelIcon(modelId);
+    
     return (
-        <div key={modelId} className="text-sm">
-          <button
-              disabled={isDisabled}
-              title={isDisabled? "Default model can't be hidden": `${isVisible ? "Hide" : "Show"} model from selection menus`}
-              className={`settings-model-button ${isVisible || modelId === defaultModelId ? "visible" : ""}`}
-              onClick={() => {
-                if (isVisible) {
-                  setHiddenModelIds([...hiddenModelIds, modelId]);
-                } else {
-                  setHiddenModelIds(hiddenModelIds.filter((id: string) => id !== modelId));
-                }
-              }}
-          >
-            {name}
-          </button>
-        </div>
+      <div 
+        key={modelId} 
+        className={`model-card ${isVisible ? 'model-card-visible' : 'model-card-hidden'} ${isDisabled ? 'model-card-disabled' : ''}`}
+      >
+        <button
+          disabled={isDisabled}
+          title={isDisabled ? "Default model can't be hidden" : `${isVisible ? "Hide" : "Show"} model from selection menus`}
+          className="model-card-button"
+          onClick={() => {
+            if (isVisible) {
+              setHiddenModelIds([...hiddenModelIds, modelId]);
+            } else {
+              setHiddenModelIds(hiddenModelIds.filter((id: string) => id !== modelId));
+            }
+          }}
+        >
+          <div className="model-card-content">
+            <div className="model-card-header">
+              <span className="model-card-icon">{icon}</span>
+              <div className="model-card-status">
+                {isDisabled && <span className="model-card-badge model-card-badge-default">Default</span>}
+                {isVisible && !isDisabled && <span className="model-card-badge model-card-badge-visible">Visible</span>}
+                {!isVisible && !isDisabled && <span className="model-card-badge model-card-badge-hidden">Hidden</span>}
+              </div>
+            </div>
+            <div className="model-card-info">
+              <div className="model-card-name">{name}</div>
+              <div className="model-card-provider">{provider}</div>
+            </div>
+          </div>
+        </button>
+      </div>
     );
   };
 
@@ -288,12 +329,17 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
               <div className="settings-card">
                 <div className="settings-card-header">
                   <h3 className="settings-card-title">{t('Models')}</h3>
-                  <p className="settings-card-description">Select which models to display in selection menus</p>
+                  <p className="settings-card-description">Choose which models appear in selection menus. Click to toggle visibility.</p>
                 </div>
                 <div className="settings-card-content">
-                  <div className="settings-models-layout">
-                    <div className="settings-models-controls">
-                      <div className="settings-models-sidebar">
+                  <div className="settings-models-new-layout">
+                    {/* Quick Controls */}
+                    <div className="settings-models-quick-controls">
+                      <div className="settings-models-quick-controls-header">
+                        <h4 className="settings-models-quick-controls-title">Quick Controls</h4>
+                        <p className="settings-models-quick-controls-subtitle">Toggle entire provider groups</p>
+                      </div>
+                      <div className="settings-models-provider-toggles">
                         <FlagsMap
                             id={'modelOptionFlags'}
                             flags={modelOptionFlags
@@ -311,25 +357,45 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                       </div>
                     </div>
                     
-                    <div className="settings-models-grid">
-                      <div className="settings-models-grid-header">
-                        <span className="settings-models-grid-title">Available Models</span>
-                        <span className="settings-models-grid-subtitle">Selected models are shown in blue</span>
+                    {/* Models Grid */}
+                    <div className="settings-models-display">
+                      <div className="settings-models-display-header">
+                        <h4 className="settings-models-display-title">Available Models</h4>
+                        <div className="settings-models-legend">
+                          <div className="settings-models-legend-item">
+                            <div className="settings-models-legend-dot settings-models-legend-visible"></div>
+                            <span>Visible</span>
+                          </div>
+                          <div className="settings-models-legend-item">
+                            <div className="settings-models-legend-dot settings-models-legend-hidden"></div>
+                            <span>Hidden</span>
+                          </div>
+                          <div className="settings-models-legend-item">
+                            <div className="settings-models-legend-dot settings-models-legend-default"></div>
+                            <span>Default</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="settings-models-table-wrapper">
-                        <table className="settings-models-table">
-                          <tbody>
-                          {Object.entries(availableModels).map(([key, modelsArray], rowIndex) => (
-                              <tr key={rowIndex}>
-                                {modelsArray.map((m: { id: string; name: string }) => (
-                                    <td key={m.id}>
-                                      {modelLabel(m.id, m.name)}
-                                    </td>
+                      
+                      <div className="settings-models-providers">
+                        {Object.entries(availableModels).map(([key, modelsArray]) => {
+                          const flag = modelOptionFlags.find(f => f.key === key);
+                          if (!flag || modelsArray.length === 0) return null;
+                          
+                          return (
+                            <div key={key} className="settings-models-provider-section">
+                              <div className="settings-models-provider-header">
+                                <span className="settings-models-provider-name">{flag.label}</span>
+                                <span className="settings-models-provider-count">{modelsArray.length} models</span>
+                              </div>
+                              <div className="settings-models-cards-grid">
+                                {modelsArray.map((model: { id: string; name: string }) => (
+                                  <ModelCard key={model.id} modelId={model.id} name={model.name} />
                                 ))}
-                              </tr>
-                          ))}
-                          </tbody>
-                        </table>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
