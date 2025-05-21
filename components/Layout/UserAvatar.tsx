@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { signOut } from 'next-auth/react';
 import { IconLogout, IconUser, IconCreditCard } from '@tabler/icons-react';
 import { doMtdCostOp } from '@/services/mtdCostService';
+import ColorPaletteSelector from './ColorPaletteSelector';
 
 interface UserAvatarProps {
   email: string | null | undefined;
@@ -182,6 +183,8 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
               </div>
             </div>
           )}
+          
+          <ColorPaletteSelector />
           
           <div className="py-1">
             <button

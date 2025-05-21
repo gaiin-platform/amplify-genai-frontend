@@ -490,6 +490,65 @@
 }
 
 /* ===================================
+   Chat Message Color Palettes
+   =================================== */
+
+/* Chat Message Color Palettes */
+:root {
+  /* Default Light Mode Colors */
+  --chat-user-primary: 59, 130, 246;
+  --chat-user-secondary: 147, 197, 253;
+  --chat-assistant-primary: 16, 185, 129;
+  --chat-assistant-secondary: 167, 243, 208;
+  
+  /* Default Dark Mode Colors - Warm Browns */
+  --chat-user-primary-dark: 180, 83, 9;
+  --chat-user-secondary-dark: 146, 64, 14;
+  --chat-assistant-primary-dark: 202, 138, 4;
+  --chat-assistant-secondary-dark: 161, 98, 7;
+}
+
+/* Color Palette: Blue/Green (Default) */
+[data-chat-palette="blue-green"] {
+  --chat-user-primary-dark: 59, 130, 246;
+  --chat-user-secondary-dark: 30, 58, 138;
+  --chat-assistant-primary-dark: 16, 185, 129;
+  --chat-assistant-secondary-dark: 4, 120, 87;
+}
+
+/* Color Palette: Purple/Pink */
+[data-chat-palette="purple-pink"] {
+  --chat-user-primary-dark: 139, 92, 246;
+  --chat-user-secondary-dark: 124, 58, 237;
+  --chat-assistant-primary-dark: 236, 72, 153;
+  --chat-assistant-secondary-dark: 219, 39, 119;
+}
+
+/* Color Palette: Warm Browns (Default) */
+[data-chat-palette="warm-browns"] {
+  --chat-user-primary-dark: 180, 83, 9;
+  --chat-user-secondary-dark: 146, 64, 14;
+  --chat-assistant-primary-dark: 202, 138, 4;
+  --chat-assistant-secondary-dark: 161, 98, 7;
+}
+
+/* Color Palette: Cool Grays */
+[data-chat-palette="cool-grays"] {
+  --chat-user-primary-dark: 115, 115, 115;
+  --chat-user-secondary-dark: 82, 82, 82;
+  --chat-assistant-primary-dark: 156, 163, 175;
+  --chat-assistant-secondary-dark: 107, 114, 128;
+}
+
+/* Color Palette: Ocean Depths */
+[data-chat-palette="ocean-depths"] {
+  --chat-user-primary-dark: 6, 182, 212;
+  --chat-user-secondary-dark: 8, 145, 178;
+  --chat-assistant-primary-dark: 34, 197, 94;
+  --chat-assistant-secondary-dark: 21, 128, 61;
+}
+
+/* ===================================
    Enhanced Chat Avatar Styling 
    =================================== */
 
@@ -653,31 +712,31 @@
 /* User Message Styling */
 .enhanced-chat-message.user-message {
   background: linear-gradient(135deg, 
-    rgba(59, 130, 246, 0.03) 0%, 
-    rgba(147, 197, 253, 0.02) 100%);
-  border-left: 3px solid rgba(59, 130, 246, 0.3);
+    rgba(var(--chat-user-primary), 0.03) 0%, 
+    rgba(var(--chat-user-secondary), 0.02) 100%);
+  border-left: 3px solid rgba(var(--chat-user-primary), 0.3);
 }
 
 .dark .enhanced-chat-message.user-message {
   background: linear-gradient(135deg, 
-    rgba(180, 83, 9, 0.08) 0%, 
-    rgba(146, 64, 14, 0.05) 100%);
-  border-left: 3px solid rgba(180, 83, 9, 0.5);
+    rgba(var(--chat-user-primary-dark), 0.08) 0%, 
+    rgba(var(--chat-user-secondary-dark), 0.05) 100%);
+  border-left: 3px solid rgba(var(--chat-user-primary-dark), 0.5);
 }
 
 /* Assistant Message Styling */
 .enhanced-chat-message.assistant-message {
   background: linear-gradient(135deg, 
-    rgba(16, 185, 129, 0.03) 0%, 
-    rgba(167, 243, 208, 0.02) 100%);
-  border-left: 3px solid rgba(16, 185, 129, 0.3);
+    rgba(var(--chat-assistant-primary), 0.03) 0%, 
+    rgba(var(--chat-assistant-secondary), 0.02) 100%);
+  border-left: 3px solid rgba(var(--chat-assistant-primary), 0.3);
 }
 
 .dark .enhanced-chat-message.assistant-message {
   background: linear-gradient(135deg, 
-    rgba(202, 138, 4, 0.08) 0%, 
-    rgba(161, 98, 7, 0.05) 100%);
-  border-left: 3px solid rgba(202, 138, 4, 0.5);
+    rgba(var(--chat-assistant-primary-dark), 0.08) 0%, 
+    rgba(var(--chat-assistant-secondary-dark), 0.05) 100%);
+  border-left: 3px solid rgba(var(--chat-assistant-primary-dark), 0.5);
 }
 
 /* Action Result Message Styling */
@@ -773,4 +832,96 @@
 
 .enhanced-at-block.action-block:hover {
   box-shadow: 0 4px 8px rgba(245, 158, 11, 0.4);
+}
+
+/* ===================================
+   Color Palette Selector Styling 
+   =================================== */
+
+.color-palette-selector {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--sidebar-border-light);
+}
+
+.dark .color-palette-selector {
+  border-bottom: 1px solid var(--sidebar-border-dark);
+}
+
+.color-palette-title {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--sidebar-text-light);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dark .color-palette-title {
+  color: var(--sidebar-text-dark);
+}
+
+.color-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.color-palette-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 2px solid transparent;
+  background: transparent;
+}
+
+.color-palette-option:hover {
+  background: rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+}
+
+.dark .color-palette-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.color-palette-option.selected {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.5);
+  transform: scale(1.02);
+}
+
+.dark .color-palette-option.selected {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.7);
+}
+
+.color-palette-preview {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.color-palette-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.color-palette-name {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--sidebar-text-light);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.dark .color-palette-name {
+  color: var(--sidebar-text-dark);
 }
