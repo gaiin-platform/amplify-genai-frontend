@@ -13,7 +13,6 @@ import { SupportedExportFormats } from '@/types/export';
 import HomeContext from '@/pages/api/home/home.context';
 
 import { ChatFolders } from './components/ChatFolders';
-import { Conversations } from './components/Conversations';
 
 import ChatbarContext from './Chatbar.context';
 import { ChatbarInitialState, initialState } from './Chatbar.state';
@@ -201,10 +200,6 @@ export const Chatbar = () => {
     }
   }, [searchTerm, conversations]);
 
-  const conversationsWithNoFolders = () => {
-    return filteredConversations.filter((conversation) => !conversation.folderId || 
-             !foldersRef.current.find((f: FolderInterface) => f.id === conversation.folderId));
-  }
 
   return (
     <ChatbarContext.Provider
@@ -221,7 +216,7 @@ export const Chatbar = () => {
         side={'left'}
         isOpen={showChatbar}
         addItemButtonTitle={t('New Chat')}
-        itemComponent={<Conversations conversations={conversationsWithNoFolders()} />}
+        itemComponent={<></>}
         folderComponent={<ChatFolders sort={folderSort} searchTerm={searchTerm} conversations={filteredConversations} />}
         items={filteredConversations}
         searchTerm={searchTerm}

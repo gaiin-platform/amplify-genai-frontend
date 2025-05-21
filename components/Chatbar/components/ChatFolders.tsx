@@ -68,7 +68,7 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
       const conversation = JSON.parse(e.dataTransfer.getData('conversation'));
       handleUpdateConversation(conversation, {
         key: 'folderId',
-        value: folder ? folder.id : null,
+        value: folder && folder.id !== 'uncategorized' ? folder.id : null,
       });
     }
   };
@@ -89,7 +89,7 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
   };
 
   const displayFolders = (folders:FolderInterface[]) => {
-    return folders.filter((folder:FolderInterface) => folder.type === 'chat')
+    const folderComponents = folders.filter((folder:FolderInterface) => folder.type === 'chat')
                   .sort((a, b) => {
                     if (a.pinned && !b.pinned) {
                         return -1;
@@ -109,6 +109,44 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
                       folderComponent={renderFolderConversations(folder)}
                     />
                   ));
+
+    // Add uncategorized folder at the end if there are conversations without valid folders
+    const conversationsWithoutFolders = conversations.filter((conversation) => {
+      // No folder assigned
+      if (!conversation.folderId) return true;
+      
+      // Folder assigned but folder doesn't exist in current folder list
+      return !folders.find((f: FolderInterface) => f.id === conversation.folderId);
+    });
+
+    if (conversationsWithoutFolders.length > 0) {
+      const uncategorizedFolder: FolderInterface = {
+        id: 'uncategorized',
+        name: 'Uncategorized',
+        type: 'chat',
+        pinned: false
+      };
+
+      const renderUncategorizedConversations = () => {
+        return conversationsWithoutFolders.map((conversation, index) => (
+          <div key={index} id="chat" className="ml-5 gap-2 border-l pl-2">
+            <ConversationComponent conversation={conversation}/>
+          </div>
+        ));
+      };
+
+      folderComponents.push(
+        <Folder
+          key="uncategorized"
+          searchTerm={searchTerm}
+          currentFolder={uncategorizedFolder}
+          handleDrop={handleDrop}
+          folderComponent={renderUncategorizedConversations()}
+        />
+      );
+    }
+
+    return folderComponents;
   };
 
   // Compute folder lists for archive functionality
