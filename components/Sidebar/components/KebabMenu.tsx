@@ -479,9 +479,9 @@ interface Props {
                                          setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTags size={14} />} />}
                         
                         {isConvSide  &&  <KebabItem label="Clean" handleAction={() => { cleanEmptyConversations() }} icon={<IconTrashFilled size={14} />} title="Remove Empty Conversations" />}
-                        <KebabMenuItems label="Folders" xShift={175} minWidth={86}>
+                        <KebabMenuItems label="Folders">
 
-                            <KebabMenuItems label="Sort" xShift={160}>
+                            <KebabMenuItems label="Sort">
                                 <KebabItem label="Name" handleAction={() => {setFolderSort('name')}} icon={<IconAbc size={18}/>}  title="Sort Folders By Name"/>
                                 <KebabItem label="Date" handleAction={() => { setFolderSort('date') } } icon={<IconCalendar size={14}/>} title="Sort Folders By Date" />
                             </KebabMenuItems>
@@ -497,7 +497,7 @@ interface Props {
                             {!isConvSide && hasHiddenGroupFolders()  &&  <KebabItem label="Unhide" handleAction={() => { unHideHiddenGroupFolders() }} icon={<IconEye size={14} />} title="Unhide Hidden Group Folders" /> }
                             
                             {isConvSide && (
-                              <KebabMenuItems label="Archive" xShift={160}>
+                              <KebabMenuItems label="Archive">
                                 <KebabItem 
                                   label={isShowingAllFolders ? "Hide Older" : "Show Older"} 
                                   handleAction={() => {
