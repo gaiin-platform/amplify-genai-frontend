@@ -650,6 +650,7 @@ if __name__ == "__main__":
                           <button
                             onClick={onCancel}
                             className="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white"
+                            id="closeModal"
                             title="Close"
                           >
                             <span className="text-2xl leading-none">&times;</span>
@@ -659,7 +660,7 @@ if __name__ == "__main__":
                             <div className="w-1/3 border-r border-gray-300 dark:border-neutral-600 p-4 overflow-y-auto">
                                 <div className="flex justify-between items-center mb-2">
                                     <div className="text-sm font-bold">Functions</div>
-                                    <button onClick={handleNew} title="Add New Function" className="hover:text-blue-600">
+                                    <button onClick={handleNew} title="Add New Function" id="addNewFunction" className="hover:text-blue-600">
                                         <IconPlus size={18} />
                                     </button>
                                 </div>
@@ -673,6 +674,7 @@ if __name__ == "__main__":
                                             <div key={appName} className="mb-2">
                                                 <div
                                                     className="flex justify-between items-center cursor-pointer font-semibold px-2 py-1 bg-gray-200 dark:bg-neutral-700 rounded"
+                                                    id="expandApps"
                                                     onClick={() => setExpandedApps(prev => ({ ...prev, [appName]: !prev[appName] }))}
                                                 >
                                                     <span>{appName}</span>
@@ -958,6 +960,7 @@ Output only a markdown code block like this:
                                 </div>
                                 <input
                                     className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-[#40414F] dark:text-neutral-100"
+                                    id="functionNameInput"
                                     placeholder='Name of the function'
                                     value={name}
                                     onChange={(e) => {
@@ -982,6 +985,7 @@ Output only a markdown code block like this:
                                         <input
                                             type="text"
                                             placeholder="Add a tag..."
+                                            id="addTagInput"
                                             className="flex-grow rounded-lg border border-neutral-500 px-3 py-1 dark:bg-[#40414F] dark:text-neutral-100"
                                             value={newTagInput}
                                             onChange={(e) => setNewTagInput(e.target.value)}
@@ -998,6 +1002,7 @@ Output only a markdown code block like this:
                                         />
                                         <button
                                             className="text-gray-600 hover:text-black dark:hover:text-white"
+                                            id="addTagButton"
                                             onClick={() => {
                                                 if (newTagInput.trim() && !tags.includes(newTagInput.trim())) {
                                                     setTags([...tags, newTagInput.trim()]);
@@ -1035,6 +1040,7 @@ Output only a markdown code block like this:
                                         <input
                                             type="text"
                                             placeholder="Add a group..."
+                                            id="addGroupInput"
                                             className="flex-grow rounded-lg border border-neutral-500 px-3 py-1 dark:bg-[#40414F] dark:text-neutral-100"
                                             value={newGroupInput}
                                             onChange={(e) => setNewGroupInput(e.target.value)}
@@ -1051,6 +1057,7 @@ Output only a markdown code block like this:
                                         />
                                         <button
                                             className="text-gray-600 hover:text-black dark:hover:text-white"
+                                            id="addGroupButton"
                                             onClick={() => {
                                                 if (newGroupInput.trim() && !allowedGroups.includes(newGroupInput.trim())) {
                                                     setAllowedGroups([...allowedGroups, newGroupInput.trim()]);
@@ -1096,6 +1103,7 @@ Output only a markdown code block like this:
                                 <div className="mt-6 text-sm font-bold">Dependencies (requirements.txt)</div>
                                 <textarea
                                     className="w-full border rounded p-2 text-sm dark:bg-neutral-800 dark:text-white"
+                                    id="dependenciesInput"
                                     value={dependencies}
                                     onChange={(e) => {
                                         setDependencies(e.target.value);
@@ -1124,6 +1132,7 @@ Output only a markdown code block like this:
                                 />
                                 <button
                                   className="mt-2 px-3 py-2 border rounded text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                                  id="tryItButton"
                                   disabled={!selectedFnId}
                                   onClick={async () => {
                                       alert("Add a test case below to try out the function.")
@@ -1156,6 +1165,7 @@ Output only a markdown code block like this:
                                             <div className="flex flex-row">
                                             <button
                                                 className="text-gray-600 hover:text-red-600 dark:text-white dark:hover:text-red-400 ml-2"
+                                                id="removeEnvironmentVariable"
                                                 onClick={() => {
                                                     const newVars = envVars.filter((_, i) => i !== index);
                                                     setEnvVars(newVars);
@@ -1168,6 +1178,7 @@ Output only a markdown code block like this:
 
                                             <select
                                                 className="ml-2 border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                                id="selectVariable"
                                                 value={env.type}
                                                 onChange={(e) => {
                                                     const newVars = [...envVars];
@@ -1185,6 +1196,7 @@ Output only a markdown code block like this:
                                             </div>
                                             <input
                                                 className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                                id="keyInput"
                                                 placeholder="Key"
                                                 value={env.key}
                                                 onChange={(e) => {
@@ -1198,6 +1210,7 @@ Output only a markdown code block like this:
                                       <select
                                         className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
                                         value={env.value}
+                                        id="integrationsSelect"
                                         onChange={(e) => {
                                           const newVars = [...envVars];
                                           newVars[index].value = e.target.value;
@@ -1213,6 +1226,7 @@ Output only a markdown code block like this:
                                     ) : env.type === 'Amplify Variable' ? (
                                       <select
                                         className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                        id="amplifyVariableSelect"
                                         value={env.value}
                                         onChange={(e) => {
                                           const newVars = [...envVars];
@@ -1233,6 +1247,7 @@ Output only a markdown code block like this:
                                         type="password"
                                         className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
                                         placeholder="Secret value"
+                                        id="secretValueInput"
                                         value={env.value}
                                         onChange={(e) => {
                                           const newVars = [...envVars];
@@ -1246,6 +1261,7 @@ Output only a markdown code block like this:
                                         type="text"
                                         className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
                                         placeholder="Value"
+                                        id="valueInput"
                                         value={env.value}
                                         onChange={(e) => {
                                           const newVars = [...envVars];
@@ -1260,6 +1276,7 @@ Output only a markdown code block like this:
                                     ))}
                                     <button
                                         className="mt-1 text-sm text-blue-600 hover:underline"
+                                        id="addEnvironmentVariable"
                                         onClick={() => {
                                             setEnvVars([...envVars, { type: 'Variable', key: '', value: '' }]);
                                             setHasUnsavedChanges(true);
@@ -1273,12 +1290,14 @@ Output only a markdown code block like this:
                                     <input
                                         className="col-span-2 rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-[#40414F] dark:text-neutral-100"
                                         placeholder="Test case name"
+                                        id="testCaseNameInput"
                                         value={newTestCase.name}
                                         onChange={(e) => updateNewTestCase({ ...newTestCase, name: e.target.value })}
                                     />
                                     <textarea
                                         className="col-span-2 rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-[#40414F] dark:text-neutral-100"
                                         placeholder="Description"
+                                        id="testCaseDescriptionInput"
                                         rows={2}
                                         value={newTestCase.description}
                                         onChange={(e) => updateNewTestCase({ ...newTestCase, description: e.target.value })}
@@ -1286,6 +1305,7 @@ Output only a markdown code block like this:
                                     <textarea
                                         className="col-span-2 rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-[#40414F] dark:text-neutral-100 font-mono"
                                         placeholder="Input JSON"
+                                        id="testCaseJSONInput"
                                         rows={3}
                                         value={newTestCase.inputJson}
                                         onChange={(e) => updateNewTestCase({ ...newTestCase, inputJson: e.target.value })}
@@ -1295,6 +1315,7 @@ Output only a markdown code block like this:
                                         <label className="flex items-center gap-1">
                                             <input
                                                 type="radio"
+                                                id="exactCheck"
                                                 value="exact"
                                                 checked={newTestCase.matchType === 'exact'}
                                                 onChange={() => updateNewTestCase({ ...newTestCase, matchType: 'exact' })}
@@ -1305,6 +1326,7 @@ Output only a markdown code block like this:
                                             <input
                                                 type="radio"
                                                 value="llm"
+                                                id="llmCheck"
                                                 checked={newTestCase.matchType === 'llm'}
                                                 onChange={() => updateNewTestCase({ ...newTestCase, matchType: 'llm' })}
                                             />
@@ -1314,6 +1336,7 @@ Output only a markdown code block like this:
                                             <input
                                                 type="radio"
                                                 value="subset"
+                                                id="subsetCheck"
                                                 checked={newTestCase.matchType === 'subset'}
                                                 onChange={() => updateNewTestCase({ ...newTestCase, matchType: 'subset' })}
                                             />
@@ -1323,6 +1346,7 @@ Output only a markdown code block like this:
                                     <textarea
                                         className="col-span-2 rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-[#40414F] dark:text-neutral-100 font-mono"
                                         placeholder="Expected output (JSON or prompt text)"
+                                        id="expectedOutput"
                                         rows={3}
                                         value={newTestCase.expectedOutput}
                                         onChange={(e) => updateNewTestCase({ ...newTestCase, expectedOutput: e.target.value })}
@@ -1330,6 +1354,7 @@ Output only a markdown code block like this:
                                     <div className="col-span-2 flex flex-wrap gap-2">
                                         <button
                                             className="px-3 py-2 border rounded text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                                            id="addTestCase"
                                             onClick={() => {
                                                 setHasUnsavedChanges(true);
                                                 if (editingTestCaseIndex !== null) {
@@ -1375,6 +1400,7 @@ Output only a markdown code block like this:
                                         {editingTestCaseIndex !== null && (
                                             <button
                                                 className="px-3 py-2 border rounded text-sm text-red-600 hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                                                id="aiGenerateTestCase"
                                                 onClick={() => {
                                                     setEditingTestCaseIndex(null);
                                                     let inputJson = '';
@@ -1719,6 +1745,7 @@ Output only a markdown code block like this:
                                         <input
                                             type="text"
                                             className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                            id="pathInput"
                                             placeholder="e.g. cars/list"
                                             value={publishPath}
                                             onChange={(e) => setPublishPath(e.target.value)}
@@ -1730,6 +1757,7 @@ Output only a markdown code block like this:
                                         <input
                                             type="text"
                                             className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                            id="versionInput"
                                             value={publishVersion}
                                             onChange={(e) => setPublishVersion(e.target.value)}
                                         />
@@ -1738,6 +1766,7 @@ Output only a markdown code block like this:
                                     <div className="flex items-center gap-2">
                                         <input
                                             type="checkbox"
+                                            id="assistantAccessibleCheck"
                                             checked={assistantAccessible}
                                             onChange={(e) => setAssistantAccessible(e.target.checked)}
                                         />
@@ -1749,6 +1778,7 @@ Output only a markdown code block like this:
                                         <select
                                             className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white"
                                             value={access}
+                                            id="accessSelect"
                                             //@ts-ignore
                                             onChange={(e) => setAccess(e.target.value)}
                                             
@@ -1762,6 +1792,7 @@ Output only a markdown code block like this:
 
                                     <button
                                         className="mt-2 px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                                        id="publishFunctionButton"
                                         disabled={isPublishing}
                                         onClick={async () => {
                                             if (!selectedFnId || !publishPath) {
