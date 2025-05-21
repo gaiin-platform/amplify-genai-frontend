@@ -403,20 +403,20 @@ interface Props {
         <React.Fragment>
         <div className="flex items-center pb-1" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}>
           <div className="flex w-full items-center ml-1 text-black dark:text-neutral-200">
-            <span className="text-xs uppercase tracking-wide font-medium opacity-60">{label}</span>
+            <span className="sidebar-title text-xs uppercase tracking-wide opacity-60">{label}</span>
             { isSyncing && 
-                <label className="flex flex-row gap-1 text-xs ml-auto mr-1">
+                <label className="flex flex-row gap-1 text-xs ml-auto mr-1 sidebar-text">
                     <LoadingIcon style={{ width: "14px", height: "14px" }}/>
                     Syncing...
                 </label>}
           </div>
             {actionItem && checkIsActiveSide() && (
-                <div className="text-xs flex flex-row gap-1">
+                <div className="sidebar-text text-xs flex flex-row gap-1">
                     {`${actionItem.actionLabel}...`} 
-                    <div className="flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 rounded">
+                    <div className="flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 rounded-md overflow-hidden shadow-sm">
                          <button
                                 id="confirmItem" 
-                                className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100" 
+                                className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 p-1 transition-colors duration-200" 
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (checkedItemsRef.current.length > 0) {
@@ -428,19 +428,19 @@ interface Props {
                                 
                                 title={`${actionItem.name} Items`} 
                             >
-                                <IconCheck size={16} />
+                                <IconCheck size={16} className="enhanced-icon" />
                             </button>
                         
                         <button
                             id="cancelItem"
-                            className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 "
+                            className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 p-1 transition-colors duration-200"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 clear();
                             }}
                             title={"cancel"}
                         >
-                            <IconX size={16} />
+                            <IconX size={16} className="enhanced-icon" />
                         </button>
                     </div>
                 </div>
@@ -448,9 +448,10 @@ interface Props {
 
           <div className="relative inline-block text-left">
             { actionItem && checkIsActiveSide() ?
-                <div id="selectAllCheck" className={`z-10 p-0.5 ${ checkingItemType?.includes("Folder")? "": ""}`}>
+                <div id="selectAllCheck" className={`z-10 p-0.5 rounded-sm ${ checkingItemType?.includes("Folder")? "": ""}`}>
                     <input
                     type="checkbox"
+                    className="transition-all duration-200"
                     checked={allItemsChecked}
                     onChange={(e) => handleCheckAll(e.target.checked)}
                     />
@@ -458,17 +459,17 @@ interface Props {
                 <button
                     disabled={isSyncing}
                     id="promptHandler"
-                    className={`outline-none focus:outline-none p-0.5 ${isMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
+                    className={`outline-none focus:outline-none p-0.5 transition-all duration-200 rounded-md ${isMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
                     onClick={toggleDropdown}>
-                    <IconDotsVertical size={20} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"/>
+                    <IconDotsVertical size={20} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 enhanced-icon transition-transform duration-300"/>
                 </button>
             }
             
             {isMenuOpen && (
                 <div
                     ref={menuRef}
-                    className="ml-[-200%] absolute bg-neutral-100 dark:bg-[#202123] text-neutral-900 rounded border border-neutral-200 dark:border-neutral-600 dark:text-white z-50"
-                    style={{ top: '90%', pointerEvents: 'auto' }}>
+                    className="absolute bg-neutral-100 dark:bg-[#202123] text-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-600 dark:text-white z-50 shadow-md overflow-hidden"
+                    style={{ top: '95%', right: '0', pointerEvents: 'auto', width: '180px' }}>
                     <div>
                         <KebabActionItem label="Delete" type={label as CheckItemType} handleAction={()=>{isConvSide ? handleDeleteConversations() : handleDeletePrompts()}} 
                                          setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTrash size={14} />} />
@@ -554,14 +555,14 @@ interface Props {
         {isArchiveSettingsOpen && 
         <div className="fixed inset-0 bg-black bg-opacity-50 h-full w-full z-50">
           <div className="flex items-center justify-center min-h-screen">
-            <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px]">
+            <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px] transition-all duration-300">
               <div className="p-4">
-                <h3 className="text-lg font-medium mb-3 text-neutral-900 dark:text-white">Archive Settings</h3>
+                <h3 className="sidebar-title text-lg mb-3 text-neutral-900 dark:text-white">Archive Settings</h3>
                 <div className="mb-4">
-                  <label className="block text-sm font-semibold mb-2 text-neutral-700 dark:text-neutral-200">Hide folders older than:</label>
+                  <label className="block sidebar-text text-sm font-semibold mb-2 text-neutral-700 dark:text-neutral-200">Hide folders older than:</label>
                   <div className="flex flex-row items-center gap-2 w-full">
                     <select 
-                      className="flex-1 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                      className="sidebar-text flex-1 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-all duration-200"
                       value={archiveConversationPastNumOfDays}
                       onChange={(e) => {
                         const days = parseInt(e.target.value);
@@ -574,13 +575,13 @@ interface Props {
                       ))}
                     </select>
                   </div>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2">
+                  <p className="sidebar-text text-xs text-neutral-500 dark:text-neutral-400 mt-2">
                     Folders older than this threshold will be hidden by default. Pinned folders are always visible.
                   </p>
                 </div>
                 <div className="flex justify-end">
                   <button
-                    className="px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                    className="sidebar-text px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300 transition-all duration-200 hover:transform hover:translate-y-[-1px]"
                     onClick={() => {
                       setIsArchiveSettingsOpen(false);
                       // Dispatch event to update archive threshold in ChatFolders component
@@ -600,7 +601,7 @@ interface Props {
         {isTagsDialogVisible && 
         <div className="fixed inset-0 bg-black bg-opacity-50 h-full w-full">
             <div className="flex items-center justify-center min-h-screen">
-              <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px]"
+              <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px] transition-all duration-300"
               >
                 <div id="tagAddModal" className="p-2 h-[60px] overflow-y-auto">
                 <TagsList tags={tags} 
@@ -638,7 +639,7 @@ interface Props {
                   <button
                         type="button"
                         id="doneButton"
-                        className="w-full mb-1 px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                        className="sidebar-text w-full mb-1 px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300 transition-all duration-200 hover:transform hover:translate-y-[-1px]"
                         onClick={() => {setIsTagsDialogVisible(false);
                                         clear();
                                         if (tags.length > 0)  {

@@ -19,9 +19,9 @@ export const KebabItem: FC<ItemProps> = ({label, handleAction, icon, title=''}) 
         key={label}
         value={label}
         onClick={handleAction}
-        className={`w-full items-center gap-1 flex flex-row pr-1 pl-1 cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#343541]/90`}>
-        <div className="text-neutral-900 dark:text-neutral-100 flex-shrink-0">{icon} </div>
-         {label}
+        className={`w-full items-center gap-2 flex flex-row pr-2 pl-2 py-1.5 cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#343541]/90 transition-all duration-200`}>
+        <div className="text-neutral-900 dark:text-neutral-100 flex-shrink-0 enhanced-icon">{icon} </div>
+        <span className="sidebar-text">{label}</span>
       </button>
     </div>);
 }
@@ -69,16 +69,16 @@ export const KebabActionItem: FC<ActionProps> = ({label, type, handleAction, set
 
 
   return (
-    <div className="min-w-[72px] flex items-center gap-1 flex-row pr-1 pl-1 cursor-pointer border-b dark:border-white/20 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
+    <div className="border-b dark:border-white/20"
       title={`${label} ${type.includes('Folders') ? "Entire Folder" : type}`}>
-    
-      <div className="text-neutral-900 dark:text-neutral-100">{icon}</div>
       <button 
         id={label}
         key={label}
         value={label}
-        onClick={handleClick} >  
-        {label}  
+        onClick={handleClick}
+        className="w-full flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#343541]/90 transition-all duration-200">
+        <div className="text-neutral-900 dark:text-neutral-100 enhanced-icon">{icon}</div>
+        <span className="sidebar-text">{label}</span>  
       </button>
     </div>
   );
@@ -95,33 +95,37 @@ interface MenuItemsProps {
 }
 
 export const KebabMenuItems: FC<MenuItemsProps> = ({ label, xShift=220, minWidth=72, children}) => {
-  // const childrenArray = React.Children.toArray(children) as React.ReactElement<ItemProps | ActionProps | MenuItemsProps>[];
   const childrenArray = React.Children.toArray(children)
                              .filter(Boolean) as React.ReactElement<ItemProps | ActionProps | MenuItemsProps>[];
 
   const [isSubMenuVisible, setIsSubMenuVisible] = useState<boolean>(false);
-
-  const xShiftPercentage = `-${xShift}%`;
   
   return (
     <div
     id="subMenu"
-    className={`pr-1 pl-1 border-b dark:border-white/20 cursor-pointer dark:border-white/20 hover:bg-neutral-200 dark:hover:bg-[#343541]/90 flex w-full items-center `}
-      onMouseEnter={() => setIsSubMenuVisible(true)}
-      onMouseLeave={() => setIsSubMenuVisible(false)}
+    className="border-b dark:border-white/20 relative"
+    onMouseEnter={() => setIsSubMenuVisible(true)}
+    onMouseLeave={() => setIsSubMenuVisible(false)}
     >
-      {`< ${label}`}
+      <button
+        className="w-full flex items-center justify-between pr-2 pl-2 py-1.5 cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#343541]/90 transition-all duration-200"
+        onClick={() => setIsSubMenuVisible(!isSubMenuVisible)}
+      >
+        <span className="sidebar-text">{`< ${label}`}</span>
+        <span className="text-gray-500 dark:text-gray-400">›</span>
+      </button>
+      
       {isSubMenuVisible && (
         <div 
-          className={`relative`} 
-          style={{ display: isSubMenuVisible ? 'block' : 'none', top: `-11px`}}>
-          <div id="visibleSubMenu" className={`flex-grow absolute bg-neutral-100 dark:bg-[#202123] text-neutral-900 rounded border border-neutral-200 dark:border-neutral-600 dark:text-white z-50`}
-            style={{ transform: `translateX(${xShiftPercentage})`, minWidth: `${minWidth}px`}}>    
-            {childrenArray} 
+          className="absolute left-full top-0 z-[100]"
+          style={{ transform: 'translateX(1px)' }}
+        >
+          <div className="bg-neutral-100 dark:bg-[#202123] border border-neutral-200 dark:border-neutral-600 rounded-lg shadow-lg overflow-hidden"
+            style={{ minWidth: `${minWidth}px`, maxWidth: '200px' }}>
+            {childrenArray}
           </div>
         </div>
       )}
     </div>
   );
 };
-
