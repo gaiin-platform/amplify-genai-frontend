@@ -985,97 +985,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         >
                             {selectedConversation && selectedConversation.messages?.length === 0 && filteredModels ? (
                                 <>
-                                    {/* Chat Upper Menu for start conversation state */}
+                                    {/* Chat Upper Menu for start conversation state - UserAvatar only */}
                                     <div
                                        id="chatUpperMenu"
-                                       className="items-center sticky top-0 py-3 z-10 flex justify-center relative border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
+                                       className="items-center sticky top-0 py-3 z-10 flex justify-end relative border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
                                         
-                                        {/* Centered Content */}
-                                        <div className="flex items-center justify-center">
-                                            {/* MTD Cost moved to user avatar */}               
-                                             {/*  Removing Workspaces:    old   { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' }  */}
-                                             {/* Should be in sync with selectedModelId now:      old   selectedConversation?.model?.name || ''*/}
-                                            {` `}{selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                handleSettings();
-
-                                                if (!messageIsStreaming) handleScrollUp();
-                                                
-                                            }}
-                                            title="Chat Settings"
-                                            id="chatSettings"
-                                        >
-                                            <IconSettings size={18}/>
-                                        </button>
-                                        
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            disabled={messageIsStreaming}
-                                            onClick={onClearAll}
-                                            title="Clear Messages"
-                                            id="clearMessages"
-                                        >
-                                            <IconClearAll size={18}/>
-                                        </button>
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            disabled={messageIsStreaming}
-                                            onClick={() => setIsShareDialogVisible(true)}
-                                            title="Share"
-                                            id="shareChatUpper"
-                                        >
-                                            <IconShare size={18}/>
-                                        </button>
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            disabled={messageIsStreaming}
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                setIsDownloadDialogVisible(true)
-
-                                            }}
-                                            title="Download"
-                                            id="downloadUpper"
-                                        >
-                                            <IconDownload size={18}/>
-                                        </button>
-
-                                        {featureFlags.artifacts && 
-                                        <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
-                                        
-                                        {featureFlags.storeCloudConversations &&
-                                        <CloudStorage iconSize={18} />
-                                        }
-                                        {!isArtifactOpen  &&
-                                            <>
-                                            |
-                                            <button
-                                                className="ml-2 mr-2 cursor-pointer hover:opacity-50"
-                                                disabled={messageIsStreaming}
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    homeDispatch({field: 'page', value: 'home'});
-                                                }}
-                                                title="Data Sources"
-                                                id="dateSources"
-                                            >
-                                                <div className={`text-[0.9rem] flex flex-row items-center ${chat_button_blue_color}`}>
-                                                    <div><IconRocket size={18}/></div>
-                                                    <div className="ml-1">Data Sources </div>
-                                                </div>
-                                            </button> 
-                                            </>
-                                        }
-                                        </div>
-
-                                        {/* User Avatar - Positioned absolutely on the right */}
-                                        <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                                        {/* User Avatar - Positioned on the right */}
+                                        <div className="mr-4">
                                             <UserAvatar
                                                 email={userEmail}
                                                 name={session?.user?.name}
