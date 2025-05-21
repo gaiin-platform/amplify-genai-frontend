@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { signOut } from 'next-auth/react';
-import { IconLogout, IconUser, IconCreditCard } from '@tabler/icons-react';
+import { IconLogout, IconUser, IconCreditCard, IconSettings } from '@tabler/icons-react';
 import { doMtdCostOp } from '@/services/mtdCostService';
 import ColorPaletteSelector from './ColorPaletteSelector';
 
@@ -187,6 +187,16 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
           <ColorPaletteSelector />
           
           <div className="py-1">
+            <button
+              onClick={() => {
+                // TODO: Add settings functionality
+                console.log('Settings clicked');
+              }}
+              className="flex w-full items-center gap-3 px-4 py-2 cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#343541]/90 transition-all duration-200"
+            >
+              <IconSettings size={16} className="enhanced-icon text-neutral-700 dark:text-neutral-200" />
+              <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Settings</span>
+            </button>
             <button
               onClick={federatedSignOut}
               className="flex w-full items-center gap-3 px-4 py-2 cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#343541]/90 transition-all duration-200"
