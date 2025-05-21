@@ -49,7 +49,6 @@ interface Props {
     const [isTagsDialogVisible, setIsTagsDialogVisible] = useState<boolean>(false); 
     const [allItemsChecked, setAllItemsChecked] = useState<boolean>(false);
     const [isShowingAllFolders, setIsShowingAllFolders] = useState<boolean>(false);
-    const [isArchiveSettingsOpen, setIsArchiveSettingsOpen] = useState<boolean>(false);
 
     // Archive folder configuration functions
     const getArchiveNumOfDays = () => {
@@ -515,12 +514,36 @@ interface Props {
                                   icon={<IconArchive size={14} />} 
                                   title={`${isShowingAllFolders ? "Hide" : "Show"} folders older than ${archiveConversationPastNumOfDays} days`} 
                                 />
-                                <KebabItem 
-                                  label="Settings" 
-                                  handleAction={() => { setIsArchiveSettingsOpen(true); }} 
-                                  icon={<IconDotsVertical size={14} />} 
-                                  title="Configure archive settings" 
-                                />
+                                <div className="border-b dark:border-white/20 p-2">
+                                  <div className="w-full flex flex-col gap-1">
+                                    <div className="flex items-center justify-between">
+                                      <label className="sidebar-text text-xs text-gray-600 dark:text-gray-300">Hide folders older than:</label>
+                                    </div>
+                                    <div className="flex flex-row flex-wrap gap-1 mt-1">
+                                      {[7, 14, 30, 60, 90].map((days) => (
+                                        <button
+                                          key={days}
+                                          onClick={() => {
+                                            setArchiveConversationPastNumOfDays(days);
+                                            saveArchiveNumOfDays(days);
+                                            // Dispatch event to update archive threshold
+                                            window.dispatchEvent(new CustomEvent('updateArchiveThreshold', { 
+                                              detail: { threshold: days } 
+                                            }));
+                                          }}
+                                          className={`sidebar-text text-xs px-2 py-1 rounded-md transition-all duration-200 ${archiveConversationPastNumOfDays === days ? 
+                                            'bg-blue-500 dark:bg-blue-600 text-white' : 
+                                            'bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-600'}`}
+                                        >
+                                          {days} days
+                                        </button>
+                                      ))}
+                                    </div>
+                                    <p className="sidebar-text text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                      Pinned folders are always visible
+                                    </p>
+                                  </div>
+                                </div>
                               </KebabMenuItems>
                             )}
                         </KebabMenuItems>
@@ -552,51 +575,6 @@ interface Props {
         selectedFolders={actionItem ? checkedItemsRef.current : []}
         />)}
 
-        {isArchiveSettingsOpen && 
-        <div className="fixed inset-0 bg-black bg-opacity-50 h-full w-full z-50">
-          <div className="flex items-center justify-center min-h-screen">
-            <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px] transition-all duration-300">
-              <div className="p-4">
-                <h3 className="sidebar-title text-lg mb-3 text-neutral-900 dark:text-white">Archive Settings</h3>
-                <div className="mb-4">
-                  <label className="block sidebar-text text-sm font-semibold mb-2 text-neutral-700 dark:text-neutral-200">Hide folders older than:</label>
-                  <div className="flex flex-row items-center gap-2 w-full">
-                    <select 
-                      className="sidebar-text flex-1 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-all duration-200"
-                      value={archiveConversationPastNumOfDays}
-                      onChange={(e) => {
-                        const days = parseInt(e.target.value);
-                        setArchiveConversationPastNumOfDays(days);
-                        saveArchiveNumOfDays(days);
-                      }}
-                    >
-                      {[7, 14, 30, 60, 90].map((days) => (
-                        <option key={days} value={days}>{days} days</option>
-                      ))}
-                    </select>
-                  </div>
-                  <p className="sidebar-text text-xs text-neutral-500 dark:text-neutral-400 mt-2">
-                    Folders older than this threshold will be hidden by default. Pinned folders are always visible.
-                  </p>
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    className="sidebar-text px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300 transition-all duration-200 hover:transform hover:translate-y-[-1px]"
-                    onClick={() => {
-                      setIsArchiveSettingsOpen(false);
-                      // Dispatch event to update archive threshold in ChatFolders component
-                      window.dispatchEvent(new CustomEvent('updateArchiveThreshold', { 
-                        detail: { threshold: archiveConversationPastNumOfDays } 
-                      }));
-                    }}
-                  >
-                    Done
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>}
 
         {isTagsDialogVisible && 
         <div className="fixed inset-0 bg-black bg-opacity-50 h-full w-full">
