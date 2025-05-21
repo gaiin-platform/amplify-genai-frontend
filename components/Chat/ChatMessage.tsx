@@ -114,7 +114,7 @@ export const ChatMessage: FC<Props> = memo(({
     const assistantRecipient = (message.role === "user" && message.data && message.data.assistant) ?
         message.data.assistant : null;
 
-    const chat_icons_cn = "invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+    const chat_icons_cn = "enhanced-chat-icon-button"
 
     const toggleEditing = () => {
         setIsEditing(!isEditing);
@@ -242,12 +242,14 @@ export const ChatMessage: FC<Props> = memo(({
     const isActionResult = message.data && message.data.actionResult;
     const isAssistant = message.role === 'assistant';
 
-    let msgStyle = 'border-b border-t border-black/10 bg-white text-gray-800 dark:border-gray-900/50 dark:bg-[#343541] dark:text-gray-100';
+    let msgStyle = 'enhanced-chat-message';
     if(isActionResult){
-        msgStyle = 'bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100';
+        msgStyle += ' action-message';
     }
     else if(isAssistant){
-        msgStyle = 'bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100';
+        msgStyle += ' assistant-message';
+    } else {
+        msgStyle += ' user-message';
     }
 
     const enableTools = !isActionResult;
@@ -268,15 +270,15 @@ export const ChatMessage: FC<Props> = memo(({
             assistantRecipient.definition &&
             assistantRecipient.definition.name &&
             assistantRecipient.definition.assistantId) {
-            return (<span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
+            return (<span className="enhanced-at-block">
                                                         {"@" + assistantRecipient.definition.name + ":"}
                                                     </span>);
         } else if(!isActionResult) {
-            return (<span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
+            return (<span className="enhanced-at-block">
                                                         @Amplify:
                                                     </span>);
         } else {
-           return (<span className="bg-yellow-500 dark:bg-yellow-500 text-black rounded-xl py-1.5 pr-1 pl-1">
+           return (<span className="enhanced-at-block action-block">
                                                         {'\u2713 Action Completed:'}
                                                     </span>);
         }
@@ -349,12 +351,12 @@ export const ChatMessage: FC<Props> = memo(({
             )}
 
             <div
-                className="relative m-[30px] flex p-2 text-base md:gap-6 md:py-2">
-                <div className="ml-[45px] min-w-[40px] text-right font-bold">
+                className="enhanced-message-content relative flex text-base md:gap-6">
+                <div className="flex-shrink-0">
                     {getIcon()}
                 </div>
 
-                <div id="chatHover" className="max-w-none prose mt-[-2px] w-full dark:prose-invert mr-5">
+                <div id="chatHover" className="max-w-none prose w-full dark:prose-invert mr-5">
                     {message.role === 'user' ? (
                         <div className="flex flex-grow">
                             {isEditing ? (
@@ -397,7 +399,7 @@ export const ChatMessage: FC<Props> = memo(({
 
                             {!isEditing && (
                                 <div
-                                    className="px-3 md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col items-center md:items-start justify-end md:justify-start">
+                                    className="enhanced-chat-icons px-3 md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col items-center md:items-start justify-end md:justify-start">
                                     <div>
                                         {messagedCopied ? (
                                             <IconCheck
@@ -536,7 +538,7 @@ export const ChatMessage: FC<Props> = memo(({
                                 </div>
 
                                 { !isEditing && <div
-                                    className="px-3 md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">
+                                    className="enhanced-chat-icons px-3 md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">
                                     {messagedCopied ? (
                                         <IconCheck
                                             size={20}
