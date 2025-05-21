@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { signOut } from 'next-auth/react';
-import { IconLogout, IconUser } from '@tabler/icons-react';
+import { IconLogout, IconUser, IconCreditCard } from '@tabler/icons-react';
+import { doMtdCostOp } from '@/services/mtdCostService';
 
 interface UserAvatarProps {
   email: string | null | undefined;
   name?: string | null;
   cognitoDomain?: string;
   cognitoClientId?: string;
+  showMtdCost?: boolean;
 }
 
 const getInitials = (email: string | null | undefined): string => {
@@ -61,11 +63,13 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   email, 
   name,
   cognitoDomain,
-  cognitoClientId
+  cognitoClientId,
+  showMtdCost = true
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const [mtdCost, setMtdCost] = useState<string>('$0.00');
   
   const initials = getInitials(email);
   const backgroundColor = getAvatarColor(email);
@@ -89,6 +93,38 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     };
   }, []);
   
+  useEffect(() => {
+    if (showMtdCost && email) {
+      let isFetching = false;
+
+      const fetchMtdCost = async () => {
+        if (isFetching) return;
+
+        isFetching = true;
+
+        try {
+          const result = await doMtdCostOp(email || '');
+          if (result && "MTD Cost" in result && result["MTD Cost"] !== undefined) {
+            setMtdCost(`$${result["MTD Cost"].toFixed(2)}`);
+          } else {
+            setMtdCost('$0.00');
+          }
+        } catch (error) {
+          console.error("Error fetching MTD cost:", error);
+          setMtdCost('$0.00');
+        } finally {
+          isFetching = false;
+        }
+      };
+
+      fetchMtdCost();
+
+      return () => {
+        isFetching = false;
+      };
+    }
+  }, [email, showMtdCost]);
+  
   const federatedSignOut = async () => {
     await signOut();
     // Handle Cognito logout if needed
@@ -101,21 +137,22 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   };
   
   return (
-    <div className="relative">
+    <div className="relative flex items-center">
       <button
         ref={buttonRef}
-        className="flex items-center justify-center rounded-full focus:outline-none transition-transform duration-300 hover:scale-110"
+        className="flex items-center justify-center rounded-full focus:outline-none transition-all duration-300 hover:scale-110 hover:shadow-lg"
         onClick={() => setShowDropdown(!showDropdown)}
         title={displayName}
         style={{
           backgroundColor,
           width: '36px',
           height: '36px',
-          boxShadow: '0 3px 10px rgba(0, 0, 0, 0.2)',
-          border: '2px solid rgba(255, 255, 255, 0.7)',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1)',
+          border: '2px solid rgba(255, 255, 255, 0.8)',
+          transform: showDropdown ? 'scale(1.05)' : 'scale(1)',
         }}
       >
-        <span className="text-white font-semibold text-sm">
+        <span className="text-white font-semibold text-sm sidebar-text" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>
           {initials}
         </span>
       </button>
@@ -123,25 +160,36 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
       {showDropdown && (
         <div 
           ref={dropdownRef}
-          className="absolute right-0 mt-2 py-2 w-48 bg-white dark:bg-[#343541] rounded-md shadow-xl z-50 border border-gray-200 dark:border-gray-600 animate-fade-in"
+          className="absolute right-0 top-full mt-3 py-2 w-52 bg-white dark:bg-[#202123] rounded-lg z-50 border border-neutral-200 dark:border-neutral-600 fade-in"
           style={{
-            boxShadow: '0 12px 28px rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.1)',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
             transformOrigin: 'top right',
-            animation: 'fadeIn 0.2s ease-out'
           }}
         >
-          <div className="px-4 py-3 text-sm text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-600">
-            <div className="font-semibold truncate">{displayName}</div>
-            <div className="truncate text-gray-500 dark:text-gray-400 text-xs">{email}</div>
+          <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-600/50">
+            <div className="sidebar-title truncate text-neutral-800 dark:text-neutral-100 mb-0.5">{displayName}</div>
+            <div className="truncate text-neutral-500 dark:text-neutral-400 text-xs font-medium">{email}</div>
           </div>
+          
+          {showMtdCost && (
+            <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-600/50">
+              <div className="flex items-center gap-2 mb-1.5">
+                <IconCreditCard size={16} className="enhanced-icon text-blue-500" />
+                <div className="sidebar-text font-medium text-neutral-700 dark:text-neutral-300">Month-To-Date Cost</div>
+              </div>
+              <div className="text-lg font-bold text-blue-600 dark:text-blue-400 text-center transition-all duration-300 hover:scale-105" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                {mtdCost}
+              </div>
+            </div>
+          )}
           
           <div className="py-1">
             <button
               onClick={federatedSignOut}
-              className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+              className="flex w-full items-center gap-3 px-4 py-2 cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#343541]/90 transition-all duration-200"
             >
-              <IconLogout size={16} />
-              <span>Sign Out</span>
+              <IconLogout size={16} className="enhanced-icon text-neutral-700 dark:text-neutral-200" />
+              <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Sign Out</span>
             </button>
           </div>
         </div>

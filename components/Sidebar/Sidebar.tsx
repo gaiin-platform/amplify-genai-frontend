@@ -174,6 +174,7 @@ const Sidebar = <T,>({
               <UserAvatar
                 email={session?.user?.email}
                 name={session?.user?.name}
+                showMtdCost={true}
               />
             </div>
           )}

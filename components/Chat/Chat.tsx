@@ -1137,26 +1137,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     <div
                                        id="chatUpperMenu"
                                        className="items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
-                                        {featureFlags.mtdCost  && (
-                                            <>
-                                                <button
-                                                    className="ml-2 mr-2 cursor-pointer hover:opacity-50"
-                                                    disabled={messageIsStreaming}
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        setIsAccountDialogVisible(true);
-                                                    }}
-                                                    title="Month-To-Date Cost"
-                                                    id="month-to-date-cost"
-                                                >
-                                                    <div className={`text-[0.93rem] ${chat_button_blue_color}`}>
-                                                        <div className="ml-1">MTD Cost: {mtdCost}</div>
-                                                    </div>
-                                                </button>
-                                                |
-                                            </>
-                                        )}               
+                                        {/* MTD Cost moved to user avatar */}               
                                          {/*  Removing Workspaces:    old   { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' }  */}
                                          {/* Should be in sync with selectedModelId now:      old   selectedConversation?.model?.name || ''*/}
                                         {` `}{selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
