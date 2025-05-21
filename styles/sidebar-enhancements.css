@@ -2788,3 +2788,398 @@
     padding: 16px;
   }
 }
+
+/* ===================================
+   Beautiful Storage Dialog Styling
+   =================================== */
+
+.storage-dialog-container {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 100%;
+}
+
+/* Information Banner */
+.storage-info-banner {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.storage-info-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.storage-info-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.storage-info-text {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.9rem;
+  color: #374151;
+  margin: 0;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.storage-info-privacy {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin: 0;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+/* Storage Options Container */
+.storage-options-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+/* Storage Option Cards */
+.storage-option-card {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  padding: 24px;
+  backdrop-filter: blur(8px);
+  transition: all 0.3s ease;
+}
+
+.storage-option-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+/* Storage Option Header */
+.storage-option-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.storage-option-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.storage-option-icon-wrapper.local {
+  background: rgba(16, 185, 129, 0.1);
+  border: 2px solid rgba(16, 185, 129, 0.2);
+}
+
+.storage-option-icon-wrapper.cloud {
+  background: rgba(59, 130, 246, 0.1);
+  border: 2px solid rgba(59, 130, 246, 0.2);
+}
+
+.storage-option-icon {
+  color: #374151;
+  transition: color 0.2s ease;
+}
+
+.storage-option-icon-wrapper.local .storage-option-icon {
+  color: #059669;
+}
+
+.storage-option-icon-wrapper.cloud .storage-option-icon {
+  color: #2563eb;
+}
+
+.storage-option-title-section {
+  flex: 1;
+}
+
+.storage-option-title {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 4px 0;
+  letter-spacing: -0.02em;
+}
+
+.storage-option-subtitle {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: 0;
+  font-weight: 400;
+}
+
+/* Storage Choice Items */
+.storage-option-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.storage-choice {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+  border: 2px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.storage-choice:hover {
+  border-color: rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.7);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
+}
+
+.storage-choice-selected {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.05);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.1);
+}
+
+.storage-choice-selected:hover {
+  border-color: #2563eb;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.storage-choice-radio {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.storage-choice-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.storage-choice-title {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1f2937;
+  letter-spacing: -0.01em;
+}
+
+.storage-choice-description {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.8rem;
+  color: #6b7280;
+  line-height: 1.4;
+  font-weight: 400;
+}
+
+.storage-choice-indicator {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  transition: all 0.2s ease;
+}
+
+.storage-choice-selected .storage-choice-indicator {
+  border-color: #3b82f6;
+  background: #3b82f6;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 1);
+}
+
+/* Apply Changes Section */
+.storage-apply-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  background: rgba(34, 197, 94, 0.05);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.storage-apply-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 28px;
+  background: #22c55e;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.25);
+}
+
+.storage-apply-button:hover {
+  background: #16a34a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(34, 197, 94, 0.35);
+}
+
+.storage-apply-button:active {
+  transform: translateY(0);
+}
+
+.storage-apply-text {
+  font-weight: 600;
+}
+
+.storage-apply-indicator {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.storage-apply-description {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.85rem;
+  color: #059669;
+  margin: 0;
+  text-align: center;
+  font-weight: 500;
+}
+
+/* Dark Mode for Storage Dialog */
+.dark .storage-info-banner {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.dark .storage-info-text {
+  color: #e5e7eb;
+}
+
+.dark .storage-info-privacy {
+  color: #9ca3af;
+}
+
+.dark .storage-option-card {
+  background: rgba(31, 41, 55, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .storage-option-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.dark .storage-option-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .storage-option-icon-wrapper.local {
+  background: rgba(16, 185, 129, 0.15);
+  border: 2px solid rgba(16, 185, 129, 0.3);
+}
+
+.dark .storage-option-icon-wrapper.cloud {
+  background: rgba(59, 130, 246, 0.15);
+  border: 2px solid rgba(59, 130, 246, 0.3);
+}
+
+.dark .storage-option-title {
+  color: #f3f4f6;
+}
+
+.dark .storage-option-subtitle {
+  color: #9ca3af;
+}
+
+.dark .storage-choice {
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  background: rgba(31, 41, 55, 0.6);
+}
+
+.dark .storage-choice:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(31, 41, 55, 0.8);
+}
+
+.dark .storage-choice-selected {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.dark .storage-choice-title {
+  color: #f3f4f6;
+}
+
+.dark .storage-choice-description {
+  color: #9ca3af;
+}
+
+.dark .storage-choice-indicator {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(31, 41, 55, 0.8);
+}
+
+.dark .storage-apply-section {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.dark .storage-apply-description {
+  color: #10b981;
+}
+
+/* Responsive Design for Storage Dialog */
+@media (max-width: 768px) {
+  .storage-options-container {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .storage-option-card {
+    padding: 20px;
+  }
+  
+  .storage-option-header {
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
+  }
+  
+  .storage-choice {
+    padding: 14px;
+    gap: 12px;
+  }
+  
+  .storage-info-banner {
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
+  }
+}
