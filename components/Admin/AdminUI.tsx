@@ -454,233 +454,60 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         
     if (!open) return <></>;
 
-    return <Modal 
-    width={() => window.innerWidth - 100}
-    height={() => window.innerHeight * 0.95}
-    title={`Admin Interface${unsavedConfigs.size > 0 ? " * " : ""}`}
-    onCancel={() => {
-        if (unsavedConfigs.size === 0 || confirm("You have unsaved changes!\n\nYou will lose any unsaved data, would you still like to close the Admin Interface?"))  onClose();
-       
-    }} 
-    onSubmit={() => handleSave()
-    }
-    cancelLabel={"Close"}
-    submitLabel={"Save Changes"}
-    disableSubmit={unsavedConfigs.size === 0}
-    content={
-      <div className="text-black dark:text-white overflow-x-hidden">
-         <button
-            title={`Reload Admin Interface. ${unsavedConfigs.size > 0 ? "Any unsaved changes will be lost.": ""}`}
-            className={` fixed top-4 left-[205px] flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-2 dark:text-white transition-colors duration-200 cursor-pointer hover:bg-neutral-200  dark:hover:bg-gray-500/10`}
-            id="adminModalReloadButton"
-            onClick={() => {
-                setLoadData(true);
-                setUnsavedConfigs(new Set());
-            }}
-        >
-            <IconRefresh size={16}/>
-        </button>
-
-        { open &&
-         <ActiveTabs
-            width={() => window.innerWidth * 0.9}
-            tabs={[
-
-
-///////////////////////////////////////////////////////////////////////////////
-
-                // Configurations Tab
-
-            {label: tabTitle("Configurations"), 
-                title: unsavedConfigs.size > 0 ? " Contains Unsaved Changes  " : "",
-                content:
-                <ConfigurationsTab
-                    admins={admins}
-                    setAdmins={setAdmins}
-                    ampGroups={ampGroups}
-                    setAmpGroups={setAmpGroups}
-                    rateLimit={rateLimit}
-                    setRateLimit={setRateLimit}
-                    promptCostAlert={promptCostAlert}
-                    setPromptCostAlert={setPromptCostAlert}
-                    defaultConversationStorage={defaultConversationStorage}
-                    setDefaultConversationStorage={setDefaultConversationStorage}
-                    emailSupport={emailSupport}
-                    setEmailSupport={setEmailSupport}
-                    allEmails={allEmails}
-                    admin_text={admin_text}
-                    updateUnsavedConfigs={updateUnsavedConfigs}
-                />
-            },
-
-
-///////////////////////////////////////////////////////////////////////////////
-            // Supported Models
-
-            {label: tabTitle('Supported Models'),
-                content:
-                stillLoadingData ? loading :
-                <SupportedModelsTab
-                    availableModels={availableModels}
-                    setAvailableModels={setAvailableModels}
-                    defaultModels={defaultModels}
-                    setDefaultModels={setDefaultModels}
-                    ampGroups={ampGroups}
-                    isAvailableCheck={isAvailableCheck}
-                    updateUnsavedConfigs={updateUnsavedConfigs}
-                    featureFlags={features}
-                />
-            },
-///////////////////////////////////////////////////////////////////////////////
-            // Application Variables
-            { label: tabTitle('Application Variables'),
-                content : 
-                stillLoadingData ? loading :
-                <>
-                {titleLabel('Application Secrets')}
-                    { Object.keys(appSecrets).length > 0 && true ?
-                    <div className="mx-4">
-                        <InputsMap
-                        id = {AdminConfigTypes.APP_SECRETS}
-                        inputs={Object.keys(appSecrets).sort((a, b) => b.length - a.length)
-                                    .map((secret: string) => {return {label: secret, key: secret}})}
-                        state = {appSecrets}
-                        inputChanged = {(key:string, value:string) => {
-                            setAppSecrets({...appSecrets, [key]: value});
-                            updateUnsavedConfigs(AdminConfigTypes.APP_SECRETS);
-                        }}
-                        obscure={true}
-                        />    
-                    </div> : <>No Application Secrets Retrieved</>}
-                    
-                <br className="mt-4"></br>
-
-                {titleLabel('Application Environment Variables')}
-                { Object.keys(appSecrets).length > 0 ?
-                    <div className="mx-4">
-                        <InputsMap
-                        id = {AdminConfigTypes.APP_VARS}
-                        inputs={Object.keys(appVars)
-                                    .sort((a, b) => b.length - a.length)
-                                    .map((secret: string) => {return {label: secret, key: secret}})}
-                        state = {appVars}
-                        inputChanged = {(key:string, value:string) => {
-                            setAppVars({...appVars, [key]: value});
-                            updateUnsavedConfigs(AdminConfigTypes.APP_VARS);
-                        }}
-                        obscure={true}
-                        />      
-                    </div> : <>No Application Variables Retrieved</>}
-                </>
-            },
-
-///////////////////////////////////////////////////////////////////////////////
-            // OpenAi Endpoints
-            { label: tabTitle('OpenAi Endpoints'),
-                content : 
-                stillLoadingData ? loading :
-                <OpenAIEndpointsTab
-                    openAiEndpoints={openAiEndpoints}
-                    setOpenAiEndpoints={setOpenAiEndpoints}
-                    updateUnsavedConfigs={updateUnsavedConfigs}
-                />
-
-            },
-
-///////////////////////////////////////////////////////////////////////////////
-            // Feature Flags
-
-            {label: tabTitle('Feature Flags'),
-                content:
-                <FeatureFlagsTab
-                    features={features}
-                    setFeatures={setFeatures}
-                    ampGroups={ampGroups}
-                    allEmails={allEmails}
-                    admin_text={admin_text}
-                    updateUnsavedConfigs={updateUnsavedConfigs}
-                />
-            },
-///////////////////////////////////////////////////////////////////////////////
-
-            // Manage Feature Data Tab
-                    
-            {label: tabTitle("Feature Data"),
-             content:
-                <FeatureDataTab
-                    stillLoadingData={stillLoadingData}
-                    admins={admins}
-                    ampGroups={ampGroups}
-                    astGroups={astGroups}
-                    setAstGroups={setAstGroups}
-                    amplifyAstGroupId={amplifyAstGroupId}
-                    setAmplifyAstGroupId={setAmplifyAstGroupId}
-                    changedAstGroups={changedAstGroups}
-                    setChangedAstGroups={setChangedAstGroups}
-                    templates={templates}
-                    setTemplates={setTemplates}
-                    changedTemplates={changedTemplates}
-                    setChangedTemplates={setChangedTemplates}
-                    isAvailableCheck={isAvailableCheck}
-                    admin_text={admin_text}
-                    updateUnsavedConfigs={updateUnsavedConfigs}
-                />
-            },
-
-///////////////////////////////////////////////////////////////////////////////
-
-            // Ops
-
-            {label: tabTitle('Ops'),
-                content:
-                stillLoadingData ? loading :
-                <OpsTab
-                    ops={ops}
-                    setOps={setOps}
-                    admin_text={admin_text}
-                />
-                
-            },
-
-            // Embeddings Tab
-                    // currently this tab doesnt have changes to report, when it does change to 
-                    // tabTitle("Embeddings")
-            {label: 'Embeddings',
-                content: 
-                <EmbeddingsTab
-                    refresh={refresh}
-                    refreshingTypes={refreshingTypes}
-                    setRefreshingTypes={setRefreshingTypes}
-                />
-            },
-
-            ///////////////////////////////////////////////////////////////////////////////
-  
-            // Integrations Tab - only included if included in the feature flags list
-            ...(integrations ? 
-                [
-                {label: tabTitle("Integrations"),
-                    content:
-                    stillLoadingData ? loading :
-                    <IntegrationsTab
-                        integrations={integrations}
-                        setIntegrations={setIntegrations}
-                        integrationSecrets={integrationSecrets}
-                        setIntegrationSecrets={setIntegrationSecrets}
-                        updateUnsavedConfigs={updateUnsavedConfigs}
-                    />
-                }
-                ] : []),
-
-        ]
-        }
-        /> }
-
-      </div>
-
-    }
-  />
-    
+    return <AdminInterfaceWithTabs
+            admins={admins}
+            setAdmins={setAdmins}
+            ampGroups={ampGroups}
+            setAmpGroups={setAmpGroups}
+            rateLimit={rateLimit}
+            setRateLimit={setRateLimit}
+            promptCostAlert={promptCostAlert}
+            setPromptCostAlert={setPromptCostAlert}
+            defaultConversationStorage={defaultConversationStorage}
+            setDefaultConversationStorage={setDefaultConversationStorage}
+            emailSupport={emailSupport}
+            setEmailSupport={setEmailSupport}
+            allEmails={allEmails}
+            admin_text={admin_text}
+            updateUnsavedConfigs={updateUnsavedConfigs}
+            stillLoadingData={stillLoadingData}
+            availableModels={availableModels}
+            setAvailableModels={setAvailableModels}
+            defaultModels={defaultModels}
+            setDefaultModels={setDefaultModels}
+            isAvailableCheck={isAvailableCheck}
+            features={features}
+            setFeatures={setFeatures}
+            appSecrets={appSecrets}
+            setAppSecrets={setAppSecrets}
+            appVars={appVars}
+            setAppVars={setAppVars}
+            openAiEndpoints={openAiEndpoints}
+            setOpenAiEndpoints={setOpenAiEndpoints}
+            testEndpointsRef={testEndpointsRef}
+            refreshingTypes={refreshingTypes}
+            setRefreshingTypes={setRefreshingTypes}
+            refresh={refresh}
+            testEndpoints={callTestEndpoints}
+            ops={ops}
+            setOps={setOps}
+            astGroups={astGroups}
+            setAstGroups={setAstGroups}
+            changedAstGroups={changedAstGroups}
+            setChangedAstGroups={setChangedAstGroups}
+            amplifyAstGroupId={amplifyAstGroupId}
+            setAmplifyAstGroupId={setAmplifyAstGroupId}
+            templates={templates}
+            setTemplates={setTemplates}
+            changedTemplates={changedTemplates}
+            setChangedTemplates={setChangedTemplates}
+            integrations={integrations}
+            setIntegrations={setIntegrations}
+            integrationSecrets={integrationSecrets}
+            setIntegrationSecrets={setIntegrationSecrets}
+            unsavedConfigs={unsavedConfigs}
+            onClose={onClose}
+        />
 }
 
 
@@ -829,3 +656,295 @@ export interface EmailSupport {
     isActive: boolean;
     email: string;
 }
+
+// Beautiful Admin Interface with Tab System
+interface AdminInterfaceWithTabsProps {
+    admins: string[];
+    setAdmins: (a: string[]) => void;
+    ampGroups: Amplify_Groups;
+    setAmpGroups: (g: Amplify_Groups) => void;
+    rateLimit: {period: PeriodType, rate: string};
+    setRateLimit: (l: {period: PeriodType, rate: string}) => void;
+    promptCostAlert: PromptCostAlert;
+    setPromptCostAlert: (a: PromptCostAlert) => void;
+    defaultConversationStorage: ConversationStorage;
+    setDefaultConversationStorage: (s: ConversationStorage) => void;
+    emailSupport: EmailSupport;
+    setEmailSupport: (e: EmailSupport) => void;
+    allEmails: Array<string> | null;
+    admin_text: string;
+    updateUnsavedConfigs: (t: AdminConfigTypes) => void;
+    stillLoadingData: boolean;
+    availableModels: SupportedModelsConfig;
+    setAvailableModels: (m: SupportedModelsConfig) => void;
+    defaultModels: DefaultModelsConfig;
+    setDefaultModels: (m: DefaultModelsConfig) => void;
+    isAvailableCheck: any;
+    features: FeatureFlagConfig;
+    setFeatures: (f: FeatureFlagConfig) => void;
+    appSecrets: { [key: string]: string };
+    setAppSecrets: (s: { [key: string]: string }) => void;
+    appVars: { [key: string]: string };
+    setAppVars: (v: { [key: string]: string }) => void;
+    openAiEndpoints: OpenAIModelsConfig;
+    setOpenAiEndpoints: (e: OpenAIModelsConfig) => void;
+    testEndpointsRef: any;
+    refreshingTypes: AdminConfigTypes[];
+    setRefreshingTypes: (t: AdminConfigTypes[]) => void;
+    refresh: (type: AdminConfigTypes, click: () => void, loading: boolean, title?: string, top?: string) => JSX.Element;
+    testEndpoints: any;
+    ops: OpDef[];
+    setOps: (o: OpDef[]) => void;
+    astGroups: Ast_Group_Data[];
+    setAstGroups: (g: Ast_Group_Data[]) => void;
+    changedAstGroups: string[];
+    setChangedAstGroups: (g: string[]) => void;
+    amplifyAstGroupId: string;
+    setAmplifyAstGroupId: (id: string) => void;
+    templates: Pptx_TEMPLATES[];
+    setTemplates: (t: Pptx_TEMPLATES[]) => void;
+    changedTemplates: string[];
+    setChangedTemplates: (t: string[]) => void;
+    integrations: IntegrationsMap | null;
+    setIntegrations: (i: IntegrationsMap | null) => void;
+    integrationSecrets: IntegrationSecretsMap;
+    setIntegrationSecrets: (s: IntegrationSecretsMap) => void;
+    unsavedConfigs: Set<AdminConfigTypes>;
+    onClose: () => void;
+}
+
+export const AdminInterfaceWithTabs: FC<AdminInterfaceWithTabsProps> = (props) => {
+    const [activeTab, setActiveTab] = useState<string>('configurations');
+    
+    const tabs = [
+        {
+            id: 'configurations',
+            label: 'Configurations',
+            hasChanges: props.unsavedConfigs.size > 0
+        },
+        {
+            id: 'models',
+            label: 'Supported Models',
+            hasChanges: false
+        },
+        {
+            id: 'variables',
+            label: 'App Variables',
+            hasChanges: false
+        },
+        {
+            id: 'endpoints',
+            label: 'OpenAI Endpoints',
+            hasChanges: false
+        },
+        {
+            id: 'features',
+            label: 'Feature Flags',
+            hasChanges: false
+        },
+        {
+            id: 'integrations',
+            label: 'Integrations',
+            hasChanges: false
+        },
+        {
+            id: 'embeddings',
+            label: 'Embeddings',
+            hasChanges: false
+        },
+        {
+            id: 'ops',
+            label: 'Operations',
+            hasChanges: false
+        },
+        {
+            id: 'data',
+            label: 'Feature Data',
+            hasChanges: props.changedAstGroups.length > 0 || props.changedTemplates.length > 0
+        }
+    ];
+
+    const renderTabContent = () => {
+        switch (activeTab) {
+            case 'configurations':
+                return (
+                    <ConfigurationsTab
+                        admins={props.admins}
+                        setAdmins={props.setAdmins}
+                        ampGroups={props.ampGroups}
+                        setAmpGroups={props.setAmpGroups}
+                        rateLimit={props.rateLimit}
+                        setRateLimit={props.setRateLimit}
+                        promptCostAlert={props.promptCostAlert}
+                        setPromptCostAlert={props.setPromptCostAlert}
+                        defaultConversationStorage={props.defaultConversationStorage}
+                        setDefaultConversationStorage={props.setDefaultConversationStorage}
+                        emailSupport={props.emailSupport}
+                        setEmailSupport={props.setEmailSupport}
+                        allEmails={props.allEmails}
+                        admin_text={props.admin_text}
+                        updateUnsavedConfigs={props.updateUnsavedConfigs}
+                    />
+                );
+            case 'models':
+                return props.stillLoadingData ? loading : (
+                    <SupportedModelsTab
+                        availableModels={props.availableModels}
+                        setAvailableModels={props.setAvailableModels}
+                        defaultModels={props.defaultModels}
+                        setDefaultModels={props.setDefaultModels}
+                        ampGroups={props.ampGroups}
+                        isAvailableCheck={props.isAvailableCheck}
+                        updateUnsavedConfigs={props.updateUnsavedConfigs}
+                        featureFlags={props.features}
+                    />
+                );
+            case 'variables':
+                return props.stillLoadingData ? loading : (
+                    <div className="admin-configurations-content">
+                        <div className="admin-config-section">
+                            <div className="admin-config-header">Application Secrets</div>
+                            {Object.keys(props.appSecrets).length > 0 ? (
+                                <InputsMap
+                                    id={AdminConfigTypes.APP_SECRETS}
+                                    inputs={Object.keys(props.appSecrets).sort((a, b) => b.length - a.length)
+                                        .map((secret: string) => ({label: secret, key: secret}))}
+                                    state={props.appSecrets}
+                                    inputChanged={(key: string, value: string) => {
+                                        props.setAppSecrets({...props.appSecrets, [key]: value});
+                                        props.updateUnsavedConfigs(AdminConfigTypes.APP_SECRETS);
+                                    }}
+                                    obscure={true}
+                                />
+                            ) : <div>No Application Secrets Retrieved</div>}
+                        </div>
+
+                        <div className="admin-config-section">
+                            <div className="admin-config-header">Application Environment Variables</div>
+                            {Object.keys(props.appVars).length > 0 ? (
+                                <InputsMap
+                                    id={AdminConfigTypes.APP_VARS}
+                                    inputs={Object.keys(props.appVars)
+                                        .sort((a, b) => b.length - a.length)
+                                        .map((variable: string) => ({label: variable, key: variable}))}
+                                    state={props.appVars}
+                                    inputChanged={(key: string, value: string) => {
+                                        props.setAppVars({...props.appVars, [key]: value});
+                                        props.updateUnsavedConfigs(AdminConfigTypes.APP_VARS);
+                                    }}
+                                    obscure={true}
+                                />
+                            ) : <div>No Application Variables Retrieved</div>}
+                        </div>
+                    </div>
+                );
+            case 'endpoints':
+                return props.stillLoadingData ? loading : (
+                    <OpenAIEndpointsTab
+                        openAiEndpoints={props.openAiEndpoints}
+                        setOpenAiEndpoints={props.setOpenAiEndpoints}
+                        updateUnsavedConfigs={props.updateUnsavedConfigs}
+                    />
+                );
+            case 'features':
+                return props.stillLoadingData ? loading : (
+                    <FeatureFlagsTab
+                        features={props.features}
+                        setFeatures={props.setFeatures}
+                        ampGroups={props.ampGroups}
+                        allEmails={props.allEmails}
+                        admin_text={props.admin_text}
+                        updateUnsavedConfigs={props.updateUnsavedConfigs}
+                    />
+                );
+            case 'integrations':
+                return props.stillLoadingData ? loading : (
+                    props.integrations ? (
+                        <IntegrationsTab
+                            integrations={props.integrations}
+                            setIntegrations={props.setIntegrations}
+                            integrationSecrets={props.integrationSecrets}
+                            setIntegrationSecrets={props.setIntegrationSecrets}
+                            updateUnsavedConfigs={props.updateUnsavedConfigs}
+                        />
+                    ) : (
+                        <div>No integrations available</div>
+                    )
+                );
+            case 'embeddings':
+                return props.stillLoadingData ? loading : (
+                    <EmbeddingsTab
+                        refresh={props.refresh}
+                        refreshingTypes={props.refreshingTypes}
+                        setRefreshingTypes={props.setRefreshingTypes}
+                    />
+                );
+            case 'ops':
+                return props.stillLoadingData ? loading : (
+                    <OpsTab
+                        ops={props.ops}
+                        setOps={props.setOps}
+                        admin_text={props.admin_text}
+                    />
+                );
+            case 'data':
+                return (
+                    <FeatureDataTab
+                        stillLoadingData={props.stillLoadingData}
+                        admins={props.admins}
+                        ampGroups={props.ampGroups}
+                        astGroups={props.astGroups}
+                        setAstGroups={props.setAstGroups}
+                        amplifyAstGroupId={props.amplifyAstGroupId}
+                        setAmplifyAstGroupId={props.setAmplifyAstGroupId}
+                        changedAstGroups={props.changedAstGroups}
+                        setChangedAstGroups={props.setChangedAstGroups}
+                        templates={props.templates}
+                        setTemplates={props.setTemplates}
+                        changedTemplates={props.changedTemplates}
+                        setChangedTemplates={props.setChangedTemplates}
+                        isAvailableCheck={props.isAvailableCheck}
+                        admin_text={props.admin_text}
+                        updateUnsavedConfigs={props.updateUnsavedConfigs}
+                    />
+                );
+            default:
+                return <div>Tab content not found</div>;
+        }
+    };
+
+    return (
+        <Modal
+            width={() => window.innerWidth * 0.9}
+            height={() => window.innerHeight * 0.92}
+            title="Admin Interface"
+            showClose={true}
+            onCancel={props.onClose}
+            showCancel={false}
+            showSubmit={false}
+            content={
+                <div className="admin-interface-content">
+                    <div className="admin-tab-bar">
+                        <div className="admin-tab-pills">
+                            {tabs.map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`admin-tab-pill ${activeTab === tab.id ? 'active' : ''} ${tab.hasChanges ? 'has-changes' : ''}`}
+                                >
+                                    <span className="admin-tab-label">{tab.label}</span>
+                                    <div className="admin-tab-indicator"></div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="admin-scrollable-content">
+                        <div className="admin-content-area">
+                            {renderTabContent()}
+                        </div>
+                    </div>
+                </div>
+            }
+        />
+    );
+};

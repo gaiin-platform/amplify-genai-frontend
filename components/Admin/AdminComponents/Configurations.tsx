@@ -91,18 +91,19 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     }
         
 
-    return <> 
-            {titleLabel('Admins')}
-            <div className="ml-10 flex flex-col gap-6 mt-2">
+    return <div className="admin-configurations-content"> 
+            <div className="admin-config-section">
+                <div className="admin-config-header">Admins</div>
+                <div className="flex flex-col gap-6">
                     <div className="relative z-10 flex flex-row gap-2.5 h-0" style={{ transform: `translateX(160px)` }}>
                         {admins.length > 0 &&
-                        <button onClick={ () => setIsDeleting(true)} style={{ display: 'flex', cursor: 'pointer' }}
-                            className="flex flex-shrink-0 items-center justify-center p-2"
+                        <button onClick={ () => setIsDeleting(true)} 
+                            className="admin-action-btn admin-action-btn-danger"
                             id="removeAdminButton"
                             title={"Remove Admins"}
                             >
-                            <IconTrash className="mt-0.5" size={15}/>
-                            <span style={{marginLeft: '10px'}}>{"Remove Admins"}</span>
+                            <IconTrash size={15}/>
+                            Remove Admins
                         </button>}
 
                         {isDeleting && 
@@ -159,174 +160,182 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
 
             </div>
                 
-            <div className="ml-10 pr-5 ">
-            
-                {admins.length === 0 ? (
-                        <div className="ml-4">No admins to display</div>
+                <div className="admin-user-list">
+                    {admins.length === 0 ? (
+                        <div className="text-center text-gray-500 dark:text-gray-400 w-full py-4">No admins to display</div>
                     ) : (
-                        <div className="flex flex-wrap ">
-                        {admins
-                            .map((user, index) => (
-                            <div key={index} id={`adminEmail${index}`} className="border border-neutral-500 flex items-center">
-                                <div
-                                className="flex items-center"
-                                onMouseEnter={() => setHoveredUser(user)}
-                                onMouseLeave={() => setHoveredUser(null)}
-                                >
-                                <div className="min-w-[28px] flex items-center ml-2">
+                        admins.map((user, index) => (
+                            <div key={index} 
+                                 id={`adminEmail${index}`} 
+                                 className="admin-user-item"
+                                 onMouseEnter={() => setHoveredUser(user)}
+                                 onMouseLeave={() => setHoveredUser(null)}>
+                                
                                 {hoveredUser === user && !isDeleting && (
                                     <button
-                                    type="button"
-                                    id="deleteAdminUser"
-                                    className="p-0.5 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
-                                    onClick={() => handleUpdateAdmins(admins.filter((u: string) => u !== user))}
+                                        type="button"
+                                        id="deleteAdminUser"
+                                        className="admin-action-btn admin-action-btn-danger text-xs px-2 py-1"
+                                        onClick={() => handleUpdateAdmins(admins.filter((u: string) => u !== user))}
                                     >
-                                    <IconTrash size={16} />
+                                        <IconTrash size={12} />
                                     </button>
                                 )}
-                                    {isDeleting && (
-                                    <div className="ml-0.5">
-                                        <Checkbox
-                                            id={`${index}${AdminConfigTypes.ADMINS}`}
-                                            label=""
-                                            checked={deleteUsersList.includes(user)}
-                                            onChange={(isChecked: boolean) => {
-                                                if (isChecked) {
-                                                    setDeleteUsersList((prevList) => [...prevList, user]);
-                                        } else {
-                                            setDeleteUsersList((prevList) =>
-                                            prevList.filter((name) => name !== user)
-                                            );
-                                        }
-                                            }}
-                                        />
-                                    </div>
-                                    )}
-                                </div>
-                                <span className="truncate pr-8 py-2 mr-1">{user}</span>
-                            
-                                </div>
+                                
+                                {isDeleting && (
+                                    <Checkbox
+                                        id={`${index}${AdminConfigTypes.ADMINS}`}
+                                        label=""
+                                        checked={deleteUsersList.includes(user)}
+                                        onChange={(isChecked: boolean) => {
+                                            if (isChecked) {
+                                                setDeleteUsersList((prevList) => [...prevList, user]);
+                                            } else {
+                                                setDeleteUsersList((prevList) =>
+                                                    prevList.filter((name) => name !== user)
+                                                );
+                                            }
+                                        }}
+                                    />
+                                )}
+                                
+                                <span className="truncate">{user}</span>
                             </div>
-                            ))}
-                    </div>)}
-
+                        ))
+                    )}
+                </div>
             </div>
             
-            {titleLabel('Support Email')}
-            <div className="px-6 mr-4">
-            <Checkbox
-                id="supportEmail"
-                label="Activates various communication features, such as 'Send Feedback' options, allowing users to contact the system administrator or support team directly through the application."
-                checked={emailSupport.isActive}
-                onChange={(isChecked: boolean) => {
-                    handleUpdateEmailSupport({...emailSupport, isActive: isChecked});
-                }}
-            />
-            </div>
+            <div className="admin-config-section">
+                <div className="admin-config-header">Support Email</div>
+                <div className="flex flex-col gap-4">
+                    <Checkbox
+                        id="supportEmail"
+                        label="Activates various communication features, such as 'Send Feedback' options, allowing users to contact the system administrator or support team directly through the application."
+                        checked={emailSupport.isActive}
+                        onChange={(isChecked: boolean) => {
+                            handleUpdateEmailSupport({...emailSupport, isActive: isChecked});
+                        }}
+                    />
 
-            <div className={`mx-12 ${emailSupport.isActive ? "" :'opacity-30'}`}>
-                <InputsMap
-                    id = {`${AdminConfigTypes.EMAIL_SUPPORT}`}
-                    inputs={[ {label: 'Email', key: 'email', placeholder: 'Contact Email', disabled:!emailSupport.isActive} ]}
-                    state ={{email : emailSupport.email ?? ''}}
-                    inputChanged = {(key:string, value:string) => {
-                        handleUpdateEmailSupport({...emailSupport, [key]: value});
-                    }}
-                />
+                    <div className={`${emailSupport.isActive ? "" :'opacity-30'}`}>
+                        <InputsMap
+                            id = {`${AdminConfigTypes.EMAIL_SUPPORT}`}
+                            inputs={[ {label: 'Email', key: 'email', placeholder: 'Contact Email', disabled:!emailSupport.isActive} ]}
+                            state ={{email : emailSupport.email ?? ''}}
+                            inputChanged = {(key:string, value:string) => {
+                                handleUpdateEmailSupport({...emailSupport, [key]: value});
+                            }}
+                        />
+                    </div>
+                </div>
             </div>
        
-            <div className="flex flex-row gap-6">
-            {titleLabel('Chat Rate Limit')}
-                <span className="mt-4 h-[28px] flex flex-row gap-4">
-                <RateLimiter
-                    period={rateLimit.period}
-                    setPeriod={(p: PeriodType) => handleUpdateRateLimit({...rateLimit, period: p})}
-                    rate={rateLimit.rate ? String(rateLimit.rate) : '0'}
-                    setRate={(r: string) => handleUpdateRateLimit({...rateLimit, rate: r})}
-                /></span>
-            
+            <div className="admin-config-section">
+                <div className="admin-config-header">Chat Rate Limit</div>
+                <div className="flex flex-row gap-4">
+                    <RateLimiter
+                        period={rateLimit.period}
+                        setPeriod={(p: PeriodType) => handleUpdateRateLimit({...rateLimit, period: p})}
+                        rate={rateLimit.rate ? String(rateLimit.rate) : '0'}
+                        setRate={(r: string) => handleUpdateRateLimit({...rateLimit, rate: r})}
+                    />
+                </div>
             </div>
 
-            
-            <div className="flex flex-row gap-6">
-                {titleLabel('Default User Conversation Storage')}
-                {["future-local", "future-cloud"].map((storage) => (
-                 <label className="flex items-center mt-5" key={storage}>
-                    <input type="radio" name="conversationStorage"
-                    id="conversationStorageCheck"
-                    value={storage}
-                    checked={defaultConversationStorage === storage}
-                    onChange={(event) =>  handleUpdateDefaultConversationStorage(event.target.value as ConversationStorage)}
-                    className="form-radio cursor-pointer"
-                    />
-                    <span className="ml-2 text-neutral-700 dark:text-neutral-200">
-                        {capitalize(storage.split('-')[1])}
-                    </span>
-                </label>
-              ))}
+            <div className="admin-config-section">
+                <div className="admin-config-header">Default User Conversation Storage</div>
+                <div className="flex flex-row gap-6">
+                    {["future-local", "future-cloud"].map((storage) => (
+                     <label className="flex items-center cursor-pointer" key={storage}>
+                        <input type="radio" name="conversationStorage"
+                        id="conversationStorageCheck"
+                        value={storage}
+                        checked={defaultConversationStorage === storage}
+                        onChange={(event) =>  handleUpdateDefaultConversationStorage(event.target.value as ConversationStorage)}
+                        className="admin-enhanced-checkbox mr-3"
+                        />
+                        <span className="text-gray-700 dark:text-gray-300 font-medium">
+                            {capitalize(storage.split('-')[1])}
+                        </span>
+                    </label>
+                  ))}
+                </div>
             </div>
         
 
-            {titleLabel('Prompt Cost Alert')}
-            <div className="px-6 mr-6">
-            <Checkbox
-                id="promptCostAlert"
-                label="Alert the user when the cost of their prompt exceeds the set threshold"
-                checked={promptCostAlert.isActive}
-                onChange={(isChecked: boolean) => {
-                    handleUpdatePromptCostAlert({...promptCostAlert, isActive: isChecked});
-                }}
-            />
-            <div className={`ml-6 flex flex-col ${promptCostAlert.isActive ? "" :'opacity-30'}`}>
-                <div className="text-md w-full text-center">Alert Message</div>
-                <InfoBox 
-                    content={
-                    <span className="text-sm w-full text-center"> 
-                        To include dynamic values like the total cost or the number of prompts in the alert message, use placeholders in the following format: {"<placeholderName>"}.
-                        <br className="mt-1"></br>
-                            Optional Supported Tags:<br></br>
-                        <div className="flex justify-center text-start">
-                            &nbsp;&nbsp;&nbsp;&nbsp; * {"<totalCost>"}: Displays the calculated cost of sending the prompt.
-                            <br></br>
-                            &nbsp;&nbsp;&nbsp;&nbsp; * {"<prompts>"}: Displays the number of prompts needed to send their prompt.
-                        </div>
-                    </span>
-                    }
-                />
-                <textarea title="Parameter Description" className={`w-full ${admin_text}`}
-                placeholder={"Alert message to display when the users prompt will cost over the threshold"}
-                value={promptCostAlert.alertMessage} disabled={!promptCostAlert.isActive}
-                onChange={(e) => {
-                    handleUpdatePromptCostAlert({...promptCostAlert, alertMessage: e.target.value});
-                }}
-                rows={1} 
-                />
-                <div className="mt-2 flex flex-row gap-3">
-                Cost Threshold
-                <input type="number" disabled={!promptCostAlert.isActive}
-                        className="text-center w-[100px] dark:bg-[#40414F] bg-gray-200"
-                        id="costThresholdInput"
-                        min={0} step={.01} value={promptCostAlert.cost as number?? 0 }
-                        onChange={(e) => {
-                            const value = parseFloat(e.target.value);
-                            handleUpdatePromptCostAlert({...promptCostAlert, cost: value});
+            <div className="admin-config-section">
+                <div className="admin-config-header">Prompt Cost Alert</div>
+                <div className="flex flex-col gap-4">
+                    <Checkbox
+                        id="promptCostAlert"
+                        label="Alert the user when the cost of their prompt exceeds the set threshold"
+                        checked={promptCostAlert.isActive}
+                        onChange={(isChecked: boolean) => {
+                            handleUpdatePromptCostAlert({...promptCostAlert, isActive: isChecked});
                         }}
-                /> 
+                    />
+                    
+                    <div className={`flex flex-col gap-4 ${promptCostAlert.isActive ? "" :'opacity-30'}`}>
+                        <div className="text-lg font-semibold text-center text-gray-700 dark:text-gray-300">Alert Message</div>
+                        
+                        <InfoBox 
+                            content={
+                            <span className="text-sm text-center"> 
+                                To include dynamic values like the total cost or the number of prompts in the alert message, use placeholders in the following format: {"<placeholderName>"}.
+                                <br className="mt-1"></br>
+                                    Optional Supported Tags:<br></br>
+                                <div className="text-start mt-2">
+                                    &nbsp;&nbsp;&nbsp;&nbsp; * {"<totalCost>"}: Displays the calculated cost of sending the prompt.
+                                    <br></br>
+                                    &nbsp;&nbsp;&nbsp;&nbsp; * {"<prompts>"}: Displays the number of prompts needed to send their prompt.
+                                </div>
+                            </span>
+                            }
+                        />
+                        
+                        <textarea title="Parameter Description" 
+                        className="admin-enhanced-input w-full"
+                        placeholder="Alert message to display when the users prompt will cost over the threshold"
+                        value={promptCostAlert.alertMessage} 
+                        disabled={!promptCostAlert.isActive}
+                        onChange={(e) => {
+                            handleUpdatePromptCostAlert({...promptCostAlert, alertMessage: e.target.value});
+                        }}
+                        rows={3} 
+                        />
+                        
+                        <div className="flex flex-row items-center gap-3">
+                            <label className="text-gray-700 dark:text-gray-300 font-medium">Cost Threshold</label>
+                            <input type="number" 
+                                disabled={!promptCostAlert.isActive}
+                                className="admin-enhanced-input text-center w-[120px]"
+                                id="costThresholdInput"
+                                min={0} step={.01} 
+                                value={promptCostAlert.cost as number ?? 0}
+                                onChange={(e) => {
+                                    const value = parseFloat(e.target.value);
+                                    handleUpdatePromptCostAlert({...promptCostAlert, cost: value});
+                                }}
+                            /> 
+                        </div>
+                    </div>
                 </div>
             </div>
-            </div>
 
-            <div className="flex flex-row gap-3 mb-2 ">
-            {titleLabel('Amplify Groups')}
-            <button
-                title={isAddingAmpGroups ? "" : 'Add Amplify Group'}
-                disabled={isAddingAmpGroups !== null}
-                id="addAmplifyGroup"
-                className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingAmpGroups ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
-                onClick={() => setIsAddingAmpGroups(emptyAmplifyGroups(userEmail ?? 'unknown'))}
-            >
-                <IconPlus size={16}/>
-            </button>
+            <div className="admin-config-section">
+                <div className="admin-config-header">Amplify Groups</div>
+                <div className="flex flex-row gap-3 mb-4">
+                    <button
+                        title={isAddingAmpGroups ? "" : 'Add Amplify Group'}
+                        disabled={isAddingAmpGroups !== null}
+                        id="addAmplifyGroup"
+                        className="admin-action-btn"
+                        onClick={() => setIsAddingAmpGroups(emptyAmplifyGroups(userEmail ?? 'unknown'))}
+                    >
+                        <IconPlus size={16}/>
+                        Add Group
+                    </button>
 
             {isAddingAmpGroups && 
                 <UserAction
@@ -437,14 +446,13 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     title={'Manage Amplify Groups'} 
                     content={ 
                         <>
-                        <table className="mt-4 border-collapse w-full mr-10" id="groupTable">
+                        <table className="admin-enhanced-table mt-4 w-full" id="groupTable">
                             <thead>
-                            <tr className="bg-gray-200 dark:bg-[#373844] ">
+                            <tr>
                                 {['Group Name', 'Members', 'Membership by Amplify Groups', 'Created By'
                                 ].map((title, i) => (
                                 <th key={i}
                                     id={title}
-                                    className="px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
                                     style={{width: i === 0 || i === 3 ? "15%" 
                                             : "35%", 
                                     }}> 
@@ -461,7 +469,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                 <tr key={group.groupName}
                                     onMouseEnter={() => setHoveredAmpGroup(group.groupName)}
                                     onMouseLeave={() => setHoveredAmpGroup('')}>
-                                    <td className="border border-neutral-500 px-4 py-2 break-words max-w-[200px]" id="groupName">
+                                    <td className="px-4 py-2 break-words max-w-[200px]" id="groupName">
                                         {group.groupName}
                                     </td>
 
@@ -521,10 +529,10 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                     ) : (
                                         (group.includeFromOtherGroups !== undefined ?
                                         <button
-                                        className="ml-auto flex items-center px-2 text-blue-500 hover:text-blue-600 flex-shrink-0"
+                                        className="admin-action-btn text-sm px-2 py-1"
                                         onClick={() => setAddingMembersTo(group.groupName)}
                                         >
-                                        <IconPlus size={18} />
+                                        <IconPlus size={16} />
                                         {!(group.members && group.members.length > 0) && (
                                             <span>Add Members</span>
                                         )}
@@ -557,13 +565,13 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                         <button
                                             title={"Delete Amplify Group"}
                                             type="button"
-                                            className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
+                                            className="admin-action-btn admin-action-btn-danger text-xs px-2 py-1"
                                             onClick={() => {
                                                 const { [group.groupName]: _, ...remainingGroups } = ampGroups;
                                                 handleUpdateAmpGroups(remainingGroups);
                                             }}
                                             >
-                                            <IconTrash size={20} />
+                                            <IconTrash size={16} />
                                         </button>
                                         
                                         : null}
@@ -581,9 +589,9 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     :
                     <>No Amplify Groups listed. </>
                 }
+            </div>
         </div>
-                
-    </>
+    </div>
 
 }
 

@@ -3650,6 +3650,664 @@
 }
 
 /* ===================================
+   Beautiful Admin Configurations Interface
+   =================================== */
+
+/* Admin Configurations Content Area */
+.admin-configurations-content {
+  position: relative;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.02) 0%, 
+    rgba(255, 255, 255, 0.05) 50%, 
+    rgba(255, 255, 255, 0.02) 100%);
+  padding: 0;
+  margin: 0;
+}
+
+/* Animated background elements */
+.admin-configurations-content::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 25% 25%, rgba(59, 130, 246, 0.03) 0%, transparent 50%),
+              radial-gradient(circle at 75% 75%, rgba(147, 51, 234, 0.02) 0%, transparent 50%);
+  animation: gentleRotate 25s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes gentleRotate {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.1); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+/* Admin Section Cards */
+.admin-config-section {
+  position: relative;
+  z-index: 2;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.8) 0%, 
+    rgba(255, 255, 255, 0.6) 100%);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  animation: slideInFromLeft 0.6s ease-out;
+  animation-fill-mode: both;
+}
+
+.admin-config-section:nth-child(1) { animation-delay: 0.1s; }
+.admin-config-section:nth-child(2) { animation-delay: 0.2s; }
+.admin-config-section:nth-child(3) { animation-delay: 0.3s; }
+.admin-config-section:nth-child(4) { animation-delay: 0.4s; }
+.admin-config-section:nth-child(5) { animation-delay: 0.5s; }
+.admin-config-section:nth-child(6) { animation-delay: 0.6s; }
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.admin-config-section:hover {
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.95) 0%, 
+    rgba(255, 255, 255, 0.8) 100%);
+  border-color: rgba(59, 130, 246, 0.3);
+  transform: translateY(-3px);
+  box-shadow: 
+    0 16px 40px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(59, 130, 246, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+/* Dark Mode Admin Sections */
+.dark .admin-config-section {
+  background: linear-gradient(135deg, 
+    rgba(31, 41, 55, 0.8) 0%, 
+    rgba(31, 41, 55, 0.6) 100%);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.dark .admin-config-section:hover {
+  background: linear-gradient(135deg, 
+    rgba(31, 41, 55, 0.95) 0%, 
+    rgba(31, 41, 55, 0.8) 100%);
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: 
+    0 16px 40px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(59, 130, 246, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* Enhanced Section Headers */
+.admin-config-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 700;
+  font-size: 1.25rem;
+  background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 20px;
+  letter-spacing: -0.02em;
+  position: relative;
+}
+
+.admin-config-header::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 24px;
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  border-radius: 2px;
+}
+
+.dark .admin-config-header {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Enhanced Form Elements */
+.admin-enhanced-input {
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.9) 0%, 
+    rgba(255, 255, 255, 0.7) 100%);
+  backdrop-filter: blur(15px);
+  border: 2px solid rgba(59, 130, 246, 0.2);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.95rem;
+  color: #1f2937;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.admin-enhanced-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.95) 0%, 
+    rgba(255, 255, 255, 0.85) 100%);
+  box-shadow: 
+    0 8px 24px rgba(59, 130, 246, 0.15),
+    0 0 0 4px rgba(59, 130, 246, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  transform: translateY(-1px);
+}
+
+.dark .admin-enhanced-input {
+  background: linear-gradient(135deg, 
+    rgba(31, 41, 55, 0.9) 0%, 
+    rgba(31, 41, 55, 0.7) 100%);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #f3f4f6;
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.dark .admin-enhanced-input:focus {
+  background: linear-gradient(135deg, 
+    rgba(31, 41, 55, 0.95) 0%, 
+    rgba(31, 41, 55, 0.85) 100%);
+  border-color: #3b82f6;
+  box-shadow: 
+    0 8px 24px rgba(59, 130, 246, 0.25),
+    0 0 0 4px rgba(59, 130, 246, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* Enhanced Admin Action Buttons */
+.admin-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  box-shadow: 
+    0 4px 16px rgba(59, 130, 246, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  cursor: pointer;
+}
+
+.admin-action-btn:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 24px rgba(59, 130, 246, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.admin-action-btn-secondary {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+  box-shadow: 
+    0 4px 16px rgba(107, 114, 128, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.admin-action-btn-secondary:hover {
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+  box-shadow: 
+    0 8px 24px rgba(107, 114, 128, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.admin-action-btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  box-shadow: 
+    0 4px 16px rgba(239, 68, 68, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.admin-action-btn-danger:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  box-shadow: 
+    0 8px 24px rgba(239, 68, 68, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* Enhanced Email/User Lists */
+.admin-user-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px;
+  background: linear-gradient(135deg, 
+    rgba(248, 250, 252, 0.8) 0%, 
+    rgba(241, 245, 249, 0.6) 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  min-height: 60px;
+}
+
+.admin-user-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+  color: #374151;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.admin-user-item:hover {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-color: rgba(59, 130, 246, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.dark .admin-user-list {
+  background: linear-gradient(135deg, 
+    rgba(31, 41, 55, 0.8) 0%, 
+    rgba(17, 24, 39, 0.6) 100%);
+  border-color: rgba(75, 85, 99, 0.8);
+}
+
+.dark .admin-user-item {
+  background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+  border-color: rgba(75, 85, 99, 0.8);
+  color: #f3f4f6;
+}
+
+.dark .admin-user-item:hover {
+  background: linear-gradient(135deg, #4b5563 0%, #6b7280 100%);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+/* Enhanced Tables */
+.admin-enhanced-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.9) 0%, 
+    rgba(255, 255, 255, 0.7) 100%);
+  backdrop-filter: blur(15px);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.admin-enhanced-table thead th {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  color: #374151;
+  padding: 16px 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: -0.01em;
+  text-align: left;
+  border-bottom: 2px solid rgba(226, 232, 240, 0.8);
+}
+
+.admin-enhanced-table tbody td {
+  padding: 12px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.4);
+  vertical-align: top;
+}
+
+.admin-enhanced-table tbody tr:hover {
+  background: linear-gradient(135deg, 
+    rgba(59, 130, 246, 0.05) 0%, 
+    rgba(147, 51, 234, 0.03) 100%);
+}
+
+.dark .admin-enhanced-table {
+  background: linear-gradient(135deg, 
+    rgba(31, 41, 55, 0.9) 0%, 
+    rgba(31, 41, 55, 0.7) 100%);
+}
+
+.dark .admin-enhanced-table thead th {
+  background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+  color: #f3f4f6;
+  border-bottom-color: rgba(75, 85, 99, 0.8);
+}
+
+.dark .admin-enhanced-table tbody td {
+  border-bottom-color: rgba(75, 85, 99, 0.4);
+}
+
+.dark .admin-enhanced-table tbody tr:hover {
+  background: linear-gradient(135deg, 
+    rgba(59, 130, 246, 0.1) 0%, 
+    rgba(147, 51, 234, 0.05) 100%);
+}
+
+/* Enhanced Checkboxes and Radio Buttons */
+.admin-enhanced-checkbox {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(59, 130, 246, 0.4);
+  border-radius: 6px;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.9) 0%, 
+    rgba(255, 255, 255, 0.7) 100%);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.admin-enhanced-checkbox:checked {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  border-color: #3b82f6;
+}
+
+.admin-enhanced-checkbox:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.dark .admin-enhanced-checkbox {
+  background: linear-gradient(135deg, 
+    rgba(31, 41, 55, 0.9) 0%, 
+    rgba(31, 41, 55, 0.7) 100%);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ===================================
+   Beautiful Admin Interface Tab System
+   =================================== */
+
+/* Admin Modal Content Area */
+.admin-interface-content {
+  height: calc(100% + 40px); /* Account for Modal's hardcoded spacing */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-bottom: -40px; /* Offset Modal's hardcoded bottom spacing */
+  position: relative;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.02) 0%, 
+    rgba(255, 255, 255, 0.05) 50%, 
+    rgba(255, 255, 255, 0.02) 100%);
+}
+
+/* Animated background for admin interface */
+.admin-interface-content::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: 
+    radial-gradient(circle at 20% 30%, rgba(59, 130, 246, 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(147, 51, 234, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.02) 0%, transparent 50%);
+  animation: adminBackgroundFloat 30s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes adminBackgroundFloat {
+  0%, 100% { transform: translate(0px, 0px) rotate(0deg) scale(1); }
+  25% { transform: translate(20px, -20px) rotate(2deg) scale(1.05); }
+  50% { transform: translate(-15px, 15px) rotate(-1deg) scale(0.95); }
+  75% { transform: translate(10px, -10px) rotate(1deg) scale(1.02); }
+}
+
+/* Admin Tab Bar */
+.admin-tab-bar {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.9) 0%, 
+    rgba(255, 255, 255, 0.7) 100%);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px 20px 0 0;
+  margin-bottom: 0;
+  padding: 20px 24px 16px 24px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  animation: slideInFromTop 0.8s ease-out;
+}
+
+.admin-tab-pills {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.admin-tab-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-radius: 16px;
+  border: 2px solid rgba(59, 130, 246, 0.2);
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.8) 0%, 
+    rgba(255, 255, 255, 0.6) 100%);
+  backdrop-filter: blur(15px);
+  color: #6b7280;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  white-space: nowrap;
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  letter-spacing: -0.01em;
+}
+
+.admin-tab-pill:hover {
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.95) 0%, 
+    rgba(255, 255, 255, 0.8) 100%);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #374151;
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(59, 130, 246, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.admin-tab-pill.active {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  border-color: #3b82f6;
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 
+    0 8px 24px rgba(59, 130, 246, 0.3),
+    0 0 0 1px rgba(59, 130, 246, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.admin-tab-label {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.admin-tab-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.admin-tab-pill.active .admin-tab-indicator {
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+}
+
+.admin-tab-pill:not(.active) .admin-tab-indicator {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.admin-tab-pill.has-changes .admin-tab-indicator {
+  background: #f59e0b;
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { 
+    background: #f59e0b;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+  }
+  50% { 
+    background: #fbbf24;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
+  }
+}
+
+/* Dark Mode Admin Tabs */
+.dark .admin-tab-bar {
+  background: linear-gradient(135deg, 
+    rgba(31, 41, 55, 0.9) 0%, 
+    rgba(31, 41, 55, 0.7) 100%);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.dark .admin-tab-pill {
+  background: linear-gradient(135deg, 
+    rgba(31, 41, 55, 0.8) 0%, 
+    rgba(31, 41, 55, 0.6) 100%);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #9ca3af;
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.dark .admin-tab-pill:hover {
+  background: linear-gradient(135deg, 
+    rgba(31, 41, 55, 0.95) 0%, 
+    rgba(31, 41, 55, 0.8) 100%);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #d1d5db;
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(59, 130, 246, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.dark .admin-tab-pill.active {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  border-color: #3b82f6;
+  color: white;
+  box-shadow: 
+    0 8px 24px rgba(59, 130, 246, 0.4),
+    0 0 0 1px rgba(59, 130, 246, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.dark .admin-tab-pill:not(.active) .admin-tab-indicator {
+  background: rgba(59, 130, 246, 0.4);
+}
+
+/* Admin Content Area */
+.admin-scrollable-content {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.95) 0%, 
+    rgba(255, 255, 255, 0.9) 100%);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-top: none;
+  border-radius: 0 0 20px 20px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.04),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.admin-content-area {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px;
+  animation: fadeInContent 0.6s ease-out;
+}
+
+@keyframes fadeInContent {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dark .admin-scrollable-content {
+  background: linear-gradient(135deg, 
+    rgba(31, 41, 55, 0.95) 0%, 
+    rgba(31, 41, 55, 0.9) 100%);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* ===================================
    Beautiful Models Display Styling
    =================================== */
 
