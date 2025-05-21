@@ -4,7 +4,6 @@ import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
-import { SettingsBar } from "@/components/Settings/SettingsBar";
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
 import { getIsLocalStorageSelection, saveStorageSettings, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import cloneDeep from 'lodash/cloneDeep';
@@ -46,7 +45,6 @@ import {
     Icon3dCubeSphere,
     IconShare,
     IconMessage,
-    IconSettings,
     IconDeviceSdCard,
     IconLogout,
 } from "@tabler/icons-react";
@@ -1496,7 +1494,6 @@ const Home = ({
                                 <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
                                 <Tab icon={<Icon3dCubeSphere />} title="Prompts & Assistants"><Promptbar /></Tab>
                                 {/* <Tab icon={<IconShare />} title="Share"><SharedItemsList /></Tab> */}
-                                <Tab icon={<IconSettings />} title="Settings"><SettingsBar /></Tab>
                             </TabSidebar>
 
                             <div className="flex flex-1">
