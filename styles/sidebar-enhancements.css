@@ -998,3 +998,8 @@
 .dark .color-palette-name {
   color: var(--sidebar-text-dark);
 }
+
+/* Chat Input z-index fix */
+.z-15 {
+  z-index: 50 !important;
+}
