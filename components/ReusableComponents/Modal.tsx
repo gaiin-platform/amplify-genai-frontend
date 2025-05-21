@@ -114,19 +114,18 @@ interface Props {
                         </div>
 
                         {
-                         <div className="flex flex-row gap-2 mb-2 w-full fixed bottom-0 left-0 px-4 pb-2">
+                         <div className="modal-buttons-container">
                           {[...additionalButtonOptions, 
-                            ...(showCancel ? [{label: cancelLabel, handleClick: () => onCancel()}] : []),
-                            ...(showSubmit ? [{isDisabled: disableSubmit, label: submitLabel, handleClick: () => onSubmit()}] : [])
+                            ...(showCancel ? [{label: cancelLabel, handleClick: () => onCancel(), type: 'cancel'}] : []),
+                            ...(showSubmit ? [{isDisabled: disableSubmit, label: submitLabel, handleClick: () => onSubmit(), type: 'submit'}] : [])
                           ]
-                                           .map((option: OptionButtons, index: number) => 
+                                           .map((option: any, index: number) => 
                             <button key={index}
                               type="button"
                               id="confirmationButton"
                               disabled={option.isDisabled}
-                              className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                              className={`modal-action-button ${option.type === 'submit' ? 'modal-action-button-primary' : 'modal-action-button-secondary'} ${option.isDisabled ? 'modal-action-button-disabled' : ''}`}
                               onClick={option.handleClick}
-                              style={{cursor: option.isDisabled ? "not-allowed" : "pointer", opacity: option.isDisabled ? 0.4 : 1}}
                               >
                               {option.label}
                           </button>

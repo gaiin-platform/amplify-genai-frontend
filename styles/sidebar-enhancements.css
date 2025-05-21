@@ -1580,3 +1580,807 @@
 .dark .integrations-empty-state p {
   color: #9ca3af;
 }
+
+/* ===================================
+   Enhanced Settings Modal Styling 
+   =================================== */
+
+/* Settings Modal Wrapper */
+.settings-modal-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.settings-modal-wrapper * {
+  box-sizing: border-box;
+}
+
+/* Settings Content Area - Integrated with Modal */
+.settings-content {
+  height: calc(100% + 40px); /* Account for Modal's hardcoded spacing */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-bottom: -40px; /* Offset Modal's hardcoded bottom spacing */
+}
+
+/* Settings Header Section - Fixed at Top */
+.settings-header-section {
+  flex-shrink: 0;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.settings-description {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: #6b7280;
+  margin: 0;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+}
+
+.settings-unsaved-indicator {
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+.dark .settings-header-section {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .settings-description {
+  color: #9ca3af;
+}
+
+.dark .settings-unsaved-indicator {
+  color: #fbbf24;
+}
+
+/* Settings Scrollable Content */
+.settings-scrollable-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+/* Enhanced Settings Form Elements */
+.settings-section {
+  margin-bottom: 32px;
+}
+
+.settings-section-title {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 16px 0;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.dark .settings-section-title {
+  color: #f3f4f6;
+}
+
+/* Enhanced Radio Button Group */
+.settings-radio-group {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.settings-radio-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.settings-radio-option:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.dark .settings-radio-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.settings-radio-option input[type="radio"] {
+  margin: 0;
+  accent-color: #3b82f6;
+}
+
+.settings-radio-label {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.925rem;
+  font-weight: 400;
+  color: #374151;
+  letter-spacing: -0.01em;
+}
+
+.dark .settings-radio-label {
+  color: #d1d5db;
+}
+
+/* Enhanced Table Styling */
+.settings-table-container {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 0;
+  overflow: hidden;
+}
+
+.settings-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.settings-table th {
+  background: rgba(0, 0, 0, 0.04);
+  color: #374151;
+  font-weight: 600;
+  padding: 12px 16px;
+  text-align: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: 0.875rem;
+}
+
+.settings-table th:first-child {
+  border-top-left-radius: 8px;
+}
+
+.settings-table th:last-child {
+  border-top-right-radius: 8px;
+}
+
+.settings-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  text-align: center;
+  font-size: 0.875rem;
+}
+
+.settings-table tbody tr:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.settings-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.dark .settings-table-container {
+  background: rgba(31, 41, 55, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .settings-table th {
+  background: rgba(255, 255, 255, 0.05);
+  color: #f3f4f6;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .settings-table td {
+  color: #d1d5db;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dark .settings-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Enhanced Model Selection */
+.settings-models-container {
+  display: flex;
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.settings-models-sidebar {
+  width: 140px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.settings-models-grid {
+  flex: 1;
+  overflow-x: auto;
+}
+
+.dark .settings-models-sidebar {
+  background: rgba(31, 41, 55, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Enhanced Model Labels */
+.settings-model-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-model-button:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.settings-model-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.settings-model-button.visible {
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.dark .settings-model-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dark .settings-model-button.visible {
+  color: #60a5fa;
+}
+
+.dark .settings-model-button {
+  color: #9ca3af;
+}
+
+/* Settings Tab Pills Styling */
+.settings-tab-bar {
+  display: flex;
+  flex-direction: column;
+  padding: 0 24px;
+  margin-bottom: 16px;
+}
+
+.settings-tab-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.settings-tab-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.8);
+  color: #374151;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  outline: none;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+
+.settings-tab-pill:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.settings-tab-pill.active {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+}
+
+.settings-tab-pill.active:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+}
+
+.settings-tab-label {
+  font-weight: 500;
+}
+
+.settings-tab-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.settings-tab-pill.active .settings-tab-count {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+/* Dark mode styles for settings tab pills */
+.dark .settings-tab-pill {
+  background: rgba(31, 41, 55, 0.8);
+  border-color: rgba(75, 85, 99, 0.6);
+  color: #d1d5db;
+}
+
+.dark .settings-tab-pill:hover {
+  background: rgba(31, 41, 55, 0.95);
+  border-color: rgba(75, 85, 99, 0.8);
+}
+
+.dark .settings-tab-pill.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+
+.dark .settings-tab-pill.active:hover {
+  background: #2563eb;
+}
+
+.dark .settings-tab-count {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dark .settings-tab-pill.active .settings-tab-count {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Enhanced Settings Card Styling - Match Integrations Design */
+.settings-card {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(8px);
+}
+
+.settings-card:last-child {
+  margin-bottom: 0;
+}
+
+.settings-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.settings-card-header {
+  padding: 20px 20px 12px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.settings-card-title {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 4px 0;
+  letter-spacing: -0.02em;
+}
+
+.settings-card-description {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: #6b7280;
+  margin: 0;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+.settings-card-content {
+  padding: 20px;
+}
+
+/* Theme Options Styling */
+.settings-theme-options {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.settings-theme-option {
+  position: relative;
+  cursor: pointer;
+  flex: 1;
+  min-width: 140px;
+}
+
+.settings-theme-radio {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-theme-option-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  transition: all 0.2s ease;
+}
+
+.settings-theme-option:hover .settings-theme-option-content {
+  border-color: rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.7);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.settings-theme-radio:checked + .settings-theme-option-content {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.05);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.1);
+}
+
+.settings-theme-option-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.settings-theme-option-label {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+/* Models Layout Styling */
+.settings-models-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.settings-models-controls {
+  flex-shrink: 0;
+  min-width: 200px;
+}
+
+.settings-models-grid {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-models-grid-header {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.settings-models-grid-title {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.settings-models-grid-subtitle {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.settings-models-table-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.settings-models-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+/* Pricing Table Styling */
+.settings-pricing-table-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.settings-pricing-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.settings-pricing-table-header {
+  padding: 16px 12px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  background: rgba(0, 0, 0, 0.02);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  text-align: left;
+}
+
+.settings-pricing-table-header:first-child {
+  width: 280px;
+}
+
+.settings-pricing-section-header {
+  padding: 12px 16px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1f2937;
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  text-align: center;
+}
+
+.settings-pricing-table-row {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  transition: background-color 0.2s ease;
+}
+
+.settings-pricing-table-row:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.settings-pricing-model-name {
+  padding: 12px 16px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.settings-pricing-table-cell {
+  padding: 12px 16px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.875rem;
+  color: #6b7280;
+  text-align: center;
+}
+
+.settings-pricing-na {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+/* Dark Mode Styles for Settings Cards */
+.dark .settings-card {
+  background: rgba(31, 41, 55, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.dark .settings-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.dark .settings-card-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .settings-card-title {
+  color: #f9fafb;
+}
+
+.dark .settings-card-description {
+  color: #9ca3af;
+}
+
+.dark .settings-theme-option-content {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(31, 41, 55, 0.6);
+}
+
+.dark .settings-theme-option:hover .settings-theme-option-content {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(31, 41, 55, 0.8);
+}
+
+.dark .settings-theme-radio:checked + .settings-theme-option-content {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.dark .settings-theme-option-label {
+  color: #e5e7eb;
+}
+
+.dark .settings-models-grid-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .settings-models-grid-title {
+  color: #f3f4f6;
+}
+
+.dark .settings-models-grid-subtitle {
+  color: #9ca3af;
+}
+
+.dark .settings-models-table-wrapper,
+.dark .settings-pricing-table-wrapper {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(31, 41, 55, 0.6);
+}
+
+.dark .settings-pricing-table-header {
+  color: #f3f4f6;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .settings-pricing-section-header {
+  color: #f9fafb;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .settings-pricing-table-row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dark .settings-pricing-table-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dark .settings-pricing-model-name {
+  color: #e5e7eb;
+}
+
+.dark .settings-pricing-table-cell {
+  color: #9ca3af;
+}
+
+/* Enhanced Modal Button Styling */
+.modal-buttons-container {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  margin-bottom: 8px;
+  width: 100%;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.95);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(8px);
+}
+
+.modal-action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+  min-width: 120px;
+  backdrop-filter: blur(8px);
+}
+
+.modal-action-button:focus {
+  outline: none;
+  ring: 2px;
+  ring-color: rgba(59, 130, 246, 0.5);
+  ring-offset: 2px;
+}
+
+/* Primary Button (Submit/Save) */
+.modal-action-button-primary {
+  background: #3b82f6;
+  color: white;
+  border: 1px solid #3b82f6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.modal-action-button-primary:hover:not(.modal-action-button-disabled) {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+  border-color: #2563eb;
+}
+
+/* Secondary Button (Cancel) */
+.modal-action-button-secondary {
+  background: rgba(255, 255, 255, 0.8);
+  color: #374151;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.modal-action-button-secondary:hover:not(.modal-action-button-disabled) {
+  background: rgba(255, 255, 255, 0.95);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Disabled State */
+.modal-action-button-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+.modal-action-button-disabled:hover {
+  transform: none !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Dark Mode Modal Button Styling */
+.dark .modal-buttons-container {
+  background: rgba(31, 41, 55, 0.95);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .modal-action-button-secondary {
+  background: rgba(31, 41, 55, 0.8);
+  color: #e5e7eb;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .modal-action-button-secondary:hover:not(.modal-action-button-disabled) {
+  background: rgba(31, 41, 55, 0.95);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 640px) {
+  .modal-buttons-container {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .modal-action-button {
+    width: 100%;
+  }
+}

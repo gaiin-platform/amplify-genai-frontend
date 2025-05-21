@@ -14,11 +14,10 @@ import { Modal } from '../ReusableComponents/Modal';
 import { saveUserSettings } from '@/services/settingsService';
 import { Model } from '@/types/model';
 import toast from 'react-hot-toast';
-import { ActiveTabs } from '../ReusableComponents/ActiveTabs';
 import LegacyWorkspaces from '../Workspace/LegacyWorkspace';
 import { capitalize } from '@/utils/app/data';
 
-  interface Props {
+interface Props {
   open: boolean;
   onClose: () => void;
   openToTab?: string;
@@ -32,16 +31,16 @@ export const modelOptionFlags = [
     "identifiers": ['gpt', 'o1', 'o3']
   },
   {
-      "label": "Claude",
-      "key": "allClaude",
-      "defaultValue": false,
-      "identifiers": ['anthropic']
+    "label": "Claude",
+    "key": "allClaude",
+    "defaultValue": false,
+    "identifiers": ['anthropic']
   },
   {
-      "label": "Mistral",
-      "key": "allMistral",
-      "defaultValue": false,
-      "identifiers": ['mistral']
+    "label": "Mistral",
+    "key": "allMistral",
+    "defaultValue": false,
+    "identifiers": ['mistral']
   },
   {
     "label": "Amazon",
@@ -55,34 +54,33 @@ export const modelOptionFlags = [
     "defaultValue": false,
     "identifiers": ['llama', 'meta']
   },
-  {"label": "DeepSeek",
+  {
+    "label": "DeepSeek",
     "key": "allDeepSeek",
     "defaultValue": false,
     "identifiers": ['deepseek']
   },
-  {"label": "Google",
+  {
+    "label": "Google",
     "key": "allGemini",
     "defaultValue": false,
     "identifiers": ['gemini']
   },
-
-
-  ];
-
-
+];
 
 type ModelKey = (typeof modelOptionFlags)[number]["key"];
 
-
 export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
   const { t } = useTranslation('settings');
-  const { dispatch: homeDispatch, state:{statsService, featureFlags, availableModels: allAvailableModels, defaultModelId, workspaces} } = useContext(HomeContext);
+  const { dispatch: homeDispatch, state: { statsService, featureFlags, availableModels: allAvailableModels, defaultModelId, workspaces } } = useContext(HomeContext);
+
   let initSettingsRef = useRef<Settings | null>(null);
   // prevent recalling the getSettings function
   if (initSettingsRef.current === null) initSettingsRef.current = getSettings(featureFlags);
 
-  const [hiddenModelIds, setHiddenModelIds] = useState<string[]>(initSettingsRef.current?.hiddenModelIds.filter((id:string) => id !== defaultModelId));
-
+  const [hiddenModelIds, setHiddenModelIds] = useState<string[]>(
+      initSettingsRef.current?.hiddenModelIds.filter((id: string) => id !== defaultModelId) || []
+  );
 
   const getAvailableModels = () => {
     const models: Model[] = Object.values(allAvailableModels);
@@ -98,125 +96,124 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
     models.forEach((model) => {
       const matchedOption = modelOptionFlags.find(flag => {
-            // Check if any pattern matches the model.id
-            const identifiers = flag.identifiers;
-
-            return !!identifiers.find((identifier: string) => model.id.includes(identifier));
-        }
-      );
+        // Check if any pattern matches the model.id
+        const identifiers = flag.identifiers;
+        return !!identifiers.find((identifier: string) => model.id.includes(identifier));
+      });
 
       if (matchedOption) modelsMap[matchedOption.key].push(model);
     });
 
-      const sortModelFlags = (a: string, b: string) => {
-        const bLength = modelsMap[b].length;
-        const aLength = modelsMap[a].length;
-        if (bLength === aLength) {
-          // Find the labels for comparison
-          const aFlag = modelOptionFlags.find(flag => flag.key === a);
-          const bFlag = modelOptionFlags.find(flag => flag.key === b);
-          return (aFlag?.label || '').localeCompare(bFlag?.label || '');
-        }
-        return bLength - aLength;
+    const sortModelFlags = (a: string, b: string) => {
+      const bLength = modelsMap[b].length;
+      const aLength = modelsMap[a].length;
+      if (bLength === aLength) {
+        // Find the labels for comparison
+        const aFlag = modelOptionFlags.find(flag => flag.key === a);
+        const bFlag = modelOptionFlags.find(flag => flag.key === b);
+        return (aFlag?.label || '').localeCompare(bFlag?.label || '');
       }
-      
-      // Create a new ordered object with sorted keys
-      const orderedSortedModels: Record<ModelKey, any[]> = {};
-      Object.keys(modelsMap)
+      return bLength - aLength;
+    }
+
+    // Create a new ordered object with sorted keys
+    const orderedSortedModels: Record<ModelKey, any[]> = {};
+    Object.keys(modelsMap)
         .sort(sortModelFlags)
         .forEach(key => {
           orderedSortedModels[key as ModelKey] = modelsMap[key as ModelKey];
         });
 
-      Object.entries(orderedSortedModels).forEach(([key, models]) => 
-          modelsMap[key] = (models as any).sort((a: any, b: any) => a.name.localeCompare(b.name)),
-      );
-      
-      return orderedSortedModels;
-    }
+    Object.entries(orderedSortedModels).forEach(([key, models]) =>
+        orderedSortedModels[key as ModelKey] = (models as any).sort((a: any, b: any) => a.name.localeCompare(b.name)),
+    );
 
+    return orderedSortedModels;
+  }
+
+  const availableModels = getAvailableModels();
 
   const initModelOption = () => {
-      return modelOptionFlags.reduce((acc:{[key:string]:boolean}, x) => {
-        const k = x.key as ModelKey;
-        const allModels = availableModels && Object.keys(availableModels).includes(k) ? availableModels[k] : []; 
-        acc[x.key] =  allModels.length > 0 && allModels.every((model: any) => !hiddenModelIds.includes(model.id));
-        return acc;
-      }, {});
+    return modelOptionFlags.reduce((acc: { [key: string]: boolean }, x) => {
+      const k = x.key as ModelKey;
+      const allModels = availableModels && Object.keys(availableModels).includes(k) ? availableModels[k] : [];
+      acc[x.key] = allModels.length > 0 && allModels.every((model: any) => !hiddenModelIds.includes(model.id));
+      return acc;
+    }, {});
   }
-  const availableModels: Record<ModelKey, any[]> = getAvailableModels();
-  
-  const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(initSettingsRef.current?.featureOptions);
-  const [theme, setTheme] = useState<Theme>(initSettingsRef.current?.theme);
+
+  const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(
+      initSettingsRef.current?.featureOptions || {}
+  );
+  const [theme, setTheme] = useState<Theme>(initSettingsRef.current?.theme || 'dark');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [modelOptions, setModelOptions] = useState<{ [key: string]: boolean }>(initModelOption());
-
+  const [activeTab, setActiveTab] = useState<string>(openToTab || 'configurations');
 
   const featuresChanged = () => {
     return JSON.stringify(featureOptions) !== JSON.stringify(initSettingsRef.current?.featureOptions);
   }
+
   useEffect(() => {
     if (open) statsService.openSettingsEvent();
-  }, [open])
+  }, [open, statsService]);
 
-  useEffect(()=> {
-
+  useEffect(() => {
     const hasChanges = theme !== initSettingsRef.current?.theme || featuresChanged() ||
-                       JSON.stringify(hiddenModelIds) !== JSON.stringify(initSettingsRef.current?.hiddenModelIds);
+        JSON.stringify(hiddenModelIds) !== JSON.stringify(initSettingsRef.current?.hiddenModelIds);
     setHasUnsavedChanges(hasChanges);
+  }, [theme, featureOptions, hiddenModelIds]);
 
-  }, [theme, featureOptions, hiddenModelIds])
+  useEffect(() => {
+    if (availableModels) {
+      const updatedModelOptions = {...modelOptions};
+      Object.keys(availableModels).forEach((key) => {
+        const allVisible = Object.keys(availableModels).includes(key) &&
+            availableModels[key as ModelKey].every((model: any) => !hiddenModelIds.includes(model.id));
+        updatedModelOptions[key] = allVisible;
+      });
 
-
-
+      if (JSON.stringify(modelOptions) !== JSON.stringify(updatedModelOptions)) {
+        setModelOptions(updatedModelOptions);
+      }
+    }
+  }, [hiddenModelIds, availableModels, modelOptions]);
 
   const handleSave = async () => {
     if (Object.values(allAvailableModels).every((model: Model) => hiddenModelIds.includes(model.id) || model.id === defaultModelId)) {
-        alert("All models are currently set to be hidden. At least one model needs to remain visible, please adjust your selection.");
-        return;
+      alert("All models are currently set to be hidden. At least one model needs to remain visible, please adjust your selection.");
+      return;
     }
 
     if (theme !== initSettingsRef.current?.theme) statsService.setThemeEvent(theme);
     homeDispatch({ field: 'lightMode', value: theme });
 
-    const updatedSettings: Settings = { theme: theme, 
-                                        featureOptions: featureOptions, 
-                                        hiddenModelIds: hiddenModelIds.filter((id: string) => id !== defaultModelId)
-                                      }
+    const updatedSettings: Settings = {
+      theme: theme,
+      featureOptions: featureOptions,
+      hiddenModelIds: hiddenModelIds.filter((id: string) => id !== defaultModelId)
+    };
+
     statsService.saveSettingsEvent(updatedSettings);
-    // console.log(updatedSettings);
     saveSettings(updatedSettings);
     onClose();
+
     // update plugin in selector according to new feature settings
     if (featuresChanged()) window.dispatchEvent(new Event('updateFeatureSettings'));
 
-   const result = await saveUserSettings(updatedSettings);
+    const result = await saveUserSettings(updatedSettings);
     if (!result) {
-      alert("Settings failed to update in the cloud at the time. However, your changes have been saved and applied locally within this browser. ");
+      alert("Settings failed to update in the cloud at the time. However, your changes have been saved and applied locally within this browser.");
     } else {
-      toast("Settings saved succsessully");
+      toast("Settings saved successfully");
     }
-
   };
-
-  useEffect(() => {
-    if (availableModels) {
-      const updatedModelOptions = {...modelOptions};
-      Object.keys(availableModels).forEach((key: ModelKey) => {
-        const allVisible =  Object.keys(availableModels).includes(key) && availableModels[key].every((model: any) => !hiddenModelIds.includes(model.id));
-        updatedModelOptions[key] = allVisible;
-      });
-  
-      if (JSON.stringify(modelOptions) !== JSON.stringify(updatedModelOptions)) setModelOptions(updatedModelOptions);
-    }
-    // console.log(hiddenModelIds);
-  }, [hiddenModelIds])
 
   const handleModelOptionChange = (key: ModelKey, isChecked: boolean) => {
     setModelOptions({...modelOptions, [key]: isChecked});
-    const optionModels = availableModels[key as ModelKey];
+    const optionModels = availableModels[key];
     if (isChecked) {
-      const optionModelsIds = optionModels.map((m:any) => m.id);
+      const optionModelsIds = optionModels.map((m: any) => m.id);
       setHiddenModelIds(hiddenModelIds.filter((id: string) => !optionModelsIds.includes(id)));
     } else {
       const hiddenModelSet = new Set(hiddenModelIds);
@@ -225,248 +222,290 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
     }
   }
 
-const modelLabel = (modelId: string, name: string) => {
-  const isVisible = !hiddenModelIds.includes(modelId);
-  const isDisabled = modelId === defaultModelId;
-  return <div key={modelId} className={` text-sm ${isVisible || modelId === defaultModelId ? "text-blue-600":""}`}> 
+  const modelLabel = (modelId: string, name: string) => {
+    const isVisible = !hiddenModelIds.includes(modelId);
+    const isDisabled = modelId === defaultModelId;
+    return (
+        <div key={modelId} className="text-sm">
           <button
-            disabled={isDisabled}
-            title={isDisabled? "Default model can't be hidden": `${isVisible ? "Hide" : "Show"} model from selection menus`}
-            className={`p-1 ${!isDisabled ? "hover:opacity-70":""} whitespace-nowrap overflow-hidden text-ellipsis`}
-            onClick={()=>{
-              if (isVisible) {
-                setHiddenModelIds([...hiddenModelIds, modelId]);
-              } else {
-                setHiddenModelIds(hiddenModelIds.filter((id: string) => id !== modelId));
-              }
-            }}
+              disabled={isDisabled}
+              title={isDisabled? "Default model can't be hidden": `${isVisible ? "Hide" : "Show"} model from selection menus`}
+              className={`settings-model-button ${isVisible || modelId === defaultModelId ? "visible" : ""}`}
+              onClick={() => {
+                if (isVisible) {
+                  setHiddenModelIds([...hiddenModelIds, modelId]);
+                } else {
+                  setHiddenModelIds(hiddenModelIds.filter((id: string) => id !== modelId));
+                }
+              }}
           >
             {name}
           </button>
-   </div>
-}
+        </div>
+    );
+  };
+
+  // Create tabs data structure
+  const tabs = [
+    {
+      id: 'configurations',
+      label: 'Configurations',
+      count: hasUnsavedChanges ? '*' : '',
+      content: (
+        <>
+          <div className="settings-card">
+            <div className="settings-card-header">
+              <h3 className="settings-card-title">{t('Theme')}</h3>
+              <p className="settings-card-description">Choose your preferred visual theme</p>
+            </div>
+            <div className="settings-card-content">
+              <div className="settings-theme-options">
+                {["dark", "light"].map((color) => (
+                    <label className="settings-theme-option" id={"theme"+color} key={color}>
+                      <input
+                          type="radio"
+                          name="theme"
+                          value={color}
+                          checked={theme === color}
+                          onChange={(event) => setTheme(event.target.value as Theme)}
+                          className="settings-theme-radio"
+                      />
+                      <div className="settings-theme-option-content">
+                        <div className="settings-theme-option-icon">
+                          {color === 'dark' ? '🌙' : '☀️'}
+                        </div>
+                        <span className="settings-theme-option-label">
+                          {t(`${capitalize(color)} mode`)}
+                        </span>
+                      </div>
+                    </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {Object.keys(allAvailableModels).length > 0 && (
+              <div className="settings-card">
+                <div className="settings-card-header">
+                  <h3 className="settings-card-title">{t('Models')}</h3>
+                  <p className="settings-card-description">Select which models to display in selection menus</p>
+                </div>
+                <div className="settings-card-content">
+                  <div className="settings-models-layout">
+                    <div className="settings-models-controls">
+                      <div className="settings-models-sidebar">
+                        <FlagsMap
+                            id={'modelOptionFlags'}
+                            flags={modelOptionFlags
+                                .filter((f: Flag) => availableModels[f.key].length > 0)
+                                .sort((a, b) => {
+                                  // Get the keys in the order they appear in availableModels
+                                  const orderedKeys = Object.keys(availableModels);
+                                  return orderedKeys.indexOf(a.key) - orderedKeys.indexOf(b.key);
+                                })}
+                            state={modelOptions}
+                            flagChanged={(key, value) => {
+                              handleModelOptionChange(key as ModelKey, value);
+                            }}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="settings-models-grid">
+                      <div className="settings-models-grid-header">
+                        <span className="settings-models-grid-title">Available Models</span>
+                        <span className="settings-models-grid-subtitle">Selected models are shown in blue</span>
+                      </div>
+                      <div className="settings-models-table-wrapper">
+                        <table className="settings-models-table">
+                          <tbody>
+                          {Object.entries(availableModels).map(([key, modelsArray], rowIndex) => (
+                              <tr key={rowIndex}>
+                                {modelsArray.map((m: { id: string; name: string }) => (
+                                    <td key={m.id}>
+                                      {modelLabel(m.id, m.name)}
+                                    </td>
+                                ))}
+                              </tr>
+                          ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+          )}
+
+          <div className="settings-card">
+            <div className="settings-card-header">
+              <h3 className="settings-card-title">{t('Features')}</h3>
+              <p className="settings-card-description">Enable or disable advanced features</p>
+            </div>
+            <div className="settings-card-content">
+              <FlagsMap
+                  id={'featureOptionFlags'}
+                  flags={featureOptionFlags.filter((f: Flag) =>
+                      Object.keys(initSettingsRef.current ? initSettingsRef.current.featureOptions: {}).includes(f.key)
+                  )}
+                  state={featureOptions}
+                  flagChanged={(key, value) => {
+                    setFeatureOptions({...featureOptions, [key]: value});
+                  }}
+              />
+            </div>
+          </div>
+        </>
+      )
+    },
+    {
+      id: 'storage',
+      label: 'Conversation Storage',
+      count: '',
+      content: (
+        <div className="settings-card">
+          <div className="settings-card-header">
+            <h3 className="settings-card-title">Conversation Storage</h3>
+            <p className="settings-card-description">Enable conversations to sync across devices or keep them private</p>
+          </div>
+          <div className="settings-card-content">
+            {featureFlags.storeCloudConversations && <StorageDialog open={open} />}
+          </div>
+        </div>
+      )
+    },
+    ...(workspaces && workspaces.length > 0 ? [{
+      id: 'workspaces',
+      label: 'Legacy Workspaces',
+      count: '',
+      content: (
+        <div className="settings-card">
+          <div className="settings-card-header">
+            <h3 className="settings-card-title">Legacy Workspaces</h3>
+            <p className="settings-card-description">Manage your legacy workspace configurations</p>
+          </div>
+          <div className="settings-card-content">
+            <LegacyWorkspaces/>
+          </div>
+        </div>
+      )
+    }] : []),
+    {
+      id: 'pricing',
+      label: 'Model Pricing',
+      count: '',
+      content: (
+        <div className="settings-card">
+          <div className="settings-card-header">
+            <h3 className="settings-card-title">Model Pricing</h3>
+            <p className="settings-card-description">View pricing information for all available models (per million tokens)</p>
+          </div>
+          <div className="settings-card-content">
+            <div className="settings-pricing-table-wrapper">
+              <table className="settings-pricing-table">
+                <thead>
+                <tr>
+                  {["Model", "Input Tokens", "Output Tokens", "Cached Tokens"].map((title, index) => (
+                      <th key={index} className="settings-pricing-table-header">
+                        {title}
+                      </th>
+                  ))}
+                </tr>
+                </thead>
+                <tbody>
+                {modelOptionFlags
+                    .filter((f: Flag) => availableModels[f.key].length > 0)
+                    .map((f: Flag, i: number) => (
+                        <React.Fragment key={f.key}>
+                          {/* Section label */}
+                          <tr>
+                            <td colSpan={4} className="settings-pricing-section-header">
+                              {f.label}
+                            </td>
+                          </tr>
+                          {/* Models in the section */}
+                          {availableModels[f.key].map((model: Model) => (
+                              <tr key={model.id} className="settings-pricing-table-row">
+                                <td className="settings-pricing-model-name">
+                                  <div>{model.name}</div>
+                                </td>
+                                {["inputTokenCost", "outputTokenCost", "cachedTokenCost"].map((s: string, idx: number) => (
+                                    <td key={idx} className="settings-pricing-table-cell">
+                                      <div>
+                                        {model[s as keyof Model] !== 0 ? (
+                                            `$${((model[s as keyof Model] as number) * 1000)
+                                                .toFixed(2)
+                                                .replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
+                                        ) : (
+                                            <span className="settings-pricing-na">N/A</span>
+                                        )}
+                                      </div>
+                                    </td>
+                                ))}
+                              </tr>
+                          ))}
+                        </React.Fragment>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )
+    }
+  ];
 
   // Render nothing if the dialog is not open.
   if (!open) {
     return <></>;
   }
 
-
   // Render the dialog.
-  return <Modal 
-      width={() => window.innerWidth * 0.62}
-      height={() => window.innerHeight * 0.88}
-      title={`Settings`}
-      onCancel={() => onClose()} 
-      onSubmit={() => handleSave()
-      }
-      submitLabel={"Save"}
-      disableSubmit={!hasUnsavedChanges}
-      content={
-        <ActiveTabs
-            initialActiveTab={openToTab}
-            width={() => window.innerWidth * 0.58}
-            tabs={[
-      
-              ///////////////////////////////////////////////////////////////////////////////
-                              // Configurations Tab
-              
-                        {label: `Configurations${hasUnsavedChanges ? " * " : ""}`, 
-                          title: hasUnsavedChanges ? "Contains Unsaved Changes " : "Customize your Amplify experience",
-                          content:
-              
-                          <>
-                              <div className="flex flex-row text-lg font-bold mb-2 text-black dark:text-neutral-200">
-                                {t('Theme')}
-                              </div>
-              
-                              <div className="flex flex-row gap-6 mb-6">
-                                {["dark", "light"].map((color) => (
-                                  <label className="flex items-center" id={"theme"+color} key={color}>
-                                      <input type="radio" name="theme"
-                                      value={color}
-                                      checked={theme === color}
-                                      onChange={(event) =>  setTheme(event.target.value as Theme)}
-                                      className="form-radio cursor-pointer"
-                                      id="checkboxInput"
-                                      />
-                                      <span className="ml-2 text-neutral-700 dark:text-neutral-200">
-                                        {t(`${capitalize(color)} mode`)} 
-                                      </span>
-                                  </label>
-                                ))}
-                              </div>
-              
-                              { Object.keys(allAvailableModels).length > 0 && <>
-                              <div className="mt-2 text-lg font-bold text-black dark:text-neutral-200">
-                                {t('Models')}
-                              </div>
-                              
-                              <div className='flex flex-row w-full'>
-                                    <label className='ml-5 mt-[12px] text-[0.75rem]'>Include All</label>
-                                    <div className='flex-grow'>
-                                      <div className='flex flex-col text-center mt-[-4px]'> Available Models 
-                                          <label className='ml-2 text-xs mb-2 mt-[-4px]'>{"(Displayed models are shown in blue)"}</label>
-                                      </div>
-                                    </div> 
-                              </div>      
-                              <div className='flex flex-row pr-8'>
-                                <div className='w-[140px] border border-gray-300 mr-[-1px] mt-[-2px] dark:border-neutral-700 px-2'>
-                                  <div className='mt-1'>
-                                    <FlagsMap 
-                                      id={'modelOptionFlags'}
-                                      flags={modelOptionFlags
-                                            .filter((f: Flag) => availableModels[f.key].length > 0 )
-                                            .sort((a, b) => {
-                                              // Get the keys in the order they appear in availableModels
-                                              const orderedKeys = Object.keys(availableModels);
-                                              return orderedKeys.indexOf(a.key) - orderedKeys.indexOf(b.key);
-                                            })}
-                                      state={modelOptions}
-                                      flagChanged={(key, value) => {
-                                        handleModelOptionChange(key as ModelKey, value);
-                                      }}
-                                    /> 
-                                  </div> 
-                                </div>
-              
-                                  <div className="overflow-x-auto w-full">
-                                    <table className="table-auto border-collapse w-full">
-                                      <tbody>
-                                        {Object.values(availableModels).map((modelsArray, rowIndex) => (
-                                          <tr key={rowIndex}>
-                                            {modelsArray.map((m: { id: string; name: string }) => (
-                                              <td
-                                                key={m.id}
-                                                className="border border-gray-300 dark:border-neutral-700 px-4"
-                                              >
-                                                {modelLabel(m.id, m.name)}
-                                              </td>
-                                            ))}
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-              
-                              </div>
-                                    
-                              </>}
-                              <div className="mt-6 mb-2 text-lg font-bold text-black dark:text-neutral-200">
-                                {t('Features')}
-                              </div>
-                              <div className='pr-4'>
-                              <FlagsMap 
-                                id={'featureOptionFlags'}
-                                flags={featureOptionFlags.filter((f: Flag) => Object.keys(initSettingsRef.current ? initSettingsRef.current.featureOptions: {}).includes(f.key))}
-                                state={featureOptions}
-                                flagChanged={(key, value) => {
-                                  setFeatureOptions({...featureOptions, [key]: value});
-                                }}
-                              />
-                              </div>
-                            
-                          </>
-                        },
-              
-              ///////////////////////////////////////////////////////////////////////////////
-                              // Conversation Storage
-              
-                      {label: `Conversation Storage`, 
-                        title: "Enable conversations to sync across devices or keep them priavte",
-                        content: <>
-                          {featureFlags.storeCloudConversations && 
-                                <StorageDialog open={open} />
-                              }
-                        </>
-                        
-                      },
-              ///////////////////////////////////////////////////////////////////////////////
-                              // Legacy Workspaces
-                      ...(workspaces && workspaces.length > 0 ? 
-                        [{ label: `Legacy Workspaces`, 
-                           title: hasUnsavedChanges ? " Contains Unsaved Changes  " : "",
-                           content: <LegacyWorkspaces/>
-                        }] : []),
-              ///////////////////////////////////////////////////////////////////////////////
-                              // Model Pricing 
-
-                        { label: "Model Pricing",
-                          title: "View the model pricing",
-                          content: 
-                          <>
-                          <div className='w-full text-lg font-bold '>Model Pricing / Million Tokens</div>
-
-                          <div className="mt-6 overflow-x-auto w-full pr-6">
-                            <table className="mt-1 mb-3 table-auto border-collapse w-full">
-                              <thead>
-                                <tr>
-                                  {["Model", "Input Tokens", "Output Tokens", "Cached Tokens"].map((title, index) => (
-                                    <th
-                                      key={index}
-                                      className="text-center py-0.5 border border-gray-500 text-black dark:text-white bg-neutral-400 dark:bg-neutral-800"
-                                      style={{ width: index === 0 ? '200px' : 'auto'}}
-                                    >
-                                      {title}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {modelOptionFlags
-                                  .filter((f: Flag) => availableModels[f.key].length > 0)
-                                  .map((f: Flag, i: number) => (
-                                    <React.Fragment key={f.key}>
-                                      {/* Section label */}
-                                      <tr>
-                                        <td colSpan={4} className="text-center font-bold py-2">
-                                          {f.label}
-                                        </td>
-                                      </tr>
-                                      {/* Models in the section */}
-                                      {availableModels[f.key].map((model: Model) => (
-                                        <tr key={model.id}>
-                                          <td
-                                            className="border border-neutral-500 py-2text-start"
-                                            style={{ width: '260px' }}
-                                          >
-                                            <label className="px-2">{model.name}</label>
-                                          </td>
-                                          {["inputTokenCost", "outputTokenCost", "cachedTokenCost"].map((s: string, idx: number) => (
-                                            <td
-                                              key={idx}
-                                              className="border border-neutral-500 py-2"
-                                              title={model.name}
-                                              style={{ width: 'auto' }}
-                                            >
-                                              <div className="text-center">
-                                                {model[s as keyof Model] !== 0 ? (
-                                                  `$${((model[s as keyof Model] as number) * 1000)
-                                                    .toFixed(2)
-                                                    .replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
-                                                ) : (
-                                                  <label className="opacity-60">N/A</label>
-                                                )}
-                                              </div>
-                                            </td>
-                                          ))}
-                                        </tr>
-                                      ))}
-                                    </React.Fragment>
-                                  ))}
-                              </tbody>
-                            </table>
-                          </div>
-
-                          </>
-
-                        },
-                    ]}
-      />
-      }
-    />
+  return (
+      <div className="settings-modal-wrapper">
+        <Modal
+            width={() => window.innerWidth * 0.62}
+            height={() => window.innerHeight * 0.88}
+            title={`Settings`}
+            showClose={true}
+            showCancel={true}
+            showSubmit={true}
+            onCancel={() => onClose()}
+            onSubmit={() => handleSave()}
+            submitLabel={"Save"}
+            cancelLabel={"Cancel"}
+            disableSubmit={!hasUnsavedChanges}
+            content={
+              <div className="settings-content">
+                <div className="settings-header-section">
+                  <p className="settings-description">
+                    Customize your experience and manage your preferences
+                    {hasUnsavedChanges && <span className="settings-unsaved-indicator"> • Unsaved changes</span>}
+                  </p>
+                </div>
                 
+                {/* Custom tab pills */}
+                <div className="settings-tab-bar">
+                  <div className="settings-tab-pills">
+                    {tabs.map((tab) => (
+                      <button
+                        key={tab.id}
+                        className={`settings-tab-pill ${activeTab === tab.id ? 'active' : ''}`}
+                        onClick={() => setActiveTab(tab.id)}
+                      >
+                        <span className="settings-tab-label">{tab.label}</span>
+                        {tab.count && <span className="settings-tab-count">{tab.count}</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="settings-scrollable-content">
+                  {tabs.find(tab => tab.id === activeTab)?.content}
+                </div>
+              </div>
+            }
+        />
+      </div>
+  );
 };
-
-
-
