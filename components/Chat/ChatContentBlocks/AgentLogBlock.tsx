@@ -381,14 +381,18 @@ const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStrea
   agentLog = agentLog.data.result;
 
   return (
-    <div className="mt-3" style={{width: (chatContainerWidth)}} key={message.id}>
-      <AgentFileList files={files} />
-      <ExpansionComponent
-        title="Reasoning / Actions"
-        content={agentLog.map((msg: any, idx: number) => (
-          <div key={idx}>{getAgentLogItem(msg)}</div>
-        ))}
-      />
+    <div className="mt-3 pointer-events-none max-w-2xl" key={message.id}>
+      <div className="pointer-events-auto">
+        <AgentFileList files={files} />
+      </div>
+      <div className="pointer-events-auto max-w-full overflow-hidden">
+        <ExpansionComponent
+          title="Reasoning / Actions"
+          content={agentLog.map((msg: any, idx: number) => (
+            <div key={idx} className="max-w-full overflow-hidden">{getAgentLogItem(msg)}</div>
+          ))}
+        />
+      </div>
     </div>
   );
 };

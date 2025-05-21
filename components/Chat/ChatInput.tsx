@@ -793,7 +793,8 @@ export const ChatInput = ({
             <div style={{width: chatContainerWidth}}
                  className="px-4 md:px-8 lg:px-16 xl:px-24 2xl:px-32 absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2 z-15">
 
-                <div className="flex flex-col gap-2 justify-center items-center stretch mx-2 mt-4 flex flex-row last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 max-w-3xl mx-auto">
+                <div className="flex flex-col gap-2 justify-center items-center w-full mt-4 last:mb-2 md:mt-[52px] md:last:mb-6">
+                    <div className="max-w-3xl w-full mx-auto px-2 md:px-4">
 
                     {!showScrollDownButton && !messageIsStreaming && !artifactIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
                         (selectedConversation && selectedConversation.messages?.length > 0) &&  (
@@ -1367,6 +1368,7 @@ export const ChatInput = ({
 
                         }
 
+                    </div>
                     </div>
 
                 </div>
