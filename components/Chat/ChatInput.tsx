@@ -987,7 +987,7 @@ export const ChatInput = ({
 
                         {/* Render FileList above the input area */}
                         {documents && documents.length > 0 && (
-                            <div className="w-full px-2 py-2 border-b border-black/10 dark:border-gray-700/50">
+                            <div className="w-full px-2 py-0.5 border-b border-black/10 dark:border-gray-700/50">
                                 <FileList documents={documents}
                                           documentStates={documentState}
                                           onCancelUpload={onCancelUpload}
@@ -997,7 +997,7 @@ export const ChatInput = ({
 
                         {/* Render ActionsList above the input area */}
                         {featureFlags.actionSets && addedActions.length > 0 && (
-                            <div className="w-full px-2 py-2 border-b border-black/10 dark:border-gray-700/50">
+                            <div className="w-full px-2 py-0.5 border-b border-black/10 dark:border-gray-700/50">
                                 <ActionsList actions={addedActions}
                                              onActionClick={
                                                  (a)=>{
@@ -1095,7 +1095,7 @@ export const ChatInput = ({
                                 onFocus={() => setIsInputInFocus(true)}
                                 onBlur={() => setIsInputInFocus(false)}
                                 id="messageChatInputText"
-                                className="m-0 w-full resize-none border-0 bg-transparent p-0 py-2 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-3 md:pl-10"
+                                className="m-0 w-full resize-none border-0 bg-transparent p-0 py-3 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-4 md:pl-10 text-sm"
                                 style={{
                                     resize: 'none',
                                     bottom: `${textareaRef?.current?.scrollHeight}px`,
@@ -1177,7 +1177,7 @@ export const ChatInput = ({
                     </div>
 
 
-                    <div className="h-6 w-full max-w-4xl px-2 md:px-4 pr-24 md:pr-32 lg:pr-40 flex flex-row gap-2 items-center ">
+                    <div className="h-6 w-full max-w-4xl px-2 md:px-4 pr-24 md:pr-32 lg:pr-40 flex flex-row gap-2 items-center mt-3">
 
 
                         {featureFlags.dataSourceSelectorOnInput && (
