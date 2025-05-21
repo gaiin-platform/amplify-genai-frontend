@@ -3183,3 +3183,386 @@
     gap: 12px;
   }
 }
+
+/* ===================================
+   Beautiful Legacy Workspaces Styling
+   =================================== */
+
+.legacy-workspaces-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+
+/* Information Banner */
+.legacy-workspaces-info-banner {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  background: rgba(147, 51, 234, 0.05);
+  border: 1px solid rgba(147, 51, 234, 0.2);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.legacy-workspaces-info-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(147, 51, 234, 0.1);
+  border: 2px solid rgba(147, 51, 234, 0.2);
+  border-radius: 10px;
+  color: #7c3aed;
+  flex-shrink: 0;
+}
+
+.legacy-workspaces-info-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legacy-workspaces-info-text {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.9rem;
+  color: #374151;
+  margin: 0;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.legacy-workspaces-info-subtitle {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin: 0;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+/* Workspaces Grid */
+.legacy-workspaces-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+/* Individual Workspace Cards */
+.legacy-workspace-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+.legacy-workspace-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  border-color: rgba(147, 51, 234, 0.3);
+}
+
+.legacy-workspace-card:hover .legacy-workspace-overlay {
+  opacity: 1;
+  visibility: visible;
+}
+
+.legacy-workspace-card-content {
+  padding: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.legacy-workspace-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.legacy-workspace-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: rgba(147, 51, 234, 0.1);
+  border: 2px solid rgba(147, 51, 234, 0.2);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.legacy-workspace-icon {
+  color: #7c3aed;
+  transition: all 0.2s ease;
+}
+
+.legacy-workspace-card:hover .legacy-workspace-icon-wrapper {
+  background: rgba(147, 51, 234, 0.15);
+  border-color: rgba(147, 51, 234, 0.3);
+  transform: scale(1.05);
+}
+
+.legacy-workspace-badge {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  background: rgba(147, 51, 234, 0.1);
+  color: #7c3aed;
+  border: 1px solid rgba(147, 51, 234, 0.2);
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.legacy-workspace-info {
+  flex: 1;
+  margin-bottom: 16px;
+}
+
+.legacy-workspace-title {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.legacy-workspace-date {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin: 0;
+  font-weight: 400;
+}
+
+.legacy-workspace-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.legacy-workspace-action-hint {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.8rem;
+  color: #7c3aed;
+  font-weight: 500;
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+.legacy-workspace-card:hover .legacy-workspace-action-hint {
+  opacity: 1;
+}
+
+/* Hover Overlay */
+.legacy-workspace-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(147, 51, 234, 0.9);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  z-index: 2;
+}
+
+.legacy-workspace-overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.legacy-workspace-overlay-icon {
+  color: white;
+  animation: pulse 2s infinite;
+}
+
+.legacy-workspace-overlay-text {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  letter-spacing: -0.01em;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/* Empty State */
+.legacy-workspaces-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 40px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.4);
+  border: 2px dashed rgba(147, 51, 234, 0.2);
+  border-radius: 16px;
+  backdrop-filter: blur(8px);
+}
+
+.legacy-workspaces-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  background: rgba(147, 51, 234, 0.1);
+  border: 2px solid rgba(147, 51, 234, 0.2);
+  border-radius: 16px;
+  color: #7c3aed;
+  margin-bottom: 20px;
+  opacity: 0.6;
+}
+
+.legacy-workspaces-empty-title {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 12px 0;
+  letter-spacing: -0.02em;
+}
+
+.legacy-workspaces-empty-description {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.5;
+  max-width: 400px;
+  font-weight: 400;
+}
+
+/* Dark Mode for Legacy Workspaces */
+.dark .legacy-workspaces-info-banner {
+  background: rgba(147, 51, 234, 0.1);
+  border: 1px solid rgba(147, 51, 234, 0.3);
+}
+
+.dark .legacy-workspaces-info-icon {
+  background: rgba(147, 51, 234, 0.15);
+  border: 2px solid rgba(147, 51, 234, 0.3);
+  color: #a855f7;
+}
+
+.dark .legacy-workspaces-info-text {
+  color: #e5e7eb;
+}
+
+.dark .legacy-workspaces-info-subtitle {
+  color: #9ca3af;
+}
+
+.dark .legacy-workspace-card {
+  background: rgba(31, 41, 55, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .legacy-workspace-card:hover {
+  border-color: rgba(147, 51, 234, 0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.dark .legacy-workspace-icon-wrapper {
+  background: rgba(147, 51, 234, 0.15);
+  border: 2px solid rgba(147, 51, 234, 0.3);
+}
+
+.dark .legacy-workspace-icon {
+  color: #a855f7;
+}
+
+.dark .legacy-workspace-badge {
+  background: rgba(147, 51, 234, 0.15);
+  color: #a855f7;
+  border: 1px solid rgba(147, 51, 234, 0.3);
+}
+
+.dark .legacy-workspace-title {
+  color: #f3f4f6;
+}
+
+.dark .legacy-workspace-date {
+  color: #9ca3af;
+}
+
+.dark .legacy-workspace-action-hint {
+  color: #a855f7;
+}
+
+.dark .legacy-workspaces-empty {
+  background: rgba(31, 41, 55, 0.6);
+  border: 2px dashed rgba(147, 51, 234, 0.3);
+}
+
+.dark .legacy-workspaces-empty-icon {
+  background: rgba(147, 51, 234, 0.15);
+  border: 2px solid rgba(147, 51, 234, 0.3);
+  color: #a855f7;
+}
+
+.dark .legacy-workspaces-empty-title {
+  color: #f3f4f6;
+}
+
+.dark .legacy-workspaces-empty-description {
+  color: #9ca3af;
+}
+
+/* Responsive Design for Legacy Workspaces */
+@media (max-width: 768px) {
+  .legacy-workspaces-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .legacy-workspace-card-content {
+    padding: 20px;
+  }
+  
+  .legacy-workspaces-info-banner {
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
+  }
+  
+  .legacy-workspaces-empty {
+    padding: 40px 20px;
+  }
+  
+  .legacy-workspace-card-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 12px;
+  }
+}
