@@ -1136,11 +1136,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                     <div
                                        id="chatUpperMenu"
-                                       className="items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
-                                        {/* MTD Cost moved to user avatar */}               
-                                         {/*  Removing Workspaces:    old   { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' }  */}
-                                         {/* Should be in sync with selectedModelId now:      old   selectedConversation?.model?.name || ''*/}
-                                        {` `}{selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
+                                       className="items-center sticky top-0 py-3 z-10 flex justify-center relative border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
+                                        
+                                        {/* Centered Content */}
+                                        <div className="flex items-center justify-center">
+                                            {/* MTD Cost moved to user avatar */}               
+                                             {/*  Removing Workspaces:    old   { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' }  */}
+                                             {/* Should be in sync with selectedModelId now:      old   selectedConversation?.model?.name || ''*/}
+                                            {` `}{selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"
                                             onClick={(e) => {
@@ -1217,6 +1220,16 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             </button> 
                                             </>
                                         }
+                                        </div>
+
+                                        {/* User Avatar - Positioned absolutely on the right */}
+                                        <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                                            <UserAvatar
+                                                email={userEmail}
+                                                name={session?.user?.name}
+                                                showMtdCost={featureFlags.mtdCost}
+                                            />
+                                        </div>
 
                                     </div>
                                     <div ref={modelSelectRef}></div>

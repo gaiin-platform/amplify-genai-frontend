@@ -1495,7 +1495,7 @@ const Home = ({
                             >
                                 <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
                                 <Tab icon={<Icon3dCubeSphere />} title="Prompts & Assistants"><Promptbar /></Tab>
-                                <Tab icon={<IconShare />} title="Share"><SharedItemsList /></Tab>
+                                {/* <Tab icon={<IconShare />} title="Share"><SharedItemsList /></Tab> */}
                                 <Tab icon={<IconSettings />} title="Settings"><SettingsBar /></Tab>
                             </TabSidebar>
 

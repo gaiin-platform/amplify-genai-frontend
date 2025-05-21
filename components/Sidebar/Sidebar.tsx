@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { KebabMenu } from '@/components/Sidebar/components/KebabMenu';
 import { SortType } from '@/types/folder';
 import HomeContext from '@/pages/api/home/home.context';
-import { UserAvatar } from '@/components/Layout/UserAvatar';
 
 // Inline Search component to avoid import issues
 interface SearchProps {
@@ -172,15 +171,6 @@ const Sidebar = <T,>({
               <IconFolderPlus size={16} className="enhanced-icon" />
             </button>
           </div>
-          {side === 'right' && (
-            <div className="flex-shrink-0 ml-1">
-              <UserAvatar
-                email={session?.user?.email}
-                name={session?.user?.name}
-                showMtdCost={true}
-              />
-            </div>
-          )}
         </div>
         {side === 'right' && addItemButton('')}
         <div>
