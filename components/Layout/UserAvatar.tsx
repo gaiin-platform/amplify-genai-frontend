@@ -10,6 +10,7 @@ interface UserAvatarProps {
   cognitoDomain?: string;
   cognitoClientId?: string;
   showMtdCost?: boolean;
+  onSettingsClick?: () => void;
 }
 
 const getInitials = (email: string | null | undefined): string => {
@@ -65,7 +66,8 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   name,
   cognitoDomain,
   cognitoClientId,
-  showMtdCost = true
+  showMtdCost = true,
+  onSettingsClick
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -189,8 +191,12 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
           <div className="py-1">
             <button
               onClick={() => {
-                // TODO: Add settings functionality
-                console.log('Settings clicked');
+                if (onSettingsClick) {
+                  onSettingsClick();
+                  setShowDropdown(false);
+                } else {
+                  console.log('Settings clicked - no handler provided');
+                }
               }}
               className="flex w-full items-center gap-3 px-4 py-2 cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#343541]/90 transition-all duration-200"
             >
