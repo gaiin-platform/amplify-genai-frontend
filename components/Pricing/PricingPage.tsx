@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { IconCheck, IconStar, IconSparkles, IconRocket, IconCrown } from '@tabler/icons-react';
+import React, { useState, useEffect } from 'react';
+import { IconCheck, IconStar, IconSparkles, IconRocket, IconCrown, IconBolt, IconShield, IconTrendingUp, IconInfinity, IconDiamond, IconCircleCheck } from '@tabler/icons-react';
 
 interface PricingTier {
   id: string;
@@ -17,6 +17,17 @@ interface PricingTier {
 
 const PricingPage: React.FC = () => {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+    
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
 
   const pricingTiers: PricingTier[] = [
     {
@@ -85,70 +96,163 @@ const PricingPage: React.FC = () => {
   return (
     <div className="pricing-page-container">
       <div className="pricing-page-content">
+        {/* Animated Background Elements */}
+        <div className="pricing-background-elements">
+          <div className="pricing-floating-element pricing-floating-element-1"></div>
+          <div className="pricing-floating-element pricing-floating-element-2"></div>
+          <div className="pricing-floating-element pricing-floating-element-3"></div>
+          <div className="pricing-particle pricing-particle-1"></div>
+          <div className="pricing-particle pricing-particle-2"></div>
+          <div className="pricing-particle pricing-particle-3"></div>
+        </div>
+
         {/* Header Section */}
         <div className="pricing-header">
           <div className="pricing-header-content">
-            <div className="pricing-header-icon">
-              <IconRocket size={48} />
+            <div className="pricing-header-badges">
+              <div className="pricing-header-badge">
+                <IconBolt size={16} />
+                <span>AI-Powered</span>
+              </div>
+              <div className="pricing-header-badge">
+                <IconShield size={16} />
+                <span>Enterprise Ready</span>
+              </div>
+              <div className="pricing-header-badge">
+                <IconTrendingUp size={16} />
+                <span>Scales with Growth</span>
+              </div>
             </div>
-            <h1 className="pricing-header-title">Choose Your Plan</h1>
+            <div className="pricing-header-icon-wrapper">
+              <div className="pricing-header-icon">
+                <IconRocket size={52} />
+              </div>
+              <div className="pricing-header-icon-glow"></div>
+            </div>
+            <h1 className="pricing-header-title">
+              <span className="pricing-title-highlight">Choose Your</span>
+              <br />
+              <span className="pricing-title-main">Perfect Plan</span>
+            </h1>
             <p className="pricing-header-subtitle">
-              Unlock the power of AI with flexible pricing that scales with your needs
+              Unlock the unlimited potential of AI with flexible pricing designed to scale
+              <br />
+              <span className="pricing-subtitle-highlight">with your ambition and success</span>
             </p>
+            <div className="pricing-header-stats">
+              <div className="pricing-stat">
+                <span className="pricing-stat-number">50K+</span>
+                <span className="pricing-stat-label">Active Users</span>
+              </div>
+              <div className="pricing-stat">
+                <span className="pricing-stat-number">99.9%</span>
+                <span className="pricing-stat-label">Uptime</span>
+              </div>
+              <div className="pricing-stat">
+                <span className="pricing-stat-number">24/7</span>
+                <span className="pricing-stat-label">Support</span>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Billing Toggle */}
         <div className="pricing-billing-toggle">
-          <div className="pricing-billing-options">
-            <button
-              className={`pricing-billing-option ${billingPeriod === 'monthly' ? 'pricing-billing-option-active' : ''}`}
-              onClick={() => setBillingPeriod('monthly')}
-            >
-              Monthly
-            </button>
-            <button
-              className={`pricing-billing-option ${billingPeriod === 'yearly' ? 'pricing-billing-option-active' : ''}`}
-              onClick={() => setBillingPeriod('yearly')}
-            >
-              Yearly
-              <span className="pricing-billing-badge">Save 20%</span>
-            </button>
+          <div className="pricing-billing-wrapper">
+            <div className="pricing-billing-label">
+              <IconDiamond size={20} />
+              <span>Choose your billing cycle</span>
+            </div>
+            <div className="pricing-billing-options">
+              <button
+                className={`pricing-billing-option ${billingPeriod === 'monthly' ? 'pricing-billing-option-active' : ''}`}
+                onClick={() => setBillingPeriod('monthly')}
+              >
+                <span className="pricing-billing-option-text">Monthly</span>
+                <span className="pricing-billing-option-desc">Pay as you go</span>
+              </button>
+              <button
+                className={`pricing-billing-option ${billingPeriod === 'yearly' ? 'pricing-billing-option-active' : ''}`}
+                onClick={() => setBillingPeriod('yearly')}
+              >
+                <span className="pricing-billing-option-text">Yearly</span>
+                <span className="pricing-billing-option-desc">Best value</span>
+                <div className="pricing-billing-badge">
+                  <IconSparkles size={12} />
+                  <span>Save 20%</span>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Pricing Cards */}
         <div className="pricing-cards-container">
-          {pricingTiers.map((tier) => (
+          {pricingTiers.map((tier, index) => (
             <div
               key={tier.id}
-              className={`pricing-card ${tier.popular ? 'pricing-card-popular' : ''} ${tier.enterprise ? 'pricing-card-enterprise' : ''}`}
+              className={`pricing-card ${tier.popular ? 'pricing-card-popular' : ''} ${tier.enterprise ? 'pricing-card-enterprise' : ''} ${hoveredCard === tier.id ? 'pricing-card-hovered' : ''}`}
+              onMouseEnter={() => setHoveredCard(tier.id)}
+              onMouseLeave={() => setHoveredCard(null)}
+              style={{
+                animationDelay: `${index * 0.2}s`
+              }}
             >
               {tier.popular && (
                 <div className="pricing-card-badge">
-                  <IconSparkles size={16} />
-                  Most Popular
+                  <div className="pricing-badge-icon">
+                    <IconSparkles size={14} />
+                  </div>
+                  <span className="pricing-badge-text">Most Popular</span>
+                  <div className="pricing-badge-shine"></div>
+                </div>
+              )}
+              
+              {tier.enterprise && (
+                <div className="pricing-card-badge pricing-card-badge-enterprise">
+                  <div className="pricing-badge-icon">
+                    <IconCrown size={14} />
+                  </div>
+                  <span className="pricing-badge-text">Premium</span>
+                  <div className="pricing-badge-shine"></div>
                 </div>
               )}
               
               <div className="pricing-card-content">
                 <div className="pricing-card-header">
-                  <div className="pricing-card-icon">
-                    {tier.icon}
+                  <div className="pricing-card-icon-wrapper">
+                    <div className="pricing-card-icon">
+                      {tier.icon}
+                    </div>
+                    <div className="pricing-card-icon-bg"></div>
                   </div>
                   <h3 className="pricing-card-title">{tier.name}</h3>
                   <p className="pricing-card-description">{tier.description}</p>
                 </div>
 
                 <div className="pricing-card-price">
-                  <span className="pricing-card-price-amount">{tier.price}</span>
-                  <span className="pricing-card-price-period">{tier.period}</span>
+                  <div className="pricing-card-price-wrapper">
+                    <span className="pricing-card-price-amount">{tier.price}</span>
+                    {tier.period && (
+                      <span className="pricing-card-price-period">{tier.period}</span>
+                    )}
+                  </div>
+                  {billingPeriod === 'yearly' && tier.price !== 'Custom' && (
+                    <div className="pricing-card-savings">
+                      <IconTrendingUp size={14} />
+                      <span>Save ${(parseInt(tier.price.replace('$', '')) * 12 - parseInt(tier.price.replace('$', '')) * 10)} annually</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pricing-card-features">
-                  {tier.features.map((feature, index) => (
-                    <div key={index} className="pricing-card-feature">
-                      <IconCheck size={16} className="pricing-card-feature-icon" />
+                  {tier.features.map((feature, featureIndex) => (
+                    <div key={featureIndex} className="pricing-card-feature" style={{
+                      animationDelay: `${(index * 0.2) + (featureIndex * 0.1)}s`
+                    }}>
+                      <div className="pricing-card-feature-icon-wrapper">
+                        <IconCircleCheck size={18} className="pricing-card-feature-icon" />
+                      </div>
                       <span className="pricing-card-feature-text">{feature}</span>
                     </div>
                   ))}
@@ -157,9 +261,15 @@ const PricingPage: React.FC = () => {
                 <button
                   className={`pricing-card-button pricing-card-button-${tier.buttonVariant}`}
                 >
-                  {tier.buttonText}
+                  <span className="pricing-button-text">{tier.buttonText}</span>
+                  <div className="pricing-button-shine"></div>
+                  {tier.popular && <IconSparkles size={16} className="pricing-button-icon" />}
+                  {tier.enterprise && <IconInfinity size={16} className="pricing-button-icon" />}
+                  {!tier.popular && !tier.enterprise && <IconRocket size={16} className="pricing-button-icon" />}
                 </button>
               </div>
+              
+              <div className="pricing-card-glow"></div>
             </div>
           ))}
         </div>
