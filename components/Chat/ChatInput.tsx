@@ -981,14 +981,19 @@ export const ChatInput = ({
                             setShowProjectList(false);
                         }}/>} */}
 
-                        <FileList documents={documents}
-                                  documentStates={documentState}
-                                  onCancelUpload={onCancelUpload}
-                                  setDocuments={setDocuments}/>
-
                     </div>
 
                     <div className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4" >
+
+                        {/* Render FileList above the input area */}
+                        {documents && documents.length > 0 && (
+                            <div className="w-full px-2 py-2 border-b border-black/10 dark:border-gray-700/50">
+                                <FileList documents={documents}
+                                          documentStates={documentState}
+                                          onCancelUpload={onCancelUpload}
+                                          setDocuments={setDocuments}/>
+                            </div>
+                        )}
 
                         {/* Render ActionsList above the input area */}
                         {featureFlags.actionSets && addedActions.length > 0 && (
