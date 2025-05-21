@@ -3,6 +3,7 @@ import React from 'react';
 import { Checkbox } from '@/components/ReusableComponents/CheckBox';
 import { TagsList } from '../Chat/TagsList';
 import { camelCaseToTitle } from '@/utils/app/data';
+import { getOperationIcon } from '@/types/integrations';
 
 interface ApiParam {
   name: string;
@@ -21,19 +22,25 @@ interface ApiItemProps {
   onChange?: (id: string, checked: boolean) => void;
   selected: boolean;
   onClick?: (api: any) => void;
+  showDetails?: boolean;
 }
 const filterTags = (tags: string[]) => {
   return tags.filter((t:string) => !['default', 'all'].includes(t));
 }
 
-const ApiItem: React.FC<ApiItemProps> = ({ api, index, selected, onChange, onClick}) => {
+const getIcon = (name: string | undefined) => {
+  const IconComponent = getOperationIcon(name);
+  return <IconComponent size={18} />
+}
+
+
+const ApiItem: React.FC<ApiItemProps> = ({ api, index, selected, onChange, onClick, showDetails=true}) => {
   return (
     <div
       onClick={() => onClick && onClick(api)}
       key={api.id}
-      className={`api-item ${onClick ? 'cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-700' : ''}`}
+      className={`api-item border border-neutral-500 dark:border-gray-500 ${onClick ? 'cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-700' : ''}`}
       style={{
-        border: '1px solid #ccc',
         padding: '10px',
         margin: '10px 0',
         borderRadius: '5px',
@@ -47,8 +54,10 @@ const ApiItem: React.FC<ApiItemProps> = ({ api, index, selected, onChange, onCli
           checked={selected || false}
           onChange={(e) => onChange(api.id, e)}
           bold={true}
-        /> :  <span className={`mt-[1px] font-bold`}>{camelCaseToTitle(api.name)}</span>}
-        {api.tags && filterTags(api.tags).length > 0 &&
+        /> : 
+        <span className={`flex flex-row gap-2 mt-[1px] font-bold`}>{
+              getIcon(api.name)} {camelCaseToTitle(api.name)}</span>}
+        {showDetails && api.tags && filterTags(api.tags).length > 0 &&
         <div className='ml-auto'>
           <TagsList
             tags={filterTags(api.tags)}
@@ -57,7 +66,7 @@ const ApiItem: React.FC<ApiItemProps> = ({ api, index, selected, onChange, onCli
           />
         </div>}
       </div>
-      
+    {showDetails && <>
       {api.description && <p>{api.description}</p>}
       {api.params && api.params.length > 0 && (
         <div className="mt-2">
@@ -73,6 +82,7 @@ const ApiItem: React.FC<ApiItemProps> = ({ api, index, selected, onChange, onCli
         <summary>Specification</summary>
         <pre>{JSON.stringify(api, null, 2)}</pre>
       </details>
+    </>}
     </div>
   );
 };

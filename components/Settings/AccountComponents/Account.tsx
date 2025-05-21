@@ -260,7 +260,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                         className="mr-2 w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 bg-neutral-100 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                         onClick={onClose}
                     >
-                        {t('Cancel')}
+                        {hasEdits ? t('Cancel') : 'Close'}
                     </button>
                     <button
                         type="button"

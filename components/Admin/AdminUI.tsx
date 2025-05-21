@@ -36,7 +36,7 @@ export const titleLabel = (title: string, textSize: string = "lg") =>
 export const loadingIcon = (size: number = 16) => <LoadingIcon style={{ width: `${size}px`, height: `${size}px` }}/>
 
 
-export const loading = <div className="flex flex-row gap-2 ml-10 text-[1.2rem]"> 
+export const loading = <div className="flex flex-row gap-2 ml-10 text-[1.2rem] text-gray-500"> 
                         <>{loadingIcon(22)}</> Loading...
                       </div>;
 

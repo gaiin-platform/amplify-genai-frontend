@@ -15,7 +15,7 @@ interface AgentToolsSelectorProps {
   onToolSelectionChange: (tools: string[]) => void;
   onClickAgentTool?: (tool: any) => void;
   disableSelection?:boolean;
-
+  showDetails?: boolean;
 }
 
 const AgentToolsSelector: React.FC<AgentToolsSelectorProps> = ({ 
@@ -23,7 +23,8 @@ const AgentToolsSelector: React.FC<AgentToolsSelectorProps> = ({
   selectedTools, 
   onToolSelectionChange,
   onClickAgentTool,
-  disableSelection = false
+  disableSelection = false,
+  showDetails
 }) => {
     const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('name'); 
     const [searchTerm, setSearchTerm] = useState<string>(''); 
@@ -47,7 +48,7 @@ const AgentToolsSelector: React.FC<AgentToolsSelectorProps> = ({
 
   return (
     <div className="agent-tools-selector">
-      {availableTools && opsSearchToggleButtons(opSearchBy, setOpSearchBy, searchTerm, setSearchTerm, " mt-4 ml-auto mr-2 mb-6", '')}
+      {availableTools && opsSearchToggleButtons(opSearchBy, setOpSearchBy, searchTerm, setSearchTerm, " mt-4 ml-auto mb-6", '', showDetails)}
 
       <div className="tool-list max-h-[500px] overflow-y-auto">
         {filteredTools.length > 0 ? (
@@ -60,6 +61,7 @@ const AgentToolsSelector: React.FC<AgentToolsSelectorProps> = ({
               selected={selectedTools.includes(toolId)}
               onChange={disableSelection ? undefined : handleToolChange}
               onClick={onClickAgentTool}
+              showDetails={showDetails}
             />
           ))
         ) : (

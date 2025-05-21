@@ -3,6 +3,7 @@ import { Checkbox } from '@/components/ReusableComponents/CheckBox';
 import { TagsList } from '@/components/Chat/TagsList';
 import { snakeCaseToTitleCase } from '@/utils/app/data';
 import { AgentTool } from '@/types/agentTools';
+import { getOperationIcon } from '@/types/integrations';
 
 
 
@@ -13,9 +14,15 @@ interface ToolItemProps {
   onChange?: (id: string, checked: boolean) => void;
   selected: boolean;
   onClick?: (tool: any) => void;
+  showDetails?: boolean;
 }
 
-const ToolItem: React.FC<ToolItemProps> = ({ toolId, toolInfo, index, selected, onChange, onClick }) => {
+const getIcon = (name: string | undefined) => {
+  const IconComponent = getOperationIcon(name);
+  return <IconComponent size={18} />
+}
+
+const ToolItem: React.FC<ToolItemProps> = ({ toolId, toolInfo, index, selected, onChange, onClick, showDetails=true }) => {
   // Format description - keep only the first few sentences if it's very long
   const shortDescription = toolInfo.description?.length < 120 ?  toolInfo.description : toolInfo.description.slice(0, 120) + '...';
 
@@ -23,9 +30,8 @@ const ToolItem: React.FC<ToolItemProps> = ({ toolId, toolInfo, index, selected, 
     <div
       onClick={() => onClick && onClick(toolInfo)}
       key={toolId}
-      className={`tool-item ${onClick ? 'cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-700' : ''}`}
+      className={`tool-item border border-neutral-500 dark:border-gray-500 ${onClick ? 'cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-700' : ''}`}
       style={{
-        border: '1px solid #ccc',
         padding: '10px',
         margin: '10px 0',
         borderRadius: '5px',
@@ -39,9 +45,11 @@ const ToolItem: React.FC<ToolItemProps> = ({ toolId, toolInfo, index, selected, 
             checked={selected || false}
             onChange={(e) => onChange(toolId, e)}
             bold={true}
-          /> : <span className={`mt-[1px] font-bold`}>{snakeCaseToTitleCase(toolInfo.tool_name)}</span>}
+          /> :
+          <span className={`flex flex-row gap-2 mt-[1px] font-bold`}>{
+                getIcon(toolInfo.tool_name)} {snakeCaseToTitleCase(toolInfo.tool_name)}</span>}
         <div className='ml-auto'>
-          {toolInfo.tags && toolInfo.tags.length > 0 && (
+          {showDetails && toolInfo.tags && toolInfo.tags.length > 0 && (
             <TagsList
               tags={toolInfo.tags}
               setTags={() => {}}
@@ -50,7 +58,7 @@ const ToolItem: React.FC<ToolItemProps> = ({ toolId, toolInfo, index, selected, 
           )}
         </div>
       </div>
-      
+    {showDetails && <>
       {toolInfo.description && (
         <p className="text-sm text-neutral-700 dark:text-neutral-300">
           {shortDescription}
@@ -84,6 +92,7 @@ const ToolItem: React.FC<ToolItemProps> = ({ toolId, toolInfo, index, selected, 
           )}
         </div>
       </details>
+    </>}
     </div>
   );
 };

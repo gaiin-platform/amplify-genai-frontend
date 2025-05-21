@@ -1,4 +1,4 @@
-import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot, IconUser, IconSettingsBolt, IconDeviceSdCard, IconTools } from '@tabler/icons-react';
+import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot, IconUser, IconSettingsBolt, IconDeviceSdCard, IconTools, IconAlarm } from '@tabler/icons-react';
 import { useContext, useEffect, useRef, useState } from 'react';
 
 
@@ -19,6 +19,7 @@ import { MemoryDialog } from '@/components/Memory/MemoryDialog';
 import { Settings } from '@/types/settings';
 import { PythonFunctionModal } from '@/components/Operations/PythonFunctionModal';
 import { AssistantWorkflowBuilder } from '@/components/AssistantWorkflows/AssistantWorkflowBuilder';
+import { ScheduledTasks } from '@/components/Agent/ScheduledTasks';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
@@ -29,6 +30,8 @@ export const ChatbarSettings = () => {
     const [isMemoryDialogOpen, setIsMemoryDialogOpen] = useState(false);
     const [isPyFunctionApiOpen, setIsPyFunctionApiOpen] = useState(false);
     const [isWorkflowBuilderOpen, setIsWorkflowBuilderOpen] = useState(false);
+    const [isScheduledTasksOpen, setIsScheduledTasksOpen] = useState(false);
+
 
 
     const {
@@ -113,19 +116,6 @@ export const ChatbarSettings = () => {
                 openToTab={settingsActiveTab.current}
             />}
 
-
-            {featureFlags.assistantAdminInterface && 
-                <SidebarButton
-                    text={t('Assistant Interface')}
-                    icon={<IconRobot size={19} />}
-                    onClick={() => {
-                        // send trigger to close side bars and open the interface 
-                        window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: true }} ));
-                      
-                    }}
-                />
-            }
-
             
 
             {featureFlags.integrations && 
@@ -138,50 +128,6 @@ export const ChatbarSettings = () => {
             <IntegrationsDialog open={isIntegrationsOpen} onClose={()=>{setIsIntegrationsOpen(false)}}/>
             </>
             }
-
-            {featureFlags.memory && settingRef.current?.featureOptions.includeMemory && (
-                <>
-                <SidebarButton
-                    text={t('Memory')}
-                    icon={<IconDeviceSdCard size={18} />}
-                    onClick={() => setIsMemoryDialogOpen(true)}
-                />
-                <MemoryDialog
-                    open={isMemoryDialogOpen}
-                    onClose={() => setIsMemoryDialogOpen(false)}
-                />
-                </>
-            )}
-
-            { featureFlags.createPythonFunctionApis && <>
-                <SidebarButton
-                    text={t('Custom Function APIs')}
-                    icon={<IconTools size={17} />}
-                    onClick={() => setIsPyFunctionApiOpen(!isPyFunctionApiOpen)}
-                />
-
-            {isPyFunctionApiOpen && 
-              <PythonFunctionModal
-                onCancel={()=>{setIsPyFunctionApiOpen(false);}}
-                onSave={()=>{}}
-                width="65%"
-            />}
-            </>}
-
-            { featureFlags.createAssistantWorkflows && <> 
-                <SidebarButton
-                    text={t('Assistant Workflows')}
-                    icon={<IconPuzzle size={20} />}
-                    onClick={() => setIsWorkflowBuilderOpen(!isWorkflowBuilderOpen)}
-              
-                />
-                <AssistantWorkflowBuilder 
-                    isOpen={isWorkflowBuilderOpen} 
-                    onClose={() => setIsWorkflowBuilderOpen(false)} 
-                    onRegister={(template) => {}} 
-                    width={() => window.innerWidth * 0.8}
-                    height={() => window.innerHeight * 0.94}
-            /> </> }
 
 
             <Import onImport={handleImportConversations} />
@@ -204,6 +150,87 @@ export const ChatbarSettings = () => {
                 icon={<IconHelp size={18} />}
                 onClick={() => window.location.href = `mailto:${supportEmail}`}
             />}
+
+            {/* Featurea */}
+            <div className={`w-full text-center border-y border-gray-200 dark:border-white/20`}>
+                <label className="text-[13px] font-bold text-neutral-400 dark:text-neutral-400" >
+                    {t('Manage Features')}
+                </label>
+            </div>
+
+
+            {featureFlags.assistantAdminInterface && 
+                <SidebarButton
+                    text={t('Assistant Interface')}
+                    icon={<IconRobot size={19} />}
+                    onClick={() => {
+                        // send trigger to close side bars and open the interface 
+                        window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: true }} ));
+                      
+                    }}
+                />
+            }
+
+
+            {featureFlags.createAssistantWorkflows && <> 
+                <SidebarButton
+                    text={t('Assistant Workflows')}
+                    icon={<IconPuzzle size={20} />}
+                    onClick={() => setIsWorkflowBuilderOpen(!isWorkflowBuilderOpen)}
+              
+                />
+                <AssistantWorkflowBuilder 
+                    isOpen={isWorkflowBuilderOpen} 
+                    onClose={() => setIsWorkflowBuilderOpen(false)} 
+                    onRegister={(template) => {}} 
+                    width={() => window.innerWidth * 0.8}
+                    height={() => window.innerHeight * 0.94}
+            /> </> }
+
+
+            {featureFlags.createPythonFunctionApis && <>
+                <SidebarButton
+                    text={t('Custom Function APIs')}
+                    icon={<IconTools size={17} />}
+                    onClick={() => setIsPyFunctionApiOpen(!isPyFunctionApiOpen)}
+                />
+
+                {isPyFunctionApiOpen && 
+                <PythonFunctionModal
+                    onCancel={()=>{setIsPyFunctionApiOpen(false);}}
+                    onSave={()=>{}}
+                    width="65%"
+                />}
+            </>}
+
+            {featureFlags.scheduledTasks && <>
+                <SidebarButton
+                    text={t('Scheduled Tasks')}
+                    icon={<IconAlarm size={19} />}
+                    onClick={() => setIsScheduledTasksOpen(!isScheduledTasksOpen)}
+                />
+                {isScheduledTasksOpen && <ScheduledTasks
+                isOpen={isScheduledTasksOpen}
+                onClose={() => setIsScheduledTasksOpen(false)}
+                width={() => window.innerWidth * 0.8}
+                height={() => window.innerHeight * 0.94} />}
+            </>}
+
+            {featureFlags.memory && settingRef.current?.featureOptions.includeMemory && (
+                <>
+                <SidebarButton
+                    text={t('Memory')}
+                    icon={<IconDeviceSdCard size={18} />}
+                    onClick={() => setIsMemoryDialogOpen(true)}
+                />
+                <MemoryDialog
+                    open={isMemoryDialogOpen}
+                    onClose={() => setIsMemoryDialogOpen(false)}
+                />
+                </>
+            )}
+
+            
 
 
         </div>

@@ -6,10 +6,9 @@ import {
     IconSend,
     IconBrain,
     IconBulb,
-    IconScale, IconSettingsAutomation, IconFolderOpen
+    IconScale, IconSettingsAutomation
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
-import LoadActionSetModal from './LoadActionSetModal';
 import {
     KeyboardEvent,
     MutableRefObject,
@@ -227,7 +226,6 @@ export const ChatInput = ({
     const [isQiLoading, setIsQiLoading] = useState<boolean>(true);
     const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
     const [isInputInFocus, setIsInputInFocus] = useState(false);
-    const [allOperations, setAllOperations] = useState<any[]>([]);
     // State to track the list of added actions
     const [addedActions, setAddedActions] = useState<{ 
         name: string; 
@@ -249,8 +247,6 @@ export const ChatInput = ({
     
     // Action set modal states
     const [showSaveActionsModal, setShowSaveActionsModal] = useState(false);
-    const [showLoadActionSetModal, setShowLoadActionSetModal] = useState(false);
-
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
@@ -381,8 +377,7 @@ export const ChatInput = ({
     }
 
     const handleSend = () => {
-        setShowDataSourceSelector(false);
-        setShowOpsPopup(false);
+        handleCloseAllPopups();
         setEditingAction(null);  // Clear any editing action state
 
         if (messageIsStreaming || artifactIsStreaming) {
@@ -602,21 +597,6 @@ export const ChatInput = ({
         }
     }, [prompts]);
 
-    useEffect(() => {
-        const fetchOps = async () => {
-            if (!featureFlags?.integrations) return;
-
-            const opsResponse = await getOpsForUser();
-            if (opsResponse.success && Array.isArray(opsResponse.data)) {
-                const filtered = await filterSupportedIntegrationOps(opsResponse.data);
-                if (filtered) {
-                    setAllOperations(filtered);
-                }
-            }
-        };
-
-        fetchOps();
-    }, [featureFlags]);
 
     useEffect(() => {
         if (promptListRef.current) {
@@ -717,6 +697,7 @@ export const ChatInput = ({
 
     }
     const handleGetQiSummary = async (conversation:Conversation) => {
+        handleCloseAllPopups();
         setShowMessageSelectDialog(false);
         setIsQiLoading(true);
         setShowQiDialog(true);
@@ -729,6 +710,15 @@ export const ChatInput = ({
         return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS,
             ...(selectedConversation?.model?.supportsImages
                 ? [] : ["jpg","png","gif", "jpeg", "webp"] ) ]
+    }
+
+    const handleCloseAllPopups = () => {
+        setShowOpsPopup(false);
+        setShowDataSourceSelector(false);
+        setShowAssistantSelect(false);
+        setShowPromptList(false);
+        setShowMessageSelectDialog(false);
+        setShowQiDialog(false);
     }
 
     ////// Plugin Dependencies //////
@@ -804,6 +794,7 @@ export const ChatInput = ({
                                     onClick={async () => {
                                         // setShowPromptList(false);
                                         if (selectedConversation && selectedConversation.messages?.length > 2) {
+                                            handleCloseAllPopups();
                                             setShowMessageSelectDialog(true);
                                         } else {
                                             setCroppedConversation(cloneDeep(selectedConversation));
@@ -884,7 +875,6 @@ export const ChatInput = ({
                             <div ref={actionSelectorRef} className="z-50 w-full" 
                                  style={{transform: 'translateY(60px)'}} >
                                 <OperationSelector
-                                    operations={allOperations}
                                     initialAction={editingAction ? 
                                         { 
                                           name: editingAction.name, 
@@ -941,6 +931,11 @@ export const ChatInput = ({
                                         setEditingAction(null);
                                         // setShowOpsPopup(false);
                                     }}
+                                    onActionSetAdded={
+                                       (actionSet) => {
+                                            setAddedActions(actionSet.actions);
+                                        }
+                                    }
                                 />
                             </div>
                         )}
@@ -1002,6 +997,7 @@ export const ChatInput = ({
                                              }
 
                                              onConfigureAction={(a, index)=>{
+                                                    handleCloseAllPopups();
                                                     // Set the action being edited
                                                     setEditingAction({
                                                         ...a, 
@@ -1181,8 +1177,8 @@ export const ChatInput = ({
                                 id="viewFiles"
                                 onClick={(e) => {
                                     e.stopPropagation();
+                                    handleCloseAllPopups();
                                     setShowDataSourceSelector(!showDataSourceSelector);
-                                    setShowOpsPopup(false); // Close operation selector when opening data source selector
                                     setIsFactsVisible(false);
                                 }}
                                 onKeyDown={(e) => {
@@ -1218,8 +1214,8 @@ export const ChatInput = ({
                                 if (showOpsPopup) {
                                     setEditingAction(null);
                                 }
+                                handleCloseAllPopups();
                                 setShowOpsPopup(!showOpsPopup);
-                                setShowDataSourceSelector(false); // Close data source selector when opening operation selector
                             }}
                             onKeyDown={(e) => {
                             }}
@@ -1228,22 +1224,6 @@ export const ChatInput = ({
                             <IconSettingsAutomation size={20}/>
                         </button>
                         
-                        {/* Load Action Set button */}
-                        <button
-                            className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
-                            id="loadActionSet"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setShowLoadActionSetModal(true);
-                                setShowOpsPopup(false);
-                                setShowDataSourceSelector(false);
-                            }}
-                            onKeyDown={(e) => {
-                            }}
-                            title="Load Saved Action Set"
-                        >
-                            <IconFolderOpen size={20}/>
-                        </button>
                         </>}
 
                         <div className='flex flex-row gap-2'>
@@ -1253,8 +1233,8 @@ export const ChatInput = ({
                                 className={buttonClasses}
                                 onClick={ (e) => {
                                     e.preventDefault();
+                                    handleCloseAllPopups();
                                     handleShowAssistantSelector();
-                                    setShowDataSourceSelector(false);
                                 }
                                 }
                                 onKeyDown={(e) => {
@@ -1381,18 +1361,6 @@ export const ChatInput = ({
                         setShowSaveActionsModal(false);
                     }}
                     onCancel={() => setShowSaveActionsModal(false)}
-                />
-            )}
-            
-            {/* Load Action Set Modal */}
-            {showLoadActionSetModal && (
-                <LoadActionSetModal
-                    onLoad={(actionSet) => {
-                        setAddedActions(actionSet.actions);
-                        setShowLoadActionSetModal(false);
-                        //alert(`Loaded action set "${actionSet.name}" with ${actionSet.actions.length} actions`);
-                    }}
-                    onCancel={() => setShowLoadActionSetModal(false)}
                 />
             )}
         </>

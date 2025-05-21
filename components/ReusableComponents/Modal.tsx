@@ -28,7 +28,7 @@ interface Props {
 }
 
   export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{}, 
-                                    showClose=true, showCancel=true, showSubmit=true, cancelLabel= "Cancel", submitLabel="Submit",
+                                    showClose=true, showCancel=true, showSubmit=true, cancelLabel= "Close", submitLabel="Submit",
                                     additionalButtonOptions=[], disableSubmit=false, resizeOnVarChange, transform=""}) => {
 
  const modalRef = useRef<HTMLDivElement>(null);
@@ -77,7 +77,7 @@ interface Props {
 
 
     return (
-     <div className={"fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"}>
+     <div className={"fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 h-full"}>
             <div className="fixed inset-0 z-10 overflow-hidden" >
                 <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0" >
                     <div

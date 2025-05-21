@@ -13,10 +13,10 @@ import { InfoBox } from "@/components/ReusableComponents/InfoBox";
 
 export const opsSearchToggleButtons = (opSearchBy: string, setOpSearchBy: Dispatch<SetStateAction<"name" | "tag">>, 
                                        opSearchTerm: string, setOpSearchTerm: (s: string) => void, 
-                                       shift:string, translate: string) => {
+                                       shift:string, translate: string, showLabel=true) => {
     return <div className={`h-[0px] items-center ${shift} flex flex-row gap-4`}
                 style={{transform: translate}}>
-            <div className="ml-auto"> Search by</div>
+            {showLabel && <div className="ml-auto text-neutral-400"> Search by</div>}
             <div className="w-[140px] flex items-center rounded-md border border-neutral-600 bg-neutral-200 dark:bg-[#39394a] p-1">
             {["name", "tag"].map((search: string) => 
             <button onMouseDown={(e) =>  e.preventDefault()}
@@ -342,7 +342,7 @@ return <>
 
             { ops.length > 0 && 
             <div className="mt-8">
-            { showOpSearch && opsSearchToggleButtons(opSearchBy, setOpSearchBy, opSearchTerm, setOpSearchTerm, " ml-[200px] mr-14", 'translateY(5px)') }
+            { showOpSearch && opsSearchToggleButtons(opSearchBy, setOpSearchBy, opSearchTerm, setOpSearchTerm, " ml-[200px] mr-16 ", 'translateY(5px)') }
             <ExpansionComponent
                 onOpen={() => setShowOpSearch(true)}
                 onClose={() => {

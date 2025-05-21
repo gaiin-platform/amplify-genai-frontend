@@ -76,7 +76,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                     
                     }
                     { showFeatureSearch && !isAddingFeature && 
-                    <div className="ml-auto mr-10" style={{transform: 'translateY(6px)'}}>
+                    <div className="ml-auto mr-9" style={{transform: 'translateY(6px)'}}>
                         <Search
                         placeholder={'Search Feature Flags...'}
                         searchTerm={featureSearchTerm}

@@ -11,10 +11,11 @@ interface Props {
     tabs: tab[];
     width?: () => number;
     initialActiveTab?: number | string;
+    onTabChange?: (tabIndex: number, label: string) => void;
 }
 
 
-export const ActiveTabs: FC<Props> = ({tabs, width, initialActiveTab}) => {
+export const ActiveTabs: FC<Props> = ({tabs, width, initialActiveTab, onTabChange}) => {
     const activeTabIdx = () => {
         if (typeof initialActiveTab === 'number') return initialActiveTab;
         return tabs.findIndex((tab) => tab.label === initialActiveTab);
@@ -54,6 +55,7 @@ export const ActiveTabs: FC<Props> = ({tabs, width, initialActiveTab}) => {
                             onClick={() => {
                                 setActiveTab(index);
                                 if (tabRef && tabRef.current) tabRef.current.scrollIntoView({ block: 'start' });
+                                if (onTabChange) onTabChange(index, tab.label);
                             }}
                             className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === index ? 'border-l border-t border-r dark:border-gray-500 dark:text-white  shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
                             <h3 className="text-xl">{tab.label}</h3> 

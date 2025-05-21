@@ -163,7 +163,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
             
             }
             { showModelsSearch && Object.keys(availableModels).length > 0 && !isAddingAvailModel &&
-            <div className="ml-auto mr-16" style={{transform: 'translateY(14px)'}}>
+            <div className="ml-auto mr-16">
                 <Search
                 placeholder={'Search Models...'}
                 searchTerm={modelsSearchTerm}

@@ -92,10 +92,13 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
 
     const [docsIsOpen, setDocsIsOpen] = useState<boolean>(false);
 
+    const [hasEdits, setHasEdits] = useState<boolean>(false);
+
     
     useEffect(() => {
         const handleEvent = (event: any) => {
             setUnsavedChanges(true);
+            setHasEdits(true);
             console.log("editedApiKey was triggered", event.detail);
             const apiKeyId = event.detail.id;
             const updates = event.detail.edits; 
@@ -218,6 +221,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
         } else {
             statsService.updateApiKeyEvent(Object.values(editedKeys));
             setUnsavedChanges(false);
+            setHasEdits(false);
             toast("API changes saved.");
         }
     };
@@ -565,7 +569,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                     className="mr-2 w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-white dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                     onClick={onClose}
                 >
-                    {t('Cancel')}
+                    {hasEdits ? t('Cancel') : 'Close'}
                 </button>
                 <button
                     type="button"

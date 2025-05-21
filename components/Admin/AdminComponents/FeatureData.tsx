@@ -459,7 +459,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
             {astGroups.length > 0 ?
                 <>
                     {showAstGroupSearch && 
-                    <div className="h-[0px] ml-auto mr-14 w-[278px]" style={{transform: 'translateY(-30px)'}}>
+                    <div className="h-[0px] ml-auto mr-20 w-[280px]" style={{transform: 'translateY(-30px)'}}>
                         <Search
                         placeholder={'Search Assistant Admin Groups...'}
                         searchTerm={astGroupSearchTerm}
