@@ -1089,6 +1089,8 @@
   position: relative;
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .integrations-modal-wrapper * {
@@ -1100,6 +1102,8 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  margin-bottom: -40px; /* Offset Modal's hardcoded bottom spacing */
 }
 
 /* Header Section - Fixed at Top */
@@ -1132,8 +1136,8 @@
 .integrations-scrollable-content {
   flex: 1;
   overflow-y: auto;
-  margin: -8px;
-  padding: 8px;
+  overflow-x: hidden;
+  min-height: 0;
 }
 
 /* Loading State Styling */
@@ -1196,6 +1200,7 @@
   z-index: 1;
   max-width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .integration-info {
@@ -1259,6 +1264,8 @@
   color: #1f2937;
   letter-spacing: -0.02em;
   line-height: 1.4;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .integration-status-badge {
@@ -1287,6 +1294,8 @@
   line-height: 1.5;
   margin: 0;
   letter-spacing: -0.01em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .integration-actions {
@@ -1435,6 +1444,8 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .integrations-tab-pill {
@@ -1496,8 +1507,9 @@
 .integrations-content-area {
   flex: 1;
   overflow-y: auto;
-  margin: -8px;
-  padding: 8px;
+  overflow-x: hidden;
+  min-height: 0;
+  padding-right: 2px; /* Prevent scrollbar cutoff */
 }
 
 /* Dark Mode */
