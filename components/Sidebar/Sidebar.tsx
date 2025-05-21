@@ -1,9 +1,11 @@
 import { IconFolderPlus, IconMistOff, IconPlus, IconSparkles, IconX } from '@tabler/icons-react';
 import { ReactNode, useContext, useState, useEffect, FC } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSession } from 'next-auth/react';
 import { KebabMenu } from '@/components/Sidebar/components/KebabMenu';
 import { SortType } from '@/types/folder';
 import HomeContext from '@/pages/api/home/home.context';
+import { UserAvatar } from '@/components/Layout/UserAvatar';
 
 // Inline Search component to avoid import issues
 interface SearchProps {
@@ -89,6 +91,7 @@ const Sidebar = <T,>({
 
   const { state: { messageIsStreaming }} = useContext(HomeContext);
   const { t } = useTranslation('promptbar');
+  const { data: session } = useSession();
   const [isAnimated, setIsAnimated] = useState(false);
 
   // Trigger animation when sidebar is opened
@@ -166,6 +169,14 @@ const Sidebar = <T,>({
           >
             <IconFolderPlus size={18} className="enhanced-icon" />
           </button>
+          {side === 'right' && (
+            <div className="ml-auto">
+              <UserAvatar
+                email={session?.user?.email}
+                name={session?.user?.name}
+              />
+            </div>
+          )}
         </div>
         {side === 'right' && addItemButton('')}
         <div>

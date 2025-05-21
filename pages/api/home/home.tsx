@@ -1476,24 +1476,7 @@ const Home = ({
 
                             <TabSidebar
                                 side={"left"}
-                                footerComponent={
-                                    <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-                                        <button id="logout" className="dark:text-white" title="Sign Out" onClick={() => {
-                                            const goLogout = async () => {
-                                                await federatedSignOut();
-                                            };
-                                            goLogout();
-                                        }}>
-
-                                            <div className="flex items-center">
-                                                <IconLogout className="m-2" />
-                                                <span>{isLoading ? 'Loading...' : getName(user?.email) ?? 'Unnamed user'}</span>
-                                            </div>
-
-                                        </button>
-
-                                    </div>
-                                }
+                                footerComponent={null}
                             >
                                 <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
                                 <Tab icon={<IconShare />} title="Share"><SharedItemsList /></Tab>

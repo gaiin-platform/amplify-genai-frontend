@@ -48,6 +48,7 @@ import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/as
 import {ChatRequest, useSendService} from "@/hooks/useChatSendService";
 import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
+import { UserAvatar } from '@/components/Layout/UserAvatar';
 import { getFullTimestamp } from '@/utils/app/date';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
@@ -1235,6 +1236,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             </button> 
                                             </>
                                         }
+                                        
+                                        {/* User Avatar at the far right */}
+                                        <div className="ml-auto">
+                                            <UserAvatar
+                                                email={userEmail}
+                                                name={session?.user?.name}
+                                            />
+                                        </div>
                                     </div>
                                     <div ref={modelSelectRef}></div>
                                     
