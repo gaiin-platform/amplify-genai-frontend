@@ -4,6 +4,7 @@ import {
     IconShare,
     IconDownload,
     IconRocket,
+    IconChevronRight,
 } from '@tabler/icons-react';
 import {
     MutableRefObject,
@@ -214,6 +215,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const [isIntegrationsOpen, setIsIntegrationsOpen] = useState<boolean>(false);
         const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
+        const [isPillExpanded, setIsPillExpanded] = useState(false);
         const [selectedConversationState, setSelectedConversationState] = useState<Conversation | undefined>(selectedConversation);
 
         useEffect(() => {
@@ -1159,88 +1161,113 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                        id="chatUpperMenu"
                                        className="items-center sticky top-0 py-3 z-10 flex justify-center relative border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
                                         
-                                        {/* Centered Content */}
-                                        <div className="flex items-center justify-center">
-                                            {/* MTD Cost moved to user avatar */}               
-                                             {/*  Removing Workspaces:    old   { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' }  */}
-                                             {/* Should be in sync with selectedModelId now:      old   selectedConversation?.model?.name || ''*/}
-                                            {` `}{selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                handleSettings();
+                                        {/* Expanding Pill - Centered Content */}
+                                        <div 
+                                            className={`
+                                                relative flex items-center transition-all duration-300 ease-in-out cursor-pointer
+                                                rounded-full bg-white dark:bg-[#343541] shadow-lg hover:shadow-xl
+                                                border border-gray-200 dark:border-gray-600
+                                                ${isPillExpanded ? 'px-6 py-2' : 'px-4 py-2'}
+                                            `}
+                                            onMouseEnter={() => setIsPillExpanded(true)}
+                                            onMouseLeave={() => setIsPillExpanded(false)}
+                                        >
+                                            {/* Always visible - Model name and expand indicator */}
+                                            <div className="flex items-center whitespace-nowrap">
+                                                <span className="font-medium text-gray-800 dark:text-gray-200">
+                                                    {selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''}
+                                                </span>
+                                                <IconChevronRight 
+                                                    size={16} 
+                                                    className={`ml-2 transition-transform duration-300 ${isPillExpanded ? 'rotate-90' : ''} text-gray-500`}
+                                                />
+                                            </div>
 
-                                                if (!messageIsStreaming) handleScrollUp();
+                                            {/* Expanded content - appears on hover */}
+                                            <div className={`
+                                                flex items-center transition-all duration-300 overflow-hidden
+                                                ${isPillExpanded ? 'max-w-[600px] opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'}
+                                            `}>
+                                                <span className="text-gray-600 dark:text-gray-400 whitespace-nowrap mr-3">
+                                                    {t('Temp')}: {selectedConversation?.temperature}
+                                                </span>
                                                 
-                                            }}
-                                            title="Chat Settings"
-                                            id="chatSettings"
-                                        >
-                                            <IconSettings size={18}/>
-                                        </button>
-                                        
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            disabled={messageIsStreaming}
-                                            onClick={onClearAll}
-                                            title="Clear Messages"
-                                            id="clearMessages"
-                                        >
-                                            <IconClearAll size={18}/>
-                                        </button>
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            disabled={messageIsStreaming}
-                                            onClick={() => setIsShareDialogVisible(true)}
-                                            title="Share"
-                                            id="shareChatUpper"
-                                        >
-                                            <IconShare size={18}/>
-                                        </button>
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            disabled={messageIsStreaming}
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                setIsDownloadDialogVisible(true)
+                                                <div className="flex items-center space-x-2">
+                                                    <button
+                                                        className="p-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            handleSettings();
+                                                            if (!messageIsStreaming) handleScrollUp();
+                                                        }}
+                                                        title="Chat Settings"
+                                                        id="chatSettings"
+                                                    >
+                                                        <IconSettings size={16} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"/>
+                                                    </button>
+                                                    
+                                                    <button
+                                                        className="p-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={onClearAll}
+                                                        title="Clear Messages"
+                                                        id="clearMessages"
+                                                    >
+                                                        <IconClearAll size={16} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"/>
+                                                    </button>
+                                                    
+                                                    <button
+                                                        className="p-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={() => setIsShareDialogVisible(true)}
+                                                        title="Share"
+                                                        id="shareChatUpper"
+                                                    >
+                                                        <IconShare size={16} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"/>
+                                                    </button>
+                                                    
+                                                    <button
+                                                        className="p-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setIsDownloadDialogVisible(true)
+                                                        }}
+                                                        title="Download"
+                                                        id="downloadUpper"
+                                                    >
+                                                        <IconDownload size={16} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"/>
+                                                    </button>
 
-                                            }}
-                                            title="Download"
-                                            id="downloadUpper"
-                                        >
-                                            <IconDownload size={18}/>
-                                        </button>
-
-                                        {featureFlags.artifacts && 
-                                        <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
-                                        
-                                        {featureFlags.storeCloudConversations &&
-                                        <CloudStorage iconSize={18} />
-                                        }
-                                        {!isArtifactOpen  &&
-                                            <>
-                                            |
-                                            <button
-                                                className="ml-2 mr-2 cursor-pointer hover:opacity-50"
-                                                disabled={messageIsStreaming}
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    homeDispatch({field: 'page', value: 'home'});
-                                                }}
-                                                title="Data Sources"
-                                                id="dateSources"
-                                            >
-                                                <div className={`text-[0.9rem] flex flex-row items-center ${chat_button_blue_color}`}>
-                                                    <div><IconRocket size={18}/></div>
-                                                    <div className="ml-1">Data Sources </div>
+                                                    {featureFlags.artifacts && 
+                                                    <ArtifactsSaved iconSize={16} isArtifactsOpen={isArtifactOpen}/>}
+                                                    
+                                                    {featureFlags.storeCloudConversations &&
+                                                    <CloudStorage iconSize={16} />
+                                                    }
+                                                    
+                                                    {!isArtifactOpen && (
+                                                        <button
+                                                            className="p-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                                                            disabled={messageIsStreaming}
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                homeDispatch({field: 'page', value: 'home'});
+                                                            }}
+                                                            title="Data Sources"
+                                                            id="dateSources"
+                                                        >
+                                                            <div className="flex items-center">
+                                                                <IconRocket size={16} className="text-blue-500"/>
+                                                                <span className="ml-1 text-xs text-blue-500">Data Sources</span>
+                                                            </div>
+                                                        </button>
+                                                    )}
                                                 </div>
-                                            </button> 
-                                            </>
-                                        }
+                                            </div>
                                         </div>
 
                                         {/* User Avatar - Positioned absolutely on the right */}
