@@ -2276,29 +2276,35 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
             }
             submitLabel={"Create Group"}
             content={
-                <div className='mr-2'>
-                    {"You will be able to manage assistants and view key metrics related to user engagement and conversation."}
-                    <div className="text-sm mb-4 text-black dark:text-neutral-200">{message}</div>
+                <div className='assistant-admin-content'>
+                    <div className="assistant-admin-description">
+                        You will be able to manage assistants and view key metrics related to user engagement and conversation.
+                        {message && <div className="text-sm mt-2 opacity-80">{message}</div>}
+                    </div>
 
-                    <div className='flex flex-col gap-3 font-bold '>
-                        <>
-                            Group Name
-
+                    <div className='flex flex-col gap-4'>
+                        <div className="assistant-admin-form-section">
+                            <div className="assistant-admin-form-label">
+                                Group Name
+                            </div>
                             <textarea
-                                className="mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                style={{ resize: 'none' }}
-                                placeholder={`Group Name`}
+                                className="assistant-admin-input"
+                                style={{ resize: 'none', minHeight: '44px' }}
+                                placeholder="Enter group name"
                                 value={groupName}
                                 onChange={(e) => setGroupName(e.target.value)}
                                 rows={1}
                             />
-                        </>
+                        </div>
 
-                        <GroupTypesAst
-                            groupTypes={groupTypes}
-                            setGroupTypes={setGroupTypes}
-                        />
-                        <div className='my-2'>
+                        <div className="assistant-admin-form-section">
+                            <GroupTypesAst
+                                groupTypes={groupTypes}
+                                setGroupTypes={setGroupTypes}
+                            />
+                        </div>
+
+                        <div className="assistant-admin-form-section">
                             <AddMemberAccess
                                 groupMembers={groupMembers}
                                 setGroupMembers={setGroupMembers}
@@ -2308,16 +2314,18 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
                                 handleAddEmails={handleAddEmails}
                             />
                         </div>
-                        <AmpGroupsSysUsersSelection
-                            amplifyGroups={amplifyGroups}
-                            selectedAmplifyGroups={groupAmpGroups}
-                            setSelectedAmplifyGroups={setGroupAmpGroups}
-                            systemUsers={systemUsers}
-                            selectedSystemUsers={groupSystemUsers}
-                            setSelectedSystemUsers={setGroupSystemUsers}
-                        />
-                    </div>
 
+                        <div className="assistant-admin-form-section">
+                            <AmpGroupsSysUsersSelection
+                                amplifyGroups={amplifyGroups}
+                                selectedAmplifyGroups={groupAmpGroups}
+                                setSelectedAmplifyGroups={setGroupAmpGroups}
+                                systemUsers={systemUsers}
+                                selectedSystemUsers={groupSystemUsers}
+                                setSelectedSystemUsers={setGroupSystemUsers}
+                            />
+                        </div>
+                    </div>
                 </div>
             }
         />
@@ -2363,20 +2371,21 @@ const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupMembers,
         setGroupMembers(updatedMembers);
     }
 
-    return <div className='flex flex-col gap-2 mb-6'>
-        <label className='font-bold'>Add Members </label>
+    return <div className='flex flex-col gap-3'>
+        <div className="assistant-admin-form-label">Add Members</div>
         {accessInfoBox}
-        <label className='text-sm font-normal'>List group members and their permission levels.</label>
+        <div className='text-sm text-gray-600 dark:text-gray-400 mb-2'>List group members and their permission levels.</div>
         <>{includeGroupInfoBox}</>
         <div className='flex flex-row gap-2'>
-            <div className="flex-shrink-0 ml-[-6px] mr-2">
+            <div className="flex-shrink-0">
                 <button
                     type="button"
                     title='Add Members'
-                    className="ml-2 mt-1 px-3 py-1.5 text-white rounded bg-neutral-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
+                    className="assistant-admin-action-btn"
                     onClick={handleAddEmails}
                 >
-                    <IconPlus size={18} />
+                    <IconPlus size={16} />
+                    Add
                 </button>
             </div>
             <div className='w-full relative'>

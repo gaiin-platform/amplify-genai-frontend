@@ -94,7 +94,7 @@ interface Props {
                         >
 
                         <div className='flex flex-row'>
-                        <div className="text-xl pb-4 font-bold text-black dark:text-neutral-200" id="modalTitle">
+                        <div className="text-xl pb-1 font-bold text-black dark:text-neutral-200" id="modalTitle">
                             {title && <>{title}</>}
                             </div>
                             { showClose && 
@@ -108,13 +108,12 @@ interface Props {
                             </div> }  
                         </div>
 
-                        <div className="modal-content-area">
-                          <div id="modalScroll" className="overflow-y-auto" style={{ maxHeight: `${innderWindow.height - 180}px` }}>
-                              {content}
-                          </div>
+                        <div id="modalScroll" className="overflow-y-auto" style={{ maxHeight: `${innderWindow.height - 140}px` }}>
+                            {content}
+                        </div>
 
-                          {
-                           <div className="modal-buttons-container">
+                        {
+                         <div className="modal-buttons-container">
                             {[...additionalButtonOptions, 
                               ...(showCancel ? [{label: cancelLabel, handleClick: () => onCancel(), type: 'cancel'}] : []),
                               ...(showSubmit ? [{isDisabled: disableSubmit, label: submitLabel, handleClick: () => onSubmit(), type: 'submit'}] : [])
@@ -131,7 +130,6 @@ interface Props {
                             </button>
                             )}
                            </div>}
-                        </div>
                     </div>
                 </div>
             </div>

@@ -3287,6 +3287,167 @@
 }
 
 /* ===================================
+   Assistant Admin Interface Enhanced Styling
+   =================================== */
+
+/* Enhanced content spacing and layout */
+.assistant-admin-content {
+  padding: 0;
+  margin: 0;
+}
+
+.assistant-admin-description {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(147, 51, 234, 0.05) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 24px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #374151;
+}
+
+.dark .assistant-admin-description {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(147, 51, 234, 0.08) 100%);
+  border-color: rgba(59, 130, 246, 0.2);
+  color: #e5e7eb;
+}
+
+/* Enhanced form sections */
+.assistant-admin-form-section {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: all 0.3s ease;
+}
+
+.assistant-admin-form-section:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(59, 130, 246, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+}
+
+.dark .assistant-admin-form-section {
+  background: rgba(31, 41, 55, 0.7);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .assistant-admin-form-section:hover {
+  background: rgba(31, 41, 55, 0.85);
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+/* Enhanced form labels */
+.assistant-admin-form-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #1f2937;
+  margin-bottom: 12px;
+  letter-spacing: -0.01em;
+}
+
+.dark .assistant-admin-form-label {
+  color: #f3f4f6;
+}
+
+/* Enhanced form inputs */
+.assistant-admin-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  color: #1f2937;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.assistant-admin-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  transform: translateY(-1px);
+}
+
+.dark .assistant-admin-input {
+  background: rgba(31, 41, 55, 0.9);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #f3f4f6;
+}
+
+.dark .assistant-admin-input:focus {
+  background: rgba(31, 41, 55, 0.95);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* Enhanced action buttons within content */
+.assistant-admin-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.assistant-admin-action-btn:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.assistant-admin-action-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Enhanced member list styling */
+.assistant-admin-member-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  transition: all 0.3s ease;
+}
+
+.assistant-admin-member-item:hover {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(59, 130, 246, 0.2);
+  transform: translateX(2px);
+}
+
+.dark .assistant-admin-member-item {
+  background: rgba(31, 41, 55, 0.6);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.dark .assistant-admin-member-item:hover {
+  background: rgba(31, 41, 55, 0.8);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+/* ===================================
    Beautiful Models Display Styling
    =================================== */
 
