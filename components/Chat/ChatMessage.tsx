@@ -331,7 +331,7 @@ export const ChatMessage: FC<Props> = memo(({
     // @ts-ignore
     return (
         <div
-            className={`group md:px-4 ${msgStyle}`}
+            className={`group px-4 md:px-8 lg:px-16 xl:px-24 2xl:px-32 ${msgStyle}`}
             style={{overflowWrap: 'anywhere'}}
         >
 
@@ -351,7 +351,7 @@ export const ChatMessage: FC<Props> = memo(({
             )}
 
             <div
-                className="enhanced-message-content relative flex text-base md:gap-6">
+                className="enhanced-message-content relative flex text-base md:gap-6 max-w-4xl mx-auto">
                 <div className="flex-shrink-0">
                     {getIcon()}
                 </div>
