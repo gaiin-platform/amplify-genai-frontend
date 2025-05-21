@@ -108,29 +108,30 @@ interface Props {
                             </div> }  
                         </div>
 
-                        <div id="modalScroll" className="overflow-y-auto" style={{ maxHeight: `${innderWindow.height * 0.8}px` }}>
-                            {content}
-                            <br className='mt-[40px]'></br>
-                        </div>
+                        <div className="modal-content-area">
+                          <div id="modalScroll" className="overflow-y-auto" style={{ maxHeight: `${innderWindow.height - 180}px` }}>
+                              {content}
+                          </div>
 
-                        {
-                         <div className="modal-buttons-container">
-                          {[...additionalButtonOptions, 
-                            ...(showCancel ? [{label: cancelLabel, handleClick: () => onCancel(), type: 'cancel'}] : []),
-                            ...(showSubmit ? [{isDisabled: disableSubmit, label: submitLabel, handleClick: () => onSubmit(), type: 'submit'}] : [])
-                          ]
-                                           .map((option: any, index: number) => 
-                            <button key={index}
-                              type="button"
-                              id="confirmationButton"
-                              disabled={option.isDisabled}
-                              className={`modal-action-button ${option.type === 'submit' ? 'modal-action-button-primary' : 'modal-action-button-secondary'} ${option.isDisabled ? 'modal-action-button-disabled' : ''}`}
-                              onClick={option.handleClick}
-                              >
-                              {option.label}
-                          </button>
-                          )}
-                         </div>}
+                          {
+                           <div className="modal-buttons-container">
+                            {[...additionalButtonOptions, 
+                              ...(showCancel ? [{label: cancelLabel, handleClick: () => onCancel(), type: 'cancel'}] : []),
+                              ...(showSubmit ? [{isDisabled: disableSubmit, label: submitLabel, handleClick: () => onSubmit(), type: 'submit'}] : [])
+                            ]
+                                             .map((option: any, index: number) => 
+                              <button key={index}
+                                type="button"
+                                id="confirmationButton"
+                                disabled={option.isDisabled}
+                                className={`modal-action-button ${option.type === 'submit' ? 'modal-action-button-primary' : 'modal-action-button-secondary'} ${option.isDisabled ? 'modal-action-button-disabled' : ''}`}
+                                onClick={option.handleClick}
+                                >
+                                {option.label}
+                            </button>
+                            )}
+                           </div>}
+                        </div>
                     </div>
                 </div>
             </div>

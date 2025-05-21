@@ -3178,15 +3178,11 @@
   display: flex;
   flex-direction: row;
   gap: 12px;
-  margin-bottom: 8px;
-  width: 100%;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.95);
+  margin-top: 20px;
+  padding: 16px 0 8px 0;
+  background: transparent;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
-  backdrop-filter: blur(8px);
+  flex-shrink: 0;
 }
 
 .modal-action-button {
@@ -3262,7 +3258,7 @@
 
 /* Dark Mode Modal Button Styling */
 .dark .modal-buttons-container {
-  background: rgba(31, 41, 55, 0.95);
+  background: transparent;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
