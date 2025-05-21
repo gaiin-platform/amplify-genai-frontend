@@ -48,6 +48,7 @@ import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/as
 import {ChatRequest, useSendService} from "@/hooks/useChatSendService";
 import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
+import { getFullTimestamp } from '@/utils/app/date';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
 import { Artifacts } from '../Artifacts/Artifacts';
@@ -223,9 +224,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (selectedConversation) {
                     let updatedConversation = {...selectedConversation}
 
-                    const promptMessages = cloneDeep(updatedConversation.messages);
+                    const promptMessages = cloneDeep(updatedConversation.messages)
+                        .map(m => {return {...m, data:{}, configuredTools:[]};}); // Must zero out everything in DATA!
                     promptMessages[0].content = `Look at the following prompt: "${promptMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`
-                    
+
                     promptForData(chatEndpoint || '', promptMessages.slice(0,1), getDefaultModel(DefaultModels.CHEAPEST), "Respond with only the title name and nothing else.", statsService, 10)
                                  .then(customName => {
                                     let updatedName: string = customName ?? '';
@@ -850,7 +852,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
-                        isLocal: getIsLocalStorageSelection(storageSelection)
+                        isLocal: getIsLocalStorageSelection(storageSelection),
+                        date: getFullTimestamp()
                     },
                 });
 
@@ -1298,7 +1301,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     {loading && <ChatLoader/>}
 
                                     <div
-                                        className="h-[162px] bg-white dark:bg-[#343541]"
+                                        className="h-[300px] bg-white dark:bg-[#343541]"
                                         ref={messagesEndRef}
                                     />
 

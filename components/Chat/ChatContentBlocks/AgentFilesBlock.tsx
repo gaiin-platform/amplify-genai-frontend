@@ -5,7 +5,8 @@ import {
   IconFileSpreadsheet,
   IconFileTypePdf,
   IconPhoto,
-  IconChevronDown
+  IconChevronDown,
+  IconLoader2
 } from '@tabler/icons-react';
 import { getFileDownloadUrls } from '@/services/agentService';
 
@@ -41,6 +42,7 @@ type FileUrls = {
 export const AgentFileList: React.FC<FileListProps> = ({ files }) => {
   const [fileUrls, setFileUrls] = useState<FileUrls>({});
   const [openDropdown, setOpenDropdown] = useState<string>('');
+  const [downloading, setDownloading] = useState<{[key: string]: boolean}>({});
 
   const getFileIcon = (mimeType: string) => {
     switch (mimeType) {
@@ -82,7 +84,12 @@ export const AgentFileList: React.FC<FileListProps> = ({ files }) => {
     file: AgentFile,
     version?: FileVersion
   ): Promise<void> => {
+    const downloadId = version?.version_file_id || file.values.fileId;
+    
     try {
+      // Set downloading state for this file
+      setDownloading(prev => ({...prev, [downloadId]: true}));
+      
       const versionFileId = version?.version_file_id;
       const newUrl = await refreshUrl(file.values.fileId, file.values.sessionId, versionFileId);
 
@@ -106,6 +113,9 @@ export const AgentFileList: React.FC<FileListProps> = ({ files }) => {
       setOpenDropdown('');
     } catch (error) {
       console.error('Download failed:', error);
+    } finally {
+      // Clear downloading state
+      setDownloading(prev => ({...prev, [downloadId]: false}));
     }
   };
 
@@ -123,9 +133,17 @@ export const AgentFileList: React.FC<FileListProps> = ({ files }) => {
             </span>
             <button
               onClick={() => handleDownload(file)}
-              className="text-blue-700 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium transition-colors"
+              disabled={downloading[file.values.fileId]}
+              className="text-blue-700 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium transition-colors flex items-center"
             >
-              {file.values.fileName}
+              {downloading[file.values.fileId] ? (
+                <>
+                  <IconLoader2 className="animate-spin mr-2" size={16} />
+                  <span>Downloading...</span>
+                </>
+              ) : (
+                file.values.fileName
+              )}
             </button>
 
             {file.values.versions && file.values.versions.length > 1 && (
@@ -148,9 +166,17 @@ export const AgentFileList: React.FC<FileListProps> = ({ files }) => {
                   <button
                     key={vIndex}
                     onClick={() => handleDownload(file, version)}
-                    className="block w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    disabled={downloading[version.version_file_id]}
+                    className={`block w-full px-4 py-2 text-sm text-left ${downloading[version.version_file_id] ? 'text-gray-500' : 'text-gray-700'} dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center`}
                   >
-                    {formatTimestamp(version.timestamp)}
+                    {downloading[version.version_file_id] ? (
+                      <>
+                        <IconLoader2 className="animate-spin mr-2" size={16} />
+                        <span>Downloading...</span>
+                      </>
+                    ) : (
+                      formatTimestamp(version.timestamp)
+                    )}
                   </button>
                 ))}
               </div>

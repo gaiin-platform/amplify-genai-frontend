@@ -35,7 +35,7 @@ export const DataTable: React.FC<DataTableProps> = ({
                         {columns.map((column, index) => (
                             <th
                                 key={index}
-                                className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
+                                className="px-5 py-3 border-b-2 border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider"
                             >
                                 {column}
                             </th>
@@ -46,7 +46,7 @@ export const DataTable: React.FC<DataTableProps> = ({
                     {data.map((row, rowIndex) => (
                         <tr key={rowIndex}>
                             {columns.map((column, colIndex) => (
-                                <td key={colIndex} className="px-5 py-2 border-b border-gray-200 bg-white text-sm">
+                                <td key={colIndex} className="px-5 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm dark:text-gray-300">
                                     {row[column]}
                                 </td>
                             ))}
@@ -58,17 +58,17 @@ export const DataTable: React.FC<DataTableProps> = ({
                 <button
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1}
-                    className="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+                    className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
                 >
                     Previous
                 </button>
-                <span>
+                <span className="text-gray-700 dark:text-gray-300">
                     Page {currentPage} of {totalPages}
                 </span>
                 <button
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
-                    className="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+                    className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
                 >
                     Next
                 </button>
