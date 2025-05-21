@@ -134,19 +134,19 @@ const Sidebar = <T,>({
 
 
   const addButtonForSide = (side: string) => {
-    if (side === 'left') return addItemButton("w-[205px]")
+    if (side === 'left') return addItemButton("flex-1 min-w-0")
 
     const addAssistantButton = (
       <button
         id="addAssistantButton"
-        className="enhanced-add-button flex w-[205px] flex-shrink-0 select-none items-center gap-3"
+        className="enhanced-add-button flex flex-1 min-w-0 flex-shrink-0 select-none items-center gap-2"
         onClick={() => {
           handleCreateAssistantItem();
           handleSearchTerm('');
         }}
       >
-        <IconSparkles size={18} className="enhanced-icon text-purple-500" />
-        <span className="sidebar-text font-medium">{"Assistant"}</span>
+        <IconSparkles size={16} className="enhanced-icon text-purple-500 flex-shrink-0" />
+        <span className="sidebar-text font-medium truncate">Assistant</span>
       </button>
     );
 
@@ -159,18 +159,21 @@ const Sidebar = <T,>({
         className={`enhanced-sidebar fixed top-0 ${side}-0 z-40 flex h-full w-[270px] flex-none flex-col space-y-3 
                    p-3 text-[14px] transition-all sm:relative sm:top-0 ${isAnimated ? 'slide-in' : ''}`}
       >
-        <div className="flex items-center gap-2">
-          {addButtonForSide(side)}
-          <button
-            className="enhanced-folder-button"
-            onClick={handleCreateFolder}
-            id="createFolderButton"
-            title="Create Folder"
-          >
-            <IconFolderPlus size={18} className="enhanced-icon" />
-          </button>
+        <div className="flex items-center justify-between w-full gap-1">
+          <div className="flex items-center gap-1 flex-1 min-w-0">
+            {addButtonForSide(side)}
+            <button
+              className="enhanced-folder-button flex-shrink-0"
+              onClick={handleCreateFolder}
+              id="createFolderButton"
+              title="Create Folder"
+              style={{ minWidth: '32px', width: '32px', height: '32px' }}
+            >
+              <IconFolderPlus size={16} className="enhanced-icon" />
+            </button>
+          </div>
           {side === 'right' && (
-            <div className="ml-auto">
+            <div className="flex-shrink-0 ml-1">
               <UserAvatar
                 email={session?.user?.email}
                 name={session?.user?.name}

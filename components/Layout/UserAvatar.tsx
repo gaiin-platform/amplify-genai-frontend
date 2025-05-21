@@ -145,8 +145,8 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
         title={displayName}
         style={{
           backgroundColor,
-          width: '36px',
-          height: '36px',
+          width: '32px',
+          height: '32px',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1)',
           border: '2px solid rgba(255, 255, 255, 0.8)',
           transform: showDropdown ? 'scale(1.05)' : 'scale(1)',
