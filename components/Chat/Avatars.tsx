@@ -25,9 +25,9 @@ export const Amplify: React.FC = () => {
                 <div className="avatar-inner-circle avatar-inner-assistant">
                     <div className="amplify-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 2L9.5 8.5L3 9L8 14L7 21L12 18.5L17 21L16 14L21 9L14.5 8.5L12 2Z" fill="currentColor"/>
-                            <path d="M7.5 3.5L6.5 6L4 6.5L6 8.5L5.5 11L7.5 9.5L9.5 11L9 8.5L11 6.5L8.5 6L7.5 3.5Z" fill="currentColor" opacity="0.7"/>
-                            <path d="M17.5 4L16.8 5.8L15 6.5L16.8 7.2L17.5 9L18.2 7.2L20 6.5L18.2 5.8L17.5 4Z" fill="currentColor" opacity="0.5"/>
+                            <path d="M7 4L5 10L1 11L5 12L7 18L9 12L13 11L9 10L7 4Z" fill="currentColor"/>
+                            <path d="M18 3L17 6L14 7L17 8L18 11L19 8L22 7L19 6L18 3Z" fill="currentColor"/>
+                            <path d="M16 15L15 18L12 19L15 20L16 23L17 20L20 19L17 18L16 15Z" fill="currentColor"/>
                         </svg>
                     </div>
                 </div>
