@@ -44,7 +44,6 @@ import { Navbar } from '@/components/Mobile/Navbar';
 import Promptbar from '@/components/Promptbar';
 import {
     Icon3dCubeSphere,
-    IconTournament,
     IconShare,
     IconMessage,
     IconSettings,
@@ -87,7 +86,6 @@ import { DefaultModels, Model } from '@/types/model';
 import { ErrorMessage } from '@/types/error';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
 
-import { WorkspaceLegacyMessage } from '@/components/Workspace/WorkspaceLegacyMessage';
 import { getSharedItems } from '@/services/shareService';
 import { lowestCostModel } from '@/utils/app/models';
 import { SidebarButton } from '@/components/Sidebar/SidebarButton';
@@ -1479,12 +1477,25 @@ const Home = ({
 
                             <TabSidebar
                                 side={"left"}
-                                footerComponent={null}
+                                footerComponent={
+                                    featureFlags.memory && settings?.featureOptions.includeMemory && (
+                                        <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
+                                            <SidebarButton
+                                                text={t('Memory')}
+                                                icon={<IconDeviceSdCard size={20} />}
+                                                onClick={() => setIsMemoryDialogOpen(true)}
+                                            />
+                                            <MemoryDialog
+                                                open={isMemoryDialogOpen}
+                                                onClose={() => setIsMemoryDialogOpen(false)}
+                                            />
+                                        </div>
+                                    )
+                                }
                             >
                                 <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
+                                <Tab icon={<Icon3dCubeSphere />} title="Prompts & Assistants"><Promptbar /></Tab>
                                 <Tab icon={<IconShare />} title="Share"><SharedItemsList /></Tab>
-                                { workspaces && workspaces.length > 0 ? 
-                                <Tab icon={<IconTournament />} title="Workspaces"><WorkspaceLegacyMessage /></Tab> : null}
                                 <Tab icon={<IconSettings />} title="Settings"><SettingsBar /></Tab>
                             </TabSidebar>
 
@@ -1501,31 +1512,6 @@ const Home = ({
                                     <MyHome />
                                 )}
                             </div>
-
-
-                            <TabSidebar
-                                side={"right"}
-                                footerComponent={
-                                    <>
-                                    {featureFlags.memory && settings?.featureOptions.includeMemory && (
-                                        <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-                                            <SidebarButton
-                                                text={t('Memory')}
-                                                icon={<IconDeviceSdCard size={20} />}
-                                                onClick={() => setIsMemoryDialogOpen(true)}
-                                            />
-                                            <MemoryDialog
-                                                open={isMemoryDialogOpen}
-                                                onClose={() => setIsMemoryDialogOpen(false)}
-                                            />
-                                        </div>
-                                    )}
-                                    </>
-                                }
-                            >
-                                <Tab icon={<Icon3dCubeSphere />}><Promptbar /></Tab>
-                                {/*<Tab icon={<IconBook2/>}><WorkflowDefinitionBar/></Tab>*/}
-                            </TabSidebar>
 
                         </div>
                         <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
