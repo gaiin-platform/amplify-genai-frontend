@@ -988,7 +988,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     {/* Chat Upper Menu for start conversation state - UserAvatar only */}
                                     <div
                                        id="chatUpperMenu"
-                                       className="items-center sticky top-0 py-3 z-10 flex justify-end relative border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
+                                       className="items-center sticky top-0 py-3 z-10 flex justify-end relative text-sm text-neutral-500 dark:text-neutral-200">
                                         
                                         {/* User Avatar - Positioned on the right */}
                                         <div className="mr-4">
