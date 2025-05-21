@@ -1099,7 +1099,7 @@
 
 /* Content Area - Integrated with Modal */
 .integrations-content {
-  height: 100%;
+  height: calc(100% + 40px); /* Account for Modal's hardcoded spacing */
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1109,8 +1109,8 @@
 /* Header Section - Fixed at Top */
 .integrations-header-section {
   flex-shrink: 0;
-  padding-bottom: 16px;
-  margin-bottom: 20px;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
@@ -1178,11 +1178,15 @@
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   transition: all 0.2s ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   max-width: 100%;
   box-sizing: border-box;
+}
+
+.integration-card:last-child {
+  margin-bottom: 0;
 }
 
 .integration-card:hover {
@@ -1431,13 +1435,15 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
 }
 
 /* Tab Bar */
 .integrations-tab-bar {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  padding-bottom: 16px;
+  padding-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .integrations-tab-pills {
@@ -1509,6 +1515,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
+  max-height: 100%;
   padding-right: 2px; /* Prevent scrollbar cutoff */
 }
 
