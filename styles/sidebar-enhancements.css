@@ -660,9 +660,9 @@
 
 .dark .enhanced-chat-message.user-message {
   background: linear-gradient(135deg, 
-    rgba(59, 130, 246, 0.08) 0%, 
-    rgba(30, 58, 138, 0.05) 100%);
-  border-left: 3px solid rgba(59, 130, 246, 0.5);
+    rgba(139, 92, 246, 0.08) 0%, 
+    rgba(124, 58, 237, 0.05) 100%);
+  border-left: 3px solid rgba(139, 92, 246, 0.5);
 }
 
 /* Assistant Message Styling */
@@ -675,9 +675,9 @@
 
 .dark .enhanced-chat-message.assistant-message {
   background: linear-gradient(135deg, 
-    rgba(16, 185, 129, 0.08) 0%, 
-    rgba(4, 120, 87, 0.05) 100%);
-  border-left: 3px solid rgba(16, 185, 129, 0.5);
+    rgba(236, 72, 153, 0.08) 0%, 
+    rgba(219, 39, 119, 0.05) 100%);
+  border-left: 3px solid rgba(236, 72, 153, 0.5);
 }
 
 /* Action Result Message Styling */
