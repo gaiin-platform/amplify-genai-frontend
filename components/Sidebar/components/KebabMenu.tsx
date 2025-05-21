@@ -29,6 +29,7 @@ import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import React from "react";
 import toast from "react-hot-toast";
 import { getHiddenGroupFolders, saveFolders } from "@/utils/app/folders";
+import { IconArchive } from '@tabler/icons-react';
 
 
 interface Props {
@@ -47,6 +48,23 @@ interface Props {
     const [isShareDialogVisible, setIsShareDialogVisible] = useState<boolean>(false);
     const [isTagsDialogVisible, setIsTagsDialogVisible] = useState<boolean>(false); 
     const [allItemsChecked, setAllItemsChecked] = useState<boolean>(false);
+    const [isShowingAllFolders, setIsShowingAllFolders] = useState<boolean>(false);
+    const [isArchiveSettingsOpen, setIsArchiveSettingsOpen] = useState<boolean>(false);
+
+    // Archive folder configuration functions
+    const getArchiveNumOfDays = () => {
+      const archiveNumOfDays = localStorage.getItem('archiveConversationPastNumOfDays');
+      if (archiveNumOfDays) {
+        return parseInt(archiveNumOfDays);
+      }
+      return 14;
+    }
+
+    const saveArchiveNumOfDays = (numOfDays: number) => {
+      localStorage.setItem('archiveConversationPastNumOfDays', numOfDays.toString());
+    }
+
+    const [archiveConversationPastNumOfDays, setArchiveConversationPastNumOfDays] = useState<number>(getArchiveNumOfDays());
 
     const {
         state: { statsService, selectedAssistant, checkedItems, folders, prompts, conversations,
@@ -103,6 +121,24 @@ interface Props {
 
     const hasHiddenGroupFolders = () => {
         return getHiddenGroupFolders().length > 0;
+    }
+    
+    // Get older folders based on age threshold
+    const getOlderFolders = () => {
+        if (!isConvSide) return [];
+        
+        const now = new Date();
+        const thresholdDate = new Date(now);
+        thresholdDate.setDate(now.getDate() - archiveConversationPastNumOfDays);
+        
+        return folders.filter(folder => { 
+            if (folder.type !== 'chat') return false;
+            if (folder.pinned || folder.id === 'agents') return false;
+            
+            // Check if folder has a date
+            const folderDate = folder.date ? new Date(folder.date) : now;
+            return folderDate < thresholdDate;
+        });
     }
 
     const unHideHiddenGroupFolders = () => {
@@ -364,7 +400,7 @@ interface Props {
     }
 
     return (
-        <>
+        <React.Fragment>
         <div className="flex items-center pb-1" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}>
           <div className="flex w-full items-center ml-1 text-black dark:text-neutral-200">
             <span className="text-xs uppercase tracking-wide font-medium opacity-60">{label}</span>
@@ -457,7 +493,35 @@ interface Props {
                             {<KebabItem label="Clean" handleAction={() => { cleanEmptyFolders() }} icon={<IconTrashFilled size={14} />} title="Remove Empty Folders" />}
                             <KebabItem label="Open All" handleAction={() => { openCloseFolders(true) } } icon={<IconFolderOpen size={13} />}  title="Open All Folders" />
                             <KebabItem label="Close All" handleAction={() => { openCloseFolders(false) }} icon={<IconFolder size={13}/>}   title="Close All Folders"/>
-                            {!isConvSide && hasHiddenGroupFolders()  &&  <KebabItem label="Unhide" handleAction={() => { unHideHiddenGroupFolders() }} icon={<IconEye size={14} />} title="Unhide Hidden Group Folders" /> }  
+                            {!isConvSide && hasHiddenGroupFolders()  &&  <KebabItem label="Unhide" handleAction={() => { unHideHiddenGroupFolders() }} icon={<IconEye size={14} />} title="Unhide Hidden Group Folders" /> }
+                            
+                            {isConvSide && (
+                              <KebabMenuItems label="Archive" xShift={160}>
+                                <KebabItem 
+                                  label={isShowingAllFolders ? "Hide Older" : "Show Older"} 
+                                  handleAction={() => {
+                                    const olderFolders = getOlderFolders();
+                                    if (olderFolders.length > 0) {
+                                      setIsShowingAllFolders(!isShowingAllFolders);
+                                      // Dispatch event to toggle visibility in ChatFolders component
+                                      window.dispatchEvent(new CustomEvent('toggleArchivedFolders', { 
+                                        detail: { isShowing: !isShowingAllFolders } 
+                                      }));
+                                    } else {
+                                      toast("No older folders to show");
+                                    }
+                                  }} 
+                                  icon={<IconArchive size={14} />} 
+                                  title={`${isShowingAllFolders ? "Hide" : "Show"} folders older than ${archiveConversationPastNumOfDays} days`} 
+                                />
+                                <KebabItem 
+                                  label="Settings" 
+                                  handleAction={() => { setIsArchiveSettingsOpen(true); }} 
+                                  icon={<IconDotsVertical size={14} />} 
+                                  title="Configure archive settings" 
+                                />
+                              </KebabMenuItems>
+                            )}
                         </KebabMenuItems>
                     </div>
                 </div>
@@ -486,6 +550,52 @@ interface Props {
             }
         selectedFolders={actionItem ? checkedItemsRef.current : []}
         />)}
+
+        {isArchiveSettingsOpen && 
+        <div className="fixed inset-0 bg-black bg-opacity-50 h-full w-full z-50">
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px]">
+              <div className="p-4">
+                <h3 className="text-lg font-medium mb-3 text-neutral-900 dark:text-white">Archive Settings</h3>
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold mb-2 text-neutral-700 dark:text-neutral-200">Hide folders older than:</label>
+                  <div className="flex flex-row items-center gap-2 w-full">
+                    <select 
+                      className="flex-1 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-md px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                      value={archiveConversationPastNumOfDays}
+                      onChange={(e) => {
+                        const days = parseInt(e.target.value);
+                        setArchiveConversationPastNumOfDays(days);
+                        saveArchiveNumOfDays(days);
+                      }}
+                    >
+                      {[7, 14, 30, 60, 90].map((days) => (
+                        <option key={days} value={days}>{days} days</option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2">
+                    Folders older than this threshold will be hidden by default. Pinned folders are always visible.
+                  </p>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    className="px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                    onClick={() => {
+                      setIsArchiveSettingsOpen(false);
+                      // Dispatch event to update archive threshold in ChatFolders component
+                      window.dispatchEvent(new CustomEvent('updateArchiveThreshold', { 
+                        detail: { threshold: archiveConversationPastNumOfDays } 
+                      }));
+                    }}
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>}
 
         {isTagsDialogVisible && 
         <div className="fixed inset-0 bg-black bg-opacity-50 h-full w-full">
@@ -549,7 +659,7 @@ interface Props {
             </div>
           </div>
         }
-        </>
+        </React.Fragment>
       );
       
 }
