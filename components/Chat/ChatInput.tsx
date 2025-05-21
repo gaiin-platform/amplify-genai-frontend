@@ -851,8 +851,8 @@ export const ChatInput = ({
                     {/*  )}*/}
 
                     {showDataSourceSelector && (
-                        <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]"
-                             style={{transform: 'translateY(70px)'}}>
+                        <div ref={dataSourceSelectorRef} className="absolute left-0 max-w-2xl rounded bg-white dark:bg-[#343541]"
+                             style={{transform: 'translateX(200px) translateY(calc(-100% + 45px))', maxWidth: 'calc(48rem - 55px)'}}>
                             <DataSourceSelector
                                 disallowedFileExtensions={getDisallowedFileExtensions()}
                                 onDataSourceSelected={(d) => {
@@ -881,8 +881,8 @@ export const ChatInput = ({
                     )}
 
                     { featureFlags.actionSets &&  showOpsPopup && (
-                            <div ref={actionSelectorRef} className="z-50 w-full" 
-                                 style={{transform: 'translateY(60px)'}} >
+                            <div ref={actionSelectorRef} className="absolute left-0 z-50 max-w-2xl" 
+                                 style={{transform: 'translateX(200px) translateY(calc(-100% + 45px))', maxWidth: 'calc(48rem - 55px)'}} >
                                 <OperationSelector
                                     operations={allOperations}
                                     initialAction={editingAction ? 
@@ -1266,8 +1266,8 @@ export const ChatInput = ({
                             </button>
 
                             {showAssistantSelect && (
-                                <div className="absolute rounded bg-white dark:bg-[#343541]"
-                                     style={{transform: 'translateX(30px) translateY(-2px)', zIndex: 10}}>
+                                <div className="absolute left-0 max-w-2xl rounded bg-white dark:bg-[#343541]"
+                                     style={{transform: 'translateX(200px) translateY(calc(-100% + 45px))', maxWidth: 'calc(42rem - 55px)', zIndex: 10}}>
                                     <AssistantSelect
                                         assistant={selectedAssistant || DEFAULT_ASSISTANT}
                                         availableAssistants={availableAssistants}
