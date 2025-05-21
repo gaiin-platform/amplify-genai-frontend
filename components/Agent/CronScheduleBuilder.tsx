@@ -163,8 +163,15 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
   }, []);
 
   // Format date for input element
-  const formatDateForInput = (date: Date | null): string => {
+  const formatDateForInput = (date: Date | string | null): string => {
     if (!date) return '';
+    
+    // If date is already a string in YYYY-MM-DD format, return it
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return date;
+    }
+    
+    // Otherwise convert to Date object and format
     const d = new Date(date);
     return d.toISOString().split('T')[0];
   };
@@ -175,10 +182,12 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
   // Handle date range changes
   useEffect(() => {
     if (onRangeChange) {
+      console.log("onRangeChange", startDate, endDate, showDateRange);
       const range: ScheduleDateRange = {
-        startDate: showDateRange && startDate ? new Date(startDate) : null,
-        endDate: showDateRange && endDate ? new Date(endDate) : null
+        startDate: showDateRange && startDate ? startDate : null,
+        endDate: showDateRange && endDate ? endDate : null
       };
+      console.log("range", range);
       onRangeChange(range);
     }
   }, [startDate, endDate, showDateRange]);

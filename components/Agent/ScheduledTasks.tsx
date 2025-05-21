@@ -4,7 +4,6 @@ import React, { useState, useEffect, useContext } from 'react';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { IconPlus, IconTrash, IconLoader2, IconEdit, IconInfoCircle, IconNotes, IconBulb, IconExclamationCircle, IconSettingsAutomation, IconAlarm, IconChevronDown, IconPlayerPlay } from '@tabler/icons-react';
 import cloneDeep from 'lodash/cloneDeep';
-import ActionButton from '../ReusableComponents/ActionButton';
 import toast from 'react-hot-toast';
 import { ScheduleDateRange, ScheduledTask, ScheduledTaskType, TASK_TYPE_MAP, TaskExecutionRecord } from '@/types/scheduledTasks';
 import { CronScheduleBuilder } from './CronScheduleBuilder';
@@ -23,10 +22,10 @@ const emptyTask = (): ScheduledTask => {
     taskName: '',
     description: '',
     cronExpression: '',
-    active: false,
+    active: true,
     taskInstructions: '',
-    type: 'assistant',
-    object_id: '',
+    taskType: 'assistant',
+    objectId: '',
     tags: []
   }
 }
@@ -75,75 +74,13 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
     setIsLoadingTasks(true);
     try {
       // This would be an actual API call in a real implementation
-      // const taskResult = await listScheduledTasks();
-      setAllTasks([
-        {
-          "taskId": "a4f2c8e6-7b31-4d9a-8f15-2c6d85e9b741",
-          "taskName": "Daily Email Summary",
-          "type": "assistant",
-          "active": true
-        },  
-        {
-          "taskId": "b8e3d9f2-1c67-4a53-9b84-5f2d91e3c087",
-          "taskName": "Weekly Report Generator",
-          "type": "actionSet",
-          "active": true
-        },
-        {
-          "taskId": "c7d1e9f3-5a82-4b61-8c23-9e7d34f5a216",
-          "taskName": "Customer Support Follow-up",
-          "type": "assistant",
-          "active": false
-        },
-        {
-          "taskId": "d2f8e4c1-9b37-4a52-8d69-1f7e34c8b902",
-          "taskName": "Project Status Update",
-          "type": "actionSet",
-          "active": true
-        },
-        {
-          "taskId": "e9f7d5c3-4a18-4b29-9c65-3f8d27e6b415",
-          "taskName": "Market Research Analysis",
-          "type": "assistant",
-          "active": true
-        },
-        {
-          "taskId": "f1e8d7c6-2b35-4a91-8d47-5e9c23f7b841",
-          "taskName": "Social Media Content Creation",
-          "type": "actionSet",
-          "active": false
-        },
-        {
-          "taskId": "a3b9c8d7-6e51-4f27-9c83-2e7d16f5a432",
-          "taskName": "Data Backup Verification",
-          "type": "assistant",
-          "active": true
-        },
-        {
-          "taskId": "b5e2f1d9-3c74-4a82-9d56-1e7f32c8b415",
-          "taskName": "Invoice Processing",
-          "type": "actionSet",
-          "active": true
-        },
-        {
-          "taskId": "c8d9e7f6-5b21-4c93-8a65-9f7d34e2b185",
-          "taskName": "Security Audit Check",
-          "type": "assistant",
-          "active": false
-        },
-        {
-          "taskId": "d7f6e5c4-1a92-4b83-7d65-2f9e13c8b745",
-          "taskName": "Customer Onboarding Workflow",
-          "type": "actionSet",
-          "active": true
-        }
-      ])
+      const taskResult = await listScheduledTasks();
 
-      // if (taskResult.success && taskResult.data?.tasks) {
-      //   setAllTasks(taskResult.data.tasks);
-      // } else {
-      //   alert("Failed to load tasks");
-      // };
+      if (taskResult.success && taskResult.data?.tasks) {
+        setAllTasks(taskResult.data.tasks);
+      } else {
+        alert("Failed to load tasks");
+      };
   
     } catch (err) {
       console.error('Failed to load tasks:', err);
@@ -176,7 +113,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         return;
       }
       
-      if (!selectedTask.object_id) {
+      if (!selectedTask.objectId) {
         setError('An object must be selected under "Task Type"');
         setIsSubmitting(false);
         return;
@@ -185,6 +122,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       
       if (selectedTask.taskId) {
         // Update existing task
+        console.log("updating task", selectedTask);
         const taskResult = await updateScheduledTask(
                            selectedTask.taskId, selectedTask)
 
@@ -195,12 +133,14 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           
         }
       } else {
+        console.log("creating new task", selectedTask);
         // Create new task
         const task = cloneDeep(selectedTask);
         const { taskId, ...taskData } = task;
         const taskResult = await createScheduledTask(taskData);
-      
-        if (taskResult.success) {
+        
+        if (taskResult.success && taskResult.data?.taskId) {
+          setSelectedTask({... selectedTask, taskId: taskResult.data.taskId});
           toast("Successfully saved task");
         } else {
           alert('Failed to save task');
@@ -381,12 +321,13 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   };
 
   const handleActionSetSelect = (actionSet: any) => {
-    setSelectedTask({...selectedTask, object_id: actionSet.id || ''});
+    setSelectedTask({...selectedTask, objectId: actionSet.id || ''});
     setSelectedActionSetName(actionSet.name || 'Unnamed Set');
     setShowActionSetList(false);
   };
 
   const getObjectSelector = (taskType: ScheduledTaskType) => {
+    console.log("taskType", taskType);
     switch (taskType) {
       case 'assistant':
         const asts = prompts.filter((p:Prompt) => isAssistant(p));
@@ -401,10 +342,10 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           <div className="flex flex-row gap-2 mb-4">
               <select
                   className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow 
-                  ${selectedTask.object_id ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}`}
+                  ${selectedTask.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}`}
                   id="autoPopulateSelect"
-                  value={selectedTask.object_id}
-                  onChange={(e) => setSelectedTask({...selectedTask, object_id: e.target.value})}
+                  value={selectedTask.objectId}
+                  onChange={(e) => setSelectedTask({...selectedTask, objectId: e.target.value})}
                   >
                   <option key={-1} value={''}>
                           {'Select Assistant'}
@@ -423,7 +364,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             <div 
               onClick={() => setShowActionSetList(!showActionSetList)}
               className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow cursor-pointer flex justify-between items-center
-              ${selectedTask.object_id ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}`}
+              ${selectedTask.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}`}
             >
               <span>{selectedActionSetName}</span>
               <IconChevronDown 
@@ -475,19 +416,22 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           /> 
           <div className="absolute right-1 top-[-6px] flex flex-row gap-3">
             { selectedTask.taskId &&
+            <>
              <button
               className={`px-2  ${buttonStyle}`}
               onClick={() => handleRunTask(selectedTask.taskId)}>
               {isTestingTask ? <IconLoader2 size={18} className='animate-spin' /> : <IconPlayerPlay size={18} />}
               Run Task
             </button>
-            }
+            
             <button
               className={`px-1.5  ${buttonStyle}`}
               onClick={() => setIsViewingLogs(true)}>
               <IconNotes size={18} />
               View Scheduled Run Logs
             </button>
+            </>
+            }
           </div>
       </div>
       {error && (
@@ -563,11 +507,11 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           Task Type
         </label>
         <select
-          value={selectedTask.type}
+          value={selectedTask.taskType}
           onChange={(e) => {
             const updatedSelectedTask = {...selectedTask, 
-                                         object_id: '',
-                                         type: e.target.value as ScheduledTaskType}
+                                         objectId: '',
+                                         taskType: e.target.value as ScheduledTaskType}
             setSelectedTask(updatedSelectedTask);
           }}
           className="w-full shadow custom-shadow p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
@@ -577,7 +521,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         </select>
       </div>
 
-      {getObjectSelector(selectedTask.type)}
+      {getObjectSelector(selectedTask.taskType)}
       
 
       

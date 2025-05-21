@@ -11,8 +11,8 @@ export type ScheduledTaskType = keyof typeof TASK_TYPE_MAP;
 
 // Date range for scheduling
 export interface ScheduleDateRange {
-  startDate?: Date | null;
-  endDate?: Date | null;
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 // Execution history entry
@@ -33,8 +33,8 @@ export interface ScheduledTask {
   
   // Task configuration
   taskInstructions: string; // todo 
-  type: ScheduledTaskType;
-  object_id: string; // ID of the associated object (actionSet, assistant, etc.)
+  taskType: ScheduledTaskType;
+  objectId: string; // ID of the associated object (actionSet, assistant, etc.)
   
   // Scheduling
   cronExpression: string;
