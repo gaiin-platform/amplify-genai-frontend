@@ -1236,14 +1236,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             </button> 
                                             </>
                                         }
-                                        
-                                        {/* User Avatar at the far right */}
-                                        <div className="ml-auto">
-                                            <UserAvatar
-                                                email={userEmail}
-                                                name={session?.user?.name}
-                                            />
-                                        </div>
+
                                     </div>
                                     <div ref={modelSelectRef}></div>
                                     
