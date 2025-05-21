@@ -1206,6 +1206,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                   disabled={disableEdit}
                                                   className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                                   placeholder={t('Tag names separated by commas.') || ''}
+                                                  id="tagInput"
                                                   value={tags}
                                                   title={'Tags for conversations created with this template.'}
                                                   onChange={(e) => {
@@ -1222,6 +1223,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                   disabled={disableEdit}
                                                   className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                                   placeholder={t('Tag names separated by commas.') || ''}
+                                                  id="conversationTagInput"
                                                   value={conversationTags}
                                                   title={'Tags for conversations created with this template.'}
                                                   onChange={(e) => {

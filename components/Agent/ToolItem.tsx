@@ -24,6 +24,7 @@ const ToolItem: React.FC<ToolItemProps> = ({ toolId, toolInfo, index, selected, 
       onClick={() => onClick && onClick(toolInfo)}
       key={toolId}
       className={`tool-item ${onClick ? 'cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-700' : ''}`}
+      id={`tool-item ${index}`}
       style={{
         border: '1px solid #ccc',
         padding: '10px',

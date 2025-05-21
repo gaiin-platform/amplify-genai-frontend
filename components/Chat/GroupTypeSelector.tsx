@@ -19,13 +19,14 @@ export const GroupTypeSelector: FC<Props> = ({ groupOptionsData, setSelected, gr
     };
 
     return (
-        <div className='flex flex-col'>
+        <div className='flex flex-col' id="groupSelector">
             {groupUserTypeQuestion ?? "Please select the group you best identify with to start chatting."}
             {groupOptions.map((option) => (
                 <div key={option} className="mt-2 radio-option">
                     <label>
                         <input
                             className='mr-2'
+                            id="groupTypeCheck"
                             type="radio"
                             value={option}
                             checked={selectedOption === option}

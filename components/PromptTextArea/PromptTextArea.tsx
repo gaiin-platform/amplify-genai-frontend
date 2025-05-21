@@ -161,6 +161,7 @@ const PromptTextArea: React.FC<PromptTextAreaProps> = ({
             {codeLanguage && (
                 <Editor
                     value={textAreaValue}
+                    id="codeEditor"
                     onValueChange={setTextAreaValue}
                     highlight={code =>
                         Prism.highlight(code, Prism.languages[codeLanguage] || Prism.languages.python, codeLanguage)
@@ -194,6 +195,7 @@ const PromptTextArea: React.FC<PromptTextAreaProps> = ({
                     <div className="flex items-center space-x-2">
                         <button
                             onClick={handleGenerateClick}
+                            id="generateDescription"
                             className="mr-2 w-full px-4 py-2 mt-0 border rounded-b-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                         >
                             <div className="flex flex-row items-center">

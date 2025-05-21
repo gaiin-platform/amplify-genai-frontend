@@ -294,6 +294,7 @@ const Folder = ({
                     
                   }}
                   title="Open In Assistant Admin Interface"
+                  id="assistantAdminInterfaceButton"
                 >
                     <IconSettingsBolt size={18} /> 
                 </ActionButton>}

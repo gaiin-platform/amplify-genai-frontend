@@ -104,6 +104,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
   return (
     <div className="mt-2">
        {!disabled && <button
+        id="manageAPIandToolsButtons"
         className="mt-2 mb-4 flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-sm text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700"
         onClick={() => setApiInfo([...apiInfo, {
           id: '',
@@ -133,6 +134,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             <label style={{transform: 'translateY(4px)'}} className="text-sm font-bold">Name:</label>
             <button
               className="ml-auto mt-[-2px] px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+              id="removeAPI"
               onClick={() => {
                 const newApiInfo = apiInfo.filter((_, i) => i !== index);
                 setApiInfo(newApiInfo);
@@ -143,6 +145,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
           </div>
           <input
             className="mt-2 mb-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+            id="nameAPI"
             placeholder="Name"
             value={api.name}
             onChange={(e) => {
@@ -164,6 +167,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
           <input
             className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
             placeholder="URL"
+            id="urlAPI"
             value={api.url}
             onChange={(e) => {
               const newApiInfo = [...apiInfo];
@@ -176,6 +180,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             <label className="text-sm font-bold">AI Chosen Parameters:</label>
             <button
               className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+              id="addParametersButton"
               onClick={() => {
                 const newApiInfo = [...apiInfo];
                 newApiInfo[index].params = [
@@ -191,6 +196,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
               <div key={paramIndex} className="flex mt-1">
                 <input
                   className="w-1/2 mr-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                  id="addedParameterName"
                   placeholder="Name"
                   value={param.name}
                   onChange={(e) => {
@@ -213,6 +219,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
                 <input
                   className="w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                   placeholder="Description for the Assistant"
+                  id="addedParameterDescription"
                   value={param.description}
                   onChange={(e) => {
                     const newApiInfo = [...apiInfo];
@@ -233,6 +240,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
                 />
                 <button
                   className="ml-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                  id="removeParameter"
                   onClick={() => {
                     const newApiInfo = [...apiInfo];
                     newApiInfo[index].params = newApiInfo[index].params.filter(p => p !== param);
@@ -248,6 +256,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             <label className="text-sm font-bold">Headers:</label>
             <button
               className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+              id="addHeadersButton"
               onClick={() => {
                 const newApiInfo = [...apiInfo];
                 newApiInfo[index].headers = {
@@ -264,6 +273,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
                 <input
                   className="w-1/2 mr-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                   placeholder="Key"
+                  id="headerKey"
                   value={key}
                   onChange={(e) => {
                     const newApiInfo = [...apiInfo];
@@ -277,6 +287,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
                 <input
                   className="w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                   placeholder="Value"
+                  id="headerValue"
                   value={value}
                   onChange={(e) => {
                     const newApiInfo = [...apiInfo];
@@ -286,6 +297,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
                 />
                 <button
                   className="ml-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                  id="headersRemove"
                   onClick={() => {
                     const newApiInfo = [...apiInfo];
                     const newHeaders = { ...newApiInfo[index].headers };
@@ -303,6 +315,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             <label className="text-sm font-bold">Body:</label>
             <textarea
               className="mt-1 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+              id="bodyJSONInput"
               placeholder="Request Body (JSON)"
               value={typeof api.body === 'object' ? JSON.stringify(api.body, null, 2) : api.body}
               onChange={(e) => {
@@ -318,6 +331,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             />
             <button
               className="mt-1 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+              id="formatJSONAdd"
               onClick={() => {
                 const newApiInfo = [...apiInfo];
                 try {
@@ -340,6 +354,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             <label className="text-sm font-bold">Authentication:</label>
             <select
               className="ml-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+              id="authenticationSelect"
               value={api.auth.type || ""}
               onChange={(e) => {
                 const newApiInfo = [...apiInfo];
@@ -392,6 +407,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
           )}
           <textarea
             className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+            id="descriptionAPI"
             placeholder="API Description (what it does and why it's used)"
             value={api.description || ''}
             onChange={(e) => {
@@ -405,12 +421,13 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
 
           <button
             className="mt-2 px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+            id="testAPI"
             onClick={() => handleTestAPI(api)}
           >
             Test API
           </button>
           {apiResponse && (
-            <div className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded overflow-auto max-h-60">
+            <div id="apiResponse" className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded overflow-auto max-h-60">
               <pre className="text-sm text-gray-800 dark:text-gray-200">{JSON.stringify(apiResponse, null, 2)}</pre>
             </div>
           )}

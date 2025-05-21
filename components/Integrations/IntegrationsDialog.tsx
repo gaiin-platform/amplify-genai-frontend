@@ -148,14 +148,14 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
     return ( !integrationsList ? null : 
             <>
              {integrationsList.map((integration) => (
-              <div key={integration.id} className="mr-8 flex items-start p-4 bg-gray-100 dark:bg-gray-800 rounded-lg mb-4 overflow-x-hidden">
+              <div key={integration.id} id="integrationItem" className="mr-8 flex items-start p-4 bg-gray-100 dark:bg-gray-800 rounded-lg mb-4 overflow-x-hidden">
                 <div className="flex-grow mr-4">
                   <div className="flex items-center mb-2">
                     {connectedIntegrations.includes(integration.id) && (
                       <IconCheck className="w-5 h-5 mr-2 text-green-500" />
                     )}
                     {integration.icon && translateIntegrationIcon(integration.icon)}
-                    <span className="text-black dark:text-white font-semibold">{`${capitalize(integrationIdPrefix)} ${integration.name}`}</span>
+                    <span id="integrationsTitle" className="text-black dark:text-white font-semibold">{`${capitalize(integrationIdPrefix)} ${integration.name}`}</span>
                   </div>
                   <p className="text-sm text-gray-600 dark:text-gray-300">{integration.description}</p>
                 </div>

@@ -117,7 +117,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
         {featureFlags.pythonFunctionApis && !hideApisPanel?.includes("custom") && (
           <button className={buttonClassName(shownAPIComponent === "custom")}
             onClick={() => setShownAPIComponent(shownAPIComponent === "custom" ? "" : "custom")}
-            disabled={!availableApis}
+            disabled={!availableApis} id="ManageCustomAPIs"
           >
             <IconTools size={18} />
             {!availableApis ?   'Loading APIs...' : 'Manage Custom APIs'}
@@ -127,7 +127,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
         {featureFlags.integrations && !hideApisPanel?.includes("internal") && (
           <button className={buttonClassName(shownAPIComponent === "internal")}
             onClick={() => setShownAPIComponent(shownAPIComponent === "internal" ? "" : "internal")}
-            disabled={!availableApis}
+            disabled={!availableApis} id="ManageInternalAPIs"
           >
             <IconHomeBolt size={18} />
             {!availableApis ? "Loading APIs..." : "Manage Internal APIs"}
@@ -135,7 +135,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
         )}
 
         {featureFlags.assistantApis && !hideApisPanel?.includes("external") && (
-          <button className={buttonClassName(shownAPIComponent === "external")}
+          <button className={buttonClassName(shownAPIComponent === "external")} id="ManageExternalAPIs"
             onClick={() => setShownAPIComponent(shownAPIComponent === "external" ? "" : "external")}
           >
             <IconWorldBolt size={18} />
@@ -145,6 +145,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
 
         {featureFlags.agentTools && !hideApisPanel?.includes("tools") && (
           <button className={buttonClassName(shownAPIComponent === "tools")}
+            id="ManageAgentTools"
             onClick={() => setShownAPIComponent(shownAPIComponent === "tools" ? "" : "tools")}
             disabled={!availableAgentTools}
           >

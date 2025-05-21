@@ -3,6 +3,7 @@ import React from 'react';
 import { Checkbox } from '@/components/ReusableComponents/CheckBox';
 import { TagsList } from '../Chat/TagsList';
 import { camelCaseToTitle } from '@/utils/app/data';
+import { indexOf } from 'lodash';
 
 interface ApiParam {
   name: string;
@@ -32,6 +33,7 @@ const ApiItem: React.FC<ApiItemProps> = ({ api, index, selected, onChange, onCli
       onClick={() => onClick && onClick(api)}
       key={api.id}
       className={`api-item ${onClick ? 'cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-700' : ''}`}
+      id={`api-item ${index}`}
       style={{
         border: '1px solid #ccc',
         padding: '10px',
@@ -47,7 +49,7 @@ const ApiItem: React.FC<ApiItemProps> = ({ api, index, selected, onChange, onCli
           checked={selected || false}
           onChange={(e) => onChange(api.id, e)}
           bold={true}
-        /> :  <span className={`mt-[1px] font-bold`}>{camelCaseToTitle(api.name)}</span>}
+        /> :  <span className={`mt-[1px] font-bold`} id={`apiName`}>{camelCaseToTitle(api.name)}</span>}
         {api.tags && filterTags(api.tags).length > 0 &&
         <div className='ml-auto'>
           <TagsList

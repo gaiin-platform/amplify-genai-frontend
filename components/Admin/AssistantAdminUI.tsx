@@ -1360,6 +1360,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                     <div className='ml-auto flex flex-row gap-1'>
                         {hasAdminAccess && <button
                             className="px-4 py-2 bg-blue-800 text-white hover:bg-blue-600 transition-colors"
+                            id="addUserButton"
                             onClick={() => setIsAddingUsers(true)}
                         >
                             Add Users
@@ -1383,6 +1384,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
 
                             <button
                                 className="text-red-500 hover:text-red-700 cursor-pointer"
+                                id="cancelChanges"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     setIsAddingUsers(false);
@@ -1401,6 +1403,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                             condition={isDeleting}
                             label='Deleting Users'
                             title='Delete Users'
+                            id="deleteUserButton"
                             clickAction={() => {
                                 setIsDeleting(true)
                                 setSearchTerm('')
@@ -1422,6 +1425,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                             condition={isEditingAccess}
                             label='Updating Users Access'
                             title='Update Users access'
+                            id="updateUserButton"
                             clickAction={() => {
                                 setIsEditingAccess(true)
                                 setSearchTerm('')
@@ -1532,6 +1536,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                 {hasAdminAccess &&
                     <button
                         type="button"
+                        id="deleteGroupButton"
                         className={`flex flex-row mt-auto gap-2 ml-auto mt-4 p-2 text-sm bg-neutral-500 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500`}
                         onClick={() => { handleDeleteGroup(selectedGroup.id) }}
                     >
@@ -1853,7 +1858,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
     const renderSubTabs = () => (
         <div className="flex flex-col w-full text-[1.05rem]">
-            <div className="flex flex-row gap-6 mb-4 px-4 w-full">
+            <div id="subTabs" className="flex flex-row gap-6 mb-4 px-4 w-full">
                 {subTabs.filter((t: SubTabType) => t !== 'conversations' || selectedGroup?.supportConvAnalysis)
                     .map((label: SubTabType) =>
                         label === 'group' ? (
@@ -1862,6 +1867,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                     <>
                                         <button
                                             type="button"
+                                            id="deleteAssistantButton"
                                             className={`flex flex-row gap-2 p-2 bg-neutral-200 dark:bg-gray-600  text-black dark:text-white hover:text-white dark:hover:bg-red-700 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500`}
                                             onClick={() => handleDeleteAssistant(selectedAssistant?.data?.assistant.definition.assistantId)}>
 
@@ -1880,6 +1886,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                 }
                                 <button className={`${activeSubTab === label ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black dark:bg-gray-600 dark:text-white'} h-[36px] rounded-md ml-auto mr-[-16px] whitespace-nowrap`}
                                     key={label}
+                                    id="groupManagement"
                                     onClick={() => {
                                         setActiveSubTab(label);
                                         setSelectedAssistant(undefined);
@@ -2128,6 +2135,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                     <div className='absolute top-5 right-2'>
                                         <ActionButton
                                             handleClick={onClose}
+                                            id="closeModal"
                                             title="Close"
                                         >
                                             <IconX size={28} />
@@ -2175,6 +2183,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                         e.stopPropagation();
                                                         setShowCreateGroupAssistant(selectedGroup.name);
                                                     }}
+                                                    id="createAssistantButton"
                                                 >
                                                     <IconPlus className='mt-0.5 mr-2' size={16} /> Create Assistant
                                                 </button>
@@ -2271,6 +2280,7 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
                                 className="mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                 style={{ resize: 'none' }}
                                 placeholder={`Group Name`}
+                                id="groupName"
                                 value={groupName}
                                 onChange={(e) => setGroupName(e.target.value)}
                                 rows={1}
@@ -2356,6 +2366,7 @@ const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupMembers,
                 <button
                     type="button"
                     title='Add Members'
+                    id="addMembers"
                     className="ml-2 mt-1 px-3 py-1.5 text-white rounded bg-neutral-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
                     onClick={handleAddEmails}
                 >
@@ -2479,6 +2490,7 @@ const AmpGroupsSysUsersSelection: FC<AmpSysSelectionProps> = ({ amplifyGroups, s
 
             <button
                 className="text-red-500 hover:text-red-700 cursor-pointer"
+                id="cancelChanges"
                 onClick={(e) => {
                     e.stopPropagation();
                     onCancel();
@@ -2572,6 +2584,7 @@ const AccessSelect: FC<AccessProps> = ({ access, setAccess }) => {
         <select className={"w-full text-center border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"}
             value={access}
             title='Select Access Type'
+            id="selectAccessType"
             onChange={(event) => {
                 setAccess(event.target.value as GroupAccessType);
             }}
@@ -2599,6 +2612,7 @@ export const GroupSelect: FC<SelectProps> = ({ groups, selectedGroup, setSelecte
         <select className={"mb-2 w-full text-xl text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  custom-shadow"}
             value={selectedGroup?.name ?? ''}
             title='Select Group'
+            id="selectGroup"
             onChange={(event) => {
                 if (event.target.value === GroupUpdateType.ADD) {
                     setShowCreateNewGroup(true);
@@ -2628,6 +2642,7 @@ interface ActionProps {
     condition: boolean;
     label: string;
     title: string;
+    id?: string;
     clickAction: () => void;
     onConfirm: () => void;
     onCancel: () => void;
@@ -2653,6 +2668,7 @@ export const UsersAction: FC<ActionProps> = ({ condition, label, title, clickAct
 
                 <button
                     className="text-red-500 hover:text-red-700 cursor-pointer"
+                    id="cancelChanges"
                     onClick={(e) => {
                         e.stopPropagation();
                         onCancel();
@@ -2667,6 +2683,7 @@ export const UsersAction: FC<ActionProps> = ({ condition, label, title, clickAct
     ) : (
         <button
             className={`px-4 py-2 bg-blue-800 text-white  hover:bg-blue-600 transition-colors`}
+            id={title}
             onClick={clickAction}
         >
             {title}
@@ -2894,6 +2911,7 @@ export const GroupTypesAst: FC<TypeProps> = ({ groupTypes, setGroupTypes, canAdd
 
                     <button
                         className="text-red-500 hover:text-red-700 cursor-pointer"
+                        id="cancelChanges"
                         onClick={(e) => {
                             e.stopPropagation();
                             onCancel();
@@ -3062,6 +3080,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({ groupId, astPromptId, assi
                     <input
                         className='ml-2'
                         type="checkbox"
+                        id="typeCheckBox"
                         checked={selectedTypes.includes(type)}
                         onChange={(e) => {
                             if (e.target.checked) {
@@ -3085,6 +3104,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({ groupId, astPromptId, assi
                 <textarea
                     className="mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                     style={{ resize: 'none' }}
+                    id="userGroupSelectionMessage"
                     placeholder={`Message to display to user when selecting one of the group types prior to chatting.\n (default message: "Please select the group you best identify with to start chatting."')`}
                     value={userQuestion}
                     onChange={(e) => setUserQuestion(e.target.value)}
@@ -3104,13 +3124,14 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({ groupId, astPromptId, assi
                                     title={type}
                                     content={
 
-                                        <div className='flex flex-col gap-2 my-4 text-black dark:text-neutral-200' key={type}>
+                                        <div id={`${type} Content`} className='flex flex-col gap-2 my-4 text-black dark:text-neutral-200' key={type}>
                                             <div className='flex flex-row'>
                                                 {data.isDisabled ? "Disable Message For User" : "Additional Instructions"}
                                                 <div className='ml-auto mr-4 flex flex-row gap-2'>
                                                     <input
                                                         className='ml-2'
                                                         type="checkbox"
+                                                        id={`${type} DisableMessage`}
                                                         checked={data.isDisabled}
                                                         onChange={(e) => {
                                                             if (e.target.checked) {
@@ -3129,6 +3150,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({ groupId, astPromptId, assi
                                                     className="mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                                     style={{ resize: 'none' }}
                                                     placeholder={`Message to display for selected disabled type: ${type}`}
+                                                    id={`disabledInstruction${type}`}
                                                     value={data.disabledMessage}
                                                     onChange={(e) => updateGroupType(type, 'disabledMessage', e.target.value)}
                                                     rows={3}
@@ -3137,6 +3159,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({ groupId, astPromptId, assi
                                                 <textarea
                                                     className="mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                                     style={{ resize: 'none' }}
+                                                    id={`enabledInstruction${type}`}
                                                     placeholder={`Additional instructions specific for this group type: ${type}`}
                                                     value={data.additionalInstructions}
                                                     onChange={(e) => updateGroupType(type, 'additionalInstructions', e.target.value)}
@@ -3151,6 +3174,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({ groupId, astPromptId, assi
 
                                                         <button
                                                             title='Add Files'
+                                                            id="addFilesButton"
                                                             className={`left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:hover:text-neutral-200 dark:bg-opacity-50 dark:text-neutral-100 `}
                                                             onClick={(e) => {
                                                                 e.preventDefault();
