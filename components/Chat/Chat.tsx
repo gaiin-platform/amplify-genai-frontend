@@ -1159,15 +1159,15 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                     <div
                                        id="chatUpperMenu"
-                                       className="items-center sticky top-0 py-3 z-10 flex justify-center relative border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
+                                       className="items-center sticky top-0 py-3 z-10 flex justify-center relative text-sm text-neutral-500 dark:text-neutral-200">
                                         
                                         {/* Expanding Pill - Centered Content */}
                                         <div 
                                             className={`
                                                 relative flex items-center transition-all duration-300 ease-in-out cursor-pointer
                                                 rounded-full bg-white dark:bg-[#343541] shadow-lg hover:shadow-xl
-                                                border border-gray-200 dark:border-gray-600
-                                                ${isPillExpanded ? 'px-6 py-2' : 'px-4 py-2'}
+                                                border border-gray-200 dark:border-gray-600 h-10
+                                                ${isPillExpanded ? 'px-6' : 'px-3'}
                                             `}
                                             onMouseEnter={() => setIsPillExpanded(true)}
                                             onMouseLeave={() => setIsPillExpanded(false)}
