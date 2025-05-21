@@ -61,7 +61,7 @@ export const getState =
 
         const { accessToken } = session;
 
-        const apiUrl = process.env.API__BASE_URL + "state" || ""; // API Gateway URL from environment variables
+        const apiUrl = process.env.API_BASE_URL + "state" || ""; // API Gateway URL from environment variables
 
         // Accessing itemData parameters from the request
         const stateId = req.query.id;

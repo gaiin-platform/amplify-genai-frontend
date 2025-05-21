@@ -1,7 +1,6 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
 import { IconCheck, IconFiles, IconPlus, IconSettings, IconTrashX, IconX } from '@tabler/icons-react';
-import Loader from "@/components/Loader/Loader";
 import { AssistantModal } from '../Promptbar/components/AssistantModal';
 import { Prompt } from '@/types/prompt';
 import { Group, GroupAccessType, AstGroupTypeData, GroupUpdateType, Members } from '@/types/groups';
@@ -17,7 +16,7 @@ import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
 import { DataSourceSelector } from '../DataSources/DataSourceSelector';
 import { AttachedDocument } from '@/types/attacheddocument';
-import {ExistingFileList, FileList} from "@/components/Chat/FileList";
+import { ExistingFileList, FileList } from "@/components/Chat/FileList";
 import { ModelSelect } from '../Chat/ModelSelect';
 import { getDate, getDateName } from '@/utils/app/date';
 import { FolderInterface } from '@/types/folder';
@@ -37,6 +36,7 @@ import { AmplifyGroupSelect } from './AdminUI';
 import { getUserAmplifyGroups } from '@/services/adminService';
 import { fetchAllSystemIds } from '@/services/apiKeysService';
 import { ReactElement } from 'react-markdown/lib/react-markdown';
+import { checkAvailableModelId } from '@/utils/app/models';
 
 
 interface Conversation {
@@ -62,6 +62,7 @@ const ConversationTable: FC<{ conversations: Conversation[], supportConvAnalysis
     const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [filteredConversations, setFilteredConversations] = useState<Conversation[]>(conversations);
+    const [showColumnSelector, setShowColumnSelector] = useState<boolean>(false);
 
     // Initialize with columns that should always be visible
     const defaultColumns: (keyof Conversation)[] = [
@@ -247,8 +248,11 @@ const ConversationTable: FC<{ conversations: Conversation[], supportConvAnalysis
                         </div>
                     </div>
 
-                    <div className="relative group">
-                        <button className="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center">
+                    <div className="relative">
+                        <button
+                            className="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center"
+                            onClick={() => setShowColumnSelector(!showColumnSelector)}
+                        >
                             <svg className="mr-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="4" y1="21" x2="4" y2="14" />
                                 <line x1="4" y1="10" x2="4" y2="3" />
@@ -262,27 +266,29 @@ const ConversationTable: FC<{ conversations: Conversation[], supportConvAnalysis
                             </svg>
                             Customize Table
                         </button>
-                        <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-md shadow-lg border dark:border-gray-700 z-10 hidden group-hover:block">
-                            <div className="p-3 border-b dark:border-gray-700">
-                                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Visible Columns</h3>
+                        {showColumnSelector && (
+                            <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-md shadow-lg border dark:border-gray-700 z-10">
+                                <div className="p-3 border-b dark:border-gray-700">
+                                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Visible Columns</h3>
+                                </div>
+                                <div className="p-2 max-h-60 overflow-y-auto">
+                                    {allColumns.map(column => (
+                                        <div key={column} className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                                            <input
+                                                type="checkbox"
+                                                id={`column-${column}`}
+                                                checked={visibleColumns.includes(column)}
+                                                onChange={() => toggleColumnVisibility(column)}
+                                                className="rounded text-blue-500 focus:ring-blue-500 dark:bg-gray-900"
+                                            />
+                                            <label htmlFor={`column-${column}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                                {getColumnDisplayName(column as string)}
+                                            </label>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                            <div className="p-2 max-h-60 overflow-y-auto">
-                                {allColumns.map(column => (
-                                    <div key={column} className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
-                                        <input
-                                            type="checkbox"
-                                            id={`column-${column}`}
-                                            checked={visibleColumns.includes(column)}
-                                            onChange={() => toggleColumnVisibility(column)}
-                                            className="rounded text-blue-500 focus:ring-blue-500 dark:bg-gray-900"
-                                        />
-                                        <label htmlFor={`column-${column}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                                            {getColumnDisplayName(column as string)}
-                                        </label>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
                 <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
@@ -565,10 +571,10 @@ const ConversationPopup: FC<{ conversation: Conversation; onClose: () => void; s
                                         <div
                                             key={index}
                                             className={`p-4 rounded-lg ${message.role === 'user'
-                                                    ? 'bg-blue-50 dark:bg-blue-900/30 ml-4 mr-8'
-                                                    : message.role === 'assistant'
-                                                        ? 'bg-gray-100 dark:bg-gray-800 mr-4 ml-8'
-                                                        : 'bg-yellow-50 dark:bg-yellow-900/30'
+                                                ? 'bg-blue-50 dark:bg-blue-900/30 ml-4 mr-8'
+                                                : message.role === 'assistant'
+                                                    ? 'bg-gray-100 dark:bg-gray-800 mr-4 ml-8'
+                                                    : 'bg-yellow-50 dark:bg-yellow-900/30'
                                                 }`}
                                         >
                                             <div className="font-medium text-sm mb-1 text-gray-700 dark:text-gray-300">
@@ -914,6 +920,17 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
     const [groupAmpGroups, setGroupAmpGroups] = useState<string[]>(selectedGroup.amplifyGroups ?? []);
     const [groupSystemUsers, setGroupSystemUsers] = useState<string[]>(selectedGroup.systemUsers ?? []);
 
+    const initUniqueSystemUsers = () => {
+        const uniqueSystemUsers = new Set([
+            ...(systemUsers ?? []),
+            ...(selectedGroup?.systemUsers ?? [])
+        ]);
+        
+        return Array.from(uniqueSystemUsers);
+    }
+    const [availableSystemUsers, setAvailableSystemUsers] = useState<string[]>(initUniqueSystemUsers());
+
+
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [isDeleting, setIsDeleting] = useState<boolean>(false);
     const [deleteUsersList, setDeleteUsersList] = useState<string[]>([]);
@@ -1009,7 +1026,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
         };
         // statsService.updateGroupAmplifyGroupsEvent(updateData); 
         const result = await updateGroupAmplifyGroups(updateData);
-        if (!result) {
+        if (!result.success) {
             alert(`Unable to update amplify group list at this time. Please try again later.`);
             setLoadingActionMessage('');
             return false;;
@@ -1037,11 +1054,11 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
         setLoadingActionMessage('Updating System User List');
         const updateData = {
             "group_id": selectedGroup.id,
-            "system_users": systemUsers
+            "system_users": groupSystemUsers
         };
         // statsService.updateGroupSystemUsersEvent(updateData); 
         const result = await updateGroupSystemUsers(updateData);
-        if (!result) {
+        if (!result.success) {
             alert(`Unable to update the system users list at this time. Please try again later.`);
             setLoadingActionMessage('');
             return false;
@@ -1050,7 +1067,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
         }
 
         //update groups home dispatch 
-        const updatedGroup = { ...selectedGroup, systemUsers: systemUsers };
+        const updatedGroup = { ...selectedGroup, systemUsers: groupSystemUsers };
         setSelectedGroup(updatedGroup);
         const updatedAdminGroups = adminGroups.map((g: Group) => {
             if (selectedGroup?.id === g.id) return updatedGroup;
@@ -1520,7 +1537,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                     amplifyGroups={amplifyGroups}
                     selectedAmplifyGroups={groupAmpGroups}
                     setSelectedAmplifyGroups={setGroupAmpGroups}
-                    systemUsers={systemUsers}
+                    systemUsers={availableSystemUsers}
                     selectedSystemUsers={groupSystemUsers}
                     setSelectedSystemUsers={setGroupSystemUsers}
                     onConfirmAmpGroups={onUpdateAmpGroups}
@@ -2513,6 +2530,7 @@ const AmpGroupsSysUsersSelection: FC<AmpSysSelectionProps> = ({ amplifyGroups, s
                 <ListSelection
                     title='System User Access'
                     infoLabel='Grant read access to your API created system users.'
+                    label='System Users'
                     selection={systemUsers}
                     selected={selectedSystemUsers}
                     setSelected={(selected: string[]) => {
@@ -2538,11 +2556,12 @@ interface SelectionProps {
     selected: string[];
     setSelected: (selectedGroups: string[]) => void;
     manageButtons?: ReactElement;
+    label?: string;
 }
-const ListSelection: FC<SelectionProps> = ({ title, infoLabel, selection, selected, setSelected, manageButtons = null }) => {
+const ListSelection: FC<SelectionProps> = ({ title, infoLabel, selection, selected, setSelected, manageButtons = null, label}) => {
     return (
-        <div className='mb-6'>
-            <label className='mb-2 font-bold'>{title}</label>
+        <div className='mb-6 px-1'>
+            <div className='mb-1 font-bold'>{title}</div>
             <InfoBox content={
                 <>
                     <span className="ml-1 text-xs w-full text-center"> {infoLabel} </span>
@@ -2555,6 +2574,7 @@ const ListSelection: FC<SelectionProps> = ({ title, infoLabel, selection, select
                 groups={selection}
                 selected={selected}
                 setSelected={setSelected}
+                label={label}
             />
         </div>
     );
@@ -2716,8 +2736,8 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
     }
 
     const checkAvailableModel = () => {
-        const validIds = Object.keys(availableModels);
-        return validIds.includes(astData.model) ? astData.model : undefined;
+        const isValid = checkAvailableModelId(astData.model, availableModels);
+        return isValid;
     }
 
     const onSupportConvAnalysisChange = (isChecked: boolean) => {
@@ -2763,12 +2783,13 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
                 }}
             />
         </div>
-        <div className={`ml-6 flex flex-col ${enforceModel ? "" : 'opacity-40'}`}>
+        <div className={`ml-6 flex flex-col ${enforceModel ? "" : 'opacity-40'} `}>
             All conversations will be set to this model and unable to be changed by the user.
             <ModelSelect
                 applyModelFilter={false}
                 isTitled={false}
                 modelId={checkAvailableModel()}
+                outlineColor={enforceModel && !additionalGroupData.model ? 'red-500' : ''}
                 isDisabled={!enforceModel}
                 disableMessage=''
                 handleModelChange={(model: string) => {
@@ -2777,38 +2798,38 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
             />
         </div>
 
-        <div className='mt-4 flex flex-row gap-3 text-[1.05rem]'>
-            <Checkbox
-                id="trackConversations"
-                label="Track Conversations"
-                checked={trackConversations || astSupportConvAnalysis}
-                onChange={(isChecked: boolean) => {
-                    // Only allow changes if analysis support is not enabled
-                    // This prevents unchecking when analysis is enabled
-                    if (!astSupportConvAnalysis || isChecked) {
-                        setAdditionalGroupData({ ...additionalGroupData, trackConversations: isChecked });
-                        setTrackConversations(isChecked);
-                    } else {
-                        // Show the notification message when trying to uncheck while analysis is enabled
-                        setShowTrackingRequiredMessage(true);
-                    }
-                }}
-            />
-        </div>
-        <div className={`ml-6 flex flex-col ${trackConversations || astSupportConvAnalysis ? "" : 'opacity-40'}`}>
-            Enable the dashboard and conversation tracking with this assistant for monitoring and review purposes.
-            {astSupportConvAnalysis &&
-                <div className={`text-amber-500 mt-1 transition-opacity duration-300 ${showTrackingRequiredMessage ? 'opacity-100' : 'opacity-70'}`}>
-                    <small>
-                        {showTrackingRequiredMessage
-                            ? "Track Conversations is required when Analyze Conversations is enabled"
-                            : "Automatically enabled when Analyze Conversations is active"}
-                    </small>
-                </div>
-            }
-        </div>
-
         {groupConvAnalysisSupport && <>
+            <div className='mt-4 flex flex-row gap-3 text-[1.05rem]'>
+                <Checkbox
+                    id="trackConversations"
+                    label="Track Conversations"
+                    checked={trackConversations || astSupportConvAnalysis}
+                    onChange={(isChecked: boolean) => {
+                        // Only allow changes if analysis support is not enabled
+                        // This prevents unchecking when analysis is enabled
+                        if (!astSupportConvAnalysis || isChecked) {
+                            setAdditionalGroupData({ ...additionalGroupData, trackConversations: isChecked });
+                            setTrackConversations(isChecked);
+                        } else {
+                            // Show the notification message when trying to uncheck while analysis is enabled
+                            setShowTrackingRequiredMessage(true);
+                        }
+                    }}
+                />
+            </div>
+            <div className={`ml-6 flex flex-col ${trackConversations || astSupportConvAnalysis ? "" : 'opacity-40'}`}>
+                Enable the dashboard and conversation tracking with this assistant for monitoring and review purposes.
+                {astSupportConvAnalysis &&
+                    <div className={`text-amber-500 mt-1 transition-opacity duration-300 ${showTrackingRequiredMessage ? 'opacity-100' : 'opacity-70'}`}>
+                        <small>
+                            {showTrackingRequiredMessage
+                                ? "Track Conversations is required when Analyze Conversations is enabled"
+                                : "Automatically enabled when Analyze Conversations is active"}
+                        </small>
+                    </div>
+                }
+            </div>
+
             <div className='mt-4 flex flex-row gap-3 text-[1rem]'>
                 <Checkbox
                     id="supportAnalysis"
@@ -2833,9 +2854,8 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
                             isDisabled={!astSupportConvAnalysis} />
                     }
                 />
-
-
-            </div></>}
+            </div>
+        </>}
         <br className='mb-1'></br>
         <GroupTypesAstData
             groupId={groupId}

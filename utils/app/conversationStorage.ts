@@ -136,6 +136,16 @@ const fillInMissingData = async (conversationId: string, defaultModel: Model, fo
         uploadConversation(fullConv, folders);
     }
 }
+
+const updateRemoteConversation = async (conversationId: string, attributes: any, folders:FolderInterface[]) => {
+    const fullConv = await fetchRemoteConversation(conversationId);
+    if (fullConv) {
+        const updatedConv = {...fullConv, ...attributes};
+        // console.log("Update data on remote conversation: ", attributes);
+        uploadConversation(updatedConv, folders);
+    }
+}
+
 export interface remoteConvData {
     conversation: Conversation;
     folder: FolderInterface | null;
@@ -176,9 +186,11 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
                         newFolders.push(cd.folder);
                     } else {
                         remoteConv.folderId = similarFolderExists.id;
+                        // update the folder id in the remote conversation, this will ensure we are fully in sync in this browser 
+                        updateRemoteConversation(remoteConv.id, {folderId: similarFolderExists.id}, updatedFolders);
                     }
                 }
-            }   else if  (existsLocally && folderExists && existsLocally.folderId !== folderExists.id) {
+            }   else if  (existsLocally && folderExists && existsLocally.folderId !== folderExists?.id) {
                 remoteConv.folderId = folderExists.id;
             }
             currentConversationsMap.set(remoteConv.id, {...remoteConv, isLocal: false});  // in case

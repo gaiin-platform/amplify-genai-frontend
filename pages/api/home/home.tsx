@@ -273,7 +273,7 @@ const Home = ({
         if (isRemoteConversation(conversation)) { 
             const remoteConversation = await fetchRemoteConversation(conversation.id, conversationsRef.current, dispatch);
             if (remoteConversation) {
-                newSelectedConv = remoteConversation; 
+                newSelectedConv = {...remoteConversation, folderId: conversation.folderId || null}; 
             }
         } else {
             newSelectedConv = conversationWithUncompressedMessages(cloneDeep(conversation));
@@ -706,7 +706,10 @@ const Home = ({
                             handleUpdateSelectedConversation({...selectedConversation, model: defaultModel ?? lowestCostModel(models)});
                         }
 
-                        if (defaultModel) dispatch({ field: 'defaultModelId', value: defaultModel.id });
+                        if (defaultModel) {
+                            console.log("DefaultModel dispatch: ", defaultModel);
+                            dispatch({ field: 'defaultModelId', value: defaultModel.id });
+                        }
                         if (response.data.cheapest) dispatch({ field: 'cheapestModelId', value: response.data.cheapest.id });
                         if (response.data.advanced) dispatch({ field: 'advancedModelId', value: response.data.advanced.id });
                         const modelMap = models.reduce((acc:any, model:any) => ({...acc, [model.id]: model}), {});
@@ -1537,9 +1540,10 @@ const Home = ({
         return (
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`}
-            >
-                <div
-                    className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
+                style={{backgroundColor: lightMode === 'dark' ? 'black' : 'white'}}>
+            <div
+                className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white"
+                style={{color: lightMode === 'dark' ? 'white' : 'black'}}>
                     <Loader />
                     <h1 className="mt-6 mb-4 text-2xl font-bold">
                         Loading...
@@ -1551,8 +1555,8 @@ const Home = ({
     } else {
         return (
             <main
-                className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`}
-            >
+                className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`} 
+                style={{backgroundColor: lightMode === 'dark' ? 'black' : 'white'}}>
                 <div
                     className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
                     <h1 className="mb-4 text-2xl font-bold">
