@@ -508,8 +508,13 @@
   --chat-assistant-secondary-dark: 161, 98, 7;
 }
 
-/* Color Palette: Blue/Green (Default) */
+/* Color Palette: Blue/Green */
 [data-chat-palette="blue-green"] {
+  --chat-user-primary: 59, 130, 246;
+  --chat-user-secondary: 147, 197, 253;
+  --chat-assistant-primary: 16, 185, 129;
+  --chat-assistant-secondary: 167, 243, 208;
+  
   --chat-user-primary-dark: 59, 130, 246;
   --chat-user-secondary-dark: 30, 58, 138;
   --chat-assistant-primary-dark: 16, 185, 129;
@@ -518,6 +523,11 @@
 
 /* Color Palette: Purple/Pink */
 [data-chat-palette="purple-pink"] {
+  --chat-user-primary: 139, 92, 246;
+  --chat-user-secondary: 196, 181, 253;
+  --chat-assistant-primary: 236, 72, 153;
+  --chat-assistant-secondary: 251, 207, 232;
+  
   --chat-user-primary-dark: 139, 92, 246;
   --chat-user-secondary-dark: 124, 58, 237;
   --chat-assistant-primary-dark: 236, 72, 153;
@@ -526,6 +536,11 @@
 
 /* Color Palette: Warm Browns (Default) */
 [data-chat-palette="warm-browns"] {
+  --chat-user-primary: 180, 83, 9;
+  --chat-user-secondary: 251, 191, 36;
+  --chat-assistant-primary: 202, 138, 4;
+  --chat-assistant-secondary: 254, 240, 138;
+  
   --chat-user-primary-dark: 180, 83, 9;
   --chat-user-secondary-dark: 146, 64, 14;
   --chat-assistant-primary-dark: 202, 138, 4;
@@ -534,6 +549,11 @@
 
 /* Color Palette: Cool Grays */
 [data-chat-palette="cool-grays"] {
+  --chat-user-primary: 75, 85, 99;
+  --chat-user-secondary: 209, 213, 219;
+  --chat-assistant-primary: 107, 114, 128;
+  --chat-assistant-secondary: 229, 231, 235;
+  
   --chat-user-primary-dark: 115, 115, 115;
   --chat-user-secondary-dark: 82, 82, 82;
   --chat-assistant-primary-dark: 156, 163, 175;
@@ -542,10 +562,63 @@
 
 /* Color Palette: Ocean Depths */
 [data-chat-palette="ocean-depths"] {
+  --chat-user-primary: 6, 182, 212;
+  --chat-user-secondary: 165, 243, 252;
+  --chat-assistant-primary: 34, 197, 94;
+  --chat-assistant-secondary: 187, 247, 208;
+  
   --chat-user-primary-dark: 6, 182, 212;
   --chat-user-secondary-dark: 8, 145, 178;
   --chat-assistant-primary-dark: 34, 197, 94;
   --chat-assistant-secondary-dark: 21, 128, 61;
+}
+
+/* Color Palette: High Contrast (Enhanced Readability) */
+[data-chat-palette="high-contrast"] {
+  /* Light mode - slightly darker than default for better readability */
+  --chat-user-primary: 59, 130, 246;
+  --chat-user-secondary: 37, 99, 235;
+  --chat-assistant-primary: 16, 185, 129;
+  --chat-assistant-secondary: 5, 150, 105;
+  
+  /* Dark mode - much darker backgrounds for maximum readability */
+  --chat-user-bg-dark: 45, 45, 50;      /* Deep charcoal */
+  --chat-user-bg2-dark: 35, 35, 40;     /* Darker charcoal */
+  --chat-user-border-dark: 75, 85, 99;  /* Subtle blue-gray border */
+  
+  --chat-assistant-bg-dark: 41, 37, 36;   /* Rich dark brown */
+  --chat-assistant-bg2-dark: 28, 25, 23;  /* Deeper brown */
+  --chat-assistant-border-dark: 120, 113, 108; /* Warm brown border */
+}
+
+/* High Contrast - Enhanced Light Mode */
+[data-chat-palette="high-contrast"] .enhanced-chat-message.user-message {
+  background: linear-gradient(135deg, 
+    rgba(var(--chat-user-primary), 0.08) 0%, 
+    rgba(var(--chat-user-secondary), 0.05) 100%);
+  border-left: 3px solid rgba(var(--chat-user-primary), 0.6);
+}
+
+[data-chat-palette="high-contrast"] .enhanced-chat-message.assistant-message {
+  background: linear-gradient(135deg, 
+    rgba(var(--chat-assistant-primary), 0.08) 0%, 
+    rgba(var(--chat-assistant-secondary), 0.05) 100%);
+  border-left: 3px solid rgba(var(--chat-assistant-primary), 0.6);
+}
+
+/* High Contrast - Dark Solid Backgrounds for Maximum Readability */
+[data-chat-palette="high-contrast"] .dark .enhanced-chat-message.user-message {
+  background: linear-gradient(135deg, 
+    rgba(var(--chat-user-bg-dark), 0.95) 0%, 
+    rgba(var(--chat-user-bg2-dark), 0.98) 100%);
+  border-left: 3px solid rgba(var(--chat-user-border-dark), 0.7);
+}
+
+[data-chat-palette="high-contrast"] .dark .enhanced-chat-message.assistant-message {
+  background: linear-gradient(135deg, 
+    rgba(var(--chat-assistant-bg-dark), 0.95) 0%, 
+    rgba(var(--chat-assistant-bg2-dark), 0.98) 100%);
+  border-left: 3px solid rgba(var(--chat-assistant-border-dark), 0.7);
 }
 
 /* ===================================
