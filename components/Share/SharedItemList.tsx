@@ -126,38 +126,58 @@ const SharedItemsList: FC<{}> = () => {
                 includePrompts={true}
                 includeFolders={true}/>
 
-            <div className="flex flex-row items-center pt-3 pl-2 pr-3">
-                <div className="mb-4 flex items-center space-x-2">
+            <div className="p-4 border-b border-neutral-200 dark:border-neutral-600">
+                <div className="flex items-center justify-between gap-3">
                     <button
                         id="shareWithOtherUsers"
-                        className="text-sidebar flex flex-grow flex-shrink flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
+                        className="flex-1 group relative overflow-hidden bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
                         onClick={() => {
                             setIsModalOpen(true);
                         }}
                     >
-                        <IconShare size={16}/>
-                        Share with Other Users
+                        <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-center gap-2">
+                            <IconShare size={18} className="text-white group-hover:scale-110 transition-transform duration-200"/>
+                            <span className="text-sm">Share with Others</span>
+                        </div>
                     </button>
+                    
                     <button
-                        title='Refresh'
+                        title='Refresh shared items'
                         id="refreshButton"
                         disabled={isLoading}
-                        className={`text-sidebar flex flex-grow flex-shrink-0 select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 ${!isLoading ? "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" : ""}`}
+                        className={`group relative overflow-hidden bg-white dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-600 hover:border-blue-300 dark:hover:border-blue-600 text-neutral-700 dark:text-neutral-300 font-medium py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform ${!isLoading ? "hover:scale-105 active:scale-95 cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
                         onClick={async () => {
-                        if (user?.email) {
+                        if (user?.email && !isLoading) {
                            setIsLoading(true);
                            await fetchSWYData(user?.email);
                         }}
                         }
                     >
-                        <IconRefresh size={16}/>
+                        <div className="absolute inset-0 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-center">
+                            <IconRefresh 
+                                size={18} 
+                                className={`text-neutral-600 dark:text-neutral-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-all duration-200 ${isLoading ? 'animate-spin' : 'group-hover:rotate-180'}`}
+                            />
+                        </div>
                     </button>
                 </div>
             </div>
 
-            <div className="px-2 py-3 border-b dark:border-white/20">
-                <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Shared With You</h3>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Items shared with you, newest first</p>
+            <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-neutral-50 to-blue-50/30 dark:from-neutral-800 dark:to-blue-900/10"></div>
+                <div className="relative px-4 py-4 border-b border-neutral-200 dark:border-neutral-600">
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-xl">
+                            <IconShare size={20} className="text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Shared With You</h3>
+                            <p className="text-sm text-neutral-500 dark:text-neutral-400">Items shared with you, newest first</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {isLoading ? (
