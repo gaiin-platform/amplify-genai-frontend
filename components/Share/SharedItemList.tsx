@@ -130,7 +130,7 @@ const SharedItemsList: FC<{}> = () => {
                 <div className="flex items-center justify-between gap-3">
                     <button
                         id="shareWithOtherUsers"
-                        className="flex-1 group relative overflow-hidden bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
+                        className="flex-1 group relative overflow-hidden bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                         onClick={() => {
                             setIsModalOpen(true);
                         }}
@@ -146,7 +146,7 @@ const SharedItemsList: FC<{}> = () => {
                         title='Refresh shared items'
                         id="refreshButton"
                         disabled={isLoading}
-                        className={`group relative overflow-hidden bg-white dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-600 hover:border-blue-300 dark:hover:border-blue-600 text-neutral-700 dark:text-neutral-300 font-medium py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform ${!isLoading ? "hover:scale-105 active:scale-95 cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
+                        className={`group relative overflow-hidden bg-white dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-600 hover:border-blue-300 dark:hover:border-blue-600 text-neutral-700 dark:text-neutral-300 font-medium py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 ${!isLoading ? "cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
                         onClick={async () => {
                         if (user?.email && !isLoading) {
                            setIsLoading(true);
@@ -181,81 +181,118 @@ const SharedItemsList: FC<{}> = () => {
             </div>
 
             {isLoading ? (
-                <div className="flex flex-row ml-6 mt-6">
-                    <LoadingIcon/>
-                    <span className="text-l font-bold ml-2">Loading...</span>
+                <div className="flex flex-col items-center justify-center py-12">
+                    <div className="relative">
+                        <div className="w-12 h-12 border-4 border-blue-200 dark:border-blue-800 rounded-full animate-pulse"></div>
+                        <div className="absolute inset-0 w-12 h-12 border-4 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                    <span className="mt-4 text-sm font-medium text-neutral-600 dark:text-neutral-400">Loading shared items...</span>
                 </div>
             ) : (
-                <div className="p-2">
+                <div className="p-4 space-y-3">
                     {allItems.length === 0 ? (
-                        <div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
-                            No items shared with you yet
+                        <div className="text-center py-12">
+                            <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-neutral-100 dark:bg-neutral-800 rounded-full">
+                                <IconShare size={24} className="text-neutral-400 dark:text-neutral-500" />
+                            </div>
+                            <h3 className="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-2">No shared items yet</h3>
+                            <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
+                                When someone shares conversations or prompts with you, they'll appear here
+                            </p>
                         </div>
                     ) : (
                         allItems.map((item, index) => (
-                            <button
+                            <div
                                 key={index}
-                                onMouseEnter={() => {
-                                    setHoveredItem(item)
-                                    setIsButtonHover(true)
-                                }}
-                                onMouseLeave={() => {
-                                    setDeletingItem(null); 
-                                    setHoveredItem(null)
-                                }}
-                                className={`w-full flex cursor-pointer items-center gap-3 rounded-lg p-3 mb-2 text-sm transition-colors duration-200 border border-neutral-200 dark:border-neutral-600 ${isButtonHover ? "hover:bg-neutral-100 dark:hover:bg-[#343541]/90": ""}`}
-                                onClick={() => {
-                                    setSharedBy(item.sharedBy);
-                                    handleFetchShare(item);
-                                }}
+                                className="group relative overflow-hidden bg-white dark:bg-neutral-800/50 rounded-xl border border-neutral-200 dark:border-neutral-700 hover:border-blue-300 dark:hover:border-blue-600 shadow-sm hover:shadow-lg transition-all duration-300"
                             >
-                                <IconShare size={18} className="flex-shrink-0 text-green-600 dark:text-green-400"/>
-                                <div className="flex-1 text-left">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                                            {item.sharedBy.includes('@') ? item.sharedBy.split("@")[0] : item.sharedBy}
+                                <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 to-emerald-50/50 dark:from-blue-900/10 dark:to-emerald-900/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                
+                                <button
+                                    onMouseEnter={() => {
+                                        setHoveredItem(item)
+                                        setIsButtonHover(true)
+                                    }}
+                                    onMouseLeave={() => {
+                                        setDeletingItem(null); 
+                                        setHoveredItem(null)
+                                    }}
+                                    className="relative w-full flex cursor-pointer items-center gap-4 p-4 text-left transition-all duration-200"
+                                    onClick={() => {
+                                        setSharedBy(item.sharedBy);
+                                        handleFetchShare(item);
+                                    }}
+                                >
+                                    <div className="flex-shrink-0">
+                                        <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-emerald-100 to-blue-100 dark:from-emerald-900/30 dark:to-blue-900/30 rounded-xl group-hover:scale-110 transition-transform duration-200">
+                                            <IconShare size={20} className="text-emerald-600 dark:text-emerald-400 group-hover:rotate-12 transition-transform duration-200"/>
                                         </div>
-                                        <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                                            {new Date(item.sharedAt).toLocaleString(undefined, {
-                                                month: 'short', 
-                                                day: 'numeric',
-                                                hour: 'numeric', 
-                                                minute: '2-digit',
-                                                hour12: true
-                                            })}
+                                    </div>
+                                    
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors duration-200">
+                                                    {item.sharedBy.includes('@') ? item.sharedBy.split("@")[0] : item.sharedBy}
+                                                </h4>
+                                                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 truncate">
+                                                    {item.note}
+                                                </p>
+                                            </div>
+                                            <div className="flex-shrink-0 ml-3">
+                                                <div className="flex items-center gap-1 px-2 py-1 bg-neutral-100 dark:bg-neutral-700/50 rounded-lg">
+                                                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                                                    <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+                                                        {new Date(item.sharedAt).toLocaleString(undefined, {
+                                                            month: 'short', 
+                                                            day: 'numeric',
+                                                            hour: 'numeric', 
+                                                            minute: '2-digit',
+                                                            hour12: true
+                                                        })}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-2">
+                                            <div className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium rounded-lg">
+                                                Click to import
+                                            </div>
+                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="text-xs text-neutral-600 dark:text-neutral-300 truncate">
-                                        {item.note}
-                                    </div>
-                                </div>
-                                {hoveredItem === item && ( 
-                                    <div className="ml-2 flex-shrink-0 flex flex-row items-center bg-neutral-200 dark:bg-[#343541]/90 rounded"
-                                        onMouseEnter={() => {
-                                            setHoveredItem(item)
-                                            setIsButtonHover(false)
-                                        }}
-                                        onMouseLeave={() => setIsButtonHover(true)}>
-                                        {!deletingItem && ( <></>
-                                            // <ActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
-                                            //     <IconTrash size={18} />
-                                            // </ActionButton>
-                                        )}
 
-                                        {deletingItem && (
-                                            <>
-                                                <ActionButton handleClick={handleSWYDelete} title="Confirm">
-                                                    <IconCheck size={18} />
-                                                </ActionButton>
+                                    {hoveredItem === item && ( 
+                                        <div className="ml-2 flex-shrink-0 flex flex-row items-center bg-neutral-200 dark:bg-[#343541]/90 rounded-lg p-1"
+                                            onMouseEnter={() => {
+                                                setHoveredItem(item)
+                                                setIsButtonHover(false)
+                                            }}
+                                            onMouseLeave={() => setIsButtonHover(true)}>
+                                            {!deletingItem && ( <></>
+                                                // <ActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
+                                                //     <IconTrash size={18} />
+                                                // </ActionButton>
+                                            )}
 
-                                                <ActionButton handleClick={handleCancelDelete} title="Cancel">
-                                                    <IconX size={18} />
-                                                </ActionButton>
-                                            </>
-                                        )}
-                                    </div>
-                                )}
-                            </button>
+                                            {deletingItem && (
+                                                <>
+                                                    <ActionButton handleClick={handleSWYDelete} title="Confirm">
+                                                        <IconCheck size={18} />
+                                                    </ActionButton>
+
+                                                    <ActionButton handleClick={handleCancelDelete} title="Cancel">
+                                                        <IconX size={18} />
+                                                    </ActionButton>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+                                </button>
+                            </div>
                         ))
                     )}
                 </div>
