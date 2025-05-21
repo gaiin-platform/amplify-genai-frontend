@@ -572,16 +572,14 @@ export const ChatMessage: FC<Props> = memo(({
                                     >
                                         <IconDownload size={20}/>
                                     </button>
-                                    <button
+                                    <a
                                         className={chat_icons_cn}
+                                        href={`mailto:?body=${encodeURIComponent(messageContent)}`}
                                         title="Email Response"
                                         id="emailResponse"
                                     >
-                                        <a className={chat_icons_cn}
-                                           href={`mailto:?body=${encodeURIComponent(messageContent)}`}>
-                                            <IconMail size={20}/>
-                                        </a>
-                                    </button>
+                                        <IconMail size={20}/>
+                                    </a>
 
                                     {featureFlags.highlighter && 
                                      settingRef.current.featureOptions.includeHighlighter && 
