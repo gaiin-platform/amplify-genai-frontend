@@ -1079,3 +1079,404 @@
 .z-15 {
   z-index: 15 !important;
 }
+
+/* ===================================
+   Enhanced Integrations Modal Styling 
+   =================================== */
+
+/* Modal Wrapper */
+.integrations-modal-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.integrations-modal-wrapper * {
+  box-sizing: border-box;
+}
+
+/* Content Area - Integrated with Modal */
+.integrations-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header Section - Fixed at Top */
+.integrations-header-section {
+  flex-shrink: 0;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.integrations-description {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: #6b7280;
+  margin: 0;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+}
+
+.dark .integrations-header-section {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .integrations-description {
+  color: #9ca3af;
+}
+
+/* Scrollable Content Area */
+.integrations-scrollable-content {
+  flex: 1;
+  overflow-y: auto;
+  margin: -8px;
+  padding: 8px;
+}
+
+/* Loading State Styling */
+.integrations-loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  padding: 40px;
+  text-align: center;
+}
+
+.integrations-loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.integrations-loading-text {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #6b7280;
+  text-align: center;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.dark .integrations-loading-text {
+  color: #9ca3af;
+}
+
+
+/* Integration Cards - Neutral Theme */
+.integration-card {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.integration-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.integration-card-content {
+  padding: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.integration-info {
+  flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.integration-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.integration-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.integration-icon-wrapper svg {
+  color: #6b7280;
+  transition: all 0.2s ease;
+  width: 22px;
+  height: 22px;
+}
+
+.integration-card:hover .integration-icon-wrapper {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.integration-card:hover .integration-icon-wrapper svg {
+  color: #374151;
+}
+
+.integration-details {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.integration-name-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.integration-name {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+  letter-spacing: -0.02em;
+  line-height: 1.4;
+}
+
+.integration-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 16px;
+  color: #16a34a;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.integration-status-badge svg {
+  color: #22c55e;
+}
+
+.integration-description {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.925rem;
+  font-weight: 400;
+  color: #6b7280;
+  line-height: 1.5;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.integration-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Enhanced Action Buttons */
+.integration-action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  min-width: 120px;
+  backdrop-filter: blur(8px);
+}
+
+.integration-action-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  border-radius: 12px;
+}
+
+/* Connect Button Styling */
+.integration-action-button.connect {
+  background: #3b82f6;
+  color: white;
+  border: 1px solid #3b82f6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.integration-action-button.connect:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+  border-color: #2563eb;
+}
+
+/* Disconnect Button Styling */
+.integration-action-button.disconnect {
+  background: #ef4444;
+  color: white;
+  border: 1px solid #ef4444;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.integration-action-button.disconnect:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+  border-color: #dc2626;
+}
+
+/* Loading State */
+.integration-action-button.loading {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.integration-button-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.integration-button-loading span {
+  font-size: 0.875rem;
+}
+
+/* Dark Mode Adjustments */
+.dark .integration-card {
+  background: rgba(31, 41, 55, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.dark .integration-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.dark .integration-icon-wrapper {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .integration-icon-wrapper svg {
+  color: #9ca3af;
+}
+
+.dark .integration-card:hover .integration-icon-wrapper {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.dark .integration-card:hover .integration-icon-wrapper svg {
+  color: #d1d5db;
+}
+
+.dark .integration-name {
+  color: #f3f4f6;
+}
+
+.dark .integration-description {
+  color: #9ca3af;
+}
+
+.dark .integration-status-badge {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+}
+
+/* Enhanced Tabs Styling */
+.integrations-tabs-wrapper {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.dark .integrations-tabs-wrapper {
+  /* Inherits from parent */
+}
+
+/* Enhanced tabs content area */
+.integrations-tabs-wrapper > div {
+  position: relative;
+  z-index: 1;
+}
+
+/* Tab content styling */
+.integrations-tabs-wrapper .tab-content {
+  padding: 20px 0;
+}
+
+/* Empty state styling for when no integrations */
+.integrations-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 40px;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.integrations-empty-state svg {
+  color: #9ca3af;
+  margin-bottom: 16px;
+}
+
+.integrations-empty-state h3 {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.02em;
+}
+
+.integrations-empty-state p {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.925rem;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.dark .integrations-empty-state h3 {
+  color: #f3f4f6;
+}
+
+.dark .integrations-empty-state p {
+  color: #9ca3af;
+}

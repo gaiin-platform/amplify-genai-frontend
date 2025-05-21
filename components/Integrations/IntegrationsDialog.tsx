@@ -148,38 +148,53 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
     return ( !integrationsList ? null : 
             <>
              {integrationsList.map((integration) => (
-              <div key={integration.id} className="mr-8 flex items-start p-4 bg-gray-100 dark:bg-gray-800 rounded-lg mb-4 overflow-x-hidden">
-                <div className="flex-grow mr-4">
-                  <div className="flex items-center mb-2">
-                    {connectedIntegrations.includes(integration.id) && (
-                      <IconCheck className="w-5 h-5 mr-2 text-green-500" />
-                    )}
-                    {integration.icon && translateIntegrationIcon(integration.icon)}
-                    <span className="text-black dark:text-white font-semibold">{`${capitalize(integrationIdPrefix)} ${integration.name}`}</span>
+              <div key={integration.id} className="integration-card">
+                <div className="integration-card-content">
+                  <div className="integration-info">
+                    <div className="integration-header">
+                      <div className="integration-icon-wrapper">
+                        {integration.icon && translateIntegrationIcon(integration.icon)}
+                      </div>
+                      <div className="integration-details">
+                        <div className="integration-name-row">
+                          <span className="integration-name">{`${capitalize(integrationIdPrefix)} ${integration.name}`}</span>
+                          {connectedIntegrations.includes(integration.id) && (
+                            <div className="integration-status-badge">
+                              <IconCheck className="w-4 h-4" />
+                              <span>Connected</span>
+                            </div>
+                          )}
+                        </div>
+                        <p className="integration-description">{integration.description}</p>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">{integration.description}</p>
+                  <div className="integration-actions">
+                    <button
+                      onClick={() => {
+                        lastActiveTab.current = tabIndex;
+                        if (connectedIntegrations.includes(integration.id)) {
+                          handleDisconnect(integration.id);
+                        } else {
+                          handleConnect(integration.id);
+                        }
+                      }}
+                      disabled={loadingStates[integration.id] || connectingStates[integration.id]}
+                      className={`integration-action-button ${
+                        connectedIntegrations.includes(integration.id) ? 'disconnect' : 'connect'
+                      } ${(loadingStates[integration.id] || connectingStates[integration.id]) ? 'loading' : ''}`}
+                    >
+                      {loadingStates[integration.id] || connectingStates[integration.id] ? (
+                        <div className="integration-button-loading">
+                          <IconLoader2 className="animate-spin w-4 h-4" />
+                          <span>{connectedIntegrations.includes(integration.id) ? 'Disconnecting...' : 'Connecting...'}</span>
+                        </div>
+                      ) : (
+                        <span>{connectedIntegrations.includes(integration.id) ? 'Disconnect' : 'Connect'}</span>
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={() => {
-                    lastActiveTab.current = tabIndex;
-                    if (connectedIntegrations.includes(integration.id)) {
-                      handleDisconnect(integration.id);
-                    } else {
-                      handleConnect(integration.id);
-                    }
-                  }}
-                  disabled={loadingStates[integration.id] || connectingStates[integration.id]}
-                  className={`py-2 rounded-md whitespace-nowrap ${
-                    connectedIntegrations.includes(integration.id)
-                      ? `bg-red-500 text-white ${loadingStates[integration.id] ? "px-7" :"px-4"}`
-                      : 'bg-blue-500 text-white px-7'
-                  } ${(loadingStates[integration.id] || connectingStates[integration.id]) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {loadingStates[integration.id] || connectingStates[integration.id] ? (
-                    <IconLoader2 className="animate-spin w-5 h-5 inline-block w-[56px]" />
-                  ) : (connectedIntegrations.includes(integration.id) ? 'Disconnect' : 'Connect'
-                  )}
-                </button>
               </div>
             ))}
             </>
@@ -187,32 +202,47 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
   }
 
   return (
-    <Modal
-      width={() => window.innerWidth * 0.64}
-      height={() => window.innerHeight * 0.88}
-      title={'Integrations'}
-      showCancel={false}
-      onCancel={onClose}
-      onSubmit={onClose}
-      submitLabel={"OK"}
-      content={
-        loadingIntegrations ?
-          <div className="flex flex-col items-center justify-center" style={{height: window.innerHeight * 0.4}}>
-            <Loader />
-            <div className="text-lg font-bold mb-2 text-black dark:text-neutral-200">Loading integrations...</div>
-          </div> :
-           <ActiveTabs
-            initialActiveTab={lastActiveTab.current}
-            width={() => window.innerWidth * 0.6}
-            tabs={[
-              ...(Object.keys(integrations).sort().map((name: string, i: number) =>
-                          ({label: capitalize(name), 
-                           content: <>{renderContent(name, i)}</>
-                          })
-              ))]
-          }
-        />
-      }
+    <div className="integrations-modal-wrapper">
+      <Modal
+        width={() => window.innerWidth * 0.64}
+        height={() => window.innerHeight * 0.88}
+        title={'Integrations'}
+        showClose={true}
+        showCancel={false}
+        showSubmit={false}
+        onCancel={onClose}
+        content={
+          <div className="integrations-content">
+            <div className="integrations-header-section">
+              <p className="integrations-description">Connect your favorite services to enhance your workflow</p>
+            </div>
+            <div className="integrations-scrollable-content">
+              {loadingIntegrations ? (
+                <div className="integrations-loading-state">
+                  <div className="integrations-loading-content">
+                    <Loader />
+                    <div className="integrations-loading-text">Loading integrations...</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="integrations-tabs-wrapper">
+                  <ActiveTabs
+                    initialActiveTab={lastActiveTab.current}
+                    width={() => window.innerWidth * 0.55}
+                    tabs={[
+                      ...(Object.keys(integrations).sort().map((name: string, i: number) =>
+                        ({label: capitalize(name), 
+                          content: <>{renderContent(name, i)}</>
+                        })
+                      ))]
+                    }
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        }
     />
+    </div>
   );
 };
