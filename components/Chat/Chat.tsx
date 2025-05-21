@@ -999,6 +999,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 name={session?.user?.name}
                                                 showMtdCost={featureFlags.mtdCost}
                                                 onSettingsClick={() => setIsSettingsDialogOpen(true)}
+                                                onDataSourcesClick={() => homeDispatch({field: 'page', value: 'home'})}
                                             />
                                         </div>
 
@@ -1247,25 +1248,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     {featureFlags.storeCloudConversations &&
                                                     <CloudStorage iconSize={16} />
                                                     }
-                                                    
-                                                    {!isArtifactOpen && (
-                                                        <button
-                                                            className="p-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                                                            disabled={messageIsStreaming}
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                e.stopPropagation();
-                                                                homeDispatch({field: 'page', value: 'home'});
-                                                            }}
-                                                            title="Data Sources"
-                                                            id="dateSources"
-                                                        >
-                                                            <div className="flex items-center">
-                                                                <IconRocket size={16} className="text-blue-500"/>
-                                                                <span className="ml-1 text-xs text-blue-500">Data Sources</span>
-                                                            </div>
-                                                        </button>
-                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -1277,6 +1259,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 name={session?.user?.name}
                                                 showMtdCost={featureFlags.mtdCost}
                                                 onSettingsClick={() => setIsSettingsDialogOpen(true)}
+                                                onDataSourcesClick={() => homeDispatch({field: 'page', value: 'home'})}
                                             />
                                         </div>
 
