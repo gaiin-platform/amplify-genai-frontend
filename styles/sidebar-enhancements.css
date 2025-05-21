@@ -1417,27 +1417,115 @@
   color: #4ade80;
 }
 
-/* Enhanced Tabs Styling */
-.integrations-tabs-wrapper {
-  flex: 1;
-  overflow: hidden;
+/* Custom Tab System */
+.integrations-tabs-container {
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
-.dark .integrations-tabs-wrapper {
-  /* Inherits from parent */
+/* Tab Bar */
+.integrations-tab-bar {
+  margin-bottom: 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding-bottom: 16px;
 }
 
-/* Enhanced tabs content area */
-.integrations-tabs-wrapper > div {
-  position: relative;
-  z-index: 1;
+.integrations-tab-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-/* Tab content styling */
-.integrations-tabs-wrapper .tab-content {
-  padding: 20px 0;
+.integrations-tab-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.8);
+  color: #6b7280;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.integrations-tab-pill:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #374151;
+}
+
+.integrations-tab-pill.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+}
+
+.integrations-tab-label {
+  font-weight: 500;
+}
+
+.integrations-tab-count {
+  background: rgba(255, 255, 255, 0.2);
+  color: inherit;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+
+.integrations-tab-pill.active .integrations-tab-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
+.integrations-tab-pill:not(.active) .integrations-tab-count {
+  background: rgba(0, 0, 0, 0.08);
+  color: #6b7280;
+}
+
+/* Content Area */
+.integrations-content-area {
+  flex: 1;
+  overflow-y: auto;
+  margin: -8px;
+  padding: 8px;
+}
+
+/* Dark Mode */
+.dark .integrations-tab-bar {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark .integrations-tab-pill {
+  background: rgba(31, 41, 55, 0.8);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #9ca3af;
+}
+
+.dark .integrations-tab-pill:hover {
+  background: rgba(55, 65, 81, 0.9);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #d1d5db;
+}
+
+.dark .integrations-tab-pill.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+
+.dark .integrations-tab-pill:not(.active) .integrations-tab-count {
+  background: rgba(255, 255, 255, 0.1);
+  color: #9ca3af;
 }
 
 /* Empty state styling for when no integrations */

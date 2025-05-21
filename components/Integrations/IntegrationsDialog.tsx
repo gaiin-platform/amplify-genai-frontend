@@ -34,6 +34,7 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
   const [loadingIntegrations, setLoadingIntegrations] = useState(true);
 
   const [integrations, setIntegrations] = useState<IntegrationsMap>({});
+  const [activeTab, setActiveTab] = useState<string>('');
   
   const getIntegrations = async () => {
     const integrationSupport = await getAvailableIntegrations();
@@ -64,6 +65,14 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
     }
     setLoadingIntegrations(false);
   }
+
+  // Set first tab as active when integrations load
+  useEffect(() => {
+    const integrationKeys = Object.keys(integrations).sort();
+    if (integrationKeys.length > 0 && !activeTab) {
+      setActiveTab(integrationKeys[0]);
+    }
+  }, [integrations, activeTab]);
 
   useEffect(() => {
     if (open) {
@@ -225,18 +234,28 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
                   </div>
                 </div>
               ) : (
-                <div className="integrations-tabs-wrapper">
-                  <ActiveTabs
-                    initialActiveTab={lastActiveTab.current}
-                    width={() => window.innerWidth * 0.55}
-                    tabs={[
-                      ...(Object.keys(integrations).sort().map((name: string, i: number) =>
-                        ({label: capitalize(name), 
-                          content: <>{renderContent(name, i)}</>
-                        })
-                      ))]
-                    }
-                  />
+                <div className="integrations-tabs-container">
+                  {Object.keys(integrations).length > 1 && (
+                    <div className="integrations-tab-bar">
+                      <div className="integrations-tab-pills">
+                        {Object.keys(integrations).sort().map((provider) => (
+                          <button
+                            key={provider}
+                            onClick={() => setActiveTab(provider)}
+                            className={`integrations-tab-pill ${activeTab === provider ? 'active' : ''}`}
+                          >
+                            <span className="integrations-tab-label">{capitalize(provider)}</span>
+                            <span className="integrations-tab-count">
+                              {integrations[provider as IntegrationProviders]?.length || 0}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="integrations-content-area">
+                    {activeTab && renderContent(activeTab, 0)}
+                  </div>
                 </div>
               )}
             </div>
