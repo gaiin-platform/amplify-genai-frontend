@@ -51,6 +51,7 @@ import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { UserAvatar } from '@/components/Layout/UserAvatar';
 import { SettingsDialog } from '@/components/Settings/SettingsDialog';
+import { SharingDialog } from '@/components/Share/SharingDialog';
 import { getFullTimestamp } from '@/utils/app/date';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
@@ -215,6 +216,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const [isIntegrationsOpen, setIsIntegrationsOpen] = useState<boolean>(false);
         const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
+        const [isSharingDialogOpen, setIsSharingDialogOpen] = useState(false);
         const [isPillExpanded, setIsPillExpanded] = useState(false);
         const [selectedConversationState, setSelectedConversationState] = useState<Conversation | undefined>(selectedConversation);
 
@@ -999,6 +1001,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 name={session?.user?.name}
                                                 showMtdCost={featureFlags.mtdCost}
                                                 onSettingsClick={() => setIsSettingsDialogOpen(true)}
+                                                onSharingClick={() => setIsSharingDialogOpen(true)}
                                                 onDataSourcesClick={() => homeDispatch({field: 'page', value: 'home'})}
                                             />
                                         </div>
@@ -1259,6 +1262,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 name={session?.user?.name}
                                                 showMtdCost={featureFlags.mtdCost}
                                                 onSettingsClick={() => setIsSettingsDialogOpen(true)}
+                                                onSharingClick={() => setIsSharingDialogOpen(true)}
                                                 onDataSourcesClick={() => homeDispatch({field: 'page', value: 'home'})}
                                             />
                                         </div>
@@ -1412,6 +1416,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             <SettingsDialog 
                 open={isSettingsDialogOpen} 
                 onClose={() => setIsSettingsDialogOpen(false)} 
+            />
+
+            <SharingDialog 
+                open={isSharingDialogOpen} 
+                onClose={() => setIsSharingDialogOpen(false)} 
             />
 
             </>

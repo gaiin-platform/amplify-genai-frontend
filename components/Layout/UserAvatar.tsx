@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { signOut } from 'next-auth/react';
-import { IconLogout, IconUser, IconCreditCard, IconSettings, IconRocket } from '@tabler/icons-react';
+import { IconLogout, IconUser, IconCreditCard, IconSettings, IconRocket, IconShare } from '@tabler/icons-react';
 import { doMtdCostOp } from '@/services/mtdCostService';
 import ColorPaletteSelector from './ColorPaletteSelector';
 
@@ -12,6 +12,7 @@ interface UserAvatarProps {
   showMtdCost?: boolean;
   onSettingsClick?: () => void;
   onDataSourcesClick?: () => void;
+  onSharingClick?: () => void;
 }
 
 const getInitials = (email: string | null | undefined): string => {
@@ -69,7 +70,8 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   cognitoClientId,
   showMtdCost = true,
   onSettingsClick,
-  onDataSourcesClick
+  onDataSourcesClick,
+  onSharingClick
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -191,6 +193,18 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
           <ColorPaletteSelector />
           
           <div className="py-1">
+            {onSharingClick && (
+              <button
+                onClick={() => {
+                  onSharingClick();
+                  setShowDropdown(false);
+                }}
+                className="flex w-full items-center gap-3 px-4 py-2 cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#343541]/90 transition-all duration-200"
+              >
+                <IconShare size={16} className="enhanced-icon text-green-500" />
+                <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Sharing</span>
+              </button>
+            )}
             {onDataSourcesClick && (
               <button
                 onClick={() => {
