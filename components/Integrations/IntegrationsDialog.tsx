@@ -225,40 +225,40 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
             <div className="integrations-header-section">
               <p className="integrations-description">Connect your favorite services to enhance your workflow</p>
             </div>
-            <div className="integrations-scrollable-content">
-              {loadingIntegrations ? (
-                <div className="integrations-loading-state">
-                  <div className="integrations-loading-content">
-                    <Loader />
-                    <div className="integrations-loading-text">Loading integrations...</div>
-                  </div>
+            {loadingIntegrations ? (
+              <div className="integrations-loading-state">
+                <div className="integrations-loading-content">
+                  <Loader />
+                  <div className="integrations-loading-text">Loading integrations...</div>
                 </div>
-              ) : (
-                <div className="integrations-tabs-container">
-                  {Object.keys(integrations).length > 1 && (
-                    <div className="integrations-tab-bar">
-                      <div className="integrations-tab-pills">
-                        {Object.keys(integrations).sort().map((provider) => (
-                          <button
-                            key={provider}
-                            onClick={() => setActiveTab(provider)}
-                            className={`integrations-tab-pill ${activeTab === provider ? 'active' : ''}`}
-                          >
-                            <span className="integrations-tab-label">{capitalize(provider)}</span>
-                            <span className="integrations-tab-count">
-                              {integrations[provider as IntegrationProviders]?.length || 0}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
+              </div>
+            ) : (
+              <>
+                {Object.keys(integrations).length > 1 && (
+                  <div className="integrations-tab-bar">
+                    <div className="integrations-tab-pills">
+                      {Object.keys(integrations).sort().map((provider) => (
+                        <button
+                          key={provider}
+                          onClick={() => setActiveTab(provider)}
+                          className={`integrations-tab-pill ${activeTab === provider ? 'active' : ''}`}
+                        >
+                          <span className="integrations-tab-label">{capitalize(provider)}</span>
+                          <span className="integrations-tab-count">
+                            {integrations[provider as IntegrationProviders]?.length || 0}
+                          </span>
+                        </button>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                )}
+                <div className="integrations-scrollable-content">
                   <div className="integrations-content-area">
                     {activeTab && renderContent(activeTab, 0)}
                   </div>
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         }
     />
