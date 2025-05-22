@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useContext } from 'react';
 import { Modal } from '@/components/ReusableComponents/Modal';
-import { IconPlus, IconTrash, IconLoader2, IconEdit, IconInfoCircle, IconNotes, IconBulb, IconExclamationCircle, IconSettingsAutomation, IconAlarm, IconChevronDown, IconPlayerPlay } from '@tabler/icons-react';
+import { IconPlus, IconTrash, IconLoader2, IconEdit, IconInfoCircle, IconNotes, IconBulb, IconExclamationCircle, IconSettingsAutomation, IconAlarm, IconChevronDown, IconPlayerPlay, IconRefresh } from '@tabler/icons-react';
 import cloneDeep from 'lodash/cloneDeep';
 import toast from 'react-hot-toast';
 import { ScheduleDateRange, ScheduledTask, ScheduledTaskType, TASK_TYPE_MAP, TaskExecutionRecord } from '@/types/scheduledTasks';
@@ -203,28 +203,85 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
 
   const handleRunTask = async (taskId: string) => {
     setIsTestingTask(true);
+    const countLogs = (logs: TaskExecutionRecord[]) => logs.filter(log => log.executionId.startsWith('execution-')).length;
+    let currentTaskLogCount = countLogs(taskLogs) || 0;
+
     try {
       const taskResult = await executeTask(taskId);
       if (taskResult.success) {
-        toast.success("Task execution started");
-        // Refresh logs after a delay to show the new execution
-        // refresh until we see logs for it 
-        // setTimeout(() => {
-        //   if (isViewingLogs) {
+        toast.success("Task execution started. Waiting for logs...");
 
-        //     fetchTaskLogs(taskId);
-        //   }
-        // }, 1000);
-        // setIsViewingLogs(true);
+        let attempts = 0;
+        const maxAttempts = 300; // 5 minutes (300 attempts * 1 second interval)
+        let hasNewLogs = false;
+        const pollForLogs = async () => {
+          attempts++;
+          const fetchedLogs = await fetchTaskLogs(taskId, false);
+          const newLogs = fetchedLogs.filter((log: TaskExecutionRecord) => log.executionId.startsWith('execution-'));
+
+          // Check if new logs (running and then completed/failed) have appeared.
+          // We are looking for at least one new log, and ideally the final status log.
+          if (newLogs.length > currentTaskLogCount) {
+            hasNewLogs = true;
+            currentTaskLogCount = countLogs(newLogs);
+            // Check if the latest log for this execution attempt indicates completion or failure
+            const latestExecution = newLogs.find((log: TaskExecutionRecord) => 
+                !taskLogs.some(oldLog => oldLog.executionId === log.executionId) && 
+                (log.status === 'success' || log.status === 'failure' || log.status === 'timeout')
+            );
+
+            if (latestExecution) {
+              toast.success(`Task completed with status: ${latestExecution.status}`);
+              setIsTestingTask(false);
+              if (isViewingLogs) { // If logs are currently being viewed, refresh them
+                setSelectedLogId(latestExecution.executionId); 
+              }
+              return; // Stop polling
+            } else if (newLogs.length >= currentTaskLogCount + 1 && attempts <= maxAttempts ){
+               setTimeout(pollForLogs, 2000);
+            }
+          } else {
+            hasNewLogs = false;
+          }
+
+          if (attempts > maxAttempts) {
+            toast.error("Timeout waiting for task completion logs. Please check logs manually.");
+            setIsTestingTask(false);
+            return; // Stop polling
+          }
+          
+          // If no new logs or no final status yet, and not timed out, continue polling
+          if (newLogs.length <= currentTaskLogCount && attempts <= maxAttempts) {
+             setTimeout(pollForLogs, 1000);
+          }
+        };
+
+        setTimeout(pollForLogs, 1000); // Start polling after 1 second
+
       } else {
-        toast.error("Failed to run task");
+        toast.error("Failed to run task: " + (taskResult.message || "Unknown error"));
+        setIsTestingTask(false);
       }
     } catch (error) {
       console.error("Error executing task:", error);
       toast.error("Error executing task");
       setIsTestingTask(false);
-    } 
+    }
   };
+
+  const renderRunTaskButton = () => (
+      <button
+        className={`px-2  ${buttonStyle}`}
+        onClick={() => handleRunTask(selectedTask.taskId)}>
+        {isTestingTask ? 
+        <><IconLoader2 size={18} className='animate-spin' />Running Task...</> : 
+        <> <IconPlayerPlay size={18} />Run Task</>}
+        
+      </button>
+  );
+
+
+
   const renderSidebar = () => {
     // Group tasks by type and sort by active status within each group
     const tasksByType = allTasks.reduce((acc, task) => {
@@ -451,14 +508,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               <div className="absolute right-1 top-[-6px] flex flex-row gap-3">
                 { selectedTask.taskId &&
                 <>
-                 <button
-                  className={`px-2  ${buttonStyle}`}
-                  onClick={() => handleRunTask(selectedTask.taskId)}>
-                  {isTestingTask ? 
-                  <><IconLoader2 size={18} className='animate-spin' />Running Task...</> : 
-                  <> <IconPlayerPlay size={18} />Run Task</>}
-                  
-                </button>
+                {renderRunTaskButton()}
                 
                 <button
                   className={`px-1.5  ${buttonStyle}`}
@@ -628,23 +678,26 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
     </div>
   );
 
-  const fetchTaskLogs = async (taskId: string) => {
-    if (!taskId) return;
+  const fetchTaskLogs = async (taskId: string, notify: boolean = true) => {
+    if (!taskId) return [];
     
-    setIsLoadingLogs(true);
+    if (notify) setIsLoadingLogs(true);
     try {
       const result = await getScheduledTask(taskId);
       if (result.success && result.data?.task?.logs) {
         setTaskLogs(result.data.task.logs);
+        return result.data.task.logs; // Return the fetched logs
       } else {
-        setTaskLogs([]);
-        alert("Error fetching task logs");
+        if (notify) setTaskLogs([]);
+        // Do not alert here as it's used for polling
+        if (notify) alert("Error fetching task logs"); 
+        return [];
       }
-
     } catch (error) {
       console.error("Error fetching task logs:", error);
+      return []; // Return empty on error
     } finally {
-      setIsLoadingLogs(false);
+      if (notify) setIsLoadingLogs(false);
     }
   };
 
@@ -724,13 +777,31 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       <div className="flex-1 pl-4">
         <div className="relative mt-2">
           <h2 className="text-lg font-semibold mb-4">Run Logs: {selectedTask.taskName}</h2>
-          <div className="absolute right-1 top-[-6px]">
+          <div className="absolute right-1 top-[-6px] flex flex-row gap-3">
+            <>
             <button
-              className={`px-2.5 mr-0.5 ${buttonStyle}`}
-              onClick={() => setIsViewingLogs(false)}>
+                title={`Refresh Logs`}
+                className={`flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-2 dark:text-white transition-colors duration-200 cursor-pointer hover:bg-neutral-200  dark:hover:bg-gray-500/10`}
+                onClick={() => {
+                    setSelectedLogId(null);
+                    fetchTaskLogs(selectedTask.taskId);
+                }}
+                disabled={isLoadingLogs || isTestingTask}
+
+            >
+                <IconRefresh size={16}/>
+            </button>
+            {renderRunTaskButton()}
+            <button
+              className={`px-2 mr-1.5 ${buttonStyle}`}
+              onClick={() => {
+                setIsViewingLogs(false);
+                setSelectedLogId(null);
+              }}>
               <IconAlarm size={18} />
               Manage Scheduled Task
             </button>
+            </>
           </div>
         </div>
 
@@ -796,9 +867,6 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             <h3 className="text-md font-medium mb-3 flex items-center">
               <IconNotes size={18} className="mr-2" />
               Execution Details
-              {isLoadingLogDetails && (
-                <IconLoader2 size={16} className="animate-spin ml-2 text-blue-500" />
-              )}
             </h3>
             
             {isLoadingLogDetails ? (
@@ -839,26 +907,8 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                   <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
                     <div className="font-medium mb-2">Result:</div>
                     
-                    {typeof selectedLogDetails.details.result === 'object' && 
-                     selectedLogDetails.details.result.data?.state?.agentLog ? (
-                      <AgentLogBlock 
-                        messageIsStreaming={false} 
-                        message={{ 
-                          id: selectedLogDetails.executionId,
-                          data: { state: { agentLog: selectedLogDetails.details.result } },
-                          role: 'assistant',
-                          content: '',
-                          type: 'execution-log'
-                        }}
-                        conversationId={selectedLogDetails.details.sessionId || 'unknown-session'}
-                      />
-                    ) : (
-                      <div className="text-sm whitespace-pre-wrap overflow-auto max-h-[300px]">
-                        {typeof selectedLogDetails.details.result === 'object' 
-                          ? JSON.stringify(selectedLogDetails.details.result, null, 2)
-                          : selectedLogDetails.details.result}
-                      </div>
-                    )}
+                    {typeof selectedLogDetails.details.result && <>{renderAgentResult()}</> }
+
                   </div>
                 )}
                 
@@ -892,6 +942,35 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       </div>
     );
   };
+
+  const renderAgentResult = () => {
+    try {
+      console.log(selectedLogDetails.details.result);
+      const agentLog = (<AgentLogBlock 
+        messageIsStreaming={false} 
+        message={{ 
+          id: selectedLogDetails.executionId,
+          data: { state: { agentLog: {"data": { "handled": true, "result": selectedLogDetails.details.result } } } },
+          role: 'assistant',
+          content: '',
+          type: 'execution-log'
+        }}
+        conversationId={selectedLogDetails.details.sessionId || 'unknown-session'}
+        width={() => (width ? width() : window.innerWidth) * 0.62}
+      />);
+      return agentLog;
+
+    } catch {
+      console.error("Error rendering agent result:", error);
+      return (
+        <div className="text-sm whitespace-pre-wrap overflow-auto max-h-[300px]">
+          {typeof selectedLogDetails.details.result === 'object' 
+            ? JSON.stringify(selectedLogDetails.details.result, null, 2)
+            : selectedLogDetails.details.result}
+        </div>
+      )
+    }
+  }
   
   if (!isOpen) return null;
   

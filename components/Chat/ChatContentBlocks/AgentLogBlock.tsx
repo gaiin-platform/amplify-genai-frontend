@@ -307,10 +307,13 @@ interface Props {
   messageIsStreaming: boolean;
   message: Message;
   conversationId: string;
+  width?: () => number;
 }
 
-const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStreaming }) => {
+const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStreaming, width }) => {
+
   const getChatContainerWidth = () => {
+    if (width) return width();
     const container = document.querySelector(".chatcontainer");
     if (container) {
       return `${container.getBoundingClientRect().width * 0.68}px`;
