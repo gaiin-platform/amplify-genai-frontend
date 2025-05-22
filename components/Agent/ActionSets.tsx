@@ -149,6 +149,7 @@ export const ActionSetList: FC<LoadActionSetModalProps> = ({
                       onClick={() => {
                         setSelectedSetId(set.id || null);
                         handleLoadSet(set);
+                        console.log('set', set);
                       }}
                     >
                       <td className="px-4 py-3 text-sm w-1/4">

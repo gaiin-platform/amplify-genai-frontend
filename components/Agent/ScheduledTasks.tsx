@@ -10,11 +10,13 @@ import { CronScheduleBuilder } from './CronScheduleBuilder';
 import { InfoBox } from '../ReusableComponents/InfoBox';
 import ExpansionComponent from '../Chat/ExpansionComponent';
 import HomeContext from '@/pages/api/home/home.context';
-import { createScheduledTask, deleteScheduledTask, getScheduledTask, listScheduledTasks, updateScheduledTask } from '@/services/scheduledTasksService';
+import { createScheduledTask, deleteScheduledTask, executeTask, getScheduledTask, getTaskExecutionDetails, listScheduledTasks, updateScheduledTask } from '@/services/scheduledTasksService';
 import { camelCaseToTitle } from '@/utils/app/data';
 import { isAssistant } from '@/utils/app/assistants';
 import { Prompt } from '@/types/prompt';
 import { ActionSetList } from './ActionSets';
+import AgentLogBlock from '../Chat/ChatContentBlocks/AgentLogBlock';
+import { Message } from '@/types/chat';
 
 const emptyTask = (): ScheduledTask => {
   return {
@@ -25,7 +27,7 @@ const emptyTask = (): ScheduledTask => {
     active: true,
     taskInstructions: '',
     taskType: 'assistant',
-    objectId: '',
+    objectInfo: {objectId: '' , objectName: ''},
     tags: []
   }
 }
@@ -33,7 +35,7 @@ const emptyTask = (): ScheduledTask => {
 interface ScheduledTaskPreview {
   taskId: string;
   taskName: string;
-  type: ScheduledTaskType;
+  taskType: ScheduledTaskType;
   active: boolean;  
 }
 
@@ -61,13 +63,14 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const [selectedLogDetails, setSelectedLogDetails] = useState<any>(null);
   const [isLoadingLogDetails, setIsLoadingLogDetails] = useState(false);
   const [showActionSetList, setShowActionSetList] = useState(false);
-  const [selectedActionSetName, setSelectedActionSetName] = useState('Select Action Set');
   const [isTestingTask, setIsTestingTask] = useState(false);
 
   // State for all tasks for the sidebar
   const [allTasks, setAllTasks] = useState<ScheduledTaskPreview[]>([]);
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("All");
+  const [isLoadingTask, setIsLoadingTask] = useState(false);
+  const [selectedActionSetName, setSelectedActionSetName] = useState('Select Action Set');
 
   // Fetch tasks (mock for now)
   const fetchTasks = async () => {
@@ -113,7 +116,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         return;
       }
       
-      if (!selectedTask.objectId) {
+      if (!selectedTask.objectInfo.objectId) {
         setError('An object must be selected under "Task Type"');
         setIsSubmitting(false);
         return;
@@ -174,35 +177,61 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   };
 
   const handleLoadTask = async (taskId: string) => {
+    setIsLoadingTask(true);
     const taskResult = await getScheduledTask(taskId);
     if (taskResult.success && taskResult.data?.task) {
-      setSelectedTask(taskResult.data.task);
+      console.log("taskResult", taskResult.data.task);
+      const task = taskResult.data.task;
+      setSelectedTask(task);
+      if (task.object) {
+          if (task.taskType === 'actionSet') {
+              setSelectedActionSetName(task.object.objectName);
+            } else if (task.taskType === 'assistant') {
+              // Default fallback if name isn't available
+              setSelectedActionSetName('Selected Action Set');
+          }
+      }
+      
       setSelectedLogId(null);
       setSelectedLogDetails(null);
+      setIsViewingLogs(false);
     } else {
       alert("Failed to load task");
     }
+    setIsLoadingTask(false);
   };
 
   const handleRunTask = async (taskId: string) => {
     setIsTestingTask(true);
-    // executeTask
-    // we will need to keep refreshing logs until we get some results, then we can say its done 
-    // const taskResult = await runScheduledTask(selectedTask.taskId);
-    // if (taskResult.success) {
-    //   toast("Successfully ran task");
-    // } else {
-    //   alert("Failed to run task");
-    // }
-    setIsTestingTask(false);
-  }
+    try {
+      const taskResult = await executeTask(taskId);
+      if (taskResult.success) {
+        toast.success("Task execution started");
+        // Refresh logs after a delay to show the new execution
+        // refresh until we see logs for it 
+        // setTimeout(() => {
+        //   if (isViewingLogs) {
+
+        //     fetchTaskLogs(taskId);
+        //   }
+        // }, 1000);
+        // setIsViewingLogs(true);
+      } else {
+        toast.error("Failed to run task");
+      }
+    } catch (error) {
+      console.error("Error executing task:", error);
+      toast.error("Error executing task");
+      setIsTestingTask(false);
+    } 
+  };
   const renderSidebar = () => {
     // Group tasks by type and sort by active status within each group
     const tasksByType = allTasks.reduce((acc, task) => {
-      if (!acc[task.type]) {
-        acc[task.type] = [];
+      if (!acc[task.taskType]) {
+        acc[task.taskType] = [];
       }
-      acc[task.type].push(task);
+      acc[task.taskType].push(task);
       return acc;
     }, {} as Record<ScheduledTaskType, typeof allTasks>);
     
@@ -286,7 +315,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                         </div>
                         
                         <div className="flex flex-row items-center mt-1">
-                          {getIcon(task.type)}
+                          {getIcon(task.taskType)}
                           <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
                             task.active 
                               ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
@@ -321,13 +350,13 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   };
 
   const handleActionSetSelect = (actionSet: any) => {
-    setSelectedTask({...selectedTask, objectId: actionSet.id || ''});
+    setSelectedTask({...selectedTask, objectInfo: {objectId: actionSet.id || '', objectName: actionSet.name || 'Unnamed Set'}});
     setSelectedActionSetName(actionSet.name || 'Unnamed Set');
     setShowActionSetList(false);
   };
 
-  const getObjectSelector = (taskType: ScheduledTaskType) => {
-    console.log("taskType", taskType);
+  const getObjectSelector = (taskType: ScheduledTaskType | undefined) => {
+    if (!taskType) return <></>;
     switch (taskType) {
       case 'assistant':
         const asts = prompts.filter((p:Prompt) => isAssistant(p));
@@ -342,14 +371,12 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           <div className="flex flex-row gap-2 mb-4">
               <select
                   className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow 
-                  ${selectedTask.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}`}
+                  ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}`}
                   id="autoPopulateSelect"
-                  value={selectedTask.objectId}
-                  onChange={(e) => setSelectedTask({...selectedTask, objectId: e.target.value})}
+                  value={selectedTask.objectInfo?.objectId ?? ''}
+                  onChange={(e) => setSelectedTask({...selectedTask, objectInfo: {objectId: e.target.value, objectName: prompts.find(p => p.data?.assistant?.definition.assistantId === e.target.value)?.name || ''}})}
                   >
-                  <option key={-1} value={''}>
-                          {'Select Assistant'}
-                  </option>  
+                    <option value="">Select Assistant</option>
                   {prompts.map((ast, index) => (
                       <option key={index} value={ast.data?.assistant?.definition.assistantId ?? ast.id}>
                           {ast.name}
@@ -364,7 +391,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             <div 
               onClick={() => setShowActionSetList(!showActionSetList)}
               className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow cursor-pointer flex justify-between items-center
-              ${selectedTask.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}`}
+              ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}`}
             >
               <span>{selectedActionSetName}</span>
               <IconChevronDown 
@@ -390,207 +417,219 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   
   const renderMainContent = () => (
     <div className="flex-1 pl-4">
-      <div className="relative mt-2 ">
-        <ExpansionComponent
-          closedWidget={<IconInfoCircle size={18} className='flex-shrink-0'/>}
-          title="Understanding Scheduled Tasks"
-          content={<div className="mb-8 py-2">
-            <InfoBox
-              content={
-                <span className='px-4'>
-                 Scheduled tasks are used to run assistant workflows at specified intervals.
-              
-              {/* <ul className="mt-2 list-disc pl-5">
-                <li><strong>Steps and Tools:</strong> Each step allows you to select a Tool (internal API, custom API, or agent tool). </li>
-                <li className="ml-4"> Selecting a tool will automatically populate the Arguments section. </li>
-                <li className="ml-4"> {"Edit the Arguments instructions to influence the Assistant's generated argument value."} </li>
-                <li className="ml-4"> Use the Values section to assign permanent values to specific arguments, otherwise the assistant will decide the value at runtime.</li>
-                <li className="ml-4"> Arguments are not required and can be removed by clicking the Trash Icon to the right of the argument name. </li>
-                <li className="ml-4"> Select the Edit Icon to the right of the argument name to enable/disable the ability to edit the argument value when adding this workflow to an assistant. </li>
-                <li><strong>Action Segments:</strong> Group related steps by giving them the same Action Segment name. Steps with the same segment will be color-coded together. When creating an assistant with this template, you can enable/disable entire segments at once.</li>
-                <li><strong>Terminate Step:</strong> Every workflow must end with a terminate step. This step is automatically added and should always remain as the last step in your workflow.</li>
-              </ul> */}
-            </span>
-            }
-          /></div> }
-          /> 
-          <div className="absolute right-1 top-[-6px] flex flex-row gap-3">
-            { selectedTask.taskId &&
-            <>
-             <button
-              className={`px-2  ${buttonStyle}`}
-              onClick={() => handleRunTask(selectedTask.taskId)}>
-              {isTestingTask ? <IconLoader2 size={18} className='animate-spin' /> : <IconPlayerPlay size={18} />}
-              Run Task
-            </button>
-            
-            <button
-              className={`px-1.5  ${buttonStyle}`}
-              onClick={() => setIsViewingLogs(true)}>
-              <IconNotes size={18} />
-              View Scheduled Run Logs
-            </button>
-            </>
-            }
-          </div>
-      </div>
-      {error && (
-        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-          {error}
+      {isLoadingTask ? (
+        <div className="flex flex-col items-center justify-center h-full">
+          <IconLoader2 size={32} className="animate-spin mb-4 text-blue-500" />
+          <p className="text-neutral-600 dark:text-neutral-300">Loading task details...</p>
         </div>
-      )}
-      
-      <div className="my-4">
-        <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
-          Task Name
-        </label>
-        <input
-          type="text"
-          value={selectedTask.taskName}
-          onChange={(e) => setSelectedTask({...selectedTask, taskName: e.target.value})}
-          className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
-          placeholder="Name your task"
-        />
-      </div>
-      
-      <div className="mb-4">
-        <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
-          Description
-        </label>
-        <textarea
-          value={selectedTask.description}
-          onChange={(e) => setSelectedTask({...selectedTask, description: e.target.value})}
-          className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
-          rows={2}
-          placeholder="Describe what this task does"
-        />
-      </div>
-
-      <div className="mb-4">
-        <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
-          Task Instructions
-        </label>
-        <textarea
-          value={selectedTask.taskInstructions}
-          onChange={(e) => setSelectedTask({...selectedTask, taskInstructions: e.target.value})}
-          className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
-          rows={4}
-          placeholder="Provide todo instructions for this task"
-        />
-      </div>
-      
-      <div className="mb-4">
-        <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
-          Task Schedule
-        </label>
-        <CronScheduleBuilder 
-          value={selectedTask.cronExpression} 
-          onChange={(cronExpression) => setSelectedTask({...selectedTask, cronExpression})}
-          onRangeChange={(range: ScheduleDateRange) => setSelectedTask({...selectedTask, dateRange: range})}
-        />
-      </div>
-      
-      <div className="mb-4">
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            checked={selectedTask.active}
-            onChange={(e) => setSelectedTask({...selectedTask, active: e.target.checked})}
-            className="mr-2"
-          />
-          <span className="text-sm font-medium dark:text-neutral-200">Active</span>
-        </label>
-      </div>
-      
-      <div className="mb-4">
-        <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
-          Task Type
-        </label>
-        <select
-          value={selectedTask.taskType}
-          onChange={(e) => {
-            const updatedSelectedTask = {...selectedTask, 
-                                         objectId: '',
-                                         taskType: e.target.value as ScheduledTaskType}
-            setSelectedTask(updatedSelectedTask);
-          }}
-          className="w-full shadow custom-shadow p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
-        >
-          <option value="assistant">Assistant</option>
-          <option value="actionSet">Action Set</option>
-        </select>
-      </div>
-
-      {getObjectSelector(selectedTask.taskType)}
-      
-
-      
-      <div className="mb-4">
-        <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
-          Tags (comma separated)
-        </label>
-        <input
-          type="text"
-          value={selectedTask.tags?.join(', ') || ''}
-          onChange={(e) => setSelectedTask({...selectedTask, tags: e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag)})}
-          className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
-          placeholder="maintenance, report, etc."
-        />
-      </div>
-
-      <div className="mb-4 border-t pt-4 dark:border-neutral-700">
-        <h3 className="text-sm font-medium mb-3 dark:text-neutral-200">Notification Settings</h3>
-        
-        <div className="space-y-3">
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              checked={selectedTask.notifyOnCompletion}
-              onChange={(e) => setSelectedTask({...selectedTask, notifyOnCompletion: e.target.checked})}
-              className="mr-2"
-            />
-            <span className="text-sm dark:text-neutral-200">Notify on Successful Completion</span>
+      ) : (
+        <>
+          <div className="relative mt-2 ">
+            <ExpansionComponent
+              closedWidget={<IconInfoCircle size={18} className='flex-shrink-0'/>}
+              title="Understanding Scheduled Tasks"
+              content={<div className="mb-8 py-2">
+                <InfoBox
+                  content={
+                    <span className='px-4'>
+                     Scheduled tasks are used to run assistant workflows at specified intervals.
+                  
+                  {/* <ul className="mt-2 list-disc pl-5">
+                    <li><strong>Steps and Tools:</strong> Each step allows you to select a Tool (internal API, custom API, or agent tool). </li>
+                    <li className="ml-4"> Selecting a tool will automatically populate the Arguments section. </li>
+                    <li className="ml-4"> {"Edit the Arguments instructions to influence the Assistant's generated argument value."} </li>
+                    <li className="ml-4"> Use the Values section to assign permanent values to specific arguments, otherwise the assistant will decide the value at runtime.</li>
+                    <li className="ml-4"> Arguments are not required and can be removed by clicking the Trash Icon to the right of the argument name. </li>
+                    <li className="ml-4"> Select the Edit Icon to the right of the argument name to enable/disable the ability to edit the argument value when adding this workflow to an assistant. </li>
+                    <li><strong>Action Segments:</strong> Group related steps by giving them the same Action Segment name. Steps with the same segment will be color-coded together. When creating an assistant with this template, you can enable/disable entire segments at once.</li>
+                    <li><strong>Terminate Step:</strong> Every workflow must end with a terminate step. This step is automatically added and should always remain as the last step in your workflow.</li>
+                  </ul> */}
+                </span>
+                }
+              /></div> }
+              /> 
+              <div className="absolute right-1 top-[-6px] flex flex-row gap-3">
+                { selectedTask.taskId &&
+                <>
+                 <button
+                  className={`px-2  ${buttonStyle}`}
+                  onClick={() => handleRunTask(selectedTask.taskId)}>
+                  {isTestingTask ? 
+                  <><IconLoader2 size={18} className='animate-spin' />Running Task...</> : 
+                  <> <IconPlayerPlay size={18} />Run Task</>}
+                  
+                </button>
+                
+                <button
+                  className={`px-1.5  ${buttonStyle}`}
+                  onClick={() => setIsViewingLogs(true)}>
+                  <IconNotes size={18} />
+                  View Scheduled Run Logs
+                </button>
+                </>
+                }
+              </div>
           </div>
-
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              checked={selectedTask.notifyOnFailure}
-              onChange={(e) => setSelectedTask({...selectedTask, notifyOnFailure: e.target.checked})}
-              className="mr-2"
-            />
-            <span className="text-sm dark:text-neutral-200">Notify on Run Failure</span>
-          </div>
-
-          <div>
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
+            </div>
+          )}
+          
+          <div className="my-4">
             <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
-              Notification Email Addresses
+              Task Name
             </label>
             <input
               type="text"
-              value={selectedTask.notifyEmailAddresses?.join(', ') || ''}
-              onChange={(e) => setSelectedTask({
-                ...selectedTask, 
-                notifyEmailAddresses: e.target.value.split(',').map(email => email.trim()).filter(email => email)
-              })}
+              value={selectedTask.taskName}
+              onChange={(e) => setSelectedTask({...selectedTask, taskName: e.target.value})}
               className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
-              placeholder="email1@example.com, email2@example.com"
+              placeholder="Name your task"
             />
-            <div className="flex flex-row items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-              Enter email addresses separated by commas
-              {featureFlags.assistantEmailEvents &&
-               <> <IconBulb className='text-amber-400 dark:text-amber-300' size={16}/>
-                {"Tip: List Assistant Email Event Adresses"}
-              </>}
+          </div>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+              Description
+            </label>
+            <textarea
+              value={selectedTask.description}
+              onChange={(e) => setSelectedTask({...selectedTask, description: e.target.value})}
+              className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+              rows={2}
+              placeholder="Describe what this task does"
+            />
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+              Task Instructions
+            </label>
+            <textarea
+              value={selectedTask.taskInstructions}
+              onChange={(e) => setSelectedTask({...selectedTask, taskInstructions: e.target.value})}
+              className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+              rows={4}
+              placeholder="Provide todo instructions for this task"
+            />
+          </div>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+              Task Schedule
+            </label>
+            <CronScheduleBuilder 
+              value={selectedTask.cronExpression} 
+              onChange={(cronExpression) => setSelectedTask({...selectedTask, cronExpression})}
+              onRangeChange={(range: ScheduleDateRange) => setSelectedTask({...selectedTask, dateRange: range})}
+            />
+          </div>
+          
+          <div className="mb-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={selectedTask.active}
+                onChange={(e) => setSelectedTask({...selectedTask, active: e.target.checked})}
+                className="mr-2"
+              />
+              <span className="text-sm font-medium dark:text-neutral-200">Active</span>
+            </label>
+          </div>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+              Task Type
+            </label>
+            <select
+              value={selectedTask.taskType ?? ''}
+              onChange={(e) => {
+                const updatedSelectedTask = {...selectedTask, 
+                                             object: {objectId: '', objectName: ''},
+                                             taskType: e.target.value as ScheduledTaskType}
+                setSelectedTask(updatedSelectedTask);
+              }}
+              className="w-full shadow custom-shadow p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+            >
+              <option value="">Select Task Type</option>
+              <option value="assistant">Assistant</option>
+              <option value="actionSet">Action Set</option>
+            </select>
+          </div>
+
+          {getObjectSelector(selectedTask.taskType)}
+          
+
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+              Tags (comma separated)
+            </label>
+            <input
+              type="text"
+              value={selectedTask.tags?.join(', ') || ''}
+              onChange={(e) => setSelectedTask({...selectedTask, tags: e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag)})}
+              className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+              placeholder="maintenance, report, etc."
+            />
+          </div>
+
+          <div className="mb-4 border-t pt-4 dark:border-neutral-700">
+            <h3 className="text-sm font-medium mb-3 dark:text-neutral-200">Notification Settings</h3>
+            
+            <div className="space-y-3">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={selectedTask.notifyOnCompletion ?? false}
+                  onChange={(e) => setSelectedTask({...selectedTask, notifyOnCompletion: e.target.checked})}
+                  className="mr-2"
+                />
+                <span className="text-sm dark:text-neutral-200">Notify on Successful Completion</span>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={selectedTask.notifyOnFailure ?? false}
+                  onChange={(e) => setSelectedTask({...selectedTask, notifyOnFailure: e.target.checked})}
+                  className="mr-2"
+                />
+                <span className="text-sm dark:text-neutral-200">Notify on Run Failure</span>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+                  Notification Email Addresses
+                </label>
+                <input
+                  type="text"
+                  value={selectedTask.notifyEmailAddresses?.join(', ') || ''}
+                  onChange={(e) => setSelectedTask({
+                    ...selectedTask, 
+                    notifyEmailAddresses: e.target.value.split(',').map(email => email.trim()).filter(email => email)
+                  })}
+                  className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+                  placeholder="email1@example.com, email2@example.com"
+                />
+                <div className="flex flex-row items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                  Enter email addresses separated by commas
+                  {featureFlags.assistantEmailEvents &&
+                   <> <IconBulb className='text-amber-400 dark:text-amber-300' size={16}/>
+                    {"Tip: List Assistant Email Event Adresses"}
+                  </>}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 
   const fetchTaskLogs = async (taskId: string) => {
-    // if (!taskId) return;
+    if (!taskId) return;
     
     setIsLoadingLogs(true);
     try {
@@ -614,27 +653,13 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
     
     setIsLoadingLogDetails(true);
     try {
-      // In a real implementation, we would fetch the log details from the API
-      // const result = await getTaskExecutionDetails(taskId, executionId);
-      // if (result.success && result.data?.executionDetails) {
-      //   setSelectedLogDetails(result.data.executionDetails);
-      // }
-      
-      // Mock data for demonstration
-      setSelectedLogDetails({
-        id: executionId,
-        startTime: new Date(),
-        endTime: new Date(Date.now() + 1000 * 60 * 2), // 2 minutes later
-        output: "Task completed successfully. Generated daily report and sent to 3 recipients.",
-        error: executionId === "log-003" ? "Failed to connect to email server" : null,
-        steps: [
-          { name: "Initialize", status: "completed", duration: "0.5s" },
-          { name: "Fetch Data", status: "completed", duration: "1.2s" },
-          { name: "Process Results", status: "completed", duration: "3.7s" },
-          { name: "Generate Report", status: "completed", duration: "2.1s" },
-          { name: "Send Notifications", status: executionId === "log-003" ? "failed" : "completed", duration: executionId === "log-003" ? "N/A" : "1.5s" }
-        ]
-      });
+      // Fetch the log details from the API
+      const result = await getTaskExecutionDetails(taskId, executionId);
+      if (result.success && result.data?.details) {
+        setSelectedLogDetails(result.data.details);
+      } else {
+        alert("Error fetching log details: " + (result.data?.message || "Unknown error"));
+      }
     } catch (error) {
       console.error("Error fetching log details:", error);
     } finally {
@@ -657,8 +682,10 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   }, [selectedLogId, selectedTask.taskId]);
 
   const renderLogsContent = () => {
-    const formatDate = (date: Date) => {
-      return new Date(date).toLocaleString('en-US', {
+    const formatDate = (dateString: string | Date) => {
+      if (!dateString) return 'N/A';
+      const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+      return date.toLocaleString('en-US', {
         dateStyle: 'medium',
         timeStyle: 'short'
       });
@@ -713,8 +740,10 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             <span>Loading execution logs...</span>
           </div>
         ) : taskLogs.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-            No execution logs found for this task
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+            <IconNotes size={32} className="mx-auto mb-2 opacity-30" />
+            <p>No execution logs found for this task</p>
+            <p className="text-xs mt-1">Logs will appear here after task execution</p>
           </div>
         ) : (
           <div className="border border-gray-300 dark:border-gray-600 rounded mb-4">
@@ -764,7 +793,13 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         {/* Log details panel */}
         {selectedLogId && (
           <div className="border border-gray-300 dark:border-gray-600 rounded p-4">
-            <h3 className="text-md font-medium mb-3">Execution Details</h3>
+            <h3 className="text-md font-medium mb-3 flex items-center">
+              <IconNotes size={18} className="mr-2" />
+              Execution Details
+              {isLoadingLogDetails && (
+                <IconLoader2 size={16} className="animate-spin ml-2 text-blue-500" />
+              )}
+            </h3>
             
             {isLoadingLogDetails ? (
               <div className="flex items-center justify-center py-4">
@@ -775,66 +810,81 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="font-medium">Started:</span> {formatDate(selectedLogDetails.startTime)}
+                    <span className="font-medium">Executed At:</span> {formatDate(selectedLogDetails.executedAt)}
                   </div>
                   <div>
-                    <span className="font-medium">Completed:</span> {formatDate(selectedLogDetails.endTime)}
+                    <span className="font-medium">Status:</span> 
+                    <span className={
+                      selectedLogDetails.status === 'success' ? 'text-green-600 dark:text-green-400' : 
+                      selectedLogDetails.status === 'failure' ? 'text-red-600 dark:text-red-400' : 
+                      selectedLogDetails.status === 'running' ? 'text-blue-600 dark:text-blue-400' : 
+                      'text-gray-600 dark:text-gray-400'
+                    }>
+                      {' '}{selectedLogDetails.status.charAt(0).toUpperCase() + selectedLogDetails.status.slice(1)}
+                    </span>
                   </div>
                 </div>
                 
-                {selectedLogDetails.error && (
+                {selectedLogDetails.details?.error && (
                   <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
                     <div className="font-medium">Error:</div>
-                    <div className="mt-1">{selectedLogDetails.error}</div>
+                    <div className="mt-1">{selectedLogDetails.details.error}</div>
+                    {selectedLogDetails.details.message && (
+                      <div className="mt-1">{selectedLogDetails.details.message}</div>
+                    )}
                   </div>
                 )}
                 
-                <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
-                  <div className="font-medium mb-2">Output:</div>
-                  <div className="text-sm">{selectedLogDetails.output}</div>
-                </div>
-                
-                <div>
-                  <div className="font-medium mb-2">Execution Steps:</div>
-                  <div className="border border-gray-200 dark:border-gray-700 rounded overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-50 dark:bg-gray-800">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Step
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Status
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Duration
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                        {selectedLogDetails.steps.map((step: any, index: number) => (
-                          <tr key={index}>
-                            <td className="px-3 py-2 text-sm">{step.name}</td>
-                            <td className="px-3 py-2 text-sm">
-                              {step.status === 'completed' ? (
-                                <span className="text-green-600 dark:text-green-400">Completed</span>
-                              ) : step.status === 'failed' ? (
-                                <span className="text-red-600 dark:text-red-400">Failed</span>
-                              ) : (
-                                <span>{step.status}</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2 text-sm">{step.duration}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                {selectedLogDetails.details?.result && (
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700">
+                    <div className="font-medium mb-2">Result:</div>
+                    
+                    {typeof selectedLogDetails.details.result === 'object' && 
+                     selectedLogDetails.details.result.data?.state?.agentLog ? (
+                      <AgentLogBlock 
+                        messageIsStreaming={false} 
+                        message={{ 
+                          id: selectedLogDetails.executionId,
+                          data: { state: { agentLog: selectedLogDetails.details.result } },
+                          role: 'assistant',
+                          content: '',
+                          type: 'execution-log'
+                        }}
+                        conversationId={selectedLogDetails.details.sessionId || 'unknown-session'}
+                      />
+                    ) : (
+                      <div className="text-sm whitespace-pre-wrap overflow-auto max-h-[300px]">
+                        {typeof selectedLogDetails.details.result === 'object' 
+                          ? JSON.stringify(selectedLogDetails.details.result, null, 2)
+                          : selectedLogDetails.details.result}
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
+                
+                {selectedLogDetails.details?.startTime && (
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium">Started At:</span> {formatDate(selectedLogDetails.details.startTime)}
+                    </div>
+                    {selectedLogDetails.details.completedAt && (
+                      <div>
+                        <span className="font-medium">Completed At:</span> {formatDate(selectedLogDetails.details.completedAt)}
+                      </div>
+                    )}
+                    {selectedLogDetails.details.failedAt && (
+                      <div>
+                        <span className="font-medium">Failed At:</span> {formatDate(selectedLogDetails.details.failedAt)}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-                Select a log to view details
+              <div className="text-center py-6 text-gray-500 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                <IconExclamationCircle size={24} className="mx-auto mb-2 opacity-30" />
+                <p>No details available for this execution</p>
+                <p className="text-xs mt-1">Try selecting a different log entry</p>
               </div>
             )}
           </div>

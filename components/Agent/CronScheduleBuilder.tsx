@@ -182,12 +182,12 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
   // Handle date range changes
   useEffect(() => {
     if (onRangeChange) {
-      console.log("onRangeChange", startDate, endDate, showDateRange);
+      // console.log("onRangeChange", startDate, endDate, showDateRange);
       const range: ScheduleDateRange = {
         startDate: showDateRange && startDate ? startDate : null,
         endDate: showDateRange && endDate ? endDate : null
       };
-      console.log("range", range);
+      // console.log("range", range);
       onRangeChange(range);
     }
   }, [startDate, endDate, showDateRange]);
@@ -277,7 +277,19 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
         schedulePattern = "Complex schedule pattern";
       }
       
-      // Add date range information to the pattern if provided
+      // Parse date range for later use
+      const startDateObj = showDateRange && startDate ? new Date(startDate) : null;
+      const endDateObj = showDateRange && endDate ? new Date(endDate) : null;
+      
+      // Set to beginning/end of day for proper comparison
+      if (startDateObj) {
+        startDateObj.setHours(0, 0, 0, 0);
+      }
+      if (endDateObj) {
+        endDateObj.setHours(23, 59, 59, 999);
+      }
+      
+      // Add date range information to the pattern
       let dateRangeInfo = "";
       if (showDateRange) {
         const rangeSegments = [];
@@ -305,28 +317,26 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
       
       times.push(schedulePattern + dateRangeInfo);
       
-      // Now, determine the next run time
-      let nextRunDate: Date | null = null;
-      
       // Skip nextRunTime calculation if schedule is complex
       if (schedulePattern === "Complex schedule pattern") {
         times.push("Preview not available");
         return;
       }
       
+      // Find the next occurrence according to the cron schedule, without date range constraints
+      let nextRunDate: Date | null = null;
+      
       // Get the next scheduled time based on the cron pattern
       if (minute === '*' && hour === '*') {
         // Every minute - next run is within a minute
         nextRunDate = new Date(now.getTime() + 60000);
-        nextRunTime = "Next run: In less than a minute";
       } else if (minute !== '*' && hour === '*') {
         // Hourly at specific minute
         nextRunDate = new Date(now);
-        nextRunDate.setMinutes(parseInt(minute));
+        nextRunDate.setMinutes(parseInt(minute), 0, 0);
         if (nextRunDate <= now) {
           nextRunDate.setHours(nextRunDate.getHours() + 1);
         }
-        nextRunTime = `Next run: ${formatDate(nextRunDate)} at ${formatTime(nextRunDate.getHours(), nextRunDate.getMinutes())}`;
       } else if (dayOfMonth === '*' && dayOfWeek === '*') {
         // Daily at specific time
         nextRunDate = new Date(now);
@@ -334,7 +344,6 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
         if (nextRunDate <= now) {
           nextRunDate.setDate(nextRunDate.getDate() + 1);
         }
-        nextRunTime = `Next run: ${formatDate(nextRunDate)} at ${formatTime(nextRunDate.getHours(), nextRunDate.getMinutes())}`;
       } else if (dayOfMonth === '*' && dayOfWeek !== '*') {
         // Weekly on specific day at specific time
         const dayIdx = parseInt(dayOfWeek);
@@ -352,52 +361,177 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
         nextRunDate = new Date(now);
         nextRunDate.setDate(nextRunDate.getDate() + daysUntil);
         nextRunDate.setHours(parseInt(hour), parseInt(minute), 0, 0);
-        nextRunTime = `Next run: ${formatDate(nextRunDate)} at ${formatTime(nextRunDate.getHours(), nextRunDate.getMinutes())}`;
       } else if (dayOfMonth !== '*' && month === '*') {
         // Monthly on specific day at specific time
-        nextRunDate = new Date(now.getFullYear(), now.getMonth(), parseInt(dayOfMonth), parseInt(hour), parseInt(minute));
-        if (nextRunDate <= now) {
+        nextRunDate = new Date(now.getFullYear(), now.getMonth(), parseInt(dayOfMonth), parseInt(hour), parseInt(minute), 0, 0);
+        
+        // Check if the day is valid for this month (e.g., Feb 30 -> Feb 28/29)
+        if (nextRunDate.getDate() !== parseInt(dayOfMonth)) {
+          // Handle invalid date - this means we asked for a day that doesn't exist in this month
+          // Go to the next month and try again
+          nextRunDate = new Date(now.getFullYear(), now.getMonth() + 1, 1, parseInt(hour), parseInt(minute), 0, 0);
+        } else if (nextRunDate <= now) {
           nextRunDate.setMonth(nextRunDate.getMonth() + 1);
+          
+          // Check again for invalid dates after advancing
+          if (nextRunDate.getDate() !== parseInt(dayOfMonth)) {
+            // If invalid date in next month, find the next valid month
+            let checkMonth = nextRunDate.getMonth() + 1;
+            let checkYear = nextRunDate.getFullYear();
+            
+            // Try up to 12 months ahead to find a valid date
+            for (let i = 0; i < 12; i++) {
+              if (checkMonth > 11) {
+                checkMonth = 0;
+                checkYear++;
+              }
+              
+              const testDate = new Date(checkYear, checkMonth, parseInt(dayOfMonth), parseInt(hour), parseInt(minute), 0, 0);
+              if (testDate.getDate() === parseInt(dayOfMonth)) {
+                nextRunDate = testDate;
+                break;
+              }
+              
+              checkMonth++;
+            }
+          }
         }
-        nextRunTime = `Next run: ${formatDate(nextRunDate)} at ${formatTime(nextRunDate.getHours(), nextRunDate.getMinutes())}`;
       } else if (month !== '*') {
         // Annually on specific month and day at specific time
-        nextRunDate = new Date(now.getFullYear(), parseInt(month) - 1, parseInt(dayOfMonth), parseInt(hour), parseInt(minute));
-        if (nextRunDate <= now) {
+        const monthNum = parseInt(month) - 1; // JavaScript months are 0-indexed
+        nextRunDate = new Date(now.getFullYear(), monthNum, parseInt(dayOfMonth), parseInt(hour), parseInt(minute), 0, 0);
+        
+        // Check if the day is valid for this month (e.g., Feb 30 -> Feb 28/29)
+        if (nextRunDate.getDate() !== parseInt(dayOfMonth)) {
+          // Skip to next year if the date is invalid
+          nextRunDate = new Date(now.getFullYear() + 1, monthNum, 1, parseInt(hour), parseInt(minute), 0, 0);
+        } else if (nextRunDate <= now) {
           nextRunDate.setFullYear(nextRunDate.getFullYear() + 1);
         }
-        nextRunTime = `Next run: ${formatDate(nextRunDate)} at ${formatTime(nextRunDate.getHours(), nextRunDate.getMinutes())}`;
       }
       
-      // Check if the next run date is within the date range constraints
+      // Apply date range constraints
       if (nextRunDate && showDateRange) {
-        const startDateObj = startDate ? new Date(startDate) : null;
-        const endDateObj = endDate ? new Date(endDate) : null;
-        
-        // Set to beginning/end of day for proper comparison
-        if (startDateObj) {
-          startDateObj.setHours(0, 0, 0, 0);
+        // Case 1: If start date is in the future and before the calculated next run
+        if (startDateObj && startDateObj > now && startDateObj < nextRunDate) {
+          // Schedule will start at the start date
+          const adjustedDate = new Date(startDateObj);
+          adjustedDate.setHours(parseInt(hour), parseInt(minute), 0, 0);
+          
+          // Check if the time has already passed for the start date
+          if (adjustedDate < now) {
+            // Find the next occurrence after start date
+            if (dayOfMonth === '*' && dayOfWeek === '*') {
+              // Daily - the next day
+              adjustedDate.setDate(adjustedDate.getDate() + 1);
+            } else if (dayOfMonth === '*' && dayOfWeek !== '*') {
+              // Weekly - find the next matching day of week
+              const dayIdx = parseInt(dayOfWeek);
+              const startDay = adjustedDate.getDay();
+              const daysUntil = (dayIdx + 7 - startDay) % 7;
+              adjustedDate.setDate(adjustedDate.getDate() + daysUntil);
+            }
+            // Note: Monthly and Yearly patterns would need additional logic here
+          }
+          
+          nextRunDate = adjustedDate;
         }
-        if (endDateObj) {
-          endDateObj.setHours(23, 59, 59, 999);
+        
+        // Case 2: If the next run date is before the start date
+        else if (startDateObj && nextRunDate < startDateObj) {
+          let foundValidDate = false;
+          
+          // Try to find the first occurrence after the start date
+          if (dayOfMonth === '*' && dayOfWeek === '*') {
+            // Daily schedule - just use start date with the specified time
+            nextRunDate = new Date(startDateObj);
+            nextRunDate.setHours(parseInt(hour), parseInt(minute), 0, 0);
+            
+            // If that time has already passed on the start date, move to the next day
+            if (nextRunDate < now) {
+              nextRunDate.setDate(nextRunDate.getDate() + 1);
+            }
+            foundValidDate = true;
+          }
+          else if (dayOfMonth === '*' && dayOfWeek !== '*') {
+            // Weekly schedule - find the first occurrence of the day of week after start date
+            const dayIdx = parseInt(dayOfWeek);
+            const startDay = startDateObj.getDay();
+            const daysUntil = (dayIdx + 7 - startDay) % 7;
+            
+            nextRunDate = new Date(startDateObj);
+            nextRunDate.setDate(nextRunDate.getDate() + daysUntil);
+            nextRunDate.setHours(parseInt(hour), parseInt(minute), 0, 0);
+            
+            // If that time has already passed and it's today, move to next week
+            if (daysUntil === 0 && nextRunDate < now) {
+              nextRunDate.setDate(nextRunDate.getDate() + 7);
+            }
+            foundValidDate = true;
+          }
+          else if (dayOfMonth !== '*' && month === '*') {
+            // Monthly schedule - find the first month after start date with the specified day
+            nextRunDate = new Date(startDateObj);
+            nextRunDate.setDate(parseInt(dayOfMonth));
+            nextRunDate.setHours(parseInt(hour), parseInt(minute), 0, 0);
+            
+            // Check if this date is valid (it might not be if the day doesn't exist in this month)
+            if (nextRunDate.getDate() !== parseInt(dayOfMonth) || nextRunDate < startDateObj) {
+              // Move to next month
+              nextRunDate.setMonth(nextRunDate.getMonth() + 1);
+              nextRunDate.setDate(parseInt(dayOfMonth));
+              
+              // Check if valid date in next month
+              if (nextRunDate.getDate() !== parseInt(dayOfMonth)) {
+                // Find the next valid month
+                let checkMonth = nextRunDate.getMonth() + 1;
+                let checkYear = nextRunDate.getFullYear();
+                
+                for (let i = 0; i < 12; i++) {
+                  if (checkMonth > 11) {
+                    checkMonth = 0;
+                    checkYear++;
+                  }
+                  
+                  const testDate = new Date(checkYear, checkMonth, parseInt(dayOfMonth), parseInt(hour), parseInt(minute), 0, 0);
+                  if (testDate.getDate() === parseInt(dayOfMonth)) {
+                    nextRunDate = testDate;
+                    foundValidDate = true;
+                    break;
+                  }
+                  
+                  checkMonth++;
+                }
+              } else {
+                foundValidDate = true;
+              }
+            } else {
+              foundValidDate = true;
+            }
+          }
+          
+          // If we couldn't find a valid date with the specific logic, use a generic approach
+          if (!foundValidDate) {
+            nextRunDate = new Date(startDateObj);
+            nextRunDate.setHours(parseInt(hour), parseInt(minute), 0, 0);
+          }
         }
         
-        // Check if the next run is before the start date
-        if (startDateObj && nextRunDate < startDateObj) {
-          // Adjust the next run date to the start date with the specified time
-          nextRunDate = new Date(startDateObj);
-          nextRunDate.setHours(parseInt(hour), parseInt(minute), 0, 0);
-          nextRunTime = `Next run: ${formatDate(nextRunDate)} at ${formatTime(nextRunDate.getHours(), nextRunDate.getMinutes())}`;
-        }
-        
-        // Check if the next run is after the end date
+        // Case 3: If the next run date is after the end date
         if (endDateObj && nextRunDate > endDateObj) {
-          nextRunTime = "No upcoming runs (end date has passed)";
+          nextRunTime = "No upcoming runs (outside of date range)";
+          times.push(nextRunTime);
+          return;
         }
-        
-        // Check if start date is in the future and this is the first run
-        if (startDateObj && startDateObj > now && nextRunDate.getTime() === new Date(startDateObj).setHours(parseInt(hour), parseInt(minute), 0, 0)) {
+      }
+      
+      // Format the next run time message
+      if (nextRunDate) {
+        if (startDateObj && nextRunDate.toDateString() === startDateObj.toDateString()) {
+          // If the next run is on the start date
           nextRunTime = `First run: ${formatDate(nextRunDate)} at ${formatTime(nextRunDate.getHours(), nextRunDate.getMinutes())}`;
+        } else {
+          nextRunTime = `Next run: ${formatDate(nextRunDate)} at ${formatTime(nextRunDate.getHours(), nextRunDate.getMinutes())}`;
         }
       }
       
@@ -405,6 +539,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
         times.push(nextRunTime);
       }
 
+      // Add date range summary
       if (showDateRange) {
         const format = (date: string) => {
           return new Date(date).toLocaleDateString('en-US', {
@@ -415,12 +550,11 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
         }
         const start = startDate ? format(startDate) : "Today";
         const end = endDate ? format(endDate) : "Indefinitely";
-        const rangeInfo = `${start} - ${end}`;
+        const rangeInfo = `Active period: ${start} - ${end}`;
         times.push(rangeInfo);
       }
-      
-      
     } catch (error) {
+      console.error("Error calculating next run times:", error);
       times = ["Invalid cron expression"];
     }
     

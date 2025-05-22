@@ -34,7 +34,7 @@ export interface ScheduledTask {
   // Task configuration
   taskInstructions: string; // todo 
   taskType: ScheduledTaskType;
-  objectId: string; // ID of the associated object (actionSet, assistant, etc.)
+  objectInfo: {objectId: string, objectName: string}; 
   
   // Scheduling
   cronExpression: string;
