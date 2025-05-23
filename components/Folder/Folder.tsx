@@ -10,6 +10,7 @@ import {
   IconPinFilled,
   IconEyeOff,
   IconSettingsBolt,
+  IconCalendarEvent,
 } from '@tabler/icons-react';
 import {
   KeyboardEvent,
@@ -31,6 +32,7 @@ import { Group, GroupAccessType } from '@/types/groups';
 import { folder } from 'jszip';
 import { useSession } from 'next-auth/react';
 import { getSettings } from '@/utils/app/settings';
+import { getDateName } from '@/utils/app/date';
 
 interface Props {
   currentFolder: FolderInterface;
@@ -56,7 +58,11 @@ const Folder = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
+  // Check if this folder is today's folder
+  const todaysDateName = getDateName();
+  const isTodaysFolder = currentFolder.name === todaysDateName;
+  
+  const [isOpen, setIsOpen] = useState(isTodaysFolder); // Expand today's folder by default
   const [isHovered, setIsHovered] = useState(false);
   const [checkFolders, setCheckFolders] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
@@ -132,9 +138,10 @@ const Folder = ({
     if (searchTerm) {
       setIsOpen(true);
     } else {
-      setIsOpen(false);
+      // Keep today's folder open by default, close others
+      setIsOpen(isTodaysFolder);
     }
-  }, [searchTerm]);
+  }, [searchTerm, isTodaysFolder]);
 
   useEffect(() => {
     if (selectedConversation?.folderId === currentFolder.id) {
@@ -143,9 +150,14 @@ const Folder = ({
   }, [selectedConversation, currentFolder]);
 
   useEffect(() => {
-    if (currentFolder.type === 'chat') setIsOpen(allFoldersOpenConvs);
-    if (currentFolder.type === 'prompt') setIsOpen(allFoldersOpenPrompts);
-  }, [allFoldersOpenConvs, allFoldersOpenPrompts]);
+    // Always keep today's folder open, otherwise respect the global folder state
+    if (isTodaysFolder) {
+      setIsOpen(true);
+    } else {
+      if (currentFolder.type === 'chat') setIsOpen(allFoldersOpenConvs);
+      if (currentFolder.type === 'prompt') setIsOpen(allFoldersOpenPrompts);
+    }
+  }, [allFoldersOpenConvs, allFoldersOpenPrompts, isTodaysFolder]);
 
   useEffect(() => {
       if (checkingItemType === 'ChatFolders' && currentFolder.type === 'chat') setCheckFolders(true);
@@ -176,15 +188,15 @@ const Folder = ({
     <>
         <div className="relative flex items-center enhanced-folder"
             id="folderContainer"  
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
+            onMouseEnter={() => !isTodaysFolder && setIsHovered(true)}
+            onMouseLeave={() => !isTodaysFolder && setIsHovered(false)}
         >
           {isRenaming ? (
             <div className="flex w-full items-center gap-3 bg-neutral-200 dark:bg-[#343541]/90 p-3 rounded-md">
               {isOpen ? (
-                <IconCaretDown className='flex flex-shrink-0 text-blue-500 transition-transform duration-200' size={18} />
+                <IconCaretDown className='flex flex-shrink-0 transition-transform duration-200' size={18} />
               ) : (
-                <IconCaretRight className='flex flex-shrink-0 text-blue-500 transition-transform duration-200' size={18} />
+                <IconCaretRight className='flex flex-shrink-0 transition-transform duration-200' size={18} />
               )}
               <input
                 className="mr-12 flex-1 overflow-hidden overflow-ellipsis border-b border-neutral-300 dark:border-neutral-600 bg-transparent text-left text-[13px] leading-5 dark:text-white outline-none focus:border-blue-500 px-1 py-0.5"
@@ -198,32 +210,40 @@ const Folder = ({
             </div>
           ) : (
             <button
-              className={`enhanced-folder-title group flex w-full cursor-pointer items-center gap-3 rounded-lg text-sm transition-all duration-200 ${isOpen ? 'enhanced-folder-open' : ''}`}
+              className={`enhanced-folder-title group flex w-full cursor-pointer items-center gap-3 rounded-lg text-sm transition-all duration-200 ${isOpen && !isTodaysFolder ? 'enhanced-folder-open' : ''} ${isTodaysFolder ? 'enhanced-today-folder' : ''}`}
               id={"dropDown"}
-              onClick={() => setIsOpen(!isOpen)}
+              onClick={() => {
+                // Don't allow collapsing today's folder
+                if (isTodaysFolder && isOpen) return;
+                setIsOpen(!isOpen);
+              }}
               onDrop={(e) => dropHandler(e)}
               onDragOver={allowDrop}
               onDragEnter={highlightDrop}
               onDragLeave={removeHighlight}
-              title={isOpen ? "Collapse folder" : "Expand folder"}
+              title={isTodaysFolder ? "Today folder (always expanded)" : (isOpen ? "Collapse folder" : "Expand folder")}
             >
-              <div className="transition-transform duration-200 ease-in-out transform relative">
-                <div className="absolute inset-0 bg-blue-100 dark:bg-blue-900/20 rounded-full opacity-0 scale-0 transition-all duration-300 group-hover:opacity-20 group-hover:scale-100"></div>
-                {isOpen ? (
-                  <IconCaretDown className={`flex flex-shrink-0 ${currentFolder.pinned ? 'text-blue-500' : ''}`} size={20} />
-                ) : (
-                  <IconCaretRight className={`flex flex-shrink-0 ${currentFolder.pinned ? 'text-blue-500' : ''}`} size={20} />
-                )}
-              </div>
+              {!isTodaysFolder && (
+                <div className="transition-transform duration-200 ease-in-out transform relative">
+                  <div className="absolute inset-0 bg-neutral-200 dark:bg-neutral-700/20 rounded-full opacity-0 scale-0 transition-all duration-300 group-hover:opacity-20 group-hover:scale-100"></div>
+                  {isOpen ? (
+                    <IconCaretDown className='flex flex-shrink-0' size={20} />
+                  ) : (
+                    <IconCaretRight className='flex flex-shrink-0' size={20} />
+                  )}
+                </div>
+              )}
 
               <div 
                 id={"dropName"}
-                className="sidebar-text relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left font-medium">
+                className="sidebar-text relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left font-medium flex items-center">
                 {currentFolder.pinned && 
                   <span className="badge-blue mr-1.5 inline-block h-2.5 w-2.5 rounded-full 
-                  shadow-sm shadow-blue-500/30"></span>
+                  shadow-sm shadow-blue-500/30 flex-shrink-0"></span>
                 }
-                {currentFolder.name}
+                <span className={`${isTodaysFolder ? "text-neutral-900 dark:text-white font-semibold text-[0.925rem]" : ""} truncate`}>
+                  {isTodaysFolder ? "Today" : currentFolder.name}
+                </span>
               </div>
             </button>
           )}
@@ -274,7 +294,7 @@ const Folder = ({
             </div>
           )}
 
-          {!isDeleting && !isRenaming && isHovered && !checkFolders && (
+          {!isDeleting && !isRenaming && isHovered && !checkFolders && !isTodaysFolder && (
             <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded-md shadow-sm overflow-hidden fade-in">
               <ActionButton
                 handleClick={(e) => {
@@ -283,7 +303,7 @@ const Folder = ({
                 }}
                 title="Pin Folder To The Top"
                 id="pinButton"
-                className="enhanced-action-button hover:bg-blue-100 dark:hover:bg-blue-900/20"
+                className="enhanced-action-button hover:bg-neutral-200 dark:hover:bg-neutral-700/20"
               >
                 { currentFolder.pinned ?
                   <IconPinFilled className={"text-blue-500"} size={18} /> :

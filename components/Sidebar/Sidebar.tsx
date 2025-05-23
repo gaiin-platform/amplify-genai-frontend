@@ -195,17 +195,7 @@ const Sidebar = <T,>({
             </div>
           )}
 
-          {items?.length > 0 ? (
-            <div
-              onDrop={handleDrop}
-              onDragOver={allowDrop}
-              onDragEnter={highlightDrop}
-              onDragLeave={removeHighlight}
-              className="fade-in"
-            >
-              {itemComponent}
-            </div>
-          ) : (
+          {items?.length === 0 && (
             <div className="empty-state mt-8">
               <IconMistOff className="empty-state-icon mx-auto mb-3" size={24} />
               <span className="empty-state-text">

@@ -74,18 +74,52 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
   };
 
   const renderFolderConversations = (currentFolder: FolderInterface) => {
-    return (
-      conversations &&
-      conversations
-        .filter((conversation) => conversation.folderId && conversation.folderId === currentFolder.id)
-        .map((conversation, index) => {
-            return (
-              <div key={index} id="chat" className="ml-5 gap-2 border-l pl-2">
-                <ConversationComponent conversation={conversation}/>
-              </div>
-            );
-        })
-    );
+    const filteredConversations = conversations && conversations
+      .filter((conversation) => conversation.folderId && conversation.folderId === currentFolder.id);
+      
+    if (!filteredConversations || filteredConversations.length === 0) return null;
+    
+    // For conversations without timestamps, we'll reverse the array to show newer ones first
+    // This assumes conversations are added to the array in chronological order
+    const sortedConversations = filteredConversations
+      .map((conversation, originalIndex) => ({ conversation, originalIndex }))
+      .sort((a, b) => {
+        // Helper function to get the most recent timestamp for a conversation
+        const getLatestTime = (item: any) => {
+          const conversation = item.conversation;
+          // Try conversation date first
+          if (conversation.date) {
+            const convTime = new Date(conversation.date).getTime();
+            if (!isNaN(convTime)) return convTime;
+          }
+          
+          // Fall back to latest message timestamp
+          if (conversation.messages && conversation.messages.length > 0) {
+            const latestMessage = conversation.messages[conversation.messages.length - 1];
+            if (latestMessage.timestamp) {
+              const msgTime = new Date(latestMessage.timestamp).getTime();
+              if (!isNaN(msgTime)) return msgTime;
+            }
+          }
+          
+          // Final fallback: use reverse of original index (newer conversations have higher index)
+          // This preserves chronological order for conversations without timestamps
+          return item.originalIndex;
+        };
+        
+        const timeA = getLatestTime(a);
+        const timeB = getLatestTime(b);
+        
+        // Sort newest first (descending order)  
+        return timeB - timeA;
+      })
+      .map(({ conversation }, index) => (
+        <div key={index} id="chat" className="ml-3 gap-2 border-l border-neutral-200 dark:border-neutral-700 pl-2">
+          <ConversationComponent conversation={conversation}/>
+        </div>
+      ));
+      
+    return sortedConversations;
   };
 
   const displayFolders = (folders:FolderInterface[]) => {
@@ -128,11 +162,44 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
       };
 
       const renderUncategorizedConversations = () => {
-        return conversationsWithoutFolders.map((conversation, index) => (
-          <div key={index} id="chat" className="ml-5 gap-2 border-l pl-2">
-            <ConversationComponent conversation={conversation}/>
-          </div>
-        ));
+        const sortedConversations = conversationsWithoutFolders
+          .map((conversation, originalIndex) => ({ conversation, originalIndex }))
+          .sort((a, b) => {
+            // Helper function to get the most recent timestamp for a conversation
+            const getLatestTime = (item: any) => {
+              const conversation = item.conversation;
+              // Try conversation date first
+              if (conversation.date) {
+                const convTime = new Date(conversation.date).getTime();
+                if (!isNaN(convTime)) return convTime;
+              }
+              
+              // Fall back to latest message timestamp
+              if (conversation.messages && conversation.messages.length > 0) {
+                const latestMessage = conversation.messages[conversation.messages.length - 1];
+                if (latestMessage.timestamp) {
+                  const msgTime = new Date(latestMessage.timestamp).getTime();
+                  if (!isNaN(msgTime)) return msgTime;
+                }
+              }
+              
+              // Final fallback: use reverse of original index
+              return item.originalIndex;
+            };
+            
+            const timeA = getLatestTime(a);
+            const timeB = getLatestTime(b);
+            
+            // Sort newest first (descending order)
+            return timeB - timeA;
+          })
+          .map(({ conversation }, index) => (
+            <div key={index} id="chat" className="ml-3 gap-2 border-l border-neutral-200 dark:border-neutral-700 pl-2">
+              <ConversationComponent conversation={conversation}/>
+            </div>
+          ));
+          
+        return sortedConversations;
       };
 
       folderComponents.push(
@@ -250,7 +317,7 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
   
   // SEARCH VIEW
   const renderSearchView = () => (
-    <div style={{ height: 'calc(100vh - 200px)' }}>
+    <div style={{ height: 'calc(100vh - 290px)' }}>
       <div className="h-full overflow-y-auto overflow-x-hidden">
         {displayFolders(folders.filter((folder:FolderInterface) => {
           return folder.type === 'chat' && conversations.some((conversation) => conversation.folderId === folder.id);

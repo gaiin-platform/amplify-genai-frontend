@@ -1,4 +1,4 @@
-import React, { FC, useContext, useEffect, useRef, useState } from 'react';
+import React, { FC, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'next-i18next';
 import { IconTrashX, IconPlus, IconCheck, IconX, IconEdit} from "@tabler/icons-react";
 import HomeContext from '@/pages/api/home/home.context';
@@ -103,8 +103,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
         }));
     }
 
-    const handleSave = async () => {
-        // console.log("accts saved: ", accounts)
+    const handleSave = useCallback(async () => {
 
         if (accounts.length === 0) {
             alert("You must have at least one account.");
@@ -131,153 +130,171 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
         }
         setIsSaving(false);
         
-    };
+    }, [accounts, defaultAccount, homeDispatch, setUnsavedChanged, setHasEdits, setAddedAccounts]);
+
+    // Listen for save events from parent
+    useEffect(() => {
+        const handleSaveEvent = () => {
+            handleSave();
+        };
+
+        window.addEventListener('saveAccountChanges', handleSaveEvent);
+
+        return () => {
+            window.removeEventListener('saveAccountChanges', handleSaveEvent);
+        };
+    }, [handleSave]);
 
 
-    return <div className='flex flex-col h-full'> 
-            <div className="mb-4 text-l text-black dark:text-neutral-200 px-2">
-                    You can add a COA string for billing charges back to a specific account. 
-                    Certain features require at least one COA string to be provided. You can always edit the Rate Limit set for an account. Always remember to confirm and save your changes. 
+    return <div className='accounts-settings-container'> 
+            <div className="accounts-info-banner">
+                <div className="accounts-info-icon">💳</div>
+                <div className="accounts-info-content">
+                    <h3 className="accounts-info-title">Account Management</h3>
+                    <p className="accounts-info-description">
+                        Add COA strings for billing charges back to specific accounts. 
+                        Certain features require at least one COA string. You can edit rate limits and must save your changes to apply them.
+                    </p>
+                </div>
             </div>
 
-                <ul className="divide-y divide-gray-200 max-h-40 overflow-y-auto overflow-x-hidden mb-2">
-                    <li key={"header"} className="flex flex-row items-center">
-                        <div className="text-left text-lg  text-black dark:text-neutral-200 ">Add Account</div>
-                    </li>
-                    <li key={"header2"} className="flex flex-row py-3">
-                        <div className="flex-shrink-0 ml-[-6px] mr-2">
-                            <button
-                                type="button"
-                                title='Add Account'
-                                id="addAccountButton"
-                                className="ml-2 mt-2.5 px-3 py-1.5 text-white rounded bg-neutral-500 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
-                                onClick={handleAddAccount}
-                            >
-                                <IconPlus size={18} />
-                            </button>
-                        </div>
-                        <div className="text-left flex-grow py-2 mt-1"
-                            style={{width: '120px'}}>
+            <div className="accounts-add-section">
+                <div className="accounts-section-header">
+                    <h3 className="accounts-section-title">Add New Account</h3>
+                    <p className="accounts-section-subtitle">Create a new account with COA string and rate limits</p>
+                </div>
+                
+                <div className="accounts-add-form">
+                    <div className="accounts-form-row">
+                        <div className="accounts-input-group">
+                            <label htmlFor="accountNameInput" className="accounts-input-label">Account Name</label>
                             <input
-                            ref={accountNameRef}
-                            type="text"
-                            id="accountNameInput"
-                            placeholder={'Account name'}
-                            className="rounded border-gray-300 p-1 text-neutral-900 shadow-sm focus:border-neutral-500 w-full"
-
-                        /></div>
-                        <div className="text-left ml-2 flex-grow min-w-0 py-2 mt-1">
+                                ref={accountNameRef}
+                                type="text"
+                                id="accountNameInput"
+                                placeholder="Enter account name"
+                                className="accounts-input"
+                            />
+                        </div>
+                        
+                        <div className="accounts-input-group">
+                            <label htmlFor="coaStringInput" className="accounts-input-label">COA String</label>
                             <input
                                 ref={accountIdRef}
                                 type="text"
                                 id="coaStringInput"
-                                placeholder={'COA String'}
-                                className="rounded border-gray-300 p-1 text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50 w-full"
-
+                                placeholder="Enter COA string"
+                                className="accounts-input"
                             />
                         </div>
                         
-                        <div className='relative ml-2 flex flex-col gap-1 mt-[-14px]' style={{ height: '68px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}>
-                            <label className="text-sm mt-1" htmlFor="rateLimitType">Rate Limit</label>
+                        <div className="accounts-input-group">
+                            <label className="accounts-input-label">Rate Limit</label>
+                            <div className="accounts-rate-limit-wrapper">
                                 <RateLimiter
-                                period={accountRateLimitPeriod}
-                                setPeriod= {setAccountRateLimitPeriod}
-                                rate={accountRateLimitRate}
-                                setRate={setAccountRateLimitRate}
+                                    period={accountRateLimitPeriod}
+                                    setPeriod={setAccountRateLimitPeriod}
+                                    rate={accountRateLimitRate}
+                                    setRate={setAccountRateLimitRate}
                                 />  
+                            </div>
                         </div>
                         
-                    </li>
-                </ul>
-
-                <div className="mb-2 text-lg text-black dark:text-neutral-200 border-b">
-                    Default Account
+                        <div className="accounts-add-button-wrapper">
+                            <button
+                                type="button"
+                                title="Add Account"
+                                id="addAccountButton"
+                                className="accounts-add-button"
+                                onClick={handleAddAccount}
+                            >
+                                <IconPlus size={20} />
+                                <span>Add Account</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <AccountSelect
-                    accounts={accounts}
-                    defaultAccount={defaultAccount}
-                    setDefaultAccount={(a:Account) => {
-                        setHasEdits(true);
-                        setDefaultAccount(a);
-                    }}
-                />
+            </div>
+
+            <div className="accounts-default-section">
+                <div className="accounts-section-header">
+                    <h3 className="accounts-section-title">Default Account</h3>
+                    <p className="accounts-section-subtitle">Select which account to use by default for new conversations</p>
+                </div>
+                <div className="accounts-default-select-wrapper">
+                    <AccountSelect
+                        accounts={accounts}
+                        defaultAccount={defaultAccount}
+                        setDefaultAccount={(a:Account) => {
+                            setHasEdits(true);
+                            setDefaultAccount(a);
+                        }}
+                    />
+                </div>
+            </div>
 
 
-                <div className="mt-6 text-lg text-black dark:text-neutral-200 border-b-2">
-                    Your Accounts
+            <div className="accounts-list-section">
+                <div className="accounts-section-header">
+                    <h3 className="accounts-section-title">Your Accounts</h3>
+                    <p className="accounts-section-subtitle">Manage your existing accounts and their settings</p>
                 </div>
 
                 {accounts.length === 0 ? (
-                    <div className="text-center mb-10 text-md italic text-black dark:text-neutral-200">
-                        You do not have any accounts set up. Add one above.
+                    <div className="accounts-empty-state">
+                        <div className="accounts-empty-icon">📋</div>
+                        <h4 className="accounts-empty-title">No Accounts Yet</h4>
+                        <p className="accounts-empty-description">You don&apos;t have any accounts set up. Add one using the form above to get started.</p>
                     </div>
-                ) : 
-                (
-                    <table className='mt-[-1px] w-full text-md text-black dark:text-neutral-200'>
-                                    <thead>
-                                        <tr className="bg-gray-200 dark:bg-[#333]">
-                                        { ["Name", "Account", "Rate Limit"]
-                                        .map((i) => (
-                                            <th key={i} className="p-0.5 border border-gray-400 text-neutral-600 dark:text-neutral-300">
-                                                {i}
-                                            </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                <tbody>
-                                    {[...accounts].map((account, index) => (
-                                        <tr key={index} >
-                                            <td className='w-full'> {account.name}</td>
-                                            <td className='w-full pr-20'> 
-                                                {account.id}
-                                            </td>
-                                            <td>
-                                                <div className='flex justify-between items-center p-3 w-[320px]'>
-                                                    <EditableRateLimit 
+                ) : (
+                    <div className="accounts-table-wrapper">
+                        <div className="accounts-table-container">
+                            {[...accounts].map((account, index) => (
+                                <div key={index} className="accounts-table-row">
+                                    <div className="accounts-row-content">
+                                        <div className="accounts-row-info">
+                                            <div className="accounts-row-main">
+                                                <div className="accounts-row-name">
+                                                    <span className="accounts-name-label">Name:</span>
+                                                    <span className="accounts-name-value">{account.name}</span>
+                                                    {account.isDefault && <span className="accounts-default-badge">Default</span>}
+                                                </div>
+                                                <div className="accounts-row-id">
+                                                    <span className="accounts-id-label">COA String:</span>
+                                                    <span className="accounts-id-value">{account.id}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="accounts-row-actions">
+                                            <div className="accounts-rate-limit-section">
+                                                <span className="accounts-rate-limit-label">Rate Limit:</span>
+                                                <EditableRateLimit 
                                                     account={account}
                                                     handleAccountEdit={handleEdit}
-                                                    />
-                                                        <button
-                                                            type="button"
-                                                            id="deleteAccount"
-                                                            className={`ml-auto mt-[-4px] px-2 py-1.5 text-sm bg-neutral-500 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${account.id === noCoaAccount.id ? 'invisible' : 'visible'}`}
-                                                            onClick={() => handleDeleteAccount(account.name)}
-                                                        >
-                                                            <IconTrashX size={18} />
-                                                        </button>
-                                                </div>
-                                              
-                                            </td>
+                                                />
+                                            </div>
                                             
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>)
-                    }
-                
-                <br className='mb-20'></br>
-                
-                <div className="flex flex-row my-2 w-full fixed bottom-0 left-0 px-4 py-2">
-                    {/* Save Button */}
-                    <button
-                        type="button"
-                        id="cancel"
-                        className="mr-2 w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 bg-neutral-100 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                        onClick={onClose}
-                    >
-                        {t('Cancel')}
-                    </button>
-                    <button
-                        type="button"
-                        id="saveChanges"
-                        className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 bg-neutral-100 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                        onClick={handleSave}
-                    >
-                        {isSaving ? 'Saving Changes...' :'Save Changes'}
-                    </button>
-                </div>
-
+                                            {account.id !== noCoaAccount.id && (
+                                                <button
+                                                    type="button"
+                                                    id="deleteAccount"
+                                                    className="accounts-delete-button"
+                                                    onClick={() => handleDeleteAccount(account.name)}
+                                                    title="Delete Account"
+                                                >
+                                                    <IconTrashX size={18} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
+        </div>
                         
 };
 

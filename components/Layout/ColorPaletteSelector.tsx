@@ -92,7 +92,7 @@ export const ColorPaletteSelector: React.FC<ColorPaletteSelectorProps> = ({ onPa
     <div className="color-palette-selector">
       <div className="color-palette-title">
         <IconPalette size={14} className="enhanced-icon" />
-        Chat Colors
+        Color Scheme
       </div>
       <div className="color-palette-grid">
         {COLOR_PALETTES.map((palette) => (

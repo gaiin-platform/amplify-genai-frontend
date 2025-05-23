@@ -922,6 +922,7 @@ export const AdminInterfaceWithTabs: FC<AdminInterfaceWithTabsProps> = (props) =
             onCancel={props.onClose}
             showCancel={false}
             showSubmit={false}
+            disableModalScroll={true}
             content={
                 <div className="admin-interface-content">
                     <div className="admin-tab-bar">

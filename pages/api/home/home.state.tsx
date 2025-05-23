@@ -78,6 +78,7 @@ export interface HomeInitialState {
   memoryExtractionEnabled: boolean;
   supportEmail: string;
   aiEmailDomain: string;
+  showUnifiedSettings: boolean;
 }
 
 export const initialState: HomeInitialState = {
@@ -150,5 +151,6 @@ export const initialState: HomeInitialState = {
   extractedFacts: [],
   memoryExtractionEnabled: true,
   supportEmail: '',
-  aiEmailDomain: ''
+  aiEmailDomain: '',
+  showUnifiedSettings: false
 };

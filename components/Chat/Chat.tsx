@@ -48,9 +48,9 @@ import {DownloadModal} from "@/components/Download/DownloadModal";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
 import {ChatRequest, useSendService} from "@/hooks/useChatSendService";
 import {CloudStorage} from './CloudStorage';
+import UserMenu from '../Layout/UserMenu';
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { UserAvatar } from '@/components/Layout/UserAvatar';
-import { SettingsDialog } from '@/components/Settings/SettingsDialog';
 import { SharingDialog } from '@/components/Share/SharingDialog';
 import { getFullTimestamp } from '@/utils/app/date';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
@@ -321,6 +321,18 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 })
             }
         }
+
+        const handleAssistantsAdminClick = () => {
+            window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { 
+                detail: { isOpen: true } 
+            }));
+        };
+
+        const handleAdminClick = () => {
+            window.dispatchEvent(new CustomEvent('openAdminInterfaceTrigger', { 
+                detail: { isOpen: true } 
+            }));
+        };
 
 
         const updateMessage = (selectedConversation: Conversation, updatedMessage: Message, updateIndex: number) => {
@@ -999,10 +1011,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             <UserAvatar
                                                 email={userEmail}
                                                 name={session?.user?.name}
-                                                showMtdCost={featureFlags.mtdCost}
-                                                onSettingsClick={() => setIsSettingsDialogOpen(true)}
-                                                onSharingClick={() => setIsSharingDialogOpen(true)}
-                                                onDataSourcesClick={() => homeDispatch({field: 'page', value: 'home'})}
                                             />
                                         </div>
 
@@ -1260,10 +1268,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             <UserAvatar
                                                 email={userEmail}
                                                 name={session?.user?.name}
-                                                showMtdCost={featureFlags.mtdCost}
-                                                onSettingsClick={() => setIsSettingsDialogOpen(true)}
-                                                onSharingClick={() => setIsSharingDialogOpen(true)}
-                                                onDataSourcesClick={() => homeDispatch({field: 'page', value: 'home'})}
                                             />
                                         </div>
 
@@ -1413,14 +1417,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 />
             )}
 
-            <SettingsDialog 
-                open={isSettingsDialogOpen} 
-                onClose={() => setIsSettingsDialogOpen(false)} 
-            />
 
             <SharingDialog 
                 open={isSharingDialogOpen} 
                 onClose={() => setIsSharingDialogOpen(false)} 
+            />
+
+            <UserMenu
+                email={userEmail}
+                name={session?.user?.name}
+                showMtdCost={featureFlags.mtdCost}
+                onSettingsClick={() => setIsSettingsDialogOpen(true)}
+                onSharingClick={() => setIsSharingDialogOpen(true)}
+                onDataSourcesClick={() => homeDispatch({field: 'page', value: 'home'})}
+                onAssistantsAdminClick={handleAssistantsAdminClick}
+                onAdminClick={handleAdminClick}
             />
 
             </>

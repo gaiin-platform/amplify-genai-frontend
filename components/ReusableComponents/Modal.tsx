@@ -25,11 +25,12 @@ interface Props {
   additionalButtonOptions?: OptionButtons[];
   resizeOnVarChange?: any;
   transform?: string;
+  disableModalScroll?: boolean;
 }
 
   export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{}, 
                                     showClose=true, showCancel=true, showSubmit=true, cancelLabel= "Cancel", submitLabel="Submit",
-                                    additionalButtonOptions=[], disableSubmit=false, resizeOnVarChange, transform=""}) => {
+                                    additionalButtonOptions=[], disableSubmit=false, resizeOnVarChange, transform="", disableModalScroll=false}) => {
 
  const modalRef = useRef<HTMLDivElement>(null);
 
@@ -108,7 +109,7 @@ interface Props {
                             </div> }  
                         </div>
 
-                        <div id="modalScroll" className="overflow-y-auto" style={{ maxHeight: `${innderWindow.height - 140}px` }}>
+                        <div id="modalScroll" className={`${disableModalScroll ? 'admin-modal-scroll' : 'overflow-y-auto'}`} style={disableModalScroll ? {} : { maxHeight: `${innderWindow.height - 140}px` }}>
                             {content}
                         </div>
 

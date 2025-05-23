@@ -289,9 +289,7 @@ const Promptbar = () => {
         isOpen={showPromptbar}
         addItemButtonTitle={t('Prompt Template')}
         itemComponent={
-          <Prompts
-            prompts={promptsWithNoFolders()}
-          />
+          <></>
         } 
         folderComponent={<PromptFolders sort={folderSort}/>}
         items={filteredPrompts}
@@ -308,6 +306,7 @@ const Promptbar = () => {
         handleDrop={handleDrop}
         handleCreateAssistantItem={handleCreateAssistant}
         setFolderSort={setFolderSort}
+        footerComponent={<></>}
       />
 
       <ShareAnythingModal

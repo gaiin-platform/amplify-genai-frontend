@@ -1,23 +1,23 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
 import { IconCheck, IconFiles, IconPlus, IconSettings, IconTrashX, IconX } from '@tabler/icons-react';
-import { AssistantModal } from '../Promptbar/components/AssistantModal';
+import { AssistantModal } from '../../../Promptbar/components/AssistantModal';
 import { Prompt } from '@/types/prompt';
 import { Group, GroupAccessType, AstGroupTypeData, GroupUpdateType, Members } from '@/types/groups';
 import { createEmptyPrompt } from '@/utils/app/prompts';
 import { useSession } from 'next-auth/react';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
 import { createAstAdminGroup, deleteAstAdminGroup, updateGroupAmplifyGroups, updateGroupAssistants, updateGroupMembers, updateGroupMembersPermissions, updateGroupSystemUsers, updateGroupTypes } from '@/services/groupsService';
-import Search from '../Search';
-import { TagsList } from '../Chat/TagsList';
-import ExpansionComponent from '../Chat/ExpansionComponent';
-import { AttachFile, handleFile } from '../Chat/AttachFile';
+import Search from '../../../Search';
+import { TagsList } from '../../../Chat/TagsList';
+import ExpansionComponent from '../../../Chat/ExpansionComponent';
+import { AttachFile, handleFile } from '../../../Chat/AttachFile';
 import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
-import { DataSourceSelector } from '../DataSources/DataSourceSelector';
+import { DataSourceSelector } from '../../../DataSources/DataSourceSelector';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { ExistingFileList, FileList } from "@/components/Chat/FileList";
-import { ModelSelect } from '../Chat/ModelSelect';
+import { ModelSelect } from '../../../Chat/ModelSelect';
 import { getDate, getDateName } from '@/utils/app/date';
 import { FolderInterface } from '@/types/folder';
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
@@ -25,14 +25,12 @@ import { getGroupAssistantConversations } from '@/services/groupAssistantService
 import { getGroupAssistantDashboards } from '@/services/groupAssistantService';
 import { getGroupConversationData } from '@/services/groupAssistantService';
 import toast from 'react-hot-toast';
-import ActionButton from '../ReusableComponents/ActionButton';
-import { LoadingDialog } from '../Loader/LoadingDialog';
-import { InfoBox } from '../ReusableComponents/InfoBox';
-import { includeGroupInfoBox } from '../Emails/EmailsList';
-import Checkbox from '../ReusableComponents/CheckBox';
+import { InfoBox } from '../../../ReusableComponents/InfoBox';
+import { includeGroupInfoBox } from '../../../Emails/EmailsList';
+import Checkbox from '../../../ReusableComponents/CheckBox';
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from '@/utils/app/amplifyAssistants';
-import { Modal } from '../ReusableComponents/Modal';
-import { AmplifyGroupSelect } from './AdminUI';
+import { Modal } from '../../../ReusableComponents/Modal';
+import { AmplifyGroupSelect } from '../../../Admin/AdminUI';
 import { getUserAmplifyGroups } from '@/services/adminService';
 import { fetchAllSystemIds } from '@/services/apiKeysService';
 import { ReactElement } from 'react-markdown/lib/react-markdown';
@@ -299,107 +297,107 @@ const ConversationTable: FC<{ conversations: Conversation[], supportConvAnalysis
             <div className="overflow-x-auto overflow-y-auto rounded-lg shadow border dark:border-gray-700" style={{ height: `${window.innerHeight * 0.65}px` }}>
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
-                        <tr>
-                            {visibleColumns.map((column) => (
-                                <th
-                                    key={column}
-                                    scope="col"
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                                    onClick={() => handleSort(column)}
-                                >
-                                    <div className="flex items-center">
-                                        {getColumnDisplayName(column as string)}
-                                        {sortColumn === column && (
-                                            <span className="ml-1">
+                    <tr>
+                        {visibleColumns.map((column) => (
+                            <th
+                                key={column}
+                                scope="col"
+                                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                                onClick={() => handleSort(column)}
+                            >
+                                <div className="flex items-center">
+                                    {getColumnDisplayName(column as string)}
+                                    {sortColumn === column && (
+                                        <span className="ml-1">
                                                 {sortDirection === 'asc' ? '▲' : '▼'}
                                             </span>
-                                        )}
-                                    </div>
-                                </th>
-                            ))}
-                            <th scope="col" className="relative px-6 py-3">
-                                <span className="sr-only">View</span>
+                                    )}
+                                </div>
                             </th>
-                        </tr>
+                        ))}
+                        <th scope="col" className="relative px-6 py-3">
+                            <span className="sr-only">View</span>
+                        </th>
+                    </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
-                        {sortedConversations.map((conversation, index) => (
-                            <tr
-                                key={conversation.conversationId}
-                                className={`
+                    {sortedConversations.map((conversation, index) => (
+                        <tr
+                            key={conversation.conversationId}
+                            className={`
                                     hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150
                                     ${index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800'}
                                 `}
-                                onClick={() => openPopup(conversation)}
-                            >
-                                {visibleColumns.map((column) => {
-                                    // Format different column types
-                                    const value = conversation[column];
+                            onClick={() => openPopup(conversation)}
+                        >
+                            {visibleColumns.map((column) => {
+                                // Format different column types
+                                const value = conversation[column];
 
-                                    if (column === 'timestamp') {
-                                        return (
-                                            <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                                {formatDate(value as string)}
-                                            </td>
-                                        );
-                                    }
+                                if (column === 'timestamp') {
+                                    return (
+                                        <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                            {formatDate(value as string)}
+                                        </td>
+                                    );
+                                }
 
-                                    if (column === 'userRating' || column === 'systemRating') {
-                                        return (
-                                            <td key={column} className="px-6 py-4 whitespace-nowrap">
-                                                {renderStarRating(value as number)}
-                                            </td>
-                                        );
-                                    }
+                                if (column === 'userRating' || column === 'systemRating') {
+                                    return (
+                                        <td key={column} className="px-6 py-4 whitespace-nowrap">
+                                            {renderStarRating(value as number)}
+                                        </td>
+                                    );
+                                }
 
-                                    if (column === 'assistantName' || column === 'category') {
-                                        return (
-                                            <td key={column} className="px-6 py-4 whitespace-nowrap">
+                                if (column === 'assistantName' || column === 'category') {
+                                    return (
+                                        <td key={column} className="px-6 py-4 whitespace-nowrap">
                                                 <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
                                                     {value || 'N/A'}
                                                 </span>
-                                            </td>
-                                        );
-                                    }
-
-                                    if (column === 'userFeedback') {
-                                        return (
-                                            <td key={column} className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
-                                                {value || 'No feedback'}
-                                            </td>
-                                        );
-                                    }
-
-                                    if (column === 'numberPrompts') {
-                                        return (
-                                            <td key={column} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100 text-center">
-                                                <span className="px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700">{value}</span>
-                                            </td>
-                                        );
-                                    }
-
-                                    if (column === 'conversationId' || column === 'assistantId') {
-                                        return (
-                                            <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                                <span className="font-mono text-xs">{String(value).substring(0, 10)}...</span>
-                                            </td>
-                                        );
-                                    }
-
-                                    // Default display for other columns
-                                    return (
-                                        <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                            {value || 'N/A'}
                                         </td>
                                     );
-                                })}
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                }
+
+                                if (column === 'userFeedback') {
+                                    return (
+                                        <td key={column} className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+                                            {value || 'No feedback'}
+                                        </td>
+                                    );
+                                }
+
+                                if (column === 'numberPrompts') {
+                                    return (
+                                        <td key={column} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100 text-center">
+                                            <span className="px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700">{value}</span>
+                                        </td>
+                                    );
+                                }
+
+                                if (column === 'conversationId' || column === 'assistantId') {
+                                    return (
+                                        <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                            <span className="font-mono text-xs">{String(value).substring(0, 10)}...</span>
+                                        </td>
+                                    );
+                                }
+
+                                // Default display for other columns
+                                return (
+                                    <td key={column} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                        {value || 'N/A'}
+                                    </td>
+                                );
+                            })}
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <span className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
                                         View
                                     </span>
-                                </td>
-                            </tr>
-                        ))}
+                            </td>
+                        </tr>
+                    ))}
                     </tbody>
                 </table>
             </div>
@@ -575,7 +573,7 @@ const ConversationPopup: FC<{ conversation: Conversation; onClose: () => void; s
                                                 : message.role === 'assistant'
                                                     ? 'bg-gray-100 dark:bg-gray-800 mr-4 ml-8'
                                                     : 'bg-yellow-50 dark:bg-yellow-900/30'
-                                                }`}
+                                            }`}
                                         >
                                             <div className="font-medium text-sm mb-1 text-gray-700 dark:text-gray-300">
                                                 {message.role === 'user' ? 'User' : message.role === 'assistant' ? 'Assistant' : 'System'}
@@ -658,9 +656,9 @@ type DataPoint = {
 
 // Simple bar chart implementation without external libraries
 const SimpleBarChart: FC<{ data: DataPoint[], color?: string }> = ({
-    data,
-    color = "#0088FE"
-}) => {
+                                                                       data,
+                                                                       color = "#0088FE"
+                                                                   }) => {
     // Find the maximum value for scaling
     const maxValue = Math.max(...data.map(item => item.value));
 
@@ -763,8 +761,8 @@ const Dashboard: FC<{ metrics: DashboardMetrics, supportConvAnalysis: boolean }>
 
     // Progress bar component for comparison
     const ProgressBar: FC<{ label: string, value: number, maxValue: number, color: string }> = ({
-        label, value, maxValue, color
-    }) => (
+                                                                                                    label, value, maxValue, color
+                                                                                                }) => (
         <div className="mb-3">
             <div className="flex justify-between items-center mb-1">
                 <span className="text-sm">{label}</span>
@@ -910,7 +908,7 @@ interface ManagementProps {
 
 
 const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup, members, allEmails, setLoadingActionMessage,
-    adminGroups, setAdminGroups, amplifyGroups, systemUsers }) => {
+                                                  adminGroups, setAdminGroups, amplifyGroups, systemUsers }) => {
     const { state: { featureFlags, groups, prompts, folders, statsService }, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
@@ -925,7 +923,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
             ...(systemUsers ?? []),
             ...(selectedGroup?.systemUsers ?? [])
         ]);
-        
+
         return Array.from(uniqueSystemUsers);
     }
     const [availableSystemUsers, setAvailableSystemUsers] = useState<string[]>(initUniqueSystemUsers());
@@ -1003,7 +1001,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
             toast(`Successfully updated group types.`);
         }
 
-        //update groups home dispatch 
+        //update groups home dispatch
         const updatedGroup = { ...selectedGroup, groupTypes: groupTypes };
         setSelectedGroup(updatedGroup);
         const updatedAdminGroups = adminGroups.map((g: Group) => {
@@ -1024,7 +1022,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
             "group_id": selectedGroup.id,
             "amplify_groups": groupAmpGroups
         };
-        // statsService.updateGroupAmplifyGroupsEvent(updateData); 
+        // statsService.updateGroupAmplifyGroupsEvent(updateData);
         const result = await updateGroupAmplifyGroups(updateData);
         if (!result.success) {
             alert(`Unable to update amplify group list at this time. Please try again later.`);
@@ -1034,7 +1032,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
             toast(`Successfully updated Amplify group list.`);
         }
 
-        //update groups home dispatch 
+        //update groups home dispatch
         const updatedGroup = { ...selectedGroup, amplifyGroups: groupAmpGroups };
         setSelectedGroup(updatedGroup);
         const updatedAdminGroups = adminGroups.map((g: Group) => {
@@ -1056,7 +1054,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
             "group_id": selectedGroup.id,
             "system_users": groupSystemUsers
         };
-        // statsService.updateGroupSystemUsersEvent(updateData); 
+        // statsService.updateGroupSystemUsersEvent(updateData);
         const result = await updateGroupSystemUsers(updateData);
         if (!result.success) {
             alert(`Unable to update the system users list at this time. Please try again later.`);
@@ -1066,7 +1064,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
             toast(`Successfully updated group's system users list.`);
         }
 
-        //update groups home dispatch 
+        //update groups home dispatch
         const updatedGroup = { ...selectedGroup, systemUsers: groupSystemUsers };
         setSelectedGroup(updatedGroup);
         const updatedAdminGroups = adminGroups.map((g: Group) => {
@@ -1123,7 +1121,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
             if (e.startsWith('#')) {
                 const group = groups.find((g: Group) => g.name === e.slice(1));
                 if (group) entriesWithGroupMembers = [...entriesWithGroupMembers,
-                ...Object.keys(group.members).filter((e: string) => e !== userEmail)];
+                    ...Object.keys(group.members).filter((e: string) => e !== userEmail)];
             } else {
                 entriesWithGroupMembers.push(e);
             }
@@ -1158,7 +1156,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                 accessLevel: accessLevel,
             }))
             setUsers([...users, ...newUserEntries]);
-            //update groups 
+            //update groups
             const updatedGroup = { ...selectedGroup, members: { ...selectedGroup.members, ...newGroupMembers } };
             setSelectedGroup(updatedGroup);
             const updatedAdminGroups = adminGroups.map((g: Group) => {
@@ -1206,7 +1204,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                 delete updatedMembers[user]; // Remove the user from members
             });
             const updatedGroup = { ...selectedGroup, members: updatedMembers }
-            //update groups 
+            //update groups
             const updatedAdminGroups = adminGroups.reduce((acc: Group[], g: Group) => {
                 if (removingSelfFromGroup && g.id === selectedGroup?.id) return acc;
                 if (selectedGroup?.id === g.id) {
@@ -1276,7 +1274,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                 return;
             } else if (removingAdminInterfaceAccess) {
                 if (!confirm("Please note, by setting your group access permissions to 'read', you will lose access to the group's assistant admin interface.\n\n Would you like to continue?")) return;
-                // update prompts access 
+                // update prompts access
                 const updatedPrompts = prompts.map((p: Prompt) => {
                     if (p.groupId == selectedGroup.id) {
                         const newData = { ...p.data, noEdit: true };
@@ -1336,7 +1334,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
 
     return (
         <div key={selectedGroup.id} className="mt-[-50px] px-4 text-black dark:text-white"
-            style={{ height: `${window.innerHeight * 0.78}px` }}
+             style={{ height: `${window.innerHeight * 0.78}px` }}
         >
             <h2 className="text-2xl font-bold">Group Management</h2>
             <div className='mt-4 overflow overflow-y-auto flex flex-col gap-4'>
@@ -1466,54 +1464,54 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                     <div className='overflow-y-auto max-h-[300px]'>
                         <table className="w-full border-collapse">
                             <thead>
-                                <tr>
-                                    {isDeleting && <th className="py-2">{
-                                        <input
-                                            type="checkbox"
-                                            title='Select All'
-                                            checked={deleteUsersList.length === users.length}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    // If checked, add all user names to the list
-                                                    setDeleteUsersList(users.map((user: User) => user.name));
-                                                } else {
-                                                    setDeleteUsersList([]);
-                                                }
+                            <tr>
+                                {isDeleting && <th className="py-2">{
+                                    <input
+                                        type="checkbox"
+                                        title='Select All'
+                                        checked={deleteUsersList.length === users.length}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                // If checked, add all user names to the list
+                                                setDeleteUsersList(users.map((user: User) => user.name));
+                                            } else {
+                                                setDeleteUsersList([]);
+                                            }
 
-                                            }}
-                                        />
-                                    }</th>}
-                                    <th className="border px-4 py-2">Name</th>
-                                    {/* <th className="border px-4 py-2">Date Added</th> */}
-                                    <th className="border px-4 py-2">Access Level</th>
+                                        }}
+                                    />
+                                }</th>}
+                                <th className="border px-4 py-2">Name</th>
+                                {/* <th className="border px-4 py-2">Date Added</th> */}
+                                <th className="border px-4 py-2">Access Level</th>
 
-                                </tr>
+                            </tr>
                             </thead>
                             <tbody>
-                                {[...users].map((user, index) => (
-                                    <tr key={index}>
-                                        {isDeleting &&
-                                            <td className="py-2">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={deleteUsersList.includes(user.name)}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) {
-                                                            // Add user name to the list if checkbox is checked
-                                                            setDeleteUsersList(prevList => [...prevList, user.name]);
-                                                        } else {
-                                                            // Remove user name from the list if checkbox is unchecked
-                                                            setDeleteUsersList(prevList => prevList.filter(name => name !== user.name));
-                                                        }
-                                                    }}
-                                                />
-                                            </td>}
-                                        <td className="border px-4 py-2">{user.name}
-                                            <label className='ml-2 opacity-50'>{`${userEmail === user.name ? ' (You)' : ''}`}</label>
-                                        </td>
-                                        {/* <td className="border px-4 py-2">{user.dateAdded}</td> */}
-                                        <td className={`border ${isEditingAccess ? '' : 'px-4 py-2'}`}>{
-                                            isEditingAccess ? <AccessSelect
+                            {[...users].map((user, index) => (
+                                <tr key={index}>
+                                    {isDeleting &&
+                                        <td className="py-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={deleteUsersList.includes(user.name)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        // Add user name to the list if checkbox is checked
+                                                        setDeleteUsersList(prevList => [...prevList, user.name]);
+                                                    } else {
+                                                        // Remove user name from the list if checkbox is unchecked
+                                                        setDeleteUsersList(prevList => prevList.filter(name => name !== user.name));
+                                                    }
+                                                }}
+                                            />
+                                        </td>}
+                                    <td className="border px-4 py-2">{user.name}
+                                        <label className='ml-2 opacity-50'>{`${userEmail === user.name ? ' (You)' : ''}`}</label>
+                                    </td>
+                                    {/* <td className="border px-4 py-2">{user.dateAdded}</td> */}
+                                    <td className={`border ${isEditingAccess ? '' : 'px-4 py-2'}`}>{
+                                        isEditingAccess ? <AccessSelect
                                                 access={user.accessLevel}
                                                 setAccess={(newAccessLevel: GroupAccessType) => {
                                                     setUsers(prevUsers =>
@@ -1523,11 +1521,11 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                                                     );
                                                     setEditAccessMap({ ...editAccessMap, [user.name]: newAccessLevel })
                                                 }} />
-                                                : user.accessLevel
-                                        }</td>
+                                            : user.accessLevel
+                                    }</td>
 
-                                    </tr>
-                                ))}
+                                </tr>
+                            ))}
                             </tbody>
                         </table>
                     </div>
@@ -1563,144 +1561,130 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
 
 const subTabs = ['dashboard', 'conversations', 'edit_assistant', 'group'] as const;
 export type SubTabType = typeof subTabs[number];
-
 interface Props {
-    open: boolean;
-    openToGroup?: Group
+    onSave?: () => void;
+    onCancel?: () => void;
+    isDirty?: (dirty: boolean) => void;
+    openToGroup?: Group;
     openToAssistant?: Prompt;
 }
 
-export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant }) => {
+export const AssistantAdminPanel: FC<Props> = ({
+                                                   onSave,
+                                                   onCancel,
+                                                   isDirty,
+                                                   openToGroup,
+                                                   openToAssistant
+                                               }) => {
     const { state: { featureFlags, statsService, groups, prompts, folders, syncingPrompts, amplifyUsers }, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
     const user = session?.user?.email ?? "";
 
-    const onClose = () => {
-        window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: false } }));
-    }
+    // State management
+    const [isLoading, setIsLoading] = useState(true);
+    const [isDirtyState, setIsDirtyState] = useState(false);
+    const [loadingActionMessage, setLoadingActionMessage] = useState<string>('');
 
     const filteredForAdminAccess = (allGroups: Group[]) => {
         return allGroups.filter((g: Group) => [GroupAccessType.ADMIN, GroupAccessType.WRITE].includes(g.members[user]));
     }
 
-    const [innderWindow, setInnerWindow] = useState({ height: window.innerHeight, width: window.innerWidth });
-
-    const modalRef = useRef<HTMLDivElement>(null);
-
-    const [loadingMessage, setLoadingMessage] = useState<string>('Loading Assistant Admin Interface...');
-    const [loadingActionMessage, setLoadingActionMessage] = useState<string>('');
-
-
     const [adminGroups, setAdminGroups] = useState<Group[]>(groups.length > 0 ? filteredForAdminAccess(groups) : []);
-
     const [selectedGroup, setSelectedGroup] = useState<Group | undefined>(openToGroup || adminGroups[0]);
     const [selectedAssistant, setSelectedAssistant] = useState<Prompt | undefined>(openToAssistant || selectedGroup?.assistants[0]);
-
     const [activeAstTab, setActiveAstTab] = useState<string | undefined>(selectedAssistant?.data?.assistant?.definition.assistantId);
+
     const DEFAULT_SUB_TAB = 'dashboard' as SubTabType;
     const [activeSubTab, setActiveSubTab] = useState<SubTabType>(openToAssistant ? "edit_assistant" : DEFAULT_SUB_TAB);
 
     const [additionalGroupData, setAdditionalGroupData] = useState<any>({});
-
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics | null>(null);
-
-    const [showCreateNewGroup, setShowCreateNewGroup] = useState<boolean>();
+    const [showCreateNewGroup, setShowCreateNewGroup] = useState<boolean>(false);
     const [showCreateGroupAssistant, setShowCreateGroupAssistant] = useState<string | null>(null);
 
     const fetchEmails = () => {
         const emailSuggestions = amplifyUsers;
-        // add groups  #groupName
         const groupForMembers = groups.map((group: Group) => `#${group.name}`);
-        return (emailSuggestions ? [...emailSuggestions,
-        ...groupForMembers].filter((e: string) => e !== user) : []);
+        return (emailSuggestions ? [...emailSuggestions, ...groupForMembers].filter((e: string) => e !== user) : []);
     };
 
     const allEmails: Array<string> = (fetchEmails());
-
     const [amplifyGroups, setAmplifyGroups] = useState<string[] | null>(null);
     const [systemUsers, setSystemUsers] = useState<string[] | null>(null);
 
+    // Notify parent about dirty state
     useEffect(() => {
-        const updateInnerWindow = () => {
-            setInnerWindow({ height: window.innerHeight, width: window.innerWidth });
+        if (isDirty) {
+            isDirty(isDirtyState);
         }
-        // Listen to window resize to update the size
-        window.addEventListener('resize', updateInnerWindow);
-        return () => {
-            window.removeEventListener('resize', updateInnerWindow);
+    }, [isDirtyState, isDirty]);
+
+    // Initialize data on mount
+    useEffect(() => {
+        const initializeData = async () => {
+            try {
+                setIsLoading(true);
+
+                // Fetch amplify groups
+                const ampGroupsResult = await getUserAmplifyGroups();
+                setAmplifyGroups(ampGroupsResult.success ? ampGroupsResult.data : []);
+
+                // Fetch system users
+                const apiSysIds = await fetchAllSystemIds();
+                const sysIds: string[] = apiSysIds.map((k: any) => k.systemId).filter((k: any) => k);
+                setSystemUsers(sysIds);
+
+                // Wait for syncing to complete
+                if (!syncingPrompts) {
+                    setTimeout(() => {
+                        setAdminGroups((groups && groups.length > 0 ? filteredForAdminAccess(groups) : []));
+                        setIsLoading(false);
+                    }, 1000);
+                }
+            } catch (error) {
+                console.error('Error initializing admin panel:', error);
+                setIsLoading(false);
+            }
         };
-    }, []);
 
-    useEffect(() => {
-        const fetchAmpGroups = async () => {
-            const ampGroupsResult = await getUserAmplifyGroups();
-            setAmplifyGroups(ampGroupsResult.success ? ampGroupsResult.data : []);
-            if (!ampGroupsResult.success) console.log("Failed to retrieve user amplify groups");
-        }
+        initializeData();
+    }, [syncingPrompts]);
 
-        if (!amplifyGroups) fetchAmpGroups();
-
-        const fetchSystemUsers = async () => {
-            const apiSysIds = await fetchAllSystemIds();
-            const sysIds: string[] = apiSysIds.map((k: any) => k.systemId).filter((k: any) => k);
-            setSystemUsers(sysIds);
-        }
-
-        if (!systemUsers) fetchSystemUsers();
-
-    }, [open]);
-
+    // Handle group changes
     useEffect(() => {
         setAdditionalGroupData({});
-    }, [activeSubTab])
+    }, [activeSubTab]);
 
     useEffect(() => {
         setActiveAstTab(selectedAssistant?.data?.assistant?.definition.assistantId);
-    }, [selectedAssistant])
+    }, [selectedAssistant]);
 
     useEffect(() => {
         const nonAdminGroups = groups.filter((g: Group) => g.members[user] === GroupAccessType.READ);
         homeDispatch({ field: 'groups', value: [...adminGroups, ...nonAdminGroups] });
     }, [adminGroups]);
 
-    const allAssistants = () => {
-        return adminGroups.reduce((accumulator: Prompt[], group: Group) => {
-            return accumulator.concat(group.assistants);
-        }, []);
-    }
-
-    // if selectedGroup changes then set to conversation tab
+    // Handle assistant selection when group changes
     useEffect(() => {
         if (activeSubTab !== 'group') {
             if ((selectedAssistant && (selectedAssistant.groupId !== selectedGroup?.id || !(selectedGroup?.assistants.find((ast: Prompt) => ast?.data?.assistant?.definition.assistantId === selectedAssistant.data?.assistant?.definition.assistantId))))
-                || (!selectedAssistant && (selectedGroup?.assistants && selectedGroup?.assistants.length > 0))) setSelectedAssistant(selectedGroup?.assistants[0]);
+                || (!selectedAssistant && (selectedGroup?.assistants && selectedGroup?.assistants.length > 0))) {
+                setSelectedAssistant(selectedGroup?.assistants[0]);
+            }
         }
-
     }, [selectedGroup]);
 
     useEffect(() => {
-        if (selectedAssistant && activeSubTab === 'group') setActiveSubTab(DEFAULT_SUB_TAB)
+        if (selectedAssistant && activeSubTab === 'group') setActiveSubTab(DEFAULT_SUB_TAB);
     }, [selectedAssistant]);
 
-
-    useEffect(() => {
-        if (!syncingPrompts) {
-            // needs a second for groups to catch up 
-            setTimeout(() => {
-                setAdminGroups((groups && groups.length > 0 ? filteredForAdminAccess(groups) : []));
-                setLoadingMessage('');
-            }, 1000);
-        }
-    }, [syncingPrompts]);
-
-
+    // Fetch conversations and dashboard data
     useEffect(() => {
         const fetchConversations = async () => {
-            if (open && selectedGroup && selectedAssistant && !!selectedGroup?.supportConvAnalysis) {
+            if (selectedGroup && selectedAssistant && !!selectedGroup?.supportConvAnalysis) {
                 setLoadingActionMessage('Fetching conversations...');
                 const assistantId = selectedAssistant.data?.assistant?.definition.assistantId;
-                // console.log('Assistant ID:', assistantId);
                 if (assistantId) {
                     statsService.getGroupAssistantConversationsEvent(assistantId);
                     const result = await getGroupAssistantConversations(assistantId);
@@ -1708,7 +1692,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                         let conversationsData = result.data;
                         setConversations(Array.isArray(conversationsData) ? conversationsData : []);
                     } else {
-                        // console.error('Failed to fetch conversations:', result.message);
                         setConversations([]);
                     }
                 } else {
@@ -1719,11 +1702,11 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         };
 
         fetchConversations();
-    }, [open, selectedAssistant]);
+    }, [selectedAssistant]);
 
     useEffect(() => {
         const fetchDashboardData = async () => {
-            if (open && selectedGroup && selectedAssistant && !!selectedGroup?.supportConvAnalysis) {
+            if (selectedGroup && selectedAssistant && !!selectedGroup?.supportConvAnalysis) {
                 setLoadingActionMessage('Fetching dashboard data...');
                 const assistantId = selectedAssistant.data?.assistant?.definition.assistantId;
                 if (assistantId) {
@@ -1732,7 +1715,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                     if (result && result.success) {
                         setDashboardMetrics(result.data.dashboardData);
                     } else {
-                        // console.error('Failed to fetch dashboard data:', result?.message || 'Unknown error');
                         setDashboardMetrics(null);
                     }
                 } else {
@@ -1743,11 +1725,35 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         };
 
         fetchDashboardData();
-    }, [open, selectedAssistant]);
+    }, [selectedAssistant]);
 
+    // Handler functions
+    const handleCancel = () => {
+        if (onCancel) {
+            onCancel();
+        }
+        setIsDirtyState(false);
+        // Reset state
+        setSelectedGroup(undefined);
+        setSelectedAssistant(undefined);
+        setActiveSubTab(DEFAULT_SUB_TAB);
+        setAdditionalGroupData({});
+    };
+
+    const handleSave = () => {
+        if (onSave) {
+            onSave();
+        }
+        setIsDirtyState(false);
+    };
+
+    const allAssistants = () => {
+        return adminGroups.reduce((accumulator: Prompt[], group: Group) => {
+            return accumulator.concat(group.assistants);
+        }, []);
+    };
 
     const groupCreate = async (group: any) => {
-        console.log(group);
         if (!group.group_name) {
             alert("Group name is required. Please add a group name to create the group.");
             return;
@@ -1756,9 +1762,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
             alert(`The group name ${AMPLIFY_ASSISTANTS_GROUP_NAME} isn't available. Please choose a different group name.`);
             return;
         }
-        setLoadingMessage("Creating Group...");
+
+        setLoadingActionMessage("Creating Group...");
         setShowCreateNewGroup(false);
-        // ensure group name is unique 
+
         if (adminGroups.find((g: Group) => g.name == group.group_name)) {
             alert("Group name must be unique to all groups you are a member of.");
             return;
@@ -1773,25 +1780,23 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                 const newGroup: Group = resultData;
                 setSelectedGroup(newGroup);
                 setAdminGroups([...adminGroups, newGroup]);
-                // console.log("new group", newGroup)
-                //update folders 
+                setIsDirtyState(true);
+
                 const newGroupFolder = {
                     id: newGroup.id,
                     date: getDate(),
                     name: newGroup.name,
                     type: 'prompt',
                     isGroupFolder: true
-                } as FolderInterface
+                } as FolderInterface;
                 homeDispatch({ field: 'folders', value: [...folders, newGroupFolder] });
-
             }
-            setLoadingMessage('');
+            setLoadingActionMessage('');
         }
-    }
+    };
 
     const handleCreateAssistantPrompt = (group: Group) => {
         const newPrompt = createEmptyPrompt('', group.id);
-
         const assistantDef: AssistantDefinition = {
             name: '',
             description: "",
@@ -1803,35 +1808,29 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
             fileKeys: [],
             provider: AssistantProviderID.AMPLIFY,
             groupId: group.id
-        }
+        };
         newPrompt.id = `${group.id}_${group.assistants.length}`;
         newPrompt.groupId = group.id;
         if (!newPrompt.data) newPrompt.data = {};
         if (!newPrompt.data.assistant) newPrompt.data.assistant = {};
-
         newPrompt.data.assistant.definition = assistantDef;
-        return newPrompt
-    }
-
+        return newPrompt;
+    };
 
     const handleCreateAssistant = async (astDef: AssistantDefinition, updateType: GroupUpdateType) => {
-        // if (updateType === GroupUpdateType.ADD) setCurNewAstPrompt(null); 
-
         const updateAstData = { "group_id": selectedGroup?.id, "update_type": updateType, "assistants": [astDef] };
         statsService.updateGroupAssistantsEvent(updateAstData);
         const result = await updateGroupAssistants(updateAstData);
-        return (result.success) ? result.assistantData[0]
-            : {
-                id: null,
-                assistantId: null,
-                provider: AssistantProviderID.AMPLIFY
-            };
-    }
+        return (result.success) ? result.assistantData[0] : {
+            id: null,
+            assistantId: null,
+            provider: AssistantProviderID.AMPLIFY
+        };
+    };
 
     const handleDeleteAssistant = async (astpId: string) => {
         if (confirm("Are you sure you want to delete this assistant? You will not be able to undo this change.\n\nWould you like to continue?")) {
             setLoadingActionMessage('Deleting Assistant');
-
             const updateAstData = {
                 "group_id": selectedGroup?.id,
                 "update_type": GroupUpdateType.REMOVE,
@@ -1843,76 +1842,77 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                 toast("Successfully deleted assistant.");
                 const updatedGroupAssistants = selectedGroup.assistants.filter((ast: Prompt) => ast?.data?.assistant?.definition.assistantId !== astpId);
                 const updatedGroup = { ...selectedGroup, assistants: updatedGroupAssistants ?? [] };
-
                 const updatedGroups = adminGroups.map((g: Group) => {
                     if (selectedGroup?.id === g.id) return updatedGroup;
                     return g;
-                })
+                });
                 setSelectedGroup(updatedGroup);
                 setAdminGroups(updatedGroups);
-                // update prompts 
+                setIsDirtyState(true);
                 homeDispatch({ field: 'prompts', value: prompts.filter((ast: Prompt) => ast?.data?.assistant?.definition.assistantId !== astpId) });
             } else {
                 alert("Unable to delete this assistant at this time. Please try again later.");
             }
             setLoadingActionMessage('');
         }
-    }
-
-
-    if (!open) {
-        return null;
-    }
+    };
 
     const formatLabel = (label: string) => {
-        return String(label).replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
-    }
+        return String(label).replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+    };
+
+    const subTabs = ['dashboard', 'conversations', 'edit_assistant', 'group'] as const;
+    type SubTabType = typeof subTabs[number];
 
     const renderSubTabs = () => (
-        <div className="assistant-admin-sub-tabs">
-            <div className="assistant-admin-sub-tab-pills">
+        <div className="flex flex-col w-full text-[1.05rem]">
+            <div className="flex flex-row gap-6 mb-4 px-4 w-full">
                 {subTabs.filter((t: SubTabType) => t !== 'conversations' || selectedGroup?.supportConvAnalysis)
                     .map((label: SubTabType) =>
                         label === 'group' ? (
-                            <div key={label} className="assistant-admin-group-tab-section">
+                            <div key={label} className="flex items-center gap-4 ml-auto">
                                 {selectedAssistant && selectedAssistant?.data?.assistant?.definition && (
-                                    <div className="assistant-admin-assistant-info">
+                                    <>
                                         <button
                                             type="button"
-                                            className="assistant-admin-delete-button"
-                                            onClick={() => handleDeleteAssistant(selectedAssistant?.data?.assistant.definition.assistantId)}>
-                                            <IconTrashX size={16} />
+                                            className="flex flex-row gap-2 p-2 bg-neutral-200 dark:bg-gray-600 text-black dark:text-white hover:text-white dark:hover:bg-red-700 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                            onClick={() => handleDeleteAssistant(selectedAssistant?.data?.assistant.definition.assistantId)}
+                                        >
                                             Delete Assistant
                                         </button>
-                                        <div className="assistant-admin-assistant-id">
-                                            <div className={`assistant-admin-publish-indicator ${selectedAssistant?.data?.isPublished ? 'published' : 'unpublished'}`}></div>
-                                            <span>Assistant ID: {selectedAssistant.data.assistant.definition.assistantId}</span>
-                                        </div>
-                                    </div>
+                                        <label className="text-sm flex flex-row gap-3 text-black dark:text-neutral-100">
+                                            <div
+                                                className={`mt-1.5 ${selectedAssistant?.data?.isPublished ? "bg-green-400 dark:bg-green-300" : "bg-gray-400 dark:bg-gray-500"}`}
+                                                style={{ width: '8px', height: '8px', borderRadius: '50%' }}
+                                            />
+                                            <div className="overflow-x-auto flex grow whitespace-nowrap">
+                                                Assistant Id: {selectedAssistant.data.assistant.definition.assistantId}
+                                            </div>
+                                        </label>
+                                    </>
                                 )}
-                                <button 
-                                    className={`assistant-admin-sub-tab-pill ${activeSubTab === label ? 'active' : ''}`}
-                                    key={label}
+                                <button
+                                    className={`${activeSubTab === label ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black dark:bg-gray-600 dark:text-white'} h-[36px] rounded-md whitespace-nowrap`}
                                     onClick={() => {
                                         setActiveSubTab(label);
                                         setSelectedAssistant(undefined);
                                     }}
                                     title="Manage users and assistant group types"
                                 >
-                                    <IconSettings size={16} />
-                                    <span className="assistant-admin-pill-label">Group Management</span>
-                                    <div className="assistant-admin-pill-indicator"></div>
+                                    <div className="flex flex-row gap-1 text-sm text-white px-2 bg-blue-500 hover:bg-blue-600 transition-colors py-2 rounded">
+                                        <IconSettings className="mt-0.5" size={16} />
+                                        Group Management
+                                    </div>
                                 </button>
                             </div>
                         ) : (
                             selectedAssistant ? (
-                                <button 
-                                    key={label} 
-                                    className={`assistant-admin-sub-tab-pill ${activeSubTab === label ? 'active' : ''}`}
+                                <button
+                                    key={label}
+                                    className={`${activeSubTab === label ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black dark:bg-gray-600 dark:text-white'} px-4 py-2`}
                                     onClick={() => setActiveSubTab(label)}
                                 >
-                                    <span className="assistant-admin-pill-label">{formatLabel(label)}</span>
-                                    <div className="assistant-admin-pill-indicator"></div>
+                                    {formatLabel(label)}
                                 </button>
                             ) : null
                         )
@@ -1924,281 +1924,270 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     const renderContent = () => {
         switch (activeSubTab) {
             case 'conversations':
-                return (selectedAssistant ? <ConversationTable
-                    conversations={conversations}
-                    // Check BOTH group-level permission and assistant-specific setting
-                    supportConvAnalysis={!!selectedGroup?.supportConvAnalysis && !!selectedAssistant?.data?.supportConvAnalysis}
-                /> : <></>);
+                return selectedAssistant ? (
+                    <ConversationTable
+                        conversations={conversations}
+                        supportConvAnalysis={!!selectedGroup?.supportConvAnalysis && !!selectedAssistant?.data?.supportConvAnalysis}
+                    />
+                ) : null;
+
             case 'dashboard':
                 if (selectedGroup?.assistants.length === 0) return null;
-                if (!selectedGroup?.supportConvAnalysis) return <div className='w-full text-center text-lg text-black dark:text-white'>
-                    {"Access to dashboard metrics and assistant conversation history is not currently available for this group."}
-                    <br></br>
-                    To request access to these features, please reach out to Amplify for approval.
-                </div>
-
-                return (
-                    selectedAssistant && dashboardMetrics ?
-                        <Dashboard
-                            metrics={dashboardMetrics}
-                            supportConvAnalysis={!!selectedGroup?.supportConvAnalysis && !!selectedAssistant?.data?.supportConvAnalysis}
-                        /> :
-                        <div className="text-black dark:text-white">
-                            No dashboard data available for {selectedAssistant?.name}
-                            (Assistant ID: {selectedAssistant?.data?.assistant?.definition.assistantId})
+                if (!selectedGroup?.supportConvAnalysis) {
+                    return (
+                        <div className="w-full text-center text-lg text-black dark:text-white">
+                            Access to dashboard metrics and assistant conversation history is not currently available for this group.
+                            <br />
+                            To request access to these features, please reach out to Amplify for approval.
                         </div>
+                    );
+                }
+                return selectedAssistant && dashboardMetrics ? (
+                    <Dashboard
+                        metrics={dashboardMetrics}
+                        supportConvAnalysis={!!selectedGroup?.supportConvAnalysis && !!selectedAssistant?.data?.supportConvAnalysis}
+                    />
+                ) : (
+                    <div className="text-black dark:text-white">
+                        No dashboard data available for {selectedAssistant?.name}
+                        (Assistant ID: {selectedAssistant?.data?.assistant?.definition.assistantId})
+                    </div>
                 );
 
-
             case 'edit_assistant':
-                return (selectedAssistant && !showCreateGroupAssistant ? <div key="admin_edit">
-                    <AssistantModal
-                        assistant={selectedAssistant}
-                        onSave={() => { }}
-                        onCancel={() => setActiveSubTab(DEFAULT_SUB_TAB)}
-                        onUpdateAssistant={(astprompt: Prompt) => {
+                return selectedAssistant && !showCreateGroupAssistant ? (
+                    <div key="admin_edit">
+                        <AssistantModal
+                            assistant={selectedAssistant}
+                            onSave={() => {}}
+                            onCancel={() => setActiveSubTab(DEFAULT_SUB_TAB)}
+                            onUpdateAssistant={(astprompt: Prompt) => {
+                                setAdditionalGroupData({});
+                                if (selectedGroup) {
+                                    astprompt.groupId = selectedGroup?.id;
+                                    astprompt.folderId = selectedGroup?.id;
+                                    const updatedAssistants = selectedGroup?.assistants.map((ast: Prompt) => {
+                                        if (ast.data?.assistant?.definition.assistantId === astprompt.data?.assistant?.definition.assistantId) {
+                                            astprompt.data = { ...astprompt?.data, noEdit: false };
+                                            return astprompt;
+                                        }
+                                        return ast;
+                                    });
+                                    setSelectedAssistant(astprompt);
+                                    const updatedGroup = { ...selectedGroup, assistants: updatedAssistants ?? [] };
+                                    const updatedGroups = adminGroups.map((g: Group) => {
+                                        if (selectedAssistant?.groupId === g.id) return updatedGroup;
+                                        return g;
+                                    });
+                                    setSelectedGroup(updatedGroup);
+                                    setAdminGroups(updatedGroups);
+                                    setIsDirtyState(true);
 
-                            setAdditionalGroupData({});
-                            if (selectedGroup) {
-                                astprompt.groupId = selectedGroup?.id;
-                                astprompt.folderId = selectedGroup?.id;
-                                const updatedAssistants = selectedGroup?.assistants.map((ast: Prompt) => {
-                                    if (ast.data?.assistant?.definition.assistantId === astprompt.data?.assistant?.definition.assistantId) {
-                                        astprompt.data = { ...astprompt?.data, noEdit: false };
-                                        return astprompt;
-                                    }
-                                    return ast;
-                                })
-                                setSelectedAssistant(astprompt);
-                                const updatedGroup = { ...selectedGroup, assistants: updatedAssistants ?? [] }
-                                const updatedGroups = adminGroups.map((g: Group) => {
-                                    if (selectedAssistant?.groupId === g.id) return updatedGroup;
-                                    return g;
-                                })
-                                setSelectedGroup(updatedGroup);
-                                setAdminGroups(updatedGroups);
-                                console.log(astprompt);
-
-                                statsService.createPromptEvent(astprompt);
-                                // update prompt
-                                const updatedPrompts: Prompt[] = prompts.map((curPrompt: Prompt) => {
-                                    if (curPrompt?.data?.assistant?.definition.assistantId ===
-                                        astprompt.data?.assistant?.definition.assistantId) return astprompt;
-                                    return curPrompt;
-                                });
-                                homeDispatch({ field: 'prompts', value: updatedPrompts });
-                                setActiveSubTab('edit_assistant');
-                            } else {
-                                alert("Something went wrong, please close and reopen the admin interface before trying again.")
-                            }
-
-                        }}
-                        loadingMessage={`Updating Assistant '${selectedAssistant.name}'...`}
-                        disableEdit={!!showCreateGroupAssistant}
-                        loc={"admin_update"}
-                        //  title={selectedGroup?.name + " Assistant"}
-                        width={`${innderWindow.width - 140}px`}
-                        height={`${(innderWindow.height * 0.76) - 165}px`}
-                        translateY={'-5%'}
-                        embed={true}
-                        blackoutBackground={false}
-                        additionalGroupData={additionalGroupData}
-                        onCreateAssistant={(astDef: AssistantDefinition) => { return handleCreateAssistant(astDef, GroupUpdateType.UPDATE) }}
-                    >
-                        <AssistantModalConfigs
-                            groupId={selectedGroup?.id || '_'}
-                            astId={selectedAssistant.id}
-                            astData={selectedAssistant?.data}
-                            groupTypes={selectedGroup?.groupTypes}
+                                    statsService.createPromptEvent(astprompt);
+                                    const updatedPrompts: Prompt[] = prompts.map((curPrompt: Prompt) => {
+                                        if (curPrompt?.data?.assistant?.definition.assistantId === astprompt.data?.assistant?.definition.assistantId) {
+                                            return astprompt;
+                                        }
+                                        return curPrompt;
+                                    });
+                                    homeDispatch({ field: 'prompts', value: updatedPrompts });
+                                    setActiveSubTab('edit_assistant');
+                                } else {
+                                    alert("Something went wrong, please close and reopen the admin interface before trying again.");
+                                }
+                            }}
+                            loadingMessage={`Updating Assistant '${selectedAssistant.name}'...`}
+                            disableEdit={!!showCreateGroupAssistant}
+                            loc="admin_update"
+                            width="100%"
+                            height="100%"
+                            embed={true}
+                            blackoutBackground={false}
                             additionalGroupData={additionalGroupData}
-                            setAdditionalGroupData={setAdditionalGroupData}
-                            groupConvAnalysisSupport={!!selectedGroup?.supportConvAnalysis}
-
-                        />
-                    </AssistantModal>
-                </div>
-                    : <></>)
+                            onCreateAssistant={(astDef: AssistantDefinition) => handleCreateAssistant(astDef, GroupUpdateType.UPDATE)}
+                        >
+                            <AssistantModalConfigs
+                                groupId={selectedGroup?.id || '_'}
+                                astId={selectedAssistant.id}
+                                astData={selectedAssistant?.data}
+                                groupTypes={selectedGroup?.groupTypes}
+                                additionalGroupData={additionalGroupData}
+                                setAdditionalGroupData={setAdditionalGroupData}
+                                groupConvAnalysisSupport={!!selectedGroup?.supportConvAnalysis}
+                            />
+                        </AssistantModal>
+                    </div>
+                ) : null;
 
             case 'group':
-                return selectedGroup ? <GroupManagement
-                    selectedGroup={selectedGroup}
-                    setSelectedGroup={setSelectedGroup}
-                    members={selectedGroup?.members ?? {}}
-                    allEmails={allEmails?.filter((e: string) => e !== `#${selectedGroup.name}` && !Object.keys(selectedGroup.members).includes(e)) || []}
-                    setLoadingActionMessage={setLoadingActionMessage}
-                    adminGroups={adminGroups}
-                    setAdminGroups={setAdminGroups}
-                    amplifyGroups={amplifyGroups ?? []}
-                    systemUsers={systemUsers ?? []}
-                />
-                    : null;
+                return selectedGroup ? (
+                    <GroupManagement
+                        selectedGroup={selectedGroup}
+                        setSelectedGroup={setSelectedGroup}
+                        members={selectedGroup?.members ?? {}}
+                        allEmails={allEmails?.filter((e: string) => e !== `#${selectedGroup.name}` && !Object.keys(selectedGroup.members).includes(e)) || []}
+                        setLoadingActionMessage={setLoadingActionMessage}
+                        adminGroups={adminGroups}
+                        setAdminGroups={setAdminGroups}
+                        amplifyGroups={amplifyGroups ?? []}
+                        systemUsers={systemUsers ?? []}
+                    />
+                ) : null;
+
             default:
                 return null;
         }
     };
 
-    return featureFlags.createAstAdminGroups && !loadingMessage &&
-        (adminGroups.length === 0 || showCreateNewGroup) ?
-        // Allow the option to create a new group if user has no group where they have either admin or write access. 
-        (
+    // Render loading state
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center h-full">
+                <LoadingIcon />
+                <span className="ml-2">Loading Assistant Admin Interface...</span>
+            </div>
+        );
+    }
+
+    // Show create group dialog if no admin groups
+    if (featureFlags.createAstAdminGroups && (adminGroups.length === 0 || showCreateNewGroup)) {
+        return (
             <CreateAdminDialog
                 createGroup={groupCreate}
-                onClose={onClose} // note clear for built in one
+                onClose={handleCancel}
                 allEmails={allEmails}
                 message={adminGroups.length === 0 ? "You currently do not have admin access to any groups." : ""}
                 amplifyGroups={amplifyGroups ?? []}
                 systemUsers={systemUsers ?? []}
             />
-        ) :
-        // User has groups 
-        (
-            <Modal
-                width={() => window.innerWidth * 0.9}
-                height={() => window.innerHeight * 0.92}
-                title="Assistants Admin Interface"
-                showClose={true}
-                onCancel={onClose}
-                showCancel={false}
-                showSubmit={false}
-                disableModalScroll={true}
-                content={
-                    <div className="assistant-admin-interface-content">
-                        <LoadingDialog open={!!loadingMessage} message={loadingMessage} />
-                        {loadingActionMessage && (
-                            <div className="absolute inset-0 flex items-center justify-center z-60" key={"loading"}
-                                style={{ transform: `translateY(-40%)` }}>
-                                <div className="p-3 flex flex-row items-center  border border-gray-500 bg-[#202123]">
-                                    <LoadingIcon style={{ width: "24px", height: "24px" }} />
-                                    <span className="text-lg font-bold ml-2 text-white">{loadingActionMessage + '...'}</span>
+        );
+    }
+
+    return (
+        <div className="w-full h-full">
+            {loadingActionMessage && (
+                <div className="flex items-center justify-center p-4 mb-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <LoadingIcon style={{ width: "20px", height: "20px" }} />
+                    <span className="text-sm font-medium ml-2 text-blue-700 dark:text-blue-300">{loadingActionMessage}...</span>
+                </div>
+            )}
+
+            {selectedGroup && showCreateGroupAssistant && (
+                <div key="admin_add" className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <AssistantModal
+                        assistant={handleCreateAssistantPrompt(selectedGroup)}
+                        onSave={() => {}}
+                        onCancel={() => {
+                            setAdditionalGroupData({});
+                            setShowCreateGroupAssistant(null);
+                        }}
+                        onUpdateAssistant={(astprompt: Prompt) => {
+                            setAdditionalGroupData({});
+                            astprompt.groupId = selectedGroup.id;
+                            astprompt.folderId = selectedGroup.id;
+                            astprompt.data = { ...astprompt?.data, noEdit: false };
+                            setSelectedAssistant(astprompt);
+                            const updatedGroup = { ...selectedGroup, assistants: [...selectedGroup.assistants ?? [], astprompt] };
+                            const updatedGroups = adminGroups.map((g: Group) => {
+                                if (astprompt?.groupId === g.id) return updatedGroup;
+                                return g;
+                            });
+                            setSelectedGroup(updatedGroup);
+                            setAdminGroups(updatedGroups);
+                            setIsDirtyState(true);
+
+                            statsService.createPromptEvent(astprompt);
+                            homeDispatch({ field: 'prompts', value: [...prompts, astprompt] });
+                            setShowCreateGroupAssistant(null);
+                            setActiveSubTab('edit_assistant');
+                        }}
+                        loadingMessage={`Creating Assistant for Group '${selectedGroup.name}'`}
+                        loc="admin_add"
+                        title={`Creating New Assistant for ${selectedGroup.name}`}
+                        height="80%"
+                        additionalTemplates={allAssistants()}
+                        autofillOn={true}
+                        additionalGroupData={additionalGroupData}
+                        onCreateAssistant={(astDef: AssistantDefinition) => handleCreateAssistant(astDef, GroupUpdateType.ADD)}
+                    >
+                        <AssistantModalConfigs
+                            groupId={selectedGroup.id}
+                            astId={`${selectedGroup.id}_${selectedGroup.assistants.length}`}
+                            groupTypes={selectedGroup.groupTypes}
+                            additionalGroupData={additionalGroupData}
+                            setAdditionalGroupData={setAdditionalGroupData}
+                            groupConvAnalysisSupport={!!selectedGroup.supportConvAnalysis}
+                        />
+                    </AssistantModal>
+                    </div>
+                </div>
+            )}
+
+            <div className="flex flex-row gap-2 mb-4" key={`${selectedGroup?.id}_GroupSelect`}>
+                <GroupSelect
+                    groups={adminGroups}
+                    selectedGroup={selectedGroup}
+                    setSelectedGroup={setSelectedGroup}
+                    setShowCreateNewGroup={setShowCreateNewGroup}
+                />
+            </div>
+
+            {selectedGroup && (
+                <>
+                    <div key={`${selectedGroup?.id}_Assistants`}>
+                        <div className="mb-4 flex flex-row items-center justify-between bg-transparent rounded-t border-b border-neutral-400 dark:border-white/20">
+                            {selectedGroup.assistants.length === 0 && (
+                                <label className="text-center text-black dark:text-white text-lg flex-1">
+                                    You currently do not have any assistants in this group.
+                                </label>
+                            )}
+
+                            <div className="overflow-y-auto">
+                                <div className="flex flex-row gap-1">
+                                    {selectedGroup.assistants.length > 0 && selectedGroup.assistants.map((ast: Prompt) => (
+                                        <button
+                                            key={ast.name}
+                                            onClick={() => {
+                                                setSelectedAssistant(ast);
+                                                setActiveSubTab(DEFAULT_SUB_TAB);
+                                            }}
+                                            title={selectedAssistant?.data?.isPublished ? 'Published' : 'Unpublished'}
+                                            className={`p-2 rounded-t flex flex-shrink-0 ${
+                                                activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId
+                                                    ? 'border-l border-t border-r border-neutral-400 text-black dark:border-gray-500 dark:text-white shadow-[2px_0_1px_rgba(0,0,0,0.1),-2px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]'
+                                                    : 'text-gray-400 dark:text-gray-600'
+                                            }`}
+                                        >
+                                            <h3 className="text-xl">{ast.name.charAt(0).toUpperCase() + ast.name.slice(1)}</h3>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
-                        )}
-                        <div className="assistant-admin-tab-bar">
-                            <div className="assistant-admin-header">
-                                <h2 className="assistant-admin-title">Assistant Groups Management</h2>
-                                <p className="assistant-admin-subtitle">Manage assistant groups, members, and configurations</p>
+
+                            <div className="flex items-center">
+                                <button
+                                    className="flex flex-row ml-auto px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setShowCreateGroupAssistant(selectedGroup.name);
+                                    }}
+                                >
+                                    <IconPlus className="mt-0.5 mr-2" size={16} /> Create Assistant
+                                </button>
                             </div>
                         </div>
-                        <div className="assistant-admin-scrollable-content">
-                            <div className="assistant-admin-content-area">
-                                {selectedGroup && showCreateGroupAssistant && (
-                                    <div key={'admin_add'}>
-                                        <AssistantModal
-                                            assistant={handleCreateAssistantPrompt(selectedGroup)}
-                                            onSave={() => {
-                                            }}
-                                            onCancel={() => {
-                                                setAdditionalGroupData({});
-                                                setShowCreateGroupAssistant(null);
-                                            }}
-                                            onUpdateAssistant={(astprompt: Prompt) => {
-                                                setAdditionalGroupData({});
-                                                astprompt.groupId = selectedGroup.id;
-                                                astprompt.folderId = selectedGroup.id;
-                                                astprompt.data = { ...astprompt?.data, noEdit: false };
-                                                setSelectedAssistant(astprompt);
-                                                const updatedGroup = { ...selectedGroup, assistants: [...selectedGroup.assistants ?? [], astprompt] };
-                                                const updatedGroups = adminGroups.map((g: Group) => {
-                                                    if (astprompt?.groupId === g.id) return updatedGroup;
-                                                    return g;
-                                                })
-                                                setSelectedGroup(updatedGroup);
-                                                setAdminGroups(updatedGroups);
-                                                console.log(astprompt);
 
-                                                statsService.createPromptEvent(astprompt);
-
-                                                // update prompts
-                                                homeDispatch({ field: 'prompts', value: [...prompts, astprompt] });
-                                                setShowCreateGroupAssistant(null);
-                                                setActiveSubTab('edit_assistant');
-                                            }}
-                                            loadingMessage={`Creating Assistant for Group '${selectedGroup.name}'`}
-                                            loc={"admin_add"}
-                                            title={`Creating New Assistant for ${selectedGroup.name}`}
-                                            height={`${innderWindow.height * 0.7}px`}
-                                            additionalTemplates={allAssistants()}
-                                            autofillOn={true}
-                                            translateY='-4%'
-                                            additionalGroupData={additionalGroupData}
-                                            onCreateAssistant={(astDef: AssistantDefinition) => { return handleCreateAssistant(astDef, GroupUpdateType.ADD) }}
-                                        >
-                                            <AssistantModalConfigs
-                                                groupId={selectedGroup.id}
-                                                astId={`${selectedGroup.id}_${selectedGroup.assistants.length}`}
-                                                groupTypes={selectedGroup.groupTypes}
-                                                additionalGroupData={additionalGroupData}
-                                                setAdditionalGroupData={setAdditionalGroupData}
-                                                groupConvAnalysisSupport={!!selectedGroup.supportConvAnalysis}
-                                            />
-                                        </AssistantModal>
-                                    </div>
-                                )}
-
-                                {/* Modern Group Selector */}
-                                <div className="assistant-admin-group-selector">
-                                    <GroupSelect
-                                        groups={adminGroups}
-                                        selectedGroup={selectedGroup}
-                                        setSelectedGroup={setSelectedGroup}
-                                        setShowCreateNewGroup={setShowCreateNewGroup}
-                                    />
-                                </div>
-
-                                {selectedGroup && (
-                                    <div className="assistant-admin-main-content">
-                                        {/* Assistant Tabs */}
-                                        <div className="assistant-admin-assistant-tabs">
-                                            {selectedGroup.assistants.length === 0 ? (
-                                                <div className="assistant-admin-empty-state">
-                                                    <p>You currently do not have any assistants in this group.</p>
-                                                </div>
-                                            ) : (
-                                                <div className="assistant-admin-assistant-pills">
-                                                    {selectedGroup.assistants.map((ast: Prompt) => (
-                                                        <button
-                                                            key={ast.name}
-                                                            onClick={() => {
-                                                                setSelectedAssistant(ast)
-                                                                setActiveSubTab(DEFAULT_SUB_TAB);
-                                                            }}
-                                                            className={`assistant-admin-assistant-pill ${activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId ? 'active' : ''}`}
-                                                        >
-                                                            <span className="assistant-admin-pill-label">{ast.name.charAt(0).toUpperCase() + ast.name.slice(1)}</span>
-                                                            <div className={`assistant-admin-status-indicator ${selectedAssistant?.data?.isPublished ? 'published' : 'unpublished'}`}></div>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                            
-                                            <div className="assistant-admin-create-button">
-                                                <button
-                                                    className="assistant-admin-primary-button"
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        setShowCreateGroupAssistant(selectedGroup.name);
-                                                    }}
-                                                >
-                                                    <IconPlus size={16} />
-                                                    Create Assistant
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {/* Sub Tabs and Content */}
-                                        <div className="assistant-admin-content-wrapper">
-                                            {renderSubTabs()}
-                                            {renderContent()}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
+                        <div id="assistantAdminScroll" className="overflow-y-auto" style={{ maxHeight: 'calc(100% - 60px)' }}>
+                            {renderSubTabs()}
+                            {renderContent()}
                         </div>
                     </div>
-                }
-            />
-        );
+                </>
+            )}
+        </div>
+    );
 };
 
 
@@ -2234,7 +2223,7 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
             if (e.startsWith('#')) {
                 const group = groups.find((g: Group) => g.name === e.slice(1));
                 if (group) entriesWithGroupMembers = [...entriesWithGroupMembers,
-                ...Object.keys(group.members).filter((e: string) => e !== user)];
+                    ...Object.keys(group.members).filter((e: string) => e !== user)];
             } else {
                 entriesWithGroupMembers.push(e);
             }
@@ -2247,86 +2236,82 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
 
 
     return (
-        <Modal
-            width={() => window.innerWidth * 0.7}
-            height={() => window.innerHeight * 0.92}
-            title={"Assistant Admin Interface "}
-            onCancel={() => {
-                onClose()
-            }}
-            onSubmit={() =>
-                createGroup({
-                    group_name: groupName,
-                    members: { ...groupMembers, [user as string]: GroupAccessType.ADMIN },
-                    types: groupTypes,
-                    amplify_groups: groupAmpGroups,
-                    system_users: groupSystemUsers
-                })
-            }
-            submitLabel={"Create Group"}
-            content={
-                <div className='assistant-admin-content'>
-                    {/* Floating orbs for visual appeal */}
-                    <div className="floating-orb"></div>
-                    <div className="floating-orb"></div>
-                    <div className="floating-orb"></div>
-
-                    <div className="assistant-admin-header-section">
-                        <p className="assistant-admin-description">
-                            You will be able to manage assistants and view key metrics related to user engagement and conversation.
-                        </p>
-                        {message && <div className="text-sm mt-2 opacity-80">{message}</div>}
-                    </div>
-
-                    <div className="assistant-admin-scrollable-content">
-                        <div className='flex flex-col gap-5'>
-                            <div className="assistant-admin-form-section">
-                                <div className="assistant-admin-form-label">
-                                    Group Name
-                                </div>
-                                <textarea
-                                    className="assistant-admin-enhanced-input"
-                                    style={{ resize: 'none', minHeight: '56px' }}
-                                    placeholder="Enter a descriptive name for your group"
-                                    value={groupName}
-                                    onChange={(e) => setGroupName(e.target.value)}
-                                    rows={1}
-                                />
-                            </div>
-
-                            <div className="assistant-admin-form-section">
-                                <GroupTypesAst
-                                    groupTypes={groupTypes}
-                                    setGroupTypes={setGroupTypes}
-                                />
-                            </div>
-
-                            <div className="assistant-admin-form-section">
-                                <AddMemberAccess
-                                    groupMembers={groupMembers}
-                                    setGroupMembers={setGroupMembers}
-                                    input={input}
-                                    setInput={setInput}
-                                    allEmails={allEmails}
-                                    handleAddEmails={handleAddEmails}
-                                />
-                            </div>
-
-                            <div className="assistant-admin-form-section">
-                                <AmpGroupsSysUsersSelection
-                                    amplifyGroups={amplifyGroups}
-                                    selectedAmplifyGroups={groupAmpGroups}
-                                    setSelectedAmplifyGroups={setGroupAmpGroups}
-                                    systemUsers={systemUsers}
-                                    selectedSystemUsers={groupSystemUsers}
-                                    setSelectedSystemUsers={setGroupSystemUsers}
-                                />
-                            </div>
-                        </div>
-                    </div>
+        <div className="space-y-6">
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Create Assistant Group</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    You will be able to manage assistants and view key metrics related to user engagement and conversation.
+                </p>
+                {message && <div className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg mb-4">{message}</div>}
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 space-y-6">
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Group Name
+                    </label>
+                    <textarea
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        style={{ resize: 'none', minHeight: '56px' }}
+                        placeholder="Enter a descriptive name for your group"
+                        value={groupName}
+                        onChange={(e) => setGroupName(e.target.value)}
+                        rows={1}
+                    />
                 </div>
-            }
-        />
+
+                <div>
+                    <GroupTypesAst
+                        groupTypes={groupTypes}
+                        setGroupTypes={setGroupTypes}
+                    />
+                </div>
+
+                <div>
+                    <AddMemberAccess
+                        groupMembers={groupMembers}
+                        setGroupMembers={setGroupMembers}
+                        input={input}
+                        setInput={setInput}
+                        allEmails={allEmails}
+                        handleAddEmails={handleAddEmails}
+                    />
+                </div>
+
+                <div>
+                    <AmpGroupsSysUsersSelection
+                        amplifyGroups={amplifyGroups}
+                        selectedAmplifyGroups={groupAmpGroups}
+                        setSelectedAmplifyGroups={setGroupAmpGroups}
+                        systemUsers={systemUsers}
+                        selectedSystemUsers={groupSystemUsers}
+                        setSelectedSystemUsers={setGroupSystemUsers}
+                    />
+                </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 pt-4 border-t dark:border-gray-600">
+                <button
+                    onClick={onClose}
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                    Cancel
+                </button>
+                <button
+                    onClick={() =>
+                        createGroup({
+                            group_name: groupName,
+                            members: { ...groupMembers, [user as string]: GroupAccessType.ADMIN },
+                            types: groupTypes,
+                            amplify_groups: groupAmpGroups,
+                            system_users: groupSystemUsers
+                        })
+                    }
+                    className="px-4 py-2 bg-blue-600 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                >
+                    Create Group
+                </button>
+            </div>
+        </div>
     )
 
 }
@@ -2402,46 +2387,46 @@ const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupMembers,
                 Set Member Access
                 <table className="mt-2 w-full border-collapse">
                     <thead>
-                        <tr>
-                            <th className="border px-4 py-2">User</th>
-                            <th className="border px-4 py-2">Access</th>
-                        </tr>
+                    <tr>
+                        <th className="border px-4 py-2">User</th>
+                        <th className="border px-4 py-2">Access</th>
+                    </tr>
                     </thead>
                     <tbody>
 
-                        {Object.entries(groupMembers).map(([email, access]) => (
-                            <tr key={email}>
-                                <td className="border px-4 py-2 " style={{ width: width }}>
-                                    <div className='flex items-center  '
-                                        onMouseEnter={() => {
-                                            setHoveredUser(email)
-                                        }}
-                                        onMouseLeave={() => {
-                                            setHoveredUser(null)
-                                        }}
-                                    >
-                                        {email}
-                                        {hoveredUser === email &&
-                                            <button
-                                                type="button"
-                                                className={`ml-auto p-0.5 text-sm bg-neutral-500 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500`}
-                                                onClick={() => handleRemoveUser(email)}
-                                            >
-                                                <IconTrashX size={16} />
-                                            </button>}
-                                    </div>
+                    {Object.entries(groupMembers).map(([email, access]) => (
+                        <tr key={email}>
+                            <td className="border px-4 py-2 " style={{ width: width }}>
+                                <div className='flex items-center  '
+                                     onMouseEnter={() => {
+                                         setHoveredUser(email)
+                                     }}
+                                     onMouseLeave={() => {
+                                         setHoveredUser(null)
+                                     }}
+                                >
+                                    {email}
+                                    {hoveredUser === email &&
+                                        <button
+                                            type="button"
+                                            className={`ml-auto p-0.5 text-sm bg-neutral-500 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500`}
+                                            onClick={() => handleRemoveUser(email)}
+                                        >
+                                            <IconTrashX size={16} />
+                                        </button>}
+                                </div>
 
 
-                                </td>
-                                <td className={`border`}>{
-                                    <AccessSelect
-                                        access={access}
-                                        setAccess={(newAccessLevel: GroupAccessType) => {
-                                            setGroupMembers({ ...groupMembers, [email]: newAccessLevel })
-                                        }} />
-                                }</td>
-                            </tr>
-                        ))}
+                            </td>
+                            <td className={`border`}>{
+                                <AccessSelect
+                                    access={access}
+                                    setAccess={(newAccessLevel: GroupAccessType) => {
+                                        setGroupMembers({ ...groupMembers, [email]: newAccessLevel })
+                                    }} />
+                            }</td>
+                        </tr>
+                    ))}
 
                     </tbody>
                 </table>
@@ -2465,10 +2450,10 @@ interface AmpSysSelectionProps {
 
 }
 const AmpGroupsSysUsersSelection: FC<AmpSysSelectionProps> = ({ amplifyGroups, selectedAmplifyGroups, setSelectedAmplifyGroups,
-    systemUsers, selectedSystemUsers, setSelectedSystemUsers,
-    onConfirmAmpGroups, onCancelAmpGroups,
-    onConfirmSystemUsers, onCancelSystemUsers
-}) => {
+                                                                  systemUsers, selectedSystemUsers, setSelectedSystemUsers,
+                                                                  onConfirmAmpGroups, onCancelAmpGroups,
+                                                                  onConfirmSystemUsers, onCancelSystemUsers
+                                                              }) => {
     const [isUpdatingAmpGroups, setIsUpdatingAmpGroups] = useState<boolean>(false);
     const [isUpdatingSystemUsers, setIsUpdatingSystemUsers] = useState<boolean>(false);
     const manageAmpGroupChanges = (!!onConfirmAmpGroups);
@@ -2597,11 +2582,11 @@ const AccessSelect: FC<AccessProps> = ({ access, setAccess }) => {
 
     return (
         <select className={"w-full text-center border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"}
-            value={access}
-            title='Select Access Type'
-            onChange={(event) => {
-                setAccess(event.target.value as GroupAccessType);
-            }}
+                value={access}
+                title='Select Access Type'
+                onChange={(event) => {
+                    setAccess(event.target.value as GroupAccessType);
+                }}
         >
             {[GroupAccessType.ADMIN, GroupAccessType.READ, GroupAccessType.WRITE].map((accessType: GroupAccessType) => (
                 <option key={accessType} value={accessType}>
@@ -2624,16 +2609,16 @@ export const GroupSelect: FC<SelectProps> = ({ groups, selectedGroup, setSelecte
 
     return (
         <select className={"mb-2 w-full text-xl text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  custom-shadow"}
-            value={selectedGroup?.name ?? ''}
-            title='Select Group'
-            onChange={(event) => {
-                if (event.target.value === GroupUpdateType.ADD) {
-                    setShowCreateNewGroup(true);
-                } else {
-                    const selectedAccount = groups.find(group => group.name === event.target.value);
-                    if (selectedAccount) setSelectedGroup(selectedAccount);
-                }
-            }}
+                value={selectedGroup?.name ?? ''}
+                title='Select Group'
+                onChange={(event) => {
+                    if (event.target.value === GroupUpdateType.ADD) {
+                        setShowCreateNewGroup(true);
+                    } else {
+                        const selectedAccount = groups.find(group => group.name === event.target.value);
+                        if (selectedAccount) setSelectedGroup(selectedAccount);
+                    }
+                }}
         >
             {groups.map((group) => (
                 <option key={group.id} value={group.name}>
@@ -2663,42 +2648,42 @@ interface ActionProps {
 export const UsersAction: FC<ActionProps> = ({ condition, label, title, clickAction, onConfirm, onCancel }) => {
 
     return (condition ? (
-        <div className="flex flex-row gap-1">
-            <label className={`px-4 py-2 text-white  bg-gray-700`}>  {label}</label>
-            <div className="flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 ">
-                <button
-                    className="text-green-500 hover:text-green-700 cursor-pointer"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onConfirm();
-                    }}
+            <div className="flex flex-row gap-1">
+                <label className={`px-4 py-2 text-white  bg-gray-700`}>  {label}</label>
+                <div className="flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 ">
+                    <button
+                        className="text-green-500 hover:text-green-700 cursor-pointer"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onConfirm();
+                        }}
 
-                    title={title}
-                >
-                    <IconCheck size={16} />
-                </button>
+                        title={title}
+                    >
+                        <IconCheck size={16} />
+                    </button>
 
-                <button
-                    className="text-red-500 hover:text-red-700 cursor-pointer"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onCancel();
+                    <button
+                        className="text-red-500 hover:text-red-700 cursor-pointer"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onCancel();
 
-                    }}
-                    title={"Cancel"}
-                >
-                    <IconX size={16} />
-                </button>
+                        }}
+                        title={"Cancel"}
+                    >
+                        <IconX size={16} />
+                    </button>
+                </div>
             </div>
-        </div>
-    ) : (
-        <button
-            className={`px-4 py-2 bg-blue-800 text-white  hover:bg-blue-600 transition-colors`}
-            onClick={clickAction}
-        >
-            {title}
-        </button>
-    )
+        ) : (
+            <button
+                className={`px-4 py-2 bg-blue-800 text-white  hover:bg-blue-600 transition-colors`}
+                onClick={clickAction}
+            >
+                {title}
+            </button>
+        )
     )
 }
 
@@ -2854,11 +2839,11 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
                     title='Manage Category List'
                     content={
                         <TagsList label={"Categories"}
-                            addMessage={"List categories separated by commas:"}
-                            tags={analysisCategories}
-                            setTags={(categories) => updateCategories(categories)}
-                            removeTag={(category) => updateCategories(analysisCategories.filter((t: string) => t !== category))}
-                            isDisabled={!astSupportConvAnalysis} />
+                                  addMessage={"List categories separated by commas:"}
+                                  tags={analysisCategories}
+                                  setTags={(categories) => updateCategories(categories)}
+                                  removeTag={(category) => updateCategories(analysisCategories.filter((t: string) => t !== category))}
+                                  isDisabled={!astSupportConvAnalysis} />
                     }
                 />
             </div>
@@ -2933,11 +2918,11 @@ export const GroupTypesAst: FC<TypeProps> = ({ groupTypes, setGroupTypes, canAdd
             }
 
             <TagsList label={"Types"}
-                addMessage={"List group types separated by commas:"}
-                tags={groupTypes}
-                setTags={(tags) => setGroupTypes(tags)}
-                removeTag={(tag) => setGroupTypes(groupTypes.filter((t: string) => t !== tag))}
-                isDisabled={!canAddTags} />
+                      addMessage={"List group types separated by commas:"}
+                      tags={groupTypes}
+                      setTags={(tags) => setGroupTypes(tags)}
+                      removeTag={(tag) => setGroupTypes(groupTypes.filter((t: string) => t !== tag))}
+                      isDisabled={!canAddTags} />
         </div>
     </>
 }
@@ -3192,12 +3177,12 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({ groupId, astPromptId, assi
                                                         </button>
 
                                                         <AttachFile id={`__attachFile_admin_${type}_${groupId}_${astPromptId}`}
-                                                            groupId={groupId}
-                                                            disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
-                                                            onAttach={handlers.onAttach}
-                                                            onSetMetadata={handlers.onSetMetadata}
-                                                            onSetKey={handlers.onSetKey}
-                                                            onUploadProgress={handlers.onUploadProgress}
+                                                                    groupId={groupId}
+                                                                    disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
+                                                                    onAttach={handlers.onAttach}
+                                                                    onSetMetadata={handlers.onSetMetadata}
+                                                                    onSetKey={handlers.onSetKey}
+                                                                    onUploadProgress={handlers.onUploadProgress}
                                                         />
                                                     </div>
 

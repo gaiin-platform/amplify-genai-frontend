@@ -10,6 +10,8 @@ import cloneDeep from 'lodash/cloneDeep';
 import {styled} from "styled-components";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
 import { MemoryDialog } from '@/components/Memory/MemoryDialog';
+import { UnifiedSettingsDialog } from '@/components/Settings/UnifiedSettings/UnifiedSettingsDialog';
+import { IconTools } from '@tabler/icons-react';
 
 
 import {
@@ -116,6 +118,10 @@ const Home = ({
     chatEndpoint,
     aiEmailDomain,
 }: Props) => {
+    // Function to handle configuration click from UserAvatar
+    const handleConfigurationClick = () => {
+        dispatch({ field: 'showUnifiedSettings', value: true });
+    };
     const { t } = useTranslation('chat');
     const [initialRender, setInitialRender] = useState<boolean>(true);
     // const [loadingSelectedConv, setLoadingSelectedConv] = useState<boolean>(false);
@@ -1510,10 +1516,18 @@ const Home = ({
                                     <MyHome />
                                 )}
                             </div>
+                            
 
                         </div>
                         <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
                         <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
+                        {/* Configuration Dialog */}
+                        {contextValue.state.showUnifiedSettings && (
+                            <UnifiedSettingsDialog 
+                                open={contextValue.state.showUnifiedSettings} 
+                                onClose={() => dispatch({ field: 'showUnifiedSettings', value: false })}
+                            />
+                        )}
 
                     </main>
                 )}

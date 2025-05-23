@@ -1,4 +1,4 @@
-import React, { FC, useContext, useEffect, useRef, useState } from 'react';
+import React, { FC, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'next-i18next';
 import { IconPlus, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, IconArticle, IconRobot } from "@tabler/icons-react";
 import HomeContext from '@/pages/api/home/home.context';
@@ -82,7 +82,14 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
     const [includeExpiration, setIncludeExpiration] = useState<boolean>(false);
     const [systemUse, setSystemUse] = useState<boolean>(false);
     
-    const [selectedAccount, setSelectedAccount] = useState<Account | null>(defaultAccount.name === noCoaAccount.name ? validAccounts[0] || null : defaultAccount);
+    const [selectedAccount, setSelectedAccount] = useState<Account | null>(() => {
+        try {
+            return defaultAccount.name === noCoaAccount.name ? validAccounts[0] || null : defaultAccount;
+        } catch (error) {
+            console.error('Error initializing selectedAccount:', error);
+            return null;
+        }
+    });
 
     const [editedKeys, setEditedKeys] = useState<any>({});
 
@@ -198,7 +205,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
         if (confirm(`Are you sure you want to deactivate API key: ${name}?\nOnce deactivate, it cannot be undone.`)) {
             const result = await deactivateApiKey(apiKeyId);
             if (result) {
-                setApiKeys(apiKeys.map((k: ApiKey) => {;
+                setApiKeys(apiKeys.map((k: ApiKey) => {
                     if (k.api_owner_id === apiKeyId) return {...k, active: false}
                     return k;
                 }))
@@ -209,25 +216,54 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
         }
     };
 
-    const handleApplyEdits = async () => {
-        // call handle edits 
-        // console.log("Final edits: ", editedKeys);
-        const result = await updateApiKeys(Object.values(editedKeys));
-        if (!result.success) {
-            alert('failedKeys' in result ? `API keys: ${result.failedKeys.join(", ")} failed to update. Please try again.` : "We are unable to update your key(s) at this time...")
-        } else {
-            statsService.updateApiKeyEvent(Object.values(editedKeys));
-            setUnsavedChanges(false);
-            toast("API changes saved.");
+    // Handle apply edits
+    const handleApplyEdits = useCallback(async () => {
+        try {
+            console.log('Applying edits with keys:', Object.values(editedKeys));
+            const result = await updateApiKeys(Object.values(editedKeys));
+            setEditedKeys({});
+            if (!result.success) {
+                alert('failedKeys' in result ? `API keys: ${result.failedKeys.join(", ")} failed to update. Please try again.` : "We are unable to update your key(s) at this time...")
+            } else {
+                statsService.updateApiKeyEvent(Object.values(editedKeys));
+                setUnsavedChanges(false);
+                toast("API changes saved.");
+            }
+        } catch (error) {
+            console.error('Error in handleApplyEdits:', error);
         }
-    };
+    }, [editedKeys, statsService, setUnsavedChanges]);
 
-    const handleSave = async () => {
-        setIsSaving(true);
-        if (Object.keys(editedKeys).length !== 0) await handleApplyEdits();
-        setIsSaving(false);
-    };
+    // Handle save function
+    const handleSave = useCallback(async () => {
+        try {
+            console.log('ApiKeys handleSave called with editedKeys:', Object.keys(editedKeys));
+            setIsSaving(true);
+            if (Object.keys(editedKeys).length !== 0) {
+                console.log('Calling handleApplyEdits...');
+                await handleApplyEdits();
+            } else {
+                console.log('No edited keys to save');
+            }
+            setIsSaving(false);
+        } catch (error) {
+            console.error('Error in ApiKeys handleSave:', error);
+            setIsSaving(false);
+        }
+    }, [editedKeys, handleApplyEdits]);
 
+    // Listen for save events from parent
+    useEffect(() => {
+        const handleSaveEvent = () => {
+            handleSave();
+        };
+
+        window.addEventListener('saveApiKeyChanges', handleSaveEvent);
+
+        return () => {
+            window.removeEventListener('saveApiKeyChanges', handleSaveEvent);
+        };
+    }, [handleSave]);
 
     const isExpired = (date: string) => {
         return new Date(date) <= new Date()
@@ -235,355 +271,422 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
 
 
     return (
-        <div className='flex flex-col'>
-         <div className='flex flex-col gap-4 mx-2' > 
-            <div className="text-l text-black dark:text-neutral-200">
-               API keys are used to authenticate and authorize access to specific Amplify services. You can create API keys for yourself and others.  
-               <br className='mb-2'></br>
-               The following fields are editable for your active API keys: Account, Expiration, Rate Limit, and Access Types. Remove an expiration date by clearing the date in the calendar. Always remember to confirm and save your changes. You can automatically deactive any active API key by clicking the green check mark. 
-               <br className='mb-1'></br>
+        <div className="apikeys-content">
+            {/* Header Section */}
+            <div className="apikeys-header-section">
+                <div className="apikeys-info-banner">
+                    <div className="apikeys-info-icon">🔑</div>
+                    <div className="apikeys-info-content">
+                        <h3 className="apikeys-info-title">API Access Management</h3>
+                        <p className="apikeys-info-description">
+                            Create and manage API keys for secure access to Amplify services. You can create keys for yourself and delegate access to others.
+                            {(Object.keys(editedKeys).length > 0) && <span className="apikeys-unsaved-indicator"> • Unsaved changes</span>}
+                        </p>
+                    </div>
+                </div>
+            </div>
 
-                <InfoBox content={
-                    <span className="ml-2 text-xs"> 
-                        <div className='mb-2 ml-5 text-[0.8rem]'> {"Types of API Keys"}</div>
-                        {/* <br className='mb-1'></br> */}
-                        <div className='mt-1 flex flex-row gap-2'>          
-                            <IconUser className='flex-shrink-0' style={{ strokeWidth: 2.5}} size={16}/>
-                            Personal Use
-                            <br className='mb-1'></br>
-                            A Personal API Key allows you to interact directly with your Amplify account. This key acts on your behalf, granting access to all the data and permissions associated with your account. Use this key when you need to perform tasks or retrieve information as yourself within the Amplify environment.
-                        </div>
-                        <div className='mt-1 flex flex-row gap-2'> 
-                            <IconUser className='flex-shrink-0 text-green-600' style={{ strokeWidth: 2.5 }} size={16}/>
-                            System Use
-                            <br className='mb-1'></br>
-                            A System API Key operates independently of any individual user account. It comes with its own set of permissions and behaves as though it is a completely separate account. This type of key is ideal for automated processes or applications that need their own dedicated permissions and do not require access linked to any specific user.
-                        </div>
-                        <div className='mt-1 flex flex-row gap-2'> 
-                            <IconUser className='flex-shrink-0 text-yellow-500' style={{ strokeWidth: 2.5 }} size={16}/>
-                            Delegate Use
-                            <br className='mb-1'></br>
-                            A Delegate API Key is like a personal key for another Amplify user, but with your account being responsible for the associated payments. This type of key is useful when you want to grant someone else access or certain capabilities within their own Amplify account while ensuring that the billing responsibility falls on your account. You will not be able to see this API key at any time.
-                        </div>
-                        <div className='mt-2 text-black dark:text-neutral-200 text-sm text-center'> {"*** If your key has been compromised, deactivate it as soon as possible ***"} </div>
-                        
-                    </span>}
-                />
+            {/* API Tools Section */}
+            <div className="apikeys-types-section">
                 <div className='z-60'> 
                    <APITools setDocsIsOpen={setDocsIsOpen} onClose={onClose}/> 
                 </div>
-                
-
             </div>
-            <div className='border p-2 border-gray-400 dark:border-gray-700 rounded custom-shadow' >
-                <ExpansionComponent 
-                    title={'Create API Key'} 
-                    content={
-                        <div className='flex flex-col gap-2 '>
-                                                 <>
-                        {isCreating && (
-                            <div className="absolute inset-0 flex items-center justify-center" 
-                            style={{ transform: `translateY(-25%)`}}>
-                                <div className="p-3 flex flex-row items-center  border border-gray-500 bg-[#202123]">
-                                    <LoadingIcon style={{ width: "24px", height: "24px" }}/>
-                                    <span className="text-lg font-bold ml-2 text-white">Creating API Key...</span>
-                                </div>
+
+            {/* Create API Key Section */}
+            <div className="apikeys-card">
+                <div className="apikeys-card-content">
+                    <div className="apikeys-section-header">
+                        <h4 className="apikeys-section-title">Create New API Key</h4>
+                        <p className="apikeys-section-subtitle">Generate a new API key for yourself or delegate access to others</p>
+                    </div>
+
+                    {isCreating && (
+                        <div className="apikeys-loading-overlay">
+                            <div className="apikeys-loading-content">
+                                <LoadingIcon style={{ width: "24px", height: "24px" }}/>
+                                <span className="apikeys-loading-text">Creating API Key...</span>
                             </div>
-                        )}
-                        </>
+                        </div>
+                    )}
 
-                            <div className='flex flex-col  gap-2 w-full '>
-
-                                   <div className='flex flex-row justify-between'>
-                                        <div className='flex flex-col pb-1 sm:min-w-[340px]' style={{width: `${window.innerWidth * 0.35 }px` }}>
-                                            <div className="text-sm text-black dark:text-neutral-200">
-                                                {t('Application Name')}
-                                            </div>
-
-                                            <textarea
-                                                className= "mt-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                                style={{resize: 'none'}}
-                                                id="applicationName"
-                                                placeholder={`Application Name`}
-                                                value={appName}
-                                                onChange={(e) => setAppName(e.target.value)}
-                                                rows={1}
-                                            />
-                                        </div>
-
-                                        { !docsIsOpen && <div className='ml-8 mr-8 relative sm:min-w-[300px] sm:max-w-[440px]' style={{width: `${window.innerWidth * 0.35 }px` }}>
-
-                                            <ExpansionComponent 
-                                                title={'Add Delegate'} 
-                                                content={ 
-                                                    <div >
-                                                        <EmailsAutoComplete
-                                                            input = {delegateInput}
-                                                            setInput =  {setDelegateInput}
-                                                            allEmails = {allEmails}
-                                                            addMultipleUsers={false}
-
-                                                        />
-                                                    </div>
-                                                }
-                                                closedWidget= { <IconPlus size={18} />}
-                                            />
-                                      </div>}
-                                   </div>
-
-
-                                <div className="mt-2 text-sm text-black dark:text-neutral-200">
-                                    {t('Application Description')}
-                                </div>
+                    <div className="apikeys-form-container" style={{ opacity: isCreating ? 0.5 : 1 }}>
+                        
+                        <div className="apikeys-form-grid">
+                            {/* Application Name */}
+                            <div className="apikeys-form-group">
+                                <label className="apikeys-form-label">
+                                    {t('Application Name')}
+                                </label>
                                 <textarea
-                                    className="mr-6 mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                    className="apikeys-form-input"
                                     style={{resize: 'none'}}
-                                    id="applicationDescription"
-                                    placeholder={`Provide a short description on the application use of this api key.`}
-                                    value={appDescription}
-                                    onChange={(e) => setAppDescriptione(e.target.value)}
-                                    rows={2}
+                                    id="applicationName"
+                                    placeholder="Enter application name"
+                                    value={appName}
+                                    onChange={(e) => setAppName(e.target.value)}
+                                    rows={1}
                                 />
-
-                            
                             </div>
 
-                            <div className='flex flex-row gap-2 mr-6'>
-                                <label className="text-sm mt-1 w-[48px] ml-2 " htmlFor="BillTo">Bill To</label>
+                            {/* Delegate User */}
+                            {!docsIsOpen && (
+                                <div className="apikeys-form-group">
+                                    <label className="apikeys-form-label">
+                                        Delegate Access
+                                    </label>
+                                    <div className="apikeys-delegate-container">
+                                        <EmailsAutoComplete
+                                            input={delegateInput}
+                                            setInput={setDelegateInput}
+                                            allEmails={allEmails}
+                                            addMultipleUsers={false}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Application Description */}
+                        <div className="apikeys-form-group">
+                            <label className="apikeys-form-label">
+                                {t('Application Description')}
+                            </label>
+                            <textarea
+                                className="apikeys-form-input apikeys-form-textarea"
+                                style={{resize: 'none'}}
+                                id="applicationDescription"
+                                placeholder="Provide a short description of how this API key will be used"
+                                value={appDescription}
+                                onChange={(e) => setAppDescriptione(e.target.value)}
+                                rows={2}
+                            />
+
+                        </div>
+
+                        {/* Account Selection */}
+                        <div className="apikeys-form-group">
+                            <label className="apikeys-form-label">Bill To Account</label>
+                            <div className="apikeys-account-select">
                                 <AccountSelect
                                     accounts={validAccounts}
                                     defaultAccount={selectedAccount || defaultAccount}
                                     setDefaultAccount={setSelectedAccount}
                                 />
-                                </div>
-                            
-                            { !docsIsOpen && <div className='flex flex-row justify-between mx-8 py-1'>
-                                <div className='flex flex-row gap-4 items-center' style={{ width: '240px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}>
-                                    <label className="text-sm " htmlFor="rateLimitType">Rate Limit</label>
-                                    <RateLimiter
-                                        period={rateLimitPeriod}
-                                        setPeriod={setRateLimitPeriod}
-                                        rate={rateLimitRate}
-                                        setRate={setRateLimitRate}
-                                    />
-                                 </div>
-
-                                <div className='flex flex-row items-center' style={{width: '296px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}> 
-                                    <div className='mt-1'> <Checkbox
-                                            id={`expirationDate`}
-                                            label={'Set Expiration Date'}
-                                            checked={includeExpiration}
-                                            onChange={(checked:boolean) => setIncludeExpiration(checked)}
-                                        />
-                                    </div>
-                                    {includeExpiration && 
-                                        <input
-                                            className="ml-2 rounded border-gray-300 p-0.5 text-neutral-900 dark:text-neutral-100 shadow-sm bg-neutral-200 dark:bg-[#40414F] focus:border-neutral-700 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
-                                            type="date"
-                                            id="expiration"
-                                            value={selectedDate}
-                                            min={today}
-                                            onChange={(e) => setSelectedDate(e.target.value)}
-                                        />}
-                                </div>
-
-                                
-                                <div className='mt-1 mr-6 w-[140px]' title='If the API key is not for personal use' >
-                                   {delegateInput.length === 0 ?
-                                       <Checkbox
-                                            id={`SystemUse`}
-                                            label={'For System Use'}
-                                            checked={systemUse}
-                                            onChange={(checked:boolean) => setSystemUse(checked)}
-                                        />
-                                    : <></>}
-                                </div>
-                                
-                                
-                            </div>}
-                            <div className='flex flex-row py-1 '>
-                                <div className='py-1 w-full' title='Full Access is the default configuration.'>
-                                    <ExpansionComponent 
-                                                title={'Access Controls'} 
-                                                content={ 
-                                                    <AccessTypesCheck
-                                                     fullAccess={fullAccess}
-                                                     setFullAccess={setFullAccess}
-                                                     options={options}
-                                                     setOptions={setOptions}
-                                                    />
-                                                }
-                                    />
-                                </div>
-
-                                <button
-                                    type="button"
-                                    title='Create Api Key'
-                                    id="createAPIKeyConfirm"
-                                    className={`ml-auto mr-6 mt-4 px-2 py-1.5 text-white rounded bg-neutral-600 hover:bg-${!selectedAccount ? 'red': 'green'}-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500`}
-                                    style= {{width: '146px', height: '36px'}}
-                                    onClick={() => {
-                                        if (!selectedAccount) {
-                                            alert("Please add an account with a valid COA string to create an API key.")
-                                        } else {
-                                           handleCreateApiKey();
-                                        }
-                                        
-                                    }}
-                                >
-                                    <div className=' flex flex-row gap-2 mr-1 truncate'> 
-                                    <IconPlus size={20} />
-                                    Create Key
-                                    </div>
-                                </button>
                             </div>
-
                         </div>
-                    }   
-                    closedWidget= { <IconPlus size={18} />}                            
 
-                    />
+                        {/* Advanced Settings */}
+                        {!docsIsOpen && (
+                            <div className="apikeys-advanced-settings">
+                                <h5 className="apikeys-subsection-title">Advanced Settings</h5>
+                                
+                                <div className="apikeys-settings-grid">
+                                    {/* Rate Limit */}
+                                    <div className="apikeys-setting-group">
+                                        <label className="apikeys-form-label">Rate Limit</label>
+                                        <div className="apikeys-rate-limiter">
+                                            <RateLimiter
+                                                period={rateLimitPeriod}
+                                                setPeriod={setRateLimitPeriod}
+                                                rate={rateLimitRate}
+                                                setRate={setRateLimitRate}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Expiration */}
+                                    <div className="apikeys-setting-group">
+                                        <div className="apikeys-checkbox-group">
+                                            <Checkbox
+                                                id="expirationDate"
+                                                label="Set Expiration Date"
+                                                checked={includeExpiration}
+                                                onChange={(checked:boolean) => setIncludeExpiration(checked)}
+                                            />
+                                        </div>
+                                        {includeExpiration && (
+                                            <input
+                                                className="apikeys-date-input"
+                                                type="date"
+                                                id="expiration"
+                                                value={selectedDate}
+                                                min={today}
+                                                onChange={(e) => setSelectedDate(e.target.value)}
+                                            />
+                                        )}
+                                    </div>
+
+                                    {/* System Use */}
+                                    <div className="apikeys-setting-group">
+                                        {delegateInput.length === 0 && (
+                                            <div className="apikeys-checkbox-group" title="If the API key is not for personal use">
+                                                <Checkbox
+                                                    id="SystemUse"
+                                                    label="For System Use"
+                                                    checked={systemUse}
+                                                    onChange={(checked:boolean) => setSystemUse(checked)}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Access Controls */}
+                        <div className="apikeys-access-controls">
+                            <h5 className="apikeys-subsection-title">Access Permissions</h5>
+                            <div className="apikeys-access-content" title="Full Access is the default configuration">
+                                <AccessTypesCheck
+                                    fullAccess={fullAccess}
+                                    setFullAccess={setFullAccess}
+                                    options={options}
+                                    setOptions={setOptions}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Create Button */}
+                        <div className="apikeys-create-button-container">
+                            <button
+                                type="button"
+                                title="Create API Key"
+                                id="createAPIKeyConfirm"
+                                className={`apikeys-create-button ${!selectedAccount ? 'apikeys-create-button-disabled' : 'apikeys-create-button-enabled'}`}
+                                disabled={!selectedAccount}
+                                onClick={() => {
+                                    if (!selectedAccount) {
+                                        alert("Please add an account with a valid COA string to create an API key.")
+                                    } else {
+                                        handleCreateApiKey();
+                                    }
+                                }}
+                            >
+                                <IconPlus size={20} />
+                                <span>Create Key</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
             
-            <div>
-                <div className="text-lg text-black dark:text-neutral-200 border-b border-gray-400 ">
-                        Your API Keys
-                </div>
-                
-
-                <div className='overflow-x-auto'>
-                {ownerApiKeys.length === 0 ? (
-                    <div className="text-center text-md italic text-black dark:text-neutral-200">
-                        You do not have any API keys set up. Add one above.
+            {/* Your API Keys Section */}
+            <div className="apikeys-card">
+                <div className="apikeys-card-content">
+                    <div className="apikeys-section-header">
+                        <h4 className="apikeys-section-title">Your API Keys</h4>
+                        <p className="apikeys-section-subtitle">Manage and monitor your active API keys</p>
                     </div>
-                ) : ( !docsIsOpen && 
-                    <table className='mt-[-1px] w-full text-md text-black dark:text-neutral-200'>
-                        <thead>
-                            <tr className="bg-gray-200 dark:bg-[#333]">
-                                <th className='bg-neutral-100 dark:bg-[#202123]'></th>
-                               { ["Name", "Active", "Account", "Delegate", "Expiration", "Last Accessed", "Rate Limit", "Access Types", "System ID", "API Key"
-                            ].map((i) => (
-                                <th
-                                    key={i}
-                                    className="p-0.5 border border-gray-400 text-neutral-600 dark:text-neutral-300">
-                                    {i}
-                                </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {ownerApiKeys.map((apiKey, index) => (
-                                <tr key={index}>
-                                    <td>{
-                                        <IconUser style={{ strokeWidth: 2.5 }} className={`mb-2 mr-2 flex-shrink-0 ${apiKey.systemId 
-                                            ? 'text-green-600' : apiKey.delegate ? 'text-yellow-500' : 'text-gray-600 dark:text-gray-400'}`} size={20}/>
-                                        }</td>
-                                    <td>{<Label label={apiKey.applicationName} />}</td>
-                                    <td>
-                                        <div className='flex justify-center items-center' style={{width: '60px'}}>
-                                            {apiKey.active ? <button title='Deactivate Key' id="deactivateKeyButton" onClick={() => handleDeactivateApikey(apiKey.api_owner_id, apiKey.applicationName)}>
-                                                                 <IconCheck className= 'text-green-600 hover:text-gray-400' size={18} /> 
-                                                            </button> 
-                                                           : <IconX className='text-red-600' size={18} />}
+
+                    <div className="apikeys-list-container">
+                        {ownerApiKeys.length === 0 ? (
+                            <div className="apikeys-empty-state">
+                                <div className="apikeys-empty-icon">🔑</div>
+                                <h5 className="apikeys-empty-title">No API Keys Yet</h5>
+                                <p className="apikeys-empty-description">
+                                    You don&apos;t have any API keys set up. Create one above to get started.
+                                </p>
+                            </div>
+                        ) : (
+                            !docsIsOpen && (
+                                <div className="apikeys-grid">{ownerApiKeys.map((apiKey, index) => (
+                                    <div key={index} className="apikeys-item-card">
+                                        <div className="apikeys-item-header">
+                                            <div className="apikeys-item-type">
+                                                <IconUser 
+                                                    className={`${apiKey.systemId 
+                                                        ? 'text-green-600' 
+                                                        : apiKey.delegate 
+                                                        ? 'text-yellow-500' 
+                                                        : 'text-gray-600 dark:text-gray-400'}`} 
+                                                    size={20}
+                                                />
+                                                <span className="apikeys-item-name">{apiKey.applicationName}</span>
+                                            </div>
+                                            <div className="apikeys-item-status">
+                                                {apiKey.active ? (
+                                                    <button 
+                                                        title="Deactivate Key" 
+                                                        className="apikeys-status-button apikeys-status-active"
+                                                        onClick={() => handleDeactivateApikey(apiKey.api_owner_id, apiKey.applicationName)}
+                                                    >
+                                                        <IconCheck size={18} />
+                                                        <span>Active</span>
+                                                    </button>
+                                                ) : (
+                                                    <div className="apikeys-status-badge apikeys-status-inactive">
+                                                        <IconX size={18} />
+                                                        <span>Inactive</span>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </td>
-                                    <td>{<Label label={apiKey.account ? `${apiKey.account.name + " - "} ${apiKey.account.id}` : ''} widthPx='180px' editableField={apiKey.active && (user !== apiKey.delegate)? 'account' : undefined} apiKey={apiKey} accounts={validAccounts}/>}</td>
-                                    <td>{apiKey.delegate ? <Label label={apiKey.delegate} /> :  <NALabel />}</td>
-                                    <td>{ apiKey.expirationDate ?  <Label label={formatDateYMDToMDY(apiKey.expirationDate)} 
-                                                                          textColor={isExpired(apiKey.expirationDate) ? "text-red-600": undefined} 
-                                                                          editableField={apiKey.active ? 'expirationDate': undefined} apiKey={apiKey}/> 
-                                                                : <Label label={null} editableField={apiKey.active ? 'expirationDate': undefined} apiKey={apiKey}/>  }</td>
-                                    <td>{<Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx={"116px"} isDate={true}/>}</td>
-                                    <td>{<Label label={formatRateLimit(apiKey.rateLimit)} editableField={apiKey.active ? 'rateLimit' : undefined} apiKey={apiKey}/>}</td>
-                                    <td>{<Label label={formatAccessTypes(apiKey.accessTypes).replaceAll(',', ', ')} widthPx="180px" editableField={apiKey.active ? 'accessTypes' : undefined} apiKey={apiKey}/>}</td>
-                                    <td>{apiKey.systemId ? <Label label={apiKey.systemId } />:   <NALabel />}</td>
-                                    <td>{!apiKey.delegate ? <HiddenAPIKey id={apiKey.api_owner_id} width='184px'/>: <NALabel label={"Not Viewable"}/>}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-            </div>
 
-
-
-            </div>
-            <div>
-                { delegateApiKeys.length > 0 &&
-                <>
-                <div className="text-lg text-black dark:text-neutral-200 border-b">
-                        Delegated API Keys
-                </div>
-            <div>
-                { !docsIsOpen &&  <div style={{ overflowX: 'auto'}}>
-                <table className='mt-[-1px] w-full text-md text-black dark:text-neutral-200'>
-                    <thead>
-                            <tr className="bg-gray-200 dark:bg-[#333]">
-                               { ["Name", "Active", "Owner", "Expiration", "Last Accessed", "Rate Limit", "Access Types", "API Key"
-                            ].map((i) => (
-                                <th
-                                    key={i}
-                                    className="p-0.5 border border-gray-400 text-neutral-600 dark:text-neutral-300">
-                                    {i}
-                                </th>
-                                ))}
-                            </tr>
-                    </thead>
-                    <tbody >
-                        {delegateApiKeys.map((apiKey:any) => (
-                        <tr key={apiKey.id}>
-                            <td>{<Label label={apiKey.applicationName} widthPx="120px"></Label>}</td>
-                            <td> {<div className='flex justify-center items-center' style={{width: '60px'}}>
-                                        {apiKey.active ? <button title='Deactivate Key' onClick={() => handleDeactivateApikey(apiKey.api_owner_id, apiKey.applicationName)}>
-                                                                 <IconCheck className= 'text-green-600 hover:text-neutral-700' size={18} /> 
-                                                          </button> 
-                                                       : <IconX  className='text-red-600' size={18} />}
-                                    </div>}
-                            </td>
-                            <td>{<Label label={apiKey.owner} ></Label>}</td>
-                            <td>{ apiKey.expirationDate ? <Label label={formatDateYMDToMDY(apiKey.expirationDate)} textColor={isExpired(apiKey.expirationDate) ? "text-red-600": undefined} /> 
-                                                        : <NALabel /> }</td>
-                            <td>{<Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx="116px" isDate={true}></Label>}</td>
-                            <td>{<Label label={formatRateLimit(apiKey.rateLimit)} widthPx="140px"></Label>}</td>
-                            <td>{<Label label={formatAccessTypes(apiKey.accessTypes).replaceAll(',', ', ')} widthPx="180px" ></Label>}</td>
-                            <td>{<HiddenAPIKey id={apiKey.api_owner_id} width='184px'/> }
-                            </td>      
-                        </tr>
-                        ))}
-                    </tbody>
-                    </table>
-                    </div> }
+                                        <div className="apikeys-item-details">
+                                            <div className="apikeys-item-row">
+                                                <span className="apikeys-item-label">Account:</span>
+                                                <Label 
+                                                    label={apiKey.account ? `${apiKey.account.name} - ${apiKey.account.id}` : ''} 
+                                                    widthPx="200px" 
+                                                    editableField={apiKey.active && (user !== apiKey.delegate) ? 'account' : undefined} 
+                                                    apiKey={apiKey} 
+                                                    accounts={validAccounts}
+                                                />
+                                            </div>
+                                            
+                                            <div className="apikeys-item-row">
+                                                <span className="apikeys-item-label">Delegate:</span>
+                                                {apiKey.delegate ? <Label label={apiKey.delegate} /> : <NALabel />}
+                                            </div>
+                                            
+                                            <div className="apikeys-item-row">
+                                                <span className="apikeys-item-label">Expiration:</span>
+                                                {apiKey.expirationDate ? (
+                                                    <Label 
+                                                        label={formatDateYMDToMDY(apiKey.expirationDate)} 
+                                                        textColor={isExpired(apiKey.expirationDate) ? "text-red-600" : undefined} 
+                                                        editableField={apiKey.active ? 'expirationDate' : undefined} 
+                                                        apiKey={apiKey}
+                                                    />
+                                                ) : (
+                                                    <Label 
+                                                        label={null} 
+                                                        editableField={apiKey.active ? 'expirationDate' : undefined} 
+                                                        apiKey={apiKey}
+                                                    />
+                                                )}
+                                            </div>
+                                            
+                                            <div className="apikeys-item-row">
+                                                <span className="apikeys-item-label">Last Accessed:</span>
+                                                <Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx="140px" isDate={true}/>
+                                            </div>
+                                            
+                                            <div className="apikeys-item-row">
+                                                <span className="apikeys-item-label">Rate Limit:</span>
+                                                <Label 
+                                                    label={formatRateLimit(apiKey.rateLimit)} 
+                                                    editableField={apiKey.active ? 'rateLimit' : undefined} 
+                                                    apiKey={apiKey}
+                                                />
+                                            </div>
+                                            
+                                            <div className="apikeys-item-row">
+                                                <span className="apikeys-item-label">Access Types:</span>
+                                                <Label 
+                                                    label={formatAccessTypes(apiKey.accessTypes).replaceAll(',', ', ')} 
+                                                    widthPx="220px" 
+                                                    editableField={apiKey.active ? 'accessTypes' : undefined} 
+                                                    apiKey={apiKey}
+                                                />
+                                            </div>
+                                            
+                                            <div className="apikeys-item-row">
+                                                <span className="apikeys-item-label">System ID:</span>
+                                                {apiKey.systemId ? <Label label={apiKey.systemId} /> : <NALabel />}
+                                            </div>
+                                            
+                                            <div className="apikeys-item-row">
+                                                <span className="apikeys-item-label">API Key:</span>
+                                                {!apiKey.delegate ? (
+                                                    <HiddenAPIKey id={apiKey.api_owner_id} width="200px"/>
+                                                ) : (
+                                                    <NALabel label="Not Viewable"/>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}</div>
+                            )
+                        )}
                     </div>
-                    </>
-                    }
                 </div>
             </div>
 
-            <br className='mb-20'></br>
-            <br className='mb-20'></br>
+            {/* Delegated API Keys Section */}
+            {delegateApiKeys.length > 0 && (
+                <div className="apikeys-card">
+                    <div className="apikeys-card-content">
+                        <div className="apikeys-section-header">
+                            <h4 className="apikeys-section-title">Delegated API Keys</h4>
+                            <p className="apikeys-section-subtitle">API keys that have been delegated to you by others</p>
+                        </div>
 
-            { !docsIsOpen && <div className="flex-shrink-0 flex flex-row fixed bottom-0 left-0 w-full px-4 py-2 mb-2"> 
-                <button
-                    type="button"
-                    id="cancel"
-                    className="mr-2 w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-white dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                    onClick={onClose}
-                >
-                    {t('Cancel')}
-                </button>
-                <button
-                    type="button"
-                    id="Save Changes"
-                    className="w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-white dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                    onClick={handleSave}
-                >
-                    {isSaving? 'Saving Changes...' :'Save Changes'}
-                </button>
-            </div>}
-           
+                        <div className="apikeys-list-container">{!docsIsOpen && (
+                                <div className="apikeys-grid">{delegateApiKeys.map((apiKey: any, index: number) => (
+                                    <div key={index} className="apikeys-item-card apikeys-delegated-card">
+                                        <div className="apikeys-item-header">
+                                            <div className="apikeys-item-type">
+                                                <IconUser className="text-yellow-500" size={20} />
+                                                <span className="apikeys-item-name">{apiKey.applicationName}</span>
+                                                <span className="apikeys-delegated-badge">Delegated</span>
+                                            </div>
+                                            <div className="apikeys-item-status">
+                                                {apiKey.active ? (
+                                                    <button 
+                                                        title="Deactivate Key" 
+                                                        className="apikeys-status-button apikeys-status-active"
+                                                        onClick={() => handleDeactivateApikey(apiKey.api_owner_id, apiKey.applicationName)}
+                                                    >
+                                                        <IconCheck size={18} />
+                                                        <span>Active</span>
+                                                    </button>
+                                                ) : (
+                                                    <div className="apikeys-status-badge apikeys-status-inactive">
+                                                        <IconX size={18} />
+                                                        <span>Inactive</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
 
+                                        <div className="apikeys-item-details">
+                                            <div className="apikeys-item-row">
+                                                <span className="apikeys-item-label">Owner:</span>
+                                                <Label label={apiKey.owner} />
+                                            </div>
+                                            
+                                            <div className="apikeys-item-row">
+                                                <span className="apikeys-item-label">Expiration:</span>
+                                                {apiKey.expirationDate ? (
+                                                    <Label 
+                                                        label={formatDateYMDToMDY(apiKey.expirationDate)} 
+                                                        textColor={isExpired(apiKey.expirationDate) ? "text-red-600" : undefined} 
+                                                    />
+                                                ) : (
+                                                    <NALabel />
+                                                )}
+                                            </div>
+                                            
+                                            <div className="apikeys-item-row">
+                                                <span className="apikeys-item-label">Last Accessed:</span>
+                                                <Label label={userFriendlyDate(apiKey.lastAccessed)} widthPx="140px" isDate={true}/>
+                                            </div>
+                                            
+                                            <div className="apikeys-item-row">
+                                                <span className="apikeys-item-label">Rate Limit:</span>
+                                                <Label label={formatRateLimit(apiKey.rateLimit)} widthPx="140px"/>
+                                            </div>
+                                            
+                                            <div className="apikeys-item-row">
+                                                <span className="apikeys-item-label">Access Types:</span>
+                                                <Label label={formatAccessTypes(apiKey.accessTypes).replaceAll(',', ', ')} widthPx="220px"/>
+                                            </div>
+                                            
+                                            <div className="apikeys-item-row">
+                                                <span className="apikeys-item-label">API Key:</span>
+                                                <HiddenAPIKey id={apiKey.api_owner_id} width="200px"/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
-                        
     );
 };
 
@@ -1032,47 +1135,46 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
 
     return (
         <>
-            <div className='mt-2 ml-5 flex flex-row gap-2 mx-2 flex justify-center'>
-                <div className='mt-[-3px] text-sm py-2 mr-2 text-[0.8]'>API Tools and Resources</div>
-                <label className='mt-2 text-xs '>|</label>
-                    <ActionButton
-                    handleClick={() => handleShowApiDoc()}
-                    id="amplifyDocumentationButton"
-                    title='View Amplify API Documentation'>
-                      <div className='flex flex-row gap-1 text-[0.8]'>
-                        Amplify API Documentation
-                        <IconArticle size={18}/>
-                      </div>  
-                     </ActionButton> 
-                { keyManager && ( 
-                    <>
-                    <label className='mt-2 text-xs '>|</label>
-                     <ActionButton
-                        handleClick={()=> handleStartConversation(keyManager)}
-                        title='Chat with Amplify API Key Manager'>
-                        <div className='flex flex-row gap-1 text-[0.8]'>
-                            Amplify API Key Manager
-                            <IconRobot size={20}/>
-                        </div>  
-                     </ActionButton> 
-                    </>
-                )}
-
-                { apiAst && ( 
-                    <>
-                    <label className='mt-2 text-xs '>|</label>
-                     <ActionButton
-                        handleClick={()=> handleStartConversation(apiAst)}
-                        title='Chat with Amplify API Assistant'>
-                        <div className='flex flex-row gap-1 text-[0.8]'>
-                            Amplify API Assistant
-                            <IconRobot size={20}/>
-                        </div>  
-                     </ActionButton> 
-                     </>
-                )}
-
+            <div className="apitools-container">
+                <div className="apitools-header">
+                    <h5 className="apitools-title">API Tools & Resources</h5>
+                    <p className="apitools-subtitle">Access documentation and chat with specialized assistants</p>
                 </div>
+                
+                <div className="apitools-tabs">
+                    <button
+                        className="apitools-tab apitools-tab-docs"
+                        onClick={() => handleShowApiDoc()}
+                        id="amplifyDocumentationButton"
+                        title="View Amplify API Documentation"
+                    >
+                        <IconArticle size={18}/>
+                        <span>API Documentation</span>
+                    </button>
+                    
+                    { keyManager && (
+                        <button
+                            className="apitools-tab apitools-tab-manager"
+                            onClick={() => handleStartConversation(keyManager)}
+                            title="Chat with Amplify API Key Manager"
+                        >
+                            <IconRobot size={18}/>
+                            <span>API Key Manager</span>
+                        </button>
+                    )}
+
+                    { apiAst && (
+                        <button
+                            className="apitools-tab apitools-tab-assistant"
+                            onClick={() => handleStartConversation(apiAst)}
+                            title="Chat with Amplify API Assistant"
+                        >
+                            <IconRobot size={18}/>
+                            <span>API Assistant</span>
+                        </button>
+                    )}
+                </div>
+            </div>
 
             {isLoading && (
                 <div className="absolute inset-0 flex items-center justify-center z-60"
