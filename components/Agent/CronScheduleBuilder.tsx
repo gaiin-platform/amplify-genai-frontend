@@ -88,9 +88,9 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
   const [showPreview, setShowPreview] = useState(false);
   
   // Date range state
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
-  const [showDateRange, setShowDateRange] = useState<boolean>(false);
+  const [startDate, setStartDate] = useState<string>(dateRange?.startDate || '');
+  const [endDate, setEndDate] = useState<string>(dateRange?.endDate || '');
+  const [showDateRange, setShowDateRange] = useState<boolean>(!!dateRange);
 
   // Initialize the component with existing values
   useEffect(() => {
@@ -179,19 +179,18 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
   // Get today's date in YYYY-MM-DD format for min attribute
   const today = new Date().toISOString().split('T')[0];
   
-  // Handle date range changes
-  useEffect(() => {
+
+  const handleRangeChange = (start : string | null, end: string | null) => {
     if (onRangeChange) {
       // console.log("onRangeChange", startDate, endDate, showDateRange);
       const range: ScheduleDateRange = {
-        startDate: showDateRange && startDate ? startDate : null,
-        endDate: showDateRange && endDate ? endDate : null
+        startDate: showDateRange ? start : null,
+        endDate: showDateRange ? end : null
       };
       // console.log("range", range);
       onRangeChange(range);
     }
-  }, [startDate, endDate, showDateRange]);
-
+  }
   // When schedule type or preset config changes, update the cron expression
   useEffect(() => {
     if (!scheduleType || scheduleType === 'custom') return;
@@ -895,6 +894,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           checked={showDateRange}
           onChange={(e) => {
             setShowDateRange(e.target.checked);
+            handleRangeChange(null, null);
             // If unchecked, recalculate next run times without date range info
             if (!e.target.checked) {
               const cronExpression = scheduleType === 'custom'
@@ -920,7 +920,11 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
               type="date"
               value={startDate}
               min={today}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => {
+                const newStartDate = e.target.value;
+                setStartDate(newStartDate);
+                handleRangeChange(newStartDate, endDate);
+              }}
               className="w-full shadow custom-shadow p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
             />
           </div>
@@ -932,7 +936,11 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
               type="date"
               value={endDate}
               min={startDate || today}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => {
+                const newEndDate = e.target.value;
+                setEndDate(newEndDate);
+                handleRangeChange(startDate, newEndDate);
+              }}
               className="w-full shadow custom-shadow p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
             />
           </div>

@@ -202,6 +202,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   };
 
   const handleRunTask = async (taskId: string) => {
+    setIsViewingLogs(true);
     setIsTestingTask(true);
     const countLogs = (logs: TaskExecutionRecord[]) => logs.filter(log => log.executionId.startsWith('execution-')).length;
     let currentTaskLogCount = countLogs(taskLogs) || 0;
@@ -209,7 +210,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
     try {
       const taskResult = await executeTask(taskId);
       if (taskResult.success) {
-        toast.success("Task execution started. Waiting for logs...");
+        toast.success("Task execution started.");
 
         let attempts = 0;
         const maxAttempts = 300; // 5 minutes (300 attempts * 1 second interval)
@@ -279,7 +280,6 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         
       </button>
   );
-
 
 
   const renderSidebar = () => {
@@ -572,7 +572,8 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             <CronScheduleBuilder 
               value={selectedTask.cronExpression} 
               onChange={(cronExpression) => setSelectedTask({...selectedTask, cronExpression})}
-              onRangeChange={(range: ScheduleDateRange) => setSelectedTask({...selectedTask, dateRange: range})}
+              dateRange={selectedTask.dateRange}
+              onRangeChange={(range: ScheduleDateRange) => setSelectedTask(prevTask => ({...prevTask, dateRange: range ? { ...range } : undefined})) }
             />
           </div>
           
@@ -828,8 +829,11 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/3">
                       Status
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/3">
+                    {/* <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/3">
                       ID
+                    </th> */}
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/3">
+                      Source
                     </th>
                   </tr>
                 </thead>
@@ -847,12 +851,17 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                       <td className="px-4 py-3 text-sm w-1/3">
                         {formatDate(log.executedAt)}
                       </td>
-                      <td className="px-4 py-3 text-sm w-1/3">
+                      <td className="px-4 py-3 text-sm w-1/3 ">
+                        <div className="ml-6">
                         {getStatusBadge(log.status)}
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-sm w-1/3 font-mono text-xs">
+                       <td className="px-4 py-3 text-sm w-1/3 font-mono text-xs">
+                        {log.source ?? 'Unknown'}
+                      </td>
+                      {/* <td className="px-4 py-3 text-sm w-1/3 font-mono text-xs">
                         {log.executionId}
-                      </td>
+                      </td> */}
                     </tr>
                   ))}
                 </tbody>

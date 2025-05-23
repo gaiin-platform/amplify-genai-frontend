@@ -11,8 +11,8 @@ export type ScheduledTaskType = keyof typeof TASK_TYPE_MAP;
 
 // Date range for scheduling
 export interface ScheduleDateRange {
-  startDate?: string | null;
-  endDate?: string | null;
+  startDate: string | null;
+  endDate: string | null;
 }
 
 // Execution history entry
@@ -20,6 +20,7 @@ export interface TaskExecutionRecord {
   executionId: string;
   executedAt: Date;
   status: 'success' | 'failure' | 'timeout';
+  source?: string;
 }
 
 /**
