@@ -20,7 +20,7 @@ export const OpenAIEndpointsTab: FC<Props> = ({openAiEndpoints, setOpenAiEndpoin
 
     const handleUpdateEndpoints = (updatedModels: OpenAIModelsConfig) => {
         setOpenAiEndpoints(updatedModels);
-        updateUnsavedConfigs(AdminConfigTypes.OPENAI_ENDPONTS);
+        updateUnsavedConfigs(AdminConfigTypes.OPENAI_ENDPOINTS);
     }
 
     return  <>
@@ -43,7 +43,7 @@ export const OpenAIEndpointsTab: FC<Props> = ({openAiEndpoints, setOpenAiEndpoin
                                 const model = updatedModels[modelIndex];
                                 model[modelName].endpoints.push(newEndpoint);
                                 setOpenAiEndpoints({ models: updatedModels });
-                                updateUnsavedConfigs(AdminConfigTypes.OPENAI_ENDPONTS);
+                                updateUnsavedConfigs(AdminConfigTypes.OPENAI_ENDPOINTS);
                             }
                             }
                         >
@@ -84,7 +84,7 @@ export const OpenAIEndpointsTab: FC<Props> = ({openAiEndpoints, setOpenAiEndpoin
                             />
                             <div className="mt-1.5">
                                 <Checkbox
-                                    id={`selectAll${modelName}${AdminConfigTypes.OPENAI_ENDPONTS}`}
+                                    id={`selectAll${modelName}${AdminConfigTypes.OPENAI_ENDPOINTS}`}
                                     label=""
                                     checked={deleteEndpointsList.length === modelData[modelName].endpoints.length}
                                     onChange={(isChecked: boolean) => {
@@ -109,7 +109,7 @@ export const OpenAIEndpointsTab: FC<Props> = ({openAiEndpoints, setOpenAiEndpoin
                             <div className="min-w-[30px] flex items-center"> 
                                 {isDeletingEndpoint === modelName ? (
                                         <Checkbox
-                                            id={`${modelName}${index}${AdminConfigTypes.OPENAI_ENDPONTS}`}
+                                            id={`${modelName}${index}${AdminConfigTypes.OPENAI_ENDPOINTS}`}
                                             label=""
                                             checked={deleteEndpointsList.includes(index)}
                                             onChange={(isChecked: boolean) => {
@@ -144,7 +144,7 @@ export const OpenAIEndpointsTab: FC<Props> = ({openAiEndpoints, setOpenAiEndpoin
 
                             <div className="w-full">
                                 <InputsMap
-                                    id = {`${AdminConfigTypes.OPENAI_ENDPONTS}-${modelName}-${index}`}
+                                    id = {`${AdminConfigTypes.OPENAI_ENDPOINTS}-${modelName}-${index}`}
                                     inputs={[ {label: 'Url', key: 'url', placeholder: 'OpenAI Endpoint'},
                                             {label: 'Key', key: 'key', placeholder: 'Api key'},
                                             ]}

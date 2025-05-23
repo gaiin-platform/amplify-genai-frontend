@@ -171,7 +171,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setAppSecrets(data[AdminConfigTypes.APP_SECRETS] || {});
                     const ops:OpDef[] = data[AdminConfigTypes.OPS] || [];
                     setOps(ops.sort((a: OpDef, b: OpDef) => a.name.localeCompare(b.name)))
-                    setOpenAiEndpoints(data[AdminConfigTypes.OPENAI_ENDPONTS] || { models: [] });
+                    setOpenAiEndpoints(data[AdminConfigTypes.OPENAI_ENDPOINTS] || { models: [] });
                     const availableModels = data[AdminConfigTypes.AVAILABLE_MODELS] || {};
                     const baseModel = emptySupportedModel();
                     const updatedModels = Object.entries(availableModels).map(([key, model]) => {
@@ -248,7 +248,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return templates.filter((pptx:Pptx_TEMPLATES) => changedTemplates.includes(pptx.name));
             case AdminConfigTypes.INTEGRATIONS:
                 return integrations;
-            case AdminConfigTypes.OPENAI_ENDPONTS:
+            case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
                 const cleanedOpenAiEndpoints: OpenAIModelsConfig = {
                     models: openAiEndpoints.models.map(model => {

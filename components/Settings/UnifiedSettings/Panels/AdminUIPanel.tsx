@@ -27,27 +27,9 @@ import { ConversationStorage } from '@/types/conversationStorage';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
 import { checkAvailableModelId } from '@/utils/app/models';
 import toast from 'react-hot-toast';
+import { Amplify_Group, Amplify_Groups, EmailSupport, PromptCostAlert } from '@/components/Admin/AdminUI';
 
-interface Props {
-  onSave?: () => void;
-  onCancel?: () => void;
-  isDirty?: (dirty: boolean) => void;
-}
 
-interface PromptCostAlert {
-  isActive: boolean;
-  alertMessage: string;
-  cost: Number;
-}
-
-interface EmailSupport {
-  isActive: boolean;
-  email: string;
-}
-
-interface Amplify_Groups {
-  [key: string]: string[];
-}
 
 export const titleLabel = (title: string, textSize: string = "lg") => 
                 <div className={`mt-4 text-${textSize} font-bold text-black dark:text-neutral-200`}>
@@ -126,14 +108,30 @@ export const AdminUIPanel: FC<Props> = ({ onSave, onCancel, isDirty }) => {
   }, [isDirty, isDirtyState, unsavedConfigs]);
 
   const updateUnsavedConfigs = (type: AdminConfigTypes) => {
-    setUnsavedConfigs(prev => new Set([...prev, type]));
+    setUnsavedConfigs(prev => {
+      const newSet = new Set(Array.from(prev));
+      newSet.add(type);
+      return newSet;
+    });
     setIsDirtyState(true);
   };
 
   const admin_text = 'admin';
 
-  const isAvailableCheck = (modelId: string) => {
-    return checkAvailableModelId(modelId, availableModels);
+  const isAvailableCheck = (isAvailable: boolean, handleClick: () => void, styling: string = '') => {
+    return (
+      <button 
+        title={isAvailable ? "Click to set as unavailable" : "Click to set as available"}
+        onClick={handleClick}
+        className={`px-2 py-1 text-xs rounded ${
+          isAvailable 
+            ? 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-800/20 dark:text-green-400 dark:hover:bg-green-700/30' 
+            : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-800/20 dark:text-gray-400 dark:hover:bg-gray-700/30'
+        } ${styling}`}
+      >
+        {isAvailable ? 'Available' : 'Unavailable'}
+      </button>
+    );
   };
 
   const refresh = (type: AdminConfigTypes, click: () => void, loading: boolean, title?: string, top?: string) => {
@@ -241,9 +239,9 @@ export const AdminUIPanel: FC<Props> = ({ onSave, onCancel, isDirty }) => {
           }
 
           // Fetch integrations
-          const integrationsResult = await checkActiveIntegrations();
-          if (integrationsResult && integrationsResult.success) {
-            setIntegrations(integrationsResult.data);
+          const integrationsResult = await checkActiveIntegrations(integrationProvidersList);
+          if (integrationsResult) {
+            setIntegrations(integrationsResult.integrationLists);
           }
 
         } catch (error) {

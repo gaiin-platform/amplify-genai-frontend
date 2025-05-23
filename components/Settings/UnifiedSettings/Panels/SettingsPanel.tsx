@@ -459,7 +459,7 @@ export const SettingsPanel: FC<Props> = ({ onSave, onCancel, isDirty, openToTab 
             <p className="settings-card-description">Enable conversations to sync across devices or keep them private</p>
           </div>
           <div className="settings-card-content">
-            {featureFlags.storeCloudConversations && <StorageDialog open={open} />}
+            {featureFlags.storeCloudConversations && <StorageDialog open={true} />}
           </div>
         </div>
       )
