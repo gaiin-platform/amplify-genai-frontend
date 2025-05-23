@@ -90,7 +90,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
   // Date range state
   const [startDate, setStartDate] = useState<string>(dateRange?.startDate || '');
   const [endDate, setEndDate] = useState<string>(dateRange?.endDate || '');
-  const [showDateRange, setShowDateRange] = useState<boolean>(!!dateRange);
+  const [showDateRange, setShowDateRange] = useState<boolean>(!!(startDate || endDate));
 
   // Initialize the component with existing values
   useEffect(() => {
@@ -795,7 +795,6 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
 
   const renderCustomScheduleInputs = () => (
     <div className="mt-4 space-y-4 bg-gray-50 dark:bg-neutral-800 p-3 rounded-lg">
-      <h3 className="font-medium text-sm">Custom Cron Schedule</h3>
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Hour</label>
@@ -831,10 +830,17 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Day of Week</label>
           <select
             value={customSchedule.dayOfWeek}
-            onChange={(e) => setCustomSchedule({ ...customSchedule, dayOfWeek: e.target.value })}
-            className={selectClassName}
+            onChange={(e) => {
+              const newDayOfWeek = e.target.value;
+              setCustomSchedule({
+                ...customSchedule,
+                dayOfWeek: newDayOfWeek,
+                ...(newDayOfWeek !== '*' && { dayOfMonth: '*' }), // If specific day of week, set day of month to '*'
+              });
+            }}
+            className={`${selectClassName} ${customSchedule.dayOfMonth !== '*' ? 'opacity-50' : ''}`}
           >
-            <option value="*">Every day</option>
+            <option value="*">Every Day of Week</option>
             {DAYS_OF_WEEK.map((day) => (
               <option key={day.value} value={day.value}>{day.label}</option>
             ))}
@@ -848,7 +854,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
             onChange={(e) => setCustomSchedule({ ...customSchedule, month: e.target.value })}
             className={selectClassName}
           >
-            <option value="*">Every month</option>
+            <option value="*">Every Month</option>
             {MONTHS.map((month) => (
               <option key={month.value} value={month.value}>{month.label}</option>
             ))}
@@ -860,10 +866,17 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
         <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Day of Month</label>
         <select
           value={customSchedule.dayOfMonth}
-          onChange={(e) => setCustomSchedule({ ...customSchedule, dayOfMonth: e.target.value })}
-          className={selectClassName}
+          onChange={(e) => {
+            const newDayOfMonth = e.target.value;
+            setCustomSchedule({
+              ...customSchedule,
+              dayOfMonth: newDayOfMonth,
+              ...(newDayOfMonth !== '*' && { dayOfWeek: '*' }), // If specific day of month, set day of week to '*'
+            });
+          }}
+          className={`${selectClassName} ${customSchedule.dayOfWeek !== '*' ? 'opacity-50' : ''}`}
         >
-          <option value="*">Every day</option>
+          <option value="*">Every Day of Month</option>
           {DAYS_OF_MONTH.map((day) => (
             <option key={day.value} value={day.value}>{day.label}</option>
           ))}

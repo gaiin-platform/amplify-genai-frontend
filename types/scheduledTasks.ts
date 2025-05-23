@@ -18,7 +18,7 @@ export interface ScheduleDateRange {
 // Execution history entry
 export interface TaskExecutionRecord {
   executionId: string;
-  executedAt: Date;
+  executedAt: string;
   status: 'success' | 'failure' | 'timeout';
   source?: string;
 }
@@ -43,7 +43,6 @@ export interface ScheduledTask {
   
   // Status
   active: boolean;
-  lastRunAt?: Date;
 
   // Optional
   tags?: string[];

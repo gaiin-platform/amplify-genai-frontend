@@ -16,7 +16,7 @@ import { isAssistant } from '@/utils/app/assistants';
 import { Prompt } from '@/types/prompt';
 import { ActionSetList } from './ActionSets';
 import AgentLogBlock from '../Chat/ChatContentBlocks/AgentLogBlock';
-import { Message } from '@/types/chat';
+import { userFriendlyDate } from '@/utils/app/date';
 
 const emptyTask = (): ScheduledTask => {
   return {
@@ -50,7 +50,7 @@ interface ScheduledTasksProps {
 export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   isOpen, onClose, width, height, initTask }) => {
 
-    const { state: { featureFlags, prompts, amplifyUsers }, dispatch: homeDispatch } = useContext(HomeContext);
+    const { state: { featureFlags, prompts, amplifyUsers } } = useContext(HomeContext);
 
   const [selectedTask, setSelectedTask] = useState<ScheduledTask>(initTask ?? emptyTask());
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,7 +70,6 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("All");
   const [isLoadingTask, setIsLoadingTask] = useState(false);
-  const [selectedActionSetName, setSelectedActionSetName] = useState('Select Action Set');
 
   // Fetch tasks (mock for now)
   const fetchTasks = async () => {
@@ -183,15 +182,6 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       console.log("taskResult", taskResult.data.task);
       const task = taskResult.data.task;
       setSelectedTask(task);
-      if (task.object) {
-          if (task.taskType === 'actionSet') {
-              setSelectedActionSetName(task.object.objectName);
-            } else if (task.taskType === 'assistant') {
-              // Default fallback if name isn't available
-              setSelectedActionSetName('Selected Action Set');
-          }
-      }
-      
       setSelectedLogId(null);
       setSelectedLogDetails(null);
       setIsViewingLogs(false);
@@ -204,8 +194,8 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const handleRunTask = async (taskId: string) => {
     setIsViewingLogs(true);
     setIsTestingTask(true);
-    const countLogs = (logs: TaskExecutionRecord[]) => logs.filter(log => log.executionId.startsWith('execution-')).length;
-    let currentTaskLogCount = countLogs(taskLogs) || 0;
+    // Capture the timestamp when we start polling for logs
+    const pollStartTime = new Date().toISOString();
 
     try {
       const taskResult = await executeTask(taskId);
@@ -213,36 +203,34 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         toast.success("Task execution started.");
 
         let attempts = 0;
-        const maxAttempts = 300; // 5 minutes (300 attempts * 1 second interval)
-        let hasNewLogs = false;
+        const maxAttempts = 200; 
+        
         const pollForLogs = async () => {
           attempts++;
           const fetchedLogs = await fetchTaskLogs(taskId, false);
-          const newLogs = fetchedLogs.filter((log: TaskExecutionRecord) => log.executionId.startsWith('execution-'));
+          
+          // Filter to only execution logs that occurred after we started polling
+          const finalNewLog = fetchedLogs.find((log: TaskExecutionRecord) => 
+            log.executionId.startsWith('execution-') && 
+            log.executedAt > pollStartTime && ['success', 'failure', 'timeout'].includes(log.status)
+          );
 
-          // Check if new logs (running and then completed/failed) have appeared.
-          // We are looking for at least one new log, and ideally the final status log.
-          if (newLogs.length > currentTaskLogCount) {
-            hasNewLogs = true;
-            currentTaskLogCount = countLogs(newLogs);
-            // Check if the latest log for this execution attempt indicates completion or failure
-            const latestExecution = newLogs.find((log: TaskExecutionRecord) => 
-                !taskLogs.some(oldLog => oldLog.executionId === log.executionId) && 
-                (log.status === 'success' || log.status === 'failure' || log.status === 'timeout')
-            );
+          // Check if any new logs have appeared
+          if (finalNewLog) {
+            console.log("latestExecution", finalNewLog);
+            console.log("latestExecution", finalNewLog?.status);
 
-            if (latestExecution) {
-              toast.success(`Task completed with status: ${latestExecution.status}`);
+            toast(`Task completed with status: ${finalNewLog.status}`);
+            // give time for react updates 
+            setTimeout(() => {
+              setSelectedLogId(finalNewLog.executionId); 
               setIsTestingTask(false);
-              if (isViewingLogs) { // If logs are currently being viewed, refresh them
-                setSelectedLogId(latestExecution.executionId); 
-              }
-              return; // Stop polling
-            } else if (newLogs.length >= currentTaskLogCount + 1 && attempts <= maxAttempts ){
-               setTimeout(pollForLogs, 2000);
-            }
-          } else {
-            hasNewLogs = false;
+            }, 1000);
+
+            return; // Stop polling
+
+          } else if (attempts <= maxAttempts) {
+              setTimeout(pollForLogs, 2500);
           }
 
           if (attempts > maxAttempts) {
@@ -251,10 +239,6 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             return; // Stop polling
           }
           
-          // If no new logs or no final status yet, and not timed out, continue polling
-          if (newLogs.length <= currentTaskLogCount && attempts <= maxAttempts) {
-             setTimeout(pollForLogs, 1000);
-          }
         };
 
         setTimeout(pollForLogs, 1000); // Start polling after 1 second
@@ -408,7 +392,6 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
 
   const handleActionSetSelect = (actionSet: any) => {
     setSelectedTask({...selectedTask, objectInfo: {objectId: actionSet.id || '', objectName: actionSet.name || 'Unnamed Set'}});
-    setSelectedActionSetName(actionSet.name || 'Unnamed Set');
     setShowActionSetList(false);
   };
 
@@ -434,7 +417,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                   onChange={(e) => setSelectedTask({...selectedTask, objectInfo: {objectId: e.target.value, objectName: prompts.find(p => p.data?.assistant?.definition.assistantId === e.target.value)?.name || ''}})}
                   >
                     <option value="">Select Assistant</option>
-                  {prompts.map((ast, index) => (
+                  {asts.map((ast, index) => (
                       <option key={index} value={ast.data?.assistant?.definition.assistantId ?? ast.id}>
                           {ast.name}
                       </option>
@@ -443,6 +426,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           </div>
         )
       case 'actionSet':
+        if (!featureFlags.actionSets) return <></>;
         return (
           <div className="flex flex-col mb-4 relative">
             <div 
@@ -450,14 +434,14 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow cursor-pointer flex justify-between items-center
               ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}`}
             >
-              <span>{selectedActionSetName}</span>
+              <span>{selectedTask.objectInfo?.objectName ?? 'Select Action Set'}</span>
               <IconChevronDown 
                 size={18} 
                 className={`transition-transform ${showActionSetList ? 'rotate-180' : ''}`}
               />
             </div>
             
-            {showActionSetList && (
+            {featureFlags.actionSets && showActionSetList && (
               <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-[#343541] border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-lg">
                 <div className="p-3" style={{ maxHeight: '350px', overflowY: 'auto' }}>
                   <ActionSetList onLoad={handleActionSetSelect} />
@@ -488,22 +472,35 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               content={<div className="mb-8 py-2">
                 <InfoBox
                   content={
-                    <span className='px-4'>
-                     Scheduled tasks are used to run assistant workflows at specified intervals.
-                  
-                  {/* <ul className="mt-2 list-disc pl-5">
-                    <li><strong>Steps and Tools:</strong> Each step allows you to select a Tool (internal API, custom API, or agent tool). </li>
-                    <li className="ml-4"> Selecting a tool will automatically populate the Arguments section. </li>
-                    <li className="ml-4"> {"Edit the Arguments instructions to influence the Assistant's generated argument value."} </li>
-                    <li className="ml-4"> Use the Values section to assign permanent values to specific arguments, otherwise the assistant will decide the value at runtime.</li>
-                    <li className="ml-4"> Arguments are not required and can be removed by clicking the Trash Icon to the right of the argument name. </li>
-                    <li className="ml-4"> Select the Edit Icon to the right of the argument name to enable/disable the ability to edit the argument value when adding this workflow to an assistant. </li>
-                    <li><strong>Action Segments:</strong> Group related steps by giving them the same Action Segment name. Steps with the same segment will be color-coded together. When creating an assistant with this template, you can enable/disable entire segments at once.</li>
-                    <li><strong>Terminate Step:</strong> Every workflow must end with a terminate step. This step is automatically added and should always remain as the last step in your workflow.</li>
-                  </ul> */}
-                </span>
-                }
-              /></div> }
+                    <span className=''>
+                      <p className="mb-2">
+                        Scheduled tasks automate your Assistants or Action Sets, running them at times you define.
+                      </p>
+                      <h4 className="font-semibold mt-3 mb-1">Key Configuration Points:</h4>
+                      <ul className="list-disc pl-5 space-y-1 text-sm">
+                        <li><strong>Task Instructions:</strong> Provide specific instructions or context that the Assistant or Action Set will use when it executes. This is your "todo" for the task.</li>
+                        <li><strong>Active/Inactive:</strong> This toggle allows you to enable or pause the task's schedule. Inactive tasks will not run until re-activated.</li>
+                        <li><strong>Task Type:</strong>
+                          <ul className="list-disc pl-5 mt-1">
+                            <li><strong>Assistant:</strong> Runs one of your configured AI Assistants.</li>
+                            {featureFlags.actionSets && <li><strong>Action Set:</strong> Executes a predefined sequence of operations or tool usages.</li>}
+                          </ul>
+                        </li>
+                        <li><strong>Tags:</strong> Assign tags (e.g., "reporting", "maintenance") to help organize and filter your scheduled tasks.</li>
+                        <li><strong>Notification Settings:</strong>
+                          <ul className="list-disc pl-5 mt-1">
+                            <li>Choose to receive email notifications upon successful completion or failure of the task.</li>
+                            <li>Specify email addresses where these notifications should be sent.</li>
+                          </ul>
+                        </li>
+                      </ul>
+                      <p className="mt-3 text-sm">
+                        You can also manually trigger a task at any time using the "Run Task" button and review "Scheduled Run Logs" to monitor its execution history, status, and any generated outputs or errors.
+                      </p>
+                    </span>
+                  }
+                />
+              </div> }
               /> 
               <div className="absolute right-1 top-[-6px] flex flex-row gap-3">
                 { selectedTask.taskId &&
@@ -605,7 +602,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             >
               <option value="">Select Task Type</option>
               <option value="assistant">Assistant</option>
-              <option value="actionSet">Action Set</option>
+              {featureFlags.actionSets && <option value="actionSet">Action Set</option>}
             </select>
           </div>
 
@@ -736,14 +733,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   }, [selectedLogId, selectedTask.taskId]);
 
   const renderLogsContent = () => {
-    const formatDate = (dateString: string | Date) => {
-      if (!dateString) return 'N/A';
-      const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
-      return date.toLocaleString('en-US', {
-        dateStyle: 'medium',
-        timeStyle: 'short'
-      });
-    };
+
 
     const getStatusBadge = (status: string) => {
       switch (status) {
@@ -849,10 +839,10 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                       onClick={() => setSelectedLogId(log.executionId)}
                     >
                       <td className="px-4 py-3 text-sm w-1/3">
-                        {formatDate(log.executedAt)}
+                        {userFriendlyDate(log.executedAt)}
                       </td>
                       <td className="px-4 py-3 text-sm w-1/3 ">
-                        <div className="ml-6">
+                        <div>
                         {getStatusBadge(log.status)}
                         </div>
                       </td>
@@ -887,7 +877,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="font-medium">Executed At:</span> {formatDate(selectedLogDetails.executedAt)}
+                    <span className="font-medium">Executed At:</span> {userFriendlyDate(selectedLogDetails.executedAt)}
                   </div>
                   <div>
                     <span className="font-medium">Status:</span> 
@@ -924,16 +914,16 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                 {selectedLogDetails.details?.startTime && (
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="font-medium">Started At:</span> {formatDate(selectedLogDetails.details.startTime)}
+                      <span className="font-medium">Started At:</span> {userFriendlyDate(selectedLogDetails.details.startTime)}
                     </div>
                     {selectedLogDetails.details.completedAt && (
                       <div>
-                        <span className="font-medium">Completed At:</span> {formatDate(selectedLogDetails.details.completedAt)}
+                        <span className="font-medium">Completed At:</span> {userFriendlyDate(selectedLogDetails.details.completedAt)}
                       </div>
                     )}
                     {selectedLogDetails.details.failedAt && (
                       <div>
-                        <span className="font-medium">Failed At:</span> {formatDate(selectedLogDetails.details.failedAt)}
+                        <span className="font-medium">Failed At:</span> {userFriendlyDate(selectedLogDetails.details.failedAt)}
                       </div>
                     )}
                   </div>

@@ -9,11 +9,12 @@ const SERVICE_NAME = "scheduled-tasks";
 export const createScheduledTask = async (
   scheduledTask: any = {}
 ) => {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const op = {
     method: 'POST',
     path: URL_PATH,
     op: "/create-scheduled-task",
-    data: scheduledTask,
+    data: {...scheduledTask, timeZone},
     service: SERVICE_NAME
   };
   return await doRequestOp(op);
@@ -54,13 +55,15 @@ export const updateScheduledTask = async (
   taskId: string,
   scheduledTask: any = {}
 ) => {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const op = {
     method: 'POST',
     path: URL_PATH,
     op: "/update-scheduled-task",
     data: {
       taskId,
-      ...scheduledTask
+      ...scheduledTask,
+      timeZone
     },
     service: SERVICE_NAME
   };
