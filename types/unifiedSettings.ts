@@ -1,5 +1,3 @@
-import { ReactComponentElement } from 'react';
-import { IconSettings } from '@tabler/icons-react';
 
 export interface SettingsPanel {
   id: string;

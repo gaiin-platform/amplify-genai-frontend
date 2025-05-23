@@ -29,7 +29,11 @@ import { checkAvailableModelId } from '@/utils/app/models';
 import toast from 'react-hot-toast';
 import { Amplify_Group, Amplify_Groups, EmailSupport, PromptCostAlert } from '@/components/Admin/AdminUI';
 
-
+interface Props {
+  onSave?: () => void;
+  onCancel?: () => void;
+  isDirty?: (dirty: boolean) => void;
+}
 
 export const titleLabel = (title: string, textSize: string = "lg") => 
                 <div className={`mt-4 text-${textSize} font-bold text-black dark:text-neutral-200`}>
