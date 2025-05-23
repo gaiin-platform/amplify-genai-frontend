@@ -121,7 +121,7 @@ export const AdminPanel: FC<Props> = ({ onSave, onCancel, isDirty }) => {
           Admin Interface Not Available
         </h3>
         <p className="text-gray-600 dark:text-gray-400">
-          You don't have access to the admin interface or it's not enabled for your account.
+          You don&apos;t have access to the admin interface or it&apos;s not enabled for your account.
         </p>
       </div>
     );
@@ -135,7 +135,7 @@ export const AdminPanel: FC<Props> = ({ onSave, onCancel, isDirty }) => {
           No Admin Groups
         </h3>
         <p className="text-gray-600 dark:text-gray-400">
-          You don't have admin access to any groups yet.
+          You don&apos;t have admin access to any groups yet.
         </p>
       </div>
     );
