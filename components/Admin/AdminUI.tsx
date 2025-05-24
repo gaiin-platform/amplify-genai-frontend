@@ -931,10 +931,13 @@ export const AdminInterfaceWithTabs: FC<AdminInterfaceWithTabsProps> = (props) =
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`admin-tab-pill ${activeTab === tab.id ? 'active' : ''} ${tab.hasChanges ? 'has-changes' : ''}`}
+                                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                                        activeTab === tab.id 
+                                            ? 'bg-blue-500 text-white shadow-md' 
+                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                    }`}
                                 >
-                                    <span className="admin-tab-label">{tab.label}</span>
-                                    <div className="admin-tab-indicator"></div>
+                                    {tab.label}{tab.hasChanges ? " *" : ""}
                                 </button>
                             ))}
                         </div>
