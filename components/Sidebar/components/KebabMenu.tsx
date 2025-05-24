@@ -404,10 +404,10 @@ interface Props {
           <div className="flex w-full items-center ml-1 text-black dark:text-neutral-200">
             <span className="sidebar-title text-xs uppercase tracking-wide opacity-60">{label}</span>
             { isSyncing && 
-                <label className="flex flex-row gap-1 text-xs ml-auto mr-1 sidebar-text">
-                    <LoadingIcon style={{ width: "14px", height: "14px" }}/>
-                    Syncing...
-                </label>}
+                <div className="ml-auto mr-1 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 dark:border-blue-400/20 backdrop-blur-sm">
+                    <div className="sync-dot w-1.5 h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                    <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 tracking-wide">Syncing</span>
+                </div>}
           </div>
             {actionItem && checkIsActiveSide() && (
                 <div className="sidebar-text text-xs flex flex-row gap-1">

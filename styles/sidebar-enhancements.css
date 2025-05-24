@@ -1946,6 +1946,22 @@
   box-shadow: 0 4px 12px rgba(139, 92, 246, 0.5);
 }
 
+/* Sync Status Indicator */
+@keyframes sync-glow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.sync-dot {
+  animation: sync-glow 2s ease-in-out infinite;
+}
+
 /* ===================================
    Color Palette Selector Styling 
    =================================== */
