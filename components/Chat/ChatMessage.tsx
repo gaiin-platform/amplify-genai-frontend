@@ -358,7 +358,7 @@ export const ChatMessage: FC<Props> = memo(({
 
                 <div id="chatHover" className="max-w-none prose w-full dark:prose-invert mr-5">
                     {message.role === 'user' ? (
-                        <div className="flex flex-grow">
+                        <div className="flex flex-grow flex-col">
                             {isEditing ? (
 
                                 <UserMessageEditor
@@ -399,26 +399,23 @@ export const ChatMessage: FC<Props> = memo(({
 
                             {!isEditing && (
                                 <div
-                                    className="enhanced-chat-icons px-3 md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col items-center md:items-start justify-end md:justify-start">
-                                    <div>
-                                        {messagedCopied ? (
-                                            <IconCheck
-                                                size={20}
-                                                className="text-green-500 dark:text-green-400"
-                                            />
-                                        ) : (
-                                            <button
-                                                className={chat_icons_cn}
-                                                onClick={copyOnClick}
-                                                title="Copy Prompt"
-                                                id="copyPrompt"
-                                            >
-                                                <IconCopy size={20}/>
-                                            </button>
-                                        )}
-                                    </div>
+                                    className="enhanced-chat-icons px-3 mt-2 flex flex-row gap-2 items-center justify-start">
+                                    {messagedCopied ? (
+                                        <IconCheck
+                                            size={20}
+                                            className="text-green-500 dark:text-green-400"
+                                        />
+                                    ) : (
+                                        <button
+                                            className={chat_icons_cn}
+                                            onClick={copyOnClick}
+                                            title="Copy Prompt"
+                                            id="copyPrompt"
+                                        >
+                                            <IconCopy size={20}/>
+                                        </button>
+                                    )}
                                     {!isActionResult && (
-                                    <div>
                                         <button
                                             className={chat_icons_cn}
                                             onClick={() => setIsDownloadDialogVisible(true)}
@@ -427,18 +424,15 @@ export const ChatMessage: FC<Props> = memo(({
                                         >
                                             <IconDownload size={20}/>
                                         </button>
-                                    </div>)
-                                    }
-                                    <div>
-                                        <button
-                                            className={chat_icons_cn}
-                                            onClick={toggleEditing}
-                                            title="Edit Prompt"
-                                            id="editPrompt"
-                                        >
-                                            <IconEdit size={20}/>
-                                        </button>
-                                    </div>
+                                    )}
+                                    <button
+                                        className={chat_icons_cn}
+                                        onClick={toggleEditing}
+                                        title="Edit Prompt"
+                                        id="editPrompt"
+                                    >
+                                        <IconEdit size={20}/>
+                                    </button>
                                     <button
                                         className={chat_icons_cn}
                                         onClick={() => handleForkConversation(messageIndex)}
@@ -448,7 +442,6 @@ export const ChatMessage: FC<Props> = memo(({
                                         <IconArrowFork size={20}/>
                                     </button>
                                     {!isActionResult && (
-                                    <div>
                                         <button
                                             id="deletePromptChat"
                                             className={chat_icons_cn}
@@ -457,15 +450,13 @@ export const ChatMessage: FC<Props> = memo(({
                                         >
                                             <IconTrash size={20}/>
                                         </button>
-                                    </div>
                                     )}
                                 </div>
                             )}
                         </div>
                     ) : ( // Assistant message
                         <div className="flex flex-col w-full" ref={markdownComponentRef}>
-                            <div className="flex flex-row w-full">
-                                <div className="flex flex-col w-full">
+                            <div className="flex flex-col w-full">
                                     {(selectedConversation?.messages?.length === messageIndex + 1) && (
                                         <PromptingStatusDisplay statusHistory={status}/>
                                     )}
@@ -535,10 +526,10 @@ export const ChatMessage: FC<Props> = memo(({
                                             messageContent={messageContent}
                                             setMessageContent={setMessageContent}/>
                                     )}
-                                </div>
+                            </div>
 
-                                { !isEditing && <div
-                                    className="enhanced-chat-icons px-3 md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">
+                            {!isEditing && (
+                                <div className="enhanced-chat-icons px-3 mt-2 flex flex-row gap-2 items-center justify-start">
                                     {messagedCopied ? (
                                         <IconCheck
                                             size={20}
@@ -546,7 +537,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         />
                                     ) : (
                                         <button
-                                        className={chat_icons_cn}
+                                            className={chat_icons_cn}
                                             onClick={copyOnClick}
                                             title="Copy Response"
                                             id="copyResponse"
@@ -608,8 +599,8 @@ export const ChatMessage: FC<Props> = memo(({
                                         <IconArrowFork size={20}/>
                                     </button>
 
-                                </div>}
-                            </div>
+                                </div>
+                            )}
                             {(messageIsStreaming || isEditing) ? null : (
                                 <ChatFollowups promptSelected={(p) => {
                                     onSendPrompt(p)
