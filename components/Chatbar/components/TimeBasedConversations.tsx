@@ -28,7 +28,7 @@ export const TimeBasedConversations = ({ conversations, title }: Props) => {
 
   return (
     <div className="enhanced-folder enhanced-folder-open mb-2">
-      <div className="flex items-center gap-1 px-3 py-1.5">
+      <div className="flex items-center gap-1 px-2 py-1.5">
         <h3 className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
           {title}
         </h3>
