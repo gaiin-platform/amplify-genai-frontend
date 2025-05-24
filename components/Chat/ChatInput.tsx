@@ -656,7 +656,7 @@ export const ChatInput = ({
         };
     }, []);
 
-    let buttonClasses = "left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200";
+    let buttonClasses = "chat-input-button left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200";
     if (isWorkflowOn) {
         buttonClasses += " bg-green-400 text-white"; // provide your desired 'on' state style classes
     }
@@ -1182,7 +1182,7 @@ export const ChatInput = ({
 
                         {featureFlags.dataSourceSelectorOnInput && (
                             <button
-                                className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                                className="chat-input-button left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
                                 id="viewFiles"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -1215,7 +1215,7 @@ export const ChatInput = ({
                         <>
                         {/* Add Action button toggles the operations popup */}
                         <button
-                            className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                            className="chat-input-button left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
                             id="addAction"
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -1235,7 +1235,7 @@ export const ChatInput = ({
                         
                         {/* Load Action Set button */}
                         <button
-                            className="left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                            className="chat-input-button left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
                             id="loadActionSet"
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -1253,22 +1253,22 @@ export const ChatInput = ({
 
                         <div className='flex flex-row gap-2'>
 
-                            <button
-                                id="selectAssistants"
-                                className={buttonClasses}
-                                onClick={ (e) => {
-                                    e.preventDefault();
-                                    handleShowAssistantSelector();
-                                    setShowDataSourceSelector(false);
-                                }
-                                }
-                                onKeyDown={(e) => {
-                                }}
-                                title="Select Assistants"
+                            {/*<button*/}
+                            {/*    id="selectAssistants"*/}
+                            {/*    className={buttonClasses}*/}
+                            {/*    onClick={ (e) => {*/}
+                            {/*        e.preventDefault();*/}
+                            {/*        handleShowAssistantSelector();*/}
+                            {/*        setShowDataSourceSelector(false);*/}
+                            {/*    }*/}
+                            {/*    }*/}
+                            {/*    onKeyDown={(e) => {*/}
+                            {/*    }}*/}
+                            {/*    title="Select Assistants"*/}
 
-                            >
-                                <IconAt size={20}/>
-                            </button>
+                            {/*>*/}
+                            {/*    <IconAt size={20}/>*/}
+                            {/*</button>*/}
 
                             {showAssistantSelect && (
                                 <div className="absolute left-0 max-w-2xl rounded bg-white dark:bg-[#343541]"
