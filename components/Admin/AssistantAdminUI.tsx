@@ -2074,10 +2074,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             </div>
                         )}
                         <div className="assistant-admin-tab-bar">
-                            <div className="assistant-admin-header">
-                                <h2 className="assistant-admin-title">Assistant Groups Management</h2>
-                                <p className="assistant-admin-subtitle">Manage assistant groups, members, and configurations</p>
-                            </div>
                         </div>
                         <div className="assistant-admin-scrollable-content">
                             <div className="assistant-admin-content-area">
@@ -2116,10 +2112,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                             loadingMessage={`Creating Assistant for Group '${selectedGroup.name}'`}
                                             loc={"admin_add"}
                                             title={`Creating New Assistant for ${selectedGroup.name}`}
-                                            height={`${innderWindow.height * 0.7}px`}
+                                            height={`${innderWindow.height * 0.45}px`}
                                             additionalTemplates={allAssistants()}
                                             autofillOn={true}
-                                            translateY='-4%'
+                                            translateY='-25%'
                                             additionalGroupData={additionalGroupData}
                                             onCreateAssistant={(astDef: AssistantDefinition) => { return handleCreateAssistant(astDef, GroupUpdateType.ADD) }}
                                         >
