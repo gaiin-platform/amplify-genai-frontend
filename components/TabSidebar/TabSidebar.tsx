@@ -3,6 +3,7 @@ import { CloseSidebarButton, OpenSidebarButton } from "@/components/Sidebar/comp
 import HomeContext from '@/pages/api/home/home.context';
 import { AssistantAdminUI } from '../Admin/AssistantAdminUI';
 import { AdminUI } from '../Admin/AdminUI';
+import { UserCostsModal } from '../Admin/UserCostsModal';
 
 interface TabProps {
     icon: ReactNode;
@@ -40,6 +41,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
     const [isOpen, setIsOpen] = useState(!isMobileBrowser());
     const [showAssistantAdmin, setShowAssistantAdmin] = useState<boolean>(false);
     const [showAdminInterface, setShowAdminInterface] = useState<boolean>(false);
+    const [showUserCosts, setShowUserCosts] = useState<boolean>(false);
 
     const [isArtifactsOpen, setIsArtifactsOpen] = useState<boolean>(false);
     const [groupModalData, setGroupModalData] = useState<any>(undefined);
@@ -80,6 +82,12 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
             setShowAdminInterface(isAdminOpen);  
         };
 
+        const handleUserCostsEvent = (event:any) => {
+            const isUserCostsOpen = event.detail.isOpen;
+            handleAdmin(isUserCostsOpen);
+            setShowUserCosts(isUserCostsOpen);  
+        };
+
         const handleArtifactEvent = (event:any) => {
             const isArtifactsOpen = event.detail.isOpen;
             setIsOpen(!isArtifactsOpen);
@@ -108,12 +116,14 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
 
         window.addEventListener('openAstAdminInterfaceTrigger', handleAstAdminEvent);
         window.addEventListener('openAdminInterfaceTrigger', handleAdminEvent);
+        window.addEventListener('openUserCostsTrigger', handleUserCostsEvent);
         window.addEventListener('openArtifactsTrigger', handleArtifactEvent);
         window.addEventListener('homeChatBarTabSwitch', handleTabSwitchEvent);
 
         return () => {
             window.removeEventListener('openAstAdminInterfaceTrigger', handleAstAdminEvent);
             window.removeEventListener('openAdminInterfaceTrigger', handleAdminEvent);
+            window.removeEventListener('openUserCostsTrigger', handleUserCostsEvent);
             window.removeEventListener('openArtifactsTrigger', handleArtifactEvent);
             window.removeEventListener('homeChatBarTabSwitch', handleTabSwitchEvent);
 
@@ -122,7 +132,10 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
 
     
     useEffect(() => {
-        if ( isOpen) setShowAssistantAdmin(false);
+        if ( isOpen) {
+            setShowAssistantAdmin(false);
+            setShowUserCosts(false);
+        }
     }, [isOpen]);
 
 
@@ -194,7 +207,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
     ) : (
         //if we are going to use collapse side bars, interface takes up whole page, we can list the item here 
         <>
-        {(isArtifactsOpen && chatSide() || !isArtifactsOpen) && <OpenSidebarButton onClick={toggleOpen} side={side} isDisabled={showAssistantAdmin || showAdminInterface}/>}
+        {(isArtifactsOpen && chatSide() || !isArtifactsOpen) && <OpenSidebarButton onClick={toggleOpen} side={side} isDisabled={showAssistantAdmin || showAdminInterface || showUserCosts}/>}
         
         {featureFlagsRef.current.assistantAdminInterface && 
          <AssistantAdminUI
@@ -210,6 +223,13 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                 window.dispatchEvent(new CustomEvent('openAdminInterfaceTrigger', { detail: { isOpen: false }} ));
             }  }
         />}
+
+        <UserCostsModal
+            open={showUserCosts && chatSide()}
+            onClose={() => {
+                window.dispatchEvent(new CustomEvent('openUserCostsTrigger', { detail: { isOpen: false }} ));
+            }}
+        />
         </>
         
     );

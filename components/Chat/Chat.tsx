@@ -99,7 +99,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 messageIsStreaming,
                 chatEndpoint,
                 folders,
-                extractedFacts
+                extractedFacts,
+                amplifyUsers
             },
             setLoadingMessage,
             handleUpdateConversation,
@@ -330,6 +331,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const handleAdminClick = () => {
             window.dispatchEvent(new CustomEvent('openAdminInterfaceTrigger', { 
+                detail: { isOpen: true } 
+            }));
+        };
+
+        const handleUserCostsClick = () => {
+            window.dispatchEvent(new CustomEvent('openUserCostsTrigger', { 
                 detail: { isOpen: true } 
             }));
         };
@@ -1432,6 +1439,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 onDataSourcesClick={() => homeDispatch({field: 'page', value: 'home'})}
                 onAssistantsAdminClick={handleAssistantsAdminClick}
                 onAdminClick={handleAdminClick}
+                onUserCostsClick={amplifyUsers?.some((user: string) => 
+                    user.toLowerCase() === userEmail?.toLowerCase()
+                ) ? handleUserCostsClick : undefined}
             />
 
             </>

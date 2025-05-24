@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useContext } from 'react';
 import { signOut } from 'next-auth/react';
-import { IconLogout, IconCreditCard, IconRocket, IconShare, IconTools, IconUsers, IconShield, IconSun, IconMoon, IconX } from '@tabler/icons-react';
+import { IconLogout, IconCreditCard, IconRocket, IconShare, IconTools, IconUsers, IconShield, IconSun, IconMoon, IconX, IconCurrencyDollar } from '@tabler/icons-react';
 import { doMtdCostOp } from '@/services/mtdCostService';
 import ColorPaletteSelector from './ColorPaletteSelector';
 import HomeContext from '@/pages/api/home/home.context';
@@ -16,6 +16,7 @@ interface UserMenuProps {
   onSharingClick?: () => void;
   onAssistantsAdminClick?: () => void;
   onAdminClick?: () => void;
+  onUserCostsClick?: () => void;
 }
 
 export const UserMenu: React.FC<UserMenuProps> = ({ 
@@ -28,7 +29,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   onDataSourcesClick,
   onSharingClick,
   onAssistantsAdminClick,
-  onAdminClick
+  onAdminClick,
+  onUserCostsClick
 }) => {
   const { dispatch, state: { lightMode, showUserMenu } } = useContext(HomeContext);
   const [mtdCost, setMtdCost] = useState<string>('$0.00');
@@ -227,6 +229,18 @@ export const UserMenu: React.FC<UserMenuProps> = ({
             >
               <IconShield size={16} className="enhanced-icon text-red-500" />
               <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Admin</span>
+            </button>
+          )}
+          {onUserCostsClick && (
+            <button
+              onClick={() => {
+                onUserCostsClick();
+                handleClose();
+              }}
+              className="flex w-full items-center gap-3 px-4 py-2 cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#343541]/90 transition-all duration-200"
+            >
+              <IconCurrencyDollar size={16} className="enhanced-icon text-green-500" />
+              <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">User Costs</span>
             </button>
           )}
           {onAssistantsAdminClick && (
