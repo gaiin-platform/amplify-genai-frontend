@@ -14,12 +14,15 @@ export const doMtdCostOp = async (userEmail: string) => {
     return await doRequestOp(op);
 }
 
-export const getAllUserMtdCosts = async (limit: number = 50) => {
+export const getAllUserMtdCosts = async (limit: number = 50, lastEvaluatedKey: any = null) => {
     const op = {
         method: 'POST',
         path: URL_PATH,
         op: "/list-all-user-mtd-costs",
-        queryParams: { limit: limit.toString() },
+        data: { 
+            pageSize: limit,
+            lastEvaluatedKey: lastEvaluatedKey 
+        },
         service: SERVICE_NAME
     };
     
