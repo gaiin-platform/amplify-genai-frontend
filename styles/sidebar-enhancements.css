@@ -991,7 +991,7 @@
 }
 
 .enhanced-folder-title {
-  font-weight: 600;
+  font-weight: 500;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -1000,14 +1000,30 @@
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   z-index: 1;
+  color: #6b7280; /* gray-500 */
+  font-size: 0.875rem;
+}
+
+.dark .enhanced-folder-title {
+  color: #9ca3af; /* gray-400 */
 }
 
 .enhanced-folder-title svg {
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); /* Spring-like animation */
+  color: #9ca3af; /* gray-400 */
+}
+
+.dark .enhanced-folder-title svg {
+  color: #6b7280; /* gray-500 in dark mode */
 }
 
 .enhanced-folder-title:hover svg {
   transform: scale(1.15);
+  color: #6b7280; /* gray-500 on hover */
+}
+
+.dark .enhanced-folder-title:hover svg {
+  color: #9ca3af; /* gray-400 on hover in dark */
 }
 
 .enhanced-folder-open {

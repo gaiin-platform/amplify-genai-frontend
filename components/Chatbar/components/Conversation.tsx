@@ -234,7 +234,7 @@ export const ConversationComponent = ({ conversation}: Props) => {
               id="chatName"
               className={`sidebar-text overflow-hidden text-ellipsis whitespace-nowrap text-left ${
                 selectedConversation?.id === conversation.id ? 'font-medium text-gray-900 dark:text-white pr-16' : 'text-gray-700 dark:text-gray-300 pr-1'
-              } ${conversation.name === 'New Conversation' ? 'conversation-title-new italic opacity-70' : ''}`}
+              } ${conversation.name === 'New Conversation' ? 'conversation-title-new opacity-70' : ''}`}
             >
               {conversation.name}
             </div>
