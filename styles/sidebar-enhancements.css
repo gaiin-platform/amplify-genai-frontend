@@ -1779,50 +1779,72 @@
   visibility: hidden;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.95) 0%, 
-    rgba(var(--chat-user-secondary), 0.02) 50%,
-    rgba(var(--chat-assistant-secondary), 0.02) 100%);
-  padding: 8px 16px;
-  border-radius: 24px;
-  backdrop-filter: blur(24px);
+    rgba(255, 255, 255, 0.98) 0%, 
+    rgba(249, 250, 251, 0.95) 100%);
+  padding: 4px;
+  border-radius: 20px;
+  backdrop-filter: blur(20px) saturate(180%);
   box-shadow: 
-    0 4px 16px rgba(var(--chat-user-primary), 0.08),
-    0 2px 8px rgba(0, 0, 0, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    inset 0 -1px 0 rgba(var(--chat-user-primary), 0.05);
-  border: 1px solid rgba(var(--chat-user-primary), 0.15);
-  transform: translateY(8px) scale(0.9);
+    0 4px 24px -2px rgba(0, 0, 0, 0.12),
+    0 2px 8px -1px rgba(0, 0, 0, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.9);
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  transform: translateY(8px) scale(0.92);
   width: fit-content;
   height: fit-content;
   position: relative;
-  overflow: hidden;
-  margin-top: 8px;
+  overflow: visible;
+  margin-top: 6px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }
 
-.enhanced-chat-icons::before {
+/* Gradient border effect */
+.enhanced-chat-icons::after {
   content: '';
   position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, 
-    rgba(var(--chat-user-primary), 0.06) 0%, 
-    rgba(var(--chat-assistant-primary), 0.04) 50%,
-    rgba(var(--chat-user-secondary), 0.03) 100%);
+  inset: -1px;
+  border-radius: 20px;
+  padding: 1px;
+  background: linear-gradient(135deg,
+    #3b82f6 0%,
+    #8b5cf6 25%,
+    #ef4444 50%,
+    #f59e0b 75%,
+    #10b981 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
   opacity: 0;
-  transition: opacity 0.4s ease;
-  border-radius: 16px;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+  animation: gradient-rotate 3s linear infinite;
+}
+
+@keyframes gradient-rotate {
+  from {
+    filter: hue-rotate(0deg);
+  }
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+
+.enhanced-chat-icons:hover::after {
+  opacity: 0.6;
 }
 
 .dark .enhanced-chat-icons {
   background: linear-gradient(135deg, 
-    rgba(31, 41, 55, 0.95) 0%, 
-    rgba(var(--chat-user-primary-dark), 0.03) 50%,
-    rgba(var(--chat-assistant-primary-dark), 0.03) 100%);
+    rgba(31, 41, 55, 0.98) 0%, 
+    rgba(17, 24, 39, 0.95) 100%);
   box-shadow: 
-    0 4px 16px rgba(var(--chat-user-primary-dark), 0.15),
-    0 2px 8px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 -1px 0 rgba(var(--chat-user-primary-dark), 0.1);
-  border: 1px solid rgba(var(--chat-user-primary-dark), 0.25);
+    0 4px 24px -2px rgba(0, 0, 0, 0.5),
+    0 2px 8px -1px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .group:hover .enhanced-chat-icons,
@@ -1837,21 +1859,21 @@
 }
 
 .enhanced-chat-icon-button {
-  padding: 8px;
-  border-radius: 8px;
+  padding: 6px;
+  border-radius: 12px;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   color: #6b7280;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.8);
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   position: relative;
   overflow: hidden;
-  margin: 1px;
+  margin: 0;
 }
 
 .enhanced-chat-icon-button::before {
@@ -1866,13 +1888,55 @@
   border-radius: 10px;
 }
 
+/* Colorful hover effects for each button */
 .enhanced-chat-icon-button:hover {
-  background: rgba(var(--chat-user-primary), 0.12);
-  color: rgb(var(--chat-user-primary));
-  transform: scale(1.15);
+  transform: scale(1.1);
   box-shadow: 
-    0 4px 16px rgba(var(--chat-user-primary), 0.2),
-    0 1px 4px rgba(var(--chat-user-primary), 0.1);
+    0 4px 12px -2px currentColor,
+    0 1px 3px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Copy button - Blue */
+.enhanced-chat-icon-button:nth-child(1):hover {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+}
+
+/* Download button - Purple */
+.enhanced-chat-icon-button:nth-child(2):hover {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+}
+
+/* Edit button - Green */
+.enhanced-chat-icon-button:nth-child(3):hover {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+/* Fork button - Orange */
+.enhanced-chat-icon-button:nth-child(4):hover {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+/* Delete button - Red */
+.enhanced-chat-icon-button:nth-child(5):hover {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+/* Email button - Cyan */
+.enhanced-chat-icon-button[href]:hover {
+  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+  color: white;
+}
+
+/* Highlight button - Pink */
+.enhanced-chat-icon-button:nth-child(6):hover,
+.enhanced-chat-icon-button:nth-child(7):hover {
+  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+  color: white;
 }
 
 .enhanced-chat-icon-button:hover::before {
@@ -1885,6 +1949,7 @@
 
 .dark .enhanced-chat-icon-button {
   color: #9ca3af;
+  background: rgba(55, 65, 81, 0.5);
 }
 
 .dark .enhanced-chat-icon-button:hover {
