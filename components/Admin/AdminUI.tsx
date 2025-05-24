@@ -805,35 +805,39 @@ export const AdminInterfaceWithTabs: FC<AdminInterfaceWithTabsProps> = (props) =
                         <div className="admin-config-section">
                             <div className="admin-config-header">Application Secrets</div>
                             {Object.keys(props.appSecrets).length > 0 ? (
-                                <InputsMap
-                                    id={AdminConfigTypes.APP_SECRETS}
-                                    inputs={Object.keys(props.appSecrets).sort((a, b) => b.length - a.length)
-                                        .map((secret: string) => ({label: secret, key: secret}))}
-                                    state={props.appSecrets}
-                                    inputChanged={(key: string, value: string) => {
-                                        props.setAppSecrets({...props.appSecrets, [key]: value});
-                                        props.updateUnsavedConfigs(AdminConfigTypes.APP_SECRETS);
-                                    }}
-                                    obscure={true}
-                                />
+                                <div className="overflow-x-auto">
+                                    <InputsMap
+                                        id={AdminConfigTypes.APP_SECRETS}
+                                        inputs={Object.keys(props.appSecrets).sort((a, b) => b.length - a.length)
+                                            .map((secret: string) => ({label: secret, key: secret}))}
+                                        state={props.appSecrets}
+                                        inputChanged={(key: string, value: string) => {
+                                            props.setAppSecrets({...props.appSecrets, [key]: value});
+                                            props.updateUnsavedConfigs(AdminConfigTypes.APP_SECRETS);
+                                        }}
+                                        obscure={true}
+                                    />
+                                </div>
                             ) : <div>No Application Secrets Retrieved</div>}
                         </div>
 
                         <div className="admin-config-section">
                             <div className="admin-config-header">Application Environment Variables</div>
                             {Object.keys(props.appVars).length > 0 ? (
-                                <InputsMap
-                                    id={AdminConfigTypes.APP_VARS}
-                                    inputs={Object.keys(props.appVars)
-                                        .sort((a, b) => b.length - a.length)
-                                        .map((variable: string) => ({label: variable, key: variable}))}
-                                    state={props.appVars}
-                                    inputChanged={(key: string, value: string) => {
-                                        props.setAppVars({...props.appVars, [key]: value});
-                                        props.updateUnsavedConfigs(AdminConfigTypes.APP_VARS);
-                                    }}
-                                    obscure={true}
-                                />
+                                <div className="overflow-x-auto">
+                                    <InputsMap
+                                        id={AdminConfigTypes.APP_VARS}
+                                        inputs={Object.keys(props.appVars)
+                                            .sort((a, b) => b.length - a.length)
+                                            .map((variable: string) => ({label: variable, key: variable}))}
+                                        state={props.appVars}
+                                        inputChanged={(key: string, value: string) => {
+                                            props.setAppVars({...props.appVars, [key]: value});
+                                            props.updateUnsavedConfigs(AdminConfigTypes.APP_VARS);
+                                        }}
+                                        obscure={true}
+                                    />
+                                </div>
                             ) : <div>No Application Variables Retrieved</div>}
                         </div>
                     </div>
