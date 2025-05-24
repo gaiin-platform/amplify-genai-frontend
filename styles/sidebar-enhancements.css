@@ -1839,12 +1839,13 @@
 .dark .enhanced-chat-icons {
   background: linear-gradient(135deg, 
     rgba(31, 41, 55, 0.98) 0%, 
-    rgba(17, 24, 39, 0.95) 100%);
+    rgba(55, 65, 81, 0.95) 100%);
   box-shadow: 
     0 4px 24px -2px rgba(0, 0, 0, 0.5),
     0 2px 8px -1px rgba(0, 0, 0, 0.3),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+  border: 1px solid transparent;
+  backdrop-filter: blur(20px) saturate(180%);
 }
 
 .group:hover .enhanced-chat-icons,
@@ -1852,6 +1853,15 @@
   opacity: 1;
   visibility: visible;
   transform: translateY(0) scale(1);
+}
+
+/* Dark mode hover state - subtle shadow only */
+.dark .group:hover .enhanced-chat-icons,
+.dark .enhanced-chat-message:hover .enhanced-chat-icons {
+  box-shadow: 
+    0 4px 24px -2px rgba(0, 0, 0, 0.5),
+    0 2px 8px -1px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15);
 }
 
 .enhanced-chat-icons:hover::before {
@@ -1876,16 +1886,13 @@
   margin: 0;
 }
 
-.enhanced-chat-icon-button::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, 
-    rgba(var(--chat-user-primary), 0.12), 
-    rgba(var(--chat-assistant-primary), 0.08));
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  border-radius: 10px;
+/* Button active state */
+.enhanced-chat-icon-button:active {
+  transform: scale(0.95);
+}
+
+.dark .enhanced-chat-icon-button:active {
+  transform: scale(0.95);
 }
 
 /* Colorful hover effects for each button */
@@ -1939,25 +1946,31 @@
   color: white;
 }
 
-.enhanced-chat-icon-button:hover::before {
-  opacity: 1;
-}
-
-.enhanced-chat-icon-button:active {
-  transform: scale(0.95);
+/* Smooth transitions for icon color */
+.enhanced-chat-icon-button svg {
+  transition: transform 0.2s ease;
 }
 
 .dark .enhanced-chat-icon-button {
-  color: #9ca3af;
-  background: rgba(55, 65, 81, 0.5);
+  color: #d1d5db;
+  background: transparent;
+  border: none;
 }
 
+/* Dark mode keeps the same colorful hover effects */
 .dark .enhanced-chat-icon-button:hover {
-  background: rgba(var(--chat-user-primary-dark), 0.18);
-  color: rgb(var(--chat-user-primary-dark));
-  box-shadow: 
-    0 4px 16px rgba(var(--chat-user-primary-dark), 0.25),
-    0 1px 4px rgba(var(--chat-user-primary-dark), 0.15);
+  transform: scale(1.1);
+  color: white;
+  box-shadow: none;
+}
+
+/* Dark mode gradient border effect - more subtle */
+.dark .enhanced-chat-icons::after {
+  opacity: 0;
+}
+
+.dark .enhanced-chat-icons:hover::after {
+  opacity: 0.4;
 }
 
 /* At-mention Block Styling */
