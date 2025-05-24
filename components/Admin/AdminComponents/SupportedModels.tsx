@@ -334,24 +334,27 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                         
                     </div>
 
-                    <table id="supportedModelsTable" className="mt-4 border-collapse w-full" >
-                        <thead>
-                        <tr className="bg-gray-200 dark:bg-[#373844] text-sm">
-                            {['Name', 'ID',  'Provider', 'Available', 'Supports Images', 'Supports Reasoning',
-                                'Supports System Prompts', 'Additional System Prompt',
-                                'Description', 'Input Context Window', 'Output Token Limit', 
-                                'Input Token Cost / 1k', 'Output Token Cost / 1k', 'Cached Token Cost / 1k',
-                                'Available to User via Amplify Group Membership',
-                            ].map((title, i) => (
-                            <th id={title} key={i}
-                                className="text-[0.8rem] px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300" >
-                                {title}
-                            </th>
-                            ))}
-                                
-                        </tr>
-                        </thead>
-                        <tbody>
+                    <div className="mt-4 overflow-x-auto border border-gray-300 dark:border-gray-600 rounded-lg">
+                        <table id="supportedModelsTable" className="border-collapse min-w-max" >
+                            <thead>
+                            <tr className="bg-gray-200 dark:bg-[#373844] text-sm">
+                                {['Actions', 'Name', 'ID',  'Provider', 'Available', 'Supports Images', 'Supports Reasoning',
+                                    'Supports System Prompts', 'Additional System Prompt',
+                                    'Description', 'Input Context Window', 'Output Token Limit', 
+                                    'Input Token Cost / 1k', 'Output Token Cost / 1k', 'Cached Token Cost / 1k',
+                                    'Available to User via Amplify Group Membership',
+                                ].map((title, i) => (
+                                <th id={title} key={i}
+                                    className={`text-[0.8rem] px-2 py-2 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300 whitespace-nowrap ${
+                                        i === 0 ? 'sticky left-0 bg-gray-200 dark:bg-[#373844] z-20' : ''
+                                    }`} >
+                                    {title}
+                                </th>
+                                ))}
+                                    
+                            </tr>
+                            </thead>
+                            <tbody>
                         {Object.values(availableModels)
                                 .filter((availModel: SupportedModel) => 
                                 (isAddingAvailModel?.model.id !== availModel.id) && 
@@ -362,16 +365,54 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                             <tr key={availModel.id}  className={`text-xs ${hoveredModelIcons === availModel.id ? 'hover:bg-gray-200 dark:hover:bg-[#40414f]' : ''}`}
                                 onMouseEnter={() => setHoveredAvailModel(availModel.id)}
                                 onMouseLeave={() => setHoveredAvailModel('')}>
-                                <td id="supportedModelTitle" className="border border-neutral-500 p-2">
+                                {/* Actions column */}
+                                <td className={`border border-neutral-500 p-1 min-w-[90px] sticky left-0 z-10 ${
+                                    hoveredModelIcons === availModel.id 
+                                        ? 'bg-gray-200 dark:bg-[#40414f]' 
+                                        : 'bg-white dark:bg-[#2b2c36]'
+                                }`}>
+                                    <div className="flex justify-center items-center gap-1">
+                                        {hoveredAvailModel === availModel.id && (!isAddingAvailModel 
+                                        || (isAddingAvailModel.action === 'Adding' && JSON.stringify(isAddingAvailModel.model) === JSON.stringify(emptySupportedModel()))) ? (
+                                            <>
+                                                <button
+                                                    onClick={() => {setIsAddingAvailModel( {model: availModel, action: "Editing" })}}
+                                                    title="Edit Model"
+                                                    className="p-1.5 rounded-md bg-blue-500 hover:bg-blue-600 text-white transition-all duration-200 shadow-sm hover:shadow-md hover:scale-105 active:scale-95"
+                                                    onMouseEnter={() => setHoveredModelIcons(availModel.id)} 
+                                                    onMouseLeave={() => setHoveredModelIcons('')}
+                                                >
+                                                    <IconEdit size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        if (confirm(`Are you sure you want to delete the model "${availModel.name}"?`)) {
+                                                            const  { [availModel.id]: _, ...remainingModels } = availableModels;
+                                                            handleUpdateSupportedModels(remainingModels);
+                                                        }
+                                                    }}
+                                                    title="Delete Model"
+                                                    className="p-1.5 rounded-md bg-red-500 hover:bg-red-600 text-white transition-all duration-200 shadow-sm hover:shadow-md hover:scale-105 active:scale-95"
+                                                >
+                                                    <IconTrash size={16} />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <div className="w-[74px] h-[28px]"></div>
+                                        )}
+                                    </div>
+                                </td>
+                                
+                                <td id="supportedModelTitle" className="border border-neutral-500 p-2 min-w-[150px]">
                                     {availModel.name}
                                 </td>
 
-                                <td className="border border-neutral-500 p-2 break-words max-w-[160px]">
+                                <td className="border border-neutral-500 p-2 break-words min-w-[180px] max-w-[200px]">
                                     {availModel.id}
                                 </td>
 
-                                <td className="border border-neutral-500 p-2 break-words ">
-                                    <div className="flex justify-center">  {availModel.provider ?? 'Unknown Provider'} </div>
+                                <td className="border border-neutral-500 p-2 text-center min-w-[100px]">
+                                    {availModel.provider ?? 'Unknown Provider'}
                                 </td>
 
                                 <td className="border border-neutral-500 p-2 w-[60px]"
@@ -448,37 +489,13 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     /> : <>N/A</>
                                 }
                                 </td>
-                                <td className="bg-gray-100 dark:bg-[#2b2c36]">
-                                        <div className="w-[30px]">
-                                        {hoveredAvailModel === availModel.id && (!isAddingAvailModel 
-                                        || (isAddingAvailModel.action === 'Adding' && JSON.stringify(isAddingAvailModel.model) === JSON.stringify(emptySupportedModel()))) ?
-                                        <div className="flex flex-row gap-1" onMouseEnter={() => setHoveredModelIcons(availModel.id)} 
-                                                                             onMouseLeave={() => setHoveredModelIcons('')}> 
-                                        <ActionButton
-                                            handleClick={() => {setIsAddingAvailModel( {model: availModel, action: "Editing" })}}
-                                            title="Edit Model Data">
-                                            <IconEdit size={22} />
-                                        </ActionButton> 
-
-                                        <ActionButton
-                                            handleClick={() => {
-                                                const  { [availModel.id]: _, ...remainingModels } = availableModels;
-                                                handleUpdateSupportedModels(remainingModels);
-                                            }}
-                                            title="Delete Model">
-                                            <IconTrash size={22} />
-                                        </ActionButton> 
-                                        </div>
-                                        : null}
-                                    </div>
-
-                                </td>
                             </tr>     
                         )}
-                        </tbody>
-                    </table>
+                            </tbody>
+                        </table>
+                    </div>
     
-                        </div>
+                </div>
                     :
                     <>No Supported Models listed. Please add a new model.</>
                 }

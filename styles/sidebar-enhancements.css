@@ -5347,6 +5347,43 @@
   font-weight: 500;
 }
 
+/* Admin Table Scrollbar Styling */
+.admin-interface-content .overflow-x-auto {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+}
+
+.admin-interface-content .overflow-x-auto::-webkit-scrollbar {
+  height: 8px;
+}
+
+.admin-interface-content .overflow-x-auto::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+.admin-interface-content .overflow-x-auto::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.5);
+  border-radius: 4px;
+}
+
+.admin-interface-content .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.7);
+}
+
+/* Dark mode scrollbar */
+.dark .admin-interface-content .overflow-x-auto::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dark .admin-interface-content .overflow-x-auto::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dark .admin-interface-content .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 .settings-models-legend-dot {
   width: 12px;
   height: 12px;
