@@ -27,18 +27,13 @@ export const TimeBasedConversations = ({ conversations, title }: Props) => {
   }
 
   return (
-    <div className="enhanced-today-section flex w-full flex-col mb-3 pb-2">
-      <div className="flex items-center gap-2 px-3 pb-2 pt-3">
-        {title.toLowerCase().includes('today') ? (
-          <IconCalendarEvent size={16} className="text-blue-500" />
-        ) : (
-          <IconClock size={16} className="text-purple-500" />
-        )}
-        <h3 className="enhanced-today-title text-xs font-semibold uppercase tracking-wider">
+    <div className="enhanced-folder enhanced-folder-open mb-2">
+      <div className="flex items-center gap-1 px-3 py-1.5">
+        <h3 className="text-[11px] font-medium text-gray-600 dark:text-gray-400">
           {title}
         </h3>
       </div>
-      <div className="fade-in flex w-full flex-col gap-1">
+      <div className="fade-in flex w-full flex-col">
         {todayConversations.map((conversation, index) => (
           <ConversationComponent key={index} conversation={conversation} />
         ))}
