@@ -930,32 +930,34 @@ export const AdminInterfaceWithTabs: FC<AdminInterfaceWithTabsProps> = (props) =
             showSubmit={false}
             disableModalScroll={true}
             content={
-                <div className="admin-interface-content">
-                    <div className="admin-tab-bar">
-                        <div className="admin-tab-pills">
-                            {tabs.map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                                        activeTab === tab.id 
-                                            ? 'bg-blue-500 text-white shadow-md' 
-                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                    }`}
-                                >
-                                    {tab.label}{tab.hasChanges ? " *" : ""}
-                                </button>
-                            ))}
+                <>
+                    <div className="admin-interface-content">
+                        <div className="admin-tab-bar">
+                            <div className="admin-tab-pills">
+                                {tabs.map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                                            activeTab === tab.id 
+                                                ? 'bg-blue-500 text-white shadow-md' 
+                                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                        }`}
+                                    >
+                                        {tab.label}{tab.hasChanges ? " *" : ""}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                    <div className="admin-scrollable-content">
-                        <div className="admin-content-area">
-                            {renderTabContent()}
+                        <div className="admin-scrollable-content">
+                            <div className="admin-content-area">
+                                {renderTabContent()}
+                            </div>
                         </div>
                     </div>
                     
-                    {/* Action Buttons */}
-                    <div className="flex justify-end space-x-2 mt-4 mb-2 border-t pt-4 dark:border-white/20">
+                    {/* Action Buttons - positioned at bottom */}
+                    <div className="absolute bottom-0 left-0 right-0 flex justify-end space-x-2 p-4 bg-neutral-100 dark:bg-[#2b2c36] border-t border-gray-200 dark:border-gray-600">
                         <button
                             onClick={props.onClose}
                             className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -970,7 +972,7 @@ export const AdminInterfaceWithTabs: FC<AdminInterfaceWithTabsProps> = (props) =
                             Save Changes
                         </button>
                     </div>
-                </div>
+                </>
             }
         />
     );

@@ -5221,7 +5221,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
-  max-height: calc(100% - 140px); /* Leave room for tabs and buttons */
+  max-height: calc(100% - 110px); /* Leave room for tabs and buttons */
   padding-right: 2px; /* Prevent scrollbar cutoff */
   background: linear-gradient(135deg, 
     rgba(255, 255, 255, 0.95) 0%, 
@@ -5383,6 +5383,7 @@
 .dark .admin-interface-content .overflow-x-auto::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+
 
 .settings-models-legend-dot {
   width: 12px;
