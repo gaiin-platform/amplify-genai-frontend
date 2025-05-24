@@ -1,10 +1,13 @@
-import { ReactComponentElement } from 'react';
-import { TablerIcon } from '@tabler/icons-react';
 
 export interface SettingsPanel {
   id: string;
   label: string;
-  icon: TablerIcon;
+  icon: React.ComponentType<{
+    size?: number;
+    color?: string;
+    stroke?: number;
+    className?: string;
+  }>;
   component: React.ComponentType<PanelProps>;
   category: 'user' | 'admin' | 'assistant' | 'system';
   permissions?: string[];

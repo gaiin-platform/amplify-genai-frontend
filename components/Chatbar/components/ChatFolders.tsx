@@ -77,7 +77,7 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
     const filteredConversations = conversations && conversations
       .filter((conversation) => conversation.folderId && conversation.folderId === currentFolder.id);
       
-    if (!filteredConversations || filteredConversations.length === 0) return null;
+    if (!filteredConversations || filteredConversations.length === 0) return [];
     
     // For conversations without timestamps, we'll reverse the array to show newer ones first
     // This assumes conversations are added to the array in chronological order

@@ -38,7 +38,7 @@ interface Props {
   currentFolder: FolderInterface;
   searchTerm: string;
   handleDrop: (e: any, folder: FolderInterface) => void;
-  folderComponent: (ReactElement | undefined)[];
+  folderComponent: (ReactElement | undefined)[] | null;
 }
 
 const Folder = ({
