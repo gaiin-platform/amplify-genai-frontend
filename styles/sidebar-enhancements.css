@@ -1978,13 +1978,17 @@
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   position: relative !important;
   overflow: hidden !important;
+  transform-origin: center !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 /* Light mode ChatInput button hover effects */
 .chat-input-button:hover {
-  transform: scale(1.1) !important;
+  transform: scale(1.05) !important;
   border-radius: 12px !important;
-  padding: 6px !important;
+  box-shadow: 0 2px 8px -1px rgba(0, 0, 0, 0.1) !important;
 }
 
 /* Colorful hover states for ChatInput buttons - using IDs for specificity */
@@ -2025,7 +2029,7 @@
 
 /* Dark mode ChatInput button hover - no glow */
 .dark .chat-input-button:hover {
-  box-shadow: none !important;
+  box-shadow: 0 2px 8px -1px rgba(0, 0, 0, 0.3) !important;
 }
 
 /* At-mention Block Styling */

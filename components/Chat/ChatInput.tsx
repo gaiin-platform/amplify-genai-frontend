@@ -1177,7 +1177,7 @@ export const ChatInput = ({
                     </div>
 
 
-                    <div className="h-6 w-full mx-auto px-2 md:px-4 flex flex-row gap-2 items-center mt-3" style={{maxWidth: 'calc(56rem - 100px)'}}>
+                    <div className="h-6 w-full mx-auto px-2 md:px-4 flex flex-row gap-2 items-center mt-1" style={{maxWidth: 'calc(56rem - 100px)'}}>
 
 
                         {featureFlags.dataSourceSelectorOnInput && (
