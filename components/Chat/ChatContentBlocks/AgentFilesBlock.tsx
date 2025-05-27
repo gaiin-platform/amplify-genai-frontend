@@ -127,7 +127,7 @@ export const AgentFileList: React.FC<FileListProps> = ({ files }) => {
     <ul className="space-y-2">
       {files.map((file: AgentFile, index: number) => (
         <li key={index} className="relative">
-          <div className="flex items-center group">
+          <div className="flex items-center">
             <span className="mr-2">
               {getFileIcon(file.type)}
             </span>

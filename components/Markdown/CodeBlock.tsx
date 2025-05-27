@@ -2,12 +2,8 @@ import { IconCheck, IconClipboard, IconDownload } from '@tabler/icons-react';
 import { FC, memo, useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
-
 import { useTranslation } from 'next-i18next';
-
 import { generateRandomString } from '@/utils/app/codeblock';
-import TestButton from '@/components/Artifacts/TestButton';
-import InferSchemaButton from '@/components/Artifacts/InferSchemaButton';
 import { programmingLanguages } from '@/utils/app/fileTypeTranslations';
 
 interface Props {
@@ -83,8 +79,6 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
           >
             <IconDownload size={18} />
           </button>
-          {/* {language === 'python' && <TestButton />}
-          {language === 'python' && <InferSchemaButton code={value} />} */}
         </div>
       </div>
 

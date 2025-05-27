@@ -76,6 +76,7 @@ const AssistantPage = ({
   const [isHoveringSettings, setIsHoveringSettings] = useState(false);
   const [messageState, setMessageState] = useState<any>({});
   const [responseStatus, setResponseStatus] = useState<string>('');
+  const [astResponding, setAstResponding] = useState<string>('');
   const [editing, setEditing] = useState<number | null>(null);
   const [editedContent, setEditedContent] = useState("");
   const [abortController, setAbortController] = useState<AbortController>(new AbortController());
@@ -287,6 +288,15 @@ const AssistantPage = ({
     initializePage();
   }, [chatEndpoint, assistantSlug]);
 
+  const handleResponseStatus = (status: string) => {
+    console.log("status recieved:", status);
+    if (status.includes("responding")) {
+      setAstResponding(status);
+    } else {
+      setResponseStatus(status);
+    }
+  }
+
 
   // Handle sending a message
   const handleSendMessage = async (inputContent: string) => {
@@ -309,7 +319,7 @@ const AssistantPage = ({
         console.error('Model is missing id:', activeModel);
         throw new Error("The selected model is invalid. Please select a different model.");
       }
-      const options = requiredGroupType ? {groupType: groupType, groupId: assistantDefinition?.data?.groupId} : {};
+      const options = {groupType:  requiredGroupType ? groupType : undefined, groupId: assistantDefinition?.data?.groupId};
       // Send the message to the assistant with conversation history and selected model
       const result = await sendDirectAssistantMessage(
         chatEndpoint,
@@ -321,7 +331,7 @@ const AssistantPage = ({
         options,
         messageState,
         handleMessageState,
-        setResponseStatus,
+        handleResponseStatus,
         abortController,
       );
       
@@ -466,6 +476,7 @@ const AssistantPage = ({
     } finally {
       setIsProcessing(false);
       setResponseStatus('');
+      setAstResponding('');
     }
   };
 
@@ -847,7 +858,7 @@ const AssistantPage = ({
                 <div className="flex justify-start">
                   <div className="bg-neutral-100 dark:bg-[#444654] px-4 py-3 rounded-lg">
                     <div className="flex items-center">
-                      <Spinner size="16px"/> {responseStatus && <span className="ml-2 shimmer-text">{responseStatus}</span> }
+                      <Spinner size="16px"/> <span className="ml-2 shimmer-text">{responseStatus.trim() || astResponding}</span> 
                     </div>
                   </div>
                 </div>

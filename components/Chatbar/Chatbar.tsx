@@ -201,6 +201,11 @@ export const Chatbar = () => {
     }
   }, [searchTerm, conversations]);
 
+  const conversationsWithNoFolders = () => {
+    return filteredConversations.filter((conversation) => !conversation.folderId || 
+             !foldersRef.current.find((f: FolderInterface) => f.id === conversation.folderId));
+  }
+
   return (
     <ChatbarContext.Provider
       value={{
@@ -216,12 +221,11 @@ export const Chatbar = () => {
         side={'left'}
         isOpen={showChatbar}
         addItemButtonTitle={t('New Chat')}
-        itemComponent={<Conversations conversations={filteredConversations} />}
+        itemComponent={<Conversations conversations={conversationsWithNoFolders()} />}
         folderComponent={<ChatFolders sort={folderSort} searchTerm={searchTerm} conversations={filteredConversations} />}
         items={filteredConversations}
         searchTerm={searchTerm}
         handleSearchTerm={(searchTerm: string) => chatDispatch({ field: 'searchTerm', value: searchTerm })}
-        toggleOpen={handleToggleChatbar}
         handleCreateItem={() => {
           window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false}} ));
           handleNewConversation({});

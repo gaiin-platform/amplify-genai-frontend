@@ -46,6 +46,7 @@ export interface HomeInitialState {
   temperature: number;
   showChatbar: boolean;
   showPromptbar: boolean;
+  showUserMenu: boolean;
 
   workspaceDirty: boolean; //legacy
   workspaceMetadata: Workspace; //legacy
@@ -121,8 +122,9 @@ export const initialState: HomeInitialState = {
   selectedArtifacts: undefined,
   prompts: [],
   temperature: 1,
-  showPromptbar: true,
-  showChatbar: true,
+  showPromptbar: false,
+  showChatbar: false,
+  showUserMenu: false,
   currentFolder: undefined,
   messageError: false,
   searchTerm: '',

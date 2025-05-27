@@ -77,7 +77,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                     
                     }
                     { showFeatureSearch && !isAddingFeature && 
-                    <div className="ml-auto mr-10" style={{transform: 'translateY(6px)'}}>
+                    <div className="ml-auto mr-9" style={{transform: 'translateY(6px)'}}>
                         <Search
                         placeholder={'Search Feature Flags...'}
                         searchTerm={featureSearchTerm}
@@ -149,8 +149,11 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                         ))}
                     </div>
                 </div>
-                <div className="flex-grow ml-4 flex flex-col mt-[-27px] max-w-[40%]">
-                    <InfoBox content={
+                <div className="flex-grow ml-4 flex flex-col mt-[-40px] max-w-[40%]">
+                    <InfoBox
+                     padding="py-1"
+                     color={"#60A5FA"}
+                     content={
                             <span className="ml-1 text-xs w-full text-center"> 
                             Members of the following Amplify Groups will be considered exceptions.
                             </span>
@@ -172,20 +175,21 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
             <div className="ml-4 mt-6 mb-10">
                 <div className="mr-5 pr-4">
                     <InfoBox 
+                    color="#60A5FA"
                     content={
                         <span className="text-xs w-full text-center"> 
                             When the feature is Enabled, it is active for everyone except the users listed under User Exceptions; when Disabled, the feature is inactive for everyone except those users, who will still have access.
                         </span>
                     }
                     />
-                    <table id="featureFlagsTable" className="mt-4 border-collapse w-full" style={{ tableLayout: 'fixed' }}>
+                    <table id="featureFlagsTable" className="modern-table round-last-column mt-4 w-full mr-10" style={{boxShadow: 'none', tableLayout: 'fixed'}}>
                         <thead>
-                        <tr className="bg-gray-200 dark:bg-[#373844] ">
+                        <tr className="gradient-header">
                             {['Feature', 'Status', 'User Exceptions', 'User Exceptions by Amplify Group Membership']
                                 .map((title, index) => (
                             <th key={index}
                                 id={title}
-                                className="text-center p-0.5 border border-gray-500 text-neutral-600 dark:text-neutral-300"
+                                className="px-4 py-2 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
                                 style={{
                                 width: index === 0  ? '22%' // Feature column takes as much space as needed
                                         : index === 1 ? '150px' // Fixed width for the Status button column

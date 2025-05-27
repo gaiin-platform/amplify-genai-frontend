@@ -31,6 +31,16 @@ export interface API {
   headers: Record<string, string>;
   auth: Auth;
   description: string;
+  schema?:  {
+    type: string;
+    properties: {
+      [key: string]: {
+        type: string;
+        [key: string]: any;
+      };
+    };
+    required?: string[];
+  };
 }
 
 export interface APIState {
@@ -102,9 +112,9 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
 
 
   return (
-    <div className="mt-2">
+    <div>
        {!disabled && <button
-        className="mt-2 mb-4 flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-sm text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+        className=" mb-4 flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-sm text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700"
         onClick={() => setApiInfo([...apiInfo, {
           id: '',
           name: '',

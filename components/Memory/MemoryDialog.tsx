@@ -134,8 +134,6 @@ export const MemoryDialog: FC<MemoryDialogProps> = ({ open, onClose }) => {
 
     return (
         <Modal
-            width={() => window.innerWidth * 0.62}
-            height={() => window.innerHeight * 0.88}
             title="Memory Management"
             onSubmit={onClose}
             onCancel={onClose}

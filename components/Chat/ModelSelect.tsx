@@ -9,6 +9,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 import React from 'react';
+import { Conversation } from '@/types/chat';
 
 interface Props {
   modelId: string | undefined;
@@ -19,6 +20,7 @@ interface Props {
   disableMessage?: string;
   models?: Model[];
   defaultModelId?: string;
+  outlineColor?: string;
 }
 
 export const ModelSelect: React.FC<Props> = ({
@@ -28,19 +30,43 @@ export const ModelSelect: React.FC<Props> = ({
   isTitled = true,
   applyModelFilter = true,
   disableMessage = 'Model has been predetermined and cannot be changed',
-  models: presetModels, defaultModelId: backupDefaultModelId
+  models: presetModels, defaultModelId: backupDefaultModelId,
+  outlineColor
 }) => {
   const { t } = useTranslation('chat');
 
   const contextValue = useContext(HomeContext);
+
+  const handleUpdateConversation = contextValue?.handleUpdateConversation || (() => {});
   
   // Default values when context is missing
-  const selectedConversation = contextValue?.state?.selectedConversation;
-  const defaultModelId = contextValue?.state?.defaultModelId || backupDefaultModelId;
-  const featureFlags = contextValue?.state?.featureFlags || {};
-  const availableModels = contextValue?.state?.availableModels || {};
-  const handleUpdateConversation = contextValue?.handleUpdateConversation || (() => {});
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | undefined>(contextValue?.state?.selectedConversation);
+  useEffect(() => {
+    setSelectedConversation(contextValue?.state?.selectedConversation);
+  }, [contextValue?.state?.selectedConversation]);
 
+  const [featureFlags, setFeatureFlags] = useState(contextValue?.state?.featureFlags || {});
+  useEffect(() => {
+    setFeatureFlags(contextValue?.state?.featureFlags || {});
+  }, [contextValue?.state?.featureFlags]);
+
+
+  const [availableModels, setAvailableModels] = useState(contextValue?.state?.availableModels || {});
+  useEffect(() => {
+    setAvailableModels(contextValue?.state?.availableModels || {});
+  }, [contextValue?.state?.availableModels]);
+
+  // Use state to track defaultModelId
+  const [defaultModelId, setDefaultModelId] = useState<string | undefined>(
+    contextValue?.state?.defaultModelId || backupDefaultModelId
+  );
+
+  // Update state when context changes
+  useEffect(() => {
+    setDefaultModelId(contextValue?.state?.defaultModelId || backupDefaultModelId);
+  }, [contextValue?.state?.defaultModelId, backupDefaultModelId]);
+
+  
   const [selectModel, setSelectModel] = useState<string | undefined>(modelId ?? defaultModelId);
   const [isOpen, setIsOpen] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
@@ -125,9 +151,8 @@ const getIcons = (model: Model) => {
           onClick={() => setIsOpen(!isOpen)}
           title={isDisabled ? disableMessage : 'Select Model'}
           id="modelSelect"
-          className={`w-full flex items-center justify-between rounded-lg border border-neutral-200 bg-transparent p-2 pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white custom-shadow ${
-            isDisabled ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
+          className={`w-full flex items-center justify-between rounded-lg bg-transparent p-2 pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white custom-shadow ${
+            isDisabled ? 'opacity-50 cursor-not-allowed' : ''} ${outlineColor ? `border-2 border-${outlineColor}` : ' border border-neutral-200'}`}
         >
           { selectedModel ? 
           <>
@@ -145,7 +170,8 @@ const getIcons = (model: Model) => {
         {isOpen && (
           <ul id="modelList" className="absolute z-10 mt-1 w-full overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
               style={{maxHeight: window.innerHeight * 0.55}}>
-            {models.map((model: Model) => (
+            {models.sort((a, b) => a.name.localeCompare(b.name))
+                    .map((model: Model) => (
               <li
                 key={model.id}
                 id={model.id}
@@ -191,7 +217,11 @@ const legend = () => {
       {legendItem( <IconBaselineDensityMedium size={16} />, 'Average Output Token Limit : 4,096 - 100,000 tokens' )}
       {legendItem(<IconBaselineDensityLarge size={16} />, 'Less than Average Output Token Limit : < 4,096 tokens' )}
       <div className='mt-2 text-sm text-gray-500 dark:text-gray-400'>
-       View the full pricing breakdown: Click on the gear icon on the left sidebar, go to <strong>Settings</strong>, and click on the <strong>Model Pricing</strong> tab.
+       View the full pricing breakdown: Click on the gear icon on the left sidebar, go to <strong>Settings</strong>, and scroll down to  
+       <strong className='text-blue-500 dark:text-blue-400 cursor-pointer hover:underline'
+       onClick={() => {window.dispatchEvent(new CustomEvent('openSettingsTrigger', {detail: {openToTab: "Configurations"}}));
+                     }}>{" View Model Pricing"}
+       </strong> tab.
       </div>
     </div>
   );

@@ -406,8 +406,6 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 
 }
 
-const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-
    return ( 
    <div id="artifactsTab" className={`flex-0 text-base overflow-hidden min-h-screen bg-gray-200 dark:bg-[#343541] text-black dark:text-white border-l border-black px-4`}>
         <div className="flex flex-col" > 
@@ -608,10 +606,10 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                     </div>
                     
 
-                    <div className="h-min mt-8 flex flex-col gap-3 items-center p-2 border border-gray-500 dark:border-gray-500 shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
+                    <div className="enhanced-chat-icons-vertical h-min mt-8 flex flex-col gap-3 items-center p-2 border border-gray-500 dark:border-gray-500 shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
                         {isPreviewing ?
                             <button
-                            className={chat_icons_cn}
+                            className="enhanced-chat-icon-button"
                             id="viewCode"
                             onClick={() => {
                                 setIsPreviewing(false)}}
@@ -621,7 +619,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                             <IconCode size={24}/>
                             </button> :             
                             <button
-                                className={chat_icons_cn}
+                                className="enhanced-chat-icon-button"
                                 id="previewArtifact"
                                 onClick={() => {
                                     setIsEditing(false); 
@@ -634,7 +632,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                                 <IconPresentation size={24}/>
                             </button> }
                         <button
-                            className={chat_icons_cn}
+                            className="enhanced-chat-icon-button"
                             id="saveArtifact"
                             onClick={() => {
                                 setIsSharing(false); 
@@ -650,7 +648,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                         </button>
 
                         <button
-                            className={chat_icons_cn}
+                            className="enhanced-chat-icon-button"
                             id="uploadArtifactAFM"
                             onClick={() => {
                                 setIsSaving(false);
@@ -666,7 +664,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                         </button>
 
                         <button
-                            className={chat_icons_cn}
+                            className="enhanced-chat-icon-button"
                             id="addVersionCopy"
                             onClick={handleCopyVersion}
                             title="Add Version Copy To Artifact List"
@@ -682,7 +680,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                             />
                         ) : (
                             <button
-                                className={chat_icons_cn}
+                                className="enhanced-chat-icon-button"
                                 id="copyArtifact"
                                 onClick={copyOnClick}
                                 title="Copy Artifact"
@@ -694,7 +692,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                         )}
 
                         <button
-                            className={chat_icons_cn}
+                            className="enhanced-chat-icon-button"
                             id="downlaodArtifact"
                             onClick={handleDownloadArtifact}
                             title="Download Artifact"
@@ -704,21 +702,21 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                         </button>
 
                         <button
-                            className={chat_icons_cn}
+                            className="enhanced-chat-icon-button"
                             id="emailArtifact"
                             title="Email Artifact"
                             disabled={artifactIsStreaming}
                             onClick={()=> statsService.mailArtifactEvent()}
                         >
-                            <a className={chat_icons_cn}
+                            <a className=""
                                 href={`mailto:?body=${encodeURIComponent( getArtifactContents() )}`}>
-                                <IconMail size={24}/>
+                                <IconMail size={22}/>
                             </a>
                             
                         </button>
 
                         <button
-                            className={chat_icons_cn}
+                            className="enhanced-chat-icon-button"
                             id="shareArtifact"
                             onClick={() => {
                                 setIsSaving(false);
@@ -732,7 +730,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
                         </button>
 
                         <button
-                            className={chat_icons_cn}
+                            className="enhanced-chat-icon-button"
                             id="editArtifact"
                             onClick={() => {
                                 setIsPreviewing(false); 
@@ -746,7 +744,7 @@ const chat_icons_cn = "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark
 
 
                         <button
-                            className={chat_icons_cn}
+                            className="enhanced-chat-icon-button"
                             id="deleteVersion"
                             onClick={handleDeleteArtifact}
                             title="Delete Version"

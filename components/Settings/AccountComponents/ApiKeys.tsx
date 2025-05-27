@@ -1,11 +1,11 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
-import { IconPlus, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, IconArticle, IconRobot } from "@tabler/icons-react";
+import { IconPlus, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, IconArticle, IconRobot, IconLoader2 } from "@tabler/icons-react";
 import HomeContext from '@/pages/api/home/home.context';
 import ExpansionComponent from '../../Chat/ExpansionComponent';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
 import { Account, noCoaAccount } from '@/types/accounts';
-import { createApiKey, deactivateApiKey, fetchApiDoc, fetchApiKey, updateApiKeys } from '@/services/apiKeysService';
+import { createApiKey, deactivateApiKey, fetchAllApiKeys, fetchApiDoc, fetchApiKey, updateApiKeys } from '@/services/apiKeysService';
 import { ApiKey } from '@/types/apikeys';
 import { PeriodType, formatRateLimit, UNLIMITED, rateLimitObj} from '@/types/rateLimit'
 import { useSession } from 'next-auth/react';
@@ -24,14 +24,14 @@ import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { InfoBox } from '@/components/ReusableComponents/InfoBox';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import { fetchFile } from '@/utils/app/files';
+import { ActiveTabs } from '@/components/ReusableComponents/ActiveTabs';
 
 interface Props {
-    apiKeys: ApiKey[];
-    setApiKeys: (k:ApiKey[]) => void;
     setUnsavedChanges: (b: boolean) => void;
-    onClose: () => void;
     accounts: Account[];
     defaultAccount: Account;
+    open: boolean;
+    onClose: () => void;
 }
 
 
@@ -57,20 +57,21 @@ const formatAccessType = (accessType: string) => {
     return String(accessType).replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())                                                          
 }
 
-export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onClose, accounts, defaultAccount}) => {
+export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount, open, onClose}) => {
     const { state: {featureFlags, statsService, amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
 
     const { data: session } = useSession();
     const user = session?.user?.email;
-
+    const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
 
     const { t } = useTranslation('settings');
     const [validAccounts, setValidAccounts] = useState<any>(accounts.filter((a: Account) => a.id !== noCoaAccount.id));
-
+    
     const [ownerApiKeys, setOwnerApiKeys] = useState<ApiKey[]>([]);
     const [delegateApiKeys, setDelegateApiKeys] = useState<ApiKey[]>([]);
     const [isCreating, setIsCreating] = useState<boolean>(false);
     const [isSaving, setIsSaving ] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
     const [appName, setAppName] = useState<string>("");
     const [appDescription, setAppDescriptione] = useState<string>("");
@@ -90,7 +91,35 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
     const [fullAccess, setFullAccess] = useState<boolean>(true);
     const [options, setOptions] = useState<Record<string, boolean>>(cloneDeep(optionChoices));
 
-    const [docsIsOpen, setDocsIsOpen] = useState<boolean>(false);
+    const [documentComponent, setDocumentComponent] = useState<React.ReactElement | null>(null);
+
+    const handleClose = () => {
+        onClose();
+        setApiKeys([]);
+    }
+
+
+    const fetchApiKeys = async () => {
+    const result = await fetchAllApiKeys();
+
+        if (!result.success) {
+            alert("Unable to fetch your API keys. Please try again.");
+            setIsLoading(false);
+
+        } else {
+            setApiKeys(result.data); 
+        }
+    }
+
+    useEffect(() => {
+        if (open) fetchApiKeys();
+    }, [open]);
+
+    useEffect(() => {
+            if (accounts && apiKeys) {
+                setIsLoading(false);
+            }
+    }, [accounts, apiKeys]);
 
     
     useEffect(() => {
@@ -175,7 +204,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
             setDelegateApiKeys([]);
             setOwnerApiKeys([]);
             // to pull in the updated changes to the ui     
-            window.dispatchEvent(new Event('createApiKeys'));
+            fetchApiKeys();
         }
       
         // empty out all the create key fields
@@ -228,13 +257,19 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
         setIsSaving(false);
     };
 
+    useEffect(() => {
+        window.addEventListener('settingsSave', handleSave);
+        return () => window.removeEventListener('settingsSave', handleSave);
+    }, []);
+
 
     const isExpired = (date: string) => {
         return new Date(date) <= new Date()
     }
 
+    if (documentComponent) return documentComponent;
 
-    return (
+    return  (
         <div className='flex flex-col'>
          <div className='flex flex-col gap-4 mx-2' > 
             <div className="text-l text-black dark:text-neutral-200">
@@ -243,7 +278,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                The following fields are editable for your active API keys: Account, Expiration, Rate Limit, and Access Types. Remove an expiration date by clearing the date in the calendar. Always remember to confirm and save your changes. You can automatically deactive any active API key by clicking the green check mark. 
                <br className='mb-1'></br>
 
-                <InfoBox content={
+                <InfoBox 
+                content={
                     <span className="ml-2 text-xs"> 
                         <div className='mb-2 ml-5 text-[0.8rem]'> {"Types of API Keys"}</div>
                         {/* <br className='mb-1'></br> */}
@@ -270,7 +306,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                     </span>}
                 />
                 <div className='z-60'> 
-                   <APITools setDocsIsOpen={setDocsIsOpen} onClose={onClose}/> 
+                   <APITools setDocumentElement={setDocumentComponent} onClose={handleClose}/> 
                 </div>
                 
 
@@ -311,7 +347,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                                             />
                                         </div>
 
-                                        { !docsIsOpen && <div className='ml-8 mr-8 relative sm:min-w-[300px] sm:max-w-[440px]' style={{width: `${window.innerWidth * 0.35 }px` }}>
+                                        <div className='ml-8 mr-8 relative sm:min-w-[300px] sm:max-w-[440px]' style={{width: `${window.innerWidth * 0.35 }px` }}>
 
                                             <ExpansionComponent 
                                                 title={'Add Delegate'} 
@@ -328,7 +364,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                                                 }
                                                 closedWidget= { <IconPlus size={18} />}
                                             />
-                                      </div>}
+                                        </div>
                                    </div>
 
 
@@ -357,7 +393,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                                 />
                                 </div>
                             
-                            { !docsIsOpen && <div className='flex flex-row justify-between mx-8 py-1'>
+                            <div className='flex flex-row justify-between mx-8 py-1'>
                                 <div className='flex flex-row gap-4 items-center' style={{ width: '240px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}>
                                     <label className="text-sm " htmlFor="rateLimitType">Rate Limit</label>
                                     <RateLimiter
@@ -400,7 +436,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                                 </div>
                                 
                                 
-                            </div>}
+                            </div>
                             <div className='flex flex-row py-1 '>
                                 <div className='py-1 w-full' title='Full Access is the default configuration.'>
                                     <ExpansionComponent 
@@ -450,13 +486,16 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                         Your API Keys
                 </div>
                 
-
+                {isLoading ? <div className="flex items-center justify-center py-8">
+                            <IconLoader2 size={24} className="animate-spin text-gray-500 mr-2" />
+                            <span>{"Loading API Keys..."}</span>
+                        </div> : (
                 <div className='overflow-x-auto'>
                 {ownerApiKeys.length === 0 ? (
                     <div className="text-center text-md italic text-black dark:text-neutral-200">
                         You do not have any API keys set up. Add one above.
                     </div>
-                ) : ( !docsIsOpen && 
+                ) : ( 
                     <table className='mt-[-1px] w-full text-md text-black dark:text-neutral-200'>
                         <thead>
                             <tr className="bg-gray-200 dark:bg-[#333]">
@@ -503,7 +542,8 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                         </tbody>
                     </table>
                 )}
-            </div>
+                </div>
+                )}
 
 
 
@@ -515,7 +555,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                         Delegated API Keys
                 </div>
             <div>
-                { !docsIsOpen &&  <div style={{ overflowX: 'auto'}}>
+                <div style={{ overflowX: 'auto'}}>
                 <table className='mt-[-1px] w-full text-md text-black dark:text-neutral-200'>
                     <thead>
                             <tr className="bg-gray-200 dark:bg-[#333]">
@@ -552,7 +592,7 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
                         ))}
                     </tbody>
                     </table>
-                    </div> }
+                    </div> 
                     </div>
                     </>
                     }
@@ -561,25 +601,6 @@ export const ApiKeys: FC<Props> = ({ apiKeys, setApiKeys, setUnsavedChanges, onC
 
             <br className='mb-20'></br>
             <br className='mb-20'></br>
-
-            { !docsIsOpen && <div className="flex-shrink-0 flex flex-row fixed bottom-0 left-0 w-full px-4 py-2 mb-2"> 
-                <button
-                    type="button"
-                    id="cancel"
-                    className="mr-2 w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-white dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                    onClick={onClose}
-                >
-                    {t('Cancel')}
-                </button>
-                <button
-                    type="button"
-                    id="Save Changes"
-                    className="w-full px-4 py-2 mt-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-white dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                    onClick={handleSave}
-                >
-                    {isSaving? 'Saving Changes...' :'Save Changes'}
-                </button>
-            </div>}
            
 
         </div>
@@ -931,12 +952,12 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
 
 
 interface ToolsProps {
-    setDocsIsOpen: (e: boolean) => void;
+    setDocumentElement: (e: React.ReactElement | null) => void;
     onClose: () => void;
 }
 
 
-const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
+const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
     const { state: {prompts, statsService}, dispatch: homeDispatch, handleNewConversation} = useContext(HomeContext);
 
     const promptsRef = useRef(prompts);
@@ -944,17 +965,16 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
     useEffect(() => {
         promptsRef.current = prompts;
       }, [prompts]);
-
-    const [activeTab, setActiveTab] = useState<string | null>(null);
-    const [showApiDoc, setShowApiDoc] = useState(false);
-    const [docUrl, setDocUrl] = useState<string | undefined>(undefined);
-    const [csvUrl, setCsvUrl] = useState<string | undefined>(undefined);
-    const [postmanUrl, setPostmanUrl] = useState<string | undefined>(undefined);
-    const [fileContents, setFileContents] = useState<any>(undefined);
-    const [isLoading, setIsLoading] = useState(false);
+     const [isLoading, setIsLoading] = useState(false);
+    const docUrlRef = useRef<string | undefined>(undefined);
+    const csvUrlRef = useRef<string | undefined>(undefined);
+    const postmanUrlRef = useRef<string | undefined>(undefined);
+    const fileContentsRef = useRef<any>(undefined);
+   
+    const showDocsRef = useRef<boolean | null>(null);
+    // prevent recalling the getSettings function
+    if (showDocsRef.current === null) showDocsRef.current = false;
     
-
-
     const [keyManager, setKeyManager] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.data?.tags && a.data.tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER)));
     const [apiAst, setApiAst] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.data?.tags && a.data.tags.includes(ReservedTags.ASSISTANT_API_HELPER)));
 
@@ -971,44 +991,33 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
         return true;
       };
 
-    const handleShowDocs = (val: boolean) => {
-        setDocsIsOpen(val);
-        setShowApiDoc(val);
-    }
+
+    useEffect(() => {
+    //     console.log("showDocs", showDocs, "isLoading", isLoading);
+        if (showDocsRef.current) setDocumentElement(documentComponent(isLoading));
+    }, [isLoading, docUrlRef.current, csvUrlRef.current, postmanUrlRef.current, fileContentsRef.current]);
 
     const handleShowApiDoc = async () => {
-            //check if expired 
-        const isExpired = docUrl ? isUrlExpired(docUrl) : true;
+        showDocsRef.current = true;
+        //check if expired 
+        const isExpired = docUrlRef.current ? isUrlExpired(docUrlRef.current) : true;
         if (isExpired) {
             setIsLoading(true);
             const result = await fetchApiDoc();
             if (result.success) {
-                handleShowDocs(true);
-                setDocUrl(result.doc_url);
-                setCsvUrl(result.csv_url);
-                setPostmanUrl(result.postman_url);
+                docUrlRef.current = result.doc_url;
+                setContents(result.doc_url);
+                csvUrlRef.current = result.csv_url;
+                postmanUrlRef.current = result.postman_url;
             } else {
                 docError();
             }
-        } else {
-            handleShowDocs(true);
-        }
-        
-        
+        } 
+        setIsLoading(false);
     }
 
-    useEffect( () => {
-        if (docUrl || csvUrl) {
-            const tabToSwitch = docUrl ? 'Doc' : csvUrl ? "Downloads" : null;
-            handleTabSwitch(tabToSwitch);
-            setIsLoading(false);
-        }
-    }, [docUrl]);
-
     const docError = () => {
-        handleShowDocs(false);
         alert("Unable to display API documentation at this time. Please try again later...");
-        setIsLoading(false);
     }
 
     const handleStartConversation = (startPrompt: Prompt) => {
@@ -1020,14 +1029,90 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
         onClose();
     }
 
-    const handleTabSwitch = async (tab: string | null) => {
-        if (!tab) return;
-        if (docUrl && tab === "Doc") {
-                    const file = await fetchFile(docUrl);
-                    setFileContents(file);
-        }
-        setActiveTab(tab);
-        // console.log("Active tab: ", tab)
+    const setContents = async (url: string) => {
+        const file = await fetchFile(url);
+        fileContentsRef.current = file;
+        if (showDocsRef.current) setDocumentElement(documentComponent(false));
+    }
+
+
+    const documentComponent = (loading: boolean) => {
+        return (<>
+             {loading ? (
+                    <div className="p-3 flex flex-row items-center">
+                        <LoadingIcon style={{ width: "24px", height: "24px" }}/>
+                        <span className="text-lg font-bold ml-2 text-neutral-600 dark:text-white">Loading API Documentation...</span>
+                    </div>
+            ) : (
+                <div>
+                <div className='absolute top-[130px] h-[100px] bg-pink-100 dark:bg-[#2b2c36]'> </div>
+                <ActiveTabs
+                id="ApiDocumentationTabs"
+                depth={1}
+                tabs={[
+
+                {label: `API Documentation`, 
+                title: "View Amplify API",
+                id: "viewAmplifyAPI",
+                content:
+                <div>
+                <iframe
+                    src={fileContentsRef.current}
+                    width={`${window.innerWidth * 0.55 }px`}
+                    height={`${window.innerHeight * 0.5}px`}
+                    onError={() => docError()}
+                    style={{ border: 'none' }} />   
+                </div>},
+                   {label: `Downloads`, 
+                    title: "Download Amplify API Help Materials",
+                    id: "downloadsAPI",
+                    content:
+                    <div className="settings-card">
+                        <div className="settings-card-header flex flex-row items-center gap-4">
+                          <h3 id="downloadsAPITabTitle" className="settings-card-title">{"Available Amplify API Documentation Formats"}</h3>
+                        </div>
+                        <div className="settings-card-content">
+                        <div className='text-lg'>
+                            {docUrlRef.current &&
+                                    <APIDownloadFile
+                                    label="Amplify API PDF"
+                                    presigned_url={docUrlRef.current}
+                                    IconSize={24}
+                                    />
+                            }
+                            {csvUrlRef.current && 
+                                <APIDownloadFile
+                                    label="Amplify API CSV"
+                                    presigned_url={csvUrlRef.current}
+                                    IconSize={24}
+                                />
+                            }
+                            {postmanUrlRef.current &&
+                                    <APIDownloadFile
+                                    label="Amplify API Postman Collection"
+                                    presigned_url={postmanUrlRef.current}
+                                    IconSize={24}
+                                    />
+                            }
+                            </div>
+                        </div>
+                    </div>}
+                ]}
+                />
+                 <div className='absolute top-[150px] right-[60px]'>
+                    <ActionButton
+                        handleClick={() => {
+                            showDocsRef.current = false;
+                            setDocumentElement(null)
+                        }}
+                        title={"Close"}>
+                        <IconX size={26}/>
+                    </ActionButton>
+                </div>  
+                </div>
+            )}
+        </>);
+
     }
 
     return (
@@ -1073,99 +1158,6 @@ const APITools: FC<ToolsProps> = ({setDocsIsOpen, onClose}) => {
                 )}
 
                 </div>
-
-            {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center z-60"
-                    style={{ transform: `translateY(-25%)`}}>
-                    <div className="p-3 flex flex-row items-center  border border-gray-500 bg-[#202123]">
-                        <LoadingIcon style={{ width: "24px", height: "24px" }}/>
-                        <span className="text-lg font-bold ml-2 text-white">Loading API Documentation...</span>
-                    </div>
-                </div>
-            )
-            }
-
-
-            {showApiDoc && !isLoading &&  (
-                <div className="absolute inset-0 flex items-center justify-star"
-                style={{
-                    zIndex: '60 !important'
-                  }}>
-                    <div className="p-3 flex flex-col items-center  border border-gray-500 bg-neutral-100 dark:bg-[#202123]"
-                        style={{width: `${window.innerWidth}px`, height: `${window.innerHeight * 0.9}px`}}>
-                            
-                            <div className="mb-auto w-full flex flex-row gap-1 bg-neutral-100 dark:bg-[#202123] rounded-t border-b dark:border-white/20 z-60">
-                                    {docUrl && (
-                                        <button
-                                            key={"Doc"}
-                                            onClick={() => handleTabSwitch("Doc")}
-                                            id="viewAmplifyAPI"
-                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Doc" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white  shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
-                                            <h3 className="text-xl">View Amplify API</h3> 
-                                        </button> )}
-
-                                    {csvUrl && (
-                                        <button
-                                            key={"Downloads"}
-                                            onClick={() => handleTabSwitch("Downloads")}
-                                            id="downloadsAPI"
-                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "Downloads" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white  shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
-                                            <h3 className="text-xl">Downloads</h3> 
-                                        </button> )}
-
-                                        <div className='ml-auto'>
-                                            <ActionButton
-                                                handleClick={() => handleShowDocs(false)}
-                                                title={"Close"}>
-                                                <IconX size={20}/>
-                                            </ActionButton>
-                                        </div>      
-                            </div> 
-
-                        { fileContents && activeTab === "Doc" &&
-                            <iframe
-                                src={fileContents}
-                                width={`${window.innerWidth * 0.6 }px`}
-                                height={`${window.innerHeight * 0.85}px`}
-                                onError={() => docError}
-                                style={{ border: 'none' }} />   
-                            }  
-
-                { activeTab === "Downloads" && 
-                    <div className='absolute top-20 flex justify-center mt-4 flex-col text-lg'>
-                    <label id="downloadsAPITabTitle" className='text-xl'> Available Amplify API Documentation Formats</label>
-                    <div className='ml-6'>
-                        {docUrl &&
-                                <APIDownloadFile
-                                label="Amplify API PDF"
-                                presigned_url={docUrl}
-                                IconSize={24}
-                                />
-                        }
-                        {csvUrl && 
-                            <APIDownloadFile
-                                label="Amplify API CSV"
-                                presigned_url={csvUrl}
-                                IconSize={24}
-                            />
-                        }
-                        {postmanUrl &&
-                                <APIDownloadFile
-                                label="Amplify API Postman Collection"
-                                presigned_url={postmanUrl}
-                                IconSize={24}
-                                />
-                        }
-                    </div>
-                    </div>
-                        
-                    } 
-
-                
-
-                    </div>
-                </div>
-            )}
     
         </>
     );

@@ -27,4 +27,5 @@ export interface LocalStorage {
   mixPanelOn: boolean;
   archiveConversationPastNumOfDays: number;
   workspaces: SharedItem[];
+  stickyChatbar: boolean;
 }

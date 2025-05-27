@@ -28,7 +28,8 @@ import { getDateName } from "@/utils/app/date";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import React from "react";
 import toast from "react-hot-toast";
-import { getHiddenGroupFolders, saveFolders } from "@/utils/app/folders";
+import { getArchiveNumOfDays, getHiddenGroupFolders, saveArchiveNumOfDays, saveFolders } from "@/utils/app/folders";
+import { IconArchive } from '@tabler/icons-react';
 
 
 interface Props {
@@ -47,6 +48,8 @@ interface Props {
     const [isShareDialogVisible, setIsShareDialogVisible] = useState<boolean>(false);
     const [isTagsDialogVisible, setIsTagsDialogVisible] = useState<boolean>(false); 
     const [allItemsChecked, setAllItemsChecked] = useState<boolean>(false);
+
+    const [archiveConversationPastNumOfDays, setArchiveConversationPastNumOfDays] = useState<number>(getArchiveNumOfDays());
 
     const {
         state: { statsService, selectedAssistant, checkedItems, folders, prompts, conversations,
@@ -103,6 +106,24 @@ interface Props {
 
     const hasHiddenGroupFolders = () => {
         return getHiddenGroupFolders().length > 0;
+    }
+    
+    // Get older folders based on age threshold
+    const getOlderFolders = () => {
+        if (!isConvSide) return [];
+        
+        const now = new Date();
+        const thresholdDate = new Date(now);
+        thresholdDate.setDate(now.getDate() - archiveConversationPastNumOfDays);
+        
+        return folders.filter(folder => { 
+            if (folder.type !== 'chat') return false;
+            if (folder.pinned || folder.id === 'agents') return false;
+            
+            // Check if folder has a date
+            const folderDate = folder.date ? new Date(folder.date) : now;
+            return folderDate < thresholdDate;
+        });
     }
 
     const unHideHiddenGroupFolders = () => {
@@ -363,24 +384,37 @@ interface Props {
         homeDispatch({field: 'checkedItems', value: allItems}); 
     }
 
+    const handleArchiveFolderNum = (numOfDays: number) => {
+        setArchiveConversationPastNumOfDays(numOfDays);
+        saveArchiveNumOfDays(numOfDays);
+        // Dispatch event to update archive threshold
+        window.dispatchEvent(new CustomEvent('updateArchiveThreshold', { 
+            detail: { threshold: numOfDays } 
+        }));
+    }
+
+    const isShowingAllFolders = () => {
+        return archiveConversationPastNumOfDays === 0;
+    }
+
     return (
-        <>
-        <div className="flex items-center border-b dark:border-white/20" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}>
-          <div className="pb-1 flex w-full text-lg ml-1 text-black dark:text-neutral-200 flex items-center">
-            {label} 
+        <React.Fragment>
+        <div className="flex items-center pb-1" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}>
+          <div className="flex w-full items-center ml-1 text-black dark:text-neutral-200">
+            <span className="sidebar-title text-xs uppercase tracking-wide opacity-60">{label}</span>
             { isSyncing && 
-                <label className="flex flex-row gap-1 text-xs ml-auto mr-1">
-                    <LoadingIcon style={{ width: "14px", height: "14px" }}/>
-                    Syncing...
-                </label>}
+                <div className="ml-auto mr-1 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 dark:border-blue-400/20 backdrop-blur-sm">
+                    <div className="sync-dot w-1.5 h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                    <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 tracking-wide">Syncing</span>
+                </div>}
           </div>
             {actionItem && checkIsActiveSide() && (
                 <div className="text-xs flex flex-row gap-1">
                     {`${actionItem.actionLabel}...`} 
-                    <div className="flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 rounded">
+                    <div className="flex flex-row gap-0.5 bg-transparent rounded-md overflow-hidden shadow-sm">
                          <button
                                 id="confirmItem" 
-                                className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100" 
+                                className="text-green-500 hover:bg-green-500/10 transition-colors duration-200" 
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (checkedItemsRef.current.length > 0) {
@@ -397,7 +431,7 @@ interface Props {
                         
                         <button
                             id="cancelItem"
-                            className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 "
+                            className="text-red-500 hover:bg-red-500/10 transition-colors duration-200"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 clear();
@@ -412,9 +446,10 @@ interface Props {
 
           <div className="relative inline-block text-left">
             { actionItem && checkIsActiveSide() ?
-                <div id="selectAllCheck" className={`z-10 p-0.5 ${ checkingItemType?.includes("Folder")? "": ""}`}>
+                <div id="selectAllCheck" className={`z-10 p-0.5 rounded-sm ${ checkingItemType?.includes("Folder")? "": ""}`}>
                     <input
                     type="checkbox"
+                    className="transition-all duration-200"
                     checked={allItemsChecked}
                     onChange={(e) => handleCheckAll(e.target.checked)}
                     />
@@ -422,18 +457,18 @@ interface Props {
                 <button
                     disabled={isSyncing}
                     id="promptHandler"
-                    className={`outline-none focus:outline-none p-0.5 ${isMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
+                    className={`outline-none focus:outline-none p-0.5 transition-all duration-200 rounded-md ${isMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
                     onClick={toggleDropdown}>
-                    <IconDotsVertical size={20} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"/>
+                    <IconDotsVertical size={20} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 enhanced-icon transition-transform duration-300"/>
                 </button>
             }
             
             {isMenuOpen && (
                 <div
                     ref={menuRef}
-                    className="ml-[-200%] absolute bg-neutral-100 dark:bg-[#202123] text-neutral-900 rounded border border-neutral-200 dark:border-neutral-600 dark:text-white z-50"
-                    style={{ top: '90%', pointerEvents: 'auto' }}>
-                    <div>
+                    className="absolute bg-neutral-100 dark:bg-[#202123] text-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-600 dark:text-white z-50 shadow-md"
+                    style={{ top: '95%', right: '0', pointerEvents: 'auto', width: '180px' }}>
+                    <div className="overflow-y-auto" style={{maxHeight: window.innerHeight * 0.7}}>
                         <KebabActionItem label="Delete" type={label as CheckItemType} handleAction={()=>{isConvSide ? handleDeleteConversations() : handleDeletePrompts()}} 
                                          setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTrash size={14} />} />
                         <KebabActionItem label="Share" type={label as CheckItemType} handleAction={()=>{setIsShareDialogVisible(true)}} setIsMenuOpen={setIsMenuOpen} 
@@ -442,9 +477,9 @@ interface Props {
                                          setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTags size={14} />} />}
                         
                         {isConvSide  &&  <KebabItem label="Clean" handleAction={() => { cleanEmptyConversations() }} icon={<IconTrashFilled size={14} />} title="Remove Empty Conversations" />}
-                        <KebabMenuItems label="Folders" xShift={175} minWidth={86}>
+                        <KebabMenuItems label="Folders">
 
-                            <KebabMenuItems label="Sort" xShift={160}>
+                            <KebabMenuItems label="Sort">
                                 <KebabItem label="Name" handleAction={() => {setFolderSort('name')}} icon={<IconAbc size={18}/>}  title="Sort Folders By Name"/>
                                 <KebabItem label="Date" handleAction={() => { setFolderSort('date') } } icon={<IconCalendar size={14}/>} title="Sort Folders By Date" />
                             </KebabMenuItems>
@@ -457,7 +492,41 @@ interface Props {
                             {<KebabItem label="Clean" handleAction={() => { cleanEmptyFolders() }} icon={<IconTrashFilled size={14} />} title="Remove Empty Folders" />}
                             <KebabItem label="Open All" handleAction={() => { openCloseFolders(true) } } icon={<IconFolderOpen size={13} />}  title="Open All Folders" />
                             <KebabItem label="Close All" handleAction={() => { openCloseFolders(false) }} icon={<IconFolder size={13}/>}   title="Close All Folders"/>
-                            {!isConvSide && hasHiddenGroupFolders()  &&  <KebabItem label="Unhide" handleAction={() => { unHideHiddenGroupFolders() }} icon={<IconEye size={14} />} title="Unhide Hidden Group Folders" /> }  
+                            {!isConvSide && hasHiddenGroupFolders()  &&  <KebabItem label="Unhide" handleAction={() => { unHideHiddenGroupFolders() }} icon={<IconEye size={14} />} title="Unhide Hidden Group Folders" /> }
+                            
+                            {isConvSide && (
+                              <KebabMenuItems label="Archive">
+                                <KebabItem 
+                                  label={isShowingAllFolders() ? "Archive Folders ": "Show All Folders"} 
+                                  handleAction={() => handleArchiveFolderNum(isShowingAllFolders() ? 7 : 0)} 
+                                  icon={<IconArchive size={14} />} 
+                                  title={`Disable archiving any folders`} 
+                                />
+                                <div className={`border-b dark:border-white/20 p-2 ${isShowingAllFolders() ? 'opacity-50' : ''}`}>
+                                  <div className="w-full flex flex-col gap-1">
+                                    <div className="flex items-center justify-between">
+                                      <label className="sidebar-text text-xs text-gray-600 dark:text-gray-300">Hide folders older than:</label>
+                                    </div>
+                                    <div className="flex flex-row flex-wrap gap-1 mt-1">
+                                      {[7, 14, 30, 90].map((days) => (
+                                        <button
+                                          key={days}
+                                          onClick={() => handleArchiveFolderNum(days)}
+                                          className={`sidebar-text text-xs px-2 py-1 rounded-md transition-all duration-200 ${archiveConversationPastNumOfDays === days ? 
+                                            'bg-blue-500 dark:bg-blue-600 text-white' : 
+                                            'bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-600'}`}
+                                        >
+                                          {days} days
+                                        </button>
+                                      ))}
+                                    </div>
+                                    <p className="sidebar-text text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                      Pinned folders are always visible
+                                    </p>
+                                  </div>
+                                </div>
+                              </KebabMenuItems>
+                            )}
                         </KebabMenuItems>
                     </div>
                 </div>
@@ -490,7 +559,7 @@ interface Props {
         {isTagsDialogVisible && 
         <div className="fixed inset-0 bg-black bg-opacity-50 h-full w-full">
             <div className="flex items-center justify-center min-h-screen">
-              <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px]"
+              <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px] transition-all duration-300"
               >
                 <div id="tagAddModal" className="p-2 h-[60px] overflow-y-auto">
                 <TagsList tags={tags} 
@@ -528,7 +597,7 @@ interface Props {
                   <button
                         type="button"
                         id="doneButton"
-                        className="w-full mb-1 px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                        className="sidebar-text w-full mb-1 px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300 transition-all duration-200 hover:transform hover:translate-y-[-1px]"
                         onClick={() => {setIsTagsDialogVisible(false);
                                         clear();
                                         if (tags.length > 0)  {
@@ -549,7 +618,7 @@ interface Props {
             </div>
           </div>
         }
-        </>
+        </React.Fragment>
       );
       
 }

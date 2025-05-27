@@ -75,8 +75,14 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
         return secrets ? secrets[key] ?? "" : "";    
     }
 
-    return <>
-        {titleLabel('Integrations')}
+    return <div className="admin-style-settings-card">
+        <div className="admin-style-settings-card-header">
+            <div className="flex flex-row items-center gap-3 mb-2">
+                <h3 className="admin-style-settings-card-title">Integrations</h3>
+            </div>
+            <p className="admin-style-settings-card-description">Configure and manage third-party integrations</p>
+        </div>
+
         {Object.entries(integrations).map(([name, integrationList]: [string, Integration[]]) => 
             <div key={name} className={`ml-4 flex flex-col gap-2 mr-8`}>
                 <br></br>
@@ -147,6 +153,6 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
                 <br className="mb-4"></br>
             </div>
         )}
-    </>
+    </div>
 
 }

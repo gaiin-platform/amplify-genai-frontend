@@ -47,3 +47,16 @@ export const getHiddenGroupFolders = () => {
   const savedHiddenFolders = localStorage.getItem('hiddenGroupFolders');
   return savedHiddenFolders ? JSON.parse(savedHiddenFolders) : [];
 }
+
+
+export const getArchiveNumOfDays = () => {
+  const archiveNumOfDays = localStorage.getItem('archiveConversationPastNumOfDays');
+  if (archiveNumOfDays) {
+    return parseInt(archiveNumOfDays);
+  }
+  return 14;
+}
+
+export const saveArchiveNumOfDays = (numOfDays: number) => {
+  localStorage.setItem('archiveConversationPastNumOfDays', numOfDays.toString());
+}

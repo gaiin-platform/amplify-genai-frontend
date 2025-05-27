@@ -422,7 +422,6 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                     selectedConversationsState={selectedConversationsState}
                                     setSelectedConversations={setSelectedConversations}
                                     includeConversations={true}
-                                    scrollToFirstSelected={true}
 
                                 />}
 

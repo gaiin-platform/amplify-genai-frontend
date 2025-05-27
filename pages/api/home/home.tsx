@@ -50,6 +50,8 @@ import {
     IconSettings,
     IconDeviceSdCard,
     IconLogout,
+    IconSparkles,
+    IconHammer,
 } from "@tabler/icons-react";
 
 import { initialState } from './home.state';
@@ -86,14 +88,12 @@ import { getAvailableModels, getFeatureFlags, getPowerPoints, getUserAppConfigs 
 import { DefaultModels, Model } from '@/types/model';
 import { ErrorMessage } from '@/types/error';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
-
-import { WorkspaceLegacyMessage } from '@/components/Workspace/WorkspaceLegacyMessage';
 import { getSharedItems } from '@/services/shareService';
 import { lowestCostModel } from '@/utils/app/models';
-import { SidebarButton } from '@/components/Sidebar/SidebarButton';
 import { useRouter } from 'next/router';
 import { AdminConfigTypes } from '@/types/admin';
 import { ConversationStorage } from '@/types/conversationStorage';
+import UserMenu from '@/components/Layout/UserMenu';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -273,7 +273,7 @@ const Home = ({
         if (isRemoteConversation(conversation)) { 
             const remoteConversation = await fetchRemoteConversation(conversation.id, conversationsRef.current, dispatch);
             if (remoteConversation) {
-                newSelectedConv = remoteConversation; 
+                newSelectedConv = {...remoteConversation, folderId: conversation.folderId || null}; 
             }
         } else {
             newSelectedConv = conversationWithUncompressedMessages(cloneDeep(conversation));
@@ -706,7 +706,10 @@ const Home = ({
                             handleUpdateSelectedConversation({...selectedConversation, model: defaultModel ?? lowestCostModel(models)});
                         }
 
-                        if (defaultModel) dispatch({ field: 'defaultModelId', value: defaultModel.id });
+                        if (defaultModel) {
+                            console.log("DefaultModel dispatch: ", defaultModel);
+                            dispatch({ field: 'defaultModelId', value: defaultModel.id });
+                        }
                         if (response.data.cheapest) dispatch({ field: 'cheapestModelId', value: response.data.cheapest.id });
                         if (response.data.advanced) dispatch({ field: 'advancedModelId', value: response.data.advanced.id });
                         const modelMap = models.reduce((acc:any, model:any) => ({...acc, [model.id]: model}), {});
@@ -1120,12 +1123,12 @@ const Home = ({
             dispatch({ field: 'showPromptbar', value: false });
         } else {
             const showChatbar = localStorage.getItem('showChatbar');
-            if (showChatbar) {
+            if (!!showChatbar) {
                 dispatch({ field: 'showChatbar', value: showChatbar === 'true' });
             }
 
             const showPromptbar = localStorage.getItem('showPromptbar');
-            if (showPromptbar) {
+            if (!!showPromptbar) {
                 dispatch({ field: 'showPromptbar', value: showPromptbar === 'true' });
             }
         }
@@ -1252,21 +1255,6 @@ const Home = ({
     const [preProcessingCallbacks, setPreProcessingCallbacks] = useState([]);
     const [postProcessingCallbacks, setPostProcessingCallbacks] = useState([]);
 
-    const federatedSignOut = async () => {
-
-        await signOut();
-        // signOut only signs out of Auth.js's session
-        // We need to log out of Cognito as well
-        // Federated signout is currently not supported.
-        // Therefore, we use a workaround: https://github.com/nextauthjs/next-auth/issues/836#issuecomment-1007630849
-        const signoutRedirectUrl = `${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ''}`;
-
-        window.location.replace(
-
-            `${cognitoDomain}/logout?client_id=${cognitoClientId}&logout_uri=${encodeURIComponent(signoutRedirectUrl)}`
-
-        );
-    };
 
     const getName = (email?: string | null) => {
         if (!email) return "Anonymous";
@@ -1473,33 +1461,19 @@ const Home = ({
                         </div>
 
                         <div className="flex h-full w-full pt-[48px] sm:pt-0">
+                            <UserMenu
+                                email={user?.email}
+                                name={session?.user?.name}
+                            />
+
 
                             <TabSidebar
                                 side={"left"}
-                                footerComponent={
-                                    <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-                                        <button id="logout" className="dark:text-white" title="Sign Out" onClick={() => {
-                                            const goLogout = async () => {
-                                                await federatedSignOut();
-                                            };
-                                            goLogout();
-                                        }}>
-
-                                            <div className="flex items-center">
-                                                <IconLogout className="m-2" />
-                                                <span>{isLoading ? 'Loading...' : getName(user?.email) ?? 'Unnamed user'}</span>
-                                            </div>
-
-                                        </button>
-
-                                    </div>
-                                }
+                                footerComponent={null}
                             >
                                 <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
-                                <Tab icon={<IconShare />} title="Share"><SharedItemsList /></Tab>
-                                { workspaces && workspaces.length > 0 ? 
-                                <Tab icon={<IconTournament />} title="Workspaces"><WorkspaceLegacyMessage /></Tab> : null}
-                                <Tab icon={<IconSettings />} title="Settings"><SettingsBar /></Tab>
+                                <Tab icon={<IconSparkles />} title="Assistants"><Promptbar /></Tab>
+                                <Tab icon={<IconHammer />} title="Settings"><SettingsBar /></Tab>
                             </TabSidebar>
 
                             <div className="flex flex-1">
@@ -1515,35 +1489,13 @@ const Home = ({
                                     <MyHome />
                                 )}
                             </div>
-
-
-                            <TabSidebar
-                                side={"right"}
-                                footerComponent={
-                                    <>
-                                    {featureFlags.memory && settings?.featureOptions.includeMemory && (
-                                        <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-                                            <SidebarButton
-                                                text={t('Memory')}
-                                                icon={<IconDeviceSdCard size={20} />}
-                                                onClick={() => setIsMemoryDialogOpen(true)}
-                                            />
-                                            <MemoryDialog
-                                                open={isMemoryDialogOpen}
-                                                onClose={() => setIsMemoryDialogOpen(false)}
-                                            />
-                                        </div>
-                                    )}
-                                    </>
-                                }
-                            >
-                                <Tab icon={<Icon3dCubeSphere />}><Promptbar /></Tab>
-                                {/*<Tab icon={<IconBook2/>}><WorkflowDefinitionBar/></Tab>*/}
-                            </TabSidebar>
+                            
 
                         </div>
                         <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
                         <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
+
+                        
 
                     </main>
                 )}
@@ -1554,9 +1506,10 @@ const Home = ({
         return (
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`}
-            >
-                <div
-                    className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
+                style={{backgroundColor: lightMode === 'dark' ? 'black' : 'white'}}>
+            <div
+                className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white"
+                style={{color: lightMode === 'dark' ? 'white' : 'black'}}>
                     <Loader />
                     <h1 className="mt-6 mb-4 text-2xl font-bold">
                         Loading...
@@ -1568,8 +1521,8 @@ const Home = ({
     } else {
         return (
             <main
-                className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`}
-            >
+                className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`} 
+                style={{backgroundColor: lightMode === 'dark' ? 'black' : 'white'}}>
                 <div
                     className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
                     <h1 className="mb-4 text-2xl font-bold">

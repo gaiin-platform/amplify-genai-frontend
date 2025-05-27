@@ -1,7 +1,6 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
 import { IconCheck, IconFiles, IconPlus, IconSettings, IconTrashX, IconX } from '@tabler/icons-react';
-import Loader from "@/components/Loader/Loader";
 import { AssistantModal } from '../Promptbar/components/AssistantModal';
 import { Prompt } from '@/types/prompt';
 import { Group, GroupAccessType, AstGroupTypeData, GroupUpdateType, Members } from '@/types/groups';
@@ -17,7 +16,7 @@ import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
 import { DataSourceSelector } from '../DataSources/DataSourceSelector';
 import { AttachedDocument } from '@/types/attacheddocument';
-import {ExistingFileList, FileList} from "@/components/Chat/FileList";
+import { ExistingFileList, FileList } from "@/components/Chat/FileList";
 import { ModelSelect } from '../Chat/ModelSelect';
 import { getDate, getDateName } from '@/utils/app/date';
 import { FolderInterface } from '@/types/folder';
@@ -26,7 +25,6 @@ import { getGroupAssistantConversations } from '@/services/groupAssistantService
 import { getGroupAssistantDashboards } from '@/services/groupAssistantService';
 import { getGroupConversationData } from '@/services/groupAssistantService';
 import toast from 'react-hot-toast';
-import ActionButton from '../ReusableComponents/ActionButton';
 import { LoadingDialog } from '../Loader/LoadingDialog';
 import { InfoBox } from '../ReusableComponents/InfoBox';
 import { includeGroupInfoBox } from '../Emails/EmailsList';
@@ -37,6 +35,7 @@ import { AmplifyGroupSelect } from './AdminUI';
 import { getUserAmplifyGroups } from '@/services/adminService';
 import { fetchAllSystemIds } from '@/services/apiKeysService';
 import { ReactElement } from 'react-markdown/lib/react-markdown';
+import { checkAvailableModelId } from '@/utils/app/models';
 
 
 interface Conversation {
@@ -62,6 +61,7 @@ const ConversationTable: FC<{ conversations: Conversation[], supportConvAnalysis
     const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [filteredConversations, setFilteredConversations] = useState<Conversation[]>(conversations);
+    const [showColumnSelector, setShowColumnSelector] = useState<boolean>(false);
 
     // Initialize with columns that should always be visible
     const defaultColumns: (keyof Conversation)[] = [
@@ -247,8 +247,11 @@ const ConversationTable: FC<{ conversations: Conversation[], supportConvAnalysis
                         </div>
                     </div>
 
-                    <div className="relative group">
-                        <button className="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center">
+                    <div className="relative">
+                        <button
+                            className="px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center"
+                            onClick={() => setShowColumnSelector(!showColumnSelector)}
+                        >
                             <svg className="mr-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="4" y1="21" x2="4" y2="14" />
                                 <line x1="4" y1="10" x2="4" y2="3" />
@@ -262,27 +265,29 @@ const ConversationTable: FC<{ conversations: Conversation[], supportConvAnalysis
                             </svg>
                             Customize Table
                         </button>
-                        <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-md shadow-lg border dark:border-gray-700 z-10 hidden group-hover:block">
-                            <div className="p-3 border-b dark:border-gray-700">
-                                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Visible Columns</h3>
+                        {showColumnSelector && (
+                            <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-md shadow-lg border dark:border-gray-700 z-10">
+                                <div className="p-3 border-b dark:border-gray-700">
+                                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Visible Columns</h3>
+                                </div>
+                                <div className="p-2 max-h-60 overflow-y-auto">
+                                    {allColumns.map(column => (
+                                        <div key={column} className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                                            <input
+                                                type="checkbox"
+                                                id={`column-${column}`}
+                                                checked={visibleColumns.includes(column)}
+                                                onChange={() => toggleColumnVisibility(column)}
+                                                className="rounded text-blue-500 focus:ring-blue-500 dark:bg-gray-900"
+                                            />
+                                            <label htmlFor={`column-${column}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                                {getColumnDisplayName(column as string)}
+                                            </label>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                            <div className="p-2 max-h-60 overflow-y-auto">
-                                {allColumns.map(column => (
-                                    <div key={column} className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
-                                        <input
-                                            type="checkbox"
-                                            id={`column-${column}`}
-                                            checked={visibleColumns.includes(column)}
-                                            onChange={() => toggleColumnVisibility(column)}
-                                            className="rounded text-blue-500 focus:ring-blue-500 dark:bg-gray-900"
-                                        />
-                                        <label htmlFor={`column-${column}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                                            {getColumnDisplayName(column as string)}
-                                        </label>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
                 <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
@@ -291,9 +296,9 @@ const ConversationTable: FC<{ conversations: Conversation[], supportConvAnalysis
             </div>
 
             <div className="overflow-x-auto overflow-y-auto rounded-lg shadow border dark:border-gray-700" style={{ height: `${window.innerHeight * 0.65}px` }}>
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700" style={{boxShadow: 'none'}}>
                     <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
-                        <tr>
+                        <tr className="gradient-header">
                             {visibleColumns.map((column) => (
                                 <th
                                     key={column}
@@ -565,10 +570,10 @@ const ConversationPopup: FC<{ conversation: Conversation; onClose: () => void; s
                                         <div
                                             key={index}
                                             className={`p-4 rounded-lg ${message.role === 'user'
-                                                    ? 'bg-blue-50 dark:bg-blue-900/30 ml-4 mr-8'
-                                                    : message.role === 'assistant'
-                                                        ? 'bg-gray-100 dark:bg-gray-800 mr-4 ml-8'
-                                                        : 'bg-yellow-50 dark:bg-yellow-900/30'
+                                                ? 'bg-blue-50 dark:bg-blue-900/30 ml-4 mr-8'
+                                                : message.role === 'assistant'
+                                                    ? 'bg-gray-100 dark:bg-gray-800 mr-4 ml-8'
+                                                    : 'bg-yellow-50 dark:bg-yellow-900/30'
                                                 }`}
                                         >
                                             <div className="font-medium text-sm mb-1 text-gray-700 dark:text-gray-300">
@@ -914,6 +919,17 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
     const [groupAmpGroups, setGroupAmpGroups] = useState<string[]>(selectedGroup.amplifyGroups ?? []);
     const [groupSystemUsers, setGroupSystemUsers] = useState<string[]>(selectedGroup.systemUsers ?? []);
 
+    const initUniqueSystemUsers = () => {
+        const uniqueSystemUsers = new Set([
+            ...(systemUsers ?? []),
+            ...(selectedGroup?.systemUsers ?? [])
+        ]);
+        
+        return Array.from(uniqueSystemUsers);
+    }
+    const [availableSystemUsers, setAvailableSystemUsers] = useState<string[]>(initUniqueSystemUsers());
+
+
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [isDeleting, setIsDeleting] = useState<boolean>(false);
     const [deleteUsersList, setDeleteUsersList] = useState<string[]>([]);
@@ -1009,7 +1025,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
         };
         // statsService.updateGroupAmplifyGroupsEvent(updateData); 
         const result = await updateGroupAmplifyGroups(updateData);
-        if (!result) {
+        if (!result.success) {
             alert(`Unable to update amplify group list at this time. Please try again later.`);
             setLoadingActionMessage('');
             return false;;
@@ -1037,11 +1053,11 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
         setLoadingActionMessage('Updating System User List');
         const updateData = {
             "group_id": selectedGroup.id,
-            "system_users": systemUsers
+            "system_users": groupSystemUsers
         };
         // statsService.updateGroupSystemUsersEvent(updateData); 
         const result = await updateGroupSystemUsers(updateData);
-        if (!result) {
+        if (!result.success) {
             alert(`Unable to update the system users list at this time. Please try again later.`);
             setLoadingActionMessage('');
             return false;
@@ -1050,7 +1066,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
         }
 
         //update groups home dispatch 
-        const updatedGroup = { ...selectedGroup, systemUsers: systemUsers };
+        const updatedGroup = { ...selectedGroup, systemUsers: groupSystemUsers };
         setSelectedGroup(updatedGroup);
         const updatedAdminGroups = adminGroups.map((g: Group) => {
             if (selectedGroup?.id === g.id) return updatedGroup;
@@ -1359,7 +1375,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                     />
                     <div className='ml-auto flex flex-row gap-1'>
                         {hasAdminAccess && <button
-                            className="px-4 py-2 bg-blue-800 text-white hover:bg-blue-600 transition-colors"
+                            className="px-4 py-2 navy-gradient-btn"
                             onClick={() => setIsAddingUsers(true)}
                         >
                             Add Users
@@ -1447,9 +1463,9 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
 
                 {users.length === 0 ? <div className='ml-4'> No members to display</div> :
                     <div className='overflow-y-auto max-h-[300px]'>
-                        <table className="w-full border-collapse">
+                        <table className="modern-table round-last-column w-full" style={{boxShadow: 'none', tableLayout: 'fixed'}}>
                             <thead>
-                                <tr>
+                                <tr className="gradient-header">
                                     {isDeleting && <th className="py-2">{
                                         <input
                                             type="checkbox"
@@ -1493,6 +1509,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                                             </td>}
                                         <td className="border px-4 py-2">{user.name}
                                             <label className='ml-2 opacity-50'>{`${userEmail === user.name ? ' (You)' : ''}`}</label>
+
                                         </td>
                                         {/* <td className="border px-4 py-2">{user.dateAdded}</td> */}
                                         <td className={`border ${isEditingAccess ? '' : 'px-4 py-2'}`}>{
@@ -1508,7 +1525,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                                                 }} />
                                                 : user.accessLevel
                                         }</td>
-
+                            
                                     </tr>
                                 ))}
                             </tbody>
@@ -1520,7 +1537,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
                     amplifyGroups={amplifyGroups}
                     selectedAmplifyGroups={groupAmpGroups}
                     setSelectedAmplifyGroups={setGroupAmpGroups}
-                    systemUsers={systemUsers}
+                    systemUsers={availableSystemUsers}
                     selectedSystemUsers={groupSystemUsers}
                     setSelectedSystemUsers={setGroupSystemUsers}
                     onConfirmAmpGroups={onUpdateAmpGroups}
@@ -1567,8 +1584,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     }
 
     const [innderWindow, setInnerWindow] = useState({ height: window.innerHeight, width: window.innerWidth });
-
-    const modalRef = useRef<HTMLDivElement>(null);
 
     const [loadingMessage, setLoadingMessage] = useState<string>('Loading Assistant Admin Interface...');
     const [loadingActionMessage, setLoadingActionMessage] = useState<string>('');
@@ -1658,6 +1673,9 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         if (activeSubTab !== 'group') {
             if ((selectedAssistant && (selectedAssistant.groupId !== selectedGroup?.id || !(selectedGroup?.assistants.find((ast: Prompt) => ast?.data?.assistant?.definition.assistantId === selectedAssistant.data?.assistant?.definition.assistantId))))
                 || (!selectedAssistant && (selectedGroup?.assistants && selectedGroup?.assistants.length > 0))) setSelectedAssistant(selectedGroup?.assistants[0]);
+        } 
+        if (selectedGroup === undefined && adminGroups.length > 0) {
+            setSelectedGroup(adminGroups[0]);
         }
 
     }, [selectedGroup]);
@@ -1730,7 +1748,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
 
     const groupCreate = async (group: any) => {
-        console.log(group);
+        // console.log(group);
         if (!group.group_name) {
             alert("Group name is required. Please add a group name to create the group.");
             return;
@@ -1862,7 +1880,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                     <>
                                         <button
                                             type="button"
-                                            className={`flex flex-row gap-2 p-2 bg-neutral-200 dark:bg-gray-600  text-black dark:text-white hover:text-white dark:hover:bg-red-700 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500`}
+                                            className={`flex flex-row gap-2 p-2 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/30 text-red-700 dark:text-red-300 hover:from-red-600 hover:to-red-700 hover:text-white dark:hover:from-red-700 dark:hover:to-red-600 transition-all duration-200 rounded-lg shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500`}
                                             onClick={() => handleDeleteAssistant(selectedAssistant?.data?.assistant.definition.assistantId)}>
 
                                             Delete Assistant
@@ -1878,7 +1896,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                         </label>
                                     </>
                                 }
-                                <button className={`${activeSubTab === label ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black dark:bg-gray-600 dark:text-white'} h-[36px] rounded-md ml-auto mr-[-16px] whitespace-nowrap`}
+                                <button className={`${activeSubTab === label ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg' : 'bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 text-black dark:text-white shadow-sm hover:shadow-md'} h-[36px] rounded-xl ml-auto mr-[-16px] whitespace-nowrap transition-all duration-200`}
                                     key={label}
                                     onClick={() => {
                                         setActiveSubTab(label);
@@ -1886,7 +1904,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                     }}
                                     title="Manage users and assistant group types"
                                 >
-                                    <div className={`flex flex-row gap-1 text-sm text-white px-2 bg-blue-500 hover:bg-blue-600 transition-colors py-2 rounded`}>
+                                    <div className={`flex flex-row gap-1 text-sm text-white px-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 py-2 rounded-lg shadow-sm`}>
                                         <IconSettings className='mt-0.5' size={16} />
                                         Group Management
                                     </div>
@@ -1895,8 +1913,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             </>
                         ) :
                             (selectedAssistant ? (
-                                <button key={label} className={`${activeSubTab === label ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black dark:bg-gray-600 dark:text-white'} 
-                                                        px-4 py-2 ${!selectedAssistant ? 'hidden' : 'visible'}`}
+                                <button key={label} className={`${activeSubTab === label ? 'text-white flex flex-row gap-1 px-2 bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-200 ' : ' text-neutral-500 bg-gray-300 text-black dark:bg-gray-600 dark:text-white'} 
+                                                                rounded-md shadow-sm px-4 py-2 ${!selectedAssistant ? 'hidden' : 'visible'}`}
                                     onClick={() => setActiveSubTab(label)}>
                                     {formatLabel(label)}
                                 </button>
@@ -1963,7 +1981,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                 })
                                 setSelectedGroup(updatedGroup);
                                 setAdminGroups(updatedGroups);
-                                console.log(astprompt);
+                                // console.log(astprompt);
 
                                 statsService.createPromptEvent(astprompt);
                                 // update prompt
@@ -2038,17 +2056,15 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         ) :
         // User has groups 
         (
-            <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-20" key={"ast_admin_ui"}>
-                <div className="fixed inset-0 z-10 overflow-hidden">
-                    <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                        <div className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true" />
+        <Modal
+            fullScreen={true}
+            title={"Assistant Admin Interface "}
+            showCancel={false}
+            showSubmit={false}
+            onCancel={onClose}
+            disableContentAnimation={true}
+            content={ <div className="no-modal-animation">
                         <LoadingDialog open={!!loadingMessage} message={loadingMessage} />
-                        <div
-                            ref={modalRef} key={selectedGroup?.id}
-                            className="inline-block transform rounded-lg border border-gray-300 dark:border-neutral-600 bg-neutral-100 px-4 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:min-h-[636px] sm:w-full sm:p-4 sm:align-middle"
-                            style={{ width: `${innderWindow.width - 100}px`, height: `${innderWindow.height * 0.95}px` }}
-                            role="dialog"
-                        >
                             {loadingActionMessage && (
                                 <div className="absolute inset-0 flex items-center justify-center z-60" key={"loading"}
                                     style={{ transform: `translateY(-40%)` }}>
@@ -2117,25 +2133,13 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                 </div>
 
                             )}
-                            <div className='flex flex-row gap-2' key={`${selectedGroup?.id}_GroupSelect`}>
+                            <div key={`${selectedGroup?.id}_GroupSelect`}>
                                 <GroupSelect
                                     groups={adminGroups}
                                     selectedGroup={selectedGroup}
                                     setSelectedGroup={setSelectedGroup}
                                     setShowCreateNewGroup={setShowCreateNewGroup}
                                 />
-                                <div className='w-[26px]'>
-                                    <div className='absolute top-5 right-2'>
-                                        <ActionButton
-                                            handleClick={onClose}
-                                            title="Close"
-                                        >
-                                            <IconX size={28} />
-                                        </ActionButton>
-                                    </div>
-                                </div>
-
-
                             </div>
 
 
@@ -2147,8 +2151,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                 style={{ width: `${innderWindow.width * 0.75}px` }}>
                                                 You currently do not have any assistants in this group. </label>}
 
-                                            <div className="overflow-y-auto">
-                                                <div className="flex flex-row gap-1">
+                                            <div className="overflow-hidden">
+                                                <div className="flex flex-row gap-1 flex-nowrap">
                                                     {selectedGroup.assistants.length > 0 && selectedGroup.assistants.map((ast: Prompt) => (
                                                         <button
                                                             key={ast.name}
@@ -2157,9 +2161,28 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                                 setActiveSubTab(DEFAULT_SUB_TAB);
                                                             }}
                                                             title={selectedAssistant?.data?.isPublished ? 'Published' : 'Unpublished'}
-                                                            className={`p-2 rounded-t flex flex-shrink-0 ${activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId ? 'border-l border-t border-r border-neutral-400 text-black dark:border-gray-500 dark:text-white shadow-[2px_0_1px_rgba(0,0,0,0.1),-2px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}
+                                                            className={`group relative rounded-t-lg flex flex-shrink-0 transition-all duration-300 overflow-hidden ${activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId ? 
+                                                                       'px-4 py-3 border-l border-t border-r border-neutral-400 text-blue-800 bg-blue-200 bg-opacity-50 dark:border-gray-500 dark:text-white shadow-[2px_0_1px_rgba(0,0,0,0.1),-2px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)] font-medium scale-105' :
+                                                                        'py-2 px-1.5 text-gray-400 dark:text-gray-600'}`}
                                                         >
-                                                            <h3 className="text-xl">{ast.name.charAt(0).toUpperCase() + ast.name.slice(1)}</h3>
+                                                            {/* Tab highlight effect */}
+                                                            <span className={`absolute inset-0 ${activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId ? 'opacity-100' : 'opacity-0'} 
+                                                                transition-opacity duration-300 bg-gradient-to-brfrom-blue-100/50 to-blue-200/30 
+                                                                dark:from-blue-800/20 dark:to-blue-900/10`}></span>
+    
+                                                            {/* Tab bottom border glow */}
+                                                            <span className={`absolute bottom-0 left-0 right-0 h-1 transition-all duration-300 ${
+                                                                activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId ? 'opacity-100' : 'opacity-0'
+                                                            }`} 
+                                                            style={{
+                                                                backgroundColor: activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId ? 'rgb(10, 130, 221)' : 'transparent',
+                                                                boxShadow: activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId ? '0 0 8px rgba(5, 129, 186, 0.58)' : 'none'
+                                                            }}></span>
+    
+                                                            {/* Content wrapper */}
+                                                            <span className={`relative flex items-center justify-center transition-transform duration-300`}>
+                                                                <h3 className="text-xl">{ast.name.charAt(0).toUpperCase() + ast.name.slice(1)}</h3>
+                                                            </span>
                                                         </button>
 
                                                     ))
@@ -2169,7 +2192,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
                                             <div className="flex items-center">
                                                 <button
-                                                    className="flex flex-row ml-auto px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                                                    className="flex flex-row gap-1 text-sm text-white px-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 py-2 rounded-lg shadow-sm"
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
@@ -2188,10 +2211,11 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                 </>
                             }
 
-                        </div>
-                    </div>
-                </div>
-            </div>
+                        
+                    
+                    </div>}
+            />
+
         );
 };
 
@@ -2323,7 +2347,7 @@ interface MemberAccessProps {
 
 }
 
-const accessInfoBox = <InfoBox content={
+const accessInfoBox = <InfoBox color='#085bd6' content={
     <span className="ml-2 text-xs text-gray-600 dark:text-gray-400">
         <label className='font-bold text-[0.8rem]'> Read Access </label>
         can view assistants in the prompt bar and engage in conversation. They do not have access to the admin interface.
@@ -2376,9 +2400,9 @@ const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupMembers,
         {Object.keys(groupMembers).length > 0 &&
             <div>
                 Set Member Access
-                <table className="mt-2 w-full border-collapse">
+                <table className="modern-table round-last-column mt-2 w-full" style={{boxShadow: 'none', tableLayout: 'fixed'}}>
                     <thead>
-                        <tr>
+                        <tr className="gradient-header">
                             <th className="border px-4 py-2">User</th>
                             <th className="border px-4 py-2">Access</th>
                         </tr>
@@ -2513,6 +2537,7 @@ const AmpGroupsSysUsersSelection: FC<AmpSysSelectionProps> = ({ amplifyGroups, s
                 <ListSelection
                     title='System User Access'
                     infoLabel='Grant read access to your API created system users.'
+                    label='System Users'
                     selection={systemUsers}
                     selected={selectedSystemUsers}
                     setSelected={(selected: string[]) => {
@@ -2538,12 +2563,14 @@ interface SelectionProps {
     selected: string[];
     setSelected: (selectedGroups: string[]) => void;
     manageButtons?: ReactElement;
+    label?: string;
 }
-const ListSelection: FC<SelectionProps> = ({ title, infoLabel, selection, selected, setSelected, manageButtons = null }) => {
+const ListSelection: FC<SelectionProps> = ({ title, infoLabel, selection, selected, setSelected, manageButtons = null, label}) => {
     return (
-        <div className='mb-6'>
-            <label className='mb-2 font-bold'>{title}</label>
-            <InfoBox content={
+        <div className='mb-6 px-1'>
+            <div className='mb-1 font-bold'>{title}</div>
+            <InfoBox padding={"py-1"} color='#085bd6'
+            content={
                 <>
                     <span className="ml-1 text-xs w-full text-center"> {infoLabel} </span>
                     <div className='ml-auto'>{manageButtons}</div>
@@ -2555,6 +2582,7 @@ const ListSelection: FC<SelectionProps> = ({ title, infoLabel, selection, select
                 groups={selection}
                 selected={selected}
                 setSelected={setSelected}
+                label={label}
             />
         </div>
     );
@@ -2666,7 +2694,7 @@ export const UsersAction: FC<ActionProps> = ({ condition, label, title, clickAct
         </div>
     ) : (
         <button
-            className={`px-4 py-2 bg-blue-800 text-white  hover:bg-blue-600 transition-colors`}
+            className={`px-4 py-2 navy-gradient-btn`}
             onClick={clickAction}
         >
             {title}
@@ -2716,8 +2744,8 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
     }
 
     const checkAvailableModel = () => {
-        const validIds = Object.keys(availableModels);
-        return validIds.includes(astData.model) ? astData.model : undefined;
+        const isValid = checkAvailableModelId(astData.model, availableModels);
+        return isValid;
     }
 
     const onSupportConvAnalysisChange = (isChecked: boolean) => {
@@ -2763,12 +2791,13 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
                 }}
             />
         </div>
-        <div className={`ml-6 flex flex-col ${enforceModel ? "" : 'opacity-40'}`}>
+        <div className={`ml-6 flex flex-col ${enforceModel ? "" : 'opacity-40'} `}>
             All conversations will be set to this model and unable to be changed by the user.
             <ModelSelect
                 applyModelFilter={false}
                 isTitled={false}
                 modelId={checkAvailableModel()}
+                outlineColor={enforceModel && !additionalGroupData.model ? 'red-500' : ''}
                 isDisabled={!enforceModel}
                 disableMessage=''
                 handleModelChange={(model: string) => {
@@ -2777,38 +2806,38 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
             />
         </div>
 
-        <div className='mt-4 flex flex-row gap-3 text-[1.05rem]'>
-            <Checkbox
-                id="trackConversations"
-                label="Track Conversations"
-                checked={trackConversations || astSupportConvAnalysis}
-                onChange={(isChecked: boolean) => {
-                    // Only allow changes if analysis support is not enabled
-                    // This prevents unchecking when analysis is enabled
-                    if (!astSupportConvAnalysis || isChecked) {
-                        setAdditionalGroupData({ ...additionalGroupData, trackConversations: isChecked });
-                        setTrackConversations(isChecked);
-                    } else {
-                        // Show the notification message when trying to uncheck while analysis is enabled
-                        setShowTrackingRequiredMessage(true);
-                    }
-                }}
-            />
-        </div>
-        <div className={`ml-6 flex flex-col ${trackConversations || astSupportConvAnalysis ? "" : 'opacity-40'}`}>
-            Enable the dashboard and conversation tracking with this assistant for monitoring and review purposes.
-            {astSupportConvAnalysis &&
-                <div className={`text-amber-500 mt-1 transition-opacity duration-300 ${showTrackingRequiredMessage ? 'opacity-100' : 'opacity-70'}`}>
-                    <small>
-                        {showTrackingRequiredMessage
-                            ? "Track Conversations is required when Analyze Conversations is enabled"
-                            : "Automatically enabled when Analyze Conversations is active"}
-                    </small>
-                </div>
-            }
-        </div>
-
         {groupConvAnalysisSupport && <>
+            <div className='mt-4 flex flex-row gap-3 text-[1.05rem]'>
+                <Checkbox
+                    id="trackConversations"
+                    label="Track Conversations"
+                    checked={trackConversations || astSupportConvAnalysis}
+                    onChange={(isChecked: boolean) => {
+                        // Only allow changes if analysis support is not enabled
+                        // This prevents unchecking when analysis is enabled
+                        if (!astSupportConvAnalysis || isChecked) {
+                            setAdditionalGroupData({ ...additionalGroupData, trackConversations: isChecked });
+                            setTrackConversations(isChecked);
+                        } else {
+                            // Show the notification message when trying to uncheck while analysis is enabled
+                            setShowTrackingRequiredMessage(true);
+                        }
+                    }}
+                />
+            </div>
+            <div className={`ml-6 flex flex-col ${trackConversations || astSupportConvAnalysis ? "" : 'opacity-40'}`}>
+                Enable the dashboard and conversation tracking with this assistant for monitoring and review purposes.
+                {astSupportConvAnalysis &&
+                    <div className={`text-amber-500 mt-1 transition-opacity duration-300 ${showTrackingRequiredMessage ? 'opacity-100' : 'opacity-70'}`}>
+                        <small>
+                            {showTrackingRequiredMessage
+                                ? "Track Conversations is required when Analyze Conversations is enabled"
+                                : "Automatically enabled when Analyze Conversations is active"}
+                        </small>
+                    </div>
+                }
+            </div>
+
             <div className='mt-4 flex flex-row gap-3 text-[1rem]'>
                 <Checkbox
                     id="supportAnalysis"
@@ -2833,9 +2862,8 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
                             isDisabled={!astSupportConvAnalysis} />
                     }
                 />
-
-
-            </div></>}
+            </div>
+        </>}
         <br className='mb-1'></br>
         <GroupTypesAstData
             groupId={groupId}
@@ -2863,7 +2891,7 @@ export const GroupTypesAst: FC<TypeProps> = ({ groupTypes, setGroupTypes, canAdd
         <div className="text-md pb-1 font-bold text-black dark:text-white flex items-center">
             Group Types
         </div>
-        <InfoBox content={
+        <InfoBox color='#085bd6' content={
             <span className="ml-2 text-xs">
                 Creating group types enables the subdivision of users into subgroups when interacting with an assistant.
                 <br className='mb-2'></br>

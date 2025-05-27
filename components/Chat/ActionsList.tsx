@@ -1,25 +1,10 @@
+import { getOperationIcon } from '@/types/integrations';
 import {
-    IconTool,
-    IconChevronRight,
     IconX,
-    IconCode,
-    IconSearch,
-    IconApi,
-    IconDatabase,
-    IconBrain,
-    IconSettings,
-    IconFiles,
-    IconSend,
-    IconWorld,
-    IconTable,
-    IconMail,
-    IconUser,
-    IconActivity,
     IconTrash,
     IconCheck,
     IconAlertTriangle,
     IconAdjustments,
-    IconEdit,
     IconDeviceFloppy,
     IconTrashX
 } from '@tabler/icons-react';
@@ -53,26 +38,6 @@ const ActionsList: React.FC<ActionsListProps> = ({
     // State to track which action is currently in delete confirmation mode
     const [confirmDeleteIndex, setConfirmDeleteIndex] = useState<number | null>(null);
 
-    // Function to get an icon based on the action name
-    const getActionIcon = (name: string) => {
-        const nameLower = name.toLowerCase();
-
-        if (nameLower.includes('search')) return <IconSearch size={16} stroke={1.5} />;
-        if (nameLower.includes('code') || nameLower.includes('script')) return <IconCode size={16} stroke={1.5} />;
-        if (nameLower.includes('config') || nameLower.includes('setting')) return <IconSettings size={16} stroke={1.5} />;
-        if (nameLower.includes('file') || nameLower.includes('document')) return <IconFiles size={16} stroke={1.5} />;
-        if (nameLower.includes('api') || nameLower.includes('request')) return <IconApi size={16} stroke={1.5} />;
-        if (nameLower.includes('data') || nameLower.includes('storage')) return <IconDatabase size={16} stroke={1.5} />;
-        if (nameLower.includes('ai') || nameLower.includes('ml')) return <IconBrain size={16} stroke={1.5} />;
-        if (nameLower.includes('analyze') || nameLower.includes('monitor')) return <IconActivity size={16} stroke={1.5} />;
-        if (nameLower.includes('email') || nameLower.includes('mail')) return <IconMail size={16} stroke={1.5} />;
-        if (nameLower.includes('table') || nameLower.includes('excel')) return <IconTable size={16} stroke={1.5} />;
-        if (nameLower.includes('web') || nameLower.includes('http')) return <IconWorld size={16} stroke={1.5} />;
-        if (nameLower.includes('user') || nameLower.includes('profile')) return <IconUser size={16} stroke={1.5} />;
-        if (nameLower.includes('send')) return <IconSend size={16} stroke={1.5} />;
-
-        return <IconTool size={16} stroke={1.5} />;
-    };
 
     // Format the action name for display
     const formatActionName = (name: string): string => {
@@ -86,6 +51,11 @@ const ActionsList: React.FC<ActionsListProps> = ({
             // Remove any extra spaces that might have been created
             .replace(/\s+/g, ' ');
     };
+
+    const getActionIcon = (name: string | undefined) => {
+        const IconComponent = getOperationIcon(name);
+        return <IconComponent size={18} stroke={1.5} />
+    }
 
     // Handle the initial delete button click
     const handleDeleteClick = (index: number, e: React.MouseEvent) => {
@@ -134,21 +104,21 @@ const ActionsList: React.FC<ActionsListProps> = ({
                 {onSaveActions && (
                     <button
                         onClick={onSaveActions}
-                        className="mr-2 p-1 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        className="mr-2 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                         title="Save actions"
                         aria-label="Save actions"
                     >
-                        <IconDeviceFloppy size={16} stroke={1.5} />
+                        <IconDeviceFloppy size={16} stroke={2} />
                     </button>
                 )}
                 {onClearActions && (
                     <button
                         onClick={onClearActions}
-                        className="mr-2 p-1 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        className="mr-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                         title="Clear all actions"
                         aria-label="Clear all actions"
                     >
-                        <IconTrashX size={16} stroke={1.5} />
+                        <IconTrashX size={16} stroke={2} />
                     </button>
                 )}
                 <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>

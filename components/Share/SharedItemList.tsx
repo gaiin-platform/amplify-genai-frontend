@@ -1,32 +1,18 @@
 import React, {FC, useContext, useEffect, useRef, useState} from 'react';
 import {ShareItem, SharedItem} from "@/types/export";
 import {
-    IconCaretDown,
-    IconCaretRight,
-    IconJetpack,
-    IconRocket,
     IconShare,
     IconRefresh,
     IconCheck,
     IconX,
 } from '@tabler/icons-react';
 import {deleteYouSharedItem, getSharedItems, getYouSharedItems} from "@/services/shareService";
-import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
 import HomeContext from "@/pages/api/home/home.context";
 import {useSession} from "next-auth/react";
-import { isAssistantById } from '@/utils/app/assistants';
 import ActionButton from '../ReusableComponents/ActionButton';
-
-
-function groupBy(key: string, array: ShareItem[]): { [key: string]: ShareItem[] } {
-    return array.reduce((result: { [key: string]: ShareItem[] }, currentItem) => {
-        (result[currentItem[key as keyof ShareItem]] = result[currentItem[key as keyof ShareItem]] || []).push(currentItem);
-        return result;
-    }, {});
-}
 
 const SharedItemsList: FC<{}> = () => {
 
@@ -44,13 +30,10 @@ const SharedItemsList: FC<{}> = () => {
     const [selectedKey, setSelectedKey] = useState<string>("");
     const [selectedNote, setSelectedNote] = useState<string>("");
     const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [groupedItems, setGroupedItems] = useState<{ [key: string]: ShareItem[] } | null>(null);
-    const [YSItems, setYSItems] = useState< SharedItem[] | null>(null);
+    const [allItems, setAllItems] = useState<ShareItem[]>([]);
     const [deletingItem, setDeletingItem] = useState<ShareItem | null>(null);
     const [hoveredItem, setHoveredItem] = useState<ShareItem | null>(null);
     const [isButtonHover, setIsButtonHover] = useState<boolean>(false);
-
-    const [activeTab, setActiveTab] = useState<string>('SWY');
 
     const { data: session } = useSession();
     const user = session?.user;
@@ -59,8 +42,7 @@ const SharedItemsList: FC<{}> = () => {
         const name = user?.email;
         if (name) {
             statsService.openSharedItemsEvent();
-            if (!groupedItems) fetchSWYData(name);
-            // if (!YSItems) fetchYSData(name);
+            if (allItems.length === 0) fetchSWYData(name);
         }
 
     }, [user]);
@@ -73,39 +55,20 @@ const SharedItemsList: FC<{}> = () => {
                         const shared = result.items.filter((item: { sharedBy: string; }) => {
                             return item.sharedBy !== user?.email;
                         });
-                        const grouped = groupBy('sharedBy', shared);
-                        setGroupedItems(grouped);
+                        // Sort by sharedAt timestamp, newest first
+                        const sortedItems = shared.sort((a: ShareItem, b: ShareItem) => {
+                            return new Date(b.sharedAt).getTime() - new Date(a.sharedAt).getTime();
+                        });
+                        setAllItems(sortedItems);
                     }
 
                 } catch (e) {
                    alert("Unable to fetch your shared items. Please check your Internet connection and try again later.")
                 } finally {
-                    if (activeTab === "SWY") setIsLoading(false);
+                    setIsLoading(false);
                 }
             }
     };
-
-    const fetchYSData = async (name: string) => {
-        try {
-            if (name) {
-                try {
-                    const result = await getYouSharedItems(name);
-
-                    if (result.ok) {
-                        const items = null//await result.json();
-                        
-                        setYSItems(items);
-                    }
-
-                } finally {
-                    if (activeTab === "YS") setIsLoading(false);
-                }
-            }
-        } catch (e) {
-           alert("Unable to fetch items you shared. Please check your Internet connection and try again later.")
-        }
-    };
-
 
     const handleFetchShare = async (item: ShareItem) => {
         setSelectedKey(item.key);
@@ -120,15 +83,6 @@ const SharedItemsList: FC<{}> = () => {
             // if (confirm("If you have imported this item, you will no longer have access to this item. \n\nWould you like to continue?")) await deleteShareItem(deletingItem);
             // Remove from local starage and dispatch!! 
             // pull data to see items that need to be removed 
-            setDeletingItem(null);
-        }
-    };
-
-    const handleYSDelete = async (e: React.MouseEvent<HTMLButtonElement>, id: string, user_data: any) => {
-        e.stopPropagation();
-        if (deletingItem) {
-            await deleteYouSharedItem({'id': id, 'shared_users':[user_data]});
-            console.log("Deleting item:", deletingItem);
             setDeletingItem(null);
         }
     };
@@ -172,281 +126,179 @@ const SharedItemsList: FC<{}> = () => {
                 includePrompts={true}
                 includeFolders={true}/>
 
-            <div className="flex flex-row items-center pt-3 pl-2 pr-3">
-                <div className="mb-4 flex items-center space-x-2">
+            <div className="p-4 border-b border-neutral-200 dark:border-neutral-600">
+                <div className="flex items-center justify-between gap-3">
                     <button
                         id="shareWithOtherUsers"
-                        className="text-sidebar flex flex-grow flex-shrink flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
+                        className="flex-1 group relative overflow-hidden bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                         onClick={() => {
                             setIsModalOpen(true);
                         }}
                     >
-                        <IconShare size={16}/>
-                        Share with Other Users
+                        <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-center gap-2">
+                            <IconShare size={18} className="text-white group-hover:scale-110 transition-transform duration-200"/>
+                            <span className="text-sm">Share with Others</span>
+                        </div>
                     </button>
+                    
                     <button
-                        title='Refresh'
+                        title='Refresh shared items'
                         id="refreshButton"
                         disabled={isLoading}
-                        className={`text-sidebar flex flex-grow flex-shrink-0 select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 ${!isLoading ? "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" : ""}`}
+                        className={`group relative overflow-hidden bg-white dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-600 hover:border-blue-300 dark:hover:border-blue-600 text-neutral-700 dark:text-neutral-300 font-medium py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 ${!isLoading ? "cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
                         onClick={async () => {
-                        if (user?.email) {
+                        if (user?.email && !isLoading) {
                            setIsLoading(true);
-                           if (activeTab === "SWY") await fetchSWYData(user?.email);
-                           if (activeTab === "YS") await fetchYSData(user?.email);
-                           setIsLoading(false);
-
+                           await fetchSWYData(user?.email);
                         }}
                         }
                     >
-                        <IconRefresh size={16}/>
+                        <div className="absolute inset-0 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="relative flex items-center justify-center">
+                            <IconRefresh 
+                                size={18} 
+                                className={`text-neutral-600 dark:text-neutral-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-all duration-200 ${isLoading ? 'animate-spin' : 'group-hover:rotate-180'}`}
+                            />
+                        </div>
                     </button>
                 </div>
-    
-
             </div>
 
-            <div className="flex flex-row gap-1 bg-neutral-100 dark:bg-[#202123] rounded-t border-b dark:border-white/20">
-                        <button
-                            key={"sharedWithYou"}
-                            disabled={isLoading}
-                            onClick={() => setActiveTab("SWY")}
-                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "SWY" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
-                            <h3 className="text-lg">Shared With You</h3> 
-                        </button>
-                        {/* <button
-                            key={"youShared"}
-                            disabled={isLoading}
-                            onClick={() => setActiveTab("YS")}
-                            className={`p-2 rounded-t flex flex-shrink-0 ${activeTab === "YS" ? 'border-l border-t border-r dark:border-gray-500 dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}>
-                            <h3 className="text-lg">You Shared</h3> 
-                        </button> */}
+            <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-neutral-50 to-blue-50/30 dark:from-neutral-800 dark:to-blue-900/10"></div>
+                <div className="relative px-4 py-4 border-b border-neutral-200 dark:border-neutral-600">
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-xl">
+                            <IconShare size={20} className="text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Shared With You</h3>
+                            <p className="text-sm text-neutral-500 dark:text-neutral-400">Items shared with you, newest first</p>
+                        </div>
+                    </div>
+                </div>
             </div>
-           
 
             {isLoading ? (
-                <div className="flex flex-row ml-6 mt-6">
-                    <LoadingIcon/>
-                    <span className="text-l font-bold ml-2">Loading...</span>
+                <div className="flex flex-col items-center justify-center py-12">
+                    <div className="relative">
+                        <div className="w-12 h-12 border-4 border-blue-200 dark:border-blue-800 rounded-full animate-pulse"></div>
+                        <div className="absolute inset-0 w-12 h-12 border-4 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                    <span className="mt-4 text-sm font-medium text-neutral-600 dark:text-neutral-400">Loading shared items...</span>
                 </div>
-            ) :  activeTab === "SWY" && groupedItems? (Object.entries(groupedItems).map(([sharedBy, items]) => (
-                <div key={sharedBy} className="sharedBy-group ml-3 mt-4 p-2">
-                    <ExpansionComponent
-                        title={sharedBy.includes('@')? sharedBy.split("@")[0] : sharedBy}
-                        openWidget={<IconCaretDown size={18}/>}
-                        closedWidget={<IconCaretRight size={18}/>}
-                        content={items.map((item, index) => (
-                            <button
-                            onMouseEnter={() => {
-                                setHoveredItem(item)
-                                setIsButtonHover(true)
-                            }}
-                            onMouseLeave={() => {
-                                setDeletingItem(null); 
-                                setHoveredItem(null)
-                            }
-                            }
+            ) : (
+                <div className="p-4 space-y-3">
+                    {allItems.length === 0 ? (
+                        <div className="text-center py-12">
+                            <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-neutral-100 dark:bg-neutral-800 rounded-full">
+                                <IconShare size={24} className="text-neutral-400 dark:text-neutral-500" />
+                            </div>
+                            <h3 className="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-2">No shared items yet</h3>
+                            <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
+                                When someone shares conversations or prompts with you, they&apos;ll appear here
+                            </p>
+                        </div>
+                    ) : (
+                        allItems.map((item, index) => (
+                            <div
                                 key={index}
-                                className={`w-full flex cursor-pointer items-center gap-2 rounded-lg pb-2 pt-3 pr-2 text-sm transition-colors duration-200 ${isButtonHover ? "hover:bg-neutral-200 dark:hover:bg-[#343541]/90": ""}`}
-                                onClick={() => {
-                                    setSharedBy(item.sharedBy);
-                                    handleFetchShare(item);
-                                }}
+                                className="group relative overflow-hidden bg-white dark:bg-neutral-800/50 rounded-xl border border-neutral-200 dark:border-neutral-700 hover:border-blue-300 dark:hover:border-blue-600 shadow-sm hover:shadow-lg transition-all duration-300"
                             >
-                                <IconShare size={18} className="ml-2 flex-shrink-0"/>
-                                <div className="truncate text-left text-[12.5px] leading-3 pr-1">
-                                    <div className="mb-1 text-gray-500">{new Date(item.sharedAt).toLocaleString()}</div>
-                                    <div
-                                        className="relative truncate text-left text-[12.5px] leading-3 pr-1 "
-                                        style={{wordWrap: "break-word"}} // Added word wrap style
-                                    >
-                                        {item.note}
-                                    </div>
-                                </div>
-                                {hoveredItem === item && ( 
-                                    <div className="ml-auto relative right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"
+                                <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 to-emerald-50/50 dark:from-blue-900/10 dark:to-emerald-900/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                
+                                <button
                                     onMouseEnter={() => {
                                         setHoveredItem(item)
-                                        setIsButtonHover(false)
+                                        setIsButtonHover(true)
                                     }}
-                                    onMouseLeave={() => setIsButtonHover(true)}>
-                                    {!deletingItem && ( <></>
-                                        // <ActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
-                                        //     <IconTrash size={18} />
-                                        // </ActionButton>
-                                    )}
-
-                                    {deletingItem && (
-                                        <>
-                                            <ActionButton handleClick={handleSWYDelete} title="Confirm">
-                                                <IconCheck size={18} />
-                                            </ActionButton>
-
-                                            <ActionButton handleClick={handleCancelDelete} title="Cancel">
-                                                <IconX size={18} />
-                                            </ActionButton>
-                                        </>
-                                    )}
-                                </div>
-                                )}
-                            </button>
-                            
-                        ))}
-                    />
-                </div>
-            ))) : <></>
-            // YSItems && //active tab is set to YS
-            // (   (YSItems.map((item: SharedItem) => (
-            //         <div key={item.note} className=" ml-4 mt-4 p-2"
-            //             // onMouseEnter={() => {
-            //             //                     setHoveredItem(item);
-            //             //                     setIsButtonHover(true);
-            //             //                 }}
-            //             // onMouseLeave={() => {
-            //             //     setDeletingItem(null); 
-            //             //     setHoveredItem(null);
-            //             // }
-            //             // }
-            //             >
-
-            //             <ExpansionComponent
-            //                 title={item.note}
-            //                 openWidget={<IconCaretDown size={18}/>}
-            //                 closedWidget={<IconCaretRight size={18}/>}
-            //                 content={[ 
-            //                     <div>
-            //                         <div className="mt-2 flex items-center justify-center text-sm text-black dark:text-neutral-200 border-b  border-gray-500">
-            //                             {'Shared Items'}
-            //                         </div>
+                                    onMouseLeave={() => {
+                                        setDeletingItem(null); 
+                                        setHoveredItem(null)
+                                    }}
+                                    className="relative w-full flex cursor-pointer items-center gap-4 p-4 text-left transition-all duration-200"
+                                    onClick={() => {
+                                        setSharedBy(item.sharedBy);
+                                        handleFetchShare(item);
+                                    }}
+                                >
+                                    <div className="flex-shrink-0">
+                                        <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-emerald-100 to-blue-100 dark:from-emerald-900/30 dark:to-blue-900/30 rounded-xl group-hover:scale-110 transition-transform duration-200">
+                                            <IconShare size={20} className="text-emerald-600 dark:text-emerald-400 group-hover:rotate-12 transition-transform duration-200"/>
+                                        </div>
+                                    </div>
                                     
-            //                         {item.objects.map((object: any) => {
-            //                             return (<label
-            //                             className="ml-4 flex w-full items-center gap-3 rounded-lg p-2 text-sm">
-            //                             {object.type === 'prompt' && isAssistantById(object.id, promptsRef.current) ? <IconRobot size={20} /> : <IconMessage size={18} />}
-            //                                 <div
-            //                                     className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
-            //                                     {object.name}
-            //                                 </div>
-            //                             </label>)   
-            //                             })}
-            //                     </div>
-            //                     ,
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors duration-200">
+                                                    {item.sharedBy.includes('@') ? item.sharedBy.split("@")[0] : item.sharedBy}
+                                                </h4>
+                                                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 truncate">
+                                                    {item.note}
+                                                </p>
+                                            </div>
+                                            <div className="flex-shrink-0 ml-3">
+                                                <div className="flex items-center gap-1 px-2 py-1 bg-neutral-100 dark:bg-neutral-700/50 rounded-lg">
+                                                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                                                    <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+                                                        {new Date(item.sharedAt).toLocaleString(undefined, {
+                                                            month: 'short', 
+                                                            day: 'numeric',
+                                                            hour: 'numeric', 
+                                                            minute: '2-digit',
+                                                            hour12: true
+                                                        })}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-2">
+                                            <div className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium rounded-lg">
+                                                Click to import
+                                            </div>
+                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                                            </div>
+                                        </div>
+                                    </div>
 
+                                    {hoveredItem === item && ( 
+                                        <div className="ml-2 flex-shrink-0 flex flex-row items-center bg-neutral-200 dark:bg-[#343541]/90 rounded-lg p-1"
+                                            onMouseEnter={() => {
+                                                setHoveredItem(item)
+                                                setIsButtonHover(false)
+                                            }}
+                                            onMouseLeave={() => setIsButtonHover(true)}>
+                                            {!deletingItem && ( <></>
+                                                // <ActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
+                                                //     <IconTrash size={18} />
+                                                // </ActionButton>
+                                            )}
 
-            //                     // <ExpansionComponent
-            //                     //     title={'Shared Items'}
-            //                     //     openWidget={<IconCaretDown size={18}/>}
-            //                     //     closedWidget={<IconCaretRight size={18}/>}
-            //                     //     content={item.objects.map((object: any) => {
-            //                     //         return (<label
-            //                     //         className="ml-2 flex w-full items-center gap-3 rounded-lg p-2 text-sm">
-            //                     //         {object.type === 'prompt' && isAssistantById(object.id) ? <IconRobot size={20} /> : <IconMessage size={18} />}
-            //                     //             <div
-            //                     //                 className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
-            //                     //                 {object.name}
-            //                     //             </div>
-            //                     //         </label>)   
-            //                     //         })}
-            //                     //     />
-                                
-                            
-            //                     ,
-            //                     <div className="mt-2 flex items-center justify-center text-sm text-black dark:text-neutral-200 border-b  border-gray-500">
-            //                         {'People You Shared With'}
-            //                     </div>
-            //                     ,
-            //                     ...item.shared_with.map((user_item: any, index: number) => (
-            //                         <label
-            //                             onMouseEnter={() => {
-            //                                 setHoveredItem(user_item)
-            //                                 setIsButtonHover(true)
-            //                             }}
-            //                             onMouseLeave={() => {
-            //                                 setDeletingItem(null); 
-            //                                 setHoveredItem(null)
-            //                             }
-            //                             }
-            //                             key={index}
-            //                             className="ml-6 flex flex-row w-full cursor-pointer items-center gap-3 rounded-lg pb-2 pt-3 pr-2 text-sm"
-            //                         >
-            //                             <IconUser size={18} className="flex-shrink-0"/>
-            //                             <div
-            //                                 className="relative max-w-5 truncate text-left text-[12.5px] leading-3 pr-1 "
-            //                                 style={{wordWrap: "break-word"}} >
-            //                                 {user_item.user.includes('@')? user_item.user.split("@")[0] : user_item.user}
-            //                             </div>
-            //                             {hoveredItem === user_item && ( 
-            //                                 <div className="ml-auto mr-4 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"
-            //                                 onMouseEnter={() => {
-            //                                     setHoveredItem(user_item)
-            //                                     setIsButtonHover(false)
-            //                                 }}
-            //                                 onMouseLeave={() => setIsButtonHover(true)}>
-            //                                 {!deletingItem && (
-            //                                     <ActionButton handleClick={(e) => handleOpenDeleteModal(user_item, e)} title="Delete Shared Item">
-            //                                         <IconTrash size={18} />
-            //                                     </ActionButton>
-            //                                 )}
-        
-            //                                 {deletingItem && (
-            //                                     <>
-            //                                         {/* different handledelete */}
-            //                                         <ActionButton handleClick={(e) => handleYSDelete(e, item.id, user_item)} title="Confirm">
-            //                                             <IconCheck size={18} />
-            //                                         </ActionButton>
-        
-            //                                         <ActionButton handleClick={handleCancelDelete} title="Cancel">
-            //                                             <IconX size={18} />
-            //                                         </ActionButton>
-            //                                     </>
-            //                                 )}
-            //                             </div>
-            //                             )}
-            //                         </label>
-                                
-            //                     ))
-            //                 ]
-            //                 }
-            //             />
-                        
+                                            {deletingItem && (
+                                                <>
+                                                    <ActionButton handleClick={handleSWYDelete} title="Confirm">
+                                                        <IconCheck size={18} />
+                                                    </ActionButton>
 
-            //         </div>
-            //     )))
-            // ) 
-        }
+                                                    <ActionButton handleClick={handleCancelDelete} title="Cancel">
+                                                        <IconX size={18} />
+                                                    </ActionButton>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+                                </button>
+                            </div>
+                        ))
+                    )}
+                </div>
+            )}
         </div>
     );
 };
 
 export default SharedItemsList;
-
-
-
-// {hoveredItem === item && ( <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
-                        
-//                                             <div className="ml-auto mr-4 absolute right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"
-//                                             onMouseEnter={() => {
-//                                                 setHoveredItem(item)
-//                                                 setIsButtonHover(false)
-//                                             }}
-//                                             onMouseLeave={() => setIsButtonHover(true)}>
-//                                             {!deletingItem && (
-//                                                 <ActionButton handleClick={(e) => handleOpenDeleteModal(item, e)} title="Delete Shared Item">
-//                                                     <IconTrash size={18} />
-//                                                 </ActionButton>
-//                                             )}
-        
-//                                             {deletingItem && (
-//                                                 <>
-//                                                     {/* different handledelete */}
-//                                                     <ActionButton handleClick={handleDelete} title="Confirm">
-//                                                         <IconCheck size={18} />
-//                                                     </ActionButton>
-        
-//                                                     <ActionButton handleClick={handleCancelDelete} title="Cancel">
-//                                                         <IconX size={18} />
-//                                                     </ActionButton>
-//                                                 </>
-//                                             )}
-//                                         </div>    
-//                         </div>)}

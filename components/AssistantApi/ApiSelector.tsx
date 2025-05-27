@@ -10,6 +10,7 @@ interface ApiItemSelectorProps {
     disableSelection?: boolean;
     apiFilter?: (api: any[]) => any[];
     onClickApiItem?: (api: any) => void;
+    showDetails?: boolean;
   }
   
 export const ApiItemSelector: React.FC<ApiItemSelectorProps> = ({ 
@@ -18,7 +19,8 @@ export const ApiItemSelector: React.FC<ApiItemSelectorProps> = ({
     setSelectedApis, 
     apiFilter = (apis) => apis,
     onClickApiItem,
-    disableSelection
+    disableSelection,
+    showDetails
   }) => {
 
     const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('name'); 
@@ -42,7 +44,7 @@ export const ApiItemSelector: React.FC<ApiItemSelectorProps> = ({
 
     return (
         <>
-        {displayedApis.length > 0  && opsSearchToggleButtons(opSearchBy, setOpSearchBy, apiSearchTerm, setApiSearchTerm, " mt-4 ml-auto mr-2 mb-6", '')}
+        {displayedApis.length > 0  && opsSearchToggleButtons(opSearchBy, setOpSearchBy, apiSearchTerm, setApiSearchTerm, " mt-4 ml-auto mb-6", '', showDetails)}
         {filteredApis.length > 0 ? (
                 <div className="max-h-[500px] overflow-y-auto">
                     {filteredApis.sort((a, b) => a.name[0].localeCompare(b.name[0]))
@@ -54,6 +56,7 @@ export const ApiItemSelector: React.FC<ApiItemSelectorProps> = ({
                             index={index}
                             onChange={disableSelection ? undefined : handleUpdateApiItem} 
                             onClick={onClickApiItem}
+                            showDetails={showDetails}
                         />
                     ))}
                 </div>

@@ -307,10 +307,13 @@ interface Props {
   messageIsStreaming: boolean;
   message: Message;
   conversationId: string;
+  width?: () => number;
 }
 
-const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStreaming }) => {
+const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStreaming, width }) => {
+
   const getChatContainerWidth = () => {
+    if (width) return width();
     const container = document.querySelector(".chatcontainer");
     if (container) {
       return `${container.getBoundingClientRect().width * 0.68}px`;
@@ -381,14 +384,18 @@ const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStrea
   agentLog = agentLog.data.result;
 
   return (
-    <div className="mt-3" style={{width: (chatContainerWidth)}} key={message.id}>
-      <AgentFileList files={files} />
-      <ExpansionComponent
-        title="Reasoning / Actions"
-        content={agentLog.map((msg: any, idx: number) => (
-          <div key={idx}>{getAgentLogItem(msg)}</div>
-        ))}
-      />
+    <div className="mt-3 pointer-events-none" key={message.id} style={{width: (chatContainerWidth)}}>
+      <div className="pointer-events-auto">
+        <AgentFileList files={files} />
+      </div>
+      <div className="pointer-events-auto max-w-full overflow-hidden">
+        <ExpansionComponent
+          title="Reasoning / Actions"
+          content={agentLog.map((msg: any, idx: number) => (
+            <div key={idx} className="max-w-full overflow-hidden">{getAgentLogItem(msg)}</div>
+          ))}
+        />
+      </div>
     </div>
   );
 };

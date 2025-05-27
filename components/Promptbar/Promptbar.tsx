@@ -49,7 +49,7 @@ const Promptbar = () => {
   }, [folderSort]);
 
   const {
-    state: { prompts, defaultModelId, showPromptbar, statsService, featureFlags},
+    state: { prompts, folders, defaultModelId, showPromptbar, statsService, featureFlags},
     dispatch: homeDispatch,
     handleCreateFolder,
   } = useContext(HomeContext);
@@ -60,6 +60,12 @@ const Promptbar = () => {
       promptsRef.current = prompts;
     }, [prompts]);
   
+  const foldersRef = useRef(folders);
+
+  useEffect(() => {
+      foldersRef.current = folders;
+  }, [folders]);
+
   const {
     state: { searchTerm, filteredPrompts },
     dispatch: promptDispatch,
@@ -261,6 +267,11 @@ const Promptbar = () => {
     }
   }, [searchTerm, prompts]);
 
+  const promptsWithNoFolders = () => {
+    return filteredPrompts.filter((prompt) => !prompt.folderId || 
+               !foldersRef.current.find((f: FolderInterface) => f.id === prompt.folderId));
+  }
+
   return (
     <PromptbarContext.Provider
       value={{
@@ -279,7 +290,7 @@ const Promptbar = () => {
         addItemButtonTitle={t('Prompt Template')}
         itemComponent={
           <Prompts
-            prompts={filteredPrompts.filter((prompt) => !prompt.folderId)}
+            prompts={promptsWithNoFolders()}
           />
         } 
         folderComponent={<PromptFolders sort={folderSort}/>}
@@ -288,7 +299,6 @@ const Promptbar = () => {
         handleSearchTerm={(searchTerm: string) =>
           promptDispatch({ field: 'searchTerm', value: searchTerm })
         }
-        toggleOpen={handleTogglePromptbar}
         handleCreateItem={handleCreatePrompt}
         handleCreateFolder={() => {
           const name = window.prompt("Folder name:");

@@ -164,7 +164,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
             
             }
             { showModelsSearch && Object.keys(availableModels).length > 0 && !isAddingAvailModel &&
-            <div className="ml-auto mr-16" style={{transform: 'translateY(14px)'}}>
+            <div className="ml-auto mr-16">
                 <Search
                 placeholder={'Search Models...'}
                 searchTerm={modelsSearchTerm}
@@ -336,7 +336,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
 
                     <table id="supportedModelsTable" className="mt-4 border-collapse w-full" >
                         <thead>
-                        <tr className="bg-gray-200 dark:bg-[#373844] text-sm">
+                        <tr className="gradient-header text-sm">
                             {['Name', 'ID',  'Provider', 'Available', 'Supports Images', 'Supports Reasoning',
                                 'Supports System Prompts', 'Additional System Prompt',
                                 'Description', 'Input Context Window', 'Output Token Limit', 

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { AstWorkflow, Step } from '@/types/assistantWorkflows';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { registerAstWorkflowTemplate, listAstWorkflowTemplates, getAstWorkflowTemplate, updateAstWorkflowTemplate, deleteAstWorkflowTemplate } from '@/services/assistantWorkflowService';
-import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconCaretDown, IconCaretRight, IconArrowUp, IconArrowDown, IconLoader2, IconInfoCircle, IconPresentation, IconPuzzle, IconPuzzleFilled, IconEdit, IconEditOff } from '@tabler/icons-react';
+import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconCaretDown, IconCaretRight, IconArrowUp, IconArrowDown, IconLoader2, IconInfoCircle, IconPresentation, IconPuzzle, IconPuzzleFilled, IconEdit, IconEditOff, IconRobot } from '@tabler/icons-react';
 import cloneDeep from 'lodash/cloneDeep';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import ExpansionComponent from '../Chat/ExpansionComponent';
@@ -26,8 +26,6 @@ interface WorkflowTemplateBuilderProps {
   initialTemplate?: AstWorkflow;
   onRegister?: (template: AstWorkflow) => void;
   isBaseTemplate?: boolean;
-  width?: () => number;
-  height?: () => number;
 }
 
 const defaultStep: Step = {
@@ -90,7 +88,7 @@ const getSegmentColor = (segment: string): string => {
 };
 
 export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = ({
-  isOpen, onClose, initialTemplate, onRegister, isBaseTemplate = true, width, height }) => {
+  isOpen, onClose, initialTemplate, onRegister, isBaseTemplate = true }) => {
 
   const { state: {featureFlags} } = useContext(HomeContext);
   const [selectedWorkflow, setSelectedWorkflow] = useState<AstWorkflow>(emptyTemplate(isBaseTemplate));
@@ -117,6 +115,8 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
 
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [detailedPreview, setDetailedPreview] = useState(false);
+
+  const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
 
 
       // we need to detect name changes if there is a tag predefined because then the existing sender list is empty
@@ -1104,7 +1104,13 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             }
           /></div> }
           /> 
-          <div className="absolute right-1 top-[-6px]">
+          <div className="absolute right-1 top-[-6px] flex flex-row gap-3">
+             {/* <button
+              className={`px-2  ${buttonStyle}`}
+              onClick={() => {}}>
+              {isGeneratingWorkflow ? <IconLoader2 size={18} className='animate-spin' /> : <IconRobot size={18} />}
+              AI Generate Workflow
+            </button> */}
             <button
               className={`px-3  ${buttonStyle}`}
               onClick={() => setIsPreviewing(true)}>
@@ -1189,7 +1195,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
     <Modal
       title={initialTemplate?.templateId ? 'Edit Assistant Workflow Template' : 'Create Assistant Workflow Template'}
       content={
-        <div className="flex flex-row" style={{height: (height ?height() : window.innerHeight * 0.9) * 0.8}}>
+        <div className="flex flex-row" style={{height: (window.innerHeight * 0.9) * 0.8}}>
                 {renderSidebar()}
                 { isPreviewing ? renderPreviewContent() : renderMainContent()}
         </div>
@@ -1202,11 +1208,9 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
         onClose();
       }}
       disableSubmit={isSubmitting}
-      width={() => width ? width() : Math.min(1000, window.innerWidth * 0.9)}
-      height={() => height ? height() : window.innerHeight * 0.9}
     />
   );
 };
 
-const buttonStyle = "py-2 border rounded text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2";
+const buttonStyle = "py-2 border rounded text-sm hover:bg-neutral-200 dark:hover:bg-neutral-700 flex items-center gap-2";
 

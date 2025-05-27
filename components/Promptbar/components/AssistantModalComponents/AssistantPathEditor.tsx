@@ -198,7 +198,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
 
     return (
         <>
-            <div className="flex flex-row">
+            <div className="mt-4 flex flex-row">
                 <div className="text-sm font-bold text-black dark:text-neutral-200">
                     Publish Assistant Path
                 </div>

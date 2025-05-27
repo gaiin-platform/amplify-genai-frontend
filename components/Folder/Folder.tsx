@@ -10,6 +10,9 @@ import {
   IconPinFilled,
   IconEyeOff,
   IconSettingsBolt,
+  IconCalendarEvent,
+  IconCaretRightFilled,
+  IconCaretDownFilled,
 } from '@tabler/icons-react';
 import {
   KeyboardEvent,
@@ -25,17 +28,19 @@ import HomeContext from '@/pages/api/home/home.context';
 
 import React from 'react';
 import { baseAssistantFolder, isBaseFolder } from '@/utils/app/basePrompts';
-import ActionButton from '../ReusableComponents/ActionButton';
+import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { hideGroupFolder, saveFolders } from '@/utils/app/folders';
 import { Group, GroupAccessType } from '@/types/groups';
 import { folder } from 'jszip';
 import { useSession } from 'next-auth/react';
+import { getSettings } from '@/utils/app/settings';
+import { getDateName } from '@/utils/app/date';
 
 interface Props {
   currentFolder: FolderInterface;
   searchTerm: string;
   handleDrop: (e: any, folder: FolderInterface) => void;
-  folderComponent: (ReactElement | undefined)[];
+  folderComponent: (ReactElement | undefined)[] | null;
 }
 
 const Folder = ({
@@ -50,11 +55,16 @@ const Folder = ({
 
   const { data: session } = useSession();
   const user = session?.user?.email;
+  const theme = getSettings(featureFlags).theme;
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
+  // Check if this folder is today's folder
+  const todaysDateName = getDateName();
+  const isTodaysFolder = currentFolder.name === todaysDateName;
+  
+  const [isOpen, setIsOpen] = useState(isTodaysFolder); // Expand today's folder by default
   const [isHovered, setIsHovered] = useState(false);
   const [checkFolders, setCheckFolders] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
@@ -111,7 +121,7 @@ const Folder = ({
   };
 
   const highlightDrop = (e: any) => {
-    if (canDropInto) e.target.style.background = '#343541';
+    if (canDropInto) e.target.style.background = theme === 'dark' ? '#343541' : '#e7e8e9';
   };
 
   const removeHighlight = (e: any) => {
@@ -130,9 +140,10 @@ const Folder = ({
     if (searchTerm) {
       setIsOpen(true);
     } else {
-      setIsOpen(false);
+      // Keep today's folder open by default, close others
+      setIsOpen(isTodaysFolder);
     }
-  }, [searchTerm]);
+  }, [searchTerm, isTodaysFolder]);
 
   useEffect(() => {
     if (selectedConversation?.folderId === currentFolder.id) {
@@ -141,9 +152,14 @@ const Folder = ({
   }, [selectedConversation, currentFolder]);
 
   useEffect(() => {
-    if (currentFolder.type === 'chat') setIsOpen(allFoldersOpenConvs);
-    if (currentFolder.type === 'prompt') setIsOpen(allFoldersOpenPrompts);
-  }, [allFoldersOpenConvs, allFoldersOpenPrompts]);
+    // Always keep today's folder open, otherwise respect the global folder state
+    if (isTodaysFolder) {
+      setIsOpen(true);
+    } else {
+      if (currentFolder.type === 'chat') setIsOpen(allFoldersOpenConvs);
+      if (currentFolder.type === 'prompt') setIsOpen(allFoldersOpenPrompts);
+    }
+  }, [allFoldersOpenConvs, allFoldersOpenPrompts, isTodaysFolder]);
 
   useEffect(() => {
       if (checkingItemType === 'ChatFolders' && currentFolder.type === 'chat') setCheckFolders(true);
@@ -169,21 +185,38 @@ const Folder = ({
     return interfaceAccessGroups.includes(currentFolder.id) && featureFlags.assistantAdminInterface;
   }
 
+  useEffect(() => {
+    if (isRenaming) {
+      const handleClickOutside = (event: MouseEvent) => {
+        const renameInput = document.getElementById('renameInput');
+        const confirmButton = document.getElementById('confirm');
+        const cancelButton = document.getElementById('cancel');
+        
+        if (renameInput && !renameInput.contains(event.target as Node) && 
+            confirmButton && !confirmButton.contains(event.target as Node) &&
+            cancelButton && !cancelButton.contains(event.target as Node)) {
+          setIsRenaming(false);
+          setRenameValue('');
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isRenaming]);
 
   return (
     <>
-        <div className="relative flex items-center"
+        <div className="relative flex items-center enhanced-folder"
             id="folderContainer"  
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
+            onMouseEnter={() => !isTodaysFolder && setIsHovered(true)}
+            onMouseLeave={() => !isTodaysFolder && setIsHovered(false)}
         >
           {isRenaming ? (
             <div className="flex w-full items-center gap-3 bg-neutral-200 dark:bg-[#343541]/90 p-3 rounded">
-              {isOpen ? (
-                <IconCaretDown className='flex flex-shrink-0' size={18} />
-              ) : (
-                <IconCaretRight className='flex flex-shrink-0' size={18} />
-              )}
+              <IconPencil size={18} className="text-gray-500" />
               <input
                 className="mr-12 flex-1 overflow-hidden overflow-ellipsis border-neutral-400 bg-transparent text-left text-[12.5px] leading-3 dark:text-white outline-none focus:border-neutral-100"
                 id="renameInput"
@@ -196,31 +229,45 @@ const Folder = ({
             </div>
           ) : (
             <button
-              className={`flex w-full cursor-pointer items-center gap-3 rounded-lg p-3 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90`}
+              className={`enhanced-folder-title group flex w-full cursor-pointer items-center gap-3 rounded-lg text-sm transition-all duration-200 ${isOpen && !isTodaysFolder ? 'enhanced-folder-open' : ''} ${isTodaysFolder ? 'enhanced-today-folder' : ''}`}
               id={"dropDown"}
-              onClick={() => setIsOpen(!isOpen)}
+              onClick={() => {
+                // Don't allow collapsing today's folder
+                if (isTodaysFolder && isOpen) return;
+                setIsOpen(!isOpen);
+              }}
               onDrop={(e) => dropHandler(e)}
               onDragOver={allowDrop}
               onDragEnter={highlightDrop}
               onDragLeave={removeHighlight}
-              title={isOpen ? "Collapse folder" : "Expand folder"}
+              title={isTodaysFolder ? "Today folder (always expanded)" : (isOpen ? "Collapse folder" : "Expand folder")}
             >
-              {isOpen ? (
-                <IconCaretDown size={18} />
-              ) : (
-                <IconCaretRight size={18} />
+              {!isTodaysFolder && (
+                <div className="transition-transform duration-200 ease-in-out transform relative">
+                  <div className="group absolute inset-0 bg-neutral-200 dark:bg-neutral-700/20 rounded-full opacity-0 scale-0 transition-all duration-300 group-hover:opacity-20 group-hover:scale-100"></div>
+                  {isOpen ? (
+                    currentFolder.pinned ?
+                      <IconCaretDownFilled className='flex flex-shrink-0 !text-blue-500' size={20} />
+                    : <IconCaretDown className='flex flex-shrink-0' size={20} />
+                  ) : ( currentFolder.pinned ?
+                        <IconCaretRightFilled className='icon-pop-group flex flex-shrink-0 !text-blue-500' size={20} />
+                      : <IconCaretRight className='icon-pop-group flex flex-shrink-0' size={20} />
+                  )}
+                </div>
               )}
 
               <div 
                 id={"dropName"}
-                className="relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
-                {currentFolder.name}
+                className="sidebar-text relative max-h-5 flex-1 overflow-hidden text-ellipsis whitespace-nowrap break-all text-left font-medium flex items-center">
+                <span className={`${isTodaysFolder ? "text-neutral-900 dark:text-white font-semibold text-[0.925rem]" : ""} truncate`}>
+                  {isTodaysFolder ? "Today" : currentFolder.name}
+                </span>
               </div>
             </button>
           )}
 
           {(isDeleting || isRenaming) && (
-            <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
+            <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded-md shadow-sm overflow-hidden">
               <ActionButton
                 id = {"confirm"}
                 handleClick={(e) => {
@@ -235,6 +282,7 @@ const Folder = ({
                   setIsDeleting(false);
                   setIsRenaming(false);
                 }}
+                className="enhanced-action-button text-green-600 hover:bg-green-100 dark:hover:bg-green-900/20"
               >
                 <IconCheck size={18} />
               </ActionButton>
@@ -245,6 +293,7 @@ const Folder = ({
                   setIsDeleting(false);
                   setIsRenaming(false);
                 }}
+                className="enhanced-action-button text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20"
               >
                 <IconX size={18} />
               </ActionButton>
@@ -263,8 +312,8 @@ const Folder = ({
             </div>
           )}
 
-          {!isDeleting && !isRenaming && isHovered && !checkFolders && (
-            <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded">
+          {!isDeleting && !isRenaming && isHovered && !checkFolders && !isTodaysFolder && (
+            <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded-md shadow-sm overflow-hidden fade-in">
               <ActionButton
                 handleClick={(e) => {
                   e.stopPropagation();
@@ -272,10 +321,11 @@ const Folder = ({
                 }}
                 title="Pin Folder To The Top"
                 id="pinButton"
+                className="enhanced-action-button hover:bg-neutral-200 dark:hover:bg-neutral-700/20"
               >
                 { currentFolder.pinned ?
                   <IconPinFilled className={"text-blue-500"} size={18} /> :
-                  <IconPin size={18} /> 
+                  <IconPin size={18} className="text-gray-500 dark:text-gray-400" /> 
                 }
               </ActionButton>
               {currentFolder.isGroupFolder && 
@@ -294,8 +344,9 @@ const Folder = ({
                     
                   }}
                   title="Open In Assistant Admin Interface"
+                  className="enhanced-action-button hover:bg-purple-100 dark:hover:bg-purple-900/20"
                 >
-                    <IconSettingsBolt size={18} /> 
+                    <IconSettingsBolt size={18} className="text-purple-500" /> 
                 </ActionButton>}
 
                 <ActionButton
@@ -305,8 +356,9 @@ const Folder = ({
                 }}
                 title="Hide Folder"
                 id="hideButton"
+                className="enhanced-action-button hover:bg-gray-200 dark:hover:bg-gray-700/50"
               >
-                  <IconEyeOff size={18} /> 
+                  <IconEyeOff size={18} className="text-gray-500 dark:text-gray-400" /> 
               </ActionButton>
               </>
               }
@@ -319,8 +371,9 @@ const Folder = ({
                 }}
                 title="Rename Folder"
                 id="renameButton"
+                className="enhanced-action-button hover:bg-green-100 dark:hover:bg-green-900/20"
               >
-                <IconPencil size={18} />
+                <IconPencil size={18} className="text-green-600 dark:text-green-400" />
               </ActionButton>
 
               <ActionButton
@@ -330,8 +383,9 @@ const Folder = ({
                 }}
                 title="Delete Folder"
                 id="deleteButton"
+                className="enhanced-action-button hover:bg-red-100 dark:hover:bg-red-900/20"
               >
-                <IconTrash size={18} />
+                <IconTrash size={18} className="text-red-500" />
               </ActionButton>
               </>}
             </div>

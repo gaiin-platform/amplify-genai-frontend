@@ -4,6 +4,9 @@ import {
     IconShare,
     IconDownload,
     IconRocket,
+    IconBoxAlignTopFilled,
+    IconBoxAlignTopRightFilled,
+    IconChevronRight,
 } from '@tabler/icons-react';
 import {
     MutableRefObject,
@@ -56,9 +59,8 @@ import { downloadDataSourceFile } from '@/utils/app/files';
 import { ArtifactsSaved } from './ArtifactsSaved';
 import React from 'react';
 import { PromptHighlightedText } from './PromptHighlightedText';
-import { AccountDialog } from '../Settings/AccountComponents/AccountDialog';
 import { getSettings } from '@/utils/app/settings';
-import { filterModels } from '@/utils/app/models';
+import { checkAvailableModelId, filterModels } from '@/utils/app/models';
 import { promptForData } from '@/utils/app/llm';
 import cloneDeep from 'lodash/cloneDeep';
 import { useSession } from 'next-auth/react';
@@ -144,15 +146,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
         }, [availableModels]);
 
+        const availableAstModelId = (astModelId: string | undefined) => {
+            if (!astModelId) return undefined;
+            return selectedAssistant?.definition?.data?.model && checkAvailableModelId(selectedAssistant.definition.data.model, availableModels);
+        }
+
         const initSelectedModel = () => {
-            const id =  selectedAssistant?.definition?.data?.model || selectedConversation?.model?.id || defaultModelId || getDefaultModelIdFromLocalStorage();
+            const initSelectedAstModel = availableAstModelId(selectedAssistant?.definition?.data?.model);
+            const id =  initSelectedAstModel || selectedConversation?.model?.id || defaultModelId || getDefaultModelIdFromLocalStorage();
             if (id && filteredModels.find((m: Model) => m.id == id)) return id;
 
-            if (filteredModels.length > 0 && selectedConversation) {
-                const updatedModel = filteredModels[0];
-                handleUpdateSelectedConversation({...selectedConversation, model: updatedModel});
-                return updatedModel.id;
-            }
+            // if (filteredModels.length > 0 && selectedConversation) {
+            //     const updatedModel = filteredModels[0];
+            //     handleUpdateSelectedConversation({...selectedConversation, model: updatedModel});
+            //     // return updatedModel.id;
+            // }
 
             return undefined;
         }
@@ -180,6 +188,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             const initialSliderValue = Math.max(0, Math.min(6, sliderValue));
             return Math.round(initialSliderValue * 10) / 10; // Round to the nearest 0.1
         };
+
+        const getIsBarSticky = () => {
+            return localStorage.getItem('stickyChatbar') === 'true';
+        }
+
         
         const [plugins, setPlugins] = useState<Plugin[] | null>(null);
         const {handleSend:handleSendService} = useSendService();
@@ -197,6 +210,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [showScrollDownButton, setShowScrollDownButton] = useState<boolean>(false);
         const [promptTemplate, setPromptTemplate] = useState<Prompt | null>(null);
         const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
+
+        const [isBarSticky, setIsBarSticky] = useState(getIsBarSticky());
+        const [isPillExpanded, setIsPillExpanded] = useState(false);
 
         const messagesEndRef = useRef<HTMLDivElement>(null);
         const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -280,9 +296,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (!plugins && settingRef.current) setPlugins(getActivePlugins(settingRef.current));
         }, [featureFlags]);
 
+
         useEffect(() =>{
-            const astModel = selectedAssistant?.definition?.data?.model;
-            
+            let astModel = availableAstModelId(selectedAssistant?.definition?.data?.model);
+
             if (astModel && selectedModelId !== astModel) setSelectedModelId(astModel);
             if (astModel && selectedConversation && selectedConversation.model?.id !== astModel) {
                 const model:Model | undefined = Object.values(availableModels).find(
@@ -792,10 +809,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         };
         
 
-        const handleSettings = () => {
-            setShowSettings(!showSettings);
-        };
-
         const onClearAll = () => {
             if (
                 confirm(t<string>('Are you sure you want to clear all messages?')) &&
@@ -1005,7 +1018,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 
                                                 <div className="relative flex flex-row w-full items-center"> 
                                                     <div className="flex-grow">
-                                                        <ModelSelect modelId={selectedModelId} isDisabled={selectedAssistant?.definition?.data?.model}/>
+                                                        <ModelSelect modelId={selectedModelId} isDisabled={availableAstModelId(selectedAssistant?.definition?.data?.model)}/>
                                                     </div>
                                                     <div className='mt-[-5px] absolute top-0 right-7 flex justify-end items-center'>
                                                         {featureFlags.storeCloudConversations && <CloudStorage iconSize={20} /> }
@@ -1130,123 +1143,215 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     )}
 
                                     
-                                    <AccountDialog open={isAccountDialogVisible} onClose={() => setIsAccountDialogVisible(false)} />
+                                    {/* <AccountDialog open={isAccountDialogVisible} onClose={() => setIsAccountDialogVisible(false)} /> */}
                                     {featureFlags.integrations && <IntegrationsDialog open={isIntegrationsOpen} onClose={()=>{setIsIntegrationsOpen(false)}}/>}
 
                                     <div
                                        id="chatUpperMenu"
-                                       className="items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
-                                        {featureFlags.mtdCost  && (
+                                       className={isBarSticky ? 
+                                           "items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200 text-gray-800 dark:text-gray-200" :
+                                           "sticky top-4 mt-4 flex justify-center items-center z-10"
+                                       }>
+                                       
+                                        {isBarSticky ? (
+                                            // Sticky bar content
                                             <>
+                                                {featureFlags.mtdCost && (
+                                                    <button
+                                                        className="ml-2 mr-1 cursor-pointer hover:opacity-50 flex flex-row items-center"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setIsAccountDialogVisible(true);
+                                                        }}
+                                                        title="Month-To-Date Cost"
+                                                        id="month-to-date-cost"
+                                                    >
+                                                        <div className={`text-[0.93rem] ${chat_button_blue_color} mr-1`}>
+                                                            <div className="ml-1">MTD Cost: {mtdCost}</div>
+                                                        </div> {"|"}
+                                                    </button>
+                                                )}          
                                                 <button
-                                                    className="ml-2 mr-2 cursor-pointer hover:opacity-50"
-                                                    disabled={messageIsStreaming}
+                                                    className="font-medium mx-1 cursor-pointer hover:opacity-50 flex flex-row items-center"
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
-                                                        setIsAccountDialogVisible(true);
+                                                        setShowSettings(true);
+                                                        if (!messageIsStreaming) handleScrollUp();
+                                                        
                                                     }}
-                                                    title="Month-To-Date Cost"
-                                                    id="month-to-date-cost"
                                                 >
-                                                    <div className={`text-[0.93rem] ${chat_button_blue_color}`}>
-                                                        <div className="ml-1">MTD Cost: {mtdCost}</div>
-                                                    </div>
+                                                    {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
+                                                                        ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name 
+                                                                        : selectedConversation?.model?.name || ''}
+                                                    {' | '}
+                                                                        
                                                 </button>
-                                                |
-                                            </>
-                                        )}               
-                                         {/*  Removing Workspaces:    old   { !isArtifactOpen ? `  Workspace: ${workspaceMetadata.name} | `: '' }  */}
-                                         {/* Should be in sync with selectedModelId now:      old   selectedConversation?.model?.name || ''*/}
-                                        {` `}{selectedAssistant && selectedAssistant?.definition?.data?.model ? selectedAssistant.definition.data.model.name : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                handleSettings();
 
-                                                if (!messageIsStreaming) handleScrollUp();
+                                                <div className='flex flex-row'>
+                                                    {t('Temp')} : {`${selectedConversation?.temperature} | `}
                                                 
-                                            }}
-                                            title="Chat Settings"
-                                            id="chatSettings"
-                                        >
-                                            <IconSettings size={18}/>
-                                        </button>
-                                        
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            disabled={messageIsStreaming}
-                                            onClick={onClearAll}
-                                            title="Clear Messages"
-                                            id="clearMessages"
-                                        >
-                                            <IconClearAll size={18}/>
-                                        </button>
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            disabled={messageIsStreaming}
-                                            onClick={() => setIsShareDialogVisible(true)}
-                                            title="Share"
-                                            id="shareChatUpper"
-                                        >
-                                            <IconShare size={18}/>
-                                        </button>
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            disabled={messageIsStreaming}
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                setIsDownloadDialogVisible(true)
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={onClearAll}
+                                                        title="Clear Messages"
+                                                        id="clearMessages"
+                                                    >
+                                                        <IconClearAll size={18}/>
+                                                    </button>
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={() => setIsShareDialogVisible(true)}
+                                                        title="Share"
+                                                        id="shareChatUpper"
+                                                    >
+                                                        <IconShare size={18}/>
+                                                    </button>
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setIsDownloadDialogVisible(true)
 
-                                            }}
-                                            title="Download"
-                                            id="downloadUpper"
-                                        >
-                                            <IconDownload size={18}/>
-                                        </button>
+                                                        }}
+                                                        title="Download"
+                                                        id="downloadUpper"
+                                                    >
+                                                        <IconDownload size={18}/>
+                                                    </button>
 
-                                        {featureFlags.artifacts && 
-                                        <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
-                                        
-                                        {featureFlags.storeCloudConversations &&
-                                        <CloudStorage iconSize={18} />
-                                        }
-                                        {!isArtifactOpen  &&
-                                            <>
-                                            |
-                                            <button
-                                                className="ml-2 mr-2 cursor-pointer hover:opacity-50"
-                                                disabled={messageIsStreaming}
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    homeDispatch({field: 'page', value: 'home'});
-                                                }}
-                                                title="Data Sources"
-                                                id="dateSources"
-                                            >
-                                                <div className={`text-[0.9rem] flex flex-row items-center ${chat_button_blue_color}`}>
-                                                    <div><IconRocket size={18}/></div>
-                                                    <div className="ml-1">Data Sources </div>
+                                                    {featureFlags.artifacts && 
+                                                    <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
+                                                    
+                                                    {featureFlags.storeCloudConversations &&
+                                                    <CloudStorage iconSize={18} />
+                                                    }
+
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        onClick={() => {
+                                                            const updatedIsBarSticky = !isBarSticky;
+                                                            setIsBarSticky(updatedIsBarSticky);
+                                                            localStorage.setItem('stickyChatbar', updatedIsBarSticky.toString());
+                                                        }}
+                                                        title={isBarSticky ? "Unpin Chatbar" : "Pin Chatbar"}
+                                                    >
+                                                        {isBarSticky ?  <IconBoxAlignTopRightFilled size={18}/> : <IconBoxAlignTopFilled size={18}/>}
+                                                    </button>
                                                 </div>
-                                            </button> 
                                             </>
-                                        }
+                                        ) : (
+                                            // Floating pill
+                                            <div 
+                                                className={`
+                                                    relative flex items-center transition-all duration-300 ease-in-out cursor-pointer
+                                                    rounded-full bg-white dark:bg-[#343541] shadow-lg hover:shadow-xl
+                                                    border border-gray-200 dark:border-gray-600 h-10 text-gray-800 dark:text-gray-200
+                                                    ${isPillExpanded ? 'px-6' : 'px-3'}
+                                                `}
+                                                onMouseEnter={() => setIsPillExpanded(true)}
+                                                onMouseLeave={() => setIsPillExpanded(false)}
+                                            >
+                                                {/* Always visible - Model name and expand indicator */}
+                                                <button
+                                                    className="font-medium cursor-pointer hover:opacity-50 flex flex-row items-center"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setShowSettings(true);
+                                                        if (!messageIsStreaming) handleScrollUp();
+                                                        
+                                                    }}
+                                                >
+                                                    {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
+                                                                        ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name 
+                                                                        : selectedConversation?.model?.name || ''}
+                                                    <IconChevronRight 
+                                                        size={16} 
+                                                        className={`ml-2 transition-transform duration-300 ${isPillExpanded ? 'rotate-90' : ''} text-gray-500`}
+                                                    />
+                                                                        
+                                                </button>
+
+                                                {/* Expanded content - appears on hover */}
+                                                <div className={`flex flex-row gap-2 items-center transition-all duration-300 overflow-hidden
+                                                        ${isPillExpanded ? 'max-w-[600px] opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'}
+                                                    `}>
+
+                                                    {t('Temp')} : {selectedConversation?.temperature}
+                                                
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={onClearAll}
+                                                        title="Clear Messages"
+                                                        id="clearMessages"
+                                                    >
+                                                        <IconClearAll size={18}/>
+                                                    </button>
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={() => setIsShareDialogVisible(true)}
+                                                        title="Share"
+                                                        id="shareChatUpper"
+                                                    >
+                                                        <IconShare size={18}/>
+                                                    </button>
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setIsDownloadDialogVisible(true)
+
+                                                        }}
+                                                        title="Download"
+                                                        id="downloadUpper"
+                                                    >
+                                                        <IconDownload size={18}/>
+                                                    </button>
+
+                                                    {featureFlags.artifacts && 
+                                                    <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
+                                                    
+                                                    {featureFlags.storeCloudConversations &&
+                                                    <CloudStorage iconSize={18} />
+                                                    }
+
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        onClick={() => {
+                                                            const updatedIsBarSticky = !isBarSticky;
+                                                            setIsBarSticky(updatedIsBarSticky);
+                                                            localStorage.setItem('stickyChatbar', updatedIsBarSticky.toString());
+                                                        }}
+                                                        title={isBarSticky ? "Unpin Chatbar" : "Pin Chatbar"}
+                                                    >
+                                                        {isBarSticky ?  <IconBoxAlignTopRightFilled size={18}/> : <IconBoxAlignTopFilled size={18}/>}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                     <div ref={modelSelectRef}></div>
                                     
                                         <div 
                                             className="flex flex-col md:gap-6 md:py-3 md:pt-6 lg:px-0 mx-16 ">
-                                            { showSettings && !(selectedAssistant?.definition?.data?.model) &&
+                                            { showSettings && !availableAstModelId(selectedAssistant?.definition?.data?.model) &&
                                                 <div
                                                     className="border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border custom-shadow">
                                                     <ModelSelect modelId={selectedModelId}/>
                                                 </div>
                                             }
-                                            <div
+                                            {/* <div
                                                 id="tagListInChat"
                                                 className="border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border shadow-[0_2px_2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_2px_rgba(0,0,0,0.3)]">
                                                 <TagsList tags={selectedConversation?.tags || []} setTags={
@@ -1260,7 +1365,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         }
                                                     }
                                             }/>
-                                        </div>
+                                        </div> */}
                                         </div>
                                     
 
