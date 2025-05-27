@@ -45,24 +45,24 @@ const AssistantsInUse: React.FC<Props> = ({assistants,assistantsChanged}) => {
     }
 
     return (
-        <div className="flex flex-row pb-4 mt-2">
+        <div className="flex flex-row pb-4 my-1">
             {assistants?.map((assistant, i) => (
                 <div
                     id="assistantChatLabel"
                     key={i}
-                    className={`enhanced-assistant-badge flex flex-row items-center justify-between rounded-full px-3 py-1.5 ml-1 mr-1`}
+                    className={`relative enhanced-assistant-badge flex flex-row items-center justify-between rounded-full px-3 py-1.5 ml-1 mr-1`}
                     style={{ maxWidth: '300px' }}
                 >
                     <div className="flex flex-row items-center gap-1.5">
                         <IconRobot size="16" className="text-white/90"/>
-                        <div className={`truncate font-medium text-sm text-white leading-normal`}
+                        <div className={`truncate font-medium text-sm text-white leading-normal pr-2 mr-2`}
                            style={{ maxWidth: '250px' }}>
                             {getLabel(assistant)}
                         </div>
                     </div>
                     
                     <button
-                        className="ml-2 text-white/70 hover:text-white transition-all"
+                        className="absolute right-2 text-white/70 hover:text-white transition-all"
                         onClick={(e) =>{
                             e.preventDefault();
                             e.stopPropagation();

@@ -323,11 +323,105 @@ export const ChatMessage: FC<Props> = memo(({
         }
     };
 
+    const [isHovered, setIsHovered] = useState(false);
+    const [iconsPosition, setIconsPosition] = useState({ top: 0, right: 0 });
+    const messageRef = useRef<HTMLDivElement>(null);
+
+    const handleMouseEnter = () => {
+        setIsHovered(true);
+        updateIconsPosition();
+    };
+
+    const handleMouseLeave = () => {
+        setIsHovered(false);
+    };
+
+    const isMessageShorterThanViewport = (): boolean => {
+        if (!messageRef.current) return true; // Default to true if ref not available
+        
+        const messageHeight = messageRef.current.getBoundingClientRect().height;
+        const viewportHeight = window.innerHeight;
+        
+        return messageHeight < viewportHeight;
+    };
+
+    const updateIconsPosition = () => {
+        if (messageRef.current) {
+            const rect = messageRef.current.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+            const messageHeight = rect.height;
+            
+            // Step 1: Determine ideal position
+            let idealTop;
+            if (messageHeight > viewportHeight) {
+                // Long message: use viewport center
+                idealTop = viewportHeight / 2;
+            } else {
+                // Short message: use message center
+                idealTop = rect.top + messageHeight / 2;
+            }
+            
+            // Step 2: Constrain within message boundaries (with padding)
+            const messageTop = rect.top;
+            const messageBottom = rect.bottom;
+            const padding = 150; // Minimum distance from message edges - tightened constraint
+            
+            const constrainedTop = Math.max(
+                messageTop + padding, 
+                Math.min(messageBottom - padding, idealTop)
+            );
+            
+            setIconsPosition({
+                top: constrainedTop,
+                right: 20
+            });
+        }
+    };
+
+    useEffect(() => {
+        
+        const handleScroll = (event: Event) => {
+            if (isHovered) updateIconsPosition();
+        };
+        
+        // Try multiple scroll targets to find the right one
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        
+        // Also try listening on the message's parent containers
+        const messageElement = messageRef.current;
+        if (messageElement) {
+            let parent = messageElement.parentElement;
+            while (parent) {
+                parent.addEventListener('scroll', handleScroll, { passive: true });
+                parent = parent.parentElement;
+                if (parent === document.body) break; // Don't go beyond body
+            }
+        }
+        
+        return () => {
+            window.removeEventListener('scroll', handleScroll);
+            
+            // Remove from parent containers
+            const messageElement = messageRef.current;
+            if (messageElement) {
+                let parent = messageElement.parentElement;
+                while (parent) {
+                    parent.removeEventListener('scroll', handleScroll);
+                    parent = parent.parentElement;
+                    if (parent === document.body) break;
+                }
+            }
+        };
+    }, [isHovered]);
+
     // @ts-ignore
     return (
         <div
             className={`group md:px-4 ${msgStyle}`}
             style={{overflowWrap: 'anywhere'}}
+            ref={messageRef}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
         >
 
             {isDownloadDialogVisible && (
@@ -394,7 +488,20 @@ export const ChatMessage: FC<Props> = memo(({
 
                             {!isEditing && (
                                 <div
-                                    className="enhanced-chat-icons px-1 py-2 md:-mr-10 md:ml-4 flex flex-col md:flex-col items-center md:items-start justify-end md:justify-start">
+                                    className={isMessageShorterThanViewport() 
+                                        ? "enhanced-chat-icons px-1 py-2 md:-mr-10 md:ml-4 flex flex-col md:flex-col items-center md:items-start justify-end md:justify-start sticky top-1/2 transform -translate-y-1/2"
+                                        : "enhanced-chat-icons px-1 py-2 flex flex-col gap-1 items-center transition-all duration-300 ease-in-out"
+                                    }
+                                    style={!isMessageShorterThanViewport() ? {
+                                        position: 'fixed',
+                                        top: `${iconsPosition.top}px`,
+                                        right: `${iconsPosition.right}px`,
+                                        transform: 'translateY(-50%)',
+                                        opacity: isHovered && !messageIsStreaming ? 1 : 0,
+                                        visibility: isHovered && !messageIsStreaming ? 'visible' : 'hidden',
+                                        zIndex: 50
+                                    } : undefined}
+                                >
                                     <div className="flex-shrink-0">
                                         {messagedCopied ? (
                                             <IconCheck
@@ -533,7 +640,20 @@ export const ChatMessage: FC<Props> = memo(({
                                 </div>
 
                                 { !isEditing && <div
-                                    className="enhanced-chat-icons px-1 py-2 md:-mr-10 md:ml-4 flex flex-col md:flex-col gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">
+                                    className={isMessageShorterThanViewport() 
+                                        ? "enhanced-chat-icons px-1 py-2 md:-mr-10 md:ml-4 flex flex-col md:flex-col items-center md:items-start justify-end md:justify-start sticky top-1/2 transform -translate-y-1/2"
+                                        : "enhanced-chat-icons mr-8 px-1 py-2 flex flex-col gap-1 items-center transition-all duration-300 ease-in-out"
+                                    }
+                                    style={!isMessageShorterThanViewport() ? {
+                                        position: 'fixed',
+                                        top: `${iconsPosition.top}px`,
+                                        right: `${iconsPosition.right}px`,
+                                        transform: 'translateY(-50%)',
+                                        opacity: isHovered && !messageIsStreaming ? 1 : 0,
+                                        visibility: isHovered && !messageIsStreaming ? 'visible' : 'hidden',
+                                        zIndex: 50
+                                    } : undefined}
+                                >
                                     {messagedCopied ? (
                                         <IconCheck
                                             size={20}

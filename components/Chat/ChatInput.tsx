@@ -781,9 +781,9 @@ export const ChatInput = ({
                 </div>
             }
             <div style={{width: chatContainerWidth}}
-                 className="px-14 absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2 z-15">
+                 className="px-14 absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
 
-                <div className="flex flex-col gap-2 justify-center items-center stretch mx-2 mt-4 flex flex-row last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6 ">
+                <div className="relative z-15 flex flex-col gap-2 justify-center items-center stretch mx-2 mt-4 flex flex-row last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6">
 
                     {!showScrollDownButton && !messageIsStreaming && !artifactIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
                         (selectedConversation && selectedConversation.messages?.length > 0) &&  (
@@ -953,7 +953,7 @@ export const ChatInput = ({
 
 
 
-                    <div className="relative mx-2 flex w-full flex-grow sm:mx-4" style={{transform: 'translateY(16px)'}}>
+                    <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-[#3d3e4c] rounded-md" style={{transform: 'translateY(24px)'}}>
 
                         <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
                             if(asts.length === 0){
@@ -1130,7 +1130,7 @@ export const ChatInput = ({
 
 
                             {showScrollDownButton && (
-                                <div className="absolute bottom-12 right-0 lg:bottom-0 lg:-right-10">
+                                <div className="absolute bottom-12 right-0 lg:bottom-0 lg:-right-10 bg-pink-500 py-2.5 px-1.5 bg-white dark:bg-[#343541]">
                                     <button
                                         className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-300 text-gray-800 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-neutral-200"
                                         onClick={onScrollDownClick}
@@ -1169,7 +1169,7 @@ export const ChatInput = ({
                     </div>
 
 
-                    <div className="h-6 w-full flex flex-row gap-2 items-center ">
+                    <div className="h-8 w-full flex flex-row gap-2 items-center bg-white dark:bg-[#343541] mt-[-8px]">
 
 
                         {featureFlags.dataSourceSelectorOnInput && (
